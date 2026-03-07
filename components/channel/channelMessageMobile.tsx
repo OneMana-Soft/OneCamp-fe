@@ -12,6 +12,7 @@ import type { StandardReaction, SyncCustomReaction } from "@/types/reaction"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import {app_channel_path, app_chat_path, app_user} from "@/types/paths"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { MessageAttachments } from "@/components/message/MessageAttachments"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { BottomMenu } from "@/components/message/bottomMenu"
@@ -179,19 +180,21 @@ const ChannelMessageMobileComponent = ({
         [postInfo.post_attachments, channelId, dispatch],
     )
 
-    const handleOnCLick = useCallback(() => {
-        setTimeout(() => {
-            router.push(`${app_channel_path}/${channelId}/${postInfo.post_uuid}`)
-        }, 100)
-    }, [router, channelId, postInfo.post_uuid])
+    const postHref = `${app_channel_path}/${channelId}/${postInfo.post_uuid}`
+
+    const handleOnClick = useCallback((e: React.MouseEvent) => {
+        // Prevent navigation if clicking on interactive elements
+        if ((e.target as HTMLElement).closest('button, a, .interactive')) return;
+        router.push(postHref);
+    }, [router, postHref]);
 
     return (
-        <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnCLick}>{c}</div>}>
+        <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
             <div className="flex p-4 space-x-4 select-none" {...longPressEvent}>
                 <div className="h-12 w-12 flex-shrink-0" onClick={handleUserClick}>
                     <ChannelMessageAvatar
                         userName={userInfoState.userName || postInfo.post_by.user_name}
-                        userProfileKey={userInfoState.userName ? userInfoState.profileKey : postInfo.post_by.user_profile_object_key}
+                        userProfileKey={userInfoState.profileKey ?? postInfo.post_by.user_profile_object_key}
                     />
                 </div>
                 <div className="w-full">
@@ -253,7 +256,7 @@ const ChannelMessageMobileComponent = ({
                     )}
 
                     {postInfo.post_comments && postInfo.post_comment_count && (
-                        <div className="mb-3" onClick={handleOnCLick}>
+                        <div className="mb-3">
                             <MessageReplyCount
                                 replyCount={postInfo.post_comment_count}
                                 lastCommentCreatedAt={postInfo.post_comments[postInfo.post_comments.length - 1].comment_created_at}

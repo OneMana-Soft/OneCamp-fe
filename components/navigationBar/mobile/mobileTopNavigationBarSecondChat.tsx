@@ -1,7 +1,7 @@
 "use client"
 
 import {usePathname} from "next/navigation";
-import {Star} from "lucide-react";
+import {MoreVertical, Star} from "lucide-react";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {getStaticPaths} from "next/dist/build/templates/pages";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
@@ -46,20 +46,21 @@ export function MobileTopNavigationBarSecondChat({chatUUID}:{chatUUID: string}) 
 
     const isOnline = currentStatus === USER_STATUS_ONLINE && currentDeviceCount > 0;
     return (
-        <div className='flex justify-center  px-2' onClick={()=>{dispatch(openUI({ key: 'otherUserProfile', data: {userUUID:chatUUID} }))}}>
-
-            <div className='font-bold flex justify-center items-center space-x-3 text-lg text-center'>
-                    <div className='relative'>
-                        <ChatUserAvatar userName={otherUserInfo.data?.data.user_name}
-                                        userProfileObjKey={otherUserInfo.data?.data.user_profile_object_key}/>
-                        {isOnline && <div className={`h-2.5 w-2.5 ring-[2px] ring-background rounded-full bg-green-500 absolute bottom-0 right-0`}></div>}
-
-                    </div>
-                    <div className={'truncate overflow-auto overflow-ellipsis'}>{otherUserInfo.data?.data.user_name}</div>
+        <div className='flex justify-center px-2 relative items-center w-full h-full'>
+            <div 
+                className='font-bold flex justify-center items-center space-x-3 text-lg text-center cursor-pointer max-w-[80%]' 
+                onClick={()=>{dispatch(openUI({ key: 'otherUserProfile', data: {userUUID:chatUUID} }))}}
+            >
+                <div className='relative flex-shrink-0'>
+                    <ChatUserAvatar userName={userStatusState.userName  || otherUserInfo.data?.data.user_name}
+                                    userProfileObjKey={userStatusState.profileKey || otherUserInfo.data?.data.user_profile_object_key}/>
+                    {isOnline && <div className={`h-2.5 w-2.5 ring-[2px] ring-background rounded-full bg-green-500 absolute bottom-0 right-0`}></div>}
+                </div>
+                <div className={'truncate overflow-hidden text-ellipsis whitespace-nowrap max-w-[120px] sm:max-w-[200px]'}>{userStatusState.userName || otherUserInfo.data?.data.user_name}</div>
+                <div className='flex-shrink-0'>
                     <ChatUserEmojiStatus userUUID={chatUUID}/>
+                </div>
             </div>
-
         </div>
-
     );
 }

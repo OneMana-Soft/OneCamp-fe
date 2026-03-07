@@ -600,6 +600,11 @@ export const channelSlice = createSlice({
 
             state.channelCallStatus[channelId] = {active:callStatus}
 
+        },
+
+        // SYNC: Clear all loaded channel posts to force API refetch after stale reconnection
+        invalidateChannelPosts: (state) => {
+            state.channelPosts = {} as ExtendedPosts
         }
     }
 });
@@ -633,7 +638,8 @@ export const {
     updateChannelMessageReplyIncrement,
     updateChannelMessageReplyDecrement,
     updateChannelCallStatus,
-    updatePostReactionId
+    updatePostReactionId,
+    invalidateChannelPosts
 
 } = channelSlice.actions
 

@@ -11,6 +11,7 @@ interface UseMqttConnectionProps {
     onMessage?: (topic: string, message: Buffer) => void
     onConnect?: () => void
     onDisconnect?: () => void
+    onReconnect?: () => void
     onError?: (error: Error) => void
     userUuid?: string
     dynamicTopicManager?: {
@@ -26,6 +27,7 @@ export const useMqttConnection = ({
                                       onMessage,
                                       onConnect,
                                       onDisconnect,
+                                      onReconnect,
                                       onError,
                                       userUuid,
                                       dynamicTopicManager,
@@ -45,6 +47,7 @@ export const useMqttConnection = ({
     const uniqueClientIdRef = useRef<string | null>(null)
     const connectionPending = useRef<boolean>(false)
     const settleDelayRef = useRef<NodeJS.Timeout | null>(null)
+    const hasConnectedOnceRef = useRef<boolean>(false)
 
     const clearReconnectTimeout = useCallback(() => {
         if (reconnectTimeoutRef.current) {
@@ -120,10 +123,17 @@ export const useMqttConnection = ({
             // console.log("[MQTT] Connection stable, reconnect counter reset")
         }, 5000)
 
+        // RECONNECTION TRACKING: Fire onReconnect if this is NOT the first connection
+        if (hasConnectedOnceRef.current) {
+            onReconnect?.()
+        } else {
+            hasConnectedOnceRef.current = true
+        }
+
         onConnect?.()
         flushBuffer()
         flushPendingSubscriptions()
-    }, [onConnect, updateConnectionState, flushBuffer, flushPendingSubscriptions])
+    }, [onConnect, onReconnect, updateConnectionState, flushBuffer, flushPendingSubscriptions])
 
     const handleDisconnect = useCallback(() => {
         // failed connection, so clear the stability timer

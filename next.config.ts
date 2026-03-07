@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
     reactStrictMode: false,
     images: {
+        // unoptimized: true,
         dangerouslyAllowLocalIP: true,
         remotePatterns: [
             {
@@ -13,11 +14,11 @@ const nextConfig: NextConfig = {
             },
             {
                 protocol: 'https',
-                hostname: 'onecamp.minio.onemana.dev',
+                hostname: 'onecamp-minio.onemana.dev',
             },
             {
                 protocol: 'http',
-                hostname: 'onecamp.minio.onemana.dev',
+                hostname: 'onecamp-minio.onemana.dev',
             }
         ],
     },

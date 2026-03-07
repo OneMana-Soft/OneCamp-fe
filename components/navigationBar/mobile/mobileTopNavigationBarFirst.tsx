@@ -1,6 +1,7 @@
 "use client"
 
 import {usePathname, useRouter} from "next/navigation";
+import Link from "next/link";
 import {useDispatch} from "react-redux";
 import {OrgAvatarNav} from "@/components/navigationBar/orgAvatarNav";
 import {openUI} from "@/store/slice/uiSlice";
@@ -37,10 +38,10 @@ export function MobileTopNavigationBarFirst() {
                 if(path.length < 4)
                     return <div onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}}><OrgAvatarNav/></div>;
                 if(path.length < 5) {
-                    return <Button variant='ghost' size='icon' onClick={()=>{router.push(app_channel_path )}}><ArrowLeft className='h-5' /></Button>
+                    return <Link href={app_channel_path}><Button variant='ghost' size='icon'><ArrowLeft className='h-5' /></Button></Link>
                 }
                 if(path.length < 6) {
-                    return <Button variant='ghost' size='icon' onClick={()=>{router.push(app_channel_path + '/' + path[3])}}><ArrowLeft className='h-5' /></Button>
+                    return <Link href={`${app_channel_path}/${path[3]}`}><Button variant='ghost' size='icon'><ArrowLeft className='h-5' /></Button></Link>
                 }
             case "chat":
 

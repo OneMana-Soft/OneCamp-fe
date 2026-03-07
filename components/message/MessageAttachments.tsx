@@ -3,7 +3,6 @@ import {useMemo, useState} from "react";
 import {useCanHover} from "@/hooks/useCanHover";
 import {isRenderable} from "@/lib/utils/validation/isRenderable";
 import {cn} from "@/lib/utils/helpers/cn";
-import {ConditionalWrap} from "@/components/conditionalWrap/conditionalWrap";
 import {MessageAttachmentCard} from "@/components/message/MessageAttachmentCard";
 import {FileTypeIcon} from "@/components/fileIcon/fileTypeIcon";
 import {truncateFileName} from "@/lib/utils/format/truncateFileName";
@@ -23,6 +22,7 @@ interface MessageAttachmentProps {
 }
 
 export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl, priority}:MessageAttachmentProps) => {
+    const [loadedUrls, setLoadedUrls] = useState<Record<string, string>>({})
 
 
     const { renderables, nonRenderables } = useMemo(() => {
@@ -74,31 +74,35 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
                                     >
                                         <div className='pointer-events-none absolute inset-0 z-[1] rounded-xl ring-1 ring-inset ring-black/5 dark:ring-white/10' />
 
-                                        <ConditionalWrap
-                                            condition={overflow}
-                                            wrap={(c) => (
-                                                <div className='absolute inset-0 '>
-                                                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center rounded-xl transition-all duration-200 group-hover:bg-black/50">
-                                                        <div className='pointer-events-none text-xl font-medium text-white'>
-                                                            +{renderables.length - (ATTACHMENT_MAX_IMAGE_GRID_SIZE - 1)}
-                                                        </div>
-                                                    </div>
-                                                    {c}
-                                                </div>
-                                            )}
-                                        >
                                             <button
                                                 type="button"
                                                 data-no-ripple="true"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    attachmentSelected(attachment);
+                                                    e.preventDefault();
+                                                    attachmentSelected({
+                                                        ...attachment,
+                                                        initial_url: loadedUrls[attachment.attachment_uuid]
+                                                    });
                                                 }}
-                                                className='relative  flex h-full w-full items-center justify-center overflow-hidden rounded-xl transition-transform duration-300 hover:scale-[1.02]'
+                                                className='relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl transition-transform duration-300 hover:scale-[1.02]'
                                             >
-                                                <MessageAttachmentCard priority={priority} attachment={attachment} autoplay={false} mediaGetURL={mediaGetUrl} className="h-full w-full object-cover"/>
+                                                <MessageAttachmentCard
+                                                    priority={priority}
+                                                    attachment={attachment}
+                                                    autoplay={false}
+                                                    mediaGetURL={mediaGetUrl}
+                                                    className="h-full w-full object-cover"
+                                                    onUrlLoaded={(url) => setLoadedUrls(prev => ({ ...prev, [attachment.attachment_uuid]: url }))}
+                                                />
+                                                {overflow && (
+                                                    <div className="absolute inset-0 z-10 bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition-all duration-200 group-hover:bg-black/50 pointer-events-none">
+                                                        <div className='text-xl font-medium text-white'>
+                                                            +{renderables.length - (ATTACHMENT_MAX_IMAGE_GRID_SIZE - 1)}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </button>
-                                        </ConditionalWrap>
                                     </div>
                                 )
                             })}

@@ -9,31 +9,14 @@ import { CheckCircle2, GitBranch, MessageSquare} from "lucide-react";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {format} from "date-fns";
 import { app_task_path} from "@/types/paths";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import React, {useCallback} from "react";
 import {cn} from "@/lib/utils/helpers/cn";
 
 export const TaskListTask = ({taskInfo, onToggleStatus, isAdmin, isAnimating}:{taskInfo: TaskInfoInterface,onToggleStatus: (task_uuid: string, projectId: string, newStatus: "done" | "todo") => void , isAdmin: boolean, isAnimating: boolean}) => {
 
-    const router = useRouter()
-    const priority = priorities.find(
-        (priority: prioritiesInterface) => priority.value === taskInfo.task_priority
-    );
+    const taskHref = `${app_task_path}/${taskInfo.task_uuid}`;
 
-
-    const status = taskStatuses.find(
-        (status: prioritiesInterface) => status.value === taskInfo.task_status
-    );
-
-    const handleOnCLick = () => {
-
-        setTimeout(() => {
-            router.push(`${app_task_path}/${taskInfo.task_uuid}`);
-
-        },100);
-
-
-    }
 
 
     const sd = new Date(taskInfo.task_start_date)
@@ -51,6 +34,13 @@ export const TaskListTask = ({taskInfo, onToggleStatus, isAdmin, isAnimating}:{t
         handleToggleClick()
 
     },[onToggleStatus])
+    const priority = priorities.find(
+        (priority: prioritiesInterface) => priority.value === taskInfo.task_priority
+    );
+
+    const status = taskStatuses.find(
+        (status: prioritiesInterface) => status.value === taskInfo.task_status
+    );
 
     return (
         <div className={cn("flex p-4 border-1  border-primary/50 bg-muted/30 shadow-md justify-center items-start rounded-2xl h-44", isAnimating && "animate-gradient-completion")} >
@@ -70,7 +60,7 @@ export const TaskListTask = ({taskInfo, onToggleStatus, isAdmin, isAnimating}:{t
                 </button>
 
             </div>
-            <div className='flex-col space-y-3 flex-1' onClick={handleOnCLick}>
+            <Link href={taskHref} className='flex-col space-y-3 flex-1'>
                 <div className="max-w-[60vw] flex items-center mb-2 ">
                     {taskInfo.task_label && <Badge variant="secondary">{taskInfo.task_label}</Badge>}
                     <div className=' text-ellipsis truncate'>{taskInfo.task_name}</div>
@@ -118,7 +108,7 @@ export const TaskListTask = ({taskInfo, onToggleStatus, isAdmin, isAnimating}:{t
                             className='h-3 w-3 inline ml-1'/></span>}
 
                 </div>
-            </div>
+            </Link>
 
         </div>
     )

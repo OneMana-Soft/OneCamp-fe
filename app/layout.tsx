@@ -8,7 +8,7 @@ import { Provider } from "react-redux";
 import {MediaQueryProvider} from "@/context/MediaQueryContext";
 import {ActiveThemeProvider} from "@/components/activeTheme/activeTheme";
 import "@/lib/utils/i18n"
-import { ServiceWorkerRegister } from "@/components/pwa/ServiceWorkerRegister";
+
 import { SWRConfig } from "swr";
 import { localStorageProvider } from "@/lib/swrCache";
 
@@ -51,7 +51,7 @@ export default function RootLayout({
                           <div className='theme-container select-none relative h-full bg-background transition-colors duration-500'>
                               {children}
                           </div>
-                          <ServiceWorkerRegister />
+
                           <PwaInstallPrompt />
                       </MediaQueryProvider>
                   </Provider>

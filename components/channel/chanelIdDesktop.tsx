@@ -31,7 +31,7 @@ import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {MobileChannelTextInput} from "@/components/textInput/mobileChannelTextInput";
 import {updateUserChannelName} from "@/store/slice/userSlice";
 import {app_channel_call, app_grp_call} from "@/types/paths";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {ChatSkeleton} from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
@@ -42,7 +42,6 @@ const EMPTY_TYPING_LIST: any[] = []
 
 export const ChannelIdDesktop = ({channelId, handleSend}: {channelId: string, handleSend: ()=>void}) => {
 
-    const router = useRouter();
     const dispatch = useDispatch()
     const postFav  = usePost()
     const postNotification  = usePost()
@@ -103,10 +102,8 @@ export const ChannelIdDesktop = ({channelId, handleSend}: {channelId: string, ha
     }
 
 
-    const clickVideoCall = () => {
-        router.push(app_channel_call + "/" + channelId);
-
-    }
+    const channelCallHref = `${app_channel_call}/${channelId}`;
+    const channelRecordingHref = `/app/channel/${channelId}/recording`;
 
 
 
@@ -171,6 +168,7 @@ export const ChannelIdDesktop = ({channelId, handleSend}: {channelId: string, ha
                     <NotificationBell notificationType={channelNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
                     <Button size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}}><Pencil /></Button>
                     <Button size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannelMember', data: { channelUUID: channelId } }))}}> <Users /></Button>
+                    <Link href={channelCallHref}>
                     <Button
                         size='icon'
                         variant={channelCallActive ? 'secondary' : 'ghost'}
@@ -178,7 +176,6 @@ export const ChannelIdDesktop = ({channelId, handleSend}: {channelId: string, ha
                             "relative transition-all duration-300",
                             channelCallActive && "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/40"
                         )}
-                        onClick={clickVideoCall}
                     >
                         <Video size={18} />
                         {channelCallActive && (
@@ -188,7 +185,8 @@ export const ChannelIdDesktop = ({channelId, handleSend}: {channelId: string, ha
                             </span>
                         )}
                     </Button>
-                    <Button size='icon' variant='ghost' onClick={() => router.push(`/app/channel/${channelId}/recording`)}> <Clapperboard /></Button>
+                    </Link>
+                    <Link href={channelRecordingHref}><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
 
 
 

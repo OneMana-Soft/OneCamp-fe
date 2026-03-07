@@ -25,7 +25,7 @@ import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus,
 import {ChatUserEmojiStatus} from "@/components/chat/chatUserEmojiStatus";
 import {Button} from "@/components/ui/button";
 import {app_channel_call, app_chat_call} from "@/types/paths";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
@@ -37,7 +37,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
     const postNotification  = usePost()
     const otherUserInfo  = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`)
     const [chatNotification, setChatNotificationType] = useState<string>(NotificationType.NotificationAll)
-    const router = useRouter()
+
 
     const { publishTyping } = usePublishTyping({ targetType: 'chat', targetId: chatId });
 
@@ -62,10 +62,8 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
         }
     );
 
-    const clickVideoCall = () => {
-        router.push(app_chat_call + "/" + chatId);
-
-    }
+    const chatCallHref = `${app_chat_call}/${chatId}`;
+    const chatRecordingHref = `/app/chat/${chatId}/recording`;
     // Memoize the mapped result to prevent creating a new array on every render
     const chatTypingState = useMemo(() => 
         (rawChatTypingState || []).map(item => item.user),
@@ -109,7 +107,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
 
     const UpdateNotification = async () => {
         const nextNotification = getNextNotification(chatNotification)
-        await postNotification.makeRequest<ChatNotificationInterface>({payload:{to_user_uuid: chatId, notification_type: nextNotification}, apiEndpoint: PostEndpointUrl.UpdateChatNotification})
+        await postNotification.makeRequest<ChatNotificationInterface>({payload:{to_user_id: chatId, notification_type: nextNotification}, apiEndpoint: PostEndpointUrl.UpdateChatNotification})
         setChatNotificationType(nextNotification)
     }
 
@@ -126,8 +124,8 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                 className='flex font-semibold text-lg p-2 truncate overflow-auto overflow-ellipsis justify-start border-b'>
                 <div className='flex justify-center items-center space-x-2'>
                     <div className='relative'>
-                        <ChatUserAvatar userName={otherUserInfo.data?.data.user_name}
-                                        userProfileObjKey={otherUserInfo.data?.data.user_profile_object_key}/>
+                        <ChatUserAvatar userName={otherUserInfo.data?.data.user_name ?? undefined}
+                                        userProfileObjKey={otherUserInfo.data?.data.user_profile_object_key ?? undefined}/>
                         {isOnline && <div className={`h-2.5 w-2.5 ring-[2px] ring-background rounded-full bg-green-500 absolute bottom-0 right-0`}></div>}
 
                     </div>
@@ -137,6 +135,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                 {/*<Button size='icon' variant='ghost' onClick={toggleFavourite}><Star  className='text-muted-foreground' fill={isFavorite ?"#ffcc00":'none'}/></Button>*/}
                     <ChatUserEmojiStatus userUUID={chatId}/>
                     <NotificationBell notificationType={chatNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
+                    <Link href={chatCallHref}>
                     <Button
                         size='icon'
                         variant={chatCallStatusActive ? 'secondary' : 'ghost'}
@@ -144,7 +143,6 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                             "relative transition-all duration-300",
                             chatCallStatusActive && "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/40"
                         )}
-                        onClick={clickVideoCall}
                     >
                         <Video size={18} />
                         {chatCallStatusActive && (
@@ -154,7 +152,8 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                             </span>
                         )}
                     </Button>
-                    <Button size='icon' variant='ghost' onClick={() => router.push(`/app/chat/${chatId}/recording`)}> <Clapperboard /></Button>
+                    </Link>
+                    <Link href={chatRecordingHref}><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
                     {/*<Button size='icon' variant='ghost' onClick={()=>{dispatch(openUpdateChannelDialog({channelUUID: channelId}))}}><Pencil /></Button>*/}
                     {/*<Button size='icon' variant='ghost' onClick={()=>{dispatch(openUpdateChannelMemberDialog({channelUUID: channelId}))}}> <Users /></Button>*/}
 

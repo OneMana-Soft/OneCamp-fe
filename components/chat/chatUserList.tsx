@@ -13,7 +13,7 @@ import {debounceUtil} from "@/lib/utils/helpers/debounce";
 import {usePost} from "@/hooks/usePost";
 import ChatUserListUser from "@/components/chat/chatUserListUser";
 import {app_chat_path, app_grp_chat_path} from "@/types/paths";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import {RootState} from "@/store/store";
 import {useDispatch, useSelector} from "react-redux";
 import {CreateUserChatList} from "@/store/slice/chatSlice";
@@ -27,8 +27,6 @@ import {LocalizedErrorBoundary} from "@/components/error/LocalizedErrorBoundary"
 import {ListSkeleton} from "@/components/ui/ListSkeleton";
 
 export const ChatUserList = ({chatId}: {chatId: string}) => {
-
-    const router = useRouter();
 
     const dispatch = useDispatch();
 
@@ -95,17 +93,13 @@ export const ChatUserList = ({chatId}: {chatId: string}) => {
         }
     }, [debouncedSearch]);
 
-    const handleDmListOnClick = useCallback((dmId: string, participantCount: number) => {
-
+    const getDmHref = useCallback((dmId: string, participantCount: number) => {
         if(participantCount > 2) {
-            router.push(app_grp_chat_path + '/' + dmId);
-            return
+            return app_grp_chat_path + '/' + dmId;
         }
-
         const u = getOtherUserId(dmId, selfProfile.data?.data.user_uuid || '')
-        router.push(app_chat_path + '/' + u);
-
-    }, [router]);
+        return app_chat_path + '/' + u;
+    }, [selfProfile.data?.data.user_uuid]);
 
 
     return (
@@ -135,7 +129,7 @@ export const ChatUserList = ({chatId}: {chatId: string}) => {
                                     )
                                 }>
                                 {index !== 0 && <hr className="h-px bg-gray-200 border-0 dark:bg-gray-700"/>}
-                                <div onClick={() => handleDmListOnClick(dmData.dm_grouping_id, dmData.dm_participants.length)}>
+                                <Link href={getDmHref(dmData.dm_grouping_id, dmData.dm_participants.length)} className="block">
                                     <ChatUserListUser
                                         lastMessageTime={lastMessageTime}
                                         lastUserMessage={lastUserMessage}
@@ -146,7 +140,7 @@ export const ChatUserList = ({chatId}: {chatId: string}) => {
                                         attachmentCount={attachmentCount}
                                         selfProfile={selfProfile.data?.data as UserProfileDataInterface}
                                     />
-                                </div>
+                                </Link>
                                 </ConditionalWrap>
                             </React.Fragment>)
 

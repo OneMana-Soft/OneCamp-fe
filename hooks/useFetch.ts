@@ -55,22 +55,23 @@ export const useFetchOnlyOnce = <T>(url: string, schema?: z.ZodSchema<T>) => {
 };
 
 const mediaFetcher = async <T>(url: string): Promise<T> => {
-    const separator = url.includes('?') ? '&' : '?';
-    const f = axiosInstance.get(`${url}${separator}_t=${Date.now()}`).then((response) => response.data);
+    const f = axiosInstance.get(url).then((response) => response.data);
 
     return f;
 };
 
-export const useMediaFetch = <T>(url: string) => {
+export const useMediaFetch = <T>(url: string, fallbackData?: T) => {
     const { data, error, isLoading, isValidating, mutate } = useSWR<T>(url == '' ? null : url, mediaFetcher, {
         refreshInterval: 4 * 60 * 1000, // 4 minutes (before 5 min expiry)
         dedupingInterval: 60000, // 1 minute
+        fallbackData
     });
 
     return {
         data,
-        isLoading: isLoading || isValidating,
+        isLoading: isLoading,
         isError: error,
+        isValidating,
         mutate
     };
 };

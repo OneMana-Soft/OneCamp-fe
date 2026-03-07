@@ -2,7 +2,7 @@ import {ProjectInfoInterface} from "@/types/project";
 import {Button} from "@/components/ui/button";
 import {List, Trash, Users, RotateCcw} from "lucide-react";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import {app_channel_path, app_project_path} from "@/types/paths";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
 
@@ -16,24 +16,23 @@ interface ProjectsInfoInterface {
 
 export const TeamProjectInfo = ({projectInfo, handleDelete, handleUnDelete, isAdmin, handleProjectMembers}: ProjectsInfoInterface) => {
 
-    const router = useRouter();
 
 
-    const handleProjectClick = () => {
-
-        if(!projectInfo.project_is_member) return
-
-        router.push(app_project_path+"/"+projectInfo.project_uuid);
-    }
     return (
 
         <div className='flex justify-between h-16 items-center '>
             <div className='flex justify-center items-center space-x-2'>
                 <ColorIcon name={projectInfo.project_uuid} size={'sm'}/>
                 <div className="flex flex-col">
-                    <div className={`max-w-sm overflow-hidden whitespace-nowrap overflow-ellipsis ${projectInfo.project_is_member?"hover:underline cursor-pointer":""}`} onClick={handleProjectClick}>
-                        {projectInfo.project_name }
-                    </div>
+                    {projectInfo.project_is_member ? (
+                        <Link href={`${app_project_path}/${projectInfo.project_uuid}`} className="max-w-sm overflow-hidden whitespace-nowrap overflow-ellipsis hover:underline cursor-pointer">
+                            {projectInfo.project_name}
+                        </Link>
+                    ) : (
+                        <div className="max-w-sm overflow-hidden whitespace-nowrap overflow-ellipsis">
+                            {projectInfo.project_name}
+                        </div>
+                    )}
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
                           {projectInfo.project_member_count || 0} Members

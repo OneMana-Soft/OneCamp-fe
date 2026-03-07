@@ -403,6 +403,11 @@ export const chatCommentSlice = createSlice({
             }
         },
 
+        // SYNC: Clear all loaded chat comments to force API refetch after stale reconnection
+        invalidateChatComments: (state) => {
+            state.chatComments = {} as ExtendedComments
+        },
+
     }
 });
 
@@ -427,5 +432,6 @@ export const {
     removeChatCommentReactionByCommentId,
     removeChatCommentByCommentId,
     updateChatCommentByCommentId,
-    updateChatCommentReactionId
+    updateChatCommentReactionId,
+    invalidateChatComments
 } =chatCommentSlice.actions

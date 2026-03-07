@@ -9,9 +9,7 @@ import {cn} from "@/lib/utils/helpers/cn";
 import {useFetch} from "@/hooks/useFetch";
 import {UserListInterfaceResp} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
-import {getNameInitials} from "@/lib/utils/format/getNameIntials";
-
+import {UserComboboxItem} from "@/components/combobox/userComboboxItem";
 
 interface AddTeamMemberComboboxPropInterface {
     handleAddMember: (id: string) => void
@@ -60,35 +58,18 @@ const AddDmMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({hand
                             <CommandEmpty>{"No user found"}</CommandEmpty>
                             <CommandGroup>
                                 {usersList.data?.users?.map((user) => (
-                                    <CommandItem
+                                    <UserComboboxItem
                                         key={user.user_uuid}
-                                        value={user.user_uuid}
+                                        userUuid={user.user_uuid}
+                                        userName={user.user_name}
+                                        userEmail={user.user_email_id}
+                                        userProfileObjectKey={user.user_profile_object_key}
+                                        isSelected={value === user.user_uuid}
                                         onSelect={(currentValue) => {
                                             setValue(currentValue === value ? "" : currentValue)
                                             setOpen(false)
                                         }}
-                                        className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
-                                    >
-                                        <Avatar className="h-8 w-8 border border-border/50 flex-shrink-0">
-                                            <AvatarImage
-                                                src={user.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}/${user.user_profile_object_key}` : ""}
-                                                alt={user.user_name}
-                                            />
-                                            <AvatarFallback className="text-[10px] font-bold bg-primary/5 text-primary">
-                                                {getNameInitials(user.user_name)}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex flex-col min-w-0 flex-1">
-                                            <span className="font-semibold text-sm truncate">{user.user_name}</span>
-                                            <span className="text-[10px] text-muted-foreground truncate font-medium">{user.user_email_id}</span>
-                                        </div>
-                                        <Check
-                                            className={cn(
-                                                "ml-auto h-4 w-4 text-primary",
-                                                value === user.user_uuid ? "opacity-100" : "opacity-0"
-                                            )}
-                                        />
-                                    </CommandItem>
+                                    />
                                 ))}
                             </CommandGroup>
                         </CommandList>

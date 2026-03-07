@@ -12,7 +12,7 @@ import {
 import {debounceUtil} from "@/lib/utils/helpers/debounce";
 import {usePost} from "@/hooks/usePost";
 import {app_chat_path, app_team_path} from "@/types/paths";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import {RootState} from "@/store/store";
 import {useDispatch, useSelector} from "react-redux";
 import {CreateUserChatList} from "@/store/slice/chatSlice";
@@ -27,8 +27,6 @@ import {TeamProjectInfo} from "@/components/team/TeamProjectInfo";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 
 export const TeamList = () => {
-
-    const router = useRouter();
 
     const teamList = useFetch<TeamListResponseInterface>(GetEndpointUrl.GetUserTeamList)
     const [teamSearchText, setTeamSearchText] = useState('')
@@ -77,12 +75,7 @@ export const TeamList = () => {
 
     }
 
-    const handleTeamListOnClick = async (teamId: string) => {
-        // dispatch(updateSideBarState({active: false}))
-        // dispatch(updateLastSeenDmId({dmId}));
 
-        router.push(app_team_path + '/' + teamId);
-    }
 
     if(teamList.isLoading) {
         return <LoadingStateCircle/>
@@ -102,11 +95,11 @@ export const TeamList = () => {
                         <TouchableDiv rippleBrightness={0.8} rippleDuration={800} >
 
                             <Separator orientation="horizontal" className={index ? 'invisible' : ''} />
-                            <div onClick={() => handleTeamListOnClick(teamData.team_uuid)}>
+                            <Link href={`${app_team_path}/${teamData.team_uuid}`} className="block">
                                 <TeamInfo
                                     teamInfo={teamData}
                                 />
-                            </div>
+                            </Link>
                             <Separator orientation="horizontal" className="" />
 
                         </TouchableDiv>

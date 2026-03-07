@@ -457,9 +457,12 @@ export const groupChatSlice = createSlice({
 
                 return chat
             })
+        },
+
+        // SYNC: Clear all loaded group chat messages to force API refetch after stale reconnection
+        invalidateGroupChatMessages: (state) => {
+            state.chatMessages = {} as ExtendedChats
         }
-
-
 
     }
 });
@@ -487,7 +490,8 @@ export const {
     updateGroupChatMessageReplyIncrement,
     updateGroupChatMessageReplyDecrement,
     createGrpChatLocally,UpdateGrpChatLocally,
-    updateGroupChatReactionId
+    updateGroupChatReactionId,
+    invalidateGroupChatMessages
 } = groupChatSlice.actions
 
 export default groupChatSlice;

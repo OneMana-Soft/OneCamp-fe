@@ -64,7 +64,7 @@ export interface CreateChatRes {
 
 export interface ChatNotificationInterface {
     notification_type: string,
-    to_user_uuid: string
+    to_user_id: string
 }
 
 export interface GrpChatNotificationInterface {

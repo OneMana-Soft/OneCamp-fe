@@ -1,11 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState, useEffect } from "react";
-import { Lock, Globe, Copy, Check, User as UserIcon, X, Search, UserPlus } from "lucide-react";
+import { Lock, Globe, Copy, Check, User as UserIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils/helpers/cn";
 import { usePost } from "@/hooks/usePost";
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
@@ -15,9 +14,7 @@ import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { toast } from "@/hooks/use-toast";
 import { UserProfileDataInterface } from "@/types/user";
 import { DocInfoInterface, DocInfoResponse } from "@/types/doc";
-
-
-
+import AddDocMemberCombobox from "@/components/combobox/addDocMemberCombobox";
 
 type Role = "editor" | "viewer" | "commenter";
 
@@ -37,7 +34,6 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
     const { data: permData, mutate: refreshPermissions, isLoading } = useFetch<DocInfoResponse>(
         dialogOpenState && docId ? `${GetEndpointUrl.GetDocPermissions}?doc_uuid=${docId}` : ''
     );
-    // const permissions = permData?.data; // Using local state instead
 
     const [permissions, setPermissions] = useState<DocInfoInterface | undefined>(undefined);
 
@@ -47,107 +43,50 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
         }
     }, [permData]);
 
-    const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<UserProfileDataInterface[]>([]);
-    const [selectedUser, setSelectedUser] = useState<UserProfileDataInterface | null>(null);
-    const [selectedRole, setSelectedRole] = useState<Role>("viewer");
     const [copied, setCopied] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
 
-    // ... (Hooks remain same)
     const updatePermissions = usePost();
     const updateDoc = usePost();
-    const searchUser = usePost(); // For user search
 
-    // ... (handleClose and search handlers remain same)
     const handleClose = () => {
-        setSearchQuery("");
-        setSearchResults([]);
-        setSelectedUser(null);
         setOpenState();
     };
-
-    const handleSearch = async (query: string) => {
-        setSearchQuery(query);
-         if (query.length < 2) {
-            setSearchResults([]);
-            return;
-        }
-    };
-    
-    // ... (useEffect for search remains same)
-    useEffect(() => {
-        const delayDebounceFn = setTimeout(async () => {
-            if (searchQuery.length >= 2) {
-                 const res = await searchUser.makeRequest({
-                    apiEndpoint: PostEndpointUrl.SearchUserForDoc,
-                    payload: { searchText: searchQuery }
-                });
-                
-                if (res && Array.isArray(res)) {
-                    setSearchResults(res as any);
-                } else if (res && (res as any).data && Array.isArray((res as any).data)) {
-                    setSearchResults((res as any).data);
-                }
-            } else {
-                setSearchResults([]);
-            }
-        }, 500);
-
-        return () => clearTimeout(delayDebounceFn);
-    }, [searchQuery]);
-
 
     // Get Current User for Access Checks
     const selfProfile = useFetchOnlyOnce<any>(GetEndpointUrl.SelfProfile);
     const currentUser = selfProfile?.data?.data;
     const isOwner = permissions?.doc_created_by?.user_uuid === currentUser?.user_uuid;
 
-
-    // ... (Hooks remain same)
-
-    // ... (handleClose and search handlers remain same)
-
-    // ... (useEffect for search remains same)
-
     // Actions
-    const handleInvite = async () => {
-        if (!isOwner) return; // Guard
-        console.log("Invite clicked", { selectedUser, docId });
-        if (!selectedUser || !docId) {
-            console.error("Missing user or docId");
-            return;
-        }
-
+    const handleInvite = async (user: UserProfileDataInterface, role: Role) => {
+        if (!isOwner || !docId) return;
+        
         setIsUpdating(true);
         const payload: any = { doc_uuid: docId };
-        // Optimistic update prep
-        const newUser = { ...selectedUser }; 
-        const roleKey = selectedRole === 'editor' ? 'doc_editing_users' : selectedRole === 'viewer' ? 'doc_reading_users' : 'doc_commenting_users';
+        
+        const roleKey = role === 'editor' ? 'doc_editing_users' : role === 'viewer' ? 'doc_reading_users' : 'doc_commenting_users';
 
-        if (selectedRole === 'editor') payload.add_editors = [selectedUser.user_uuid];
-        if (selectedRole === 'viewer') payload.add_viewers = [selectedUser.user_uuid];
-        if (selectedRole === 'commenter') payload.add_commenters = [selectedUser.user_uuid];
+        if (role === 'editor') payload.add_editors = [user.user_uuid];
+        if (role === 'viewer') payload.add_viewers = [user.user_uuid];
+        if (role === 'commenter') payload.add_commenters = [user.user_uuid];
 
         await updatePermissions.makeRequest({
             apiEndpoint: PostEndpointUrl.UpdateDocPermissions,
             payload,
             onSuccess: () => {
                 setIsUpdating(false);
-                setSearchQuery("");
-                setSelectedUser(null);
-                setSearchResults([]);
                 
                 // Update local state and enforce single role
                 setPermissions(prev => {
                     if (!prev) return prev;
                     
                     // Remove from all other lists first
-                    const removeFromList = (list: UserProfileDataInterface[] | undefined) => list?.filter(u => u.user_uuid !== newUser.user_uuid) || [];
+                    const removeFromList = (list: UserProfileDataInterface[] | undefined) => list?.filter(u => u.user_uuid !== user.user_uuid) || [];
                     
-                    const newEditing = roleKey === 'doc_editing_users' ? [...(prev.doc_editing_users || []), newUser] : removeFromList(prev.doc_editing_users);
-                    const newReading = roleKey === 'doc_reading_users' ? [...(prev.doc_reading_users || []), newUser] : removeFromList(prev.doc_reading_users);
-                    const newCommenting = roleKey === 'doc_commenting_users' ? [...(prev.doc_commenting_users || []), newUser] : removeFromList(prev.doc_commenting_users);
+                    const newEditing = roleKey === 'doc_editing_users' ? [...(prev.doc_editing_users || []), user] : removeFromList(prev.doc_editing_users);
+                    const newReading = roleKey === 'doc_reading_users' ? [...(prev.doc_reading_users || []), user] : removeFromList(prev.doc_reading_users);
+                    const newCommenting = roleKey === 'doc_commenting_users' ? [...(prev.doc_commenting_users || []), user] : removeFromList(prev.doc_commenting_users);
 
                     return {
                         ...prev,
@@ -157,7 +96,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                     };
                 });
 
-                toast({ title: "Success", description: `Added ${selectedUser.user_name} as ${selectedRole}` });
+                toast({ title: "Success", description: `Added ${user.user_name} as ${role}` });
             },
             showToast: true
         });
@@ -182,7 +121,6 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
             apiEndpoint: PostEndpointUrl.UpdateDoc,
             payload: payload,
             onSuccess: () => {
-                // refreshPermissions();
                 setIsUpdating(false);
                 setPermissions(prev => {
                     if (!prev) return prev;
@@ -236,7 +174,6 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
 
     return (
         <Dialog open={dialogOpenState} onOpenChange={(open) => !open && handleClose()}>
-            {/* Same Dialog Content Layout */}
             <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden bg-background border-border">
                 <DialogHeader className="p-6 pb-4 text-start">
                     <DialogTitle className="text-xl font-semibold">Share Document</DialogTitle>
@@ -247,58 +184,9 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
 
                 <div className="px-6 pb-6 flex flex-col gap-6">
                     {/* Invite Section - Locked if not owner */}
-                   {isOwner && (
+                   {(isOwner && docId) && (
                     <div className="flex flex-col relative gap-2">
-                        <div className="flex gap-2">
-                         <div className="relative flex-1">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input 
-                                placeholder="Add people by name" 
-                                value={selectedUser ? selectedUser.user_name : searchQuery}
-                                onChange={(e) => {
-                                    setSearchQuery(e.target.value); 
-                                    if(selectedUser) setSelectedUser(null);
-                                }}
-                                className="pl-9 bg-muted/50 border-input/50 focus-visible:bg-background transition-colors"
-                            />
-                            {/* Dropdown for search results */}
-                            {(searchResults.length > 0 && !selectedUser) && (
-                                <div className="absolute top-full left-0 right-0 mt-1 bg-popover text-popover-foreground border rounded-md shadow-lg z-50 max-h-[200px] overflow-y-auto">
-                                    {searchResults.map(user => (
-                                        <div 
-                                            key={user.user_uuid} 
-                                            className="flex items-center gap-2 p-2 hover:bg-muted cursor-pointer"
-                                            onClick={() => {
-                                                setSelectedUser(user);
-                                                setSearchResults([]);
-                                            }}
-                                        >
-                                            <Avatar className="h-6 w-6">
-                                                <AvatarImage src={user.user_profile_object_key} />
-                                                <AvatarFallback>{user.user_name?.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-medium">{user.user_name}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                         </div>
-                            <Select value={selectedRole} onValueChange={(v: Role) => setSelectedRole(v)}>
-                                <SelectTrigger className="w-[110px] bg-muted/50 border-input/50">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="viewer">Viewer</SelectItem>
-                                    <SelectItem value="commenter">Commenter</SelectItem>
-                                    <SelectItem value="editor">Editor</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Button onClick={handleInvite} size="icon" className="shrink-0" disabled={!selectedUser}>
-                                <UserPlus className="h-4 w-4" />
-                            </Button>
-                        </div>
+                        <AddDocMemberCombobox docId={docId} handleInvite={handleInvite} />
                     </div>
                    )}
 
@@ -359,7 +247,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                         </div>
                     </div>
 
-                    {/* Footer Actions - Same */}
+                    {/* Footer Actions */}
                     <div className="flex justify-between items-center pt-2">
                          <Button 
                             variant="outline" 

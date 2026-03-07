@@ -9,6 +9,7 @@ export interface AttachmentMediaReq {
     attachment_height?: number
     attachment_duration?: number
     attachment_raw_type?: string
+    initial_url?: string
 }
 
 

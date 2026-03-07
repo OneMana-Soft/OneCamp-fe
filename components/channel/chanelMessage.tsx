@@ -170,7 +170,7 @@ export const ChannelMessage = ({
                 <div className="h-12 w-12 flex-shrink-0" onClick={handleUserClick}>
                     <ChannelMessageAvatar
                         userName={userInfoState.userName || postInfo.post_by.user_name}
-                        userProfileKey={userInfoState.userName ? userInfoState?.profileKey : postInfo.post_by.user_profile_object_key}
+                        userProfileKey={userInfoState.profileKey ?? postInfo.post_by.user_profile_object_key}
                     />
                 </div>
                 <div className="flex-1">

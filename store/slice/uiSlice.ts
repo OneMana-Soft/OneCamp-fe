@@ -57,6 +57,8 @@ export interface RootUIState {
   orgProfileDrawer: SingleUIState;
   userProfileDrawer: SingleUIState;
   channelOptionsDrawer: SingleUIState;
+  chatOptionsDrawer: SingleUIState;
+  groupChatOptionsDrawer: SingleUIState;
   channelInfoSheet: SingleUIState;
   docOptionsDrawer: SingleUIState;
   docFilterOptionsDrawer: SingleUIState;
@@ -67,6 +69,7 @@ export interface RootUIState {
   myTaskOptionsDrawer: SingleUIState;
   taskOptionDrawer: SingleUIState;
   teamOptionDrawer: SingleUIState;
+  projectOptionsDrawer: SingleUIState;
 
   // Long press drawers (Mobile)
   channelMessageLongPress: SingleUIState;
@@ -125,6 +128,8 @@ const initialState: RootUIState = {
   orgProfileDrawer: { isOpen: false, data: null },
   userProfileDrawer: { isOpen: false, data: null },
   channelOptionsDrawer: { isOpen: false, data: { channelUUID: "" } },
+  chatOptionsDrawer: { isOpen: false, data: { chatUUID: "" } },
+  groupChatOptionsDrawer: { isOpen: false, data: { grpId: "" } },
   channelInfoSheet: { isOpen: false, data: { channelUUID: "" } },
   docOptionsDrawer: { isOpen: false, data: { docId: "", isOwner: false, deleteDoc: () => {} } },
   docFilterOptionsDrawer: { isOpen: false, data: null },
@@ -135,6 +140,7 @@ const initialState: RootUIState = {
   taskOptionsDrawer: { isOpen: false, data: null },
   myTaskOptionsDrawer: { isOpen: false, data: null },
   taskOptionDrawer: { isOpen: false, data: { taskId: "" } },
+  projectOptionsDrawer: { isOpen: false, data: { projectUUID: "" } },
 
   // Long press drawers
   channelMessageLongPress: { isOpen: false, data: null },

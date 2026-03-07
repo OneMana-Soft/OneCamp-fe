@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, memo, useCallback, useMemo } from "react"
 import Image from "next/image"
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { X, ChevronLeft, ChevronRight, Download, FileIcon, Maximize2, Minimize2, ZoomIn, ZoomOut, RotateCcw } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Download, FileIcon, Maximize2, Minimize2, ZoomIn, ZoomOut, RotateCcw, Loader2 } from "lucide-react"
 import {AttachmentDocument, AttachmentMediaReq, AttachmentType} from "@/types/attachment";
 import {useFetch, useMediaFetch} from "@/hooks/useFetch";
 import {GetMediaURLRes} from "@/types/file";
@@ -28,20 +28,129 @@ interface MediaLightboxProps {
     mediaGetUrl: string
 }
 
+function MediaPrefetcher({ currentIndex, allMedia, mediaGetUrl }: { currentIndex: number, allMedia: AttachmentMediaReq[], mediaGetUrl: string }) {
+    const nextIndex = (currentIndex + 1) % allMedia.length;
+    const prevIndex = (currentIndex - 1 + allMedia.length) % allMedia.length;
+
+    const nextMedia = allMedia[nextIndex];
+    const prevMedia = allMedia[prevIndex];
+
+    const nextUrl = nextMedia?.attachment_uuid && mediaGetUrl ? mediaGetUrl + '/' + nextMedia.attachment_uuid : '';
+    const prevUrl = prevMedia?.attachment_uuid && mediaGetUrl ? mediaGetUrl + '/' + prevMedia.attachment_uuid : '';
+
+    // Fetch the high-res URLs for adjacent items
+    const { data: nextData } = useMediaFetch<GetMediaURLRes>(nextUrl);
+    const { data: prevData } = useMediaFetch<GetMediaURLRes>(prevUrl);
+
+    // Proactively preload the actual image pixels into browser cache
+    // This happens hidden in the background
+    useEffect(() => {
+        if (nextData?.url && nextMedia.attachment_type === 'image') {
+            const img = new (window as any).Image();
+            img.src = nextData.url;
+        }
+        if (prevData?.url && prevMedia.attachment_type === 'image') {
+            const img = new (window as any).Image();
+            img.src = prevData.url;
+        }
+    }, [nextData?.url, prevData?.url]);
+
+    return null;
+}
+
+const SidebarItem = memo(({ item, isSelected, onClick }: { 
+    item: AttachmentMediaReq, 
+    isSelected: boolean, 
+    onClick: (item: AttachmentMediaReq) => void 
+}) => {
+    return (
+        <div
+            onClick={() => onClick(item)}
+            className={cn(
+                "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
+                isSelected ? "bg-white/10" : "hover:bg-white/5"
+            )}
+        >
+            <div className="shrink-0 w-10 h-10 rounded bg-white/5 flex items-center justify-center border border-white/10">
+                <FileTypeIcon name={item.attachment_file_name} fileType={item.attachment_raw_type} size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+                <div className={cn("text-sm truncate", isSelected ? "text-white font-medium" : "text-white/80")}>
+                    {truncateFileName(item.attachment_file_name)}
+                </div>
+                <div className="text-xs text-white/40">
+                    {formatFileSizeForAttachment(item.attachment_size || 0)}
+                </div>
+            </div>
+        </div>
+    );
+});
+
+SidebarItem.displayName = "SidebarItem";
+
+const Sidebar = memo(({ allMedia, currentMediaUuid, onSelect, isFullscreen, toggleFullscreen, closeModal }: {
+    allMedia: AttachmentMediaReq[],
+    currentMediaUuid: string,
+    onSelect: (item: AttachmentMediaReq) => void,
+    isFullscreen: boolean,
+    toggleFullscreen: () => void,
+    closeModal: () => void
+}) => {
+    return (
+        <div className="w-80 border-l border-white/10 bg-[#09090b] flex flex-col shrink-0">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#09090b]">
+                <h3 className="text-white font-medium text-sm">Attachments ({allMedia.length})</h3>
+                <div className="flex items-center gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={toggleFullscreen}
+                        className="text-white/60 hover:text-white hover:bg-white/10 h-8 w-8"
+                    >
+                        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={closeModal}
+                        className="text-white/60 hover:text-white hover:bg-white/10 h-8 w-8"
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {allMedia.map((item) => (
+                    <SidebarItem
+                        key={item.attachment_uuid}
+                        item={item}
+                        isSelected={item.attachment_uuid === currentMediaUuid}
+                        onClick={onSelect}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+});
+
+Sidebar.displayName = "Sidebar";
+
 export function MediaLightboxDialog({ media, dialogOpenState, allMedia, mediaGetUrl, setOpenState}: MediaLightboxProps) {
-    const [currentMedia, setCurrentMedia] = useState<AttachmentMediaReq>({} as AttachmentMediaReq)
-    const mediaReq = useMediaFetch<GetMediaURLRes>(currentMedia?.attachment_uuid && mediaGetUrl? mediaGetUrl +'/'+currentMedia.attachment_uuid : '')
+    const [currentMedia, setCurrentMedia] = useState<AttachmentMediaReq>(media)
+    const mediaReq = useMediaFetch<GetMediaURLRes>(
+        currentMedia?.attachment_uuid && mediaGetUrl? mediaGetUrl +'/'+currentMedia.attachment_uuid : '',
+        currentMedia?.initial_url ? { url: currentMedia.initial_url } as GetMediaURLRes : undefined
+    )
 
     const currentIndex = allMedia?.findIndex((m) => m.attachment_uuid === currentMedia?.attachment_uuid) || 0
     const { isMobile, isDesktop } = useMedia();
     const [isFullscreen, setIsFullscreen] = useState(false)
 
 
+    // Only update currentMedia when the initial media prop changes
     useEffect(() => {
-        if(media) {
-            setCurrentMedia(media)
-        }
-    }, [media]);
+        setCurrentMedia(media)
+    }, [media?.attachment_uuid]);
 
     useEffect(() => {
         if (isMobile) {
@@ -72,15 +181,27 @@ export function MediaLightboxDialog({ media, dialogOpenState, allMedia, mediaGet
     }
 
 
-    const handlePrevious = () => {
+    const handlePrevious = useCallback(() => {
         const prevIndex = (currentIndex - 1 + allMedia.length) % allMedia.length
         setCurrentMedia(allMedia[prevIndex])
-    }
+    }, [currentIndex, allMedia]);
 
-    const handleNext = () => {
+    const handleNext = useCallback(() => {
         const nextIndex = (currentIndex + 1) % allMedia.length
         setCurrentMedia(allMedia[nextIndex])
-    }
+    }, [currentIndex, allMedia]);
+
+    const handleSelectMedia = useCallback((item: AttachmentMediaReq) => {
+        setCurrentMedia(item);
+    }, []);
+
+    const toggleFullscreen = useCallback(() => {
+        setIsFullscreen(prev => !prev)
+    }, []);
+
+    const closeModal = useCallback(() => {
+        setOpenState(false);
+    }, [setOpenState]);
 
     const renderAsPerAttachmentType = (attachmentString: AttachmentType, fileName: string) => {
 
@@ -108,13 +229,23 @@ export function MediaLightboxDialog({ media, dialogOpenState, allMedia, mediaGet
                                     </Button>
                                 </div>
                                 <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }} contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <div className="relative w-full h-full flex items-center justify-center">
+                                    <div key={currentMedia.attachment_uuid} className="relative w-full h-full flex items-center justify-center">
+                                        {(mediaReq.isLoading || mediaReq.isValidating) && !mediaReq.data?.url && !currentMedia.initial_url && (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-10 backdrop-blur-sm">
+                                                <Loader2 className="h-10 w-10 text-white animate-spin" />
+                                            </div>
+                                        )}
                                         <Image
-                                            src={mediaReq.data?.url || "/placeholder.svg"}
+                                            src={mediaReq.data?.url || currentMedia.initial_url || "/placeholder.svg"}
                                             alt={fileName}
                                             fill
+                                            priority
                                             sizes="100vw"
-                                            className="object-contain"
+                                            className={cn(
+                                                "object-contain transition-all duration-200",
+                                                ((mediaReq.isLoading || mediaReq.isValidating) && !mediaReq.data?.url && !currentMedia.initial_url) ? "opacity-0 scale-95" : "opacity-100 scale-100"
+                                            )}
+                                            unoptimized={true}
                                             draggable={false}
                                         />
                                     </div>
@@ -125,10 +256,10 @@ export function MediaLightboxDialog({ media, dialogOpenState, allMedia, mediaGet
                 </div>)
 
             case 'video':
-                return (<VideoPlayer url={mediaReq.data?.url || ''} fileName={fileName}/>)
+                return (<VideoPlayer key={currentMedia.attachment_uuid} url={mediaReq.data?.url || ''} fileName={fileName}/>)
 
             case 'audio':
-                return (<AudioPlayer url={mediaReq.data?.url || ''}/>)
+                return (<AudioPlayer key={currentMedia.attachment_uuid} url={mediaReq.data?.url || ''}/>)
 
             case 'document':
             case 'other':
@@ -136,7 +267,7 @@ export function MediaLightboxDialog({ media, dialogOpenState, allMedia, mediaGet
                 const supportedDocs = ['pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'json', 'xml', 'log', 'md'];
                 
                 if (supportedDocs.includes(extension)) {
-                     return (<DocumentViewer url={mediaReq.data?.url || ''} type={extension}/>)
+                     return (<DocumentViewer key={currentMedia.attachment_uuid} url={mediaReq.data?.url || ''} type={extension}/>)
                 }
                 
                 return (<div className="flex flex-col items-center justify-center">
@@ -146,14 +277,7 @@ export function MediaLightboxDialog({ media, dialogOpenState, allMedia, mediaGet
         }
     }
 
-    const closeModal = () => {
 
-        setOpenState(false);
-    };
-
-    const toggleFullscreen = () => {
-        setIsFullscreen(!isFullscreen)
-    }
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
@@ -252,59 +376,24 @@ export function MediaLightboxDialog({ media, dialogOpenState, allMedia, mediaGet
 
                     {/* Sidebar (Desktop Only) */}
                     {isDesktop && (
-                         <div className="w-80 border-l border-white/10 bg-[#09090b] flex flex-col shrink-0">
-                            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#09090b]">
-                                <h3 className="text-white font-medium text-sm">Attachments ({allMedia.length})</h3>
-                                <div className="flex items-center gap-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={toggleFullscreen}
-                                        className="text-white/60 hover:text-white hover:bg-white/10 h-8 w-8"
-                                    >
-                                        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={closeModal}
-                                        className="text-white/60 hover:text-white hover:bg-white/10 h-8 w-8"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                                {allMedia.map((item, index) => {
-                                    const isSelected = item.attachment_uuid === currentMedia.attachment_uuid;
-                                    return (
-                                        <div
-                                            key={item.attachment_uuid}
-                                            onClick={() => setCurrentMedia(item)}
-                                            className={cn(
-                                                "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
-                                                isSelected ? "bg-white/10" : "hover:bg-white/5"
-                                            )}
-                                        >
-                                            <div className="shrink-0 w-10 h-10 rounded bg-white/5 flex items-center justify-center border border-white/10">
-                                                <FileTypeIcon name={item.attachment_file_name} fileType={item.attachment_raw_type} size={20} />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className={cn("text-sm truncate", isSelected ? "text-white font-medium" : "text-white/80")}>
-                                                    {truncateFileName(item.attachment_file_name)}
-                                                </div>
-                                                <div className="text-xs text-white/40">
-                                                    {formatFileSizeForAttachment(item.attachment_size || 0)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                         </div>
+                         <Sidebar 
+                            allMedia={allMedia}
+                            currentMediaUuid={currentMedia.attachment_uuid}
+                            onSelect={handleSelectMedia}
+                            isFullscreen={isFullscreen}
+                            toggleFullscreen={toggleFullscreen}
+                            closeModal={closeModal}
+                         />
                     )}
                 </div>
             </DialogContent>
+            {dialogOpenState && (
+                <MediaPrefetcher
+                    currentIndex={currentIndex}
+                    allMedia={allMedia}
+                    mediaGetUrl={mediaGetUrl}
+                />
+            )}
         </Dialog>
     )
 }

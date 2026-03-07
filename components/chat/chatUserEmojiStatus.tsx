@@ -29,7 +29,6 @@ export const ChatUserEmojiStatus = ({userUUID}: {userUUID: string}) => {
     if(!emojiInfo) return null
 
 
-
     if (isMobile) {
         return (
             <div className="flex">
@@ -38,7 +37,12 @@ export const ChatUserEmojiStatus = ({userUUID}: {userUUID: string}) => {
                         <button
                             className="inline-flex items-center space-x-1 p-1 rounded-sm transition-colors hover:bg-gray-100 focus:outline-none "
                             aria-label={`User status: ${statusMessage}`}
-                            onClick={() => setIsPopoverOpen(!isPopoverOpen)}
+                            onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    setIsPopoverOpen(!isPopoverOpen)
+                                }
+                            }
                         >
               <span role="img" aria-label="Status emoji" className="text-sm">
                 {emojiInfo.skins[0].native}

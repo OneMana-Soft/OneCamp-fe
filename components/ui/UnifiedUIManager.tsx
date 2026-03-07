@@ -6,59 +6,62 @@ import dynamic from "next/dynamic";
 import { closeUI } from "@/store/slice/uiSlice";
 
 // Lazy load dialogs/drawers to keep bundle size small
-const CreateChannelDialog = dynamic(() => import("@/components/dialog/createChannelDialog"));
-const CreateProjectDialog = dynamic(() => import("@/components/dialog/createProjectDialog"));
-const CreateTeamDialog = dynamic(() => import("@/components/dialog/createTeamDialog"));
-const CreateTaskDialog = dynamic(() => import("@/components/dialog/createTaskDialog"));
-const CreateDocDialog = dynamic(() => import("@/components/dialog/createDocDialog"));
-const EditProfileDialog = dynamic(() => import("@/components/dialog/editProfileDailog"));
-const OtherProfileDialog = dynamic(() => import("@/components/dialog/otherUserProfileDialog"));
-const UpdateStatusDialog = dynamic(() => import("@/components/dialog/updateUserStatusDialog"));
-const ConfirmAlertDialog = dynamic(() => import("@/components/dialog/confirmAlertDialog").then(mod => mod.ConfirmAlertDialog));
-const DocShareDialog = dynamic(() => import("@/components/dialog/docShareDialog").then(mod => mod.DocShareDialog));
-const CreateChatMessageDialog = dynamic(() => import("@/components/dialog/createChatMessageDialog"));
-const EditChannelDialog = dynamic(() => import("@/components/dialog/editChannelDialog"));
-const EditChannelMemberDialog = dynamic(() => import("@/components/dialog/editChannelMembers"));
-const EditTeamMemberDialog = dynamic(() => import("@/components/dialog/editTeamMembers"));
-const EditDmMemberDialog = dynamic(() => import("@/components/dialog/editDmMembers"));
-const MediaLightboxDialog = dynamic(() => import("@/components/dialog/attachmentLightboxDialog").then(mod => mod.MediaLightboxDialog));
-const ForwardMessage = dynamic(() => import("@/components/dialog/forwardMessage").then(mod => mod.ForwardMessage));
-const EditTeamNameDialog = dynamic(() => import("@/components/dialog/editTeamNameDialog"));
-const EditProjectMemberDialog = dynamic(() => import("@/components/dialog/editProjectMembers"));
-const EditProjectNameDialog = dynamic(() => import("@/components/dialog/editProjectNameDialog"));
-const RecordingPlayerDialog = dynamic(() => import("@/components/dialog/RecordingPlayerDialog").then(mod => mod.RecordingPlayerDialog));
-const UpdateDocTitleDialog =  dynamic(() => import("@/components/dialog/updateDocTitleDialog"));
-const AdminTeamMembersDialog = dynamic(() => import("@/components/dialog/adminTeamMembersDialog"));
-const AddInvitationDialog = dynamic(() => import("@/components/admin/AddInvitationDialog").then(mod => mod.AddInvitationDialog));
+const CreateChannelDialog = dynamic(() => import("@/components/dialog/createChannelDialog"), { ssr: false });
+const CreateProjectDialog = dynamic(() => import("@/components/dialog/createProjectDialog"), { ssr: false });
+const CreateTeamDialog = dynamic(() => import("@/components/dialog/createTeamDialog"), { ssr: false });
+const CreateTaskDialog = dynamic(() => import("@/components/dialog/createTaskDialog"), { ssr: false });
+const CreateDocDialog = dynamic(() => import("@/components/dialog/createDocDialog"), { ssr: false });
+const EditProfileDialog = dynamic(() => import("@/components/dialog/editProfileDailog"), { ssr: false });
+const OtherProfileDialog = dynamic(() => import("@/components/dialog/otherUserProfileDialog"), { ssr: false });
+const UpdateStatusDialog = dynamic(() => import("@/components/dialog/updateUserStatusDialog"), { ssr: false });
+const ConfirmAlertDialog = dynamic(() => import("@/components/dialog/confirmAlertDialog").then(mod => mod.ConfirmAlertDialog), { ssr: false });
+const DocShareDialog = dynamic(() => import("@/components/dialog/docShareDialog").then(mod => mod.DocShareDialog), { ssr: false });
+const CreateChatMessageDialog = dynamic(() => import("@/components/dialog/createChatMessageDialog"), { ssr: false });
+const EditChannelDialog = dynamic(() => import("@/components/dialog/editChannelDialog"), { ssr: false });
+const EditChannelMemberDialog = dynamic(() => import("@/components/dialog/editChannelMembers"), { ssr: false });
+const EditTeamMemberDialog = dynamic(() => import("@/components/dialog/editTeamMembers"), { ssr: false });
+const EditDmMemberDialog = dynamic(() => import("@/components/dialog/editDmMembers"), { ssr: false });
+const MediaLightboxDialog = dynamic(() => import("@/components/dialog/attachmentLightboxDialog").then(mod => mod.MediaLightboxDialog), { ssr: false });
+const ForwardMessage = dynamic(() => import("@/components/dialog/forwardMessage").then(mod => mod.ForwardMessage), { ssr: false });
+const EditTeamNameDialog = dynamic(() => import("@/components/dialog/editTeamNameDialog"), { ssr: false });
+const EditProjectMemberDialog = dynamic(() => import("@/components/dialog/editProjectMembers"), { ssr: false });
+const EditProjectNameDialog = dynamic(() => import("@/components/dialog/editProjectNameDialog"), { ssr: false });
+const RecordingPlayerDialog = dynamic(() => import("@/components/dialog/RecordingPlayerDialog").then(mod => mod.RecordingPlayerDialog), { ssr: false });
+const UpdateDocTitleDialog =  dynamic(() => import("@/components/dialog/updateDocTitleDialog"), { ssr: false });
+const AdminTeamMembersDialog = dynamic(() => import("@/components/dialog/adminTeamMembersDialog"), { ssr: false });
+const AddInvitationDialog = dynamic(() => import("@/components/admin/AddInvitationDialog").then(mod => mod.AddInvitationDialog), { ssr: false });
 
 
 // Drawers
-const OrgDrawer = dynamic(() => import("@/components/drawers/orgDrawer").then(mod => mod.OrgDrawer));
-const TaskDrawer = dynamic(() => import("@/components/drawers/taskDrawer").then(mod => mod.TaskDrawer));
-const UserProfileDrawer = dynamic(() => import("@/components/drawers/userProfileDrawer").then(mod => mod.UserProfileDrawer));
-const ChannelOptionsDrawer = dynamic(() => import("@/components/drawers/channelOptionsDrawer").then(mod => mod.ChannelOptionsDrawer));
-const ChannelMobileSheet = dynamic(() => import("@/components/sheets/channelMobileSheet").then(mod => mod.ChannelMobileSheet));
-const DocFilterOptionsDrawer = dynamic(() => import("@/components/drawers/docFilterOptionsDrawer").then(mod => mod.DocFilterOptionsDrawer));
-const DocOptionsDrawer = dynamic(() => import("@/components/drawers/docOptionsDrawer").then(mod => mod.DocOptionsDrawer));
-const EmojiPickerDrawer = dynamic(() => import("@/components/drawers/emojiPickerDrawer").then(mod => mod.EmojiPickerDrawer));
-const TaskFilterDrawer = dynamic(() => import("@/components/drawers/taskFilterDrawer").then(mod => mod.TaskFilterDrawer));
-const ProjectTaskFilterDrawer = dynamic(() => import("@/components/drawers/projectTaskFilterDrawer").then(mod => mod.ProjectTaskFilterDrawer));
-const TaskOptionsDrawer = dynamic(() => import("@/components/drawers/taskOptionsDrawer").then(mod => mod.TaskOptionsDrawer));
-const TeamOptionsDrawer = dynamic(() => import("@/components/drawers/teamOptionsDrawer").then(mod => mod.TeamOptionsDrawer));
-const MyTaskOptionsDrawer = dynamic(() => import("@/components/drawers/myTaskOptionsDrawer").then(mod => mod.MyTaskOptionsDrawer));
+const OrgDrawer = dynamic(() => import("@/components/drawers/orgDrawer").then(mod => mod.OrgDrawer), { ssr: false });
+const TaskDrawer = dynamic(() => import("@/components/drawers/taskDrawer").then(mod => mod.TaskDrawer), { ssr: false });
+const UserProfileDrawer = dynamic(() => import("@/components/drawers/userProfileDrawer").then(mod => mod.UserProfileDrawer), { ssr: false });
+const ChannelOptionsDrawer = dynamic(() => import("@/components/drawers/channelOptionsDrawer").then(mod => mod.ChannelOptionsDrawer), { ssr: false });
+const ChatOptionsDrawer = dynamic(() => import("@/components/drawers/chatOptionsDrawer").then(mod => mod.ChatOptionsDrawer), { ssr: false });
+const GroupChatOptionsDrawer = dynamic(() => import("@/components/drawers/groupChatOptionsDrawer").then(mod => mod.GroupChatOptionsDrawer), { ssr: false });
+const ChannelMobileSheet = dynamic(() => import("@/components/sheets/channelMobileSheet").then(mod => mod.ChannelMobileSheet), { ssr: false });
+const DocFilterOptionsDrawer = dynamic(() => import("@/components/drawers/docFilterOptionsDrawer").then(mod => mod.DocFilterOptionsDrawer), { ssr: false });
+const DocOptionsDrawer = dynamic(() => import("@/components/drawers/docOptionsDrawer").then(mod => mod.DocOptionsDrawer), { ssr: false });
+const EmojiPickerDrawer = dynamic(() => import("@/components/drawers/emojiPickerDrawer").then(mod => mod.EmojiPickerDrawer), { ssr: false });
+const TaskFilterDrawer = dynamic(() => import("@/components/drawers/taskFilterDrawer").then(mod => mod.TaskFilterDrawer), { ssr: false });
+const ProjectTaskFilterDrawer = dynamic(() => import("@/components/drawers/projectTaskFilterDrawer").then(mod => mod.ProjectTaskFilterDrawer), { ssr: false });
+const TaskOptionsDrawer = dynamic(() => import("@/components/drawers/taskOptionsDrawer").then(mod => mod.TaskOptionsDrawer), { ssr: false });
+const TeamOptionsDrawer = dynamic(() => import("@/components/drawers/teamOptionsDrawer").then(mod => mod.TeamOptionsDrawer), { ssr: false });
+const MyTaskOptionsDrawer = dynamic(() => import("@/components/drawers/myTaskOptionsDrawer").then(mod => mod.MyTaskOptionsDrawer), { ssr: false });
+const ProjectOptionsDrawer = dynamic(() => import("@/components/drawers/projectOptionsDrawer").then(mod => mod.ProjectOptionsDrawer), { ssr: false });
 
 
 // Mobile Long Press Drawers
-const ChannelMessageLongPressDrawer = dynamic(() => import("@/components/drawers/channelMessageLongPressDrawer").then(mod => mod.ChannelMessageLongPressDrawer));
-const ChatMessageLongPressDrawer = dynamic(() => import("@/components/drawers/chatMessageLongPressDrawer").then(mod => mod.ChatMessageLongPressDrawer));
-const GroupChatMessageLongPressDrawer = dynamic(() => import("@/components/drawers/groupChatMessageLongPressDrawer").then(mod => mod.GroupChatMessageLongPressDrawer));
-const PostMessageLongPressDrawer = dynamic(() => import("@/components/drawers/postMessageLongPressDrawer").then(mod => mod.PostMessageLongPressDrawer));
-const DmChatMessageLongPressDrawer = dynamic(() => import("@/components/drawers/dmChatMessageLongPressDrawer").then(mod => mod.DmChatMessageLongPressDrawer));
-const DmGroupChatMessageLongPressDrawer = dynamic(() => import("@/components/drawers/dmGroupChatMessageLongPressDrawer").then(mod => mod.DmGroupChatMessageLongPressDrawer));
-const PostCommentLongPressDrawer = dynamic(() => import("@/components/drawers/postCommentMessageLongPressDrawer").then(mod => mod.PostCommentMessageLongPressDrawer));
-const DmChatCommentLongPressDrawer = dynamic(() => import("@/components/drawers/dmChatCommentMessageLongPressDrawer").then(mod => mod.DmChatCommentMessageLongPressDrawer));
-const DocCommentLongPressDrawer = dynamic(() => import("@/components/drawers/docCommentMessageLongPressDrawer").then(mod => mod.DocCommentMessageLongPressDrawer));
-const ProjectLongPressDrawer = dynamic(() => import("@/components/drawers/projectLongPressDrawer").then(mod => mod.ProjectLongPressDrawer));
+const ChannelMessageLongPressDrawer = dynamic(() => import("@/components/drawers/channelMessageLongPressDrawer").then(mod => mod.ChannelMessageLongPressDrawer), { ssr: false });
+const ChatMessageLongPressDrawer = dynamic(() => import("@/components/drawers/chatMessageLongPressDrawer").then(mod => mod.ChatMessageLongPressDrawer), { ssr: false });
+const GroupChatMessageLongPressDrawer = dynamic(() => import("@/components/drawers/groupChatMessageLongPressDrawer").then(mod => mod.GroupChatMessageLongPressDrawer), { ssr: false });
+const PostMessageLongPressDrawer = dynamic(() => import("@/components/drawers/postMessageLongPressDrawer").then(mod => mod.PostMessageLongPressDrawer), { ssr: false });
+const DmChatMessageLongPressDrawer = dynamic(() => import("@/components/drawers/dmChatMessageLongPressDrawer").then(mod => mod.DmChatMessageLongPressDrawer), { ssr: false });
+const DmGroupChatMessageLongPressDrawer = dynamic(() => import("@/components/drawers/dmGroupChatMessageLongPressDrawer").then(mod => mod.DmGroupChatMessageLongPressDrawer), { ssr: false });
+const PostCommentLongPressDrawer = dynamic(() => import("@/components/drawers/postCommentMessageLongPressDrawer").then(mod => mod.PostCommentMessageLongPressDrawer), { ssr: false });
+const DmChatCommentLongPressDrawer = dynamic(() => import("@/components/drawers/dmChatCommentMessageLongPressDrawer").then(mod => mod.DmChatCommentMessageLongPressDrawer), { ssr: false });
+const DocCommentLongPressDrawer = dynamic(() => import("@/components/drawers/docCommentMessageLongPressDrawer").then(mod => mod.DocCommentMessageLongPressDrawer), { ssr: false });
+const ProjectLongPressDrawer = dynamic(() => import("@/components/drawers/projectLongPressDrawer").then(mod => mod.ProjectLongPressDrawer), { ssr: false });
 
 export function UnifiedUIManager() {
   const dispatch = useDispatch();
@@ -291,6 +294,22 @@ export function UnifiedUIManager() {
         />
       )}
 
+      {ui.chatOptionsDrawer.isOpen && (
+        <ChatOptionsDrawer
+          drawerOpenState={ui.chatOptionsDrawer.isOpen}
+          setOpenState={() => dispatch(closeUI('chatOptionsDrawer'))}
+          chatId={ui.chatOptionsDrawer.data.chatUUID}
+        />
+      )}
+
+      {ui.groupChatOptionsDrawer.isOpen && (
+        <GroupChatOptionsDrawer
+          drawerOpenState={ui.groupChatOptionsDrawer.isOpen}
+          setOpenState={() => dispatch(closeUI('groupChatOptionsDrawer'))}
+          grpId={ui.groupChatOptionsDrawer.data.grpId}
+        />
+      )}
+
       {ui.channelInfoSheet.isOpen && (
         <ChannelMobileSheet
           open={ui.channelInfoSheet.isOpen}
@@ -360,6 +379,14 @@ export function UnifiedUIManager() {
         <MyTaskOptionsDrawer
           drawerOpenState={ui.myTaskOptionsDrawer.isOpen}
           setOpenState={() => dispatch(closeUI('myTaskOptionsDrawer'))}
+        />
+      )}
+
+      {ui.projectOptionsDrawer.isOpen && (
+        <ProjectOptionsDrawer
+          drawerOpenState={ui.projectOptionsDrawer.isOpen}
+          setOpenState={() => dispatch(closeUI('projectOptionsDrawer'))}
+          projectId={ui.projectOptionsDrawer.data.projectUUID}
         />
       )}
 

@@ -3,19 +3,13 @@ import {ChannelListChannel} from "@/components/channel/channelListChannel";
 import {Separator} from "@/components/ui/separator";
 import * as React from "react";
 import {app_channel_path} from "@/types/paths";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import {ConditionalWrap} from "@/components/conditionalWrap/conditionalWrap";
 import {useMedia} from "@/context/MediaQueryContext";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import {VirtualInfiniteScroll} from "@/components/list/virtualInfiniteScroll";
 
 export const ChannelListResult = ({channelList, onLoadMore, hasMore, isLoading}: {channelList: ChannelInfoInterface[], onLoadMore?: ()=>void, hasMore?: boolean, isLoading?: boolean}) => {
-
-    const router = useRouter();
-
-    const handleClick = (channelUUID: string) => {
-        router.push(app_channel_path + '/' + channelUUID);
-    }
     const {isMobile} = useMedia()
 
 
@@ -36,7 +30,7 @@ export const ChannelListResult = ({channelList, onLoadMore, hasMore, isLoading}:
 
                 )
             }>
-                <div key = {channel.ch_uuid}  onClick={()=>handleClick(channel.ch_uuid)}>
+                <Link key = {channel.ch_uuid} href={`${app_channel_path}/${channel.ch_uuid}`} className="block">
                     {i!=0 && <Separator orientation="horizontal" className=" mx-6 w-[calc(100%-3rem)]" />}
                     <ChannelListChannel
                         lastUsername={channel.ch_posts?.[0].post_by.user_name || ''}
@@ -49,7 +43,7 @@ export const ChannelListResult = ({channelList, onLoadMore, hasMore, isLoading}:
                     />
                     {i==(channelList.length -1) && <Separator orientation="horizontal" className=" mx-6 w-[calc(100%-3rem)]" />}
 
-                </div>
+                </Link>
             </ConditionalWrap>
         )
     }

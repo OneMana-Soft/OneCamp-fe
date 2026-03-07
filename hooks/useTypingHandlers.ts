@@ -58,7 +58,6 @@ export const useTypingHandlers = ({ connectionConfig, userUuid, typingTimeouts }
 
                 dispatch(
                     addChannelTyping({
-                        timer: typingTimeouts.get(timeoutKey)?.timer,
                         user: {
                             user_uuid: mqttChannelTyping.data.user_uuid,
                             user_name: mqttChannelTyping.data.user_name,
@@ -101,7 +100,6 @@ export const useTypingHandlers = ({ connectionConfig, userUuid, typingTimeouts }
 
                     dispatch(
                         addGroupChatTyping({
-                            timer: typingTimeouts.get(timeoutKey)?.timer,
                             user: {
                                 user_uuid: user_uuid,
                                 user_name: user_name,
@@ -124,7 +122,6 @@ export const useTypingHandlers = ({ connectionConfig, userUuid, typingTimeouts }
 
                     dispatch(
                         addChatTyping({
-                            timer: typingTimeouts.get(timeoutKey)?.timer,
                             user: {
                                 user_uuid: user_uuid,
                                 user_name: user_name,

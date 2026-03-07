@@ -8,6 +8,7 @@ import React, {useCallback, useEffect, useState} from "react";
 import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {useRouter} from "next/navigation";
+import Link from "next/link";
 import { app_doc_path} from "@/types/paths";
 import {usePost} from "@/hooks/usePost";
 import {UserProfileInterface} from "@/types/user";
@@ -24,11 +25,7 @@ export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
 
     const post = usePost()
 
-    const handleCommentClick = useCallback(() => {
-
-        router.push(app_doc_path + '/' + docId + '/comment');
-
-    },[docId])
+    const commentHref = `${app_doc_path}/${docId}/comment`;
 
     useEffect(() => {
 
@@ -68,7 +65,7 @@ export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
     return (
         <div className='flex justify-end space-x-1'>
             {/*<DocCommentPopover/>*/}
-            <Button variant='ghost' onClick={handleCommentClick}><MessageCircle className='h-5'/>{docCommentCount || ''}</Button>
+            <Link href={commentHref}><Button variant='ghost'><MessageCircle className='h-5'/>{docCommentCount || ''}</Button></Link>
 
             <Button variant='ghost' onClick={() => dispatch(openUI({ key: 'docOptionsDrawer', data: { docId: docId, isOwner: isOwner, deleteDoc: deleteDoc } }))}><Ellipsis className='h-5'/></Button>
 

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {CircleUser, Clapperboard, Pencil, Users, Video} from "lucide-react"
+import {Clapperboard, Users, Video} from "lucide-react"
 
 import {
     Drawer,
@@ -14,67 +14,69 @@ import {useDispatch} from "react-redux";
 import {useEffect, useState} from "react";
 import {usePost} from "@/hooks/usePost";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
-import {PostEndpointUrl} from "@/services/endPoints";
-import {ChannelNotificationInterface, NotificationType} from "@/types/channel";
+import {NotificationType} from "@/types/channel";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {openUI} from "@/store/slice/uiSlice";
-import {useFetch} from "@/hooks/useFetch";
-import {ChannelInfoInterfaceResp} from "@/types/channel";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {app_channel_call} from "@/types/paths";
 import {useRouter} from "next/navigation";
+import {app_grp_call} from "@/types/paths";
+import {useFetchOnlyOnce} from "@/hooks/useFetch";
+import {RawUserDMInterface} from "@/types/user";
+import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import {updateChatCallStatus} from "@/store/slice/chatSlice";
+import {GrpChatNotificationInterface} from "@/types/chat";
 
 
-interface channelOptionsDrawerProps {
+interface groupChatOptionsDrawerProps {
     drawerOpenState: boolean;
-    channelId: string;
+    grpId: string;
     setOpenState: (state: boolean) => void;
 }
 
-export function ChannelOptionsDrawer({drawerOpenState, setOpenState, channelId}: channelOptionsDrawerProps) {
-    const channelInfo = useFetch<ChannelInfoInterfaceResp>(`${channelId ? GetEndpointUrl.ChannelBasicInfo+'/'+channelId : ''}`);
-
-    const [channelNotification, setChannelNotificationType] = useState<string>(NotificationType.NotificationAll);
-    const postNotification  = usePost();
-
-    useEffect(() => {
-        if(channelInfo.data?.channel_info.notification_type) {
-            setChannelNotificationType(channelInfo.data?.channel_info.notification_type);
-        }
-    }, [channelInfo.data?.channel_info]);
-
-    const UpdateNotification = async () => {
-        const nextNotification = getNextNotification(channelNotification);
-        await postNotification.makeRequest<ChannelNotificationInterface>({
-            payload: {channel_id: channelId, notification_type: nextNotification}, 
-            apiEndpoint: PostEndpointUrl.UpdateChannelNotification
-        });
-        setChannelNotificationType(nextNotification);
-    };
-
+export function GroupChatOptionsDrawer({drawerOpenState, setOpenState, grpId}: groupChatOptionsDrawerProps) {
     const dispatch = useDispatch();
     const router = useRouter();
+
+    const dmParticipantsInfo  = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`)
+
+    const [grpNotification, setGrpNotificationType] = useState<string>(NotificationType.NotificationAll);
+    const postNotification  = usePost();
+
+
+    const UpdateNotification = async () => {
+        const nextNotification = getNextNotification(grpNotification)
+        await postNotification.makeRequest<GrpChatNotificationInterface>({payload:{grp_id: grpId, notification_type: nextNotification}, apiEndpoint: PostEndpointUrl.UpdateGroupChatNotification})
+        setGrpNotificationType(nextNotification)
+    }
+
+    useEffect(() => {
+
+        if(dmParticipantsInfo.data?.data) {
+            setGrpNotificationType(dmParticipantsInfo.data?.data.dm_notification_type || NotificationType.NotificationAll)
+            dispatch(updateChatCallStatus({grpId: grpId, callStatus: !!dmParticipantsInfo.data?.data.dm_call_active}))
+        }
+
+    }, [dmParticipantsInfo.data?.data])
+
     function closeDrawer() {
         setOpenState(false);
     }
 
     const clickVideoCall = () => {
         closeDrawer();
-        router.push(app_channel_call + "/" + channelId);
-
+        router.push(app_grp_call + "/" + grpId);
     }
 
     return (
-    <Drawer  onOpenChange={closeDrawer} open={drawerOpenState}>
+    <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
-                <div className=" w-full mb-6">
+                <div className="w-full mb-6">
                     <DrawerHeader className='hidden'>
                         <DrawerTitle className='capitalize'>{process.env.NEXT_PUBLIC_ORG_NAME}</DrawerTitle>
-                        <DrawerDescription>Org level</DrawerDescription>
-
+                        <DrawerDescription>Group level</DrawerDescription>
                     </DrawerHeader>
                     <div className="p-4 pb-6">
                         <div className="flex flex-col items-center justify-start space-y-1">
+                            
                             <div
                                 className='w-full h-16 flex items-center justify-between cursor-pointer transition-colors hover:bg-muted/80 bg-muted/40 rounded-xl px-4 mb-2'
                                 onClick={UpdateNotification}
@@ -82,28 +84,24 @@ export function ChannelOptionsDrawer({drawerOpenState, setOpenState, channelId}:
                                 <div className="flex flex-col">
                                     <span className="text-base font-semibold">Notifications</span>
                                     <span className="text-xs text-muted-foreground mt-0.5">
-                                        {channelNotification === NotificationType.NotificationAll ? "All messages" :
-                                        channelNotification === NotificationType.NotificationMention ? "Mentions only" : "Muted"}
+                                        {grpNotification === NotificationType.NotificationAll ? "All messages" :
+                                        grpNotification === NotificationType.NotificationMention ? "Mentions only" : "Muted"}
                                     </span>
                                 </div>
                                 <div className="pointer-events-none -mr-2 bg-background/50 rounded-full shadow-sm flex items-center justify-center">
-                                    <NotificationBell notificationType={channelNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
+                                    <NotificationBell notificationType={grpNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
                                 </div>
                             </div>
 
-                            {channelInfo.data?.channel_info.ch_is_admin && <div
-                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={()=>{dispatch(openUI({ key: 'editChannel', data: {channelUUID:channelId} }))}}
-                            >
-                                <Pencil className="h-5 w-5 text-muted-foreground" />
-                                <span className="text-base font-medium">Edit channel</span>
-                            </div>}
                             <div
                                 className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={() => dispatch(openUI({ key: 'editChannelMember', data: {channelUUID:channelId} }))}
+                                onClick={()=>{
+                                    closeDrawer();
+                                    dispatch(openUI({ key: 'editDmMember', data: {grpId} }));
+                                }}
                             >
-                                <Users className="h-5 w-5 text-muted-foreground"/>
-                                <span className="text-base font-medium">Channel Members</span>
+                                <Users className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-base font-medium">Group Members</span>
                             </div>
 
                             <div
@@ -113,11 +111,12 @@ export function ChannelOptionsDrawer({drawerOpenState, setOpenState, channelId}:
                                 <Video className="h-5 w-5 text-muted-foreground"/>
                                 <span className="text-base font-medium">Join Call</span>
                             </div>
+
                             <div
                                 className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
                                 onClick={() => {
                                     closeDrawer();
-                                    router.push(`/app/channel/${channelId}/recording`);
+                                    router.push(`/app/chat/group/${grpId}/recording`);
                                 }}
                             >
                                 <Clapperboard className="h-5 w-5 text-muted-foreground"/>
@@ -126,14 +125,10 @@ export function ChannelOptionsDrawer({drawerOpenState, setOpenState, channelId}:
                         </div>
 
                     </div>
-                    {/*<DrawerFooter>*/}
-                    {/*    <Button>Submit</Button>*/}
-                    {/*    <DrawerClose asChild>*/}
-                    {/*        <Button variant="outline">Cancel</Button>*/}
-                    {/*    </DrawerClose>*/}
-                    {/*</DrawerFooter>*/}
                 </div>
             </DrawerContent>
         </Drawer>
     )
 }
+
+export default GroupChatOptionsDrawer;

@@ -3,18 +3,12 @@ import {DocInfoInterface} from "@/types/doc";
 import {DocCard} from "@/components/doc/docCard";
 import * as React from "react";
 import {app_doc_path} from "@/types/paths";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils/helpers/cn";
 import { VirtuosoGrid } from 'react-virtuoso';
 
 export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate}: {docList: DocInfoInterface[], onLoadMore?: ()=>void, hasMore?: boolean, isLoading?: boolean, onCreate?: ()=>void}) => {
-
-    const router = useRouter();
-
-    const handleClick = (docUUID: string) => {
-        router.push(app_doc_path + '/' + docUUID);
-    }
     
     // Merge potential "Create Doc" card into the data list
     // We use a discriminated union type approach or just a mixed array
@@ -82,7 +76,9 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                          )
                      }
                      return (
-                         <DocCard doc={item} onClick={handleClick} />
+                         <Link href={`${app_doc_path}/${item.doc_uuid}`} className="block">
+                             <DocCard doc={item} onClick={() => {}} />
+                         </Link>
                      )
                 }}
              />

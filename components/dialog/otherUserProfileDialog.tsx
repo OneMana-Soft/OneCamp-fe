@@ -1,4 +1,6 @@
 
+"use client"
+
 import {
     Dialog,
     DialogContent,
@@ -39,6 +41,12 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                                                   setOpenState,
                                                                   userUUID,
                                                               }) => {
+    useEffect(() => {
+        if (dialogOpenState) {
+            // Preload the lightbox dialog JS chunk to avoid "black screen" on first click
+            import("@/components/dialog/attachmentLightboxDialog");
+        }
+    }, [dialogOpenState]);
 
     const router = useRouter();
     const profileInfo = useFetch<UserProfileInterface>( userUUID ? GetEndpointUrl.SelfProfile + '/'+ userUUID :'')
@@ -106,6 +114,8 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                         attachment_type: "image",
                                         attachment_size: 0,
                                         attachment_created_at: new Date().toISOString(),
+                                        attachment_raw_type: "image/jpeg",
+                                        initial_url: profileImageRes.data?.url || ""
                                     } as AttachmentMediaReq;
                                     dispatch(openUI({
                                         key: 'attachmentLightbox',

@@ -29,7 +29,7 @@ import type {RootState} from "@/store/store";
 import {sortChannelList} from "@/lib/utils/sortChannelList";
 import {sortChatList} from "@/lib/utils/sortChatList";
 import {getOtherUserId} from "@/lib/utils/getOtherUserId";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import {formatCount} from "@/lib/utils/helpers/formatCount";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 
@@ -47,7 +47,7 @@ export function MobileHome() {
     const channelNavGrp = [] as DesktopChildrenNavType[]
     const dmNavGrp = [] as DesktopChildrenNavType[]
 
-    const router = useRouter();
+
 
     const userSideNav = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfileSideNav, undefined, {
         revalidateOnFocus: false,
@@ -215,38 +215,34 @@ export function MobileHome() {
         },
     ];
 
-    const handleDocClick = () => {
-        router.push(app_doc_path)
-    }
 
-    const handlePostClick = () => {
-        router.push(app_post_path)
-    }
-
-    const handleRecordingClick = () => {
-        router.push(app_recording_activity)
-    }
 
     return (
         <div className='flex flex-col space-y-4 justify-center mt-6 pl-4 pr-4'>
             <MobileHomeSearchBar/>
             <div className='flex justify-between'>
-                <TouchableDiv className='h-[9vh] w-[29vw] bg-secondary rounded-2xl flex flex-col justify-center p-4'  onClick={handlePostClick}>
-                    <div className='bg-gray-500 flex justify-center items-center mb-2 rounded-md w-6 p-1'><FileText className="h-4 w-4" stroke={'white'}/></div>
-                        <span>Posts</span>
+                <Link href={app_post_path}>
+                    <TouchableDiv className='h-[9vh] w-[29vw] bg-secondary rounded-2xl flex flex-col justify-center p-4'>
+                        <div className='bg-gray-500 flex justify-center items-center mb-2 rounded-md w-6 p-1'><FileText className="h-4 w-4" stroke={'white'}/></div>
+                            <span>Posts</span>
 
-                </TouchableDiv>
-                <TouchableDiv className='h-[9vh] w-[29vw]  bg-secondary rounded-2xl flex flex-col justify-center p-4' onClick={handleDocClick}>
-                    <div className='bg-blue-500 flex justify-center items-center mb-2 rounded-md w-6  p-1' ><FileIcon className="h-4 w-4" stroke={'white'}/></div>
-                    <span >Docs</span>
-                </TouchableDiv>
+                    </TouchableDiv>
+                </Link>
+                <Link href={app_doc_path}>
+                    <TouchableDiv className='h-[9vh] w-[29vw]  bg-secondary rounded-2xl flex flex-col justify-center p-4'>
+                        <div className='bg-blue-500 flex justify-center items-center mb-2 rounded-md w-6  p-1' ><FileIcon className="h-4 w-4" stroke={'white'}/></div>
+                        <span >Docs</span>
+                    </TouchableDiv>
+                </Link>
 
-                    <TouchableDiv className='h-[9vh] w-[29vw] bg-secondary rounded-2xl flex flex-col justify-center p-4' onClick={handleRecordingClick}>
+                <Link href={app_recording_activity}>
+                    <TouchableDiv className='h-[9vh] w-[29vw] bg-secondary rounded-2xl flex flex-col justify-center p-4'>
 
-                    <div className='bg-green-500 flex justify-center items-center mb-2 rounded-md w-6 p-1'><Video className="h-4 w-4" stroke={'white'}/></div>
-                    <span>Recordings</span>
+                        <div className='bg-green-500 flex justify-center items-center mb-2 rounded-md w-6 p-1'><Video className="h-4 w-4" stroke={'white'}/></div>
+                        <span>Recordings</span>
 
-                </TouchableDiv>
+                    </TouchableDiv>
+                </Link>
             </div>
 
             <div className='flex flex-col overflow-y-scroll h-full'>

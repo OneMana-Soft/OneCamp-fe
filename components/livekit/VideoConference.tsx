@@ -96,7 +96,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { on
       { source: Track.Source.ScreenShare, withPlaceholder: false },
     ],
     { onlySubscribed: false }
-  );
+  ).filter(t => t.participant.identity !== 'transcriber-bot');
   
   const [layout, setLayout] = useState<'grid' | 'speaker'>('grid');
   const [focusedTrack, setFocusedTrack] = useState<TrackReferenceOrPlaceholder | null>(null);

@@ -152,15 +152,11 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
 
     }
 
-    const handleOnCLick = () => {
-
-        setTimeout(() => {
-            router.push(`${app_grp_chat_path}/${grpId}/${chatInfo.chat_uuid}`);
-
-        }, 500);
-
-
-    }
+    const handleOnCLick = useCallback((e: React.MouseEvent) => {
+        // Prevent navigation if clicking on interactive elements
+        if ((e.target as HTMLElement).closest('button, a, .interactive')) return;
+        router.push(`${app_grp_chat_path}/${grpId}/${chatInfo.chat_uuid}`);
+    }, [router, grpId, chatInfo.chat_uuid]);
 
 
 
@@ -175,7 +171,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
             <div className='h-12 w-12 flex-shrink-0' onClick={handleUserClick}>
                 <ChannelMessageAvatar
                     userName={userInfoState?.userName || chatInfo.chat_from.user_name}
-                    userProfileKey={userInfoState?.userName ? userInfoState.profileKey : chatInfo.chat_from.user_profile_object_key}
+                    userProfileKey={userInfoState?.profileKey ?? chatInfo.chat_from.user_profile_object_key}
                 />
 
             </div>

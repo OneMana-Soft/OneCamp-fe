@@ -62,14 +62,22 @@ interface Props {
     mediaGetURL: string
     className?: string
     priority?: boolean
+    onUrlLoaded?: (url: string) => void
 }
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect } from 'react'
 
-export function MessageAttachmentCard({ mediaGetURL, attachment, autoplay, className, priority }: Props) {
+export function MessageAttachmentCard({ mediaGetURL, attachment, autoplay, className, priority, onUrlLoaded }: Props) {
     const cover = attachmentShouldCover(attachment)
 
     const mediaReq = useMediaFetch<GetMediaURLRes>(attachment?.attachment_uuid ? mediaGetURL +'/'+attachment.attachment_uuid : '')
+
+    useEffect(() => {
+        if (mediaReq.data?.url && onUrlLoaded) {
+            onUrlLoaded(mediaReq.data.url)
+        }
+    }, [mediaReq.data?.url])
 
 
     if (mediaReq.isError) {

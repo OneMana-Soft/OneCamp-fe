@@ -3,7 +3,9 @@
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 import React from "react";
+import {MoreVertical} from "lucide-react";
 import {RawUserDMInterface} from "@/types/user";
+import {Button} from "@/components/ui/button";
 
 import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {useDispatch, useSelector} from "react-redux";
@@ -22,27 +24,22 @@ export function MobileTopNavigationBarSecondGroupChat({grpId}:{grpId: string}) {
     const participants = grpChatCreatedLocally.participants || dmParticipantsInfo.data?.data.dm_participants || []
 
     return (
-        <div className='flex justify-center  px-2' onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId} }))}}>
+        <div className='flex justify-center px-2 relative items-center w-full h-full'>
+            <div 
+                className='font-bold flex justify-center items-center space-x-3 text-lg text-center truncate overflow-auto overflow-ellipsis cursor-pointer max-w-[80%]' 
+                onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId} }))}}
+            >
+                <GroupedAvatar users={ participants || []} max={2} overlap={15} size={30} className={'text-sm !pr-0'}/>
 
-            <div className='font-bold flex justify-center items-center space-x-3 text-lg text-center truncate overflow-auto overflow-ellipsis'>
-                    <GroupedAvatar users={ participants || []} max={2} overlap={15} size={30} className={'text-sm !pr-0'}/>
-
-                    {/*<Button size='icon' variant='ghost' onClick={()=>{dispatch(openUpdateChannelDialog({channelUUID: channelId}))}}><Pencil /></Button>*/}
-                    {/*<Button size='icon' variant='ghost' onClick={()=>{dispatch(openUpdateChannelMemberDialog({channelUUID: channelId}))}}> <Users /></Button>*/}
-
-                    <div className="text-ellipsis truncate max-w-40">
-
-                        {participants.map((item, index) => (
-                            <span key={index}>
-                                    {item.user_name}
-                                {index < (participants.length || 0) - 1 && ', '}
-                                </span>
-                        ))}
-
-                    </div>
+                <div className="text-ellipsis truncate max-w-40">
+                    {participants.map((item, index) => (
+                        <span key={index}>
+                                {item.user_name}
+                            {index < (participants.length || 0) - 1 && ', '}
+                            </span>
+                    ))}
+                </div>
             </div>
-
         </div>
-
     );
 }

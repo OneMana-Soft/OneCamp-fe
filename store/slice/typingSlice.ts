@@ -4,19 +4,16 @@ import {UserProfileDataInterface} from "@/types/user";
 interface addChannelTypingInterface {
     user: UserProfileDataInterface
     channelId: string
-    timer?: ReturnType<typeof setTimeout>
 }
 
 interface addChatTypingInterface {
     user: UserProfileDataInterface
     chatId: string
-    timer?: ReturnType<typeof setTimeout>
 }
 
 interface addGroupChatTypingInterface {
     user: UserProfileDataInterface
     grpId: string
-    timer?: ReturnType<typeof setTimeout>
 }
 
 interface removeChannelTypingInterface {
@@ -35,7 +32,6 @@ interface removeGroupChatTypingInterface {
 export interface userTypingInfoInterface {
     user: UserProfileDataInterface
     userId: string
-    timer?: ReturnType<typeof setTimeout>
 }
 export interface ExtendedTypingState {
     [key: string]:  userTypingInfoInterface[];
@@ -52,89 +48,69 @@ export const typingSlice = createSlice({
     initialState,
     reducers: {
         addChannelTyping: (state, action: {payload: addChannelTypingInterface}) => {
-            const {user, channelId, timer} = action.payload
+            const {user, channelId} = action.payload;
             if(!state.channelTyping[channelId]) {
-                state.channelTyping[channelId] = [] as userTypingInfoInterface[]
+                state.channelTyping[channelId] = [];
             }
-
-            let userExistInList = false
-            for(const typingUserInfo of state.channelTyping[channelId]) {
-                if(typingUserInfo.userId ==  user.user_uuid) {
-                    clearTimeout(typingUserInfo.timer)
-                    typingUserInfo.timer = timer
-                    userExistInList = true
-                    break
-                }
-            }
-
+            const userExistInList = state.channelTyping[channelId].some(
+                (typingUserInfo) => typingUserInfo.userId === user.user_uuid
+            );
             if(!userExistInList) {
-                state.channelTyping[channelId].push({userId: user.user_uuid, user:user, timer: timer})
+                state.channelTyping[channelId].push({userId: user.user_uuid, user});
             }
         },
 
         addChatTyping: (state, action: {payload: addChatTypingInterface}) => {
-            const {user, chatId, timer} = action.payload
+            const {user, chatId} = action.payload;
             if(!state.chatTyping[chatId]) {
-                state.chatTyping[chatId] = [] as userTypingInfoInterface[]
+                state.chatTyping[chatId] = [];
             }
-
-            let userExistInList = false
-            for(const typingUserInfo of state.chatTyping[chatId]) {
-                if(typingUserInfo.userId ==  user.user_uuid) {
-                    clearTimeout(typingUserInfo.timer)
-                    typingUserInfo.timer = timer
-                    userExistInList = true
-                    break
-                }
-            }
-
+            const userExistInList = state.chatTyping[chatId].some(
+                (typingUserInfo) => typingUserInfo.userId === user.user_uuid
+            );
             if(!userExistInList) {
-                state.chatTyping[chatId].push({userId: user.user_uuid, user:user, timer:timer})
+                state.chatTyping[chatId].push({userId: user.user_uuid, user});
             }
         },
 
         addGroupChatTyping: (state, action: {payload: addGroupChatTypingInterface}) => {
-            const {user, grpId, timer} = action.payload
+            const {user, grpId} = action.payload;
             if(!state.groupChatTyping[grpId]) {
-                state.groupChatTyping[grpId] = [] as userTypingInfoInterface[]
+                state.groupChatTyping[grpId] = [];
             }
-
-            let userExistInList = false
-            for(const typingUserInfo of state.groupChatTyping[grpId]) {
-                if(typingUserInfo.userId ==  user.user_uuid) {
-                    clearTimeout(typingUserInfo.timer)
-                    typingUserInfo.timer = timer
-                    userExistInList = true
-                    break
-                }
-            }
-
+            const userExistInList = state.groupChatTyping[grpId].some(
+                (typingUserInfo) => typingUserInfo.userId === user.user_uuid
+            );
             if(!userExistInList) {
-                state.groupChatTyping[grpId].push({userId: user.user_uuid, user:user, timer:timer})
+                state.groupChatTyping[grpId].push({userId: user.user_uuid, user});
             }
         },
 
         RemoveChatTyping: (state, action: {payload: removeChatTypingInterface}) => {
-            const {userId, chatId} = action.payload
-
-            state.chatTyping[chatId] = state.chatTyping[chatId].filter((userTyping) => {
-                return userTyping.userId != userId
-            })
-
+            const {userId, chatId} = action.payload;
+            if (state.chatTyping[chatId]) {
+                state.chatTyping[chatId] = state.chatTyping[chatId].filter(
+                    (userTyping) => userTyping.userId !== userId
+                );
+            }
         },
 
         RemoveChannelTyping: (state, action: {payload: removeChannelTypingInterface}) => {
-            const {userId, channelId} = action.payload
-            state.channelTyping[channelId] = state.channelTyping[channelId].filter((userTyping) => {
-                return userTyping.userId !== userId
-            })
+            const {userId, channelId} = action.payload;
+            if (state.channelTyping[channelId]) {
+                state.channelTyping[channelId] = state.channelTyping[channelId].filter(
+                    (userTyping) => userTyping.userId !== userId
+                );
+            }
         },
 
         RemoveGroupChatTyping: (state, action: {payload: removeGroupChatTypingInterface}) => {
-            const {userId, grpId} = action.payload
-            state.groupChatTyping[grpId] = state.groupChatTyping[grpId].filter((userTyping) => {
-                return userTyping.userId !== userId
-            })
+            const {userId, grpId} = action.payload;
+            if (state.groupChatTyping[grpId]) {
+                state.groupChatTyping[grpId] = state.groupChatTyping[grpId].filter(
+                    (userTyping) => userTyping.userId !== userId
+                );
+            }
         },
 
     }

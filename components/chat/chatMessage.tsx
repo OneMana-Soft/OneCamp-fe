@@ -134,7 +134,7 @@ export const ChatMessage = React.memo(({updatePost, chatInfo, addReaction, remov
             <div className='h-12 w-12 flex-shrink-0'>
                 <ChannelMessageAvatar
                     userName={userInfoState?.userName || chatInfo.chat_from.user_name}
-                    userProfileKey={userInfoState?.userName ? userInfoState.profileKey : chatInfo.chat_from.user_profile_object_key}
+                    userProfileKey={userInfoState?.profileKey ?? chatInfo.chat_from.user_profile_object_key}
                 />
 
             </div>

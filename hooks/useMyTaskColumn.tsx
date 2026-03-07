@@ -14,7 +14,7 @@ import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {useDispatch} from "react-redux";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
-import {useRouter} from "next/navigation";
+import Link from "next/link";
 import {app_project_path} from "@/types/paths";
 
 
@@ -22,11 +22,6 @@ import {app_project_path} from "@/types/paths";
 export const useMyTaskColumn = () => {
 
     const dispatch = useDispatch();
-    const router = useRouter();
-
-    const handleProjectClick = (projectId: string) => {
-        router.push(app_project_path+"/"+projectId);
-    }
 
     const columns: ColumnDef<TaskInfoInterface>[] = [
 
@@ -145,12 +140,10 @@ export const useMyTaskColumn = () => {
             ),
             cell: ({ row }) => (
 
-                <>{row.original?.task_project ? <div className="flex items-center space-x-2 hover:underline pointer-events-auto group cursor-pointer" onClick={()=>{
-                        handleProjectClick(row.original?.task_project.project_uuid)
-                }}>
+                <>{row.original?.task_project ? <Link href={`${app_project_path}/${row.original?.task_project.project_uuid}`} className="flex items-center space-x-2 hover:underline pointer-events-auto group cursor-pointer">
                     <ColorIcon name={row.original?.task_project.project_uuid} size={'xs'}/>
         <div >{row.original?.task_project.project_name}</div>
-                    </div>:
+                    </Link>:
                     <span>{"--"}</span>}</>
             ),
             enableSorting: false,

@@ -4,6 +4,7 @@ import React, {useCallback, useMemo, useRef, useState} from "react"
 import { createContext, useContext, useEffect } from "react"
 import {useMqttConnection} from "@/hooks/useMqttConnection";
 import {useMqttMessageHandler} from "@/hooks/useMqttMessageHandler";
+import {useMessageSyncManager} from "@/hooks/useMessageSyncManager";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
@@ -42,7 +43,7 @@ const MQTT_CONNECTION_CONFIG = {
     wsUrl: process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8083",
     wsPort: process.env.NODE_ENV !== "development" ? 8084 : 8083,
     reconnectInterval: 1000,
-    maxReconnectAttempts: 3,
+    maxReconnectAttempts: 10, // Increased from 3: covers ~17min of retrying with exponential backoff. After that, handleVisibilityChange reconnects when user returns.
     typingTimeout: 4000,
 }
 
@@ -73,6 +74,9 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
         userUuid,
     })
 
+    // SYNC MANAGER: Tracks connection health and forces API refetch after stale reconnection
+    const syncManager = useMessageSyncManager()
+
     const topicSubscriptionsRef = useRef<Map<string, TopicSubscription[]>>(new Map()) // Use Ref to avoid re-renders
     const subscriptionIdCounter = useRef(0)
 
@@ -83,6 +87,9 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
 
     const enhancedMessageHandler = useCallback(
         (topic: string, message: Buffer) => {
+            // Mark MQTT connection as healthy (received a real message)
+            syncManager.markHealthy()
+
             // Call the original message handler
             messageHandler.handleMessage(topic, message)
 
@@ -99,7 +106,7 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
                 })
             }
         },
-        [messageHandler], // Stable dependency
+        [messageHandler, syncManager.markHealthy], // Stable dependency
     )
 
     const dynamicTopicManager: DynamicTopicManager = useMemo(
@@ -139,10 +146,15 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
     }
 
     const onDisconnect = () => {
+        syncManager.handleDisconnected()
         dispatch(updateUserConnectedDeviceCount({
             userUUID: userUuid || '',
             deviceConnected: userStatusState.deviceConnected-1
         }))
+    }
+
+    const onReconnect = () => {
+        syncManager.handleConnectionEstablished()
     }
 
     const {
@@ -158,6 +170,7 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
         onMessage: enhancedMessageHandler,
         onConnect: onConnect,
         onDisconnect: onDisconnect,
+        onReconnect: onReconnect,
         userUuid: userUuid,
         onError: (error) => console.error("[MQTT] Provider error:", error),
     })

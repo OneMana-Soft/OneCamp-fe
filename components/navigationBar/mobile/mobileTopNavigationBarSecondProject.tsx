@@ -1,7 +1,9 @@
 "use client"
 
 import {usePathname} from "next/navigation";
-import {Star} from "lucide-react";
+import {Ellipsis, Star} from "lucide-react";
+import {useDispatch} from "react-redux";
+import {openUI} from "@/store/slice/uiSlice";
 import {useFetch} from "@/hooks/useFetch";
 import {getStaticPaths} from "next/dist/build/templates/pages";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
@@ -24,7 +26,6 @@ export function MobileTopNavigationBarSecondProject({projectUUID}:{projectUUID: 
             <div className='font-bold text-lg text-center truncate overflow-auto overflow-ellipsis'>
                 {projectInfo.data?.data.project_name}
             </div>
-
         </div>
 
     );

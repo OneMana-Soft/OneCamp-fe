@@ -1,6 +1,7 @@
 "use client"
 
 import {usePathname, useRouter} from "next/navigation";
+import NextLink from "next/link";
 import {UserStatusNav} from "@/components/navigationBar/userStatusNav";
 import {UserAvatarNav} from "@/components/navigationBar/userAvatarNav";
 import {useDispatch, useSelector} from "react-redux";
@@ -82,7 +83,7 @@ export function MobileTopNavigationBarThird() {
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
                         <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'projectTaskFilterDrawer', data: { projectUUID: path[3] } }))}}><Filter className='h-5'/></Button>
-                        {/*<Button variant='ghost' size='icon' onClick={()=>{}}><Ellipsis className='h-5'/></Button>*/}
+                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'projectOptionsDrawer', data: { projectUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
 
                     </div>
                 break
@@ -107,7 +108,6 @@ export function MobileTopNavigationBarThird() {
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
                         <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
-                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'channelInfoSheet', data: { channelUUID: path[3] } }))}}><PanelRight className='h-5'/></Button>
                         </div>
                 break
             case "doc":
@@ -118,7 +118,6 @@ export function MobileTopNavigationBarThird() {
 
             case "chat":
 
-
                 
                 if(path.length < 4)
                 return  <Button size='icon' variant='ghost' onClick={()=>(dispatch(openUI({ key: 'createChatMessage' })))}><Plus className='h-5'/></Button>
@@ -126,10 +125,7 @@ export function MobileTopNavigationBarThird() {
                 if(path.length < 5) {
 
                     return (
-                        <>
-                        <Button size='icon' variant='ghost' onClick={() => router.push(app_chat_call + "/" + path[3])}> <Video /></Button>
-                        <Button size='icon' variant='ghost' onClick={() => router.push(`/app/chat/${path[3]}/recording`)}> <Clapperboard /></Button>
-                        </>
+                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'chatOptionsDrawer', data: {chatUUID: path[3]} }))}}><Ellipsis className='h-5'/></Button>
                     )
 
                 }
@@ -138,10 +134,8 @@ export function MobileTopNavigationBarThird() {
 
                     if (path.length < 6)
                         return (
-                            <>
-                                <Button size='icon' variant='ghost' onClick={() => router.push(app_grp_call + "/" + path[4])}> <Video /></Button>
-                                <Button size='icon' variant='ghost' onClick={() => router.push(`/app/chat/group/${path[4]}/recording`)}> <Clapperboard /></Button>
-                            </>
+                            <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'groupChatOptionsDrawer', data: {grpId: path[4]} }))}}><Ellipsis className='h-5'/></Button>
+
                         )
 
                 }

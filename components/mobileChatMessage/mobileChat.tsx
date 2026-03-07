@@ -67,7 +67,7 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
         return <LoadingStateCircle />
     }
 
-    if (chatInfo.isError  || !chatInfo.data?.data) {
+    if (chatInfo.isError ) {
         return <ErrorState onRetry={handleRetry}  errorMessage={'failed to fetch the thread'} errorTitle={'Thread not found'}/>
     }
 

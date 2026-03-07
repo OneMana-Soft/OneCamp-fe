@@ -569,6 +569,11 @@ export const chatSlice = createSlice({
 
             state.chatCallStatus[grpId] = {active:callStatus}
 
+        },
+
+        // SYNC: Clear all loaded chat messages to force API refetch after stale reconnection
+        invalidateAllChatMessages: (state) => {
+            state.chatMessages = {} as ExtendedChats
         }
 
 
@@ -604,7 +609,8 @@ export const {
     IncrementUnreadCount,
     updateChatScrollPosition,
     updateChatReactionId,
-    updateChatCallStatus
+    updateChatCallStatus,
+    invalidateAllChatMessages
 } = chatSlice.actions
 
 export default chatSlice;
