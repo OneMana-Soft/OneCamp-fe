@@ -1,7 +1,6 @@
 <div align="center">
 
-<img src="public/logo.png" alt="OneCamp Logo" width="80" height="80" />
-
+<img src="https://raw.githubusercontent.com/OneMana-Soft/OneCamp-fe/main/public/logo.svg" alt="OneCamp Logo" width="80" height="80" />
 # OneCamp
 
 ### The Self-Hosted Unified Workspace
