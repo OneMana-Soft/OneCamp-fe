@@ -201,7 +201,7 @@ export const useProjectTaskColumn = () => {
                     }}>
 
                         <span className={`${
-            d < new Date() && !isZeroEpoch(row.getValue("task_due_date")) ? 'text-destructive' : ''
+            d < new Date() && !isZeroEpoch(row.getValue("task_due_date")) && row.getValue("task_status") != 'done' ? 'text-destructive' : ''
         } `}>
           {!isZeroEpoch(row.getValue("task_due_date")) ? format(d, "dd MMM yyyy") : "--"}
         </span>

@@ -139,7 +139,7 @@ export const Item = React.memo(
                       dragOverlay && styles.dragOverlay,
                       disabled && styles.disabled,
                       color && styles.color,
-                      "border bg-muted/30! rounded-lg  w-full cursor-grab group"
+                      "border bg-muted/30! rounded-lg  w-full cursor-grab group min-w-0"
                   )}
                   style={style}
                   data-cypress="draggable-item"
@@ -148,8 +148,8 @@ export const Item = React.memo(
                   tabIndex={!handle ? 0 : undefined}
               >
                   <div className="flex items-center text-foreground  justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                          <span className="font-medium text-ellipsis truncate max-w-52">{task.task_name}</span>
+                      <div className="flex items-center gap-2 overflow-hidden flex-1">
+                          <span className="font-medium text-ellipsis truncate max-w-[80%]">{task.task_name}</span>
                           {taskP && (
                               <span className="text-muted-foreground">
                                 <taskP.icon className="h-4 w-4"/>
@@ -170,17 +170,17 @@ export const Item = React.memo(
 
                           }}
                       >
-                          <Pencil size={4}/>
+                          <Pencil size={14}/>
                       </Button>
                   </div>
 
-                  {task.task_project && <div className='flex text-foreground items-center gap-1 p-2 pl-0 text-xs'>
+                  {task.task_project && <div className='flex text-foreground items-center gap-1 p-2 pl-0 text-xs overflow-hidden'>
                       <ColorIcon name={task.task_project.project_uuid} size={'xs'}/>
-                      {task.task_project?.project_name}
+                      <span className="truncate">{task.task_project?.project_name}</span>
                   </div>}
 
                   {task.task_description && (
-                      <div className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                      <div className="text-sm text-muted-foreground mb-4 line-clamp-3 whitespace-normal break-words">
                           {removeHtmlTags(task.task_description)}
                       </div>
                   )}
@@ -191,7 +191,7 @@ export const Item = React.memo(
                               <div
                                   className={cn(
                                       "text-xs",
-                                      new Date(task.task_due_date) < new Date() && "text-destructive"
+                                      new Date(task.task_due_date) < new Date() && task.task_status != "done" && "text-destructive"
                                   )}
                               >
                                   {format(new Date(task.task_due_date), "dd MMM yyyy")}

@@ -64,7 +64,7 @@ export const Container = forwardRef<HTMLDivElement, Props>(
           placeholder && styles.placeholder,
           scrollable && styles.scrollable,
           shadow && styles.shadow,
-            "shadow-sm flex flex-shrink-0 !ml-0 !mr-4 flex-col overflow-hidden box-border appearance-none outline-none min-w-[350px] m-2 rounded h-full transition-colors duration-[350ms] ease-in-out border border-solid text-base"
+            "shadow-sm flex flex-shrink-0 !ml-0 !mr-4 flex-col overflow-hidden box-border appearance-none outline-none w-[350px] m-2 rounded h-full transition-colors duration-[350ms] ease-in-out border border-solid text-base"
         )}
         onClick={onClick}
         tabIndex={onClick ? 0 : undefined}

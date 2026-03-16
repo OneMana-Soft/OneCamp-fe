@@ -30,7 +30,6 @@ $focused-outline-color: #4c9ffe;
 
 .Wrapper {
   display: flex;
-  flex-wrap: wrap;
   box-sizing: border-box;
   transform: translate3d(var(--translate-x, 0), var(--translate-y, 0), 0)
   scaleX(var(--scale-x, 1)) scaleY(var(--scale-y, 1));
@@ -60,7 +59,6 @@ padding: 0.5rem;
   overflow: hidden;
 
   display: flex;
-  flex-wrap: wrap;
   height: auto;
   flex-direction: column;
   background-color: $background-color;
@@ -78,7 +76,9 @@ padding: 1rem;
   color: $text-color;
   font-weight: $font-weight;
   font-size: 1rem;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 
   transform: scale(var(--scale, 1));
 
