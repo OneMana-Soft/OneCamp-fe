@@ -12,7 +12,7 @@ import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, Di
 
 import {Avatar, AvatarFallback, AvatarImage} from "../ui/avatar";
 import {Separator} from "../ui/separator";
-import {Trash} from "lucide-react";
+import {Trash, Calendar, Camera} from "lucide-react";
 import {AppLanguageCombobox} from "@/components/dialog/appLanguageCombobox";
 import {useFetchOnlyOnce, useMediaFetch} from "@/hooks/useFetch";
 import {USER_STATUS_OFFLINE, USER_STATUS_ONLINE, UserProfileInterface, UserProfileUpdateInterface} from "@/types/user";
@@ -24,6 +24,7 @@ import {useTranslation} from "react-i18next";
 import {Switch} from "@/components/ui/switch";
 import {useDispatch} from "react-redux";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
+import axiosInstance from "@/lib/axiosInstance";
 
 const profileFormSchema = z.object({
     fullName: z
@@ -101,6 +102,58 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     const removeImage = () => {
         setSelectedImage("");
         selectedImageSetFile(null);
+    };
+
+    const handleConnectGoogleCalendar = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        try {
+            const response = await axiosInstance.get(GetEndpointUrl.GoogleCalendarAuthUrl);
+            if (response.data?.data) {
+                window.location.href = response.data.data;
+            }
+        } catch (e) {
+            console.error("Failed to get Google Calendar Auth URL", e);
+        }
+    };
+
+    const [gcalStatus, setGcalStatus] = useState<{ isConnected: boolean; taskSyncEnabled: boolean } | null>(null);
+    const [updatingSync, setUpdatingSync] = useState(false);
+
+    useEffect(() => {
+        const fetchGcalStatus = async () => {
+            try {
+                const response = await axiosInstance.get(GetEndpointUrl.GoogleCalendarStatus);
+                if (response.data?.data) {
+                    setGcalStatus(response.data.data);
+                }
+            } catch (e) {
+                console.error("Failed to get Google Calendar status", e);
+            }
+        };
+        fetchGcalStatus();
+    }, []);
+
+    const handleToggleTaskSync = async (enabled: boolean) => {
+        setUpdatingSync(true);
+        try {
+            await axiosInstance.post(PostEndpointUrl.UpdateGoogleCalendarSyncTask, { enabled });
+            setGcalStatus(prev => prev ? { ...prev, taskSyncEnabled: enabled } : null);
+        } catch (e) {
+            console.error("Failed to update task sync preference", e);
+        } finally {
+            setUpdatingSync(false);
+        }
+    };
+
+    const handleUnlinkGoogleCalendar = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        if (!confirm("Are you sure you want to unlink Google Calendar?")) return;
+        try {
+            await axiosInstance.post(PostEndpointUrl.GoogleCalendarUnlink);
+            setGcalStatus({ isConnected: false, taskSyncEnabled: false });
+        } catch (e) {
+            console.error("Failed to unlink Google Calendar", e);
+        }
     };
 
     const onSubmit = async (data: ProfileFormValues) => {
@@ -189,6 +242,14 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
 
     const form = useForm<ProfileFormValues>({
         resolver: zodResolver(profileFormSchema),
+        defaultValues: {
+            fullName: "",
+            displayName: "",
+            jobTitle: "",
+            hobbies: "",
+            language: "en",
+            status: false
+        },
         mode: "onChange",
     });
 
@@ -207,28 +268,26 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
             {/*<DialogTrigger asChild>*/}
             {/*    <Button variant="secondary">Save</Button>*/}
             {/*</DialogTrigger>*/}
-            <DialogContent className="sm:max-w-fit">
-                <DialogHeader>
-                    <DialogTitle>{t('profile')}</DialogTitle>
-                    <DialogDescription>{t('editProfile')}</DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-row ">
-                    <div className="flex flex-col justify-center items-center h-full mr-12">
-                        <div className="flex relative justify-center items-center mb-3">
-                            <Avatar className="h-48 w-48">
-                                <AvatarImage src={selectedImage || undefined} alt="Profile Image" />
-                                <AvatarFallback>{nameIntial}</AvatarFallback>
+            <DialogContent className="sm:max-w-2xl p-0 overflow-hidden border-none shadow-2xl">
+                <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
+                    {/* Left Sidebar - Profile Summary */}
+                    <div className="md:w-1/3 bg-muted/30 p-8 flex flex-col items-center border-r">
+                        <DialogHeader className="w-full mb-8">
+                            <DialogTitle className="text-2xl font-bold tracking-tight">{t('profile')}</DialogTitle>
+                            <DialogDescription className="text-xs">{t('editProfile')}</DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="relative group mb-6">
+                            <Avatar className="h-40 w-40 ring-4 ring-background shadow-xl transition-transform duration-300 group-hover:scale-[1.02]">
+                                <AvatarImage src={selectedImage || undefined} alt="Profile Image" className="object-cover" />
+                                <AvatarFallback className="text-4xl font-bold bg-primary/10">{nameIntial}</AvatarFallback>
                             </Avatar>
-                            <div className="h-48 w-48 absolute flex justify-center items-center bg-black/30 bg-opacity-50 rounded-full opacity-0 hover:opacity-100">
-                                <label
-                                    htmlFor="imageUpload"
-                                    className="h-full w-full flex justify-center items-center cursor-pointer"
-                                >
-                                    <div className="rounded-lg text-white text-sm font-bold">
-                                        {t('edit')}
-                                    </div>
-                                </label>
-                            </div>
+                            <label
+                                htmlFor="imageUpload"
+                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 rounded-full cursor-pointer transition-all duration-300 backdrop-blur-[2px]"
+                            >
+                                <Camera className="text-white h-8 w-8" />
+                            </label>
                             <Input
                                 id="imageUpload"
                                 type="file"
@@ -237,115 +296,168 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                 onChange={handleImageUpload}
                             />
                         </div>
+
                         {selectedImage && (
-                            <Button variant="outline" className="mb-2" size={'sm'} onClick={removeImage}>
-                                <Trash className="h-4 w-4 " />{t('removeImage')}
+                            <Button variant="ghost" size="sm" onClick={removeImage} className="text-destructive hover:text-destructive hover:bg-destructive/10 mb-4 h-8 px-2">
+                                <Trash className="h-3 w-3 mr-2" />{t('removeImage')}
                             </Button>
                         )}
-
-                        <div className="text-center">
-                            {profileInfo.data?.data.user_name}
-                        </div>
-                        <div className="text-muted-foreground">
-                            {profileInfo.data?.data.user_email_id}
+                        
+                        <div className="text-center space-y-1">
+                            <h3 className="font-semibold text-lg text-foreground truncate max-w-full">
+                                {profileInfo.data?.data.user_name}
+                            </h3>
+                            <p className="text-xs text-muted-foreground truncate max-w-full">
+                                {profileInfo.data?.data.user_email_id}
+                            </p>
                         </div>
                     </div>
 
-                    <Separator orientation="vertical" className="mx-2 " />
-
-                    <div className="ml-12 mr-2">
+                    {/* Right Content - Form */}
+                    <div className="md:w-2/3 p-8 overflow-y-auto bg-background">
                         <Form {...form}>
-                            <form
-                                onSubmit={form.handleSubmit(onSubmit)}
-                                className="space-y-8"
-                            >
-                                <FormField
-                                    control={form.control}
-                                    name="fullName"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>{('Full Name')}</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} className='shadow-none'/>
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="displayName"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>{('Display Name')}</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} className='shadow-none'/>
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="jobTitle"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>{t('jobTitle')}</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} className='shadow-none'/>
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="fullName"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Full Name</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="displayName"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Display Name</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="jobTitle"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('jobTitle')}</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="hobbies"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hobbies</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
 
-                                <FormField
-                                    control={form.control}
-                                    name="hobbies"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>{('Hobbies')}</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} className='shadow-none' />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="language"
+                                        render={({ field }) => (
+                                            <FormItem className="flex flex-col">
+                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('language')}</FormLabel>
+                                                <AppLanguageCombobox
+                                                    onLangChange={field.onChange}
+                                                    userLang={field.value}
+                                                />
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
 
-                                <FormField
-                                    control={form.control}
-                                    name="language"
-                                    render={({ field }) => (
-                                        <FormItem className="flex flex-col">
-                                            <FormLabel>{t('language')}</FormLabel>
-                                            <AppLanguageCombobox
-                                                onLangChange={field.onChange}
-                                                userLang={field.value}
-                                            />
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                    <FormField
+                                        control={form.control}
+                                        name="status"
+                                        render={({ field }) => (
+                                            <FormItem className="flex items-center justify-between space-x-2 border rounded-lg px-4 py-2 bg-muted/20 border-transparent h-10 mt-auto">
+                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground m-0 cursor-pointer" htmlFor="status-switch">{t('onlineLabel')}</FormLabel>
+                                                <Switch
+                                                    id="status-switch"
+                                                    checked={!!field.value}
+                                                    onCheckedChange={field.onChange}
+                                                    className="scale-90"
+                                                />
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
 
-                                <FormField
-                                    control={form.control}
-                                    name="status"
-                                    render={({ field }) => (
-                                        <FormItem className="flex flex-col">
-                                            <FormLabel>{t('onlineLabel')}</FormLabel>
-                                            <Switch
-                                                id="status"
-                                                checked={!!field.value}
-                                                onCheckedChange={field.onChange}
-                                            />
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <Separator className="my-2" />
+                                
+                                <div className="space-y-4">
+                                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{t('integrations') || 'Integrations'}</h3>
+                                    
+                                    <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition-all hover:bg-muted/20">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center space-x-3">
+                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 shadow-sm ring-1 ring-blue-500/20">
+                                                    <Calendar className="h-5 w-5 text-blue-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-semibold">Google Calendar</p>
+                                                    <p className="text-[10px] text-muted-foreground leading-tight">Sync your workflow and events</p>
+                                                </div>
+                                            </div>
+                                            {!gcalStatus?.isConnected ? (
+                                                <Button variant="outline" size="sm" type="button" onClick={handleConnectGoogleCalendar} className="h-8 rounded-full px-4 text-xs font-medium">
+                                                    Connect
+                                                </Button>
+                                            ) : (
+                                                <Button variant="ghost" size="sm" type="button" className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10 text-xs px-2" onClick={handleUnlinkGoogleCalendar}>
+                                                    Unlink
+                                                </Button>
+                                            )}
+                                        </div>
 
-                                <DialogFooter>
-                                    <Button disabled={uploadFile.isSubmitting || post.isSubmitting} type="submit">{('update')}</Button>
+                                        {gcalStatus?.isConnected && (
+                                            <div className="mt-4 flex items-center justify-between rounded-lg bg-background/50 p-3 ring-1 ring-border/50 animate-in slide-in-from-top-2 duration-300">
+                                                <div className="space-y-0.5">
+                                                    <p className="text-xs font-medium text-foreground">Sync Tasks</p>
+                                                    <p className="text-[10px] text-muted-foreground">Due dates will appear on your calendar</p>
+                                                </div>
+                                                <Switch
+                                                    checked={gcalStatus?.taskSyncEnabled}
+                                                    onCheckedChange={handleToggleTaskSync}
+                                                    disabled={updatingSync}
+                                                    className="scale-75"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <DialogFooter className="pt-2">
+                                    <Button 
+                                        disabled={uploadFile.isSubmitting || post.isSubmitting} 
+                                        type="submit"
+                                        className="w-full h-11 rounded-xl shadow-lg shadow-primary/20 font-semibold text-sm transition-all hover:translate-y-[-1px]"
+                                    >
+                                        {t('update')}
+                                    </Button>
                                 </DialogFooter>
                             </form>
                         </Form>

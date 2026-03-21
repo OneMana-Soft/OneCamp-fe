@@ -52,6 +52,7 @@ export interface RootUIState {
   selfUserProfile: SingleUIState;
   teamMembers: SingleUIState;
   addInvitation: SingleUIState;
+  createCalendarEvent: SingleUIState;
   
   // Drawers/Sheets
   orgProfileDrawer: SingleUIState;
@@ -70,6 +71,7 @@ export interface RootUIState {
   taskOptionDrawer: SingleUIState;
   teamOptionDrawer: SingleUIState;
   projectOptionsDrawer: SingleUIState;
+  calendarOptionsDrawer: SingleUIState;
 
   // Long press drawers (Mobile)
   channelMessageLongPress: SingleUIState;
@@ -123,6 +125,7 @@ const initialState: RootUIState = {
   selfUserProfile: { isOpen: false, data: null },
   teamMembers: { isOpen: false, data: { teamUUID: "", teamName: "" } },
   addInvitation: { isOpen: false, data: null },
+  createCalendarEvent: { isOpen: false, data: null },
   
   // Drawers/Sheets
   orgProfileDrawer: { isOpen: false, data: null },
@@ -141,6 +144,7 @@ const initialState: RootUIState = {
   myTaskOptionsDrawer: { isOpen: false, data: null },
   taskOptionDrawer: { isOpen: false, data: { taskId: "" } },
   projectOptionsDrawer: { isOpen: false, data: { projectUUID: "" } },
+  calendarOptionsDrawer: { isOpen: false, data: null },
 
   // Long press drawers
   channelMessageLongPress: { isOpen: false, data: null },

@@ -25,7 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { AppLanguageCombobox } from "@/components/dialog/appLanguageCombobox";
-import { ArrowLeft, Trash, Camera } from "lucide-react";
+import { ArrowLeft, Trash, Camera, Calendar } from "lucide-react";
+import axiosInstance from "@/lib/axiosInstance";
 
 export const profileFormSchema = z.object({
     fullName: z
@@ -79,6 +80,14 @@ export function MobileSelfProfile() {
 
     const form = useForm<ProfileFormValues>({
         resolver: zodResolver(profileFormSchema),
+        defaultValues: {
+            fullName: "",
+            displayName: "",
+            jobTitle: "",
+            hobbies: "",
+            language: "en",
+            status: false
+        },
         mode: "onChange",
     });
 
@@ -164,6 +173,58 @@ export function MobileSelfProfile() {
 
             router.back();
         });
+    };
+
+    const handleConnectGoogleCalendar = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        try {
+            const response = await axiosInstance.get(GetEndpointUrl.GoogleCalendarAuthUrl);
+            if (response.data?.data) {
+                window.location.href = response.data.data;
+            }
+        } catch (e) {
+            console.error("Failed to get Google Calendar Auth URL", e);
+        }
+    };
+
+    const [gcalStatus, setGcalStatus] = useState<{ isConnected: boolean; taskSyncEnabled: boolean } | null>(null);
+    const [updatingSync, setUpdatingSync] = useState(false);
+
+    useEffect(() => {
+        const fetchGcalStatus = async () => {
+            try {
+                const response = await axiosInstance.get(GetEndpointUrl.GoogleCalendarStatus);
+                if (response.data?.data) {
+                    setGcalStatus(response.data.data);
+                }
+            } catch (e) {
+                console.error("Failed to get Google Calendar status", e);
+            }
+        };
+        fetchGcalStatus();
+    }, []);
+
+    const handleToggleTaskSync = async (enabled: boolean) => {
+        setUpdatingSync(true);
+        try {
+            await axiosInstance.post(PostEndpointUrl.UpdateGoogleCalendarSyncTask, { enabled });
+            setGcalStatus(prev => prev ? { ...prev, taskSyncEnabled: enabled } : null);
+        } catch (e) {
+            console.error("Failed to update task sync preference", e);
+        } finally {
+            setUpdatingSync(false);
+        }
+    };
+
+    const handleUnlinkGoogleCalendar = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        if (!confirm("Are you sure you want to unlink Google Calendar?")) return;
+        try {
+            await axiosInstance.post(PostEndpointUrl.GoogleCalendarUnlink);
+            setGcalStatus({ isConnected: false, taskSyncEnabled: false });
+        } catch (e) {
+            console.error("Failed to unlink Google Calendar", e);
+        }
     };
 
     const nameIntialsArray = profileInfo.data?.data?.user_name?.split(" ") || ["Unknown"];
@@ -300,6 +361,46 @@ export function MobileSelfProfile() {
                                             </FormItem>
                                         )}
                                     />
+                                </div>
+                            </div>
+                            
+                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm mt-4">
+                                <h3 className="text-muted-foreground font-semibold uppercase tracking-wider text-xs mb-3">Integrations</h3>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border">
+                                        <div className="flex items-center space-x-3">
+                                            <div className="bg-blue-100 p-2 rounded-full">
+                                                <Calendar className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-medium">Google Calendar</p>
+                                                <p className="text-xs text-muted-foreground">Sync your tasks and personal events</p>
+                                            </div>
+                                        </div>
+                                        {!gcalStatus?.isConnected ? (
+                                            <Button variant="outline" size="sm" onClick={handleConnectGoogleCalendar}>
+                                                Connect
+                                            </Button>
+                                        ) : (
+                                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleUnlinkGoogleCalendar}>
+                                                Unlink
+                                            </Button>
+                                        )}
+                                    </div>
+
+                                    {gcalStatus?.isConnected && (
+                                        <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border animate-in fade-in slide-in-from-top-1">
+                                            <div className="flex flex-col">
+                                                <p className="text-sm font-medium text-foreground">Sync Tasks to Google Calendar</p>
+                                                <p className="text-xs text-muted-foreground">Tasks with due dates will appear on your calendar</p>
+                                            </div>
+                                            <Switch
+                                                checked={gcalStatus?.taskSyncEnabled}
+                                                onCheckedChange={handleToggleTaskSync}
+                                                disabled={updatingSync}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             

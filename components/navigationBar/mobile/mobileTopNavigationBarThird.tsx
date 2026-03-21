@@ -88,6 +88,11 @@ export function MobileTopNavigationBarThird() {
                     </div>
                 break
 
+            case "calendar":
+                return <div className='flex space-x-1'>
+                    <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'calendarOptionsDrawer' }))}}><Ellipsis className='h-5'/></Button>
+                </div>
+
             case "myTask":
 
                 if(path.length < 4)

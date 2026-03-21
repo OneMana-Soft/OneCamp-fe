@@ -82,6 +82,9 @@ export enum GetEndpointUrl {
     GetAdminUserList = "/admin/getAllUsersList",
     GetAdminAdminList = "/admin/getAllAdminUsers",
     GetAdminInvitationList = "/admin/getAllInvitations",
+    GoogleCalendarAuthUrl = "/integration/google-calendar/auth-url",
+    GoogleCalendarStatus = "/integration/google-calendar/status",
+    GoogleCalendarEvents = "/event/getEvents",
 }
 
 
@@ -203,4 +206,10 @@ export enum PostEndpointUrl {
     PublishChatTyping = "/dm/publishChatTyping",
     AddInvitation = "/admin/addInvitation",
     DeleteInvitation = "/admin/deleteInvitation/",
+    GoogleCalendarUnlink = "/integration/google-calendar/unlink",
+    CreateCalendarEvent = "/event/createEvent",
+    UpdateCalendarEvent = "/event/updateEvent",
+    DeleteCalendarEvent = "/event/deleteEvent",
+    LeaveEvent = "/event/leaveEvent",
+    UpdateGoogleCalendarSyncTask = "/integration/google-calendar/sync-task",
 }

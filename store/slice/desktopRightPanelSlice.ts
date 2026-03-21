@@ -8,24 +8,40 @@ interface rightPanelProps {
     taskUUID: string;
     groupUUID: string;
     docUUID: string;
-
+    eventUUID: string;
+    viewStartDate?: string;
+    viewEndDate?: string;
 }
 const initialState = {
-    rightPanelState: { isOpen: false,  data: {} as rightPanelProps },
+    rightPanelState: { 
+        isOpen: false,  
+        data: {
+            chatUUID: "",
+            channelUUID: "",
+            postUUID: "",
+            chatMessageUUID: "",
+            taskUUID: "",
+            groupUUID: "",
+            docUUID: "",
+            eventUUID: "",
+        } as rightPanelProps 
+    },
 };
 
 export const rightPanelSlice = createSlice({
     name: "rightPanel",
     initialState,
     reducers: {
-
         openRightPanel:  (
             state,
-            action: { payload: rightPanelProps }
+            action: { payload: Partial<rightPanelProps> }
         ) => {
             state.rightPanelState = {
                 isOpen: true,
-                data: action.payload,
+                data: {
+                    ...initialState.rightPanelState.data,
+                    ...action.payload,
+                },
             };
         },
 

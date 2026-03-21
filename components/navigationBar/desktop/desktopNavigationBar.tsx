@@ -14,7 +14,8 @@ import {
     Dot,
     MessageCircle,
     FileIcon,
-    BellIcon
+    BellIcon,
+    Calendar
 } from "lucide-react";
 import {DesktopSideNavigationBar} from "@/components/navigationBar/desktop/desktopSideNavigationBar";
 import DesktopNavigationTopBar from "@/components/navigationBar/desktop/desktopNavigationTopBar";
@@ -26,6 +27,7 @@ import {
     app_project_path,
     app_project_team,
     app_my_task_path,
+    app_calendar_path,
     app_grp_chat_path, app_team_path, app_doc_path, app_doc_activity, app_admin
 } from "@/types/paths";
 import {GetEndpointUrl} from "@/services/endPoints";
@@ -141,6 +143,13 @@ export function DesktopNavigationBar({
             icon: CircleCheck,
             variant: (path.length > 2 && path[2] == 'myTask') ? "sidebarActive" : "ghost",
             path: app_my_task_path,
+        },
+        {
+            title: 'Calendar',
+            label: "",
+            icon: Calendar,
+            variant: (path.length > 2 && path[2] == 'calendar') ? "sidebarActive" : "ghost",
+            path: app_calendar_path,
         },
         {
             title: 'Activity',

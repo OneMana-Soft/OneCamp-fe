@@ -30,6 +30,7 @@ const RecordingPlayerDialog = dynamic(() => import("@/components/dialog/Recordin
 const UpdateDocTitleDialog =  dynamic(() => import("@/components/dialog/updateDocTitleDialog"), { ssr: false });
 const AdminTeamMembersDialog = dynamic(() => import("@/components/dialog/adminTeamMembersDialog"), { ssr: false });
 const AddInvitationDialog = dynamic(() => import("@/components/admin/AddInvitationDialog").then(mod => mod.AddInvitationDialog), { ssr: false });
+const CreateCalendarEventDialog = dynamic(() => import("@/components/calendar/createCalendarEventDialog").then(mod => mod.CreateCalendarEventDialog), { ssr: false });
 
 
 // Drawers
@@ -49,6 +50,7 @@ const TaskOptionsDrawer = dynamic(() => import("@/components/drawers/taskOptions
 const TeamOptionsDrawer = dynamic(() => import("@/components/drawers/teamOptionsDrawer").then(mod => mod.TeamOptionsDrawer), { ssr: false });
 const MyTaskOptionsDrawer = dynamic(() => import("@/components/drawers/myTaskOptionsDrawer").then(mod => mod.MyTaskOptionsDrawer), { ssr: false });
 const ProjectOptionsDrawer = dynamic(() => import("@/components/drawers/projectOptionsDrawer").then(mod => mod.ProjectOptionsDrawer), { ssr: false });
+const CalendarOptionsDrawer = dynamic(() => import("@/components/drawers/calendarOptionsDrawer").then(mod => mod.CalendarOptionsDrawer), { ssr: false });
 
 
 // Mobile Long Press Drawers
@@ -262,6 +264,13 @@ export function UnifiedUIManager() {
         />
       )}
 
+      {ui.createCalendarEvent.isOpen && (
+        <CreateCalendarEventDialog
+          open={ui.createCalendarEvent.isOpen}
+          onOpenChange={() => dispatch(closeUI('createCalendarEvent'))}
+        />
+      )}
+
       {/* Drawers */}
 
       {ui.orgProfileDrawer.isOpen && (
@@ -387,6 +396,13 @@ export function UnifiedUIManager() {
           drawerOpenState={ui.projectOptionsDrawer.isOpen}
           setOpenState={() => dispatch(closeUI('projectOptionsDrawer'))}
           projectId={ui.projectOptionsDrawer.data.projectUUID}
+        />
+      )}
+
+      {ui.calendarOptionsDrawer.isOpen && (
+        <CalendarOptionsDrawer
+          drawerOpenState={ui.calendarOptionsDrawer.isOpen}
+          setOpenState={() => dispatch(closeUI('calendarOptionsDrawer'))}
         />
       )}
 

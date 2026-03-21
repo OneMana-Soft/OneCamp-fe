@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ClipboardCheck, Home, MessageCircle, Users } from "lucide-react";
+import { Bell, ClipboardCheck, Home, MessageCircle, Users, Calendar } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {useSelector} from "react-redux";
@@ -33,6 +33,11 @@ const navIcons = [
         icon: ClipboardCheck,
         label: "My Tasks",
         page: "app/myTask",
+    },
+    {
+        icon: Calendar,
+        label: "Calendar",
+        page: "app/calendar",
     },
 ];
 
@@ -77,12 +82,12 @@ export function MobileBottomNavigationBar() {
                 minHeight: 'calc(5rem + env(safe-area-inset-bottom))'
             }}
         >
-            <div className="grid grid-cols-10 items-center h-full w-full">
+            <div className="grid grid-cols-6 items-center h-full w-full">
                 {navIcons.map(({ icon: Icon, label, page }) => (
                     <Link
                         key={page}
                         href={`/${page}`}
-                        className={`col-span-2 flex items-center justify-center h-full ${
+                        className={`col-span-1 flex items-center justify-center h-full ${
                             path === page ? "border-t-4 border-primary/50 bg-primary/20 " : "text-muted-foreground"
                         }`}
                     >

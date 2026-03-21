@@ -5,7 +5,7 @@ import {ChatComments} from "@/components/rightPanel/chatComments";
 import TaskInfoPanel from "@/components/rightPanel/taskInfoPanel";
 import {GroupChatComments} from "@/components/rightPanel/groupChatComments";
 import {DocCommentList} from "@/components/rightPanel/docCommentList";
-
+import EventInfoPanel from "@/components/rightPanel/eventInfoPanel";
 
 export const RightPanel = () => {
 
@@ -35,6 +35,9 @@ export const RightPanel = () => {
             return <DocCommentList docId={rightPanelState.data.docUUID}/>
         }
 
+        if(rightPanelState.data.eventUUID) {
+            return <EventInfoPanel key={rightPanelState.data.eventUUID} eventUUID={rightPanelState.data.eventUUID} />
+        }
     }
 
 
