@@ -98,7 +98,14 @@ export function CalendarApp() {
                 apiEndpoint: PostEndpointUrl.GoogleCalendarUnlink
             });
             mutateGcalStatus();
-            mutateEvents();
+            // Optimistically remove Google-only events while keeping OneCamp events
+            mutateEvents((current: GetEventsResponse | undefined) => {
+                if (!current?.data) return current;
+                return {
+                    ...current,
+                    data: current.data.filter(e => !e.event_uuid.startsWith("gcal-"))
+                };
+            }, { revalidate: true });
         } catch (e) {
             console.error("Failed to unlink", e);
         }

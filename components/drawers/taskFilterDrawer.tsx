@@ -23,7 +23,8 @@ import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
 import {updateMyTaskSortingAndFiltering} from "@/store/slice/taskFilterSlice";
-import {useDispatch} from "react-redux";
+import {useDispatch, useSelector} from "react-redux";
+import type { RootState } from "@/store/store"
 
 // Define sort field enum
 const sortFieldEnum = z.enum(["task_start_date", "task_due_date", "task_created_date"])
@@ -50,12 +51,34 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
     const [activeTab, setActiveTab] = React.useState("sort")
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const dispatch = useDispatch()
+    const taskFiltersAndSorts = useSelector((state: RootState) => state.taskFilter.myTaskSortingAndFilter)
+
+    React.useEffect(() => {
+        if (drawerOpenState) {
+            const filters = taskFiltersAndSorts?.filters || []
+            const priority = filters.find((f: any) => f.id === "task_priority")?.value || []
+            const status = filters.find((f: any) => f.id === "task_status")?.value || []
+            const project = filters.find((f: any) => f.id === "task_project_name")?.value || []
+            
+            const sortArr = taskFiltersAndSorts?.sort || []
+            const sort = sortArr.length > 0 ? sortArr[0] : { id: "task_start_date", desc: false }
+
+            reset({
+                sort: sort as FilterFormValues["sort"],
+                priority,
+                status,
+                project,
+            })
+        }
+    }, [drawerOpenState, taskFiltersAndSorts])
+
     const {
         control,
         handleSubmit,
         formState: { errors },
         watch,
         setValue,
+        reset,
     } = useForm<FilterFormValues>({
         resolver: zodResolver(filterSchema),
         defaultValues: {
@@ -98,6 +121,17 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
     }
 
     const closeDrawer = () => {
+        setOpenState(false)
+    }
+
+    const handleClear = () => {
+        reset({
+            sort: { id: "task_start_date", desc: false },
+            priority: [],
+            status: [],
+            project: [],
+        })
+        dispatch(updateMyTaskSortingAndFiltering({ filters: [], sort: [] }))
         setOpenState(false)
     }
 
@@ -235,8 +269,9 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
                                 )}
                             </div>
                         </div>
-                        <DrawerFooter>
-                            <Button type="submit">Apply</Button>
+                        <DrawerFooter className="flex flex-row space-x-2 w-full">
+                            <Button type="button" variant="outline" className="flex-1" onClick={handleClear}>Clear Filters</Button>
+                            <Button type="submit" className="flex-1">Apply</Button>
                         </DrawerFooter>
                     </div>
                 </form>

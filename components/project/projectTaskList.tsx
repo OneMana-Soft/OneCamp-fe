@@ -54,6 +54,8 @@ const getURLPram = ({ sortQuery, searchText, filterQuery, pageSize, pageIndex }:
     return params.toString()
 }
 
+const EMPTY_SORT_FILTER: sortingAndFilterOptionInterface = { sort: [], filters: [] }
+
 export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: string; projectId: string }) => {
     const router = useRouter()
     const pathname = usePathname()
@@ -73,8 +75,7 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
     const taskListState =
         useSelector((state: RootState) => state.taskFilter.projectsTaskList[projectId]) || ([] as TaskInfoInterface[])
     const taskFiltersAndSorts =
-        useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId]) ||
-        ({} as sortingAndFilterOptionInterface)
+        useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId]) || EMPTY_SORT_FILTER
 
     const projectInfo = useFetch<ProjectInfoRawInterface>(
         projectId && urlParams ? GetEndpointUrl.GetProjectTaskList + "/" + projectId + "?" + urlParams : "",
@@ -88,7 +89,6 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
 
     useLayoutEffect(() => {
         setUrlParams("")
-        dispatch(clearProjectSortingFilteringAndTask({ projectId }))
     }, [projectId])
 
     useEffect(() => {

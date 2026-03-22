@@ -24,11 +24,11 @@ export function ProjectListTabs({projectId}:{projectId: string}) {
                     className='h-10 md:h-16 text-sm  flex w-full md:w-[25vw]   justify-around items-center p-1.5 space-x-3 md:p-4 md:ml-2'>
 
                     <div onClick={() => handleChangeTab('task')}
-                         className={`md:border hover:cursor-pointer md:h-8 flex justify-center items-center  h-full w-full text-center rounded-md  ${selectedTab == 'task' ? 'bg-primary' : ""}`}>
+                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center  md:w-fit md:px-8  h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'task' ? 'hover:text-muted-foreground bg-primary font-medium text-amber-50 shadow-sm' : "text-muted-foreground"}`}>
                         Tasks
                     </div>
                     <div onClick={() => handleChangeTab('attachment')}
-                         className={`md:border hover:cursor-pointer md:h-8 flex justify-center items-center  h-full w-full text-center  rounded-md ${selectedTab == 'attachment' ? 'bg-primary' : ""}`}>
+                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center  md:w-fit md:px-8  h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'attachment' ? 'hover:text-muted-foreground bg-primary font-medium text-amber-50 shadow-sm' : "text-muted-foreground"}`}>
                         Attachments
                     </div>
                 </div>

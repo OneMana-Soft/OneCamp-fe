@@ -52,6 +52,8 @@ const getURLPram = ({ sortQuery, searchText, filterQuery, pageSize, pageIndex }:
     return params.toString()
 }
 
+const EMPTY_SORT_FILTER: sortingAndFilterOptionInterface = { sort: [], filters: [] }
+
 export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
     const router = useRouter()
     const pathname = usePathname()
@@ -70,8 +72,7 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
     const { animatingSubtasks, triggerAnimation } = useAnimationState()
 
     const taskFiltersAndSorts =
-        useSelector((state: RootState) => state.taskFilter.myTaskSortingAndFilter) ||
-        ({} as sortingAndFilterOptionInterface)
+        useSelector((state: RootState) => state.taskFilter.myTaskSortingAndFilter) || EMPTY_SORT_FILTER
 
     const fetchMyTaskParam = useMemo(() => ({
         pageIndex,
@@ -96,7 +97,6 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
 
     useLayoutEffect(() => {
         setUrlParams("")
-        dispatch(clearMyTaskSortingFilteringAndTask())
     }, [])
 
     useEffect(() => {

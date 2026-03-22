@@ -50,7 +50,13 @@ export function CalendarOptionsDrawer({ drawerOpenState, setOpenState }: Calenda
                 // Revalidate calendar events so the calendar page reflects the change
                 globalMutate(
                     (key) => typeof key === 'string' && key.startsWith(GetEndpointUrl.GoogleCalendarEvents),
-                    undefined,
+                    (current: any) => {
+                        if (!current?.data) return current;
+                        return {
+                            ...current,
+                            data: current.data.filter((e: any) => !e.event_uuid?.startsWith("gcal-"))
+                        };
+                    },
                     { revalidate: true }
                 );
             } else {
