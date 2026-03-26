@@ -11,9 +11,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {Button} from "@/components/ui/button";
 import {Ellipsis} from "lucide-react";
+import {useFetchOnlyOnce} from "@/hooks/useFetch";
+import {UserProfileInterface} from "@/types/user";
+import {GetEndpointUrl} from "@/services/endPoints";
 
 export default function DocOptionsDesktopTopBar() {
 
+    const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     return (
         <DropdownMenu>
@@ -23,9 +27,9 @@ export default function DocOptionsDesktopTopBar() {
             <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">Akash</p>
+                        <p className="text-sm font-medium leading-none">{selfProfile.data?.data.user_name}</p>
                         <p className="text-xs leading-none text-muted-foreground">
-                            hwy@akash.page
+                            {selfProfile.data?.data.user_email_id}
                         </p>
                     </div>
                 </DropdownMenuLabel>
