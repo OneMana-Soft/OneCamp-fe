@@ -69,7 +69,9 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
             setHasMoreOldPost(oldMsg.data.data.has_more)
             setOldChannelPostTime(0)
             if(oldMsg.data?.data.posts && oldMsg.data?.data.posts.length !== 0) {
-                const posts = oldMsg.data.data.posts.reverse().concat(channelPostState)
+                const existingUuids = new Set(channelPostState.map(p => p.post_uuid))
+                const dedupedOld = oldMsg.data.data.posts.reverse().filter(p => !existingUuids.has(p.post_uuid))
+                const posts = dedupedOld.concat(channelPostState)
                 dispatch(updateChannelPosts({channelId: channelId, posts: posts}))
                 oldMsg.data.data.posts.reverse()
             }
@@ -83,7 +85,9 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
             setHasMoreNewPost(newMsg.data.data.has_more)
             setNewChannelPostsTime(0)
             if(newMsg.data?.data.posts && newMsg.data?.data.posts.length !== 0) {
-                const posts = channelPostState.concat(newMsg.data.data.posts)
+                const existingUuids = new Set(channelPostState.map(p => p.post_uuid))
+                const dedupedNew = newMsg.data.data.posts.filter(p => !existingUuids.has(p.post_uuid))
+                const posts = channelPostState.concat(dedupedNew)
                 dispatch(updateChannelPosts({channelId: channelId, posts: posts}))
             }
         }

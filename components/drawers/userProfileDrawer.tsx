@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Moon, Sun, CircleUser, LogOut } from "lucide-react"
+import { Moon, Sun, CircleUser, LogOut, Hash, ClipboardCheck, Calendar } from "lucide-react"
 import { useLogout } from "@/hooks/useLogout"
 import { useDispatch } from "react-redux"
 import { useRouter } from "next/navigation"
@@ -33,8 +33,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: profileDraw
         setOpenState(false);
     }
 
-    function handleProfileClick() {
-        router.push('/app/profile');
+    function handleNavigate(path: string) {
+        router.push(path);
         closeDrawer();
     }
 
@@ -49,13 +49,43 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: profileDraw
                     <DrawerHeader className='hidden'>
                         <DrawerTitle className='capitalize'>{process.env.NEXT_PUBLIC_ORG_NAME}</DrawerTitle>
                         <DrawerDescription>Org level</DrawerDescription>
-
                     </DrawerHeader>
                     <div className="p-4 pb-6">
                         <div className="flex flex-col items-center justify-start space-y-1">
+
+                            {/* Navigation items from bottom bar */}
                             <div
                                 className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={handleProfileClick}
+                                onClick={() => handleNavigate('/app/channel')}
+                            >
+                                <Hash className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-base font-medium">Channels</span>
+                            </div>
+
+                            <div
+                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
+                                onClick={() => handleNavigate('/app/myTask')}
+                            >
+                                <ClipboardCheck className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-base font-medium">My Tasks</span>
+                            </div>
+
+                            <div
+                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
+                                onClick={() => handleNavigate('/app/calendar')}
+                            >
+                                <Calendar className="h-5 w-5 text-muted-foreground" />
+                                <span className="text-base font-medium">Calendar</span>
+                            </div>
+
+                            {/* Separator */}
+                            <div className="w-full px-4 py-1">
+                                <div className="border-t border-border" />
+                            </div>
+
+                            <div
+                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
+                                onClick={() => handleNavigate('/app/profile')}
                             >
                                 <CircleUser className="h-5 w-5 text-muted-foreground" />
                                 <span className="text-base font-medium">My Profile</span>
@@ -86,12 +116,6 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: profileDraw
                         </div>
 
                     </div>
-                    {/*<DrawerFooter>*/}
-                    {/*    <Button>Submit</Button>*/}
-                    {/*    <DrawerClose asChild>*/}
-                    {/*        <Button variant="outline">Cancel</Button>*/}
-                    {/*    </DrawerClose>*/}
-                    {/*</DrawerFooter>*/}
                 </div>
             </DrawerContent>
         </Drawer>

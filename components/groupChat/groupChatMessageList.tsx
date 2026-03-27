@@ -79,7 +79,9 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
             setHasMoreChat(oldMsg.data.data.has_more)
             setOldChatTime(0)
             if(oldMsg.data?.data.chats && oldMsg.data?.data.chats.length !== 0) {
-                const chats = oldMsg.data.data.chats.reverse().concat(chatMessageState)
+                const existingUuids = new Set(chatMessageState.map(c => c.chat_uuid))
+                const dedupedOld = oldMsg.data.data.chats.reverse().filter(c => !existingUuids.has(c.chat_uuid))
+                const chats = dedupedOld.concat(chatMessageState)
 
                 dispatch(updateGroupChats({chats, grpId}))
                 oldMsg.data.data.chats.reverse()
@@ -94,7 +96,9 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
             setHasMoreNewChat(newMsg.data.data.has_more)
             setNewChat(0)
             if(newMsg.data?.data.chats && newMsg.data?.data.chats.length !== 0) {
-                const chats = chatMessageState.concat(newMsg.data.data.chats)
+                const existingUuids = new Set(chatMessageState.map(c => c.chat_uuid))
+                const dedupedNew = newMsg.data.data.chats.filter(c => !existingUuids.has(c.chat_uuid))
+                const chats = chatMessageState.concat(dedupedNew)
 
                 dispatch(updateGroupChats({chats, grpId}))
             }

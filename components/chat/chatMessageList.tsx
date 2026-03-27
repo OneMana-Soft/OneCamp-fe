@@ -106,7 +106,9 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
             setHasMoreChat(oldMsg.data.data.has_more)
             setOldChatTime(0)
             if(oldMsg.data?.data.chats && oldMsg.data?.data.chats.length !== 0) {
-                const chats = oldMsg.data.data.chats.reverse().concat(safeChatMessageState)
+                const existingUuids = new Set(safeChatMessageState.map(c => c.chat_uuid))
+                const dedupedOld = oldMsg.data.data.chats.reverse().filter(c => !existingUuids.has(c.chat_uuid))
+                const chats = dedupedOld.concat(safeChatMessageState)
                 dispatch(updateChats({chats, chatId}))
                 oldMsg.data.data.chats.reverse()
             }
@@ -120,7 +122,9 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
             setHasMoreNewChat(newMsg.data.data.has_more)
             setNewChat(0)
             if(newMsg.data?.data.chats && newMsg.data?.data.chats.length !== 0) {
-                const chats = safeChatMessageState.concat(newMsg.data.data.chats)
+                const existingUuids = new Set(safeChatMessageState.map(c => c.chat_uuid))
+                const dedupedNew = newMsg.data.data.chats.filter((c: ChatInfo) => !existingUuids.has(c.chat_uuid))
+                const chats = safeChatMessageState.concat(dedupedNew)
                 dispatch(updateChats({chats, chatId}))
             }
         }

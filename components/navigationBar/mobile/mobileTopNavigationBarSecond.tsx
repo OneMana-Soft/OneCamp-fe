@@ -29,6 +29,8 @@ export function MobileTopNavigationBarSecond() {
                 if (path.length < 5)
                     return <MobileTopNavigationBarSecondTeam teamId={path[3]}/>
                 break;
+            case "ai":
+                return "Assistant"
             case "calendar":
                 if (path.length < 4)
                     return "My Calendar";

@@ -49,6 +49,7 @@ export function MobileTopNavigationBarThird() {
         switch (path[2]) {
             case "search":
             case "home":
+            case "ai":
             case "profile":
 
                 return <div className='flex space-x-6 justify-end '>

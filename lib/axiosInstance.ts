@@ -1,7 +1,7 @@
 import axios from 'axios'
 import store from "@/store/store"
 import {updateRefreshTokenStatus} from "@/store/slice/refreshSlice";
-import {checkAuthCookieExists, checkRefreshCookieExists} from "@/lib/utils/helpers/getCookie";
+import {getCookie, checkAuthCookieExists, checkRefreshCookieExists} from "@/lib/utils/helpers/getCookie";
 import {loadingBus} from "@/lib/utils/loadingBus";
 import { toast } from "@/hooks/use-toast";
 
@@ -63,6 +63,46 @@ const axiosInstance = axios.create({
     xsrfHeaderName: 'X-XSRF-TOKEN',
 });
 
+/**
+ * Ensures a valid Authorization token is present in cookies.
+ * If missing but RefreshToken exists, triggers a mutexed refresh.
+ */
+export const ensureValidToken = async (): Promise<string | null> => {
+    const authExists = checkAuthCookieExists();
+    if (authExists) return getCookie("Authorization") || null;
+
+    if (!checkRefreshCookieExists()) {
+        return null;
+    }
+
+    if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+            failedQueue.push({
+                resolve: () => resolve(getCookie("Authorization") || null),
+                reject: (err) => reject(err),
+            });
+        });
+    }
+
+    isRefreshing = true;
+    try {
+        await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}refreshToken`, {
+            withCredentials: true
+        });
+        store.dispatch(updateRefreshTokenStatus({ exist: true }));
+        processQueue(null);
+        return getCookie("Authorization") || null;
+    } catch (err) {
+        processQueue(err);
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
+            await performLogout();
+        }
+        return null;
+    } finally {
+        isRefreshing = false;
+    }
+};
+
 axiosInstance.interceptors.request.use(async req => {
     // Block all requests if we're in the middle of logging out
     if (isLoggingOut) {
@@ -73,51 +113,13 @@ axiosInstance.interceptors.request.use(async req => {
     }
 
     loadingBus.start();
-    const authExists = checkAuthCookieExists()
-    const refreshTokenExist = checkRefreshCookieExists()
 
-    if(authExists){
-        return req
-    }
-
-    const controller = new AbortController();
-    req.signal = controller.signal;
-
-    if(!refreshTokenExist){
-        controller.abort('FE: Not Authorised');
+    const token = await ensureValidToken();
+    if (!token) {
         performLogout();
-        return req
-    }
-
-    // Use the same mutex for request-interceptor refresh
-    if (isRefreshing) {
-        // Wait for the in-flight refresh to complete
-        return new Promise((resolve, reject) => {
-            failedQueue.push({
-                resolve: () => resolve(req),
-                reject: () => {
-                    controller.abort('FE: Not Authorised');
-                    reject(new axios.Cancel('FE: Not Authorised'));
-                }
-            });
-        });
-    }
-
-    isRefreshing = true;
-    try {
-        await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}refreshToken`, {
-            withCredentials: true
-        });
-        store.dispatch(updateRefreshTokenStatus({exist: true}));
-        processQueue(null);
-    } catch(err) {
-        processQueue(err);
-        if (axios.isAxiosError(err) && err.response?.status === 401) {
-            await performLogout();
-        }
+        const controller = new AbortController();
+        req.signal = controller.signal;
         controller.abort('FE: Not Authorised');
-    } finally {
-        isRefreshing = false;
     }
 
     return req

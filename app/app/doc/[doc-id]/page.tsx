@@ -153,6 +153,7 @@ export default function Page() {
                 editable={hasEditAccess}
                 editorClassName="focus:outline-none px-2 py-2 h-full"
                 collaboration={collaboration}
+                docId={docId}
             />
 
         </div>

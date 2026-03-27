@@ -6,6 +6,7 @@ import TaskInfoPanel from "@/components/rightPanel/taskInfoPanel";
 import {GroupChatComments} from "@/components/rightPanel/groupChatComments";
 import {DocCommentList} from "@/components/rightPanel/docCommentList";
 import EventInfoPanel from "@/components/rightPanel/eventInfoPanel";
+import AiChatPanel from "@/components/ai/AiChatPanel";
 
 export const RightPanel = () => {
 
@@ -13,6 +14,10 @@ export const RightPanel = () => {
 
 
     const renderRightPanel = () => {
+
+        if (rightPanelState.data.aiChatOpen) {
+            return <AiChatPanel />
+        }
 
 
         if (rightPanelState.data.chatUUID && rightPanelState.data.chatMessageUUID) {

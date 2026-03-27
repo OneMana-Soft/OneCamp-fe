@@ -85,6 +85,9 @@ export enum GetEndpointUrl {
     GoogleCalendarAuthUrl = "/integration/google-calendar/auth-url",
     GoogleCalendarStatus = "/integration/google-calendar/status",
     GoogleCalendarEvents = "/event/getEvents",
+
+    // AI Second Brain
+    AIStatus = "/ai/status",
 }
 
 
@@ -212,4 +215,12 @@ export enum PostEndpointUrl {
     DeleteCalendarEvent = "/event/deleteEvent",
     LeaveEvent = "/event/leaveEvent",
     UpdateGoogleCalendarSyncTask = "/integration/google-calendar/sync-task",
+
+    // AI Second Brain
+    AISummarizeChannel = "/ai/summarize/channel",
+    AIAsk = "/ai/ask",
+    AIAskStream = "/ai/ask/stream",
+    AIDocComplete = "/ai/doc/complete",
+    AIDocCompleteStream = "/ai/doc/complete/stream",
+    AIExecuteAction = "/ai/action/execute",
 }
