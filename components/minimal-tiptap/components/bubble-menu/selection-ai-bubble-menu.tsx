@@ -9,11 +9,17 @@ import { Button } from '@/components/ui/button'
 interface SelectionAiBubbleMenuProps {
   editor: Editor
   onAIClick: () => void
+  hide?: boolean
 }
 
-export const SelectionAiBubbleMenu: React.FC<SelectionAiBubbleMenuProps> = ({ editor, onAIClick }) => {
+export const SelectionAiBubbleMenu: React.FC<SelectionAiBubbleMenuProps> = ({ editor, onAIClick, hide }) => {
   const shouldShow = React.useCallback(
     ({ editor, from, to }: { editor: Editor; from: number; to: number }) => {
+      // Logic-level suppression
+      if (hide) {
+        return false
+      }
+
       // Only show if there's a multi-character selection
       // and it's not a link (let LinkBubbleMenu handle that)
       if (from === to || (to - from < 2)) {
@@ -27,7 +33,7 @@ export const SelectionAiBubbleMenu: React.FC<SelectionAiBubbleMenuProps> = ({ ed
 
       return true
     },
-    []
+    [hide]
   )
 
   return (
@@ -39,6 +45,7 @@ export const SelectionAiBubbleMenu: React.FC<SelectionAiBubbleMenuProps> = ({ ed
         placement: 'top',
         // Offset to stay slightly above the selection
         offset: [0, 10],
+        zIndex: 50,
       }}
     >
       <div className="flex items-center gap-1 overflow-hidden rounded-lg border bg-background p-1 shadow-md animate-in fade-in zoom-in duration-200">

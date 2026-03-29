@@ -17,7 +17,7 @@ import { LinkBubbleMenu } from '@/components/minimal-tiptap/components/bubble-me
 import { SelectionAiBubbleMenu } from '@/components/minimal-tiptap/components/bubble-menu/selection-ai-bubble-menu'
 import { useMinimalTiptapEditor } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
 import { MeasuredContainer } from '@/components/minimal-tiptap/components/measured-container'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { openRightPanel } from '@/store/slice/desktopRightPanelSlice'
 import { useMedia } from '@/context/MediaQueryContext'
 import { Drawer } from 'vaul'
@@ -99,7 +99,9 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
 
         const dispatch = useDispatch()
         const { isDesktop, isMobile } = useMedia()
+        const docAiOpen = useSelector((state: any) => state.rightPanel.rightPanelState.data.docAiOpen)
         const [isDrawerOpen, setIsDrawerOpen] = React.useState(false)
+        const suppressOverlays = isDrawerOpen || docAiOpen
         const [selectedText, setSelectedText] = React.useState('')
         const [hasSelection, setHasSelection] = React.useState(false)
         const undoDataRef = React.useRef<{ originalText: string; from: number; replacedLength: number } | null>(null)
@@ -223,13 +225,14 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                 ref={ref}
                 className={cn(
                     'flex h-auto min-h-72 w-full flex-col  shadow-sm ',
+                    suppressOverlays && "suppress-tippy",
                     className
                 )}
             >
                 <Toolbar editor={editor} onAIClick={handleAIClick} hasSelection={hasSelection} />
                 <EditorContent editor={editor} className={cn('minimal-tiptap-editor', editorContentClassName)} />
-                <LinkBubbleMenu editor={editor} />
-                <SelectionAiBubbleMenu editor={editor} onAIClick={handleAIClick} />
+                <LinkBubbleMenu editor={editor} hide={suppressOverlays} />
+                <SelectionAiBubbleMenu editor={editor} onAIClick={handleAIClick} hide={suppressOverlays} />
 
                 {/* Mobile AI Drawer */}
                 <Drawer.Root open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>

@@ -9,6 +9,7 @@ import { LinkPopoverBlock } from '../link/link-popover-block'
 
 interface LinkBubbleMenuProps {
   editor: Editor
+  hide?: boolean
 }
 
 interface LinkAttributes {
@@ -16,7 +17,7 @@ interface LinkAttributes {
   target: string
 }
 
-export const LinkBubbleMenu: React.FC<LinkBubbleMenuProps> = ({ editor }) => {
+export const LinkBubbleMenu: React.FC<LinkBubbleMenuProps> = ({ editor, hide }) => {
   const [showEdit, setShowEdit] = React.useState(false)
   const [linkAttrs, setLinkAttrs] = React.useState<LinkAttributes>({ href: '', target: '' })
   const [selectedText, setSelectedText] = React.useState('')
@@ -32,6 +33,11 @@ export const LinkBubbleMenu: React.FC<LinkBubbleMenuProps> = ({ editor }) => {
 
   const shouldShow = React.useCallback(
     ({ editor, from, to }: ShouldShowProps) => {
+      // Logic-level suppression
+      if (hide) {
+        return false
+      }
+
       if (from === to) {
         return false
       }
@@ -47,7 +53,7 @@ export const LinkBubbleMenu: React.FC<LinkBubbleMenuProps> = ({ editor }) => {
       }
       return false
     },
-    [updateLinkState]
+    [hide, updateLinkState]
   )
 
   const handleEdit = React.useCallback(() => {
@@ -93,7 +99,8 @@ export const LinkBubbleMenu: React.FC<LinkBubbleMenuProps> = ({ editor }) => {
       shouldShow={shouldShow}
       tippyOptions={{
         placement: 'bottom-start',
-        onHidden: () => setShowEdit(false)
+        onHidden: () => setShowEdit(false),
+        zIndex: 50,
       }}
     >
       {showEdit ? (

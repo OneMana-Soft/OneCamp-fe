@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, Send, RotateCcw, Copy, Check, Scissors, Type, MousePointer2, Wand2, ArrowLeft, CornerDownLeft, MessageSquarePlus } from 'lucide-react';
 import { useDocAI, DocAIAction } from '@/services/aiService';
 import { cn } from '@/lib/utils/helpers/cn';
@@ -307,23 +307,21 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
                     </div>
                   </div>
 
-                  <ScrollArea className="max-h-[400px]" ref={resultRef}>
-                    <div className="text-sm leading-relaxed  pr-4">
-                        <LayoutGroup>
-                        <motion.div layout>
+                  <div className="max-h-[350px] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar" ref={resultRef}>
+                    <div className="text-sm leading-relaxed">
+                        <motion.div>
                             {streamText}
                             {hookIsStreaming && (
-                            <motion.span
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="inline-block w-5 h-[1.2em] -ml-2.5 bg-[linear-gradient(90deg,transparent,rgba(99,102,241,0.4),transparent)] animate-text-shimmer align-middle"
-                            />
+                                <motion.span
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="inline-block w-5 h-4 -ml-2.5 bg-[linear-gradient(90deg,transparent,rgba(99,102,241,0.4),transparent)] animate-text-shimmer align-middle"
+                                />
                             )}
-                            {hookIsStreaming && <span className="inline-block w-[2px] h-[1.2em] bg-primary ml-0.5 align-middle animate-blink" />}
+                            {hookIsStreaming && <span className="inline-block w-[2px] h-4 bg-primary ml-0.5 align-middle animate-blink" />}
                         </motion.div>
-                        </LayoutGroup>
                     </div>
-                  </ScrollArea>
+                  </div>
 
                   {!hookIsStreaming && (
                     <motion.div

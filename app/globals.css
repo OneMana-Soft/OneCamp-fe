@@ -488,6 +488,11 @@
     border-radius: 0.9rem;
   }
 
+  /* Force hide all TipTap/Tippy overlays when parent is suppressed */
+  .suppress-tippy .tippy-box {
+    display: none !important;
+  }
+
   .list-container {
     position: relative;
     overflow-y: auto;
