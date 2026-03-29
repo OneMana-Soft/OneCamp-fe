@@ -57,6 +57,24 @@ export default {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
+  		},
+  		keyframes: {
+  			blink: {
+  				'50%': { opacity: '0' },
+  			},
+  			'text-shimmer': {
+  				'0%': { backgroundPosition: '200% 0' },
+  				'100%': { backgroundPosition: '-200% 0' },
+  			},
+  			'msg-fade-in': {
+  				'0%': { opacity: '0', transform: 'translateY(4px)' },
+  				'100%': { opacity: '1', transform: 'translateY(0)' },
+  			},
+  		},
+  		animation: {
+  			blink: 'blink 1s infinite',
+  			'text-shimmer': 'text-shimmer 1.5s infinite linear',
+  			'msg-fade-in': 'msg-fade-in 0.2s ease-out',
   		}
   	}
   },

@@ -10,6 +10,12 @@ interface rightPanelProps {
     docUUID: string;
     eventUUID: string;
     aiChatOpen: boolean;
+    docAiOpen: boolean;
+    docAiData?: {
+        selectedText: string;
+        docId: string;
+        surroundingContext?: string;
+    };
     viewStartDate?: string;
     viewEndDate?: string;
 }
@@ -26,6 +32,7 @@ const initialState = {
             docUUID: "",
             eventUUID: "",
             aiChatOpen: false,
+            docAiOpen: false,
         } as rightPanelProps 
     },
 };

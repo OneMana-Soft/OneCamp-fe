@@ -5,6 +5,10 @@ import { useAskAIStream } from "@/services/aiService";
 import StreamingText from "@/components/ai/StreamingText";
 import ActionConfirmation from "@/components/ai/ActionConfirmation";
 import { ProposedAction } from "@/services/aiService";
+import { cn } from "@/lib/utils/helpers/cn";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDispatch } from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { X, Plus, Send, Sparkles, StopCircle, Loader2 } from "lucide-react";
@@ -162,58 +166,64 @@ const AiChatPanel: React.FC = () => {
     }, []);
 
     return (
-        <div className="ai-chat-panel">
+        <div className="flex flex-col h-full bg-background border-l border-border">
             {/* Header */}
-            <div className="ai-chat-header">
-                <div className="ai-chat-header-left">
-                    <Sparkles className="ai-header-icon" />
-                    <span className="ai-header-title">AI Assistant</span>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background shrink-0">
+                <div className="flex items-center gap-2 text-primary font-semibold">
+                    <Sparkles className="w-[18px] h-[18px]" />
+                    <span className="text-sm font-semibold">AI Assistant</span>
                 </div>
-                <div className="ai-chat-header-actions">
-                    <button
-                        className="ai-header-btn"
+                <div className="flex gap-1">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-7 h-8 text-muted-foreground hover:bg-accent hover:text-foreground"
                         onClick={handleNewChat}
                         title="New conversation"
                     >
                         <Plus size={16} />
-                    </button>
-                    <button
-                        className="ai-header-btn"
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-7 h-8 text-muted-foreground hover:bg-accent hover:text-foreground"
                         onClick={handleClose}
                         title="Close"
                     >
                         <X size={16} />
-                    </button>
+                    </Button>
                 </div>
             </div>
 
             {/* Messages */}
-            <div className="ai-chat-messages">
+            <ScrollArea className="flex-1 p-4">
+                <div className="flex flex-col gap-4 scrollbar-thin">
                 {messages.length === 0 && !isStreaming && (
-                    <div className="ai-chat-empty">
-                        <div className="ai-empty-icon">
+                    <div className="flex flex-col items-center justify-center flex-1 text-center p-6 gap-3">
+                        <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary">
                             <Sparkles size={32} />
                         </div>
-                        <h3 className="ai-empty-title">OneCamp AI</h3>
-                        <p className="ai-empty-desc">
+                        <h3 className="text-lg font-semibold text-foreground m-0">OneCamp AI</h3>
+                        <p className="text-[13px] text-muted-foreground max-w-[280px] leading-normal m-0">
                             Ask anything about your workspace — channels, tasks, docs, and more.
                         </p>
-                        <div className="ai-suggestions">
+                        <div className="flex flex-col gap-2 mt-2 w-full max-w-[320px]">
                             {[
                                 "What are the recent updates in my channels?",
                                 "Summarize my pending tasks",
                                 "What did the team discuss today?",
                             ].map((suggestion) => (
-                                <button
+                                <Button
                                     key={suggestion}
-                                    className="ai-suggestion-chip"
+                                    variant="outline"
+                                    className="h-auto px-3.5 py-2.5 bg-card text-foreground text-xs text-left transition-all duration-150 leading-[1.4] hover:border-primary hover:bg-primary/5 whitespace-normal justify-start"
                                     onClick={() => {
                                         setInput(suggestion);
                                         inputRef.current?.focus();
                                     }}
                                 >
                                     {suggestion}
-                                </button>
+                                </Button>
                             ))}
                         </div>
                     </div>
@@ -222,15 +232,20 @@ const AiChatPanel: React.FC = () => {
                 {messages.map((msg) => (
                     <div
                         key={msg.id}
-                        className={`ai-chat-msg ai-chat-msg-${msg.role}`}
+                        className={cn("flex gap-2 animate-msg-fade-in", msg.role === "user" && "justify-end")}
                     >
                         {msg.role === "assistant" && (
-                            <div className="ai-msg-avatar">
+                            <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
                                 <Sparkles size={14} />
                             </div>
                         )}
-                        <div className={`ai-msg-bubble ai-msg-bubble-${msg.role}`}>
-                            <div className="ai-msg-content">
+                        <div className={cn(
+                            "max-w-[85%] px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed relative",
+                            msg.role === "user" 
+                                ? "bg-primary text-primary-foreground rounded-br-sm shadow-sm" 
+                                : "bg-muted text-foreground border border-border rounded-bl-sm"
+                        )}>
+                            <div className="whitespace-pre-wrap break-words">
                                 {msg.content.split("\n").map((line, i) => (
                                     <React.Fragment key={i}>
                                         {line}
@@ -239,9 +254,9 @@ const AiChatPanel: React.FC = () => {
                                 ))}
                             </div>
                             {msg.sources && msg.sources.length > 0 && (
-                                <div className="ai-msg-sources">
+                                <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border">
                                     {msg.sources.map((src, i) => (
-                                        <span key={i} className="ai-source-tag">
+                                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-primary/8 text-primary font-medium capitalize">
                                             {src.content_type}
                                             {src.channel_name && ` · ${src.channel_name}`}
                                         </span>
@@ -285,22 +300,20 @@ const AiChatPanel: React.FC = () => {
 
                 {/* Streaming in progress */}
                 {isStreaming && (
-                    <div className="ai-chat-msg ai-chat-msg-assistant">
-                        <div className="ai-msg-avatar">
+                    <div className="flex gap-2 animate-msg-fade-in">
+                        <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
                             <Sparkles size={14} />
                         </div>
-                        <div className="ai-msg-bubble ai-msg-bubble-assistant">
+                        <div className="max-w-[85%] px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed bg-muted text-foreground border border-border rounded-bl-sm">
                             {sanitizedStreamText.length === 0 ? (
-                                <div className="ai-loading-dots">
-                                    <span className="dot"></span>
-                                    <span className="dot"></span>
-                                    <span className="dot"></span>
+                                <div className="flex items-center gap-2 py-1 text-muted-foreground text-[13px]">
+                                    <Loader2 size={14} className="animate-spin" />
+                                    <span>Thinking...</span>
                                 </div>
                             ) : (
                                 <StreamingText
                                     text={sanitizedStreamText}
                                     isStreaming={isStreaming}
-                                    className="ai-stream-text"
                                 />
                             )}
                         </div>
@@ -308,363 +321,52 @@ const AiChatPanel: React.FC = () => {
                 )}
 
                 {error && (
-                    <div className="ai-chat-error">
+                    <div className="px-3 py-2 rounded-lg bg-red-500/8 border border-red-500/15 text-red-500 text-xs">
                         ⚠️ {error}
                     </div>
                 )}
 
                 <div ref={messagesEndRef} />
-            </div>
+                </div>
+            </ScrollArea>
 
             {/* Input */}
-            <div className="ai-chat-input-area">
-                <div className="ai-chat-input-wrapper">
-                    <textarea
+            <div className="px-4 py-3 border-t border-border bg-background shrink-0">
+                <div className="flex items-end gap-2 border border-border rounded-xl pl-3 pr-1 py-1 bg-card transition-colors duration-150 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10">
+                    <Textarea
                         ref={inputRef}
                         value={input}
                         onChange={handleTextareaInput}
                         onKeyDown={handleKeyDown}
                         placeholder="Ask your workspace anything..."
-                        className="ai-chat-textarea"
+                        className="flex-1 border-none bg-transparent text-foreground text-[13px] leading-normal resize-none outline-none min-h-[36px] max-h-[120px] py-2 font-inherit disabled:opacity-50 ring-0 focus-visible:ring-0 shadow-none"
                         disabled={isStreaming}
                         rows={1}
                     />
                     {isStreaming ? (
-                        <button
-                            className="ai-send-btn ai-stop-btn"
+                        <Button
+                            size="icon"
+                            variant="destructive"
+                            className="w-8 h-8 rounded-lg shrink-0 transition-all duration-150 hover:opacity-90 hover:scale-[1.02]"
                             onClick={cancelStream}
                             title="Stop generating"
                         >
                             <StopCircle size={18} />
-                        </button>
+                        </Button>
                     ) : (
-                        <button
-                            className="ai-send-btn"
+                        <Button
+                            size="icon"
+                            className="w-8 h-8 rounded-lg bg-primary text-primary-foreground shrink-0 transition-all duration-150 hover:opacity-90 hover:scale-[1.02] disabled:opacity-30"
                             onClick={handleSend}
                             disabled={!input.trim()}
                             title="Send"
                         >
-                            {input.trim() ? <Send size={18} /> : <Send size={18} />}
-                        </button>
+                            <Send size={18} />
+                        </Button>
                     )}
                 </div>
             </div>
 
-            <style jsx>{`
-                .ai-chat-panel {
-                    display: flex;
-                    flex-direction: column;
-                    height: 100%;
-                    background: hsl(var(--background));
-                    border-left: 1px solid hsl(var(--border));
-                }
-
-                .ai-chat-header {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 12px 16px;
-                    border-bottom: 1px solid hsl(var(--border));
-                    background: hsl(var(--background));
-                    flex-shrink: 0;
-                }
-
-                .ai-chat-header-left {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-
-                .ai-chat-header-left :global(.ai-header-icon) {
-                    color: hsl(var(--primary));
-                    width: 18px;
-                    height: 18px;
-                }
-
-                .ai-header-title {
-                    font-size: 14px;
-                    font-weight: 600;
-                    color: hsl(var(--foreground));
-                }
-
-                .ai-chat-header-actions {
-                    display: flex;
-                    gap: 4px;
-                }
-
-                .ai-header-btn {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 28px;
-                    height: 28px;
-                    border-radius: 6px;
-                    border: none;
-                    background: transparent;
-                    color: hsl(var(--muted-foreground));
-                    cursor: pointer;
-                    transition: all 0.15s;
-                }
-
-                .ai-header-btn:hover {
-                    background: hsl(var(--accent));
-                    color: hsl(var(--foreground));
-                }
-
-                .ai-chat-messages {
-                    flex: 1;
-                    overflow-y: auto;
-                    padding: 16px;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 16px;
-                    scrollbar-width: thin;
-                }
-
-                .ai-chat-empty {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    flex: 1;
-                    text-align: center;
-                    padding: 24px;
-                    gap: 12px;
-                }
-
-                .ai-typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-
-                .ai-loading-dots {
-                    display: flex;
-                    align-items: center;
-                    gap: 4px;
-                    padding: 8px 4px;
-                }
-                .ai-loading-dots .dot {
-                    width: 6px;
-                    height: 6px;
-                    background: rgba(255, 255, 255, 0.4);
-                    border-radius: 50%;
-                    animation: pulse-dot 1.4s infinite ease-in-out;
-                }
-                .ai-loading-dots .dot:nth-child(1) { animation-delay: -0.32s; }
-                .ai-loading-dots .dot:nth-child(2) { animation-delay: -0.16s; }
-                
-                @keyframes pulse-dot {
-                    0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
-                    40% { transform: scale(1); opacity: 1; }
-                }
-
-                .ai-empty-icon {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 56px;
-                    height: 56px;
-                    border-radius: 16px;
-                    background: hsl(var(--primary) / 0.1);
-                    color: hsl(var(--primary));
-                }
-
-                .ai-empty-title {
-                    font-size: 18px;
-                    font-weight: 600;
-                    color: hsl(var(--foreground));
-                    margin: 0;
-                }
-
-                .ai-empty-desc {
-                    font-size: 13px;
-                    color: hsl(var(--muted-foreground));
-                    max-width: 280px;
-                    line-height: 1.5;
-                    margin: 0;
-                }
-
-                .ai-suggestions {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                    margin-top: 8px;
-                    width: 100%;
-                    max-width: 320px;
-                }
-
-                .ai-suggestion-chip {
-                    padding: 10px 14px;
-                    border-radius: 10px;
-                    border: 1px solid hsl(var(--border));
-                    background: hsl(var(--card));
-                    color: hsl(var(--foreground));
-                    font-size: 12px;
-                    text-align: left;
-                    cursor: pointer;
-                    transition: all 0.15s;
-                    line-height: 1.4;
-                }
-
-                .ai-suggestion-chip:hover {
-                    border-color: hsl(var(--primary));
-                    background: hsl(var(--primary) / 0.05);
-                }
-
-                .ai-chat-msg {
-                    display: flex;
-                    gap: 8px;
-                    animation: msgFadeIn 0.2s ease-out;
-                }
-
-                @keyframes msgFadeIn {
-                    from { opacity: 0; transform: translateY(4px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-
-                .ai-chat-msg-user {
-                    justify-content: flex-end;
-                }
-
-                .ai-msg-avatar {
-                    width: 24px;
-                    height: 24px;
-                    border-radius: 8px;
-                    background: hsl(var(--primary) / 0.1);
-                    color: hsl(var(--primary));
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    flex-shrink: 0;
-                    margin-top: 2px;
-                }
-
-                .ai-msg-bubble {
-                    max-width: 85%;
-                    padding: 10px 14px;
-                    border-radius: 14px;
-                    font-size: 13px;
-                    line-height: 1.6;
-                }
-
-                .ai-msg-bubble-user {
-                    background: hsl(var(--primary));
-                    color: hsl(var(--primary-foreground));
-                    border-bottom-right-radius: 4px;
-                }
-
-                .ai-msg-bubble-assistant {
-                    background: hsl(var(--card));
-                    color: hsl(var(--foreground));
-                    border: 1px solid hsl(var(--border));
-                    border-bottom-left-radius: 4px;
-                }
-
-                .ai-msg-content {
-                    white-space: pre-wrap;
-                    word-break: break-word;
-                }
-
-                .ai-msg-sources {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 4px;
-                    margin-top: 8px;
-                    padding-top: 8px;
-                    border-top: 1px solid hsl(var(--border));
-                }
-
-                .ai-source-tag {
-                    font-size: 10px;
-                    padding: 2px 8px;
-                    border-radius: 4px;
-                    background: hsl(var(--primary) / 0.08);
-                    color: hsl(var(--primary));
-                    font-weight: 500;
-                    text-transform: capitalize;
-                }
-
-                .ai-chat-error {
-                    padding: 8px 12px;
-                    border-radius: 8px;
-                    background: hsl(0 84% 60% / 0.08);
-                    border: 1px solid hsl(0 84% 60% / 0.15);
-                    color: hsl(0 84% 60%);
-                    font-size: 12px;
-                }
-
-                .ai-chat-input-area {
-                    padding: 12px 16px;
-                    border-top: 1px solid hsl(var(--border));
-                    background: hsl(var(--background));
-                    flex-shrink: 0;
-                }
-
-                .ai-chat-input-wrapper {
-                    display: flex;
-                    align-items: flex-end;
-                    gap: 8px;
-                    border: 1px solid hsl(var(--border));
-                    border-radius: 12px;
-                    padding: 4px 4px 4px 12px;
-                    background: hsl(var(--card));
-                    transition: border-color 0.15s;
-                }
-
-                .ai-chat-input-wrapper:focus-within {
-                    border-color: hsl(var(--primary));
-                    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
-                }
-
-                .ai-chat-textarea {
-                    flex: 1;
-                    border: none;
-                    background: transparent;
-                    color: hsl(var(--foreground));
-                    font-size: 13px;
-                    line-height: 1.5;
-                    resize: none;
-                    outline: none;
-                    min-height: 36px;
-                    max-height: 120px;
-                    padding: 8px 0;
-                    font-family: inherit;
-                }
-
-                .ai-chat-textarea::placeholder {
-                    color: hsl(var(--muted-foreground));
-                }
-
-                .ai-send-btn {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 32px;
-                    height: 32px;
-                    border-radius: 8px;
-                    border: none;
-                    background: hsl(var(--primary));
-                    color: hsl(var(--primary-foreground));
-                    cursor: pointer;
-                    flex-shrink: 0;
-                    transition: all 0.15s;
-                }
-
-                .ai-send-btn:hover:not(:disabled) {
-                    opacity: 0.9;
-                    transform: scale(1.02);
-                }
-
-                .ai-send-btn:disabled {
-                    opacity: 0.3;
-                    cursor: not-allowed;
-                }
-
-                .ai-stop-btn {
-                    background: hsl(0 84% 60%);
-                }
-
-                .ai-stream-text :global(.ai-streaming-text) {
-                    max-height: none;
-                }
-            `}</style>
         </div>
     );
 };

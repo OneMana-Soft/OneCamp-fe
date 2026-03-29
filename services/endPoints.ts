@@ -218,6 +218,8 @@ export enum PostEndpointUrl {
 
     // AI Second Brain
     AISummarizeChannel = "/ai/summarize/channel",
+    AISummarizeDM = "/ai/summarize/dm",
+    AISummarizeGroup = "/ai/summarize/group",
     AIAsk = "/ai/ask",
     AIAskStream = "/ai/ask/stream",
     AIDocComplete = "/ai/doc/complete",

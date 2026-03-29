@@ -21,7 +21,7 @@ import {
     ChatInputState, UpdateGrpChatLocally
 } from "@/store/slice/groupChatSlice";
 import {UpdateMessageInChatList, UpdateUnreadCountToZero} from "@/store/slice/chatSlice";
-import {useEffect} from "react";
+import {useEffect, useRef} from "react";
 
 
 const EMPTY_CHATS: ChatInfo[] = []
@@ -118,6 +118,10 @@ export default function Page() {
     }
 
 
+    const userChats = useSelector((state: RootState) => state.users.userSidebar.userChats);
+    const chatInSidebar = userChats.find(chat => chat.dm_grouping_id === grpId);
+    const unreadCountRef = useRef(chatInSidebar?.dm_unread || 0);
+
     useEffect(()=>{
         dispatch(UpdateUnreadCountToZero({grpId}))
     },[])
@@ -130,9 +134,9 @@ export default function Page() {
     return (
         <>
 
-            {isMobile && <GrpChatIdMobile grpId={grpId} handleSend={handleSend}/>}
+            {isMobile && <GrpChatIdMobile grpId={grpId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
 
-            {isDesktop && <ChatGrpIdDesktop grpId={grpId} handleSend={handleSend}/>}
+            {isDesktop && <ChatGrpIdDesktop grpId={grpId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
         </>
     );
 }

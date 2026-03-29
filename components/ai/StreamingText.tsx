@@ -59,47 +59,16 @@ const StreamingText: React.FC<StreamingTextProps> = ({
     const displayedText = text.slice(0, displayedLength);
 
     return (
-        <div ref={containerRef} className={`ai-streaming-text ${className}`}>
-            <div className="ai-text-content">
+        <div ref={containerRef} className={`text-sm leading-relaxed text-foreground max-h-[300px] overflow-y-auto scrollbar-thin ${className}`}>
+            <div className="whitespace-pre-wrap break-words">
                 {displayedText.split("\n").map((line, i) => (
                     <React.Fragment key={i}>
                         {line}
                         {i < displayedText.split("\n").length - 1 && <br />}
                     </React.Fragment>
                 ))}
-                {isStreaming && <span className="ai-cursor">▊</span>}
+                {isStreaming && <span className="inline-block animate-blink text-primary text-[12px] ml-[1px] align-text-bottom">▊</span>}
             </div>
-
-            <style jsx>{`
-                .ai-streaming-text {
-                    font-size: 14px;
-                    line-height: 1.6;
-                    color: var(--text-primary, #e4e4e7);
-                    max-height: 300px;
-                    overflow-y: auto;
-                    scrollbar-width: thin;
-                }
-
-                .ai-text-content {
-                    white-space: pre-wrap;
-                    word-break: break-word;
-                }
-
-                .ai-cursor {
-                    display: inline-block;
-                    animation: blink 1s step-end infinite;
-                    color: var(--accent-primary, #818cf8);
-                    font-size: 12px;
-                    margin-left: 1px;
-                    vertical-align: text-bottom;
-                }
-
-                @keyframes blink {
-                    50% {
-                        opacity: 0;
-                    }
-                }
-            `}</style>
         </div>
     );
 };

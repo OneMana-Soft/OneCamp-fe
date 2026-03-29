@@ -29,9 +29,10 @@ import Link from "next/link";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
+import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 
 
-export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend: ()=>void}) => {
+export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: ()=>void, unreadCount?: number}) => {
 
     const dispatch = useDispatch()
     const postNotification  = usePost()
@@ -163,6 +164,13 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
 
             </div>
             <div className="flex-1 overflow-y-auto">
+                <CatchMeUpBanner
+                    channelUUID={chatId}
+                    unreadCount={unreadCount || 0}
+                    channelName={otherUserInfo.data?.data.user_name}
+                    isChannel={false}
+                    type="dm"
+                />
                 <ChatMessageList chatId={chatId} />
             </div>
 

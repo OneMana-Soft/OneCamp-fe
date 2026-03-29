@@ -69,6 +69,62 @@ export const useSummarizeChannel = () => {
 };
 
 /**
+ * Hook for 1:1 DM summarization.
+ */
+export const useSummarizeDM = () => {
+    const { makeRequest, isSubmitting } = usePost();
+
+    const summarize = useCallback(
+        async (toUserUUID: string, messageCount?: number): Promise<SummarizeResponse | undefined> => {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const localTime = new Date().toISOString();
+
+            return makeRequest<{ to_user_uuid: string; message_count?: number; timezone?: string; local_time?: string }, SummarizeResponse>({
+                apiEndpoint: PostEndpointUrl.AISummarizeDM,
+                payload: { 
+                    to_user_uuid: toUserUUID, 
+                    message_count: messageCount,
+                    timezone,
+                    local_time: localTime,
+                },
+                showToast: false,
+            });
+        },
+        [makeRequest]
+    );
+
+    return { summarize, isSubmitting };
+};
+
+/**
+ * Hook for Group Chat summarization.
+ */
+export const useSummarizeGroup = () => {
+    const { makeRequest, isSubmitting } = usePost();
+
+    const summarize = useCallback(
+        async (chatGrpID: string, messageCount?: number): Promise<SummarizeResponse | undefined> => {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const localTime = new Date().toISOString();
+
+            return makeRequest<{ chat_grp_id: string; message_count?: number; timezone?: string; local_time?: string }, SummarizeResponse>({
+                apiEndpoint: PostEndpointUrl.AISummarizeGroup,
+                payload: { 
+                    chat_grp_id: chatGrpID, 
+                    message_count: messageCount,
+                    timezone,
+                    local_time: localTime,
+                },
+                showToast: false,
+            });
+        },
+        [makeRequest]
+    );
+
+    return { summarize, isSubmitting };
+};
+
+/**
  * Hook for AI Q&A with multi-turn conversation support.
  * Tracks session_id across requests for conversation continuity.
  */
@@ -298,7 +354,7 @@ export const useDocAI = () => {
     const abortRef = useRef<AbortController | null>(null);
 
     const completeStream = useCallback(
-        async (action: DocAIAction, text: string, docId?: string, customPrompt?: string) => {
+        async (action: DocAIAction, text: string, docId?: string, customPrompt?: string, context?: string) => {
             setIsStreaming(true);
             setStreamText("");
             setError(null);
@@ -308,17 +364,23 @@ export const useDocAI = () => {
             try {
                 const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000").replace(/\/+$/, '');
 
+                const token = await ensureValidToken();
+                if (!token) throw new Error("Unauthenticated: Please log in again");
+
                 const response = await fetch(`${baseUrl}${PostEndpointUrl.AIDocCompleteStream}`, {
                     method: "POST",
                     credentials: "include",
                     headers: {
                         "Content-Type": "application/json",
+                        "Accept": "text/event-stream",
+                        "Authorization": `Bearer ${token}`,
                     },
                     body: JSON.stringify({
                         action,
                         text,
                         prompt: customPrompt || "",
                         doc_id: docId || "",
+                        context: context || "",
                     }),
                     signal: abortRef.current.signal,
                 });
@@ -379,7 +441,7 @@ export const useDocAI = () => {
     );
 
     const complete = useCallback(
-        async (action: DocAIAction, text: string, docId?: string, customPrompt?: string): Promise<DocAIResponse | undefined> => {
+        async (action: DocAIAction, text: string, docId?: string, customPrompt?: string, context?: string): Promise<DocAIResponse | undefined> => {
             try {
                 const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000").replace(/\/+$/, '');
 
@@ -394,6 +456,7 @@ export const useDocAI = () => {
                         text,
                         prompt: customPrompt || "",
                         doc_id: docId || "",
+                        context: context || "",
                     }),
                 });
 
@@ -412,7 +475,12 @@ export const useDocAI = () => {
         setIsStreaming(false);
     }, []);
 
-    return { completeStream, complete, cancelStream, isStreaming, streamText, error };
+    const resetResult = useCallback(() => {
+        setStreamText("");
+        setError(null);
+    }, []);
+
+    return { completeStream, complete, cancelStream, resetResult, isStreaming, streamText, error };
 };
 
 // --- Agentic Action Types ---

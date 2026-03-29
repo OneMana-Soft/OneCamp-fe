@@ -12,8 +12,12 @@ import {RootState} from "@/store/store";
 import {UserProfileInterface} from "@/types/user";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
+import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 
-export const ChannelIdMobile = ({channelId, handleSend}: {channelId: string, handleSend: ()=>void }) => {
+export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: ()=>void, unreadCount?: number }) => {
+
+    const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
+    const channelInSidebar = userChannels.find(ch => ch.ch_uuid === channelId);
 
     const postJoinChannel = usePost()
 
@@ -58,13 +62,15 @@ export const ChannelIdMobile = ({channelId, handleSend}: {channelId: string, han
 
         return (<MobileChannelTextInput channelId={channelId} handleSend={handleSend}/>)
     }
-
     return (
         <div className='flex flex-col h-full'>
-
+            <CatchMeUpBanner
+                channelUUID={channelId}
+                unreadCount={unreadCount || 0}
+                channelName={channelInSidebar?.ch_name}
+            />
             <div style={{height: window.innerHeight-185}}>
                 <ChannelMessageList channelId={channelId}/>
-
             </div>
 
             <div>

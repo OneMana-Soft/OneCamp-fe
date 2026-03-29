@@ -35,12 +35,13 @@ import Link from "next/link";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {ChatSkeleton} from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
+import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
 const EMPTY_TYPING_LIST: any[] = []
 
-export const ChannelIdDesktop = ({channelId, handleSend}: {channelId: string, handleSend: ()=>void}) => {
+export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: ()=>void, unreadCount?: number}) => {
 
     const dispatch = useDispatch()
     const postFav  = usePost()
@@ -195,6 +196,11 @@ export const ChannelIdDesktop = ({channelId, handleSend}: {channelId: string, ha
 
             </div>
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
+                <CatchMeUpBanner
+                    channelUUID={channelId}
+                    unreadCount={unreadCount || 0}
+                    channelName={channelNme?.ch_name}
+                />
                 <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin}/>
             </div>
             <div className="sticky bottom-0 left-0 right-0 z-50 border-t focus:border p-4 ">

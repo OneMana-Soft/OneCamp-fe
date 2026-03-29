@@ -1,6 +1,7 @@
 import useSWR, { SWRConfiguration } from 'swr';
 import axiosInstance from "@/lib/axiosInstance";
 import { z } from 'zod';
+import { useMemo } from 'react';
 
 const fetcher = async <T>(url: string, schema?: z.ZodSchema<T>): Promise<T> => {
     const response = await axiosInstance.get(url);
@@ -26,12 +27,12 @@ export const useFetch = <T>(url: string, schema?: z.ZodSchema<T>, config?: SWRCo
         config
     );
 
-    return {
+    return useMemo(() => ({
         data,
         isLoading: isLoading,
         isError: error,
         mutate
-    };
+    }), [data, isLoading, error, mutate]);
 };
 
 
@@ -46,12 +47,12 @@ export const useFetchOnlyOnce = <T>(url: string, schema?: z.ZodSchema<T>) => {
         }
     );
 
-    return {
+    return useMemo(() => ({
         data,
         isLoading: isLoading || isValidating,
         isError: error,
         mutate
-    };
+    }), [data, isLoading, isValidating, error, mutate]);
 };
 
 const mediaFetcher = async <T>(url: string): Promise<T> => {
@@ -67,11 +68,11 @@ export const useMediaFetch = <T>(url: string, fallbackData?: T) => {
         fallbackData
     });
 
-    return {
+    return useMemo(() => ({
         data,
         isLoading: isLoading,
         isError: error,
         isValidating,
         mutate
-    };
+    }), [data, isLoading, error, isValidating, mutate]);
 };

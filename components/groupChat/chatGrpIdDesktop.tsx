@@ -33,13 +33,14 @@ import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {useRouter} from "next/navigation";
 import {app_grp_call, app_grp_chat_path, app_home_path} from "@/types/paths";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
+import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 
 
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
 const EMPTY_TYPING_LIST: any[] = []
 const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
 
-export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend: ()=>void}) => {
+export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: ()=>void, unreadCount?: number}) => {
 
     const dispatch = useDispatch()
     const grpChatCreatedLocally = useSelector((state: RootState) => state.groupChat.locallyCreatedGrpInfo[grpId] || EMPTY_GRP_INFO);
@@ -64,7 +65,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
 
         }
 
-    }, [dmParticipantsInfo.data?.data])
+    }, [dmParticipantsInfo.data?.data, grpId, dispatch])
 
     useEffect(() => {
 
@@ -88,7 +89,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
         }
 
 
-    }, [grpChatCreatedLocally,dmParticipantsInfo]);
+    }, [grpChatCreatedLocally, dmParticipantsInfo.data, dispatch]);
 
     if(dmParticipantsInfo.isLoading && !grpChatCreatedLocally.participants) return <LoadingStateCircle />
 
@@ -182,6 +183,13 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
 
             </div>
             <div className="flex-1 overflow-y-auto">
+                <CatchMeUpBanner
+                    channelUUID={grpId}
+                    unreadCount={unreadCount || 0}
+                    channelName={participants.slice(0, 3).map(u => u.user_name).join(', ') + (participants.length > 3 ? '...' : '')}
+                    isChannel={false}
+                    type="group"
+                />
                 <GroupChatMessageList grpId={grpId} />
             </div>
 

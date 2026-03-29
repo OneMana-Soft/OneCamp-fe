@@ -14,9 +14,14 @@ import { SectionThree } from '@/components/minimal-tiptap/components/section/thr
 import { SectionFour } from '@/components/minimal-tiptap/components/section/four'
 import { SectionFive } from '@/components/minimal-tiptap/components/section/five'
 import { LinkBubbleMenu } from '@/components/minimal-tiptap/components/bubble-menu/link-bubble-menu'
+import { SelectionAiBubbleMenu } from '@/components/minimal-tiptap/components/bubble-menu/selection-ai-bubble-menu'
 import { useMinimalTiptapEditor } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
 import { MeasuredContainer } from '@/components/minimal-tiptap/components/measured-container'
-import DocAiAssistant from '@/components/ai/DocAiAssistant'
+import { useDispatch } from 'react-redux'
+import { openRightPanel } from '@/store/slice/desktopRightPanelSlice'
+import { useMedia } from '@/context/MediaQueryContext'
+import { Drawer } from 'vaul'
+import { DocAiAssistantPanel } from '@/components/ai/DocAiAssistantPanel'
 
 export interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
     value?: Content
@@ -65,14 +70,15 @@ const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClic
             <Separator orientation="vertical" className="mx-2 h-7" />
 
             <button
-                onClick={onAIClick}
+                onClick={(e) => {
+                    e.preventDefault();
+                    onAIClick();
+                }}
                 className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all",
-                    "bg-gradient-to-r from-indigo-500/10 to-purple-500/10",
-                    "border border-indigo-500/20 hover:border-indigo-500/40",
-                    "text-indigo-400 hover:text-indigo-300",
-                    "hover:from-indigo-500/20 hover:to-purple-500/20",
-                    "hover:shadow-sm hover:shadow-indigo-500/10"
+                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all focus:outline-none",
+                    "bg-primary/10 border border-primary/20 hover:border-primary/40",
+                    "text-primary hover:text-primary/80",
+                    "hover:bg-primary/20 hover:shadow-sm hover:shadow-primary/10"
                 )}
                 title={hasSelection ? "AI: Transform selected text" : "AI: Write with AI"}
             >
@@ -91,10 +97,12 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
             ...props
         })
 
-        const [showAI, setShowAI] = React.useState(false)
+        const dispatch = useDispatch()
+        const { isDesktop, isMobile } = useMedia()
+        const [isDrawerOpen, setIsDrawerOpen] = React.useState(false)
         const [selectedText, setSelectedText] = React.useState('')
-        const [aiPosition, setAiPosition] = React.useState<{ top: number; left: number } | undefined>()
         const [hasSelection, setHasSelection] = React.useState(false)
+        const undoDataRef = React.useRef<{ originalText: string; from: number; replacedLength: number } | null>(null)
 
         // Track selection state
         React.useEffect(() => {
@@ -109,6 +117,55 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
             return () => { editor.off('selectionUpdate', handleSelectionUpdate) }
         }, [editor])
 
+        const handleInsert = React.useCallback((text: string) => {
+            if (!editor) return
+            const { to } = editor.state.selection
+            editor.chain().focus().insertContentAt(to, text).run()
+        }, [editor])
+
+        const handleReplace = React.useCallback((text: string, originalText?: string) => {
+            if (!editor) return
+            const { from, to } = editor.state.selection
+            if (from !== to) {
+                // Store undo data before replacing
+                const storedOriginal = originalText ?? editor.state.doc.textBetween(from, to, ' ')
+                editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, text).run()
+                undoDataRef.current = {
+                    originalText: storedOriginal,
+                    from,
+                    replacedLength: text.length,
+                }
+            } else {
+                // No selection: insert at cursor
+                editor.chain().focus().insertContent(text).run()
+                undoDataRef.current = null
+            }
+        }, [editor])
+
+        const handleUndo = React.useCallback(() => {
+            if (!editor) return
+
+            const undoData = undoDataRef.current
+            if (undoData) {
+                // Direct restoration: swap the AI text back to original
+                try {
+                    const to = undoData.from + undoData.replacedLength
+                    editor.chain()
+                        .focus()
+                        .deleteRange({ from: undoData.from, to })
+                        .insertContentAt(undoData.from, undoData.originalText)
+                        .run()
+                } catch {
+                    // Positions may be stale if doc was edited — fall back to TipTap undo
+                    editor.commands.undo()
+                }
+                undoDataRef.current = null
+            } else {
+                // No stored undo data — use TipTap's built-in undo
+                editor.commands.undo()
+            }
+        }, [editor])
+
         const handleAIClick = React.useCallback(() => {
             if (!editor) return
 
@@ -117,34 +174,43 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                 ? editor.state.doc.textBetween(from, to, ' ')
                 : ''
 
+            const contextSize = 500
+            const contextBefore = editor.state.doc.textBetween(Math.max(0, from - contextSize), from, ' ')
+            const contextAfter = editor.state.doc.textBetween(to, Math.min(editor.state.doc.content.size, to + contextSize), ' ')
+            const surroundingContext = `[BEFORE]: ${contextBefore}\n[SELECTED]: ${text}\n[AFTER]: ${contextAfter}`
+
             setSelectedText(text)
 
-            // Position below the toolbar
-            const editorEl = editor.view.dom.closest('.flex.h-auto')
-            if (editorEl) {
-                const rect = editorEl.getBoundingClientRect()
-                setAiPosition({ top: rect.top + 50, left: rect.right - 340 })
-            }
-
-            setShowAI(true)
-        }, [editor])
-
-        const handleInsert = React.useCallback((text: string) => {
-            if (!editor) return
-            const { to } = editor.state.selection
-            editor.chain().focus().insertContentAt(to, text).run()
-        }, [editor])
-
-        const handleReplace = React.useCallback((text: string) => {
-            if (!editor) return
-            const { from, to } = editor.state.selection
-            if (from !== to) {
-                editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, text).run()
+            if (isDesktop) {
+                dispatch(openRightPanel({
+                    docAiOpen: true,
+                    docAiData: {
+                        selectedText: text,
+                        docId: docId || '',
+                        surroundingContext
+                    }
+                }))
             } else {
-                // No selection: insert at cursor
-                editor.chain().focus().insertContent(text).run()
+                setIsDrawerOpen(true)
             }
-        }, [editor])
+        }, [editor, isDesktop, dispatch, docId])
+
+        // Listen for AI actions from sidebar/drawer
+        React.useEffect(() => {
+            const onInsert = (e: any) => handleInsert(e.detail.text)
+            const onReplace = (e: any) => handleReplace(e.detail.text, e.detail.originalText)
+            const onUndo = () => handleUndo()
+
+            window.addEventListener('doc-ai-insert', onInsert)
+            window.addEventListener('doc-ai-replace', onReplace)
+            window.addEventListener('doc-ai-undo', onUndo)
+
+            return () => {
+                window.removeEventListener('doc-ai-insert', onInsert)
+                window.removeEventListener('doc-ai-replace', onReplace)
+                window.removeEventListener('doc-ai-undo', onUndo)
+            }
+        }, [handleInsert, handleReplace, handleUndo])
 
         if (!editor) {
             return null
@@ -163,17 +229,26 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                 <Toolbar editor={editor} onAIClick={handleAIClick} hasSelection={hasSelection} />
                 <EditorContent editor={editor} className={cn('minimal-tiptap-editor', editorContentClassName)} />
                 <LinkBubbleMenu editor={editor} />
+                <SelectionAiBubbleMenu editor={editor} onAIClick={handleAIClick} />
 
-                {showAI && (
-                    <DocAiAssistant
-                        selectedText={selectedText}
-                        docId={docId || ''}
-                        onInsert={handleInsert}
-                        onReplace={handleReplace}
-                        position={aiPosition}
-                        onClose={() => setShowAI(false)}
-                    />
-                )}
+                {/* Mobile AI Drawer */}
+                <Drawer.Root open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+                    <Drawer.Portal>
+                        <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000]" />
+                        <Drawer.Content className="bg-background flex flex-col rounded-t-[20px] h-[85vh] mt-24 fixed bottom-0 left-0 right-0 z-[1001] outline-none border-t border-border">
+                            <Drawer.Title className="sr-only">AI Assistant</Drawer.Title>
+                            <Drawer.Description className="sr-only">AI powered document assistant for writing and transforming text.</Drawer.Description>
+                            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted my-4" />
+                            <div className="flex-1 overflow-y-auto">
+                                <DocAiAssistantPanel 
+                                    selectedText={selectedText} 
+                                    docId={docId || ''} 
+                                    onClose={() => setIsDrawerOpen(false)}
+                                />
+                            </div>
+                        </Drawer.Content>
+                    </Drawer.Portal>
+                </Drawer.Root>
             </MeasuredContainer>
         )
     }

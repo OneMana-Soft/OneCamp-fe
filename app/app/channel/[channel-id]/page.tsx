@@ -46,6 +46,10 @@ export default function Page() {
 
     const latestMsg = useFetch<CreatePostPaginationResRaw>( channelId ? GetEndpointUrl.GetChannelLatestPost + '/' + channelId : '')
 
+    const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
+    const channelInSidebar = userChannels.find(ch => ch.ch_uuid === channelId);
+    const unreadCountRef = useRef(channelInSidebar?.unread_post_count || 0);
+
     const { isMobile, isDesktop } = useMedia();
 
     useEffect(() => {
@@ -118,9 +122,9 @@ export default function Page() {
     return (
         <>
 
-            {isMobile && <ChannelIdMobile channelId={channelId} handleSend={handleSend}/>}
+            {isMobile && <ChannelIdMobile channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current}/>}
 
-            {isDesktop && <ChannelIdDesktop channelId={channelId} handleSend={handleSend}/>}
+            {isDesktop && <ChannelIdDesktop channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current}/>}
         </>
     );
 }

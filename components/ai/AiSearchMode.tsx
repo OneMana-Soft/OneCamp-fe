@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useCallback, useRef } from "react";
+import { cn } from "@/lib/utils/helpers/cn";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import StreamingText from "./StreamingText";
 import { useAskAI, useAskAIStream } from "@/services/aiService";
 
@@ -67,201 +70,75 @@ const AiSearchMode: React.FC<AiSearchModeProps> = ({
     if (!aiEnabled) return null;
 
     return (
-        <div className="ai-search-mode">
+        <div className="flex flex-col gap-2">
             {/* Toggle Button */}
-            <button
-                className={`ai-toggle ${isAIMode ? "active" : ""}`}
+            <Button
+                variant="outline"
+                className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-border bg-muted/60 text-muted-foreground text-xs transition-all duration-200 self-end hover:border-primary/40 hover:text-foreground",
+                    isAIMode && "bg-primary/10 border-primary/40 text-primary"
+                )}
                 onClick={handleToggle}
                 title={isAIMode ? "Switch to keyword search" : "Switch to AI search"}
             >
-                <span className="toggle-icon">{isAIMode ? "🧠" : "🔍"}</span>
-                <span className="toggle-label">{isAIMode ? "AI" : "Search"}</span>
-            </button>
-
+                <span className="text-sm">{isAIMode ? "🧠" : "🔍"}</span>
+                <span className="font-medium">{isAIMode ? "AI" : "Search"}</span>
+            </Button>
+ 
             {/* AI Input & Response Area */}
             {isAIMode && (
-                <div className="ai-panel">
-                    <form onSubmit={handleAsk} className="ai-input-form">
-                        <input
+                <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <form onSubmit={handleAsk} className="flex gap-2 items-center">
+                        <Input
                             ref={inputRef}
                             type="text"
                             placeholder="Ask your workspace anything..."
                             value={question}
                             onChange={(e) => setQuestion(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            className="ai-input"
+                            className="flex-1 px-3.5 py-2.5 rounded-xl border border-border bg-background/80 text-foreground text-sm outline-none transition-all focus:border-primary/50 focus:ring-4 focus:ring-primary/10 placeholder:text-muted-foreground"
                             disabled={isStreaming}
                         />
                         {isStreaming ? (
-                            <button
+                            <Button
                                 type="button"
+                                variant="outline"
                                 onClick={cancelStream}
-                                className="ai-cancel-btn"
+                                className="px-5 py-2.5 rounded-xl bg-destructive/15 text-destructive border border-destructive/20 text-[13px] font-semibold transition-all hover:bg-destructive/25"
                             >
                                 Stop
-                            </button>
+                            </Button>
                         ) : (
-                            <button
+                            <Button
                                 type="submit"
-                                className="ai-send-btn"
+                                className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-[13px] font-semibold transition-all hover:shadow-primary/30 disabled:opacity-40"
                                 disabled={!question.trim()}
                             >
                                 Ask AI
-                            </button>
+                            </Button>
                         )}
                     </form>
-
+ 
                     {/* Response Area */}
                     {(streamText || isStreaming) && (
-                        <div className="ai-response">
+                        <div className="p-3 px-4 rounded-xl bg-muted/50 border border-border">
                             <StreamingText
                                 text={streamText}
                                 isStreaming={isStreaming}
-                                className="ai-response-text"
+                                className="text-sm"
                             />
                         </div>
                     )}
-
+ 
                     {error && (
-                        <div className="ai-error">
+                        <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
                             ⚠️ {error}
                         </div>
                     )}
                 </div>
             )}
+ 
 
-            <style jsx>{`
-                .ai-search-mode {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                }
-
-                .ai-toggle {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 6px;
-                    padding: 4px 12px;
-                    border-radius: 8px;
-                    border: 1px solid rgba(113, 113, 122, 0.2);
-                    background: rgba(39, 39, 42, 0.6);
-                    color: var(--text-secondary, #a1a1aa);
-                    font-size: 12px;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    align-self: flex-end;
-                }
-
-                .ai-toggle:hover {
-                    border-color: rgba(99, 102, 241, 0.4);
-                    color: var(--text-primary, #e4e4e7);
-                }
-
-                .ai-toggle.active {
-                    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.15));
-                    border-color: rgba(99, 102, 241, 0.4);
-                    color: #818cf8;
-                }
-
-                .toggle-icon {
-                    font-size: 14px;
-                }
-
-                .toggle-label {
-                    font-weight: 500;
-                }
-
-                .ai-panel {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                    animation: fadeIn 0.2s ease-out;
-                }
-
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(-4px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-
-                .ai-input-form {
-                    display: flex;
-                    gap: 8px;
-                    align-items: center;
-                }
-
-                .ai-input {
-                    flex: 1;
-                    padding: 10px 14px;
-                    border-radius: 10px;
-                    border: 1px solid rgba(99, 102, 241, 0.25);
-                    background: rgba(24, 24, 27, 0.8);
-                    color: var(--text-primary, #e4e4e7);
-                    font-size: 14px;
-                    outline: none;
-                    transition: border-color 0.2s;
-                }
-
-                .ai-input:focus {
-                    border-color: rgba(99, 102, 241, 0.5);
-                    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-                }
-
-                .ai-input::placeholder {
-                    color: var(--text-tertiary, #52525b);
-                }
-
-                .ai-send-btn,
-                .ai-cancel-btn {
-                    padding: 10px 18px;
-                    border-radius: 10px;
-                    border: none;
-                    font-size: 13px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    white-space: nowrap;
-                }
-
-                .ai-send-btn {
-                    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-                    color: white;
-                }
-
-                .ai-send-btn:hover:not(:disabled) {
-                    box-shadow: 0 2px 12px rgba(99, 102, 241, 0.4);
-                }
-
-                .ai-send-btn:disabled {
-                    opacity: 0.4;
-                    cursor: not-allowed;
-                }
-
-                .ai-cancel-btn {
-                    background: rgba(239, 68, 68, 0.15);
-                    color: #f87171;
-                    border: 1px solid rgba(239, 68, 68, 0.2);
-                }
-
-                .ai-cancel-btn:hover {
-                    background: rgba(239, 68, 68, 0.25);
-                }
-
-                .ai-response {
-                    padding: 12px 16px;
-                    border-radius: 10px;
-                    background: rgba(39, 39, 42, 0.5);
-                    border: 1px solid rgba(63, 63, 70, 0.4);
-                }
-
-                .ai-error {
-                    padding: 8px 12px;
-                    border-radius: 8px;
-                    background: rgba(239, 68, 68, 0.08);
-                    border: 1px solid rgba(239, 68, 68, 0.15);
-                    color: #f87171;
-                    font-size: 12px;
-                }
-            `}</style>
         </div>
     );
 };
