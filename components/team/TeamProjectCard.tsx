@@ -9,7 +9,7 @@ export const TeamProjectCard = ({teamId}:{teamId: string}) => {
 
 
     return (
-        <Card className="w-full h-full border-none shadow-none bg-transparent flex flex-col">
+        <Card className="w-full h-full min-h-0 border-none shadow-none bg-transparent flex flex-col">
             <CardHeader className="px-0 pt-0 pb-6">
                 <div className="flex items-center gap-2 mb-1">
                     <div className="bg-primary/10 p-1.5 rounded-md">
@@ -20,7 +20,7 @@ export const TeamProjectCard = ({teamId}:{teamId: string}) => {
                     </CardTitle>
                 </div>
             </CardHeader>
-            <CardContent className="px-0 flex-1 overflow-hidden">
+            <CardContent className="px-0 flex-1 min-h-0 flex flex-col">
                 <TeamProjectList teamId={teamId} />
             </CardContent>
         </Card>

@@ -32,8 +32,8 @@ export function UserComboboxItem({
 
     return (
         <CommandItem
-            value={userUuid}
-            onSelect={(currentValue) => onSelect(currentValue)}
+            value={`${userName} ${userEmail} ${userUuid}`}
+            onSelect={() => onSelect(userUuid)}
             className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
         >
             <Avatar className="h-8 w-8 border border-border/50 flex-shrink-0">

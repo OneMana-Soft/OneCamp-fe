@@ -32,14 +32,16 @@ const EditChannelMemberDialog: React.FC<EditTeamDialogProps> = ({
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState} >
-            <DialogContent className="max-w-[95vw] md:max-w-[30vw]">
-                <DialogHeader>
-                    <DialogTitle className="text-start">Channel members</DialogTitle>
+            <DialogContent className="max-w-[95vw] md:max-w-[35vw] h-[80vh] flex flex-col p-0 overflow-hidden bg-background backdrop-blur-xl border-border/50 shadow-2xl">
+                <DialogHeader className="p-6 pb-2 border-b border-border/50">
+                    <DialogTitle className="text-start text-xl font-bold tracking-tight">Channel members</DialogTitle>
                     <DialogDescription className="hidden">
                         Channel members
                     </DialogDescription>
                 </DialogHeader>
-                <ChannelMemberContent channelId={channelId} />
+                <div className="flex-1 min-h-0 overflow-hidden p-6 pt-2 flex flex-col">
+                    <ChannelMemberContent channelId={channelId} />
+                </div>
             </DialogContent>
         </Dialog>
     );
