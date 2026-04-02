@@ -181,16 +181,17 @@ export const TeamMemberContent: React.FC<memberContentProp> = ({teamId}) => {
 
 
     return (
-        <div className='h-full flex flex-col gap-y-4'>
+        <div className='flex-1 min-h-0 flex flex-col gap-y-4 w-full'>
             {(teamInfo.data?.data.team_is_admin || (teamInfo.data?.data.team_is_member )) && (
                 <div className="flex-shrink-0">
                     <AddTeamMemberCombobox handleAddMember={handleAddMember} teamId={teamId}/>
                 </div>
             )}
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 flex flex-col">
                 <MembersList 
                     isAdmin={teamInfo.data?.data.team_is_admin || false} 
                     usersList={teamInfo.data?.data.team_members || []}
+                    isLoading={teamInfo.isLoading}
                     handleMakeAdmin={handleMakeAdmin} 
                     handleRemoveAdmin={handleRemoveAdmin}
                     handleRemoveMember={handleRemoveMember} 

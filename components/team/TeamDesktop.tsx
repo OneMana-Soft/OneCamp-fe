@@ -16,7 +16,7 @@ export const TeamDesktop = ({teamId}:{teamId: string})=> {
     const dispatch = useDispatch()
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex-1 min-h-0 flex flex-col h-full w-full">
             {/* Header */}
             <div className="flex items-center justify-between px-8 py-6 border-b border-border/50 bg-card/30">
                 <div className="flex items-center gap-3">
@@ -49,10 +49,14 @@ export const TeamDesktop = ({teamId}:{teamId: string})=> {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-hidden p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full max-w-7xl mx-auto">
-                    <TeamProjectCard teamId={teamId} />
-                    <TeamMemberCard teamId={teamId} />
+            <div className="flex-1 min-h-0 overflow-hidden p-8 flex flex-col">
+                <div className="flex flex-col lg:flex-row gap-8 h-full min-h-0 max-w-7xl mx-auto w-full">
+                    <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+                        <TeamProjectCard teamId={teamId} />
+                    </div>
+                    <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+                        <TeamMemberCard teamId={teamId} />
+                    </div>
                 </div>
             </div>
         </div>

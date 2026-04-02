@@ -33,14 +33,16 @@ const EditProjectMemberDialog: React.FC<EditTeamDialogProps> = ({
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-            <DialogContent className="max-w-[95vw] md:max-w-[30vw]">
-                <DialogHeader>
-                    <DialogTitle className="text-start">Project members</DialogTitle>
+            <DialogContent className="max-w-[95vw] md:max-w-[35vw] h-[80vh] flex flex-col p-0 overflow-hidden bg-background backdrop-blur-xl border-border/50 shadow-2xl">
+                <DialogHeader className="p-6 pb-2 border-b border-border/50">
+                    <DialogTitle className="text-start text-xl font-bold tracking-tight">Project members</DialogTitle>
                     <DialogDescription className="hidden">
                         Project members
                     </DialogDescription>
                 </DialogHeader>
-                <ProjectMemberContent projectId={projectId} />
+                <div className="flex-1 min-h-0 overflow-hidden p-6 pt-2 flex flex-col">
+                    <ProjectMemberContent projectId={projectId} />
+                </div>
             </DialogContent>
         </Dialog>
     );

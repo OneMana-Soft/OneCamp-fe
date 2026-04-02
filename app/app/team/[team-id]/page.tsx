@@ -14,7 +14,7 @@ export default function Page() {
 
 
     return (
-        <div className="flex flex-col h-full bg-background/50 backdrop-blur-md">
+        <div className="flex-1 min-h-0 flex flex-col h-full w-full overflow-hidden bg-background/50 backdrop-blur-md">
             {isDesktop && <TeamDesktop teamId={teamId} />}
 
             {isMobile && <TeamListTabContent teamId={teamId} />}

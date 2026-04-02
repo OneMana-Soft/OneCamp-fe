@@ -167,16 +167,23 @@ const ChannelMemberContent: React.FC<memberContentProp> = ({channelId}) => {
 
 
     return (
-        <div className='h-full flex flex-col gap-y-6'>
-            {(channelInfo.data?.channel_info.ch_is_admin || (channelInfo.data?.channel_info.ch_is_member && !channelInfo.data?.channel_info.ch_private)) && <AddChannelMemberCombobox handleAddMember={handleAddMember} channelId={channelId}/>}
-            <MembersList
-                isAdmin={channelInfo.data?.channel_info.ch_is_admin || false}
-                usersList={channelInfo.data?.channel_info.ch_members || []}
-                handleMakeAdmin={handleMakeAdmin}
-                handleRemoveAdmin={handleRemoveAdmin}
-                handleRemoveMember={handleRemoveMember}
-                blockExitForUUID={channelInfo.data?.channel_info.ch_created_by.user_uuid}/>
-
+        <div className='flex-1 min-h-0 flex flex-col gap-y-6 w-full'>
+            {(channelInfo.data?.channel_info.ch_is_admin || (channelInfo.data?.channel_info.ch_is_member && !channelInfo.data?.channel_info.ch_private)) && (
+                <div className="flex-shrink-0">
+                    <AddChannelMemberCombobox handleAddMember={handleAddMember} channelId={channelId} />
+                </div>
+            )}
+            <div className="flex-1 min-h-0 flex flex-col">
+                <MembersList
+                    isAdmin={channelInfo.data?.channel_info.ch_is_admin || false}
+                    usersList={channelInfo.data?.channel_info.ch_members || []}
+                    isLoading={channelInfo.isLoading}
+                    handleMakeAdmin={handleMakeAdmin}
+                    handleRemoveAdmin={handleRemoveAdmin}
+                    handleRemoveMember={handleRemoveMember}
+                    blockExitForUUID={channelInfo.data?.channel_info.ch_created_by.user_uuid}
+                />
+            </div>
         </div>
     )
 }
