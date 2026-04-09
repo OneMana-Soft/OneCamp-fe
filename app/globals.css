@@ -55,6 +55,9 @@
   --color-code-number: var(--code-number);
   --color-selection: var(--selection);
   --color-selection-foreground: var(--selection-foreground);
+  --animate-blink: blink 1s infinite;
+  --animate-text-shimmer: text-shimmer 1.5s infinite linear;
+  --animate-msg-fade-in: msg-fade-in 0.2s ease-out;
 }
 
 :root {
@@ -147,6 +150,20 @@
   --code-number: oklch(0.72 0 0);
   --selection: oklch(0.45 0.15 250);
   --selection-foreground: oklch(0.985 0 0);
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+@keyframes text-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes msg-fade-in {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 @utility glass {
@@ -495,5 +512,27 @@
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
     overscroll-behavior: contain;
+  }
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll-bar-color) transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--scroll-bar-color);
+    border-radius: 10px;
+    border: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--scroll-bar-color) 80%, white);
   }
 }

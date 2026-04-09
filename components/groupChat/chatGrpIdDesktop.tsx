@@ -59,8 +59,8 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
     useEffect(() => {
 
         if(dmParticipantsInfo.data?.data) {
-            setChatNotificationType(dmParticipantsInfo.data?.data.dm_notification_type || NotificationType.NotificationAll)
-            dispatch(updateChatCallStatus({grpId: grpId, callStatus: !!dmParticipantsInfo.data?.data.dm_call_active}))
+            setChatNotificationType(dmParticipantsInfo.data?.data?.dm_notification_type || NotificationType.NotificationAll)
+            dispatch(updateChatCallStatus({grpId: grpId, callStatus: !!dmParticipantsInfo.data?.data?.dm_call_active}))
 
         }
 
@@ -68,7 +68,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
 
     useEffect(() => {
 
-        if(grpChatCreatedLocally.grpId || dmParticipantsInfo.data?.data.dm_grouping_id) {
+        if(grpChatCreatedLocally.grpId || dmParticipantsInfo.data?.data?.dm_grouping_id) {
 
 
             let d =  dmParticipantsInfo.data?.data
@@ -116,7 +116,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
         setChatNotificationType(nextNotification)
     }
 
-    const participants = grpChatCreatedLocally.participants || dmParticipantsInfo.data?.data.dm_participants || []
+    const participants = grpChatCreatedLocally.participants || dmParticipantsInfo.data?.data?.dm_participants || []
 
 
     return (

@@ -32,14 +32,16 @@ const EditDmMemberDialog: React.FC<EditDmDialogProps> = ({
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState} >
-            <DialogContent className="max-w-[95vw] md:max-w-[30vw]">
-                <DialogHeader>
+            <DialogContent className="max-w-[95vw] md:max-w-[30vw] h-[80vh] flex flex-col p-0">
+                <DialogHeader className="p-6 pb-0">
                     <DialogTitle className="text-start">Group members</DialogTitle>
                     <DialogDescription className="hidden">
                         Group members
                     </DialogDescription>
                 </DialogHeader>
-                <DmMemberContent grpId={grpId} />
+                <div className="flex-1 overflow-hidden p-6 pt-2">
+                    <DmMemberContent grpId={grpId} />
+                </div>
             </DialogContent>
         </Dialog>
     );

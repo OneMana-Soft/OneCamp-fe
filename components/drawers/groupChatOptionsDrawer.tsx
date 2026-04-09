@@ -51,8 +51,8 @@ export function GroupChatOptionsDrawer({drawerOpenState, setOpenState, grpId}: g
     useEffect(() => {
 
         if(dmParticipantsInfo.data?.data) {
-            setGrpNotificationType(dmParticipantsInfo.data?.data.dm_notification_type || NotificationType.NotificationAll)
-            dispatch(updateChatCallStatus({grpId: grpId, callStatus: !!dmParticipantsInfo.data?.data.dm_call_active}))
+            setGrpNotificationType(dmParticipantsInfo.data?.data?.dm_notification_type || NotificationType.NotificationAll)
+            dispatch(updateChatCallStatus({grpId: grpId, callStatus: !!dmParticipantsInfo.data?.data?.dm_call_active}))
         }
 
     }, [dmParticipantsInfo.data?.data])

@@ -21,7 +21,7 @@ export function MobileTopNavigationBarSecondGroupChat({grpId}:{grpId: string}) {
     const dmParticipantsInfo  = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`)
     const grpChatCreatedLocally = useSelector((state: RootState) => state.groupChat.locallyCreatedGrpInfo[grpId] || EMPTY_GRP_INFO);
 
-    const participants = grpChatCreatedLocally.participants || dmParticipantsInfo.data?.data.dm_participants || []
+    const participants = grpChatCreatedLocally.participants || dmParticipantsInfo.data?.data?.dm_participants || []
 
     return (
         <div className='flex justify-center px-2 relative items-center w-full h-full'>

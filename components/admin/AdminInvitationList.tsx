@@ -19,6 +19,7 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
 }) => {
   return (
     <TooltipProvider>
+      <div className="overflow-y-auto h-[calc(100vh-320px)] pr-2 scrollbar-thin">
       <div className="space-y-4">
         {invitations.length > 0 ? (
           invitations.map((inv) => (
@@ -65,6 +66,7 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
             No pending invitations found.
           </div>
         )}
+      </div>
       </div>
     </TooltipProvider>
   )
