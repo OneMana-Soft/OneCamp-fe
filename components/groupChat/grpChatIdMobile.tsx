@@ -7,7 +7,7 @@ import { GetEndpointUrl } from "@/services/endPoints";
 
 export const GrpChatIdMobile = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: ()=>void, unreadCount?: number }) => {
     const dmParticipantsInfo  = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`)
-    const participants = dmParticipantsInfo.data?.data.dm_participants || []
+    const participants = dmParticipantsInfo.data?.data?.dm_participants || []
 
     return (
         <div className='flex flex-col h-full'>

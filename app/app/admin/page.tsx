@@ -2,7 +2,6 @@
 
 import React from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import TeamsCard from "@/components/admin/teamCard"
 import UserCard from "@/components/admin/userCard"
 import AdminCard from "@/components/admin/adminCard"
@@ -64,23 +63,22 @@ const AdminPage = () => {
 
 
           <div className="flex-1 overflow-hidden">
-            <ScrollArea className="h-full pr-4">
-              <div className="max-w-4xl">
-                <TabsContent value="teams" className="mt-0 outline-none">
+              <div className="h-full pr-4">
+                <div className="max-w-4xl h-full">
+                <TabsContent value="teams" className="mt-0 outline-none h-full">
                   <TeamsCard />
                 </TabsContent>
-                <TabsContent value="users" className="mt-0 outline-none">
+                <TabsContent value="users" className="mt-0 outline-none h-full">
                   <UserCard />
                 </TabsContent>
-                <TabsContent value="admins" className="mt-0 outline-none">
+                <TabsContent value="admins" className="mt-0 outline-none h-full">
                   <AdminCard />
                 </TabsContent>
-                <TabsContent value="invitations" className="mt-0 outline-none">
+                <TabsContent value="invitations" className="mt-0 outline-none h-full">
                   <InvitationCard />
                 </TabsContent>
               </div>
-
-            </ScrollArea>
+              </div>
           </div>
         </Tabs>
       </div>

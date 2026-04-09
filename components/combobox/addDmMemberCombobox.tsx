@@ -7,12 +7,12 @@ import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList} from "@/components/ui/command";
 import {cn} from "@/lib/utils/helpers/cn";
 import {useFetch} from "@/hooks/useFetch";
-import {UserListInterfaceResp} from "@/types/user";
+import {UserProfileDataInterface, UserListInterfaceResp} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {UserComboboxItem} from "@/components/combobox/userComboboxItem";
 
 interface AddTeamMemberComboboxPropInterface {
-    handleAddMember: (id: string) => void
+    handleAddMember: (id: string, user?: UserProfileDataInterface) => void
     grpId: string
 }
 
@@ -26,7 +26,8 @@ const AddDmMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({hand
 
     const handleOnClick = async (id: string) => {
         if(!id) return
-        await handleAddMember(id)
+        const selectedUser = usersList.data?.users?.find(u => u.user_uuid === id);
+        await handleAddMember(id, selectedUser)
         setValue("")
     }
 
