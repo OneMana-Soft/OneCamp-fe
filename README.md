@@ -104,7 +104,7 @@ This frontend requires the **OneCamp Go backend** to function. The backend is a 
 - 🗄️ Pre-configured Postgres, Redis, and MinIO
 - 🐳 Complete Docker Compose setup for one-command deployment
 
-**→ [Get the backend license for $9 at onemana.dev](https://onemana.dev/onecamp-product)**
+**→ [Get the backend license for $19 at onemana.dev](https://onemana.dev/onecamp-product)**
 
 ---
 
