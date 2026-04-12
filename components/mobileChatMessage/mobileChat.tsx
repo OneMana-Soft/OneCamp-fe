@@ -25,12 +25,14 @@ import {
 import {
     createChatReactionChatId, removeChatByChatId,
     removeChatReactionByChatId, updateChatByChatId, updateChatMessageReplyDecrement,
-    updateChatReactionByChatId
+    updateChatReactionByChatId,
+    RemoveMessageFromChatList, UpdateMessageTextInChatList
 } from "@/store/slice/chatSlice";
 import {usePost} from "@/hooks/usePost";
 import {UserProfileInterface} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {CreateUpdateCommentReqInterface} from "@/types/comment";
+import {getGroupingId} from "@/lib/utils/getGroupingId";
 
 export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMessageUUID: string }) => {
 
@@ -139,6 +141,15 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
         })
             .then(() => {
                 dispatch(removeChatByChatId({chatId: chatId, messageId}))
+                // Sync sidebar preview
+                const selfUuid = selfProfile.data?.data?.user_uuid || ''
+                if (selfUuid) {
+                    dispatch(RemoveMessageFromChatList({
+                        grpId: getGroupingId(chatId, selfUuid),
+                        messageId,
+                        chatKey: chatId,
+                    }))
+                }
             })
 
     }
@@ -161,6 +172,15 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
                         messageId,
                         htmlText: postHTMLText,
                     }))
+                    // Sync sidebar preview
+                    const selfUuid = selfProfile.data?.data?.user_uuid || ''
+                    if (selfUuid) {
+                        dispatch(UpdateMessageTextInChatList({
+                            grpId: getGroupingId(chatId, selfUuid),
+                            messageId,
+                            htmlText: postHTMLText,
+                        }))
+                    }
                 }
 
             })

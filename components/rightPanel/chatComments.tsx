@@ -39,9 +39,11 @@ import {
     createChatReactionChatId,
     decrementChatCommentCountByChatID,
     removeChatByChatId, removeChatReactionByChatId,
-    updateChatByChatId, updateChatMessageReplyDecrement, updateChatMessageReplyIncrement, updateChatReactionByChatId
+    updateChatByChatId, updateChatMessageReplyDecrement, updateChatMessageReplyIncrement, updateChatReactionByChatId,
+    RemoveMessageFromChatList, UpdateMessageTextInChatList
 } from "@/store/slice/chatSlice";
 import {ChatCommentFileUpload} from "@/components/fileUpload/chatCommentFileUpload";
+import {getGroupingId} from "@/lib/utils/getGroupingId";
 
 export const ChatComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
@@ -128,6 +130,15 @@ export const ChatComments = () => {
         })
             .then(() => {
                 dispatch(removeChatByChatId({chatId: rightPanelState.data.chatUUID, messageId}))
+                // Sync sidebar preview
+                const selfUuid = selfProfile.data?.data?.user_uuid || ''
+                if (selfUuid) {
+                    dispatch(RemoveMessageFromChatList({
+                        grpId: getGroupingId(rightPanelState.data.chatUUID, selfUuid),
+                        messageId,
+                        chatKey: rightPanelState.data.chatUUID,
+                    }))
+                }
             })
 
     }
@@ -212,6 +223,15 @@ export const ChatComments = () => {
                         messageId,
                         htmlText: postHTMLText,
                     }))
+                    // Sync sidebar preview
+                    const selfUuid = selfProfile.data?.data?.user_uuid || ''
+                    if (selfUuid) {
+                        dispatch(UpdateMessageTextInChatList({
+                            grpId: getGroupingId(rightPanelState.data.chatUUID, selfUuid),
+                            messageId,
+                            htmlText: postHTMLText,
+                        }))
+                    }
                 }
 
             })

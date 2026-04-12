@@ -37,7 +37,8 @@ import {
     createChatReactionChatId,
     decrementChatCommentCountByChatID,
     removeChatByChatId, removeChatReactionByChatId,
-    updateChatByChatId, updateChatReactionByChatId
+    updateChatByChatId, updateChatReactionByChatId,
+    RemoveMessageFromChatList, UpdateMessageTextInChatList
 } from "@/store/slice/chatSlice";
 import {ChatCommentFileUpload} from "@/components/fileUpload/chatCommentFileUpload";
 import {
@@ -131,7 +132,17 @@ export const GroupChatComments = () => {
             showToast: true
         })
             .then(() => {
+                const remaining = groupChatState.filter(m => m.chat_uuid !== messageId);
+                const fallback = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+
                 dispatch(removeGroupChatByChatId({grpId: rightPanelState.data.groupUUID, messageId}))
+                // Sync sidebar preview
+                dispatch(RemoveMessageFromChatList({
+                    grpId: rightPanelState.data.groupUUID,
+                    messageId,
+                    chatKey: rightPanelState.data.groupUUID,
+                    fallbackMessage: fallback,
+                }))
             })
 
     }
@@ -213,6 +224,12 @@ export const GroupChatComments = () => {
 
                 if(res) {
                     dispatch(updateGroupChatByChatId({
+                        grpId: rightPanelState.data.groupUUID,
+                        messageId,
+                        htmlText: postHTMLText,
+                    }))
+                    // Sync sidebar preview
+                    dispatch(UpdateMessageTextInChatList({
                         grpId: rightPanelState.data.groupUUID,
                         messageId,
                         htmlText: postHTMLText,
