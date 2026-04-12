@@ -22,7 +22,7 @@ import {
     removeGroupChatReactionByChatId, updateGroupChatByChatId,
     updateGroupChatReactionByChatId, updateGroupChatScrollToBottom, updateGroupChatReactionId
 } from "@/store/slice/groupChatSlice";
-import {updateChatScrollPosition} from "@/store/slice/chatSlice";
+import {updateChatScrollPosition, RemoveMessageFromChatList, UpdateMessageTextInChatList} from "@/store/slice/chatSlice";
 import {GroupChatMessage} from "@/components/groupChat/groupChatMessage";
 import {ScrollToBottom} from "@/store/slice/channelSlice";
 import {GroupChatMessageMobile} from "@/components/groupChat/groupChatMessageMobile";
@@ -178,7 +178,18 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
             showToast: true
         })
             .then(() => {
+                // Compute fallback before removal
+                const remaining = chats.filter(m => m.chat_uuid !== messageId);
+                const fallback = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+
                 dispatch(removeGroupChatByChatId({grpId, messageId}))
+                // Sync sidebar preview
+                dispatch(RemoveMessageFromChatList({
+                    grpId: grpId,
+                    messageId,
+                    chatKey: grpId,
+                    fallbackMessage: fallback,
+                }))
             })
 
     }
@@ -199,6 +210,12 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                 if(res) {
                     dispatch(updateGroupChatByChatId({
                         grpId,
+                        messageId,
+                        htmlText: postHTMLText,
+                    }))
+                    // Sync sidebar preview
+                    dispatch(UpdateMessageTextInChatList({
+                        grpId: grpId,
                         messageId,
                         htmlText: postHTMLText,
                     }))

@@ -32,6 +32,7 @@ import {
     removeGroupChatReactionByChatId, updateGroupChatByChatId, updateGroupChatMessageReplyDecrement,
     updateGroupChatReactionByChatId
 } from "@/store/slice/groupChatSlice";
+import {RemoveMessageFromChatList, UpdateMessageTextInChatList} from "@/store/slice/chatSlice";
 import {app_chat_path, app_grp_chat_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
 
@@ -143,7 +144,17 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
             showToast: true
         })
             .then(() => {
+                const remaining = chatMessageState.filter(m => m.chat_uuid !== messageId);
+                const fallback = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+
                 dispatch(removeGroupChatByChatId({grpId, messageId}))
+                // Sync sidebar preview
+                dispatch(RemoveMessageFromChatList({
+                    grpId: grpId,
+                    messageId,
+                    chatKey: grpId,
+                    fallbackMessage: fallback,
+                }))
                 router.push(app_grp_chat_path + '/' + grpId);
 
             })
@@ -166,6 +177,12 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
                 if(res) {
                     dispatch(updateGroupChatByChatId({
                         grpId,
+                        messageId,
+                        htmlText: postHTMLText,
+                    }))
+                    // Sync sidebar preview
+                    dispatch(UpdateMessageTextInChatList({
+                        grpId: grpId,
                         messageId,
                         htmlText: postHTMLText,
                     }))

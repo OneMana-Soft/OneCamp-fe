@@ -125,6 +125,7 @@ export default function Page() {
               msgTime: res?.chat_created_at,
               attachments: chatState.filesUploaded,
               msg: body,
+              chatUuid: res?.uuid || '',
               grpId: getGroupingId(
                 chatId,
                 selfProfile.data?.data.user_uuid || ""

@@ -12,6 +12,7 @@ import {
     removeChatReactionByChatId,
     updateChatMessageReplyIncrement,
     updateChatMessageReplyDecrement, IncrementUnreadCount, UpdateMessageInChatList, updateChatCallStatus,
+    RemoveMessageFromChatList, UpdateMessageTextInChatList
 } from "@/store/slice/chatSlice"
 import {incrementUserChatUnread} from "@/store/slice/userSlice";
 import {getOtherUserId} from "@/lib/utils/getOtherUserId";
@@ -38,6 +39,8 @@ import {
     updateGroupChatMessageReplyIncrement,
     updateGroupChatMessageReplyDecrement
 } from "@/store/slice/groupChatSlice"
+import store from "@/store/store";
+import {ChatInfo} from "@/types/chat";
 
 
 interface UseChatMessageHandlersProps {
@@ -110,6 +113,7 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                             msgTime: mqttChatInfo.data.chat_created_at,
                             attachments: mqttChatInfo.data.chat_attachments,
                             grpId: grpId,
+                            chatUuid: mqttChatInfo.data.chat_uuid,
                             msg: mqttChatInfo.data.chat_html_text
                         }))
 
@@ -135,9 +139,23 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                                 htmlText: mqttChatInfo.data.chat_html_text,
                             }));
                         }
+                        // Sync sidebar preview if the edited message is the latest
+                        dispatch(UpdateMessageTextInChatList({
+                            grpId: grpId,
+                            messageId: mqttChatInfo.data.chat_uuid,
+                            htmlText: mqttChatInfo.data.chat_html_text,
+                        }))
                         break
 
                     case MqttActionType.Delete:
+                        // Compute fallback message BEFORE removing from conversation
+                        let deleteFallback: ChatInfo | null = null;
+                        if (isGroupChat) {
+                            const grpMessages = store.getState().groupChat.chatMessages[grpId] || [];
+                            const remaining = grpMessages.filter((m: ChatInfo) => m.chat_uuid !== mqttChatInfo.data.chat_uuid);
+                            deleteFallback = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+                        }
+
                         if (isGroupChat) {
                             dispatch(removeGroupChatByChatId({
                                 messageId: mqttChatInfo.data.chat_uuid,
@@ -149,6 +167,13 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                                 messageId: mqttChatInfo.data.chat_uuid,
                             }));
                         }
+                        // Sync sidebar preview: replace with previous message or clear
+                        dispatch(RemoveMessageFromChatList({
+                            grpId: grpId,
+                            messageId: mqttChatInfo.data.chat_uuid,
+                            chatKey: isGroupChat ? grpId : dmId,
+                            fallbackMessage: isGroupChat ? deleteFallback : undefined,
+                        }))
                         break
 
                     default:

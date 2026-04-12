@@ -19,13 +19,15 @@ import {RootState} from "@/store/store";
 import {
     createChatReactionChatId, removeChatByChatId,
     removeChatReactionByChatId, updateChatByChatId,
-    updateChatReactionByChatId, updateChatScrollToBottom, updateChatScrollPosition, updateChatReactionId
+    updateChatReactionByChatId, updateChatScrollToBottom, updateChatScrollPosition, updateChatReactionId,
+    RemoveMessageFromChatList, UpdateMessageTextInChatList
 } from "@/store/slice/chatSlice";
 import {ChatInfo, CreateOrUpdateChatsReq} from "@/types/chat";
 import {ChatMessageMobile} from "@/components/chat/chatMessageMobile";
 import {ChatMessage} from "@/components/chat/chatMessage";
 import {toast} from "@/hooks/use-toast";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
+import {getGroupingId} from "@/lib/utils/getGroupingId";
 
 // Stable empty object reference to prevent unnecessary re-renders
 const EMPTY_SCROLL_TO_BOTTOM = { shouldScrollToBottom: false } as const;
@@ -214,6 +216,16 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         // Optimistic Delete
         dispatch(removeChatByChatId({chatId, messageId}))
 
+        // Sync sidebar preview immediately
+        const selfUuid = selfProfile.data?.data?.user_uuid || ''
+        if (selfUuid) {
+            dispatch(RemoveMessageFromChatList({
+                grpId: getGroupingId(chatId, selfUuid),
+                messageId,
+                chatKey: chatId,
+            }))
+        }
+
         post.makeRequest<CreateOrUpdateChatsReq>({
             apiEndpoint: PostEndpointUrl.DeleteChatMessage,
             payload: {
@@ -253,6 +265,16 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
             messageId,
             htmlText: postHTMLText,
         }))
+
+        // Sync sidebar preview immediately
+        const selfUuid = selfProfile.data?.data?.user_uuid || ''
+        if (selfUuid) {
+            dispatch(UpdateMessageTextInChatList({
+                grpId: getGroupingId(chatId, selfUuid),
+                messageId,
+                htmlText: postHTMLText,
+            }))
+        }
 
         post.makeRequest<CreateOrUpdateChatsReq>({
             apiEndpoint: PostEndpointUrl.UpdateChatMessage,

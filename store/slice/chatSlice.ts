@@ -160,6 +160,7 @@ interface AddChatToChatListInput {
     name: string
     msg: string
     msgTime: string
+    chatUuid: string
     attachments: AttachmentMediaReq[]
 }
 
@@ -169,6 +170,19 @@ interface GroupIdInput {
 
 interface AddOrUpdateUserChatListInput {
     usersDm: UserDMInterface
+}
+
+interface RemoveMessageFromChatListInput {
+    grpId: string
+    messageId: string
+    chatKey: string
+    fallbackMessage?: ChatInfo | null
+}
+
+interface UpdateMessageTextInChatListInput {
+    grpId: string
+    messageId: string
+    htmlText: string
 }
 
 export interface  ExtendedChats {
@@ -450,7 +464,7 @@ export const chatSlice = createSlice({
 
 
         UpdateMessageInChatList: (state, action: {payload: AddChatToChatListInput}) => {
-            const {grpId, name, msgTime, attachments, msg} = action.payload;
+            const {grpId, name, msgTime, attachments, msg, chatUuid} = action.payload;
             let targetChat: UserDMInterface | undefined;
 
             state.latestChatList = state.latestChatList.filter((d) => {
@@ -465,6 +479,7 @@ export const chatSlice = createSlice({
                 if(!targetChat.dm_chats) {
                     targetChat.dm_chats = [{} as ChatInfo];
                 }
+                targetChat.dm_chats[0].chat_uuid = chatUuid;
                 targetChat.dm_chats[0].chat_created_at = msgTime;
                 targetChat.dm_chats[0].chat_from = {user_name: name, user_uuid: '', user_profile_object_key: ''};
                 targetChat.dm_chats[0].chat_attachments = attachments;
@@ -507,6 +522,60 @@ export const chatSlice = createSlice({
 
             })
 
+        },
+
+        // Sync sidebar preview when a message is deleted
+        RemoveMessageFromChatList: (state, action: {payload: RemoveMessageFromChatListInput}) => {
+            const {grpId, messageId, chatKey, fallbackMessage} = action.payload;
+
+            const dm = state.latestChatList.find(d => d.dm_grouping_id === grpId);
+            if (!dm || !dm.dm_chats?.length) return;
+
+            // Only update if the deleted message is the current preview
+            if (dm.dm_chats[0].chat_uuid !== messageId) return;
+
+            // 1. Use explicit fallback from caller (works for group chats in a different slice)
+            if (fallbackMessage) {
+                dm.dm_chats[0] = {
+                    ...dm.dm_chats[0],
+                    chat_uuid: fallbackMessage.chat_uuid,
+                    chat_body_text: fallbackMessage.chat_body_text,
+                    chat_created_at: fallbackMessage.chat_created_at,
+                    chat_from: fallbackMessage.chat_from,
+                    chat_attachments: fallbackMessage.chat_attachments || [],
+                };
+                return;
+            }
+
+            // 2. Try chatMessages in this slice (works for 1:1 DMs)
+            const messages = state.chatMessages[chatKey];
+            if (messages && messages.length > 0) {
+                const lastMsg = messages[messages.length - 1];
+                dm.dm_chats[0] = {
+                    ...dm.dm_chats[0],
+                    chat_uuid: lastMsg.chat_uuid,
+                    chat_body_text: lastMsg.chat_body_text,
+                    chat_created_at: lastMsg.chat_created_at,
+                    chat_from: lastMsg.chat_from,
+                    chat_attachments: lastMsg.chat_attachments || [],
+                };
+            } else {
+                // No loaded messages remain — clear the preview
+                dm.dm_chats = [];
+            }
+        },
+
+        // Sync sidebar preview when a message is edited
+        UpdateMessageTextInChatList: (state, action: {payload: UpdateMessageTextInChatListInput}) => {
+            const {grpId, messageId, htmlText} = action.payload;
+
+            const dm = state.latestChatList.find(d => d.dm_grouping_id === grpId);
+            if (!dm || !dm.dm_chats?.length) return;
+
+            // Only update if the edited message is the current preview
+            if (dm.dm_chats[0].chat_uuid !== messageId) return;
+
+            dm.dm_chats[0].chat_body_text = htmlText;
         },
 
 
@@ -610,7 +679,9 @@ export const {
     updateChatScrollPosition,
     updateChatReactionId,
     updateChatCallStatus,
-    invalidateAllChatMessages
+    invalidateAllChatMessages,
+    RemoveMessageFromChatList,
+    UpdateMessageTextInChatList
 } = chatSlice.actions
 
 export default chatSlice;
