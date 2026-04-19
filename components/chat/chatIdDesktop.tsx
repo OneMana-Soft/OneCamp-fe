@@ -30,6 +30,8 @@ import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
+import {useUploadFile} from "@/hooks/useUploadFile";
+import {getGroupingId} from "@/lib/utils/getGroupingId";
 
 
 export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: ()=>void, unreadCount?: number}) => {
@@ -37,8 +39,9 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
     const dispatch = useDispatch()
     const postNotification  = usePost()
     const otherUserInfo  = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`)
+    const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const [chatNotification, setChatNotificationType] = useState<string>(NotificationType.NotificationAll)
-
+    const uploadFile = useUploadFile()
 
     const { publishTyping } = usePublishTyping({ targetType: 'chat', targetId: chatId });
 
@@ -179,6 +182,11 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'chatFileUpload' }))}}
+                        onActionFiles={async (files) => {
+                            if (!files?.length) return;
+                            const grpId = getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')
+                            await uploadFile.makeRequestToUploadToChat(files as unknown as FileList, chatId, grpId);
+                        }}
                         className={cn("max-w-full rounded-xl h-auto border-none")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"

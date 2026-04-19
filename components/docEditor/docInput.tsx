@@ -22,6 +22,12 @@ import { openRightPanel } from '@/store/slice/desktopRightPanelSlice'
 import { useMedia } from '@/context/MediaQueryContext'
 import { Drawer } from 'vaul'
 import { DocAiAssistantPanel } from '@/components/ai/DocAiAssistantPanel'
+import { PostFileUploadURL, GetEndpointUrl } from "@/services/endPoints"
+import axiosInstance from "@/lib/axiosInstance"
+import { UploadFileInterfaceRes } from "@/types/file"
+import { useToast } from "@/hooks/use-toast"
+import { useUploadFile } from '@/hooks/useUploadFile'
+import { HocuspocusProvider } from '@hocuspocus/provider'
 
 export interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
     value?: Content
@@ -29,7 +35,12 @@ export interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'o
     className?: string
     editorContentClassName?: string
     docId?: string
+    provider?: HocuspocusProvider
 }
+
+const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ['italic', 'bold', 'underline', 'code', 'strikethrough', 'clearFormatting'];
+const SECTION_4_ACTIONS: ("orderedList" | "bulletList")[] = ['bulletList', 'orderedList'];
+const SECTION_5_ACTIONS: ("codeBlock" | "blockquote" | "horizontalRule")[] = ['blockquote', 'codeBlock', 'horizontalRule'];
 
 const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClick: () => void; hasSelection: boolean }) => (
     <div className="shrink-0 overflow-x-auto border-b border-border p-2">
@@ -40,7 +51,7 @@ const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClic
 
             <SectionTwo
                 editor={editor}
-                activeActions={['italic', 'bold', 'underline', 'code', 'strikethrough', 'clearFormatting']}
+                activeActions={SECTION_2_ACTIONS}
                 mainActionCount={5}
                 variant="outline"
             />
@@ -53,7 +64,7 @@ const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClic
 
             <SectionFour
                 editor={editor}
-                activeActions={['bulletList', 'orderedList']}
+                activeActions={SECTION_4_ACTIONS}
                 mainActionCount={2}
                 variant="outline"
             />
@@ -62,7 +73,7 @@ const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClic
 
             <SectionFive
                 editor={editor}
-                activeActions={['blockquote', 'codeBlock', 'horizontalRule']}
+                activeActions={SECTION_5_ACTIONS}
                 mainActionCount={3}
                 variant="outline"
             />
@@ -90,10 +101,42 @@ const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClic
 )
 
 export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
-    ({ value, onChange, className, editorContentClassName, docId, ...props }, ref) => {
+    ({ value, onChange, className, editorContentClassName, docId, provider, ...props }, ref) => {
+        const { toast } = useToast()
+        const uploadFile = useUploadFile()
+
+        const uploadFn = React.useCallback(async (file: File) => {
+            if (!docId) {
+                toast({
+                    title: 'Error',
+                    description: 'Document ID is required to upload images.',
+                    variant: 'destructive'
+                });
+                throw new Error('docId required for image upload')
+            }
+            try {
+                const res = await uploadFile.makeRequestToUploadToDoc([file], docId);
+                if (!res || res.length === 0) {
+                    throw new Error('Upload failed: no response data');
+                }
+                const data = res[0];
+                const objUuid = data.object_uuid;
+                const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') || '';
+                const src = `${baseUrl}${GetEndpointUrl.GetDocAttachment}/${docId}/${objUuid}`;
+                return { id: objUuid, src }
+            } catch (error) {
+                console.error('Doc image upload failed', error);
+                const { fileToBase64 } = await import('@/components/minimal-tiptap/utils');
+                const src = await fileToBase64(file);
+                return { id: 'error', src };
+            }
+        }, [docId, toast, uploadFile]);
+
         const editor = useMinimalTiptapEditor({
             value,
             onUpdate: onChange,
+            uploadFn,
+            provider,
             ...props
         })
 
@@ -230,7 +273,9 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                 )}
             >
                 <Toolbar editor={editor} onAIClick={handleAIClick} hasSelection={hasSelection} />
-                <EditorContent editor={editor} className={cn('minimal-tiptap-editor', editorContentClassName)} />
+                <div className="flex-1 w-full relative">
+                    <EditorContent editor={editor} className={cn('minimal-tiptap-editor', editorContentClassName)} />
+                </div>
                 <LinkBubbleMenu editor={editor} hide={suppressOverlays} />
                 <SelectionAiBubbleMenu editor={editor} onAIClick={handleAIClick} hide={suppressOverlays} />
 

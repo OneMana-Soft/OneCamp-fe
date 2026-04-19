@@ -6,10 +6,7 @@ import type { FormatAction } from '../../types'
 import type { toggleVariants } from '@/components/ui/toggle'
 import type { VariantProps } from 'class-variance-authority'
 import { CaretDownIcon, CodeIcon, DividerHorizontalIcon, PlusIcon, QuoteIcon } from '@radix-ui/react-icons'
-import { LinkEditPopover } from '../link/link-edit-popover'
-import { ImageEditDialog } from '../image/image-edit-dialog'
 import { ToolbarSection } from '../toolbar-section'
-import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
 
 type InsertElementAction = 'codeBlock' | 'blockquote' | 'horizontalRule'
 interface InsertElement extends FormatAction {
@@ -23,7 +20,7 @@ const formatActions: InsertElement[] = [
     icon: <CodeIcon className="size-5" />,
     action: editor => editor.chain().focus().toggleCodeBlock().run(),
     isActive: editor => editor.isActive('codeBlock'),
-    canExecute: editor => editor.can().chain().focus().toggleCodeBlock().run(),
+    canExecute: editor => editor.can().chain().toggleCodeBlock().run(),
     shortcuts: ['mod', 'alt', 'C']
   },
   {
@@ -32,7 +29,7 @@ const formatActions: InsertElement[] = [
     icon: <QuoteIcon className="size-5" />,
     action: editor => editor.chain().focus().toggleBlockquote().run(),
     isActive: editor => editor.isActive('blockquote'),
-    canExecute: editor => editor.can().chain().focus().toggleBlockquote().run(),
+    canExecute: editor => editor.can().chain().toggleBlockquote().run(),
     shortcuts: ['mod', 'shift', 'B']
   },
   {
@@ -41,7 +38,7 @@ const formatActions: InsertElement[] = [
     icon: <DividerHorizontalIcon className="size-5" />,
     action: editor => editor.chain().focus().setHorizontalRule().run(),
     isActive: () => false,
-    canExecute: editor => editor.can().chain().focus().setHorizontalRule().run(),
+    canExecute: editor => editor.can().chain().setHorizontalRule().run(),
     shortcuts: ['mod', 'alt', '-']
   }
 ]
@@ -50,7 +47,6 @@ interface SectionFiveProps extends VariantProps<typeof toggleVariants> {
   editor: Editor
   activeActions?: InsertElementAction[]
   mainActionCount?: number
-  toggleToolbar?: boolean
 }
 
 export const SectionFive: React.FC<SectionFiveProps> = ({
@@ -58,33 +54,24 @@ export const SectionFive: React.FC<SectionFiveProps> = ({
   activeActions = formatActions.map(action => action.value),
   mainActionCount = 0,
   size,
-  toggleToolbar=false,
   variant
 }) => {
   return (
-    <>
-      {/*<LinkEditPopover editor={editor} size={size} variant={variant} />*/}
-      {/*<ImageEditDialog editor={editor} size={size} variant={variant} />*/}
-      <ToolbarSection
-        editor={editor}
-        actions={formatActions}
-        activeActions={activeActions}
-        mainActionCount={mainActionCount}
-        dropdownIcon={
-          <>
-            <PlusIcon className="size-5" />
-            <CaretDownIcon className="size-5" />
-          </>
-        }
-        dropdownTooltip="Insert elements"
-        size={size}
-        variant={variant}
-      />
-      {
-          !toggleToolbar &&
-      <EmojiReactionPicker editor={editor} size={size} variant={variant} />
+    <ToolbarSection
+      editor={editor}
+      actions={formatActions}
+      activeActions={activeActions}
+      mainActionCount={mainActionCount}
+      dropdownIcon={
+        <>
+          <PlusIcon className="size-5" />
+          <CaretDownIcon className="size-5" />
+        </>
       }
-    </>
+      dropdownTooltip="Insert elements"
+      size={size}
+      variant={variant}
+    />
   )
 }
 

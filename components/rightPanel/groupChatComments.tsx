@@ -48,6 +48,7 @@ import {
     updateGroupChatReactionByChatId
 } from "@/store/slice/groupChatSlice";
 import {GroupChatCommentFileUpload} from "@/components/fileUpload/groupChatCommentFileUpload";
+import {useUploadFile} from "@/hooks/useUploadFile";
 
 export const GroupChatComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
@@ -55,6 +56,7 @@ export const GroupChatComments = () => {
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     const groupChatState = useSelector((state: RootState) => state.groupChat.chatMessages[rightPanelState.data.groupUUID] || []);
+    const uploadFile = useUploadFile()
 
     const EMPTY_COMMENTS: CommentInfoInterface[] = [];
     const chatCommentState = useSelector((state: RootState) => state.chatComments.chatComments[rightPanelState.data.chatMessageUUID] || EMPTY_COMMENTS);
@@ -451,6 +453,10 @@ export const GroupChatComments = () => {
                     throttleDelay={300}
                     attachmentOnclick = {() => {
                         dispatch(openUI({ key: 'groupChatCommentFileUpload' }))
+                    }}
+                    onActionFiles={async (files) => {
+                        if (!files?.length) return;
+                        await uploadFile.makeRequestToUploadToGroupChatComment(files as unknown as FileList, rightPanelState.data.groupUUID);
                     }}
                     ButtonIcon={SendHorizontal}
                     buttonOnclick={handleSend}

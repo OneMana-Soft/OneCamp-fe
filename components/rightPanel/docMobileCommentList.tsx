@@ -36,12 +36,14 @@ import type { CreateOrUpdateCommentReaction } from "@/types/reaction"
 import { useMedia } from "@/context/MediaQueryContext"
 import {Separator} from "@/components/ui/separator";
 import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
+import {useUploadFile} from "@/hooks/useUploadFile";
 
 export const DocMobileCommentList = ({ docId }: { docId: string }) => {
     const dispatch = useDispatch()
     const post = usePost()
     const docCommentList = useFetch<DocInfoResponse>(docId ? GetEndpointUrl.GetAllCommentOfDoc + "/" + docId : "")
     const [allowedToComment, setAllowedToComment] = useState<boolean>(false)
+    const uploadFile = useUploadFile()
 
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -244,6 +246,10 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick={() => dispatch(openUI({ key: 'docCommentFileUpload' }))}
+                        onActionFiles={async (files) => {
+                            if (!files?.length) return;
+                            await uploadFile.makeRequestToUploadToDocComment(files as unknown as FileList, docId);
+                        }}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={createComment}
                         className={cn("max-w-full rounded-xl h-auto border p-2 bg-secondary/20")}

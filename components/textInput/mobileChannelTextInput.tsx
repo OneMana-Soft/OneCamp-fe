@@ -16,8 +16,8 @@ import {RootState} from "@/store/store";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
-import {GetEndpointUrl} from "@/services/endPoints";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
+import {useUploadFile} from "@/hooks/useUploadFile";
 
 
 export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: string, handleSend: ()=>void }) => {
@@ -27,6 +27,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
     const [initialHeight, setInitialHeight] = useState(126); // Default height
     const dispatch = useDispatch();
     const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
+    const uploadFile = useUploadFile()
 
     const channelInputState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || {});
 
@@ -53,6 +54,10 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
                 <div ref={editorRef}>
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'channelFileUpload' })) }}
+                        onActionFiles={async (files) => {
+                            if (!files?.length) return;
+                            await uploadFile.makeRequestToUploadToChannel(files as unknown as FileList, channelId);
+                        }}
                         throttleDelay={300}
                         className={cn("max-w-full rounded-xl h-auto border-none")}
                         editorContentClassName="overflow-auto mb-2"

@@ -33,12 +33,14 @@ import type { Content } from "@tiptap/core"
 import { CommentsList } from "@/components/rightPanel/commentsList"
 import { usePost } from "@/hooks/usePost"
 import type { CreateOrUpdateCommentReaction } from "@/types/reaction"
-import { useMedia } from "@/context/MediaQueryContext"
+import {useMedia} from "@/context/MediaQueryContext";
 import {Separator} from "@/components/ui/separator";
+import {useUploadFile} from "@/hooks/useUploadFile";
 
 export const DocCommentList = ({ docId }: { docId: string }) => {
     const dispatch = useDispatch()
     const post = usePost()
+    const uploadFile = useUploadFile()
     const docCommentList = useFetch<DocInfoResponse>(docId ? GetEndpointUrl.GetAllCommentOfDoc + "/" + docId : "")
     const [allowedToComment, setAllowedToComment] = useState<boolean>(false)
 
@@ -247,6 +249,10 @@ export const DocCommentList = ({ docId }: { docId: string }) => {
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick={() => dispatch(openUI({ key: 'docCommentFileUpload' }))}
+                        onActionFiles={async (files) => {
+                            if (!files?.length) return;
+                            await uploadFile.makeRequestToUploadToDocComment(files as unknown as FileList, docId);
+                        }}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={createComment}
                         className={cn("max-w-full rounded-xl h-auto border p-2 bg-secondary/20")}

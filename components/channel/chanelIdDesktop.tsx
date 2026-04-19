@@ -36,7 +36,7 @@ import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {ChatSkeleton} from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
-
+import {useUploadFile} from "@/hooks/useUploadFile";
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
 const EMPTY_TYPING_LIST: any[] = []
@@ -50,6 +50,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}`:'')
     const [isFavorite, setFavorite] = useState<boolean>(false)
     const [channelNotification, setChannelNotificationType] = useState<string>(NotificationType.NotificationAll)
+    const uploadFile = useUploadFile()
 
     const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
     const channelNme = useMemo(() => userChannels?.find((item)=>item.ch_uuid == channelId), [userChannels, channelId]);
@@ -136,6 +137,10 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
         return (<MinimalTiptapTextInput
             throttleDelay={300}
             attachmentOnclick = {()=>{dispatch(openUI({ key: 'channelFileUpload' }))}}
+            onActionFiles={async (files) => {
+                if (!files?.length) return;
+                await uploadFile.makeRequestToUploadToChannel(files as unknown as FileList, channelId);
+            }}
             className={cn("max-w-full rounded-xl h-auto border-none")}
             editorContentClassName="overflow-auto mb-2"
             output="html"

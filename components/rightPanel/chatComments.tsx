@@ -44,11 +44,13 @@ import {
 } from "@/store/slice/chatSlice";
 import {ChatCommentFileUpload} from "@/components/fileUpload/chatCommentFileUpload";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
+import {useUploadFile} from "@/hooks/useUploadFile";
 
 export const ChatComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    const uploadFile = useUploadFile()
 
     const chatState = useSelector((state: RootState) => state.chat.chatMessages[rightPanelState.data.chatUUID] || []);
 
@@ -450,6 +452,11 @@ export const ChatComments = () => {
                     attachmentOnclick = {()=>{
                         dispatch(openUI({ key: 'chatCommentFileUpload' }))}
                     }
+                    onActionFiles={async (files) => {
+                        if (!files?.length) return;
+                        const grpId = getGroupingId(rightPanelState.data.chatUUID, selfProfile.data?.data.user_uuid || '')
+                        await uploadFile.makeRequestToUploadToChatComment(files as unknown as FileList, rightPanelState.data.chatMessageUUID, grpId);
+                    }}
                     ButtonIcon={SendHorizontal}
                     buttonOnclick={handleSend}
                     className={cn("max-w-full rounded-xl h-auto border p-2 bg-secondary/20")}

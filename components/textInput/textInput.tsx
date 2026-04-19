@@ -22,6 +22,7 @@ import ToolbarButton from "@/components/minimal-tiptap/components/toolbar-button
 import {useMedia} from "@/context/MediaQueryContext";
 import {LucideIcon, Paperclip, X} from "lucide-react";
 import {Toggle} from "@/components/ui/toggle";
+import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
 
 export interface MinimalTiptapProps
     extends Omit<UseMinimalTiptapEditorProps, "onUpdate"> {
@@ -36,10 +37,16 @@ export interface MinimalTiptapProps
   ButtonIcon?: LucideIcon
   buttonOnclick?: () => Promise<void> | void;
   SecondaryButtonIcon?: LucideIcon
-  fixedToolbarToBottom?: boolean;
   secondaryButtonOnclick?: () => Promise<void> | void;
+  fixedToolbarToBottom?: boolean;
     toggleToolbar?: boolean
+    onActionFiles?: (files: File[]) => void
 }
+
+const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ["italic", "bold", "code", "strikethrough"];
+const SECTION_4_ACTIONS: ("orderedList" | "bulletList")[] = ["bulletList", "orderedList"];
+const SECTION_5_ACTIONS: ("codeBlock" | "blockquote" | "horizontalRule")[] = ["blockquote", "codeBlock", "horizontalRule"];
+const DEFAULT_ALLOWED_MIME_TYPES = ['*/*'];
 
 const Toolbar = ({ editor, toggledTextEditor, setToggledTextEditor, toggleToolbar }: { editor: Editor, toggledTextEditor: boolean,  setToggledTextEditor: (b: boolean)=>void, toggleToolbar: boolean}) => {
 
@@ -72,11 +79,11 @@ const Toolbar = ({ editor, toggledTextEditor, setToggledTextEditor, toggleToolba
 
                   <SectionFour
                   editor={editor}
-                  activeActions={["bulletList", "orderedList"]}
+                  activeActions={SECTION_4_ACTIONS}
                   mainActionCount={2}
                   variant="outline"
-                  toggleToolbar={toggleToolbar}
               />
+              <EmojiReactionPicker editor={editor} />
               </>
               :
               <>
@@ -85,27 +92,27 @@ const Toolbar = ({ editor, toggledTextEditor, setToggledTextEditor, toggleToolba
                 }
                 <SectionTwo
                     editor={editor}
-                    activeActions={["italic", "bold", "code", "strikethrough"]}
+                    activeActions={SECTION_2_ACTIONS}
                     mainActionCount={4}
                     variant="outline"
                 />
                 {!toggleToolbar && <><Separator orientation="vertical" className="mx-2 h-7"/>
                 <SectionFour
                     editor={editor}
-                    activeActions={["bulletList", "orderedList"]}
+                    activeActions={SECTION_4_ACTIONS}
                     mainActionCount={2}
                     variant="outline"
-                    toggleToolbar={toggleToolbar}
-                /></>}
+                />
+                <EmojiReactionPicker editor={editor} />
+                </>}
 
 
                 {isDesktop && <><Separator orientation="vertical" className="mx-2 h-7"/>
                 <SectionFive
                     editor={editor}
-                    activeActions={["blockquote", "codeBlock", "horizontalRule"]}
+                    activeActions={SECTION_5_ACTIONS}
                     mainActionCount={3}
                     variant="outline"
-                    toggleToolbar={toggleToolbar}
                 /></>}
 
 
@@ -141,19 +148,32 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
             editorContentClassName,
           content,
             fixedToolbarToBottom,
+            onActionFiles,
           ...props
         },
         ref
     ) => {
+        const {isMobile} = useMedia()
+
+      const handleSubmit = React.useCallback(() => {
+        if (buttonOnclick && !isMobile) {
+            buttonOnclick();
+            return true;
+        }
+        return false;
+      }, [buttonOnclick, isMobile]);
+
       const editor = useMinimalTiptapEditor({
         value,
         onUpdate: onChange,
+        onActionFiles,
+        allowedMimeTypes: DEFAULT_ALLOWED_MIME_TYPES,
+        onSubmit: handleSubmit,
         ...props,
       });
 
       const divRef = useRef<HTMLDivElement>(null);
 
-        const {isMobile} = useMedia()
         const [toggledTextEditor, setToggledTextEditor] = useState(false)
 
 
@@ -180,16 +200,22 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
       };
 
       useEffect(() => {
-        if (editor) {
-          const c = content as string;
+        if (!editor) return;
 
-            if(content !== undefined && editor.getHTML() !== c?.trim()) {
-                editor.commands.setContent(content || "")
+        if (content !== undefined) {
+           const c = (content as string) || "";
+           const currentHtml = editor.getHTML();
+           
+           const isEditorEmpty = editor.isEmpty || currentHtml === "<p></p>";
+           const isNewContentEmpty = c.trim() === "" || c.trim() === "<p></p>";
 
-            }
+           if (!(isEditorEmpty && isNewContentEmpty) && currentHtml !== c.trim()) {
+               editor.commands.setContent(c, false);
+           }
+        }
 
-          editor.setEditable(editable || false);
-
+        if (editor.isEditable !== (editable ?? false)) {
+            editor.setEditable(editable ?? false);
         }
       }, [editor, content, editable]);
 
