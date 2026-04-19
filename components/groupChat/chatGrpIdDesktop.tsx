@@ -33,7 +33,8 @@ import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {useRouter} from "next/navigation";
 import {app_grp_call, app_grp_chat_path, app_home_path} from "@/types/paths";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
-
+import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
+import {useUploadFile} from "@/hooks/useUploadFile";
 
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
 const EMPTY_TYPING_LIST: any[] = []
@@ -53,6 +54,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
     const chatCallActive = useSelector((state: RootState) => state.chat.chatCallStatus[grpId]?.active || false);
 
     const { publishTyping } = usePublishTyping({ targetType: 'groupChat', targetId: grpId });
+    const uploadFile = useUploadFile()
 
     const router = useRouter();
 
@@ -190,6 +192,10 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'groupChatFileUpload' }))}}
+                        onActionFiles={async (files) => {
+                            if (!files?.length) return;
+                            await uploadFile.makeRequestToUploadToGroupChat(files as unknown as FileList, grpId);
+                        }}
                         className={cn("max-w-full rounded-xl h-auto border-none")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"

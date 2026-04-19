@@ -7,10 +7,10 @@ import DocOptionsDesktopTopBar from "@/components/doc/docOptionsDesktopTopBar";
 import MinimalTiptapDocInput from "@/components/docEditor/docInput";
 import {cn} from "@/lib/utils/helpers/cn"; // Your custom hook
 import { useParams } from "next/navigation";
-import { useFetch } from "@/hooks/useFetch";
+import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
-import { getCookie } from "@/lib/utils/helpers/getCookie";
+import { getCookie, checkAuthCookieExists, checkRefreshCookieExists } from "@/lib/utils/helpers/getCookie";
 import * as React from 'react';
 import {generateColorFromUUID} from "@/lib/utils/generateColorFromUUID";
 import {DocInfoInterface, DocInfoResponse} from "@/types/doc";
@@ -25,12 +25,13 @@ import {updateDocCommentCount} from "@/store/slice/createDocCommentSlice";
 import {useMqttTopic} from "@/hooks/useMqttTopic";
 import { DocPageSkeleton } from "@/components/doc/DocPageSkeleton";
 import { useDocMessageHandlers } from "@/hooks/useDocMessageHandlers";
+import { HocuspocusProvider } from '@hocuspocus/provider';
 
 
 export default function Page() {
     const params = useParams();
     const docId = params?.['doc-id'] as string;
-    const userProfile = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfile);
+    const userProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
 
     const dispatch = useDispatch();
     const { handleDocCommentMessage, handleDocCommentReactionMessage } = useDocMessageHandlers({ userUuid: userProfile.data?.data?.user_uuid });
@@ -53,13 +54,13 @@ export default function Page() {
 
     const docCommentCount = useSelector((state: RootState) => state.createDocComment.docCommentCount[docId]);
 
-    const [token, setToken] = React.useState<string>('');
+    const [token, setToken] = React.useState<string>(() => {
+        if (typeof window !== 'undefined') {
+            return getCookie("Authorization") || '';
+        }
+        return '';
+    });
     const { isMobile, isDesktop } = useMedia();
-
-    React.useEffect(() => {
-        const auth = getCookie("Authorization");
-        if (auth) setToken(auth);
-    }, []);
 
     useEffect(() => {
 
@@ -115,12 +116,35 @@ export default function Page() {
         return null;
     }
 
-    if (isDocLoading) {
+    const [provider, setProvider] = React.useState<HocuspocusProvider | null>(null);
+
+    React.useEffect(() => {
+        if (collaboration?.enabled && !provider) {
+            const newProvider = new HocuspocusProvider({
+                url: process.env.NEXT_PUBLIC_COLLABORATION_URL || 'ws://localhost:1234',
+                name: collaboration.documentId,
+                token: collaboration.token,
+                onStatus: (data: any) => {
+                    // console.log('Doc Status:', data.status)
+                },
+            });
+            setProvider(newProvider);
+            return () => {
+                newProvider.destroy();
+            };
+        }
+    }, [collaboration?.enabled, collaboration?.documentId, collaboration?.token]);
+
+    if (isDocLoading || userProfile.isLoading || (!token && checkAuthCookieExists())) {
         return <DocPageSkeleton />;
     }
 
     if (!docInfo) {
          return <div className="flex items-center justify-center h-full">Document not found or access denied.</div>;
+    }
+
+    if (collaboration?.enabled && !provider) {
+        return <DocPageSkeleton />;
     }
 
     return (
@@ -148,11 +172,12 @@ export default function Page() {
                 // If collaboration is enabled, value is managed by Yjs. 
                 // If not (read-only), we might need to set initial content.
                 // However, MinimalTiptapDocInput likely handles `value` or `content` prop.
-                // Assuming it accepts `value` for initial content when collaboration is off.
-                value={!collaboration ? docInfo.doc_body : undefined}
+                value={!collaboration?.enabled ? docInfo.doc_body : undefined}
                 editable={hasEditAccess}
                 editorClassName="focus:outline-none px-2 py-2 h-full"
                 collaboration={collaboration}
+                provider={provider || undefined}
+                docId={docId}
             />
 
         </div>

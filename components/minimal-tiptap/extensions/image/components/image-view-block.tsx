@@ -6,7 +6,7 @@ import type { ElementDimensions } from '../hooks/use-drag-resize'
 import { useDragResize } from '../hooks/use-drag-resize'
 import { ResizeHandle } from './resize-handle'
 import { cn } from '@/lib/utils/helpers/cn'
-import { Controlled as ControlledZoom } from 'react-medium-image-zoom'
+
 import { ActionButton, ActionWrapper, ImageActions } from './image-actions'
 import { useImageActions } from '../hooks/use-image-actions'
 import { blobUrlToBase64, randomId } from '../../../utils'
@@ -14,7 +14,10 @@ import { InfoCircledIcon, TrashIcon } from '@radix-ui/react-icons'
 import { ImageOverlay } from './image-overlay'
 import type { UploadReturnType } from '../image'
 import {LoaderCircle} from "lucide-react";
-import Image from 'next/image';
+;
+import { useMediaFetch } from '@/hooks/useFetch';
+import { GetMediaURLRes } from '@/types/file';
+
 
 const MAX_HEIGHT = 600
 const MIN_HEIGHT = 120
@@ -54,6 +57,23 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
     naturalSize: { width: initialWidth, height: initialHeight }
   })
 
+  const isExternal = React.useMemo(() => {
+    return typeof imageState.src === 'string' && (imageState.src.startsWith('http') || imageState.src.startsWith('/')) && !imageState.src.startsWith('blob:') && !imageState.src.startsWith('data:')
+  }, [imageState.src])
+
+  const shouldFetchMedia = React.useMemo(() => {
+    if (!isExternal) return false
+    // Skip fetching if it's already a direct attachment endpoint that redirects to MinIO
+    // These work fine in <img> tags but fail in authenticated XHR due to CORS * + credentials:true
+    return !imageState.src.includes('/getDocAttachment/') && !imageState.src.includes('/getFile/')
+  }, [isExternal, imageState.src])
+
+  const { data: mediaData } = useMediaFetch<GetMediaURLRes>(shouldFetchMedia ? imageState.src : '')
+  const displaySrc = React.useMemo(() => {
+    if (mediaData?.url) return mediaData.url
+    return imageState.src
+  }, [mediaData, imageState.src])
+
   const containerRef = React.useRef<HTMLDivElement>(null)
   const [activeResizeHandle, setActiveResizeHandle] = React.useState<'left' | 'right' | null>(null)
 
@@ -91,6 +111,13 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
 
   const shouldMerge = React.useMemo(() => currentWidth <= 180, [currentWidth])
 
+  React.useEffect(() => {
+    setImageState(prev => {
+      if (prev.src === initSrc) return prev
+      return { ...prev, src: initSrc }
+    })
+  }, [initSrc])
+
   const handleImageLoad = React.useCallback(
     (ev: React.SyntheticEvent<HTMLImageElement>) => {
       const img = ev.target as HTMLImageElement
@@ -103,18 +130,24 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
         naturalSize: newNaturalSize,
         imageLoaded: true
       }))
-      updateAttributes({
-        width: img.width || newNaturalSize.width,
-        height: img.height || newNaturalSize.height,
-        alt: img.alt,
-        title: img.title
-      })
+      
+      const newWidth = img.width || newNaturalSize.width
+      const newHeight = img.height || newNaturalSize.height
+
+      if (Math.abs((initialWidth || 0) - newWidth) > 1 || Math.abs((initialHeight || 0) - newHeight) > 1) {
+        updateAttributes({
+          width: newWidth,
+          height: newHeight,
+          alt: img.alt,
+          title: img.title
+        })
+      }
 
       if (!initialWidth) {
         updateDimensions(state => ({ ...state, width: newNaturalSize.width }))
       }
     },
-    [initialWidth, updateAttributes, updateDimensions]
+    [initialWidth, initialHeight, updateAttributes, updateDimensions]
   )
 
   const handleImageError = React.useCallback(() => {
@@ -177,7 +210,7 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
 
         updateAttributes(normalizedData)
       } catch (e: unknown) {
-        console.log("caught error", e)
+        console.error('Image upload failed in ImageViewBlock', e)
         setImageState(prev => ({
           ...prev,
           error: true,
@@ -221,29 +254,26 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
                 </div>
               )}
 
-              <ControlledZoom
-                isZoomed={imageState.isZoomed}
-                onZoomChange={() => setImageState(prev => ({ ...prev, isZoomed: false }))}
-              >
-                <Image
-                  className={cn('h-auto rounded object-contain transition-shadow', {
-                    'opacity-0': !imageState.imageLoaded || imageState.error
-                  })}
-                  style={{
-                    maxWidth: `min(100%, ${maxWidth}px)`,
-                    minWidth: `${MIN_WIDTH}px`,
-                    maxHeight: MAX_HEIGHT
-                  }}
-                  width={currentWidth}
-                  height={currentHeight}
-                  src={imageState.src}
-                  onError={handleImageError}
-                  onLoad={handleImageLoad}
-                  alt={node.attrs.alt || ''}
-                  title={node.attrs.title || ''}
-                  id={node.attrs.id}
-                />
-              </ControlledZoom>
+              {!displaySrc || typeof displaySrc !== 'string' || displaySrc.trim() === "" || imageState.error ? null : (
+                  <img
+                    src={displaySrc}
+                    className={cn('h-auto rounded object-contain transition-shadow', {
+                      'opacity-0': !imageState.imageLoaded || imageState.error
+                    })}
+                    style={{
+                      maxWidth: `min(100%, ${maxWidth}px)`,
+                      minWidth: `${MIN_WIDTH}px`,
+                      maxHeight: MAX_HEIGHT
+                    }}
+                    width={currentWidth}
+                    height={currentHeight}
+                    onError={handleImageError}
+                    onLoad={handleImageLoad}
+                    alt={node.attrs.alt || ''}
+                    title={node.attrs.title || ''}
+                    id={node.attrs.id}
+                  />
+              )}
             </div>
 
             {imageState.isServerUploading && <ImageOverlay />}

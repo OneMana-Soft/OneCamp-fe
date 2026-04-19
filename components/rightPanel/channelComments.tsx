@@ -47,6 +47,7 @@ import {
     updatePostReactionPostId
 } from "@/store/slice/channelSlice";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
+import {useUploadFile} from "@/hooks/useUploadFile";
 
 export const ChannelComments = () => {
     const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState)
@@ -57,6 +58,7 @@ export const ChannelComments = () => {
 
     const channelCommentState = useSelector((state: RootState) => state.channelComment.commentInputState[rightPanelState.data.channelUUID] || EMPTY_INPUT_STATE)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    const uploadFile = useUploadFile()
 
     const channelState = useSelector((state: RootState) => state.channel.channelPosts[rightPanelState.data.channelUUID] || EMPTY_POSTS);
 
@@ -443,6 +445,10 @@ export const ChannelComments = () => {
                                 dispatch(openUI({ key: 'channelCommentFileUpload' }))
 }
                     }
+                    onActionFiles={async (files) => {
+                        if (!files?.length) return;
+                        await uploadFile.makeRequestToUploadToChannelComment(files as unknown as FileList, rightPanelState.data.channelUUID);
+                    }}
                     ButtonIcon={SendHorizontal}
                     buttonOnclick={handleSend}
                     className={cn("max-w-full rounded-xl h-auto border bg-secondary/20 p-2")}

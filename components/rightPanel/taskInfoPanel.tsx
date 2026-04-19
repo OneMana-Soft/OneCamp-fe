@@ -1077,6 +1077,10 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                 <MinimalTiptapTextInput
                     throttleDelay={CONSTANTS.THROTTLE_DELAY}
                     attachmentOnclick={() => dispatch(openUI({ key: 'taskCommentFileUpload' }))}
+                    onActionFiles={async (files) => {
+                        if (!files?.length || !taskInfo.data?.data.task_project.project_uuid) return;
+                        await uploadFile.makeRequestToUploadToTaskComment(files as unknown as FileList, taskInfo.data.data.task_project.project_uuid, taskUUID);
+                    }}
                     ButtonIcon={SendHorizontal}
                     buttonOnclick={createComment}
                     className={cn("max-w-full rounded-xl h-auto border p-2 bg-secondary/20")}

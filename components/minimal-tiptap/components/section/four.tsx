@@ -7,8 +7,6 @@ import type { toggleVariants } from '@/components/ui/toggle'
 import type { VariantProps } from 'class-variance-authority'
 import { CaretDownIcon, ListBulletIcon } from '@radix-ui/react-icons'
 import { ToolbarSection } from '../toolbar-section'
-import {useMedia} from "@/context/MediaQueryContext";
-import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
 
 type ListItemAction = 'orderedList' | 'bulletList'
 interface ListItem extends FormatAction {
@@ -26,7 +24,7 @@ const formatActions: ListItem[] = [
     ),
     isActive: editor => editor.isActive('orderedList'),
     action: editor => editor.chain().focus().toggleOrderedList().run(),
-    canExecute: editor => editor.can().chain().focus().toggleOrderedList().run(),
+    canExecute: editor => editor.can().chain().toggleOrderedList().run(),
     shortcuts: ['mod', 'shift', '7']
   },
   {
@@ -35,7 +33,7 @@ const formatActions: ListItem[] = [
     icon: <ListBulletIcon className="size-5" />,
     isActive: editor => editor.isActive('bulletList'),
     action: editor => editor.chain().focus().toggleBulletList().run(),
-    canExecute: editor => editor.can().chain().focus().toggleBulletList().run(),
+    canExecute: editor => editor.can().chain().toggleBulletList().run(),
     shortcuts: ['mod', 'shift', '8']
   }
 ]
@@ -44,39 +42,31 @@ interface SectionFourProps extends VariantProps<typeof toggleVariants> {
   editor: Editor
   activeActions?: ListItemAction[]
   mainActionCount?: number
-  toggleToolbar?: boolean
 }
 
 export const SectionFour: React.FC<SectionFourProps> = ({
   editor,
   activeActions = formatActions.map(action => action.value),
   mainActionCount = 0,
-                                                          toggleToolbar,
   size,
   variant
 }) => {
-
   return (
-    <>
-      <ToolbarSection
-        editor={editor}
-        actions={formatActions}
-        activeActions={activeActions}
-        mainActionCount={mainActionCount}
-        dropdownIcon={
-          <>
-            <ListBulletIcon className="size-5" />
-            <CaretDownIcon className="size-5" />
-          </>
-        }
-        dropdownTooltip="Lists"
-        size={size}
-        variant={variant}
-      />
-      {toggleToolbar &&
-          <EmojiReactionPicker editor={editor} size={size} variant={variant} />
+    <ToolbarSection
+      editor={editor}
+      actions={formatActions}
+      activeActions={activeActions}
+      mainActionCount={mainActionCount}
+      dropdownIcon={
+        <>
+          <ListBulletIcon className="size-5" />
+          <CaretDownIcon className="size-5" />
+        </>
       }
-    </>
+      dropdownTooltip="Lists"
+      size={size}
+      variant={variant}
+    />
   )
 }
 

@@ -12,13 +12,12 @@ import {
 
     updateChannelInputText
 } from "@/store/slice/channelSlice";
-import {createOrUpdateChatBody} from "@/store/slice/chatSlice";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
+import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
 import {RootState} from "@/store/store";
 import {createOrUpdateGroupChatBody} from "@/store/slice/groupChatSlice";
-import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
-
+import {useUploadFile} from "@/hooks/useUploadFile";
 
 const EMPTY_CHAT_INPUT_STATE = {};
 
@@ -29,6 +28,7 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
     const [initialHeight, setInitialHeight] = useState(126); // Default height
     const dispatch = useDispatch();
     const { publishTyping } = usePublishTyping({ targetType: 'groupChat', targetId: grpId });
+    const uploadFile = useUploadFile()
 
 
     const chatInputState = useSelector((state: RootState) => state.groupChat.chatInputState[grpId] || EMPTY_CHAT_INPUT_STATE);
@@ -57,6 +57,10 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'groupChatFileUpload' }))
  }}
+                        onActionFiles={async (files) => {
+                            if (!files?.length) return;
+                            await uploadFile.makeRequestToUploadToGroupChat(files as unknown as FileList, grpId);
+                        }}
                         throttleDelay={300}
                         className={cn("max-w-full rounded-xl h-auto border-none")}
                         editorContentClassName="overflow-auto mb-2"

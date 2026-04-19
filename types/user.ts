@@ -153,7 +153,7 @@ export interface AdminCreateOrRemoveInterface {
 export interface ChannelAndUserListInterfaceResp {
     type: string
     user_uuid: string
-    user_dgraph_uuid: string
+    user_dgraph_uid: string
     user_profile_object_key: string
     user_name: string
     channel_uuid: string

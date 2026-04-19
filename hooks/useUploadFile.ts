@@ -1,3 +1,4 @@
+import React from "react";
 import axios, {AxiosRequestConfig, AxiosResponse} from "axios";
 import axiosInstance from "@/lib/axiosInstance";
 import {useDispatch} from "react-redux";
@@ -134,6 +135,7 @@ const uploadFileToDoc = (file: File, docUUID: string, config: AxiosRequestConfig
 
     return axiosInstance.post(PostFileUploadURL.UploadFile, formData, config).then((res) => res);
 }
+
 
 const uploadFileToGroupChat = (file: File, grpId: string, config: AxiosRequestConfig ={}) => {
     const formData = new FormData();
@@ -850,7 +852,6 @@ export const useUploadFile = () => {
         return
     }
 
-
     const makeRequestToUploadToGroupChatComment = async (files: FileList,  grpId: string) => {
 
         const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
@@ -1553,6 +1554,50 @@ export const useUploadFile = () => {
         return successfulResponses; // Return array of UploadFileInterfaceRes
     };
 
+    const makeRequestToUploadToDoc = async (files: FileList | File[], docUUID: string) => {
+        const uploadPromises: Promise<AxiosResponse<UploadFileInterfaceRes>>[] = [];
+        const fileList = Array.isArray(files) ? files : Array.from(files);
 
-    return {makeRequestToUploadToChannel,makeRequestToUploadToDocComment, makeRequestToUploadToGroupChatComment,  makeRequestToUploadToGroupChat, makeRequestToUploadToPublic, makeRequestToUploadToCreateTask, makeRequestToUploadToChannelComment, makeRequestToUploadToProject, makeRequestToUploadToTask, makeRequestToUploadToTaskComment, makeRequestToUploadToChatComment, makeRequestToUploadToChat, makeRequestToUploadToChatAndChannels, isSubmitting}
+        for (let i = 0; i < fileList.length; i++) {
+            const file = fileList[i];
+            setIsSubmitting(true)
+
+            const uploadPromise = uploadFileToDoc(
+                file,
+                docUUID,
+            )
+            uploadPromises.push(uploadPromise);
+        }
+
+        try {
+            const results = await Promise.allSettled(uploadPromises);
+            const successfulResp = results.filter((r): r is PromiseFulfilledResult<AxiosResponse<UploadFileInterfaceRes>> => r.status === 'fulfilled')
+                .map(r => r.value.data);
+            return successfulResp;
+        } catch (error) {
+            console.error("Error in doc upload batch:", error);
+            return [];
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+
+    return React.useMemo(() => ({
+        makeRequestToUploadToChannel,
+        makeRequestToUploadToDoc,
+        makeRequestToUploadToDocComment,
+        makeRequestToUploadToGroupChatComment,
+        makeRequestToUploadToGroupChat,
+        makeRequestToUploadToPublic,
+        makeRequestToUploadToCreateTask,
+        makeRequestToUploadToChannelComment,
+        makeRequestToUploadToProject,
+        makeRequestToUploadToTask,
+        makeRequestToUploadToTaskComment,
+        makeRequestToUploadToChatComment,
+        makeRequestToUploadToChat,
+        makeRequestToUploadToChatAndChannels,
+        isSubmitting
+    }), [isSubmitting]);
 }

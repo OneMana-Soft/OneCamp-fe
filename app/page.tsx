@@ -1,13 +1,33 @@
 "use client"
 
-import {LoaderCircle} from "lucide-react"
+import {LoaderCircle, AlertCircle} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
-import {useEffect, useState} from "react";
+import {useEffect, useState, Suspense} from "react";
 import authService from "@/services/auth/AuthService";
 import {checkRefreshCookieExists} from "@/lib/utils/helpers/getCookie";
 import {app_home_path} from "@/types/paths";
-import {useRouter} from "next/navigation";
+import {useRouter, useSearchParams} from "next/navigation";
+
+function AuthErrorMessage() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+  const message = searchParams.get('message');
+
+  if (!error || !message) return null;
+
+  return (
+    <div className="bg-red-500/10 border-l-4 border-red-500 text-red-500 p-4 rounded-md shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+      <div className="flex items-start">
+        <AlertCircle className="h-5 w-5 mr-3 mt-0.5 shrink-0" />
+        <div>
+          <h3 className="font-semibold text-sm">Authentication Failed</h3>
+          <p className="text-sm mt-1">{message}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SignUp() {
 
@@ -64,6 +84,9 @@ export default function SignUp() {
 
         <div className="w-full max-w-sm space-y-6">
 
+          <Suspense fallback={null}>
+            <AuthErrorMessage />
+          </Suspense>
 
           {/* OAuth Buttons */}
           <div className="space-y-4">

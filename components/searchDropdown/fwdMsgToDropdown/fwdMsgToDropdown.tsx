@@ -51,7 +51,7 @@ export function ForwardMessageDropdown({
                 type: item.user_uuid ? "user" : "channel",
                 user_profile_object_key: item.user_profile_object_key,
                 user_uuid: item.user_uuid,
-                user_dgraph_uid: item.user_dgraph_uuid,
+                user_dgraph_uid: item.user_dgraph_uid,
                 channel_uuid: item.channel_uuid,
                 channel_dgraph_uid: item.channel_dgraph_uid,
                 user_name: item.user_name,
@@ -87,7 +87,7 @@ export function ForwardMessageDropdown({
                         user_uuid: item.user_uuid,
                         user_name: item.user_name,
                         user_profile_object_key: item.user_profile_object_key,
-                        user_dgraph_uuid: item.user_dgraph_uid,
+                        user_dgraph_uid: item.user_dgraph_uid,
                         type: "user"
                     } as ChannelAndUserListInterfaceResp
                 } else {

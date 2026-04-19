@@ -148,6 +148,7 @@ const checkTypeAndSize = (
 
   const isValidType =
     allowedMimeTypes.length === 0 ||
+    allowedMimeTypes.includes('*/*') ||
     allowedMimeTypes.includes(mimeType) ||
     allowedMimeTypes.includes(`${mimeType.split('/')[0]}/*`)
 

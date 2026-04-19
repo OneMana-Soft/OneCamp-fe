@@ -18,6 +18,7 @@ export enum GetEndpointUrl {
     GetChannelMedia = "/ch/getFile",
     GetProjectMedia = "/project/getFile",
     GetDocMedia = "/doc/getFile",
+    GetDocAttachment = "/doc/getDocAttachment",
     GetChannelLatestPost = "/po/latestPosts",
     GetChatLatestMessage = "/dm/latestChat",
     GetGroupChatLatestMessage = "/groupChat/latestChat",

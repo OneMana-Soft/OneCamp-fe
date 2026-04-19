@@ -382,6 +382,10 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
             render={({ field }) => (
                 <MinimalTiptapTask
                     throttleDelay={3000}
+                    onActionFiles={async (files) => {
+                        if (!files?.length || !taskProjectUUID) return;
+                        await uploadFile.makeRequestToUploadToCreateTask(files as unknown as FileList, taskProjectUUID);
+                    }}
                     className={cn("max-w-full rounded-xl h-auto border p-2 bg-secondary/20")}
                     editorContentClassName="overflow-auto h-full"
                     output="html"

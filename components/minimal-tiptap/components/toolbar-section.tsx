@@ -25,7 +25,7 @@ interface ToolbarSectionProps extends VariantProps<typeof toggleVariants> {
 export const ToolbarSection: React.FC<ToolbarSectionProps> = ({
   editor,
   actions,
-  activeActions = actions.map(action => action.value),
+  activeActions,
   mainActionCount = 0,
   dropdownIcon,
   dropdownTooltip = 'More options',
@@ -34,9 +34,10 @@ export const ToolbarSection: React.FC<ToolbarSectionProps> = ({
   variant
 }) => {
   const { mainActions, dropdownActions } = React.useMemo(() => {
+    const effectiveActiveActions = activeActions ?? actions.map(action => action.value)
     const sortedActions = actions
-      .filter(action => activeActions.includes(action.value))
-      .sort((a, b) => activeActions.indexOf(a.value) - activeActions.indexOf(b.value))
+      .filter(action => effectiveActiveActions.includes(action.value))
+      .sort((a, b) => effectiveActiveActions.indexOf(a.value) - effectiveActiveActions.indexOf(b.value))
 
     return {
       mainActions: sortedActions.slice(0, mainActionCount),
