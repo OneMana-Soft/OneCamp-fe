@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
@@ -16,6 +16,7 @@ import { openUI } from "@/store/slice/uiSlice"
 
 const InvitationCard = () => {
   const dispatch = useDispatch()
+  const [resendingEmail, setResendingEmail] = useState<string | null>(null)
   const { data: response, mutate } = useFetch<InvitationListResponseInterface>(
 
     GetEndpointUrl.GetAdminInvitationList
@@ -45,6 +46,25 @@ const InvitationCard = () => {
     )
   }
 
+  const handleResendInvitation = async (email: string) => {
+    if (!email || resendingEmail) return
+    setResendingEmail(email)
+
+    try {
+      await post.makeRequest({
+        apiEndpoint: PostEndpointUrl.ResendInvitation,
+        payload: { email },
+        method: "POST"
+      })
+      // Refresh the list
+      mutate()
+    } catch (error) {
+      console.error("Failed to resend invitation:", error)
+    } finally {
+      setResendingEmail(null)
+    }
+  }
+
   const handleInvitationAdded = () => {
     mutate()
   }
@@ -71,14 +91,16 @@ const InvitationCard = () => {
           </Button>
         </div>
         <CardDescription className="text-sm text-muted-foreground">
-          Invite new users by email to allow them to join the organization.
+          Invite new users by email. They&apos;ll receive a magic link to set up their account.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-0">
         <AdminInvitationList
           invitations={invitations}
           onDelete={handleDeleteInvitation}
+          onResend={handleResendInvitation}
           isSubmitting={post.isSubmitting}
+          resendingEmail={resendingEmail}
         />
       </CardContent>
     </Card>

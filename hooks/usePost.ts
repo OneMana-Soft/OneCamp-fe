@@ -501,6 +501,14 @@ const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error
         success: "Invitation removed successfully.",
         error: "Failed to remove invitation.",
     },
+    [PostEndpointUrl.UpdateEmailConfig]: {
+        success: "Email configuration saved successfully.",
+        error: "Failed to save email configuration.",
+    },
+    [PostEndpointUrl.UploadEmailLogo]: {
+        success: "Email logo operation completed successfully.",
+        error: "Failed to perform email logo operation.",
+    },
 }
 
 

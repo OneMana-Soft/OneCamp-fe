@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { AppLanguageCombobox } from "@/components/dialog/appLanguageCombobox";
 import { ArrowLeft, Trash, Camera, Calendar } from "lucide-react";
 import axiosInstance from "@/lib/axiosInstance";
+import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 
 export const profileFormSchema = z.object({
     fullName: z
@@ -363,6 +364,8 @@ export function MobileSelfProfile() {
                                     />
                                 </div>
                             </div>
+
+                            <ChangePasswordSection />
                             
                             <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm mt-4">
                                 <h3 className="text-muted-foreground font-semibold uppercase tracking-wider text-xs mb-3">Integrations</h3>

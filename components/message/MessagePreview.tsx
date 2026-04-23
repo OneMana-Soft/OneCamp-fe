@@ -21,9 +21,9 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
     return (
 
         <div className='relative flex space-x-4'>
-            <div className='h-full  bg-secondary/60 w-1.5 absolute'/>
+            <div className='h-full bg-secondary/60 w-1.5 absolute rounded-full'/>
 
-            <div className='flex-col '>
+            <div className='flex-col pl-4'>
 
                 <div className='flex space-x-2'>
                     <MessagePreviewAvatar userInfo={msgInfo.msgBy}/>
@@ -38,10 +38,11 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
 
                 </div>
 
+                <div className='max-h-48 overflow-hidden'>
                 <MinimalTiptapTextInput
                     throttleDelay={300}
                     isOutputText={true}
-                    className={cn("max-w-full rounded-xl h-auto border-none mt-4")}
+                    className={cn("max-w-full rounded-xl h-auto border-none mt-2")}
                     editorContentClassName="overflow-auto "
                     output="html"
                     content={msgInfo.msgText}
@@ -54,6 +55,7 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
 
                 >
                 </MinimalTiptapTextInput>
+                </div>
 
                 {msgInfo.vewFooter && <div className='text-xs text-muted-foreground '>
 

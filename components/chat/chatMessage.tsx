@@ -188,7 +188,7 @@ export const ChatMessage = React.memo(({updatePost, chatInfo, addReaction, remov
                     (chatInfo.chat_fwd_msg_chat || chatInfo.chat_fwd_msg_post) && !isMessageEditEnabled &&
 
                     <MessagePreview
-                        msgBy={chatInfo.chat_from || chatInfo.chat_fwd_msg_chat?.chat_from }
+                        msgBy={chatInfo.chat_fwd_msg_post?.post_by || chatInfo.chat_fwd_msg_chat?.chat_from }
                         msgText={chatInfo.chat_fwd_msg_post?.post_text || chatInfo.chat_fwd_msg_chat?.chat_body_text || ''}
                         msgChannelName={chatInfo.chat_fwd_msg_post?.post_channel?.ch_name}
                         msgChannelUUID={chatInfo.chat_fwd_msg_post?.post_channel?.ch_uuid}

@@ -24,19 +24,22 @@ import {RootState} from "@/store/store";
 import {clearFwdMsgInputState, createOrUpdateFwdMsg} from "@/store/slice/fwdMessageSlice";
 import {LoaderCircle} from "lucide-react";
 import * as React from "react";
+import {Skeleton} from "@/components/ui/skeleton";
 
 
 interface FileDialogProps {
     chatUUID?: string;
+    chatMessageID?: string;
     channelUUID?: string;
     postUUID?: string;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }
 
-export const ForwardMessage = ({ chatUUID, channelUUID, postUUID, open, onOpenChange }: FileDialogProps) => {
+export const ForwardMessage = ({ chatUUID, chatMessageID, channelUUID, postUUID, open, onOpenChange }: FileDialogProps) => {
 
-    const chatInfo = useFetch<ChatInfoRes>(chatUUID ? `${GetEndpointUrl.GetOnlyChatText}/${chatUUID}`: "")
+    const chatPreviewId = chatMessageID || chatUUID
+    const chatInfo = useFetch<ChatInfoRes>(chatPreviewId ? `${GetEndpointUrl.GetOnlyChatText}/${chatPreviewId}`: "")
     const postInfo = useFetch<PostsResRaw>(channelUUID ? `${GetEndpointUrl.GetOnlyPostText}/${channelUUID}/${postUUID}` : "")
 
     const [selectedUsersOrChannels, setSelectedUsersOrChannels] = useState<ChannelAndUserListInterfaceResp[]>([])
@@ -59,7 +62,7 @@ export const ForwardMessage = ({ chatUUID, channelUUID, postUUID, open, onOpenCh
 
     const clickFwdMessage = () => {
         if(selectedUsersOrChannels.length == 0) return
-        makeRequest<MessageFwdReq>({
+        makeRequest<MessageFwdReq, any>({
             apiEndpoint: PostEndpointUrl.FwdMsgToChatOrChannel,
             payload: {
                 fwd_list: selectedUsersOrChannels,
@@ -73,6 +76,8 @@ export const ForwardMessage = ({ chatUUID, channelUUID, postUUID, open, onOpenCh
         }).then(()=>{
             dispatch(clearFwdMsgInputState())
             closeModal()
+        }).catch((err) => {
+            console.error('Forward message failed:', err)
         })
 
     }
@@ -80,6 +85,10 @@ export const ForwardMessage = ({ chatUUID, channelUUID, postUUID, open, onOpenCh
     const closeModal = () => {
         onOpenChange(false)
     }
+
+    const isPreviewLoading = chatInfo.isLoading || postInfo.isLoading
+    const hasPreviewError = chatInfo.isError || postInfo.isError
+    const hasPreviewData = !!(postInfo.data?.data || chatInfo.data?.data)
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}  >
@@ -109,16 +118,33 @@ export const ForwardMessage = ({ chatUUID, channelUUID, postUUID, open, onOpenCh
                 >
 
                 </MinimalTiptapTextInput>
-                <MessagePreview
-                    msgBy={postInfo.data?.data.post_by || chatInfo.data?.data.chat_from }
-                    msgText={postInfo.data?.data.post_text || chatInfo.data?.data.chat_body_text}
-                    msgChannelName={postInfo.data?.data.post_channel?.ch_name}
-                    msgChannelUUID={postInfo.data?.data.post_channel?.ch_uuid}
-                    msgUUID={postInfo.data?.data.post_uuid || chatInfo.data?.data.chat_uuid}
-                    msgCreatedAt={postInfo.data?.data.post_created_at || chatInfo.data?.data.chat_created_at}
-
-                />
-
+                <div className="rounded-lg bg-muted/30 p-3 max-h-64 overflow-y-auto">
+                    {isPreviewLoading && (
+                        <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                                <Skeleton className="h-6 w-6 rounded-full" />
+                                <Skeleton className="h-4 w-24" />
+                            </div>
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-3/4" />
+                        </div>
+                    )}
+                    {hasPreviewError && !isPreviewLoading && (
+                        <div className="text-sm text-muted-foreground text-center py-2">
+                            Unable to load message preview
+                        </div>
+                    )}
+                    {hasPreviewData && !isPreviewLoading && (
+                        <MessagePreview
+                            msgBy={postInfo.data?.data.post_by || chatInfo.data?.data.chat_from}
+                            msgText={postInfo.data?.data.post_text || chatInfo.data?.data.chat_body_text}
+                            msgChannelName={postInfo.data?.data.post_channel?.ch_name}
+                            msgChannelUUID={postInfo.data?.data.post_channel?.ch_uuid}
+                            msgUUID={postInfo.data?.data.post_uuid || chatInfo.data?.data.chat_uuid}
+                            msgCreatedAt={postInfo.data?.data.post_created_at || chatInfo.data?.data.chat_created_at}
+                        />
+                    )}
+                </div>
                 <DialogFooter>
                     <Button onClick={clickFwdMessage}
                     disabled={isSubmitting || selectedUsersOrChannels.length == 0 || chatInfo.isLoading || postInfo.isLoading}

@@ -206,7 +206,7 @@ export const ChannelMessage = ({
 
                     {(postInfo.post_fwd_msg_chat || postInfo.post_fwd_msg_post) && !isMessageEditEnabled && (
                         <MessagePreview
-                            msgBy={postInfo.post_by || postInfo.post_fwd_msg_chat?.chat_from}
+                            msgBy={postInfo.post_fwd_msg_post?.post_by || postInfo.post_fwd_msg_chat?.chat_from}
                             msgText={postInfo.post_fwd_msg_post?.post_text || postInfo.post_fwd_msg_chat?.chat_body_text || ""}
                             msgChannelName={postInfo.post_fwd_msg_post?.post_channel?.ch_name}
                             msgChannelUUID={postInfo.post_fwd_msg_post?.post_channel?.ch_uuid}

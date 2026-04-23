@@ -133,6 +133,9 @@ export interface Invitation {
     id: string;
     email: string;
     invited_by: string;
+    status: string;
+    token?: string;
+    token_expires_at?: string;
     created_at: string;
 }
 

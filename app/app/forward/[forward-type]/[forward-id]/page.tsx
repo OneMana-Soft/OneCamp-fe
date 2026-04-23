@@ -58,7 +58,7 @@ export default function Page() {
     const dispatch = useDispatch();
 
     const clickFwdMessage = () => {
-        makeRequest<MessageFwdReq>({
+        makeRequest<MessageFwdReq, any>({
             apiEndpoint: PostEndpointUrl.FwdMsgToChatOrChannel,
             payload: {
                 fwd_list: selectedUsersOrChannels,
@@ -72,6 +72,8 @@ export default function Page() {
         }).then(()=>{
             dispatch(clearFwdMsgInputState())
             router.back()
+        }).catch((err) => {
+            console.error('Forward message failed:', err)
         })
 
     }
