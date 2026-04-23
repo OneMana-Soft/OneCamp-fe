@@ -33,7 +33,7 @@ import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {useRouter} from "next/navigation";
 import {app_grp_call, app_grp_chat_path, app_home_path} from "@/types/paths";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
-import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
+
 import {useUploadFile} from "@/hooks/useUploadFile";
 
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface

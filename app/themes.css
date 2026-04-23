@@ -184,10 +184,10 @@
     --chart-5: var(--color-blue-800);
 
     @variant dark {
-        --primary: var(--color-blue-700);
+        --primary: var(--color-blue-500);
         --primary-foreground: var(--color-blue-50);
         /* --ring: var(--color-blue-900); */
-        --sidebar-primary: var(--color-blue-500);
+        --sidebar-primary: var(--color-blue-600);
         --sidebar-primary-foreground: var(--color-blue-50);
         /* --sidebar-ring: var(--color-blue-900); */
     }
@@ -209,10 +209,10 @@
     --sidebar-ring: var(--color-lime-400);
 
     @variant dark {
-        --primary: var(--color-lime-600);
-        --primary-foreground: var(--color-lime-50);
+        --primary: var(--color-lime-500);
+        --primary-foreground: var(--color-lime-950);
         --ring: var(--color-lime-900);
-        --sidebar-primary: var(--color-lime-500);
+        --sidebar-primary: var(--color-lime-600);
         --sidebar-primary-foreground: var(--color-lime-50);
         --sidebar-ring: var(--color-lime-900);
     }

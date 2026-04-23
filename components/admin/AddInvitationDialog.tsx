@@ -50,6 +50,7 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
       id: "optimistic-id-" + Date.now(),
       email: trimmedEmail,
       invited_by: "", // Will be filled by server
+      status: "sent",
       created_at: new Date().toISOString()
     }
 

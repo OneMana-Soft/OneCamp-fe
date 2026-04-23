@@ -35,7 +35,7 @@ import Link from "next/link";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {ChatSkeleton} from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
-import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
+
 import {useUploadFile} from "@/hooks/useUploadFile";
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }

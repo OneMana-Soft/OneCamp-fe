@@ -69,7 +69,7 @@ export const MessageDesktopHoverOptionsForMainChatAndChannel = ({ groupUUID, isO
             </Tooltip>
             <Tooltip >
                 <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={()=>{dispatch(openUI({ key: 'forwardMessage', data: {chatUUID:chatUUID||'', channelUUID: channelUUID||'', postUUID:postUUID||''} }))}}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={()=>{dispatch(openUI({ key: 'forwardMessage', data: {chatUUID:chatUUID||'', chatMessageID:chatMessageID||'', channelUUID: channelUUID||'', postUUID:postUUID||''} }))}}>
                         <Forward className="h-4 w-4" stroke='#616060'/>
                     </Button>
                 </TooltipTrigger>

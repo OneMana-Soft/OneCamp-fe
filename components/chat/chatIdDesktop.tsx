@@ -29,7 +29,7 @@ import Link from "next/link";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
-import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
+
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 

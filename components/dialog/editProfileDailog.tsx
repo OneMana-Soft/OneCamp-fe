@@ -25,6 +25,7 @@ import {Switch} from "@/components/ui/switch";
 import {useDispatch} from "react-redux";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import axiosInstance from "@/lib/axiosInstance";
+import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 
 const profileFormSchema = z.object({
     fullName: z
@@ -314,9 +315,9 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                     </div>
 
                     {/* Right Content - Form */}
-                    <div className="md:w-2/3 p-8 overflow-y-auto bg-background">
+                    <div className="md:w-2/3 p-8 overflow-y-auto bg-background custom-scrollbar">
                         <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                            <form id="profile-edit-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
@@ -408,59 +409,68 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
 
                                 <Separator className="my-2" />
                                 
-                                <div className="space-y-4">
-                                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{t('integrations') || 'Integrations'}</h3>
-                                    
-                                    <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition-all hover:bg-muted/20">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center space-x-3">
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 shadow-sm ring-1 ring-blue-500/20">
-                                                    <Calendar className="h-5 w-5 text-blue-600" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-semibold">Google Calendar</p>
-                                                    <p className="text-[10px] text-muted-foreground leading-tight">Sync your workflow and events</p>
-                                                </div>
-                                            </div>
-                                            {!gcalStatus?.isConnected ? (
-                                                <Button variant="outline" size="sm" type="button" onClick={handleConnectGoogleCalendar} className="h-8 rounded-full px-4 text-xs font-medium">
-                                                    Connect
-                                                </Button>
-                                            ) : (
-                                                <Button variant="ghost" size="sm" type="button" className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10 text-xs px-2" onClick={handleUnlinkGoogleCalendar}>
-                                                    Unlink
-                                                </Button>
-                                            )}
-                                        </div>
+                                </form>
+                        </Form>
 
-                                        {gcalStatus?.isConnected && (
-                                            <div className="mt-4 flex items-center justify-between rounded-lg bg-background/50 p-3 ring-1 ring-border/50 animate-in slide-in-from-top-2 duration-300">
-                                                <div className="space-y-0.5">
-                                                    <p className="text-xs font-medium text-foreground">Sync Tasks</p>
-                                                    <p className="text-[10px] text-muted-foreground">Due dates will appear on your calendar</p>
-                                                </div>
-                                                <Switch
-                                                    checked={gcalStatus?.taskSyncEnabled}
-                                                    onCheckedChange={handleToggleTaskSync}
-                                                    disabled={updatingSync}
-                                                    className="scale-75"
-                                                />
+                        <div className="space-y-6 mt-6">
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{t('integrations') || 'Integrations'}</h3>
+                                
+                                <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition-all hover:bg-muted/20">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-3">
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 shadow-sm ring-1 ring-blue-500/20">
+                                                <Calendar className="h-5 w-5 text-blue-600" />
                                             </div>
+                                            <div>
+                                                <p className="text-sm font-semibold">Google Calendar</p>
+                                                <p className="text-[10px] text-muted-foreground leading-tight">Sync your workflow and events</p>
+                                            </div>
+                                        </div>
+                                        {!gcalStatus?.isConnected ? (
+                                            <Button variant="outline" size="sm" type="button" onClick={handleConnectGoogleCalendar} className="h-8 rounded-full px-4 text-xs font-medium">
+                                                Connect
+                                            </Button>
+                                        ) : (
+                                            <Button variant="ghost" size="sm" type="button" className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10 text-xs px-2" onClick={handleUnlinkGoogleCalendar}>
+                                                Unlink
+                                            </Button>
                                         )}
                                     </div>
-                                </div>
 
-                                <DialogFooter className="pt-2">
-                                    <Button 
-                                        disabled={uploadFile.isSubmitting || post.isSubmitting} 
-                                        type="submit"
-                                        className="w-full h-11 rounded-xl shadow-lg shadow-primary/20 font-semibold text-sm transition-all hover:translate-y-[-1px]"
-                                    >
-                                        {t('update')}
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </Form>
+                                    {gcalStatus?.isConnected && (
+                                        <div className="mt-4 flex items-center justify-between rounded-lg bg-background/50 p-3 ring-1 ring-border/50 animate-in slide-in-from-top-2 duration-300">
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs font-medium text-foreground">Sync Tasks</p>
+                                                <p className="text-[10px] text-muted-foreground">Due dates will appear on your calendar</p>
+                                            </div>
+                                            <Switch
+                                                checked={gcalStatus?.taskSyncEnabled}
+                                                onCheckedChange={handleToggleTaskSync}
+                                                disabled={updatingSync}
+                                                className="scale-75"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Security</h3>
+                                <ChangePasswordSection />
+                            </div>
+                        </div>
+
+                        <DialogFooter className="pt-8">
+                            <Button 
+                                form="profile-edit-form"
+                                disabled={uploadFile.isSubmitting || post.isSubmitting} 
+                                type="submit"
+                                className="w-full h-11 rounded-xl shadow-lg shadow-primary/20 font-semibold text-sm transition-all hover:translate-y-[-1px]"
+                            >
+                                {t('update')} Profile
+                            </Button>
+                        </DialogFooter>
                     </div>
                 </div>
             </DialogContent>

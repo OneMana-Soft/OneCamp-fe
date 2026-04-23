@@ -6,7 +6,8 @@ import TeamsCard from "@/components/admin/teamCard"
 import UserCard from "@/components/admin/userCard"
 import AdminCard from "@/components/admin/adminCard"
 import InvitationCard from "@/components/admin/invitationCard"
-import { Shield, Users, Users2, ShieldAlert, Mail } from "lucide-react"
+import EmailSettingsCard from "@/components/admin/EmailSettingsCard"
+import { Shield, Users, Users2, ShieldAlert, Mail, Settings } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 const AdminPage = () => {
@@ -59,6 +60,13 @@ const AdminPage = () => {
               <Mail className="h-4 w-4" />
               Invitations
             </TabsTrigger>
+            <TabsTrigger 
+              value="email-settings" 
+              className="gap-2 px-4 py-2 rounded-md transition-all duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
+            >
+              <Settings className="h-4 w-4" />
+              Email Config
+            </TabsTrigger>
           </TabsList>
 
 
@@ -76,6 +84,9 @@ const AdminPage = () => {
                 </TabsContent>
                 <TabsContent value="invitations" className="mt-0 outline-none h-full">
                   <InvitationCard />
+                </TabsContent>
+                <TabsContent value="email-settings" className="mt-0 outline-none h-full">
+                  <EmailSettingsCard />
                 </TabsContent>
               </div>
               </div>
