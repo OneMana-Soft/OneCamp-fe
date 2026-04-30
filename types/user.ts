@@ -162,6 +162,9 @@ export interface ChannelAndUserListInterfaceResp {
     channel_uuid: string
     channel_dgraph_uid: string
     channel_name: string
+    grp_id?: string
+    grp_dgraph_uid?: string
+    grp_name?: string
 }
 
 export interface MessageFwdReq {

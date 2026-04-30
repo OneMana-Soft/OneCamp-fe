@@ -116,7 +116,7 @@ const initialState: RootUIState = {
   docShare: { isOpen: false, docId: "" },
   docUpdateTitle: { isOpen: false, data: { title: "", docId: "" } },
   createChatMessage: { isOpen: false, data: null },
-  forwardMessage: { isOpen: false, data: { chatUUID: "", channelUUID: "", postUUID: "" } },
+  forwardMessage: { isOpen: false, data: { chatUUID: "", chatMessageID: "", groupChatMsgID: "", channelUUID: "", postUUID: "" } },
   attachmentLightbox: { isOpen: false, data: { allMedia: [] as AttachmentMediaReq[], mediaGetUrl: "", media: {} as AttachmentMediaReq } },
   confirmAlert: { isOpen: false, data: { title: "", description: "", confirmText: "Confirm", onConfirm: () => {} } },
   recordingPlayer: { isOpen: false, data: null as RecordingPlayerInterface | null },

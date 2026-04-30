@@ -210,6 +210,7 @@ export function UnifiedUIManager() {
         <ForwardMessage
           chatUUID={ui.forwardMessage.data.chatUUID}
           chatMessageID={ui.forwardMessage.data.chatMessageID}
+          groupChatMsgID={ui.forwardMessage.data.groupChatMsgID}
           channelUUID={ui.forwardMessage.data.channelUUID}
           postUUID={ui.forwardMessage.data.postUUID}
           onOpenChange={() => dispatch(closeUI('forwardMessage'))}

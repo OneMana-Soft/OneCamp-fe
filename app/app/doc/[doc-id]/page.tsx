@@ -112,10 +112,6 @@ export default function Page() {
         }
     }
 
-    if(!docId) {
-        return null;
-    }
-
     const [provider, setProvider] = React.useState<HocuspocusProvider | null>(null);
 
     React.useEffect(() => {
@@ -134,6 +130,10 @@ export default function Page() {
             };
         }
     }, [collaboration?.enabled, collaboration?.documentId, collaboration?.token]);
+
+    if(!docId) {
+        return null;
+    }
 
     if (isDocLoading || userProfile.isLoading || (!token && checkAuthCookieExists())) {
         return <DocPageSkeleton />;
