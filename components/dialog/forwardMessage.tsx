@@ -30,20 +30,26 @@ import {Skeleton} from "@/components/ui/skeleton";
 interface FileDialogProps {
     chatUUID?: string;
     chatMessageID?: string;
+    groupChatMsgID?: string;
     channelUUID?: string;
     postUUID?: string;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }
 
-export const ForwardMessage = ({ chatUUID, chatMessageID, channelUUID, postUUID, open, onOpenChange }: FileDialogProps) => {
+export const ForwardMessage = ({ chatUUID, chatMessageID, groupChatMsgID, channelUUID, postUUID, open, onOpenChange }: FileDialogProps) => {
 
+    // DM chat preview — uses the individual message UUID
     const chatPreviewId = chatMessageID || chatUUID
     const chatInfo = useFetch<ChatInfoRes>(chatPreviewId ? `${GetEndpointUrl.GetOnlyChatText}/${chatPreviewId}`: "")
+
+    // Group chat message preview — uses the dedicated group chat endpoint
+    const groupChatInfo = useFetch<ChatInfoRes>(groupChatMsgID ? `${GetEndpointUrl.GetOnlyGroupChatText}/${groupChatMsgID}` : "")
+
+    // Channel post preview
     const postInfo = useFetch<PostsResRaw>(channelUUID ? `${GetEndpointUrl.GetOnlyPostText}/${channelUUID}/${postUUID}` : "")
 
     const [selectedUsersOrChannels, setSelectedUsersOrChannels] = useState<ChannelAndUserListInterfaceResp[]>([])
-
 
     const fwdMsgInputState = useSelector((state: RootState) => state.fwdMsg.fwdMsgInputInputState);
 
@@ -51,8 +57,8 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, channelUUID, postUUID,
 
     const { makeRequest, isSubmitting } = usePost();
 
-
-    if(!chatUUID && !channelUUID) {
+    // Guard: at least one message source must be specified
+    if(!chatUUID && !channelUUID && !chatMessageID && !groupChatMsgID) {
         return null;
     }
 
@@ -69,7 +75,8 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, channelUUID, postUUID,
                 fwd_attachments: fwdMsgInputState.filesUploaded,
                 fwd_channel_uuid: channelUUID||'',
                 fwd_post_uuid: postUUID||'',
-                fwd_chat_uuid: chatUUID||'',
+                // Bug 4 fix: use explicit priority — groupChatMsgID is most specific, then chatMessageID, then legacy chatUUID
+                fwd_chat_uuid: groupChatMsgID ? groupChatMsgID : (chatMessageID ? chatMessageID : (chatUUID || '')),
                 fwd_text: fwdMsgInputState.fwdMsgBody
             },
             showToast: true
@@ -86,9 +93,12 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, channelUUID, postUUID,
         onOpenChange(false)
     }
 
-    const isPreviewLoading = chatInfo.isLoading || postInfo.isLoading
-    const hasPreviewError = chatInfo.isError || postInfo.isError
-    const hasPreviewData = !!(postInfo.data?.data || chatInfo.data?.data)
+    const isPreviewLoading = chatInfo.isLoading || groupChatInfo.isLoading || postInfo.isLoading
+    const hasPreviewError = (chatInfo.isError && !chatInfo.data) || (groupChatInfo.isError && !groupChatInfo.data) || (postInfo.isError && !postInfo.data)
+
+    // Merge preview data — any one of the three sources may be populated
+    const previewChatData = chatInfo.data?.data || groupChatInfo.data?.data
+    const hasPreviewData = !!(postInfo.data?.data || previewChatData)
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}  >
@@ -136,18 +146,18 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, channelUUID, postUUID,
                     )}
                     {hasPreviewData && !isPreviewLoading && (
                         <MessagePreview
-                            msgBy={postInfo.data?.data.post_by || chatInfo.data?.data.chat_from}
-                            msgText={postInfo.data?.data.post_text || chatInfo.data?.data.chat_body_text}
+                            msgBy={postInfo.data?.data.post_by || previewChatData?.chat_from}
+                            msgText={postInfo.data?.data.post_text || previewChatData?.chat_body_text}
                             msgChannelName={postInfo.data?.data.post_channel?.ch_name}
                             msgChannelUUID={postInfo.data?.data.post_channel?.ch_uuid}
-                            msgUUID={postInfo.data?.data.post_uuid || chatInfo.data?.data.chat_uuid}
-                            msgCreatedAt={postInfo.data?.data.post_created_at || chatInfo.data?.data.chat_created_at}
+                            msgUUID={postInfo.data?.data.post_uuid || previewChatData?.chat_uuid}
+                            msgCreatedAt={postInfo.data?.data.post_created_at || previewChatData?.chat_created_at}
                         />
                     )}
                 </div>
                 <DialogFooter>
                     <Button onClick={clickFwdMessage}
-                    disabled={isSubmitting || selectedUsersOrChannels.length == 0 || chatInfo.isLoading || postInfo.isLoading}
+                    disabled={isSubmitting || selectedUsersOrChannels.length == 0 || isPreviewLoading}
                     >
                         {isSubmitting && <LoaderCircle className="h-4 w-4 animate-spin"/>}
                         Forward

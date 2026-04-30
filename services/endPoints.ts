@@ -41,6 +41,7 @@ export enum GetEndpointUrl {
     GetGrpChatRecordingTranscript = "/groupChat/getRecordingTranscript",
     GetOnlyPostText = "/po/getOnlyPostText",
     GetOnlyChatText = "/dm/getChatOnlyText",
+    GetOnlyGroupChatText = "/groupChat/getChatOnlyText",
     GetUserStatuses = "/user/getAllUserEmojiStatusList",
     GetUserEmojiStatus = "/user/getActiveUserEmojiStatus",
     GetPostWithAllComments = "/po/allComments",

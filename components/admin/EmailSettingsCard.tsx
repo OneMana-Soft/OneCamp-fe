@@ -157,10 +157,10 @@ const EmailSettingsCard = () => {
     return `${backendDomain}/public/email/logo?ts=${logoTs}`
   }
 
-  // Very very very basic preview: just replace vars
+  // Safe URL for preview so anchor tags don't break
   const previewHtml = formData.template
-    .replace('{{signup_link}}', '<a href="#" style="color: blue;">Accept Invitation</a>')
-    .replace('{{logo_image}}', hasLogo ? `<img src="${getPublicLogoUrl()}" alt="Logo" style="max-height:80px; max-width:200px;" />` : '')
+    .replace(/\{\{signup_link\}\}/g, 'https://onecamp.onemana.dev/signup?token=preview')
+    .replace(/\{\{logo_image\}\}/g, hasLogo ? `<img src="${getPublicLogoUrl()}" alt="Logo" style="max-height:80px; max-width:200px;" />` : '')
 
   return (
     <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
@@ -182,9 +182,9 @@ const EmailSettingsCard = () => {
         {isLoading ? (
           <div className="text-sm text-muted-foreground animate-pulse">Loading configuration...</div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+          <div className="flex flex-col xl:flex-row gap-8 lg:gap-12 h-full">
             {/* Form Section */}
-            <div className="space-y-6">
+            <div className="space-y-6 flex-1 min-w-[50%]">
               
               {/* Logo Section */}
               <div className="space-y-4">
@@ -209,7 +209,7 @@ const EmailSettingsCard = () => {
                       </Button>
                     </div>
                   ) : (
-                    <div className="w-full text-center p-6 border-2 border-dashed rounded-lg text-muted-foreground flex flex-col items-center gap-2">
+                    <div className="w-full text-center p-6 border-2 border-dashed rounded-lg text-muted-foreground flex flex-col items-center gap-2 transition-colors hover:border-primary/50 hover:bg-muted/50">
                       <ImagePlus className="h-8 w-8 mb-2 opacity-50" />
                       <p className="text-sm">No logo uploaded</p>
                       <p className="text-xs">PNG, JPEG, WebP, SVG up to 2MB</p>
@@ -298,20 +298,39 @@ const EmailSettingsCard = () => {
             </div>
 
             {/* Preview Section */}
-            <div className="lg:border-l lg:pl-10 space-y-6">
+            <div className="flex-1 w-full xl:max-w-md 2xl:max-w-lg space-y-4 xl:sticky xl:top-0 h-fit">
                <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold">Live Preview</h3>
                 </div>
-                <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden text-black min-h-[400px]">
+                <div className="rounded-xl border border-black/10 bg-white shadow-xl overflow-hidden text-black min-h-[450px] flex flex-col">
+                  {/* macOS style header */}
+                  <div className="bg-[#f6f6f6] flex items-center px-4 py-3 border-b border-[#e5e5e5]">
+                    <div className="flex gap-2 mr-4">
+                      <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e]"></div>
+                      <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123]"></div>
+                      <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29]"></div>
+                    </div>
+                    <div className="text-xs font-semibold text-gray-500 text-center flex-1 pr-12">New Message</div>
+                  </div>
                   {/* Email header mockup */}
-                  <div className="bg-gray-100 p-4 border-b text-sm">
-                    <div className="mb-1"><span className="text-gray-500 font-medium">From:</span> {formData.sender_email}</div>
-                    <div><span className="text-gray-500 font-medium">Subject:</span> {formData.subject}</div>
+                  <div className="bg-white px-6 py-4 border-b border-[#e5e5e5] text-sm space-y-2">
+                    <div className="flex items-start">
+                      <span className="text-gray-400 font-medium w-16">From:</span> 
+                      <span className="font-medium text-gray-800 break-all">{formData.sender_email || "noreply@onemana.dev"}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="text-gray-400 font-medium w-16">Subject:</span> 
+                      <span className="font-bold text-gray-900">{formData.subject || "No subject"}</span>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="text-gray-400 font-medium w-16">To:</span> 
+                      <span className="text-gray-500">invitee@example.com</span>
+                    </div>
                   </div>
                   {/* Email body preview */}
                   <div 
-                    className="p-6 prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: previewHtml }}
+                    className="p-8 prose prose-sm max-w-none flex-1 bg-white break-words"
+                    dangerouslySetInnerHTML={{ __html: previewHtml || "<div class='text-gray-400 italic'>Template is empty...</div>" }}
                   />
                 </div>
             </div>
