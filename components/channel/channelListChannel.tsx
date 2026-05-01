@@ -7,6 +7,7 @@ import {useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {Hash} from "lucide-react";
 import {app_channel_path} from "@/types/paths";
+import {CallActiveIndicator} from "@/components/callIndicator/CallActiveIndicator";
 
 interface DmItemProps {
     lastUsername: string;
@@ -16,6 +17,7 @@ interface DmItemProps {
     unseenMessageCount: number;
     userSelected: boolean
     attachmentCount: number
+    isCallActive?: boolean
 }
 
 export const ChannelListChannel: React.FC<DmItemProps> = React.memo(({
@@ -25,7 +27,8 @@ export const ChannelListChannel: React.FC<DmItemProps> = React.memo(({
                                                      channelName,
                                                      unseenMessageCount,
                                                      userSelected,
-                                                     attachmentCount
+                                                     attachmentCount,
+                                                     isCallActive
                                                  }) => {
 
 
@@ -65,9 +68,12 @@ export const ChannelListChannel: React.FC<DmItemProps> = React.memo(({
             <div className="flex-1 space-y-1 overflow-hidden">
                 <div className="flex justify-between items-start gap-2">
                     <div className="flex flex-col overflow-hidden">
-                        <span className="font-semibold text-foreground leading-tight truncate">
-                            {channelName}
-                        </span>
+                        <div className="flex items-center">
+                            <span className="font-semibold text-foreground leading-tight truncate mr-2">
+                                {channelName}
+                            </span>
+                            {isCallActive && <CallActiveIndicator size="sm" />}
+                        </div>
                         {lastUsername && (
                             <span className="text-xs text-muted-foreground/80 truncate">
                                 last message by @{lastUsername}

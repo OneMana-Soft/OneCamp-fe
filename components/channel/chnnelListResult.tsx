@@ -8,9 +8,13 @@ import {ConditionalWrap} from "@/components/conditionalWrap/conditionalWrap";
 import {useMedia} from "@/context/MediaQueryContext";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import {VirtualInfiniteScroll} from "@/components/list/virtualInfiniteScroll";
+import {useSelector} from "react-redux";
+import {RootState} from "@/store/store";
 
 export const ChannelListResult = ({channelList, onLoadMore, hasMore, isLoading}: {channelList: ChannelInfoInterface[], onLoadMore?: ()=>void, hasMore?: boolean, isLoading?: boolean}) => {
     const {isMobile} = useMedia()
+
+    const channelCallStatus = useSelector((state: RootState) => state.channel.channelCallStatus);
 
 
     if(channelList.length == 0 && !isLoading) {
@@ -40,6 +44,7 @@ export const ChannelListResult = ({channelList, onLoadMore, hasMore, isLoading}:
                         unseenMessageCount={channel.unread_post_count || 0}
                         userSelected={false}
                         attachmentCount={channel.ch_posts?.[0].post_attachments?.length || 0}
+                        isCallActive={channelCallStatus[channel.ch_uuid]?.active || channel.ch_call_active || false}
                     />
                     {i==(channelList.length -1) && <Separator orientation="horizontal" className=" mx-6 w-[calc(100%-3rem)]" />}
 

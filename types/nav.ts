@@ -10,6 +10,7 @@ export interface DesktopChildrenNavType {
     project_uuid?: string
     userParticipants?: UserProfileDataInterface[]
     userProfile?: UserProfileDataInterface
+    isCallActive?: boolean
 }
 
 export interface DesktopNavType {
