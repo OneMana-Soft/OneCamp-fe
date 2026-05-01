@@ -78,6 +78,9 @@ export function DesktopNavigationBar({
     const channelNavGrp = [] as DesktopChildrenNavType[]
     const dmNavGrp = [] as DesktopChildrenNavType[]
 
+    const channelCallStatus = useSelector((state: RootState) => state.channel.channelCallStatus);
+    const chatCallStatus = useSelector((state: RootState) => state.chat.chatCallStatus);
+
 
     useEffect(() => {
         if(userSideNav.data?.data?.user_teams) {
@@ -213,6 +216,7 @@ export function DesktopNavigationBar({
             unread_count: c?.unread_post_count,
             path: `${app_channel_path}/${c.ch_uuid}`,
             variant: (path.length > 3 && path[3] == c.ch_uuid) ? "sidebarActive" : "ghost",
+            isCallActive: channelCallStatus[c.ch_uuid]?.active || false,
         })
     }
 
@@ -240,6 +244,7 @@ export function DesktopNavigationBar({
             userProfile: dm_participants.length == 0 ? d.dm_participants[0] : (dm_participants.length == 1 ? dm_participants[0] : undefined),
             path: p,
             variant: v,
+            isCallActive: chatCallStatus[d.dm_grouping_id]?.active || false,
         })
     }
 

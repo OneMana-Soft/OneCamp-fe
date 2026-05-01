@@ -54,6 +54,8 @@ export function MobileHome() {
         dedupingInterval: 30000,
     })
     const userSidebarState = useSelector((state: RootState) => state.users.userSidebar)
+    const channelCallStatus = useSelector((state: RootState) => state.channel.channelCallStatus);
+    const chatCallStatus = useSelector((state: RootState) => state.chat.chatCallStatus);
 
 
     useEffect(() => {
@@ -118,6 +120,7 @@ export function MobileHome() {
             unread_count: c?.unread_post_count,
             path: `${app_channel_path}/${c.ch_uuid}`,
             variant: "ghost",
+            isCallActive: channelCallStatus[c.ch_uuid]?.active || false,
         })
     }
 
@@ -141,6 +144,7 @@ export function MobileHome() {
             userProfile: dm_participants.length == 0 ? d.dm_participants[0] : (dm_participants.length == 1 ? dm_participants[0] : undefined),
             path: p,
             variant: "ghost",
+            isCallActive: chatCallStatus[d.dm_grouping_id]?.active || false,
         })
     }
 

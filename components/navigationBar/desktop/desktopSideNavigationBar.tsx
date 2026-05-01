@@ -20,6 +20,7 @@ import {ColorIcon} from "@/components/colorIcon/colorIcon";
 import {formatCount} from "@/lib/utils/helpers/formatCount";
 import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {useMedia} from "@/context/MediaQueryContext";
+import {CallActiveIndicator} from "@/components/callIndicator/CallActiveIndicator";
 
 
 const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
@@ -38,6 +39,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
             {!ch.userProfile && !ch.userParticipants && !ch.project_uuid && link.icon && <link.icon className=" md:h-4 md:w-5 h-6 w-5" />}
             {ch.project_uuid && <ColorIcon name={ch.project_uuid} size={'xs'}/>}
             <div className={cn(` overflow-ellipsis truncate md:text-sm font-normal text-lg ${ch.unread_count ? 'font-semibold':''}`, ch.userParticipants || ch.userProfile ? 'capitalize' :'')}>{ch.title}</div>
+            {ch.isCallActive && <CallActiveIndicator size="sm" pulse={false} className="ml-1 shrink-0" />}
             {ch.unread_count && ch.unread_count > 0 ? (
                 <Badge variant="sidebar" className="ml-auto pointer-events-none">
                     {formatCount(ch.unread_count)}

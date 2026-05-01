@@ -42,6 +42,7 @@ export const ChatUserList = ({chatId}: {chatId: string}) => {
     const [searchDmList, setSearchDmList ] = useState<UserDMInterface[] | null>(null)
 
     const userChatListState = useSelector((state: RootState) => state.chat.latestChatList || []);
+    const chatCallStatus = useSelector((state: RootState) => state.chat.chatCallStatus);
 
     const selfUserUuid = selfProfile.data?.data.user_uuid;
 
@@ -139,6 +140,7 @@ export const ChatUserList = ({chatId}: {chatId: string}) => {
                                         userSelected={isSelected}
                                         attachmentCount={attachmentCount}
                                         selfProfile={selfProfile.data?.data as UserProfileDataInterface}
+                                        isCallActive={chatCallStatus[dmData.dm_grouping_id]?.active || false}
                                     />
                                 </Link>
                                 </ConditionalWrap>

@@ -8,6 +8,7 @@ import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {UserProfileDataInterface, USER_STATUS_ONLINE} from "@/types/user";
 import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {formatCount} from "@/lib/utils/helpers/formatCount";
+import {CallActiveIndicator} from "@/components/callIndicator/CallActiveIndicator";
 
 interface DmItemProps {
     lastUsername: string;
@@ -18,6 +19,7 @@ interface DmItemProps {
     attachmentCount: number
     dmParticipants: UserProfileDataInterface[]
     selfProfile: UserProfileDataInterface
+    isCallActive?: boolean
 }
 
 const ChatUserListUser: React.FC<DmItemProps> = ({
@@ -28,7 +30,8 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
                                            userSelected, 
                                            dmParticipants,
                                            attachmentCount,
-                                           selfProfile
+                                           selfProfile,
+                                           isCallActive
                                        }) => {
 
     // Memoize computed values
@@ -92,6 +95,7 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
                 <div className="relative">
                     {otherParticipants && <ChatUserListUserAvatar userName={UName} userProfileObjKey={otherParticipants.user_profile_object_key}/>}
                     {dmParticipants.length > 1 && <GroupedAvatar users={isSelfDm ? [selfProfile] : dmParticipants} max={2} overlap={20} className={'!pr-0'}/>}
+                    {isCallActive && <CallActiveIndicator size="sm" className="absolute -top-1 -left-1 z-20 shadow-sm ring-2 ring-background" />}
                     {isOnline && <div className="h-2.5 w-2.5 ring-[2px] ring-background rounded-full bg-green-500 absolute bottom-0 right-0"></div>}
                 </div>
                 {unseenMessageCount !== 0 && (
