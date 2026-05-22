@@ -4,7 +4,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState, useEffect } from "react";
-import { Lock, Globe, Copy, Check, User as UserIcon, X } from "lucide-react";
+import { Lock, Globe, Copy, Check, X } from "@/lib/icons";
+import { User as UserIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
 import { usePost } from "@/hooks/usePost";
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
@@ -15,6 +16,7 @@ import { toast } from "@/hooks/use-toast";
 import { UserProfileDataInterface } from "@/types/user";
 import { DocInfoInterface, DocInfoResponse } from "@/types/doc";
 import AddDocMemberCombobox from "@/components/combobox/addDocMemberCombobox";
+import { useUserAvatar } from "@/hooks/useUserAvatar";
 
 type Role = "editor" | "viewer" | "commenter";
 
@@ -28,7 +30,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
     const dispatch = useDispatch();
     const reduxDocId = useSelector((state: RootState) => state.ui.docShare.docId);
     const docId = propDocId || reduxDocId;
-    console.log("DocShareDialog rendered, docId:", docId, "prop:", propDocId, "redux:", reduxDocId);
+
     
     // Fetch Permissions
     const { data: permData, mutate: refreshPermissions, isLoading } = useFetch<DocInfoResponse>(
@@ -176,7 +178,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
         <Dialog open={dialogOpenState} onOpenChange={(open) => !open && handleClose()}>
             <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden bg-background border-border">
                 <DialogHeader className="p-6 pb-4 text-start">
-                    <DialogTitle className="text-xl font-semibold">Share Document</DialogTitle>
+                    <DialogTitle className="text-base font-semibold">Share document</DialogTitle>
                     <DialogDescription className="text-muted-foreground mt-1">
                         Manage who can see and edit this document.
                     </DialogDescription>
@@ -252,7 +254,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                          <Button 
                             variant="outline" 
                             size="sm"
-                            className={cn("rounded-full gap-2 transition-all", copied ? "border-green-500 text-green-600 bg-green-50" : "text-primary border-primary/20 hover:bg-primary/5")}
+                            className={cn("rounded-full gap-2 transition-all", copied ? "border-green-500 text-green-600 dark:text-green-400 bg-green-500/10" : "text-primary border-primary/20 hover:bg-primary/5")}
                             onClick={() => {
                                 navigator.clipboard.writeText(window.location.href);
                                 setCopied(true);
@@ -271,11 +273,12 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
 }
 
 function UserRow({ user, role, onRemove, isOwner }: { user: UserProfileDataInterface, role: string, onRemove: () => void, isOwner: boolean }) {
+    const {src: imageSrc} = useUserAvatar(user.user_profile_object_key);
     return (
         <div className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors group">
             <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">
-                    <AvatarImage src={user.user_profile_object_key} />
+                    <AvatarImage src={imageSrc} />
                     <AvatarFallback>{user.user_name?.charAt(0) || <UserIcon className="w-4 h-4"/>}</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col">

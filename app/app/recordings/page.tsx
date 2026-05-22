@@ -8,7 +8,8 @@ import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { RecordingInfoInterface, RecordingPaginationResRaw } from "@/types/recording";
 import { useMedia } from "@/context/MediaQueryContext";
-import { Loader2, Video } from "lucide-react";
+import { Loader2, Video } from "@/lib/icons";
+import { statusColors } from "@/lib/colors";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll";
 import { Separator } from "@/components/ui/separator";
@@ -120,11 +121,11 @@ const RecordingsPage = () => {
             {isDesktop && (
                 <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3 p-2 backdrop-blur-md">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-500 shadow-sm ">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl ${statusColors.online.solid} shadow-sm ">
                             <Video size={18} />
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold tracking-tight text-foreground/90">Recordings</h1>
+                            <h1 className="text-base md:text-lg font-semibold tracking-tight text-foreground">Recordings</h1>
                             <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest opacity-80">
                                 Global Meeting History
                             </p>

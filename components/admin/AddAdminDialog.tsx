@@ -15,15 +15,58 @@ import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints"
 import { UserListResponseInterface, AdminCreateOrRemoveInterface, UserProfileDataInterface } from "@/types/user"
 import { useFetch } from "@/hooks/useFetch"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Check, Search, UserPlus } from "lucide-react"
+import { Check, Search } from "@/lib/icons";
+import { UserPlus } from "lucide-react";
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { getNameInitials } from "@/lib/utils/getNameInitials"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
+import { useUserAvatar } from "@/hooks/useUserAvatar"
 
 interface AddAdminDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+}
+
+interface UserPickRowProps {
+  user: UserProfileDataInterface
+  isSelected: boolean
+  onSelect: (user: UserProfileDataInterface) => void
+}
+
+function UserPickRow({ user, isSelected, onSelect }: UserPickRowProps) {
+  const { src: imageSrc } = useUserAvatar(user.user_profile_object_key)
+  const seed = user.user_full_name || user.user_name || user.user_email_id || ""
+
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer transition-colors hover:bg-accent",
+        isSelected && "bg-accent",
+      )}
+      onClick={() => onSelect(user)}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarImage src={imageSrc} alt={seed} />
+          <AvatarFallback className={cn("text-[10px] font-semibold", getAvatarFallbackClass(seed))}>
+            {getNameInitials(seed)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-medium leading-none truncate">
+            {user.user_full_name || user.user_name}
+          </span>
+          <span className="text-xs text-muted-foreground truncate">
+            {user.user_email_id}
+          </span>
+        </div>
+      </div>
+      {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
+    </div>
+  )
 }
 
 export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
@@ -66,7 +109,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-width-[425px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-primary" />
@@ -96,34 +139,12 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
                 </div>
               ) : filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
-                  <div
+                  <UserPickRow
                     key={user.user_uuid}
-                    className={cn(
-                      "flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors hover:bg-accent group",
-                      selectedUser?.user_uuid === user.user_uuid && "bg-accent"
-                    )}
-                    onClick={() => setSelectedUser(user)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={user.user_profile_object_key} />
-                        <AvatarFallback>
-                          {user.user_name?.substring(0, 2).toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium leading-none">
-                          {user.user_full_name || user.user_name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {user.user_email_id}
-                        </span>
-                      </div>
-                    </div>
-                    {selectedUser?.user_uuid === user.user_uuid && (
-                      <Check className="h-4 w-4 text-primary" />
-                    )}
-                  </div>
+                    user={user}
+                    isSelected={selectedUser?.user_uuid === user.user_uuid}
+                    onSelect={setSelectedUser}
+                  />
                 ))
               ) : (
                 <div className="text-center py-8 text-sm text-muted-foreground italic">

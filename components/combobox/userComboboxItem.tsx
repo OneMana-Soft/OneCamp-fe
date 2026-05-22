@@ -1,13 +1,11 @@
 "use client"
 
-import { Check } from "lucide-react"
+import { Check } from "@/lib/icons";
 import { CommandItem } from "@/components/ui/command"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils/helpers/cn"
 import { getNameInitials } from "@/lib/utils/format/getNameIntials"
-import { useMediaFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
-import { GetMediaURLRes } from "@/types/file"
+import { useUserAvatar } from "@/hooks/useUserAvatar"
 
 interface UserComboboxItemProps {
     userUuid: string
@@ -26,9 +24,7 @@ export function UserComboboxItem({
     isSelected,
     onSelect,
 }: UserComboboxItemProps) {
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(
-        userProfileObjectKey ? `${GetEndpointUrl.PublicAttachmentURL}/${userProfileObjectKey}` : ""
-    )
+    const {src: imageSrc} = useUserAvatar(userProfileObjectKey)
 
     return (
         <CommandItem
@@ -38,7 +34,7 @@ export function UserComboboxItem({
         >
             <Avatar className="h-8 w-8 border border-border/50 flex-shrink-0">
                 <AvatarImage
-                    src={profileImageRes.data?.url || ""}
+                    src={imageSrc}
                     alt={userName}
                 />
                 <AvatarFallback className="text-[10px] font-bold bg-primary/5 text-primary">
@@ -46,7 +42,7 @@ export function UserComboboxItem({
                 </AvatarFallback>
             </Avatar>
             <div className="flex flex-col min-w-0 flex-1">
-                <span className="font-semibold text-sm truncate">{userName}</span>
+                <span className="font-medium text-sm truncate">{userName}</span>
                 <span className="text-[10px] text-muted-foreground truncate font-medium">{userEmail}</span>
             </div>
             <Check

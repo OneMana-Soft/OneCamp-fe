@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { createLocalVideoTrack, LocalTrack } from "livekit-client";
-import { Mic, MicOff, Video, VideoOff, Settings } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, Settings } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 
 interface PreJoinProps {

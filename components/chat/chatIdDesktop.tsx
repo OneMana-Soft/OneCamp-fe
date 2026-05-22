@@ -3,7 +3,8 @@ import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
-import {SendHorizontal, Video, Clapperboard} from "lucide-react";
+import { statusColors } from "@/lib/colors";
+import { SendHorizontal, Video, Clapperboard } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
@@ -99,15 +100,6 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
 
     if(!otherUserInfo.data?.data && !otherUserInfo.isLoading) return
 
-    // const toggleFavourite = async () => {
-    //         if(isFavorite) {
-    //            await postFav.makeRequest({apiEndpoint: PostEndpointUrl.RemoveFavChannel, appendToUrl:`/${channelId}`, onSuccess : ()=>{
-    //                    setFavorite(false)}})
-    //         } else {
-    //             await postFav.makeRequest({apiEndpoint: PostEndpointUrl.AddFavChannel, appendToUrl:`/${channelId}`, onSuccess : ()=>{setFavorite(true)}})
-    //         }
-    // }
-
 
     const UpdateNotification = async () => {
         const nextNotification = getNextNotification(chatNotification)
@@ -170,8 +162,8 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                 <ChatMessageList chatId={chatId} />
             </div>
 
-            <div className="sticky bottom-0 left-0 right-0 z-50 border-t p-4 ">
-                <div>
+            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
+                <div className="max-w-6xl mx-auto w-full">
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'chatFileUpload' }))}}
@@ -180,17 +172,17 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                             const grpId = getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')
                             await uploadFile.makeRequestToUploadToChat(files as unknown as FileList, chatId, grpId);
                         }}
-                        className={cn("max-w-full rounded-xl h-auto border-none")}
+                        className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatState.chatBody}
-                        placeholder={"message"}
+                        placeholder={"Type a message..."}
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={handleSend}
                         editorClassName="focus:outline-none px-2 py-2"
                         onChange={(content ) => {
-                            publishTyping()
+                            publishTyping(content as string)
                             dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
                         }}
                     >

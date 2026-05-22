@@ -46,6 +46,11 @@ export interface DocInfoResponse {
 }
 
 
+export interface DocSidebarInfo {
+    doc_uuid: string;
+    doc_title: string;
+}
+
 export interface CreateDocCommentInterface {
     doc_comment_uuid?: string;
     doc_comment_body?: string;

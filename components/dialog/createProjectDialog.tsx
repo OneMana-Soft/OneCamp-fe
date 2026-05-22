@@ -118,7 +118,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                           />
 
                             {error && (
-                                <p className="text-sm text-red-500">{error.message}</p>
+                                <p className="text-sm text-destructive">{error.message}</p>
                             )}
                         </>
                     )}
@@ -181,7 +181,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                             </Popover>
                             <div className='h-4'>
                               {error && (
-                                <p className="text-sm text-red-500">{error.message}</p>
+                                <p className="text-sm text-destructive">{error.message}</p>
                               )}
                             </div>
                           </>
@@ -192,7 +192,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
               )}
             </div>
             <DialogFooter>
-              <Button variant={'brand'} type="submit" disabled={!isValid || isSubmitting}>
+              <Button variant="default" type="submit" disabled={!isValid || isSubmitting}>
                 {isSubmitting ? "Creating..." : "Create Project"}
               </Button>
             </DialogFooter>

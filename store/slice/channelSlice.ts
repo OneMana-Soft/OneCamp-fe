@@ -366,6 +366,7 @@ export const channelSlice = createSlice({
         createPostReaction: (state, action: {payload: CreatePostReaction}) => {
             const { channelId, postIndex, emojiId, reactionId , addedBy} = action.payload;
 
+            if (!state.channelPosts[channelId]) return
             if (postIndex > -1 && postIndex < state.channelPosts[channelId].length) {
 
                 if(!state.channelPosts[channelId][postIndex].post_reactions) {
@@ -383,19 +384,35 @@ export const channelSlice = createSlice({
 
         createPostReactionPostId: (state, action: {payload: CreatePostReactionByPostId}) => {
             const { channelId, postId, emojiId, reactionId , addedBy} = action.payload;
+            if (!state.channelPosts[channelId]) return
 
             state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
                 if(post.post_uuid == postId) {
                     if(!post.post_reactions) {
                         post.post_reactions = [] as GroupedReaction[]
                     }
-                    post.post_reactions.push({
-                        reaction_emoji_id: emojiId,
-                        uid: reactionId,
-                        reaction_added_by: addedBy,
-                        reaction_added_at: new Date().toISOString(),
-                        reaction_on_content_added_by: addedBy
-                    })
+                    // Idempotent: a user can only hold one reaction per emoji
+                    // on a given post. Match an existing (user, emoji) entry
+                    // and upgrade its uid (handles temp -> real swap)
+                    // instead of pushing a duplicate.
+                    const existingIdx = post.post_reactions.findIndex(
+                        (r) =>
+                            r.reaction_emoji_id === emojiId &&
+                            r.reaction_added_by?.user_uuid === addedBy?.user_uuid,
+                    )
+                    if (existingIdx > -1) {
+                        if (post.post_reactions[existingIdx].uid !== reactionId) {
+                            post.post_reactions[existingIdx].uid = reactionId
+                        }
+                    } else {
+                        post.post_reactions.push({
+                            reaction_emoji_id: emojiId,
+                            uid: reactionId,
+                            reaction_added_by: addedBy,
+                            reaction_added_at: new Date().toISOString(),
+                            reaction_on_content_added_by: addedBy
+                        })
+                    }
                 }
 
                 return post
@@ -406,6 +423,7 @@ export const channelSlice = createSlice({
         removePostReaction: (state, action: {payload: RemovePostReaction}) => {
             const { channelId, postIndex, reactionId } = action.payload;
 
+            if (!state.channelPosts[channelId]) return
             if (postIndex > -1 && postIndex < state.channelPosts[channelId].length) {
                 state.channelPosts[channelId][postIndex].post_reactions =  state.channelPosts[channelId][postIndex].post_reactions?.filter((reaction) => {
                     return reaction.uid !== reactionId
@@ -416,6 +434,7 @@ export const channelSlice = createSlice({
 
         removePostReactionByPostId: (state, action: {payload: RemovePostReactionByPostId}) => {
             const { channelId, postId, reactionId } = action.payload;
+            if (!state.channelPosts[channelId]) return
 
             state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
 
@@ -462,6 +481,7 @@ export const channelSlice = createSlice({
 
         updatePostByPostId: (state, action: {payload: UpdatePostByPostId}) => {
             const { channelId, postId, htmlText } = action.payload;
+            if (!state.channelPosts[channelId]) return
             state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
                 if(postId == post.post_uuid) {
                     post.post_text = htmlText
@@ -473,6 +493,7 @@ export const channelSlice = createSlice({
 
         removePost: (state, action: {payload: RemovePost}) => {
             const { channelId, postIndex } = action.payload;
+            if (!state.channelPosts[channelId]) return
             if (postIndex > -1 && postIndex < state.channelPosts[channelId].length) {
                 state.channelPosts[channelId].splice(postIndex, 1);
             }
@@ -480,6 +501,7 @@ export const channelSlice = createSlice({
 
         removePostByPostId: (state, action: {payload: RemovePostPostId}) => {
             const { channelId, postId } = action.payload;
+            if (!state.channelPosts[channelId]) return
             state.channelPosts[channelId] = state.channelPosts[channelId].filter((post) => {
                 return post.post_uuid !== postId
             })
@@ -490,6 +512,9 @@ export const channelSlice = createSlice({
             if(!state.channelPosts[channelId]) {
                 state.channelPosts[channelId] = [] as PostsRes[]
             }
+            // Dedup by post_uuid so an MQTT echo (same user, second device) or
+            // a reorder doesn't add the same post twice.
+            if (postUUID && state.channelPosts[channelId].some(p => p.post_uuid === postUUID)) return;
             state.channelPosts[channelId].push({
                 post_by: postBy,
                 post_uuid: postUUID,
@@ -506,6 +531,9 @@ export const channelSlice = createSlice({
             if(!state.channelPosts[channelId]) {
                 state.channelPosts[channelId] = [] as PostsRes[]
             }
+            // Dedup by post_uuid so the MQTT echo for a post the current user
+            // sent (from another device or this same one) doesn't duplicate.
+            if (postId && state.channelPosts[channelId].some(p => p.post_uuid === postId)) return;
             state.channelPosts[channelId].push({
                 post_uuid: postId,
                 post_by: postBy,
@@ -525,6 +553,7 @@ export const channelSlice = createSlice({
 
         addUUIDToLocallyCreatedPost: (state, action: {payload: UpdateCreatedPostLocally}) => {
             const { channelId, postTempId, postId, createdAt } = action.payload;
+            if (!state.channelPosts[channelId]) return
             state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
                 if(postTempId == post.post_temp_id) {
                     post.post_uuid = postId
@@ -565,13 +594,21 @@ export const channelSlice = createSlice({
         updateChannelMessageReplyIncrement: (state, action: {payload: UpdateReplyCountInterface}) => {
 
             const {channelId, messageId, comment} = action.payload;
+            if (!state.channelPosts[channelId]) return
 
             state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
 
                 if(post.post_uuid === messageId) {
                     post.post_comments = post.post_comments || [];
-                    post.post_comments.push(comment);
-                    post.post_comment_count++
+                    // Dedup by comment_uuid so an MQTT echo (same user, second
+                    // device) doesn't double-push and double-count the reply.
+                    const alreadyTracked = post.post_comments.some(
+                        (c) => c.comment_uuid === comment.comment_uuid
+                    );
+                    if (!alreadyTracked) {
+                        post.post_comments.push(comment);
+                        post.post_comment_count = (post.post_comment_count || 0) + 1
+                    }
                 }
 
                 return post
@@ -581,13 +618,24 @@ export const channelSlice = createSlice({
         updateChannelMessageReplyDecrement: (state, action: {payload: UpdateReplyCountInterface}) => {
 
             const {channelId, messageId, comment} = action.payload;
+            if (!state.channelPosts[channelId]) return
 
             state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
 
                 if(post.post_uuid === messageId) {
                     post.post_comments = post.post_comments || [];
-                    post.post_comments = post.post_comments.filter((c) => c.comment_uuid != comment.comment_uuid)
-                    post.post_comment_count--
+                    // Only decrement when the comment was actually tracked.
+                    // Without this guard, a duplicate MQTT delete event (echo
+                    // from a second device) would shave another count off
+                    // post_comment_count even though the entry has already
+                    // been filtered out.
+                    const wasTracked = post.post_comments.some(
+                        (c) => c.comment_uuid === comment.comment_uuid
+                    );
+                    if (wasTracked) {
+                        post.post_comments = post.post_comments.filter((c) => c.comment_uuid != comment.comment_uuid)
+                        post.post_comment_count = Math.max(0, (post.post_comment_count || 0) - 1)
+                    }
                 }
 
                 return post

@@ -211,6 +211,7 @@
   "comments": "Comments",
   "comment": "Comment",
   "language": "Language",
+  "integrations": "Integrations",
   "addedTaskAttachment": "Added attachment(s) to task",
   "subTaskDelete": "Deleted sub task",
   "subTaskUnDelete": "Undeleted sub task",

@@ -6,7 +6,7 @@ import {RootState} from "@/store/store";
 import {closeUI} from "@/store/slice/uiSlice";
 import {useEffect, useState, useRef, useMemo} from "react";
 import {useFetch} from "@/hooks/useFetch";
-import {LoaderCircle, X, Download, Maximize2, Minimize2} from "lucide-react";
+import { LoaderCircle, X, Download, Maximize2, Minimize2 } from "@/lib/icons";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
 import {VirtualInfiniteScroll} from "@/components/list/virtualInfiniteScroll";
 import {TranscriptInfoInterface} from "@/types/recording";

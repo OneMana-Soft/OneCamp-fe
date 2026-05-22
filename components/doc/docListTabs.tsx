@@ -1,10 +1,11 @@
 "use client";
 
-import {FileIcon} from "lucide-react";
+import { FileText } from "@/lib/icons";
 import {useCallback, useEffect, useState} from "react";
 import {useMedia} from "@/context/MediaQueryContext";
 import {DocListTabContent} from "@/components/doc/docListTabContent";
 import {usePathname, useRouter, useSearchParams} from "next/navigation";
+import { cn } from "@/lib/utils/helpers/cn";
 
 const VALID_TABS = ["private", "public"] as const
 type TabValue = (typeof VALID_TABS)[number]
@@ -37,29 +38,39 @@ export function DocListTabs() {
     const {isDesktop} = useMedia()
 
     return (
-        <div className='flex flex-col h-full'>
-            <div className='border-b-1'>
-
-
+        <div className="flex flex-col h-full">
+            <div className="border-b">
                 <div
-                    className='h-10 md:h-16 text-sm  flex w-full md:w-[40vw] md:justify-start justify-around items-center p-1.5 space-x-3 md:p-4 md:ml-2'>
-                    {isDesktop && <div className='flex space-x-2 justify-center items-center mr-6'>
-                        <div className='bg-blue-500 flex justify-center items-center  rounded-md w-8  p-1'><FileIcon
-                            className="h-6 w-6" stroke={'white'}/></div>
-                        <div className="text-base">Docs</div>
-                    </div>}
+                    role="tablist"
+                    aria-label="Document visibility tabs"
+                    className="h-10 md:h-16 text-sm flex w-full md:w-[40vw] md:justify-start justify-around items-center p-1.5 space-x-3 md:p-4 md:ml-2"
+                >
+                    {isDesktop && (
+                        <div className="flex space-x-2 justify-center items-center mr-6">
+                            <div className="bg-muted flex justify-center items-center rounded-md w-8 p-1">
+                                <FileText className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                            <div className="text-base">Docs</div>
+                        </div>
+                    )}
 
-                    <div onClick={() => handleChangeTab('private')}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center  md:w-fit md:px-8  h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'private' ? 'bg-primary font-medium text-amber-50 shadow-sm' : "text-muted-foreground"}`}>
-                        Private
-                    </div>
-                    <div onClick={() => handleChangeTab('public')}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center  md:w-fit md:px-8  h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'public' ? 'bg-primary font-medium text-amber-50 shadow-sm' : "text-muted-foreground"}`}>
-                        Public
-                    </div>
-
+                    {VALID_TABS.map((tab) => (
+                        <button
+                            key={tab}
+                            role="tab"
+                            aria-selected={selectedTab === tab}
+                            onClick={() => handleChangeTab(tab)}
+                            className={cn(
+                                "md:h-8 flex justify-center items-center md:w-fit md:px-8 h-full w-full text-center rounded-md transition-all duration-150 hover:bg-muted/50",
+                                selectedTab === tab
+                                    ? "bg-primary font-medium text-primary-foreground shadow-sm"
+                                    : "text-muted-foreground"
+                            )}
+                        >
+                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                        </button>
+                    ))}
                 </div>
-
             </div>
 
             <DocListTabContent selectedTab={selectedTab} />

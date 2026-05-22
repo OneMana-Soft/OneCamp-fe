@@ -4,7 +4,7 @@ import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
-import {Check, X} from "lucide-react";
+import { Check, X } from "@/lib/icons";
 import {MessagePreview} from "@/components/message/MessagePreview";
 import {ForwardedMessageData} from "@/types/rightPanel";
 import {UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
@@ -19,7 +19,7 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {GroupedReaction, StandardReaction, SyncCustomReaction} from "@/types/reaction";
 import {removeHtmlTags} from "@/lib/utils/removeHtmlTags";
 import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
-import { useCallback, useEffect, useState, memo } from "react";
+import { useCallback, useEffect, useRef, useState, memo } from "react";
 import {app_user} from "@/types/paths";
 import {useRouter} from "next/navigation";
 
@@ -56,6 +56,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
     const [reactions, setReactions] = useState<{ [key: string]: string[] }>({});
 
     const [updatedText, setUpdatedText] = useState<string>(content);
+    const updatedTextRef = useRef<string>(content);
 
     const router = useRouter()
 
@@ -304,11 +305,11 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                             editorContentClassName="overflow-auto "
                             output="html"
                             content={content}
-                            placeholder={"message"}
+                            placeholder={"Edit message..."}
                             editable={isMessageEditEnabled}
                             PrimaryButtonIcon={Check}
                             buttonOnclick={()=>{
-                                updateMessage( commentUUID || postUUID || chatMessageUUID || '', updatedText)
+                                updateMessage( commentUUID || postUUID || chatMessageUUID || '', updatedTextRef.current)
                                 setIsMessageEditEnabled(false)
 
                             }}
@@ -319,7 +320,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                             editorClassName="focus:outline-none"
                             onChange={(content) => {
                                 const s = content as string
-
+                                updatedTextRef.current = s
                                 setUpdatedText(s)
 
                             }}

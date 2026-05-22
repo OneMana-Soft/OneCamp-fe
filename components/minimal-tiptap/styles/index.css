@@ -109,7 +109,7 @@
 .minimal-tiptap-editor .ProseMirror .block-node:not(:last-child),
 .minimal-tiptap-editor .ProseMirror .list-node:not(:last-child),
 .minimal-tiptap-editor .ProseMirror .text-node:not(:last-child) {
-  /*@apply mb-2.5;*/
+  @apply mb-1;
 }
 
 .minimal-tiptap-editor .ProseMirror ol,
@@ -142,7 +142,7 @@
 }
 
 .minimal-tiptap-editor .ProseMirror blockquote {
-  @apply relative pl-3.5;
+  @apply relative pl-3.5 py-1;
 }
 
 .minimal-tiptap-editor .ProseMirror blockquote::before,
@@ -151,7 +151,7 @@
 }
 
 .minimal-tiptap-editor .ProseMirror hr {
-  @apply my-3 h-0.5 w-full border-none bg-[var(--mt-hr)];
+  @apply my-4 h-px w-full border-none bg-[var(--mt-hr)];
 }
 
 .minimal-tiptap-editor .ProseMirror-focused hr.ProseMirror-selectednode {
@@ -191,27 +191,102 @@
 
 /* Collaboration Cursor */
 .minimal-tiptap-editor .ProseMirror .collaboration-cursor__caret {
-  border-left: 1px solid #0d0d0d;
-  border-right: 1px solid #0d0d0d;
+  border-left: 2px solid;
+  border-right: none;
   margin-left: -1px;
   margin-right: -1px;
   pointer-events: none;
   position: relative;
   word-break: normal;
+  transition: all 0.2s ease-in-out;
 }
 
 .minimal-tiptap-editor .ProseMirror .collaboration-cursor__label {
   border-radius: 3px 3px 3px 0;
   color: #fff;
-  font-size: 12px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 600;
   left: -1px;
   line-height: normal;
-  padding: 0.1rem 0.3rem;
+  padding: 0.15rem 0.4rem;
   position: absolute;
   top: -1.4em;
   user-select: none;
   white-space: nowrap;
-  z-index: 10;
+  z-index: 50;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Callout block styles */
+.minimal-tiptap-editor .ProseMirror .callout {
+  position: relative;
+}
+
+.minimal-tiptap-editor .ProseMirror .callout-content > * {
+  margin: 0;
+}
+
+.minimal-tiptap-editor .ProseMirror .callout-content > * + * {
+  margin-top: 0.5rem;
+}
+
+/* Toggle list styles */
+.minimal-tiptap-editor .ProseMirror .collapsible {
+  position: relative;
+}
+
+.minimal-tiptap-editor .ProseMirror .collapsible-content > * {
+  margin: 0;
+}
+
+.minimal-tiptap-editor .ProseMirror .collapsible-content > * + * {
+  margin-top: 0.5rem;
+}
+
+/* Floating block drag handle (positioned via JS, Notion-style) */
+.block-handle-floating:active {
+  cursor: grabbing;
+}
+
+/* Drop indicator line */
+.block-drop-indicator {
+  display: none;
+  position: fixed;
+  height: 3px;
+  background: hsl(var(--primary));
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 9998;
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15);
+}
+
+/* Doc editor layout */
+/* Doc editor layout — scoped to avoid leaking into chat/comment contexts */
+.minimal-tiptap-editor.doc-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.minimal-tiptap-editor.doc-editor .ProseMirror {
+  padding: 1.5rem 2rem;
+  flex: 1;
+  min-height: 100%;
+  outline: none;
+  cursor: text;
+}
+
+.minimal-tiptap-editor.doc-editor.full-width .ProseMirror {
+  padding: 1.5rem 3rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .minimal-tiptap-editor.doc-editor .ProseMirror {
+    padding: 0.75rem 1rem;
+  }
+  .minimal-tiptap-editor.doc-editor.full-width .ProseMirror {
+    padding: 0.75rem 1rem;
+  }
 }

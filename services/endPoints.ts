@@ -88,6 +88,32 @@ export enum GetEndpointUrl {
     GoogleCalendarAuthUrl = "/integration/google-calendar/auth-url",
     GoogleCalendarStatus = "/integration/google-calendar/status",
     GoogleCalendarEvents = "/event/getEvents",
+
+    // Webhooks (Admin)
+    GetAllWebhooks = "/admin/webhooks",
+    GetWebhookLogs = "/admin/webhooks", // append /{webhookId}/logs
+    GetWebhookEventTypes = "/admin/webhooks/event-types",
+
+    // GitHub (Admin)
+    GetGitHubAuthUrl = "/admin/github/auth-url",
+    GetGitHubStatus = "/admin/github/status",
+    GetGitHubRateLimit = "/admin/github/rate-limit",
+    GetGitHubRepos = "/admin/github/repos",
+    GetGitHubLinkedRepos = "/admin/github/linked-repos", // append /{projectId}
+
+    // GitHub (Task)
+    GetGitHubTaskActivity = "/task/github-activity",
+    GetGitHubSyncStatus = "/task/github-sync-status",
+    GetGitHubSearchIssues = "/task/github-search-issues",
+    GetGitHubSearchPRs = "/task/github-search-prs",
+
+    // External Users (Admin)
+    GetExternalUsers = "/admin/external-users",
+
+    // Archive (Admin)
+    GetArchivePolicies = "/admin/archive/policies",
+    GetArchiveJobs = "/admin/archive/jobs",
+    GetArchiveStats = "/admin/archive/stats",
 }
 
 
@@ -146,6 +172,9 @@ export enum PostEndpointUrl {
     StopDmCallRecording = "/dm/stopCallRecording",
     StartGrpCallRecording = "/groupChat/startCallRecording",
     StopGrpCallRecording = "/groupChat/stopCallRecording",
+    DeleteChannelRecording = "/ch/deleteRecording", // append /{egressId}
+    DeleteChatRecording = "/dm/deleteRecording", // append /{egressId}
+    DeleteGroupChatRecording = "/groupChat/deleteRecording", // append /{egressId}
     CreateChatComment = "/dm/createComment",
     UpdatePostComment = "/po/updateComment",
     UpdateDocComment = "/doc/updateComment",
@@ -197,6 +226,7 @@ export enum PostEndpointUrl {
     CreateDocComment = "/doc/createComment",
     RemoveTaskAttachment = "/task/deleteTaskAttachment",
     UpdateUserProfile = "/updateUserProfile",
+    UpdateUserTheme = "/updateUserTheme",
     DeleteDoc = "/doc/deleteDoc",
     UpdateFCMToken = "/user/updateFCMToken",
     GlobalSearch = "/search/unifiedSearch",
@@ -220,4 +250,41 @@ export enum PostEndpointUrl {
     DeleteCalendarEvent = "/event/deleteEvent",
     LeaveEvent = "/event/leaveEvent",
     UpdateGoogleCalendarSyncTask = "/integration/google-calendar/sync-task",
+
+    // Webhooks (Admin)
+    CreateWebhook = "/admin/webhooks",
+    UpdateWebhook = "/admin/webhooks", // append /{webhookId} — use PUT
+    DeleteWebhook = "/admin/webhooks", // append /{webhookId} — use DELETE
+    RegenerateWebhookToken = "/admin/webhooks", // append /{webhookId}/regenerate-token
+    RegenerateWebhookSecret = "/admin/webhooks", // append /{webhookId}/regenerate-secret
+    TestWebhook = "/admin/webhooks", // append /{webhookId}/test
+
+    // GitHub (Admin)
+    GitHubCallback = "/admin/github/callback",
+    GitHubDisconnect = "/admin/github/disconnect",
+    GitHubLinkRepo = "/admin/github/link-repo",
+    GitHubUnlinkRepo = "/admin/github/unlink-repo", // append /{linkId} — use DELETE
+    GitHubImportIssues = "/admin/github/import-issues", // append /{linkId}
+    GitHubImportPRs = "/admin/github/import-prs", // append /{linkId}
+    GitHubUpdateAutomationRules = "/admin/github/links/automation-rules", // append /{linkId}
+    GitHubUpdateBranchFormat = "/admin/github/links/branch-format", // append /{linkId}
+
+    // GitHub (Task)
+    GitHubLinkTask = "/task/github-link",
+    GitHubUnlinkTask = "/task/github-unlink",
+    GitHubCreateBranch = "/task/create-branch",
+    GitHubRetrySync = "/task/github-retry-sync",
+    GitHubRefresh = "/task/github-refresh",
+    GitHubCreatePR = "/task/github-create-pr",
+    GitHubBulkLink = "/task/github-bulk-link",
+    GitHubBulkUnlink = "/task/github-bulk-unlink",
+
+    // External Users (Admin)
+    UnlinkExternalUser = "/admin/external-users/unlink",
+
+    // Archive (Admin)
+    UpdateArchivePolicy = "/admin/archive/policies", // append /{entityType} — use PUT
+    RunArchiveJob = "/admin/archive/run", // append /{entityType}
+    RestoreArchiveItems = "/admin/archive/restore",
+    UndoArchiveJob = "/admin/archive/undo", // append /{jobId}
 }

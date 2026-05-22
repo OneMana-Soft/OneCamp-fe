@@ -1,29 +1,23 @@
 "use client"
 
-import {usePathname} from "next/navigation";
-import {Star} from "lucide-react";
-import {useFetch} from "@/hooks/useFetch";
-import {getStaticPaths} from "next/dist/build/templates/pages";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {ChannelInfoInterfaceResp} from "@/types/channel";
-import {Button} from "@/components/ui/button";
-import {useEffect, useState} from "react";
-import {usePost} from "@/hooks/usePost";
-import {TeamInfoRawInterface} from "@/types/team";
+import { useFetch } from "@/hooks/useFetch"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { TeamInfoRawInterface } from "@/types/team"
+import { ColorIcon } from "@/components/colorIcon/colorIcon"
 
-export function MobileTopNavigationBarSecondTeam({teamId}:{teamId: string}) {
+export function MobileTopNavigationBarSecondTeam({ teamId }: { teamId: string }) {
+    const teamInfo = useFetch<TeamInfoRawInterface>(
+        teamId ? GetEndpointUrl.GetTeamInfo + "/" + teamId : "",
+    )
 
-    const teamInfo = useFetch<TeamInfoRawInterface>(teamId ? GetEndpointUrl.GetTeamInfo + '/' + teamId :'')
-
+    const teamName = teamInfo.data?.data.team_name || "Team"
 
     return (
-        <div className='flex justify-center items-center space-x-3'>
-
-            <div className='font-bold text-lg text-center truncate overflow-auto overflow-ellipsis'>
-                {teamInfo.data?.data.team_name}
-            </div>
-
+        <div className="flex justify-center items-center gap-2 min-w-0 px-2">
+            <ColorIcon name={teamId} size="xs" />
+            <span className="text-base font-semibold text-foreground truncate">
+                {teamName}
+            </span>
         </div>
-
-    );
+    )
 }

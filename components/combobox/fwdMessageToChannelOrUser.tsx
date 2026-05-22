@@ -1,7 +1,7 @@
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList} from "@/components/ui/command";
 import {Button} from "@/components/ui/button";
-import {Check, ChevronsUpDown} from "lucide-react";
+import { Check, ChevronsUpDown } from "@/lib/icons";
 import {useState} from "react";
 import {cn} from "@/lib/utils/helpers/cn";
 
@@ -66,7 +66,7 @@ export const FwdMessageToChannelOrUser = (message: string) => {
                                     }}
                                     className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
                                 >
-                                    <span className="flex-1 font-semibold text-sm">{framework.label}</span>
+                                    <span className="flex-1 font-medium text-sm">{framework.label}</span>
                                     <Check
                                         className={cn(
                                             "ml-auto h-4 w-4 text-primary",

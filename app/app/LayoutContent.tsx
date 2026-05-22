@@ -35,9 +35,11 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     }
   }, [rightPanelState.isOpen]);
 
+  const isTaskPage = !!(path.length > 2 && path[2] === "task" && path[3]);
+
   if (isMobile) {
     return (
-      <MobileNavigationBar>
+      <MobileNavigationBar disableBottomPadding={isTaskPage}>
         {children}
       </MobileNavigationBar>
     );
@@ -65,8 +67,8 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           id="main-panel"
           order={1}
           className={cn(
-            "h-full relative w-full min-w-0 overflow-x-hidden duration-300 ease-in-out will-change-[flex-basis]",
-            isDragging ? "transition-none" : "transition-all"
+            "h-full relative w-full min-w-0 overflow-x-hidden",
+            isDragging ? "transition-none" : "transition-[flex-basis] duration-75 ease-out"
           )}
         >
           <PageTransition>
@@ -83,8 +85,8 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           maxSize={60}
           id="right-panel"
           order={2}
-          className={`relative overflow-x-hidden duration-300 ease-in-out flex justify-end will-change-[flex-basis,opacity] ${
-            isDragging ? "transition-none" : "transition-all"
+          className={`relative overflow-x-hidden flex justify-end ${
+            isDragging ? "transition-none" : "transition-[flex-basis,opacity] duration-75 ease-out"
           } ${
             rightPanelState.isOpen ? "opacity-100" : "opacity-0"
           }`}

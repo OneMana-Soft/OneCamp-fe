@@ -11,6 +11,7 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import {DynamicTopicManager, mqttConfigRes, MqttConnectionState, TopicSubscription} from "@/types/mqtt";
 import {useDispatch, useSelector} from "react-redux";
 import {updateUserConnectedDeviceCount, UserEmojiInterface} from "@/store/slice/userSlice";
+import { pruneStaleTyping } from "@/store/slice/typingSlice";
 import type {RootState} from "@/store/store";
 
 interface MqttContextValue {
@@ -224,6 +225,39 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
             messageHandler.cleanup()
         }
     }, [messageHandler])
+
+    /**
+     * Prune stale typing entries.
+     *
+     * Belt-and-braces fallback for the per-message setTimeout cleanup in
+     * useTypingHandlers: when a PWA / mobile tab is backgrounded, the OS
+     * suspends setTimeout callbacks (iOS Safari especially), so a typing
+     * indicator that was set just before backgrounding stays "stuck" until
+     * the suspended timer eventually catches up — sometimes seconds after
+     * the user returns to the app. We sweep on a coarse interval and on
+     * every visibility-change so a returning tab converges to a clean
+     * state on its very next render.
+     *
+     * TTL is 1.5x the configured typingTimeout so we don't prune entries
+     * that the per-message timer is already about to clear naturally.
+     */
+    useEffect(() => {
+        const ttlMs = Math.round(MQTT_CONNECTION_CONFIG.typingTimeout * 1.5)
+        const prune = () => dispatch(pruneStaleTyping({ ttlMs }))
+
+        const interval = setInterval(prune, 2000)
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") prune()
+        }
+        document.addEventListener("visibilitychange", onVisibility)
+        window.addEventListener("focus", onVisibility)
+
+        return () => {
+            clearInterval(interval)
+            document.removeEventListener("visibilitychange", onVisibility)
+            window.removeEventListener("focus", onVisibility)
+        }
+    }, [dispatch])
 
     const contextValue: MqttContextValue = {
         connectionState,

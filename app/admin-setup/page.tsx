@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle, Mail, Lock, User, Eye, EyeOff, Shield } from "lucide-react"
+import { LoaderCircle, Mail, Lock, User, Eye, EyeOff, Shield } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { useEffect, useState } from "react"
@@ -112,6 +112,10 @@ export default function AdminSetupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -128,6 +132,10 @@ export default function AdminSetupPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 maxLength={25}
+                autoComplete="username"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -146,11 +154,13 @@ export default function AdminSetupPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
+                autoComplete="new-password"
                 className="w-full pl-10 pr-10 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -170,6 +180,7 @@ export default function AdminSetupPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={8}
+                autoComplete="new-password"
                 className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
               />
             </div>

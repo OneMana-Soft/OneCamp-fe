@@ -272,6 +272,9 @@ export const createDocCommentSlice = createSlice({
             if(!state.docComments[docId]) {
                 state.docComments[docId] = [] as CommentInfoInterface[]
             }
+            // Dedup by comment_uuid so an MQTT echo (same user, second
+            // device) doesn't add the comment twice.
+            if (commentId && state.docComments[docId].some((c) => c.comment_uuid === commentId)) return;
             state.docComments[docId].push({
                 comment_updated_at: "",
                 comment_by: commentBy,
@@ -375,13 +378,26 @@ export const createDocCommentSlice = createSlice({
                         c.comment_reactions = [] as GroupedReaction[]
                     }
 
-                    c.comment_reactions.push({
-                        reaction_emoji_id: emojiId,
-                        uid: reactionId,
-                        reaction_added_by: addedBy,
-                        reaction_added_at: new Date().toISOString(),
-                        reaction_on_content_added_by: addedBy
-                    })
+                    // Idempotent: dedup by (user, emoji); upgrade temp uid
+                    // to real uid instead of pushing a duplicate row.
+                    const existingIdx = c.comment_reactions.findIndex(
+                        (r) =>
+                            r.reaction_emoji_id === emojiId &&
+                            r.reaction_added_by?.user_uuid === addedBy?.user_uuid,
+                    )
+                    if (existingIdx > -1) {
+                        if (c.comment_reactions[existingIdx].uid !== reactionId) {
+                            c.comment_reactions[existingIdx].uid = reactionId
+                        }
+                    } else {
+                        c.comment_reactions.push({
+                            reaction_emoji_id: emojiId,
+                            uid: reactionId,
+                            reaction_added_by: addedBy,
+                            reaction_added_at: new Date().toISOString(),
+                            reaction_on_content_added_by: addedBy
+                        })
+                    }
                 }
                 return c
             })
@@ -408,22 +424,16 @@ export const createDocCommentSlice = createSlice({
 
             const { docId } = action.payload;
 
-            if(!state.docCommentCount[docId]) {
-                return
-            }
-
-            state.docCommentCount[docId]++;
+            state.docCommentCount[docId] = (state.docCommentCount[docId] || 0) + 1;
         },
 
         decrementDocCommentCount: (state, action: {payload: UpdateDocCommentCount}) => {
 
             const { docId } = action.payload;
 
-            if(!state.docCommentCount[docId]) {
-                return
-            }
-
-            state.docCommentCount[docId]--;
+            // Guard: clamp at 0 so an out-of-order MQTT delete event can't
+            // drive the visible counter negative.
+            state.docCommentCount[docId] = Math.max(0, (state.docCommentCount[docId] || 0) - 1);
         },
 
         updateDocCommentCount: (state, action: {payload: UpdateDocCommentCountNumber}) => {

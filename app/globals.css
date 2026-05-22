@@ -10,8 +10,8 @@
 @theme inline {
   --breakpoint-3xl: 1600px;
   --breakpoint-4xl: 2000px;
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -31,6 +31,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -58,6 +59,18 @@
   --animate-blink: blink 1s infinite;
   --animate-text-shimmer: text-shimmer 1.5s infinite linear;
   --animate-msg-fade-in: msg-fade-in 0.2s ease-out;
+  --animate-shimmer: shimmer 1.5s infinite;
+  /* Z-Index Layer System — each layer must be higher than all UI below it */
+  --z-base: 0;
+  --z-sticky: 100;        /* sticky headers, section labels */
+  --z-fixed: 200;         /* fixed bottom nav, floating controls */
+  --z-dropdown: 650;      /* dropdowns, select menus — MUST be above modals/popovers */
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;       /* highest non-devtool layer */
+  --z-toast: 800;
+  --z-devtools: 9999;
 }
 
 :root {
@@ -79,6 +92,7 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -125,6 +139,7 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.269 0 0);
   --input: oklch(0.269 0 0);
   --ring: oklch(0.556 0 0);
@@ -166,8 +181,14 @@
   100% { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @utility glass {
-  @apply bg-background/60 backdrop-blur-xl border-b border-border/50;
+  @apply bg-background/80 backdrop-blur-xl border-b border-border/40;
 }
 
 @layer base {
@@ -256,6 +277,30 @@
   @media (pointer: coarse) {
     @apply relative touch-manipulation after:absolute after:-inset-2;
   }
+}
+
+@utility transition-hover {
+  @apply transition-all duration-100 ease-out;
+}
+
+@utility transition-focus {
+  @apply transition-all duration-150 ease-out;
+}
+
+@utility transition-modal {
+  @apply transition-all duration-200 ease-out;
+}
+
+@utility focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 focus-visible:ring-offset-background;
+}
+
+@utility hover-lift {
+  @apply transition-hover hover:-translate-y-0.5 hover:shadow-sm;
+}
+
+@utility hover-surface {
+  @apply transition-hover hover:bg-accent hover:text-accent-foreground;
 }
 
 @layer components {
@@ -499,7 +544,7 @@
   }
 
   .mention {
-    border-color: #0c5eb1;
+    border-color: var(--primary);
     border-width: 0.15rem;
     padding: 0.2rem 0.5rem;
     border-radius: 0.9rem;
@@ -535,4 +580,53 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: color-mix(in oklab, var(--scroll-bar-color) 80%, white);
   }
+}
+
+/* Respect user's motion preferences globally */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-gradient-completion::before {
+    animation: none !important;
+    transform: none !important;
+    opacity: 0.3 !important;
+  }
+}
+
+/* Collaboration Cursors */
+.collaboration-cursor__caret {
+  border-left: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  margin-left: -1px;
+  margin-right: -1px;
+  pointer-events: none;
+  position: relative;
+  word-break: normal;
+}
+
+.collaboration-cursor__label {
+  border-radius: 3px 3px 3px 0;
+  color: hsl(var(--primary-foreground));
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  left: -1px;
+  line-height: normal;
+  padding: 0.1rem 0.3rem;
+  position: absolute;
+  top: -1.4em;
+  user-select: none;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.dark .collaboration-cursor__label {
+  color: hsl(var(--primary));
 }

@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Users } from "lucide-react"
+import { Users } from "@/lib/icons";
 import { TeamMemberContent } from "@/components/member/teamMemberContent"
 
 interface AdminTeamMembersDialogProps {
@@ -25,16 +25,14 @@ const AdminTeamMembersDialog: React.FC<AdminTeamMembersDialogProps> = ({
 }) => {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] h-[80vh] flex flex-col p-0 overflow-hidden bg-background backdrop-blur-xl border-border/50 shadow-2xl">
-        <DialogHeader className="p-6 pb-2 border-b border-border/50">
-          <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight">
-            <div className="bg-primary/10 p-1.5 rounded-md">
-              <Users className="h-5 w-5 text-primary" />
-            </div>
-            {teamName} Members
+      <DialogContent className="sm:max-w-[480px] h-[80vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="p-5 pb-3 border-b border-border/60 space-y-1">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold truncate">
+            <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="truncate">{teamName} members</span>
           </DialogTitle>
         </DialogHeader>
-        <div className="flex-1 min-h-0 overflow-hidden p-6 pt-2 flex flex-col">
+        <div className="flex-1 min-h-0 overflow-hidden p-5 pt-3 flex flex-col">
           {teamId && (
             <TeamMemberContent teamId={teamId} />
           )}

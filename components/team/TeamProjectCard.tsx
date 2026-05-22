@@ -3,7 +3,8 @@ import {useFetch} from "@/hooks/useFetch";
 import {TeamInfoInterface} from "@/types/team";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {TeamProjectList} from "@/components/team/TeamProjectList";
-import {ClipboardList, List} from "lucide-react";
+import { List } from "@/lib/icons";
+import { ClipboardList } from "@/lib/icons";
 
 export const TeamProjectCard = ({teamId}:{teamId: string}) => {
 

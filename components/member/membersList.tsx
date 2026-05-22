@@ -7,7 +7,7 @@ import * as React from "react";
 import MemberInfo from "@/components/member/memberInfo";
 import {ListSkeleton} from "@/components/ui/ListSkeleton";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
-import { Search } from "lucide-react";
+import { Search } from "@/lib/icons";
 import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 

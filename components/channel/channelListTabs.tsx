@@ -1,27 +1,34 @@
 "use client"
 
-
-import {Circle, Hash} from "lucide-react";
-import {ChannelListTabContent} from "@/components/channel/channelListTabContent";
-import {useCallback, useEffect, useState} from "react";
-import {useMedia} from "@/context/MediaQueryContext";
-import {usePathname, useRouter, useSearchParams} from "next/navigation";
+import { useCallback, useEffect, useState } from "react"
+import { Hash, Plus } from "@/lib/icons"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useDispatch } from "react-redux"
+import { ChannelListTabContent } from "@/components/channel/channelListTabContent"
+import { SectionTabs } from "@/components/ui/sectionTabs"
+import { Button } from "@/components/ui/button"
+import { openUI } from "@/store/slice/uiSlice"
 
 const VALID_TABS = ["active", "archived", "join"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
+const TABS = [
+    { value: "active", label: "Active" },
+    { value: "archived", label: "Archived" },
+    { value: "join", label: "Discover" },
+] as const
+
 export function ChannelListTabs() {
-
-
-    const {isDesktop} = useMedia()
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const router = useRouter()
+    const dispatch = useDispatch()
 
-    // Initialize tab state from URL with validation
     const [selectedTab, setSelectedTab] = useState<TabValue>(() => {
         const tabFromUrl = searchParams.get("tab")
-        return VALID_TABS.includes(tabFromUrl as TabValue) ? (tabFromUrl as TabValue) : "active"
+        return VALID_TABS.includes(tabFromUrl as TabValue)
+            ? (tabFromUrl as TabValue)
+            : "active"
     })
 
     const handleTabChange = useCallback((value: string) => {
@@ -38,34 +45,25 @@ export function ChannelListTabs() {
         }
     }, [selectedTab, pathname, router, searchParams])
 
-
     return (
-        <div className='flex flex-col h-full'>
-
-            <div>
-                <div
-                    className='h-10 md:h-16 text-sm  flex w-full md:w-[40vw]  md:justify-start  justify-around items-center p-1.5 space-x-3 md:p-4 md:ml-2'>
-                    {isDesktop && <div className='flex space-x-1 justify-center items-center mr-6'>
-                        <div><Hash className='h-5 w-5 text-muted-foreground'/></div>
-                        <div className="text-base font-medium">Channels</div>
-                    </div>}
-
-                    <div onClick={() => handleTabChange('active' )}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center  md:w-fit md:px-8  h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'active' ? 'hover:text-muted-foreground bg-primary font-medium text-amber-50 shadow-sm' : "text-muted-foreground"}`}>
-                        Active
-                    </div>
-                    <div onClick={() => handleTabChange('archived')}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center  md:w-fit md:px-8  h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'archived' ? 'hover:text-muted-foreground bg-primary font-medium text-amber-50 shadow-sm' : "text-muted-foreground"}`}>
-                        Archived
-                    </div>
-                    <div onClick={() => handleTabChange('join')}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center  md:w-fit md:px-8  h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'join' ? 'hover:text-muted-foreground bg-primary font-medium text-amber-50 shadow-sm' : "text-muted-foreground"}`}>
-                        Join
-                    </div>
-                </div>
-            </div>
-
-            <ChannelListTabContent selectedTab={selectedTab}/>
-        </div>
+        <SectionTabs
+            tabs={[...TABS]}
+            value={selectedTab}
+            onValueChange={handleTabChange}
+            icon={Hash}
+            title="Channels"
+            actions={
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="New channel"
+                    onClick={() => dispatch(openUI({ key: "createChannel" }))}
+                >
+                    <Plus className="h-4 w-4" />
+                </Button>
+            }
+        >
+            <ChannelListTabContent selectedTab={selectedTab} />
+        </SectionTabs>
     )
 }

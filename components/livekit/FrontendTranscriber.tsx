@@ -110,14 +110,12 @@ export function FrontendTranscriber({ onTranscript }: FrontendTranscriberProps) 
     // Retry logic state - moved to top level
 
     recognition.onstart = () => {
-      // console.log("Frontend Transcription: Started");
       setIsListening(true);
-      lastErrorRef.current = null; // Reset error on successful start
-      startTimesRef.current.clear(); // Clear timestamp map on new session
+      lastErrorRef.current = null;
+      startTimesRef.current.clear();
     };
 
     recognition.onend = () => {
-      // console.log("Frontend Transcription: Stopped");
       setIsListening(false);
       
       // Auto-restart logic

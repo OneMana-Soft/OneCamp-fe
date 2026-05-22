@@ -3,6 +3,9 @@ export function formatTimeForPostOrComment(dateString: string | number, onlyTime
         dateString = dateString * 1000
     }
     const dateObject = new Date(dateString);
+    if (isNaN(dateObject.getTime())) {
+        return "";
+    }
     const currentDate = new Date();
     const yesterday = new Date();
     yesterday.setDate(currentDate.getDate() - 1);

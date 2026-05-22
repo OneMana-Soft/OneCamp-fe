@@ -30,6 +30,9 @@ import { addUserToUserChatList, resetUserChatUnread } from "@/store/slice/userSl
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
 import { getGroupingId } from "@/lib/utils/getGroupingId";
 import { NotificationType } from "@/types/channel";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Lock } from "@/lib/icons";
+import { isExternalUser } from "@/lib/utils/isExternalUser";
 
 export default function Page() {
   const params = useParams();
@@ -66,6 +69,11 @@ export default function Page() {
 
   useEffect(() => {
     if (otherUserInfo.data?.data && selfProfile.data?.data) {
+      // Don't add external users to the user's DM sidebar — they aren't
+      // messageable contacts. We still want to render the inert empty
+      // state below, but no sidebar pollution.
+      if (isExternalUser(otherUserInfo.data.data)) return;
+
       const d = {
         dm_unread: 0,
         dm_grouping_id: getGroupingId(
@@ -80,14 +88,27 @@ export default function Page() {
 
       dispatch(addUserToUserChatList({ chatUserDm: d }));
       dispatch(AddUserInChatList({ usersDm: d }));
-      dispatch(updateChatCallStatus({grpId: chatId, callStatus: otherUserInfo.data.data.user_call_active || false}))
+      // Use the proper grouping ID (space-separated UUID pair) to match dm_grouping_id
+      const dmGroupingId = getGroupingId(selfProfile.data?.data.user_uuid || '', chatId);
+      dispatch(updateChatCallStatus({grpId: dmGroupingId, callStatus: otherUserInfo.data.data.user_call_active || false}))
     }
   }, [otherUserInfo.data?.data]);
 
-  const handleSend = () => {
-    const body = removeEmptyPTags(chatState.chatBody);
+  const handleSend = (latestContent?: string) => {
+    // Prefer the editor's latest HTML (passed in by the input wrapper after
+    // it flushed the pending throttle window) over the Redux snapshot —
+    // the snapshot lags by 1 keystroke when the user clicks Send before
+    // the throttle's trailing-edge has fired, which would otherwise drop
+    // the most recently typed character.
+    const rawBody = latestContent ?? chatState.chatBody;
+    const body = removeEmptyPTags(rawBody);
 
     if (body.length == 0) return;
+
+    // Defence-in-depth: never POST a DM to an external recipient even if
+    // the UI somehow reaches this code path. The server also enforces
+    // this; we just save a round-trip and a confusing toast.
+    if (isExternalUser(otherUserInfo.data?.data)) return;
 
     post
       .makeRequest<CreateOrUpdateChatsReq, CreateChatRes>({
@@ -154,6 +175,22 @@ export default function Page() {
   }, [chatId, selfProfile.data?.data.user_uuid]);
 
   if(!chatId) return
+
+  // Block DMs to external users client-side. The BE also rejects this on
+  // CreateChatMessage as defence-in-depth, but rendering an inert chat
+  // surface for an external recipient lets users land here from a stale
+  // link/back button without sending requests that will only fail.
+  if (isExternalUser(otherUserInfo.data?.data)) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <EmptyState
+          icon={Lock}
+          title="Direct messages aren't available"
+          description="This contact is external to your workspace. Mention them in a task or comment to collaborate instead."
+        />
+      </div>
+    );
+  }
 
   return (
     <>

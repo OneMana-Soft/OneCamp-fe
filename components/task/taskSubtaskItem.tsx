@@ -2,8 +2,10 @@
 
 import type React from "react"
 import { Button } from "@/components/ui/button"
-import { ChevronRight, CircleCheck, CarIcon as CalIcon, X } from "lucide-react"
+import { ChevronRight, X } from "@/lib/icons";
+import { CircleCheck, Calendar as CalIcon } from "lucide-react";
 import { cn } from "@/lib/utils/helpers/cn"
+import { statusColors } from "@/lib/colors"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
@@ -40,14 +42,23 @@ export function TaskSubtaskItem({
                                 onOpen,
                                 AssigneeControl,
                             }: SubtaskItemProps) {
-    const startDate = subTask.task_start_date ? new Date(subTask.task_start_date) : undefined
-    const dueDate = subTask.task_due_date ? new Date(subTask.task_due_date) : undefined
+    const parseSafeDate = (d?: string) => {
+        if (!d) return undefined;
+        try {
+            const date = new Date(d);
+            return isNaN(date.getTime()) ? undefined : date;
+        } catch {
+            return undefined;
+        }
+    }
+    const startDate = parseSafeDate(subTask.task_start_date)
+    const dueDate = parseSafeDate(subTask.task_due_date)
 
     return (
             <div className="flex items-center justify-between px-4 py-2">
                 <div className="flex items-center gap-4 flex-1">
                     <CircleCheck
-                        className={"w-5 h-5 hover:cursor-pointer " + (subTask.task_status === "done" ? "text-green-500" : "")}
+                        className={"w-5 h-5 hover:cursor-pointer " + (subTask.task_status === "done" ? "statusColors.success.text" : "")}
                         onClick={() => onToggleStatus(subTask.task_uuid, subTask.task_status === "done" ? "todo" : "done")}
                     />
                     <ResizeableTextInput
@@ -91,7 +102,7 @@ export function TaskSubtaskItem({
                                 onClick={() => onUpdateStart(subTask.task_uuid, undefined)}
                                 disabled={!isAdmin}
                             >
-                                <X className="h-1 w-1" />
+                                <X className="h-3 w-3" />
                             </Button>
                         )}
                     </div>
@@ -127,7 +138,7 @@ export function TaskSubtaskItem({
                                 onClick={() => onUpdateDue(subTask.task_uuid, undefined)}
                                 disabled={!isAdmin}
                             >
-                                <X className="h-1 w-1" />
+                                <X className="h-3 w-3" />
                             </Button>
                         )}
                     </div>

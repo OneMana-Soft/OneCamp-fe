@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, Search, ArrowLeft, X, Eye } from "lucide-react"
+import { Loader2, Search, ArrowLeft, X, Eye } from "@/lib/icons";
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useEffect } from "react"
@@ -44,11 +44,12 @@ export default function SearchPage() {
                         variant="ghost" 
                         size="icon" 
                         onClick={() => router.back()}
+                        aria-label="Go back"
                         className="h-8 w-8 md:h-10 md:w-10 rounded-full shrink-0"
                     >
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
-                    <h1 className="text-lg md:text-2xl font-bold text-foreground truncate">
+                    <h1 className="text-base md:text-lg font-semibold text-foreground truncate">
                         {query ? `Results for "${query}"` : "Global Search"}
                     </h1>
                 </div>
@@ -128,6 +129,7 @@ export default function SearchPage() {
                                             e.stopPropagation()
                                             handlePreview(result)
                                         }}
+                                        aria-label="Preview attachment"
                                         className="h-8 w-8 md:h-10 md:w-10 rounded-full opacity-0 group-hover:opacity-100 transition-all text-muted-foreground hover:text-primary hover:bg-primary/10"
                                     >
                                         <Eye className="h-5 w-5" />
@@ -140,7 +142,7 @@ export default function SearchPage() {
                             <div className="p-6 rounded-full bg-muted/50 mb-6 transition-transform duration-500 hover:scale-110">
                                 <Search className="h-12 w-12 text-muted-foreground opacity-50" />
                             </div>
-                            <h2 className="text-xl font-bold text-foreground">No matches found</h2>
+                            <h2 className="text-base font-semibold text-foreground">No matches found</h2>
                             <p className="mt-2 text-muted-foreground max-w-xs mx-auto">
                                 We couldn't find anything matching "{query}". 
                                 Try checking for typos or using different keywords.

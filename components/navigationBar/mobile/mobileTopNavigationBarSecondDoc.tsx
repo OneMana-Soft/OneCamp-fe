@@ -1,7 +1,7 @@
 "use client"
 
 import {usePathname} from "next/navigation";
-import {Star} from "lucide-react";
+import { Star } from "@/lib/icons";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {getStaticPaths} from "next/dist/build/templates/pages";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
@@ -26,7 +26,7 @@ export function MobileTopNavigationBarSecondDoc({docId}:{docId: string}) {
     return (
         <div className='flex justify-center  px-2' >
 
-            <div className='font-bold flex justify-center items-center space-x-3 text-lg text-center'>
+            <div className='font-medium flex justify-center items-center space-x-3 text-lg text-center'>
 
                             <div onClick={()=>{dispatch(openUI({ key: 'otherUserProfile', data: { userUUID: docInfo.data?.data.doc_created_by.user_uuid } }))}} className='shrink-0'>
 {docInfo.data?.data.doc_title}</div>

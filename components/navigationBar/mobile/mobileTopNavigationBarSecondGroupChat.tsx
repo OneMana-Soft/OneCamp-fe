@@ -3,7 +3,7 @@
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 import React from "react";
-import {MoreVertical} from "lucide-react";
+import { MoreVertical } from "@/lib/icons";
 import {RawUserDMInterface} from "@/types/user";
 import {Button} from "@/components/ui/button";
 
@@ -26,7 +26,7 @@ export function MobileTopNavigationBarSecondGroupChat({grpId}:{grpId: string}) {
     return (
         <div className='flex justify-center px-2 relative items-center w-full h-full'>
             <div 
-                className='font-bold flex justify-center items-center space-x-3 text-lg text-center truncate overflow-auto overflow-ellipsis cursor-pointer max-w-[80%]' 
+                className='font-medium flex justify-center items-center space-x-3 text-lg text-center truncate overflow-auto overflow-ellipsis cursor-pointer max-w-[80%]' 
                 onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId} }))}}
             >
                 <GroupedAvatar users={ participants || []} max={2} overlap={15} size={30} className={'text-sm !pr-0'}/>

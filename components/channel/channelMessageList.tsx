@@ -8,11 +8,12 @@ import { CreatePostPaginationResRaw, PostsRes} from "@/types/post";
 import {useEffect, useState, useMemo} from "react";
 import {updateChannelPosts, updateChannelScrollToBottom} from "@/store/slice/channelSlice";
 import {ChannelMessages} from "@/components/channel/channelMessages";
-import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
+import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {UserProfileInterface} from "@/types/user";
-import {LoaderCircle} from "lucide-react";
+import { LoaderCircle } from "@/lib/icons";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
+import {useMedia} from "@/context/MediaQueryContext";
 
 interface ChannelMessageListProps {
     channelId: string;
@@ -26,6 +27,7 @@ const EMPTY_TYPING_LIST: any[] = []
 
 export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: ChannelMessageListProps) => {
 
+    const { isMobile } = useMedia();
     const searchParams = useSearchParams();
     const postId = propPostId || searchParams?.get('postId') || undefined;
     const latestMsg = useFetch<CreatePostPaginationResRaw>(postId ? '' : GetEndpointUrl.GetChannelLatestPost + '/' + channelId)
@@ -120,7 +122,7 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.visibilityState === "visible") {
-                // console.log("[Sync] Tab visible, fetching new channel posts...");
+
                 getNewMessages();
             }
         };
@@ -158,7 +160,7 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
                 isAdmin={isAdmin}
             />
 
-            <TypingIndicator users={channelTypingState}/>
+            <TypingIndicatorBar users={channelTypingState} />
 
         </div>
     )

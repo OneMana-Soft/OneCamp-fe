@@ -5,7 +5,7 @@ import Link from "next/link";
 import {useDispatch} from "react-redux";
 import {OrgAvatarNav} from "@/components/navigationBar/orgAvatarNav";
 import {openUI} from "@/store/slice/uiSlice";
-import {ArrowLeft} from "lucide-react";
+import { ArrowLeft } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {app_channel_path} from "@/types/paths";
 
@@ -31,31 +31,31 @@ export function MobileTopNavigationBarFirst() {
             case "user":
 
                 if(path.length < 4)
-                return <div onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}}><OrgAvatarNav/></div>;
+                return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
                 if(path.length < 6)
-                    return <Button variant='ghost' size='icon' onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                    return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
                 break;
             case "channel":
                 if(path.length < 4)
-                    return <div onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}}><OrgAvatarNav/></div>;
+                    return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
                 if(path.length < 5) {
-                    return <Link href={app_channel_path}><Button variant='ghost' size='icon'><ArrowLeft className='h-5' /></Button></Link>
+                    return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={() => router.push(app_channel_path)}><ArrowLeft className='h-5' /></Button>
                 }
                 if(path.length < 6) {
-                    return <Link href={`${app_channel_path}/${path[3]}`}><Button variant='ghost' size='icon'><ArrowLeft className='h-5' /></Button></Link>
+                    return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={() => router.push(`${app_channel_path}/${path[3]}`)}><ArrowLeft className='h-5' /></Button>
                 }
             case "chat":
 
                 if(path.length > 3 && path[3] == 'group') {
 
                     if(path.length < 7)
-                        return <Button variant='ghost' size='icon' onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                        return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
                 }
 
                 if(path.length < 4)
-                    return <div onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}}><OrgAvatarNav/></div>;
+                    return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
                 if(path.length < 6)
-                    return <Button variant='ghost' size='icon' onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                    return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
                 break;
             case "doc":
             case "task":
@@ -64,7 +64,7 @@ export function MobileTopNavigationBarFirst() {
             case "recordings":
 
 
-                return <Button variant='ghost' size='icon' onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
 
             default:
                 return <></>;

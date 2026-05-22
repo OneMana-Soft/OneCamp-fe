@@ -1,9 +1,9 @@
 "use client"
 
-import { useMediaFetch } from "@/hooks/useFetch"
-import type { GetMediaURLRes } from "@/types/file"
-import { GetEndpointUrl } from "@/services/endPoints"
-import { getNameInitials } from "@/lib/utils/format/getNameIntials"
+import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { getNameInitials } from "@/lib/utils/getNameInitials"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
+import { cn } from "@/lib/utils/helpers/cn"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface ChannelMessageAvatarProps {
@@ -11,17 +11,24 @@ interface ChannelMessageAvatarProps {
     userName: string
 }
 
-export const ChannelMessageAvatar = ({ userName,  userProfileKey}: ChannelMessageAvatarProps) => {
-
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(
-        userProfileKey ? GetEndpointUrl.PublicAttachmentURL + "/" + userProfileKey : "",
-    )
+export const ChannelMessageAvatar = ({
+    userName,
+    userProfileKey,
+}: ChannelMessageAvatarProps) => {
+    const { src: imageSrc } = useUserAvatar(userProfileKey)
     const nameInitial = getNameInitials(userName)
 
     return (
         <Avatar className="h-full w-full">
-            <AvatarImage src={profileImageRes.data?.url} className="rounded-2xl" />
-            <AvatarFallback>{nameInitial}</AvatarFallback>
+            <AvatarImage src={imageSrc} />
+            <AvatarFallback
+                className={cn(
+                    "text-[11px] font-semibold",
+                    getAvatarFallbackClass(userName),
+                )}
+            >
+                {nameInitial}
+            </AvatarFallback>
         </Avatar>
     )
 }

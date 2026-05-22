@@ -1,8 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {CircleUser, Clapperboard, Pencil, Users, Video} from "lucide-react"
-
+import { Clapperboard, Pencil, Users, Video } from "@/lib/icons"
 import {
     Drawer,
     DrawerContent,
@@ -10,128 +9,140 @@ import {
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
-import {useDispatch} from "react-redux";
-import {useEffect, useState} from "react";
-import {usePost} from "@/hooks/usePost";
-import {getNextNotification} from "@/lib/utils/getNextNotification";
-import {PostEndpointUrl} from "@/services/endPoints";
-import {ChannelNotificationInterface, NotificationType} from "@/types/channel";
-import {NotificationBell} from "@/components/Notification/notificationBell";
-import {openUI} from "@/store/slice/uiSlice";
-import {useFetch} from "@/hooks/useFetch";
-import {ChannelInfoInterfaceResp} from "@/types/channel";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {app_channel_call} from "@/types/paths";
-import {useRouter} from "next/navigation";
+import { useDispatch } from "react-redux"
+import { useEffect, useState } from "react"
+import { usePost } from "@/hooks/usePost"
+import { getNextNotification } from "@/lib/utils/getNextNotification"
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import {
+    ChannelInfoInterfaceResp,
+    ChannelNotificationInterface,
+    NotificationType,
+} from "@/types/channel"
+import { NotificationBell } from "@/components/Notification/notificationBell"
+import { openUI } from "@/store/slice/uiSlice"
+import { useFetch } from "@/hooks/useFetch"
+import { app_channel_call } from "@/types/paths"
+import { useRouter } from "next/navigation"
+import { DrawerItem } from "@/components/drawers/drawerItem"
 
-
-interface channelOptionsDrawerProps {
-    drawerOpenState: boolean;
-    channelId: string;
-    setOpenState: (state: boolean) => void;
+interface ChannelOptionsDrawerProps {
+    drawerOpenState: boolean
+    channelId: string
+    setOpenState: (state: boolean) => void
 }
 
-export function ChannelOptionsDrawer({drawerOpenState, setOpenState, channelId}: channelOptionsDrawerProps) {
-    const channelInfo = useFetch<ChannelInfoInterfaceResp>(`${channelId ? GetEndpointUrl.ChannelBasicInfo+'/'+channelId : ''}`);
+export function ChannelOptionsDrawer({
+    drawerOpenState,
+    setOpenState,
+    channelId,
+}: ChannelOptionsDrawerProps) {
+    const channelInfo = useFetch<ChannelInfoInterfaceResp>(
+        `${channelId ? GetEndpointUrl.ChannelBasicInfo + "/" + channelId : ""}`,
+    )
 
-    const [channelNotification, setChannelNotificationType] = useState<string>(NotificationType.NotificationAll);
-    const postNotification  = usePost();
+    const [channelNotification, setChannelNotificationType] = useState<string>(
+        NotificationType.NotificationAll,
+    )
+    const postNotification = usePost()
 
     useEffect(() => {
-        if(channelInfo.data?.channel_info.notification_type) {
-            setChannelNotificationType(channelInfo.data?.channel_info.notification_type);
+        if (channelInfo.data?.channel_info.notification_type) {
+            setChannelNotificationType(channelInfo.data?.channel_info.notification_type)
         }
-    }, [channelInfo.data?.channel_info]);
+    }, [channelInfo.data?.channel_info])
 
-    const UpdateNotification = async () => {
-        const nextNotification = getNextNotification(channelNotification);
+    const updateNotification = async () => {
+        const nextNotification = getNextNotification(channelNotification)
         await postNotification.makeRequest<ChannelNotificationInterface>({
-            payload: {channel_id: channelId, notification_type: nextNotification}, 
-            apiEndpoint: PostEndpointUrl.UpdateChannelNotification
-        });
-        setChannelNotificationType(nextNotification);
-    };
-
-    const dispatch = useDispatch();
-    const router = useRouter();
-    function closeDrawer() {
-        setOpenState(false);
+            payload: { channel_id: channelId, notification_type: nextNotification },
+            apiEndpoint: PostEndpointUrl.UpdateChannelNotification,
+        })
+        setChannelNotificationType(nextNotification)
     }
 
-    const clickVideoCall = () => {
-        closeDrawer();
-        router.push(app_channel_call + "/" + channelId);
+    const dispatch = useDispatch()
+    const router = useRouter()
 
-    }
+    const closeDrawer = () => setOpenState(false)
+
+    const notificationDescription =
+        channelNotification === NotificationType.NotificationAll
+            ? "All messages"
+            : channelNotification === NotificationType.NotificationMention
+              ? "Mentions only"
+              : "Muted"
 
     return (
-    <Drawer  onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
-                <div className=" w-full mb-6">
-                    <DrawerHeader className='hidden'>
-                        <DrawerTitle className='capitalize'>{process.env.NEXT_PUBLIC_ORG_NAME}</DrawerTitle>
-                        <DrawerDescription>Org level</DrawerDescription>
+                <DrawerHeader className="sr-only">
+                    <DrawerTitle className="capitalize">
+                        {process.env.NEXT_PUBLIC_ORG_NAME}
+                    </DrawerTitle>
+                    <DrawerDescription>Channel options</DrawerDescription>
+                </DrawerHeader>
+                <div className="p-3 pb-6 space-y-0.5">
+                    <DrawerItem
+                        label="Notifications"
+                        description={notificationDescription}
+                        onClick={updateNotification}
+                        trailing={
+                            <NotificationBell
+                                notificationType={channelNotification}
+                                isLoading={postNotification.isSubmitting}
+                                onNotCLick={updateNotification}
+                            />
+                        }
+                    />
 
-                    </DrawerHeader>
-                    <div className="p-4 pb-6">
-                        <div className="flex flex-col items-center justify-start space-y-1">
-                            <div
-                                className='w-full h-16 flex items-center justify-between cursor-pointer transition-colors hover:bg-muted/80 bg-muted/40 rounded-xl px-4 mb-2'
-                                onClick={UpdateNotification}
-                            >
-                                <div className="flex flex-col">
-                                    <span className="text-base font-semibold">Notifications</span>
-                                    <span className="text-xs text-muted-foreground mt-0.5">
-                                        {channelNotification === NotificationType.NotificationAll ? "All messages" :
-                                        channelNotification === NotificationType.NotificationMention ? "Mentions only" : "Muted"}
-                                    </span>
-                                </div>
-                                <div className="pointer-events-none -mr-2 bg-background/50 rounded-full shadow-sm flex items-center justify-center">
-                                    <NotificationBell notificationType={channelNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
-                                </div>
-                            </div>
+                    {channelInfo.data?.channel_info.ch_is_admin && (
+                        <DrawerItem
+                            icon={Pencil}
+                            label="Edit channel"
+                            onClick={() => {
+                                dispatch(
+                                    openUI({
+                                        key: "editChannel",
+                                        data: { channelUUID: channelId },
+                                    }),
+                                )
+                                closeDrawer()
+                            }}
+                        />
+                    )}
 
-                            {channelInfo.data?.channel_info.ch_is_admin && <div
-                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={()=>{dispatch(openUI({ key: 'editChannel', data: {channelUUID:channelId} }))}}
-                            >
-                                <Pencil className="h-5 w-5 text-muted-foreground" />
-                                <span className="text-base font-medium">Edit channel</span>
-                            </div>}
-                            <div
-                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={() => dispatch(openUI({ key: 'editChannelMember', data: {channelUUID:channelId} }))}
-                            >
-                                <Users className="h-5 w-5 text-muted-foreground"/>
-                                <span className="text-base font-medium">Channel Members</span>
-                            </div>
+                    <DrawerItem
+                        icon={Users}
+                        label="Channel members"
+                        onClick={() => {
+                            dispatch(
+                                openUI({
+                                    key: "editChannelMember",
+                                    data: { channelUUID: channelId },
+                                }),
+                            )
+                            closeDrawer()
+                        }}
+                    />
 
-                            <div
-                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={clickVideoCall}
-                            >
-                                <Video className="h-5 w-5 text-muted-foreground"/>
-                                <span className="text-base font-medium">Join Call</span>
-                            </div>
-                            <div
-                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={() => {
-                                    closeDrawer();
-                                    router.push(`/app/channel/${channelId}/recording`);
-                                }}
-                            >
-                                <Clapperboard className="h-5 w-5 text-muted-foreground"/>
-                                <span className="text-base font-medium">Call Recordings</span>
-                            </div>
-                        </div>
+                    <DrawerItem
+                        icon={Video}
+                        label="Join call"
+                        onClick={() => {
+                            closeDrawer()
+                            router.push(app_channel_call + "/" + channelId)
+                        }}
+                    />
 
-                    </div>
-                    {/*<DrawerFooter>*/}
-                    {/*    <Button>Submit</Button>*/}
-                    {/*    <DrawerClose asChild>*/}
-                    {/*        <Button variant="outline">Cancel</Button>*/}
-                    {/*    </DrawerClose>*/}
-                    {/*</DrawerFooter>*/}
+                    <DrawerItem
+                        icon={Clapperboard}
+                        label="Call recordings"
+                        onClick={() => {
+                            closeDrawer()
+                            router.push(`/app/channel/${channelId}/recording`)
+                        }}
+                    />
                 </div>
             </DrawerContent>
         </Drawer>

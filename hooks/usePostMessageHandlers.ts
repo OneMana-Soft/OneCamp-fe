@@ -18,6 +18,7 @@ import {
     updateChannelCommentByCommentUUID, updateChannelCommentReactionByCommentId
 } from "@/store/slice/channelCommentSlice";
 import {incrementUserChannelUnread} from "@/store/slice/userSlice";
+import { RemoveChannelTyping } from "@/store/slice/typingSlice";
 import {usePathname} from "next/navigation";
 import {updateChatCallStatus} from "@/store/slice/chatSlice";
 interface UsePostMessageHandlersProps {
@@ -33,9 +34,17 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                 const mqttPostInfo = mqttService.parsePostMsg(messageStr)
 
 
-                if(userUuid == mqttPostInfo.data.user_uuid && !mqttPostInfo.data.post_fwd_msg_chat && !mqttPostInfo.data.post_fwd_msg_post) return
-
-                console.log("mqttPostInfo", mqttPostInfo, userUuid)
+                // Multi-device sync: we used to early-return when the post
+                // came from the current user, on the assumption that
+                // optimistic-create on the originating tab had already
+                // updated state. That broke sync for the same user on a
+                // second device — the post never landed in the channel
+                // there. Now we let the event through; createPost dedups
+                // by post_uuid so the originating tab is safe.
+                //
+                // Forward-message rule preserved: forwarded posts always
+                // need to land in state because the optimistic-create
+                // handler skips them.
 
                 switch (mqttPostInfo.data.type) {
                     case MqttActionType.Create:
@@ -55,8 +64,22 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                                 attachments: mqttPostInfo.data.post_attachments,
                             }),
                         )
+                        // Author just posted — drop the typing indicator
+                        // immediately so the receiver doesn't see "still
+                        // typing" lingering for ~4s after the post lands.
+                        dispatch(RemoveChannelTyping({
+                            userId: mqttPostInfo.data.user_uuid,
+                            channelId: mqttPostInfo.data.post_channel_uuid,
+                        }))
                         const path3 = window.location.pathname.split('/')[3] || ''
-                        if(path3 != mqttPostInfo.data.post_channel_uuid) {
+                        // Increment unread only when the post is by SOMEONE
+                        // ELSE and we aren't currently viewing this channel.
+                        // For posts by the current user (any device), this
+                        // is just a sync echo — don't badge our own work.
+                        if (
+                            userUuid !== mqttPostInfo.data.user_uuid &&
+                            path3 !== mqttPostInfo.data.post_channel_uuid
+                        ) {
                             dispatch(incrementUserChannelUnread({ch_uuid: mqttPostInfo.data.post_channel_uuid}))
                         }
                         break
@@ -94,7 +117,6 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
         (messageStr: string) => {
             try {
                 const mqttChatCall = mqttService.parseChannelCallMsg(messageStr)
-                console.log("aksd channel call dfsdf ", mqttChatCall)
 
                 dispatch(updateChannelCallStatus({
                     callStatus: mqttChatCall?.data?.call_status ?? false,
@@ -112,7 +134,8 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
             try {
                 const mqttPostReaction = mqttService.parsePostReactionMsg(messageStr)
 
-                if(userUuid == mqttPostReaction.data.user_uuid) return
+                // Multi-device sync: don't skip self. The reducer dedups
+                // by (user, emoji) so the originating tab is safe.
 
 
                 switch (mqttPostReaction.data.type) {
@@ -168,7 +191,8 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
             try {
                 const mqttPostCommentReaction = mqttService.parsePostCommentReactionMsg(messageStr)
 
-                if(userUuid == mqttPostCommentReaction.data.user_uuid) return
+                // Multi-device sync: don't skip self. The reducer dedups
+                // by (user, emoji) and upgrades temp -> real ids.
 
 
                 switch (mqttPostCommentReaction.data.type) {
@@ -225,7 +249,9 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
             try {
                 const mqttPostCommentCount = mqttService.parsePostCommentMsg(messageStr)
 
-                if(userUuid == mqttPostCommentCount.data.user_uuid) return
+                // Multi-device sync: don't skip self. The reply increment
+                // and createChannelComment reducers both dedup by
+                // comment_uuid.
 
                 switch (mqttPostCommentCount.data.type) {
                     case MqttActionType.Create:

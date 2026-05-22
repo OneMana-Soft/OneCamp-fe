@@ -2,7 +2,7 @@
 
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
-import {SendHorizontal} from "lucide-react";
+import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import {useEffect, useRef, useState} from "react";
 
@@ -36,7 +36,7 @@ export const MobileTextInput = () => {
                     editorContentClassName="overflow-auto mb-2"
                     output="html"
                     content={""}
-                    placeholder={"message"}
+                    placeholder={"Type a message..."}
                     editable={true}
                     ButtonIcon={SendHorizontal}
                     buttonOnclick={() => {

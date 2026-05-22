@@ -12,17 +12,21 @@ import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, Di
 
 import {Avatar, AvatarFallback, AvatarImage} from "../ui/avatar";
 import {Separator} from "../ui/separator";
-import {Trash, Calendar, Camera} from "lucide-react";
+import { Trash, Calendar } from "@/lib/icons";
+import { Camera } from "@/lib/icons";
 import {AppLanguageCombobox} from "@/components/dialog/appLanguageCombobox";
-import {useFetchOnlyOnce, useMediaFetch} from "@/hooks/useFetch";
+import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {USER_STATUS_OFFLINE, USER_STATUS_ONLINE, UserProfileInterface, UserProfileUpdateInterface} from "@/types/user";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {GetMediaURLRes} from "@/types/file";
+import {useUserAvatar} from "@/hooks/useUserAvatar";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {usePost} from "@/hooks/usePost";
 import {useTranslation} from "react-i18next";
 import {Switch} from "@/components/ui/switch";
 import {useDispatch} from "react-redux";
+import { useTheme } from "next-themes";
+import { ColorThemePicker } from "@/components/activeTheme/ColorThemePicker";
+import { Moon, Sun } from "@/lib/icons";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
@@ -69,7 +73,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                                              }) => {
     const profileInfo = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(profileInfo && profileInfo.data?.data.user_profile_object_key ? GetEndpointUrl.PublicAttachmentURL+'/'+profileInfo.data.data.user_profile_object_key : '');
+    const {src: imageSrc} = useUserAvatar(profileInfo.data?.data.user_profile_object_key);
 
     const [selectedImage, setSelectedImage] = useState<string>("");
     const [selectedImageFile, selectedImageSetFile] = useState<FileList | null>(null);
@@ -78,12 +82,17 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     const {t} = useTranslation()
 
     const dispatch = useDispatch()
+    const { theme, setTheme } = useTheme();
+
+    const handleThemeToggle = () => {
+        setTheme(theme === "dark" ? "light" : "dark");
+    };
 
     useEffect(() => {
-        if (profileImageRes.data?.url) {
-            setSelectedImage(profileImageRes.data.url);
+        if (imageSrc) {
+            setSelectedImage(imageSrc);
         }
-    }, [profileImageRes.data]);
+    }, [imageSrc]);
 
     useEffect(() => {
         if (profileInfo.data?.data) {
@@ -274,14 +283,14 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                     {/* Left Sidebar - Profile Summary */}
                     <div className="md:w-1/3 bg-muted/30 p-8 flex flex-col items-center border-r">
                         <DialogHeader className="w-full mb-8">
-                            <DialogTitle className="text-2xl font-bold tracking-tight">{t('profile')}</DialogTitle>
+                            <DialogTitle className="text-base font-semibold tracking-tight">Settings</DialogTitle>
                             <DialogDescription className="text-xs">{t('editProfile')}</DialogDescription>
                         </DialogHeader>
                         
                         <div className="relative group mb-6">
                             <Avatar className="h-40 w-40 ring-4 ring-background shadow-xl transition-transform duration-300 group-hover:scale-[1.02]">
                                 <AvatarImage src={selectedImage || undefined} alt="Profile Image" className="object-cover" />
-                                <AvatarFallback className="text-4xl font-bold bg-primary/10">{nameIntial}</AvatarFallback>
+                                <AvatarFallback className="text-4xl font-medium bg-primary/10">{nameIntial}</AvatarFallback>
                             </Avatar>
                             <label
                                 htmlFor="imageUpload"
@@ -305,7 +314,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                         )}
                         
                         <div className="text-center space-y-1">
-                            <h3 className="font-semibold text-lg text-foreground truncate max-w-full">
+                            <h3 className="font-medium text-lg text-foreground truncate max-w-full">
                                 {profileInfo.data?.data.user_name}
                             </h3>
                             <p className="text-xs text-muted-foreground truncate max-w-full">
@@ -393,14 +402,22 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         control={form.control}
                                         name="status"
                                         render={({ field }) => (
-                                            <FormItem className="flex items-center justify-between space-x-2 border rounded-lg px-4 py-2 bg-muted/20 border-transparent h-10 mt-auto">
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground m-0 cursor-pointer" htmlFor="status-switch">{t('onlineLabel')}</FormLabel>
-                                                <Switch
-                                                    id="status-switch"
-                                                    checked={!!field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    className="scale-90"
-                                                />
+                                            <FormItem className="flex flex-col">
+                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('status')}</FormLabel>
+                                                <div className="flex items-center justify-between bg-muted/20 border border-transparent rounded-xl px-4 h-10">
+                                                    <span 
+                                                        className="text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer leading-none"
+                                                        onClick={() => field.onChange(!field.value)}
+                                                    >
+                                                        Appear online
+                                                    </span>
+                                                    <Switch
+                                                        id="status-switch"
+                                                        checked={!!field.value}
+                                                        onCheckedChange={field.onChange}
+                                                        className="m-0"
+                                                    />
+                                                </div>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -414,16 +431,36 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
 
                         <div className="space-y-6 mt-6">
                             <div className="space-y-4">
+                                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Appearance</h3>
+                                <div className="rounded-xl border bg-muted/10 p-4 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
+                                                {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                                            </div>
+                                            <div className="text-sm font-medium">Dark Mode</div>
+                                        </div>
+                                        <Switch
+                                            checked={theme === "dark"}
+                                            onCheckedChange={handleThemeToggle}
+                                            aria-label="Toggle dark mode"
+                                        />
+                                    </div>
+                                    <ColorThemePicker />
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
                                 <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{t('integrations') || 'Integrations'}</h3>
                                 
                                 <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition-all hover:bg-muted/20">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center space-x-3">
-                                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/10 shadow-sm ring-1 ring-blue-500/20">
-                                                <Calendar className="h-5 w-5 text-blue-600" />
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 shadow-sm ring-1 ring-primary/20">
+                                                <Calendar className="h-5 w-5 text-primary" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-semibold">Google Calendar</p>
+                                                <p className="text-sm font-medium">Google Calendar</p>
                                                 <p className="text-[10px] text-muted-foreground leading-tight">Sync your workflow and events</p>
                                             </div>
                                         </div>
@@ -466,7 +503,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                 form="profile-edit-form"
                                 disabled={uploadFile.isSubmitting || post.isSubmitting} 
                                 type="submit"
-                                className="w-full h-11 rounded-xl shadow-lg shadow-primary/20 font-semibold text-sm transition-all hover:translate-y-[-1px]"
+                                className="w-full h-11 rounded-xl font-medium text-sm transition-all hover:translate-y-[-1px]"
                             >
                                 {t('update')} Profile
                             </Button>

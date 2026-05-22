@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { Check, ChevronsUpDown, UserPlus } from "lucide-react";
+import { Check, ChevronsUpDown } from "@/lib/icons";
+import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -136,7 +137,7 @@ const AddDocMemberCombobox: React.FC<AddDocMemberComboboxProps> = ({ docId, hand
                 <Button
                     onClick={onInviteClick}
                     size="sm"
-                    className="h-10 px-5 font-semibold shadow-sm hover:shadow-md transition-all duration-300 active:scale-95 rounded-xl bg-primary hover:bg-primary/90 shrink-0"
+                    className="h-10 px-5 font-medium shadow-sm hover:shadow-md transition-all duration-300 rounded-xl bg-primary hover:bg-primary/90 shrink-0"
                     disabled={!selectedUser || isInviting}
                 >
                     Invite

@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { Calendar as CalIcon } from "lucide-react"
+import { Calendar as CalIcon } from "lucide-react";
 import { cn } from "@/lib/utils/helpers/cn"
 import { format, parse, isValid } from "date-fns"
 import { Input } from "@/components/ui/input"
@@ -72,7 +72,7 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
 
     const PickerContent = (
         <>
-            <div className="flex items-center justify-between gap-4 font-semibold border-b p-2">
+            <div className="flex items-center justify-between gap-4 font-medium border-b p-2">
                 <div className='text-xs'>
                     {label}
                 </div>
@@ -82,6 +82,7 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
                     onBlur={(e) => commitInput(e.target.value)}
                     onKeyDown={(e) => {
                         if (e.key === "Enter") {
+                            e.preventDefault()
                             commitInput((e.target as HTMLInputElement).value)
                         }
                     }}
@@ -172,11 +173,11 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
     if (compact) return Control
 
     return (
-        <div className="grid grid-cols-6 items-center mb-2">
-            <div className="col-span-1">
-                <span className="text-xs capitalize">{label}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-2">
+            <div className="sm:col-span-1">
+                <span className="text-xs capitalize text-muted-foreground sm:text-foreground">{label}</span>
             </div>
-            <div className="col-span-5">{Control}</div>
+            <div className="sm:col-span-5">{Control}</div>
         </div>
     )
 }

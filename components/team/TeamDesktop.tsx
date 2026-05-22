@@ -1,4 +1,4 @@
-import {Pencil, Users} from "lucide-react";
+import { Pencil, Users } from "@/lib/icons";
 import {useDispatch} from "react-redux";
 import {useFetch} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";

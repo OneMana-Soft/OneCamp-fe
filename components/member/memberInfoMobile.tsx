@@ -1,66 +1,81 @@
 "use client"
 
-import React from 'react';
-import { Crown, LogOut } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {UserProfileDataInterface} from "@/types/user";
-import {getNameInitials} from "@/lib/utils/format/getNameIntials";
-import {useFetch, useMediaFetch} from "@/hooks/useFetch";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {GetMediaURLRes} from "@/types/file";
-import {useLongPress} from "@/hooks/useLongPress";
+import React from "react"
+import { Crown, LogOut } from "@/lib/icons"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { UserProfileDataInterface } from "@/types/user"
+import { getNameInitials } from "@/lib/utils/getNameInitials"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
+import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { useLongPress } from "@/hooks/useLongPress"
+import { cn } from "@/lib/utils/helpers/cn"
 
 interface MemberPropInfoInterface {
-    userInfo: UserProfileDataInterface;
-    isAdmin: boolean;
+    userInfo: UserProfileDataInterface
+    isAdmin: boolean
     longPressAction: () => void
-    isSelf: boolean;
+    isSelf: boolean
 }
 
 const MemberInfoMobile: React.FC<MemberPropInfoInterface> = ({
-                                                           userInfo,
-                                                           isAdmin,
-                                                           isSelf,
-                                                           longPressAction
-                                                       }) => {
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(userInfo.user_profile_object_key ? GetEndpointUrl.PublicAttachmentURL+'/'+userInfo.user_profile_object_key : '');
-    const nameInitial = getNameInitials(userInfo.user_name);
+    userInfo,
+    isAdmin,
+    isSelf,
+    longPressAction,
+}) => {
+    const { src: imageSrc } = useUserAvatar(userInfo.user_profile_object_key)
+    const nameInitial = getNameInitials(userInfo.user_name)
 
-    const longPressEvent = useLongPress(longPressAction, {
-        threshold: 500, // Reduced from 800ms to 500ms for quicker long press
-        onLongPressStart: () =>{
+    const longPressEvent = useLongPress(longPressAction, { threshold: 500 })
 
-        }
-    })
+    const showCrown = userInfo.user_is_admin || isAdmin
+    const crownInteractive = !isSelf && isAdmin
 
     return (
-        <div className='grid grid-cols-4 items-center h-16 w-full px-2 py-2 ' {...longPressEvent}>
-            <div className='flex items-center col-span-3 space-x-3'>
-                <Avatar className="h-12 w-12 flex-shrink-0">
-                    <AvatarImage
-                        src={profileImageRes.data?.url || ""}
-                        alt="Profile icon"
-                    />
-                    <AvatarFallback>{nameInitial}</AvatarFallback>
-                </Avatar>
-                <div className='min-w-0 overflow-ellipsis truncate whitespace-nowrap'>
-                    <div className='truncate font-medium'>{userInfo.user_name}</div>
-                    <div className='truncate text-sm text-muted-foreground'>{userInfo.user_email_id}</div>
+        <div
+            className="flex items-center gap-3 px-3 py-2.5 active:bg-accent/50 transition-colors duration-100 select-none"
+            {...longPressEvent}
+        >
+            <Avatar className="h-10 w-10 shrink-0">
+                <AvatarImage src={imageSrc} alt={userInfo.user_name} />
+                <AvatarFallback
+                    className={cn(
+                        "text-xs font-semibold",
+                        getAvatarFallbackClass(userInfo.user_name),
+                    )}
+                >
+                    {nameInitial}
+                </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-sm font-medium text-foreground truncate">
+                        {userInfo.user_name}
+                    </span>
+                    {isSelf && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground shrink-0">
+                            You
+                        </span>
+                    )}
+                </div>
+                <div className="text-xs text-muted-foreground truncate mt-0.5">
+                    {userInfo.user_email_id}
                 </div>
             </div>
-
-            <div className='flex justify-center'>
-                {(userInfo.user_is_admin || isAdmin) && (
-                    <Crown
-                        className={`size-5 ${(!isSelf &&isAdmin )? "cursor-pointer" : ""}`}
-                        fill={userInfo.user_is_admin ? '#facc15' : 'none'}
-                    />
-                )}
-            </div>
-
+            {showCrown && (
+                <Crown
+                    className={cn(
+                        "size-4 shrink-0",
+                        userInfo.user_is_admin
+                            ? "text-amber-500 fill-amber-500"
+                            : "text-muted-foreground",
+                        crownInteractive && "cursor-pointer",
+                    )}
+                    aria-label={userInfo.user_is_admin ? "Admin" : undefined}
+                />
+            )}
         </div>
-    );
-};
+    )
+}
 
-export default MemberInfoMobile;
-
+export default MemberInfoMobile

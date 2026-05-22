@@ -8,6 +8,8 @@ import { useCallback, useEffect, useState } from "react"
 import type { UserProfileInterface } from "@/types/user"
 import type { RootState } from "@/store/store"
 import type { CommentInfoInterface, CreateCommentResInterface } from "@/types/comment"
+import { EmptyState } from "@/components/ui/empty-state"
+import { MessageSquare } from "@/lib/icons";
 import {
     addDocComments,
     clearDocCommentInputState,
@@ -26,7 +28,7 @@ import {
 import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { openUI } from "@/store/slice/uiSlice"
-import { SendHorizontal } from "lucide-react"
+import { SendHorizontal } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
 import { DocCommentFileUpload } from "@/components/fileUpload/docCommentFileUpload"
 import type { Content } from "@tiptap/core"
@@ -37,6 +39,7 @@ import { useMedia } from "@/context/MediaQueryContext"
 import {Separator} from "@/components/ui/separator";
 import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
 import {useUploadFile} from "@/hooks/useUploadFile";
+import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 
 export const DocMobileCommentList = ({ docId }: { docId: string }) => {
     const dispatch = useDispatch()
@@ -114,12 +117,15 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
     }
 
     const handleUpdateDocComment = (commentUUID: string, commentHTMLText: string, commentIndex: number) => {
+        const trimmedHtml = removeEmptyPTags(commentHTMLText)
+        if (!trimmedHtml) return
+
         post
             .makeRequest<CreateDocCommentInterface>({
                 apiEndpoint: PostEndpointUrl.UpdateDocComment,
                 payload: {
                     doc_comment_uuid: commentUUID,
-                    doc_comment_body: commentHTMLText,
+                    doc_comment_body: trimmedHtml,
                 },
                 showToast: true,
             })
@@ -129,7 +135,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                         updateDocComment({
                             commentIndex: commentIndex,
                             docId: docId,
-                            htmlText: commentHTMLText,
+                            htmlText: trimmedHtml,
                         }),
                     )
                 }
@@ -188,15 +194,17 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
             })
     }
 
-    const createComment = useCallback(() => {
-        const commentBody = commentState?.commentBody
-        if (!commentBody?.trim() || post.isSubmitting) return
+    const createComment = useCallback((latestContent?: string) => {
+        const rawBody = latestContent ?? commentState?.commentBody
+        const trimmedBody = removeEmptyPTags(rawBody)
+        const hasAttachments = (commentState?.filesUploaded?.length || 0) > 0
+        if ((!trimmedBody && !hasAttachments) || post.isSubmitting) return
 
         post
             .makeRequest<CreateDocCommentInterface, CreateCommentResInterface>({
                 apiEndpoint: PostEndpointUrl.CreateDocComment,
                 payload: {
-                    doc_comment_body: commentBody,
+                    doc_comment_body: trimmedBody,
                     doc_uuid: docId,
                     doc_comment_attachments: commentState?.filesUploaded || [],
                 },
@@ -207,7 +215,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                         createNewDocComment({
                             commentBy: selfProfile.data?.data,
                             docId: docId,
-                            commentText: commentBody,
+                            commentText: trimmedBody,
                             attachments: commentState?.filesUploaded || [],
                             commentId: res?.comment_id,
                             commentCreatedAt: res?.comment_created_at,
@@ -224,9 +232,12 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
 
             <div className="flex-1 overflow-y-auto">
                 {docCommentState.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-center text-muted-foreground px-4">
-                        <p>No comments yet. Be the first to add one!</p>
-                    </div>
+                    <EmptyState
+                        icon={MessageSquare}
+                        title="No comments yet"
+                        description="Be the first to add a comment to this document."
+                        className="h-full"
+                    />
                 ) : (
                     <MobileMessageCommentList
                         comments={docCommentState}
@@ -252,7 +263,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                         }}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={createComment}
-                        className={cn("max-w-full rounded-xl h-auto border p-2 bg-secondary/20")}
+                        className={cn("max-w-full rounded-xl h-auto border p-2 bg-muted/30")}
                         editorContentClassName="overflow-auto"
                         output="html"
                         placeholder="Add a message, if you'd like..."

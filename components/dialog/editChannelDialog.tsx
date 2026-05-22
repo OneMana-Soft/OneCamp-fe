@@ -17,7 +17,7 @@ import {Input} from "@/components/ui/input";
 import {usePost} from "@/hooks/usePost";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {Switch} from "@/components/ui/switch";
-import {CheckCircle} from "lucide-react";
+import { CheckCircle } from "@/lib/icons";
 import {useEffect, useState} from "react";
 import {useFetch} from "@/hooks/useFetch";
 import {ChannelInfoInterfaceResp, ChannelNameExistsInterface} from "@/types/channel";
@@ -156,16 +156,16 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
                                         </div>
                                         <div>
                                             {error && (
-                                                <p className="text-xs md:text-sm text-red-500">{error.message}</p>
+                                                <p className="text-xs md:text-sm text-destructive">{error.message}</p>
                                             )}
                                             {channelNameToCheck === field.value && !isChannelNameAvailable?.exists && (
-                                                <div className="flex items-center text-green-500">
+                                                <div className="flex items-center text-green-600 dark:text-green-400">
                                                     <CheckCircle className="w-4 h-4 mr-1"/>
                                                     <span className="text-xs md:text-sm">Channel name is available</span>
                                                 </div>
                                             )}
                                             {channelNameToCheck === field.value && isChannelNameAvailable?.exists && (
-                                                <p className="text-xs md:text-sm text-red-500">Channel name is already taken</p>
+                                                <p className="text-xs md:text-sm text-destructive">Channel name is already taken</p>
                                             )}
                                         </div>
                                     </>

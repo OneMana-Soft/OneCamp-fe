@@ -5,7 +5,7 @@ import {useParams} from "next/navigation";
 import {MobilePost} from "@/components/mobilePost/mobilePost";
 import {MobileChannelPostTextInput} from "@/components/textInput/mobileChannelPostTextInput";
 import {useFetch} from "@/hooks/useFetch";
-import {CreatePostPaginationResRaw} from "@/types/post";
+import {CreatePostPaginationResRaw, PostsRes} from "@/types/post";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useEffect} from "react";
 import {useDispatch, useSelector} from "react-redux";
@@ -27,7 +27,7 @@ export default function Page() {
 
     const channelState = useSelector((state: RootState) => state.channel.channelPosts[channelId] || []);
 
-    const postState = channelState?.find(p => p.post_uuid === postId);
+    const postState = channelState?.find((p: PostsRes) => p.post_uuid === postId);
 
 
     useEffect(() => {

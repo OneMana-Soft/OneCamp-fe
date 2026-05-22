@@ -15,7 +15,7 @@ class AuthService {
         window.location.href = oauthEndpoint;
     }
 
-    static async loginAsDemo(): Promise<boolean> {
+    static async loginAsDemo(): Promise<{ ok: boolean; msg?: string }> {
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}demo-login`,
@@ -27,10 +27,28 @@ class AuthService {
                     },
                 }
             );
-            return res.ok;
+            if (res.ok) return { ok: true };
+            // Surface a useful message when the endpoint isn't wired up
+            // (404) or the demo workspace is unavailable. Try to read a
+            // body message but don't crash if the response isn't JSON.
+            let msg = '';
+            try {
+                const data = await res.json();
+                msg = data?.msg || data?.error || '';
+            } catch {
+                /* response wasn't JSON */
+            }
+            if (res.status === 404) {
+                msg = msg || 'Demo login is not available on this server.';
+            } else if (res.status === 401 || res.status === 403) {
+                msg = msg || 'Demo access is currently disabled.';
+            } else if (res.status >= 500) {
+                msg = msg || 'Demo login is temporarily unavailable. Please try again.';
+            }
+            return { ok: false, msg };
         } catch (error) {
             console.error('Demo login failed:', error);
-            return false;
+            return { ok: false, msg: 'Network error. Please check your connection.' };
         }
     }
 

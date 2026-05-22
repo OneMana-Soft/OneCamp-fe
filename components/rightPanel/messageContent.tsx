@@ -5,7 +5,7 @@ import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOr
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { cn } from "@/lib/utils/helpers/cn"
-import {Check, X} from "lucide-react"
+import { Check, X } from "@/lib/icons";
 import {UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
 import {ForwardedMessageData} from "@/types/rightPanel";
 
@@ -127,11 +127,11 @@ export const MessageContent = ({
 
 
     return (
-        <div className={`pl-2 flex relative space-x-4 pt-4 hover:bg-primary/5 transition-colors delay-200 group ${isDropdownOpen || isEmojiPickerOpen? 'bg-primary/5':''}`}>
+        <div className={`pl-2 flex relative space-x-4 pt-4 hover:bg-primary/5 transition-colors duration-150 group ${isDropdownOpen || isEmojiPickerOpen? 'bg-primary/5':''}`}>
 
             {!isMessageEditEnabled && <div
                 className={cn(
-                    "absolute -top-0.5 right-2 transition-opacity delay-200 z-40",
+                    "absolute -top-0.5 right-2 transition-opacity duration-150 z-[var(--z-dropdown)]",
                     (isDropdownOpen || isEmojiPickerOpen) || "opacity-0 group-hover:opacity-100",
                 )}
             >
@@ -156,7 +156,7 @@ export const MessageContent = ({
             </div>
             <div className="flex-1 mb-4">
                 <div className="flex items-baseline space-x-2 mb-1">
-                    <div className="font-semibold text-sm" onClick={handleUserClick}>{userInfo?.user_name}</div>
+                    <div className="font-medium text-sm" onClick={handleUserClick}>{userInfo?.user_name}</div>
                      <div className="text-xs text-muted-foreground">{formatTimeForPostOrComment(createdAt || '')}</div>
                 </div>
 
@@ -170,7 +170,7 @@ export const MessageContent = ({
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={content}
-                        placeholder="message"
+                        placeholder="Edit message..."
                         editable={isMessageEditEnabled}
 
                         editorClassName="focus:outline-none"

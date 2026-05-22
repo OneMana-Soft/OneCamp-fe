@@ -1,7 +1,7 @@
 "use client"
 
 import React, { Component, ErrorInfo, ReactNode } from "react";
-import { AlertCircle, RefreshCcw } from "lucide-react";
+import { AlertCircle, RefreshCcw } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -42,10 +42,10 @@ export class LocalizedErrorBoundary extends Component<Props, State> {
           <p className="text-xs text-muted-foreground mb-4 max-w-[200px]">
             {this.props.fallbackDescription || "Something went wrong in this section."}
           </p>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-8 text-xs bg-white" 
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
             onClick={this.handleReset}
           >
             <RefreshCcw className="mr-2 h-3 w-3" />

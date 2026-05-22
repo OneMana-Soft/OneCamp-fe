@@ -19,7 +19,7 @@ import {usePost} from "@/hooks/usePost";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {ChannelInfoInterfaceResp} from "@/types/channel";
+import {ChannelInfoInterface, ChannelInfoInterfaceResp} from "@/types/channel";
 import {addUserChannelList, resetUserChannelUnread} from "@/store/slice/userSlice";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {MessageInputState} from "@/store/slice/channelSlice";
@@ -68,9 +68,14 @@ export default function Page() {
     if(!channelId) return
 
 
-    const handleSend = () => {
+    const handleSend = (latestContent?: string) => {
 
-        const body = removeEmptyPTags(channelState.inputTextHTML)
+        // Prefer the editor's latest HTML (passed in by the input wrapper
+        // after flushing its pending throttle window) over the Redux
+        // snapshot, which can lag by one keystroke and cause the last
+        // typed character to be dropped from the sent message.
+        const rawBody = latestContent ?? channelState.inputTextHTML
+        const body = removeEmptyPTags(rawBody)
 
         if(body.length==0) return
 

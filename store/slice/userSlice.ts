@@ -3,6 +3,7 @@ import {UserDMInterface, UserEmojiStatus, UserProfileDataInterface, UserStatus} 
 import {ChannelInfoInterface} from "@/types/channel";
 import {TeamInfoInterface} from "@/types/team";
 import {ProjectInfoInterface} from "@/types/project";
+import {DocSidebarInfo} from "@/types/doc";
 
 interface UpdateUserEmojiStatusInterface {
   status: UserEmojiStatus;
@@ -40,6 +41,7 @@ interface AddUserChatInterface {
 
 interface CreateUserChannelsInterface {
   channelsUser: ChannelInfoInterface[]
+  favChannelsUser?: ChannelInfoInterface[]
 }
 
 interface RemoveUserChannelInterface {
@@ -84,6 +86,10 @@ interface CrateUserProjectInterface {
 
 }
 
+interface CreateUserDocsInterface {
+  docUsers: DocSidebarInfo[]
+}
+
 export interface UserEmojiInterface{
   emojiStatus: UserEmojiStatus;
   status: string;
@@ -96,8 +102,10 @@ export interface UserEmojiInterface{
 interface UserSidebarInterface {
   userChats:  UserDMInterface[],
   userChannels:  ChannelInfoInterface[],
+  userFavChannels:  ChannelInfoInterface[],
   userTeams: TeamInfoInterface[],
-  userProjects:  ProjectInfoInterface[]
+  userProjects:  ProjectInfoInterface[],
+  userDocs: DocSidebarInfo[],
   totalUnreadActivityCount: number
 }
 
@@ -110,8 +118,10 @@ const initialState = {
   userSidebar: {
     userChats: [],
     userChannels: [],
+    userFavChannels: [],
     userTeams: [],
     userProjects: [],
+    userDocs: [],
     totalUnreadActivityCount: 0
   } as UserSidebarInterface
 };
@@ -232,9 +242,12 @@ export const userSlice = createSlice({
     },
 
     createUserChannelList: (state, action: {payload: CreateUserChannelsInterface}) => {
-      const {channelsUser} = action.payload;
+      const {channelsUser, favChannelsUser} = action.payload;
 
       state.userSidebar.userChannels = channelsUser;
+      if (favChannelsUser) {
+        state.userSidebar.userFavChannels = favChannelsUser;
+      }
     },
 
     updateUserChannelName: (state, action: {payload: UpdateUserChannelInterface}) => {
@@ -345,6 +358,12 @@ export const userSlice = createSlice({
       state.userSidebar.userProjects = projectUsers;
     },
 
+    createUserDocList: (state, action: {payload: CreateUserDocsInterface}) => {
+      const {docUsers} = action.payload;
+
+      state.userSidebar.userDocs = docUsers;
+    },
+
     addUserProjectList: (state, action: {payload: CrateUserProjectInterface}) => {
       const {projectUser} = action.payload;
 
@@ -416,7 +435,26 @@ export const userSlice = createSlice({
 
     incrementTotalUnreadActivityCount: (state) => {
       state.userSidebar.totalUnreadActivityCount = (state.userSidebar.totalUnreadActivityCount || 0) + 1;
-    }
+    },
+
+    toggleUserChannelFavorite: (state, action: {payload: {channelUUID: string, isFavorite: boolean}}) => {
+      const { channelUUID, isFavorite } = action.payload;
+      if (isFavorite) {
+        // Find channel in userChannels and add to userFavChannels
+        const channel = state.userSidebar.userChannels.find(c => c.ch_uuid === channelUUID);
+        if (channel) {
+          const exists = state.userSidebar.userFavChannels.find(c => c.ch_uuid === channelUUID);
+          if (!exists) {
+            state.userSidebar.userFavChannels.push(channel);
+          }
+        }
+      } else {
+        // Remove from userFavChannels
+        state.userSidebar.userFavChannels = state.userSidebar.userFavChannels.filter(
+          c => c.ch_uuid !== channelUUID
+        );
+      }
+    },
 
   },
 });
@@ -437,6 +475,7 @@ export const {
   createUserProjectList,
   updateUserProjectList,
   addUserProjectList,
+  createUserDocList,
   updateUsersStatusFromList,
   updateUserInfoStatus,
   setTotalUnreadActivityCount,
@@ -445,6 +484,7 @@ export const {
   incrementUserChatUnread,
   incrementUserChannelUnread,
   incrementTotalUnreadActivityCount,
+  toggleUserChannelFavorite,
 
 } = userSlice.actions;
 

@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { MailPlus } from "lucide-react"
+import { MailPlus } from "lucide-react";
 
 import { useFetch } from "@/hooks/useFetch"
 import { Invitation, InvitationListResponseInterface } from "@/types/user"

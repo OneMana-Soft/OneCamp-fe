@@ -11,13 +11,17 @@ import {useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {UserProfileInterface} from "@/types/user";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
-import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
+import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 
 export const ChannelIdMobile = ({channelId, handleSend}: {channelId: string, handleSend: ()=>void }) => {
+    const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
+    const channelInSidebar = userChannels.find(ch => ch.ch_uuid === channelId);
 
     const postJoinChannel = usePost()
 
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(`${GetEndpointUrl.ChannelBasicInfo}/${channelId}`)
+
+    const channelDisplayName = channelInSidebar?.ch_name || channelInfo.data?.channel_info?.ch_name || "";
 
 
 
@@ -28,7 +32,7 @@ export const ChannelIdMobile = ({channelId, handleSend}: {channelId: string, han
     }
 
     if(channelInfo.isLoading) {
-        return <LoadingStateCircle />
+        return <ChatSkeleton />
     }
 
     const renderChatInput = () =>{

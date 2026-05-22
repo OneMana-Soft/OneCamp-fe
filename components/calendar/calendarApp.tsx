@@ -18,7 +18,7 @@ import {
     startOfDay,
     endOfDay
 } from "date-fns";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Loader2, Search, Filter } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Loader2, Search, Filter } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useFetch } from "@/hooks/useFetch";
@@ -28,12 +28,14 @@ import { UserInfoRawInterface } from "@/types/user";
 import { GetEventsResponse, CalendarEventInterface } from "@/types/calendar";
 import { TaskInfoInterface } from "@/types/task";
 import { cn } from "@/lib/utils/helpers/cn";
+import { calendarColors } from "@/lib/colors";
 import { useDispatch } from "react-redux";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { CreateCalendarEventDialog } from "@/components/calendar/createCalendarEventDialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useRouter } from "next/navigation";
 
@@ -269,8 +271,8 @@ export function CalendarApp() {
                     {dayIntervals.map((day, i) => (
                         <div key={i} className={cn(
                             "border-r h-full",
-                            !isSameMonth(day, monthStart) && "bg-muted/20",
-                            isSameDay(day, new Date()) && "bg-primary/[0.02]"
+                            !isSameMonth(day, monthStart) && "bg-muted/30",
+                            isSameDay(day, new Date()) && "bg-primary/5"
                         )} />
                     ))}
                 </div>
@@ -281,8 +283,11 @@ export function CalendarApp() {
                         <div key={i} className="flex justify-center pt-1.5 h-full">
                             <div className={cn(
                                 "text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full",
-                                isSameDay(day, new Date()) ? "bg-primary text-primary-foreground font-bold shadow-sm" : 
-                                isSameMonth(day, monthStart) ? "text-foreground" : "text-muted-foreground"
+                                isSameDay(day, new Date())
+                                    ? "bg-primary text-primary-foreground font-semibold"
+                                    : isSameMonth(day, monthStart)
+                                        ? "text-foreground"
+                                        : "text-muted-foreground/60"
                             )}>
                                 {format(day, "d")}
                             </div>
@@ -297,7 +302,7 @@ export function CalendarApp() {
                         return (
                             <div 
                                 key={i} 
-                                className="h-full cursor-pointer hover:bg-primary/[0.02] flex flex-col justify-end p-1" 
+                                className="h-full cursor-pointer hover:bg-accent/30 flex flex-col justify-end p-1" 
                                 onClick={() => { setDefaultDate(day); setIsCreateOpen(true); }}
                             >
                                 {/* Overflow Indicator */}
@@ -345,7 +350,11 @@ export function CalendarApp() {
                                                                 }}
                                                                 className="flex items-center gap-2 p-2 hover:bg-muted rounded-md transition-colors cursor-pointer group"
                                                             >
-                                                                <div className={cn("w-2.5 h-2.5 rounded-full shrink-0 shadow-sm", event.isTask ? "bg-blue-500 group-hover:bg-blue-600" : "bg-indigo-500 group-hover:bg-indigo-600")} />
+                                                                <div className={cn(
+                                                                    "w-2.5 h-2.5 rounded-full shrink-0 shadow-sm",
+                                                                    event.isTask ? calendarColors.task.solid : calendarColors.event.solid,
+                                                                    event.isTask ? "group-hover:bg-blue-600" : "group-hover:bg-indigo-600"
+                                                                )} />
                                                                 <div className="flex flex-col min-w-0">
                                                                     <div className="text-[11px] font-semibold truncate text-foreground group-hover:text-primary transition-colors">
                                                                         {event.event_title}
@@ -405,10 +414,13 @@ export function CalendarApp() {
                                         }}
                                         className={cn(
                                             "absolute h-5 px-1.5 py-0 text-[10px] font-medium truncate cursor-pointer transition-all flex items-center z-20",
-                                            isHovered ? (event.isTask ? "bg-blue-600 scale-[1.02] z-30 shadow-md" : "bg-indigo-600 scale-[1.02] z-30 shadow-md") : (event.isTask ? "bg-blue-500/90" : "bg-indigo-500/90"),
+                                            isHovered && "scale-[1.02] z-30 shadow-md",
+                                            event.isTask
+                                                ? (isHovered ? calendarColors.task.solidHover : calendarColors.task.solidOpacity)
+                                                : (isHovered ? calendarColors.event.solidHover : calendarColors.event.solidOpacity),
                                             "text-white",
                                             isStartOfWeek ? "rounded-l-[4px] ml-1" : "",
-                                            isEndOfWeek ? "rounded-r-[4px] mr-1" : (event.isTask ? "border-r border-blue-300/20" : "border-r border-indigo-300/20")
+                                            isEndOfWeek ? "rounded-r-[4px] mr-1" : (event.isTask ? "border-r " + calendarColors.task.border : "border-r " + calendarColors.event.border)
                                         )}
                                     >
                                         <span className="truncate leading-none">
@@ -430,19 +442,24 @@ export function CalendarApp() {
         <div className="flex h-full w-full bg-background overflow-hidden relative">
             
             {/* Sidebar Framework */}
-            <aside className="hidden lg:flex flex-col w-64 border-r bg-muted/10 h-full p-4 shrink-0 transition-transform">
-                <Button className="w-full gap-2 justify-start shadow-sm mb-6 bg-background border hover:bg-muted text-foreground" variant="outline" size="lg" onClick={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}>
-                    <Plus className="h-4 w-4 text-primary" />
+            <aside className="hidden lg:flex flex-col w-64 border-r border-border/60 bg-background h-full p-4 shrink-0">
+                <Button
+                    className="w-full justify-start gap-2 mb-4"
+                    variant="default"
+                    size="default"
+                    onClick={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}
+                >
+                    <Plus className="h-4 w-4" />
                     Create
                 </Button>
                 
                 {/* Mini Calendar placeholder */}
-                <div className="mb-6 h-[230px] bg-background border rounded-lg p-3 select-none">
-                     <div className="flex justify-between items-center mb-4">
+                <div className="mb-4 bg-background border border-border/60 rounded-lg p-3 select-none">
+                     <div className="flex justify-between items-center mb-3">
                         <span className="text-sm font-semibold pl-1">{format(miniCalendarMonth, "MMMM yyyy")}</span>
                         <div className="flex gap-0.5">
-                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full hover:bg-muted" onClick={prevMiniMonth}><ChevronLeft className="h-3.5 w-3.5"/></Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full hover:bg-muted" onClick={nextMiniMonth}><ChevronRight className="h-3.5 w-3.5"/></Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={prevMiniMonth} aria-label="Previous month"><ChevronLeft className="h-3.5 w-3.5"/></Button>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={nextMiniMonth} aria-label="Next month"><ChevronRight className="h-3.5 w-3.5"/></Button>
                         </div>
                      </div>
                      <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-muted-foreground font-semibold mb-2">
@@ -451,30 +468,32 @@ export function CalendarApp() {
                      <div className="grid grid-cols-7 gap-x-1 gap-y-1 text-center text-xs">
                         {/* Dynamic Mini Calendar Days */}
                         {Array.from({ length: getDay(startOfMonth(miniCalendarMonth)) }).map((_, i) => (
-                            <div key={`empty-${i}`} className="w-6 h-6" />
+                            <div key={`empty-${i}`} className="w-7 h-7" />
                         ))}
                         {Array.from({length: getDaysInMonth(miniCalendarMonth)}).map((_, i) => {
                             const date = new Date(miniCalendarMonth.getFullYear(), miniCalendarMonth.getMonth(), i + 1);
                             const isSelectedMonth = isSameMonth(date, currentMonth);
                             const hasItems = getEventsForDay(date).length > 0 || getTasksForDay(date).length > 0;
-                            
+
                             return (
-                                <div 
-                                    key={i} 
+                                <div
+                                    key={i}
                                     onClick={() => { setCurrentMonth(date); setMiniCalendarMonth(date); }}
-                                    className="relative group/day cursor-pointer"
+                                    className="relative cursor-pointer"
                                 >
                                     <div className={cn(
-                                        "w-7 h-7 flex items-center justify-center rounded-full transition-all duration-200 select-none mx-auto", 
-                                        isSameDay(date, new Date()) ? "bg-primary text-primary-foreground font-bold shadow-sm" : "hover:bg-accent",
-                                        !isSelectedMonth && !isSameDay(date, new Date()) && "text-muted-foreground/50",
-                                        isSelectedMonth && !isSameDay(date, new Date()) && "font-medium text-foreground/90"
+                                        "w-7 h-7 flex items-center justify-center rounded-full transition-colors duration-100 select-none mx-auto",
+                                        isSameDay(date, new Date())
+                                            ? "bg-primary text-primary-foreground font-semibold"
+                                            : "hover:bg-accent",
+                                        !isSelectedMonth && !isSameDay(date, new Date()) && "text-muted-foreground/60",
+                                        isSelectedMonth && !isSameDay(date, new Date()) && "text-foreground"
                                     )}>
                                         {i + 1}
                                     </div>
                                     {hasItems && !isSameDay(date, new Date()) && (
                                         <div className="absolute bottom-[2px] left-1/2 -translate-x-1/2 flex gap-[2px]">
-                                            <div className="w-[3px] h-[3px] rounded-full bg-indigo-500/60" />
+                                            <div className={cn("w-[3px] h-[3px] rounded-full", calendarColors.event.dot)} />
                                         </div>
                                     )}
                                 </div>
@@ -483,7 +502,7 @@ export function CalendarApp() {
                      </div>
                 </div>
 
-                <div className="flex items-center gap-2 mb-4 bg-background border rounded-md px-3 py-2 shadow-sm focus-within:ring-1 focus-within:ring-ring">
+                <div className="flex items-center gap-2 mb-4 bg-background border border-border/60 rounded-md px-3 py-2 focus-within:ring-1 focus-within:ring-ring/40 focus-within:border-border transition-colors">
                     <Search className="h-4 w-4 text-muted-foreground" />
                     <input 
                         className="bg-transparent text-sm w-full outline-none placeholder:text-muted-foreground" 
@@ -497,15 +516,25 @@ export function CalendarApp() {
 
                 <div className="space-y-4">
                     <div>
-                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">My Calendars</h4>
+                        <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">My Calendars</h4>
                         <div className="space-y-2">
-                            <label className="flex items-center gap-3 text-sm cursor-pointer group">
-                                <input type="checkbox" className="rounded border-gray-300 text-indigo-500 focus:ring-indigo-500 w-4 h-4 cursor-pointer" checked={showEvents} onChange={(e) => setShowEvents(e.target.checked)} />
-                                <span className="group-hover:text-foreground/80 transition-colors">Personal Events</span>
+                            <label className="flex items-center gap-2.5 text-sm cursor-pointer group">
+                                <Checkbox
+                                    checked={showEvents}
+                                    onCheckedChange={(checked) => setShowEvents(checked === true)}
+                                />
+                                <span className="text-foreground/90 group-hover:text-foreground transition-colors">
+                                    Personal events
+                                </span>
                             </label>
-                            <label className="flex items-center gap-3 text-sm cursor-pointer group">
-                                <input type="checkbox" className="rounded border-gray-300 text-blue-500 focus:ring-blue-500 w-4 h-4 cursor-pointer" checked={showTasks} onChange={(e) => setShowTasks(e.target.checked)} />
-                                <span className="group-hover:text-foreground/80 transition-colors">Assigned Tasks</span>
+                            <label className="flex items-center gap-2.5 text-sm cursor-pointer group">
+                                <Checkbox
+                                    checked={showTasks}
+                                    onCheckedChange={(checked) => setShowTasks(checked === true)}
+                                />
+                                <span className="text-foreground/90 group-hover:text-foreground transition-colors">
+                                    Assigned tasks
+                                </span>
                             </label>
                         </div>
                     </div>
@@ -514,56 +543,81 @@ export function CalendarApp() {
 
             {/* Main Calendar Area */}
             <main className="flex-1 flex flex-col h-full overflow-hidden">
-                <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 px-6 border-b bg-background z-10 sticky top-0">
-                    <div className="flex items-center gap-4">
-                        <h1 className="text-2xl font-semibold tracking-tight hidden sm:flex items-center gap-2">
-                            <CalendarIcon className="h-6 w-6 text-primary" />
+                <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-border/60 bg-background z-10 sticky top-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <h1 className="hidden sm:flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
+                            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                             Calendar
                         </h1>
-                        <div className="flex items-center gap-1 sm:ml-4">
-                            <Button variant="outline" className="mr-2 h-9 px-4 font-medium rounded-md shadow-sm hover:bg-accent transition-all" onClick={goToToday}>
+                        <div className="flex items-center gap-2 min-w-0">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8"
+                                onClick={goToToday}
+                            >
                                 Today
                             </Button>
-                            <div className="flex items-center gap-0 mr-4">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-accent transition-colors" onClick={prevMonth} title="Previous month">
-                                    <ChevronLeft className="h-5 w-5" />
+                            <div className="flex items-center gap-0.5">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={prevMonth}
+                                    aria-label="Previous month"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-accent transition-colors" onClick={nextMonth} title="Next month">
-                                    <ChevronRight className="h-5 w-5" />
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={nextMonth}
+                                    aria-label="Next month"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </div>
-                            <span className="text-xl font-medium tracking-tight text-foreground/90 ml-1">
+                            <span className="text-base font-semibold tracking-tight text-foreground truncate">
                                 {format(currentMonth, "MMMM yyyy")}
                             </span>
                         </div>
                     </div>
 
-                    {isDesktop && <div className="flex items-center gap-3 mt-4 sm:mt-0">
-                        {/* Mobile 'Create' button */}
-                        {/*<Button className="lg:hidden h-9 px-4 shadow-sm" onClick={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}>*/}
-                        {/*    <Plus className="h-4 w-4 mr-2" /> Create*/}
-                        {/*</Button>*/}
-
-                        {gcalStatus?.data?.isConnected ? (
-                            <Button variant="outline" size="sm" className="h-9 px-4 shadow-sm text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20" onClick={handleUnlinkGCal} disabled={post.isSubmitting}>
-                                Disconnect Google Calendar
-                            </Button>
-                        ) : (
-                            <Button variant="outline" size="sm" className="h-9 px-4 shadow-sm hover:bg-accent" onClick={handleConnectGCal} disabled={post.isSubmitting}>
-                                Connect Google Calendar
-                            </Button>
-                        )}
-
-                    </div>}
+                    {isDesktop && (
+                        <div className="flex items-center gap-2 shrink-0">
+                            {gcalStatus?.data?.isConnected ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                                    onClick={handleUnlinkGCal}
+                                    disabled={post.isSubmitting}
+                                >
+                                    Disconnect Google Calendar
+                                </Button>
+                            ) : (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8"
+                                    onClick={handleConnectGCal}
+                                    disabled={post.isSubmitting}
+                                >
+                                    Connect Google Calendar
+                                </Button>
+                            )}
+                        </div>
+                    )}
                 </header>
 
                 <div className="flex-1 overflow-y-auto bg-background custom-scrollbar">
                     {/* Calendar Grid Container */}
                     <div className="min-w-[800px] flex flex-col h-full"> 
                         {/* Days of week header */}
-                        <div className="grid grid-cols-7 w-full border-b sticky top-0 bg-background z-20 shadow-sm border-l text-center">
+                        <div className="grid grid-cols-7 w-full border-b border-border/60 sticky top-0 bg-background z-20 border-l text-center">
                             {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((dayName, i) => (
-                                <div key={dayName} className="py-2.5 text-[11px] font-bold text-muted-foreground tracking-widest border-r">
+                                <div key={dayName} className="py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60">
                                     {dayName}
                                 </div>
                             ))}

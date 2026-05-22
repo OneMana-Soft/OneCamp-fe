@@ -71,6 +71,10 @@ export const useSearch = ({
             case "post":
                 if (result.post?.post_ch_id) {
                     router.push(`/app/channel/${result.post.post_ch_id}/${result.post.post_id}`)
+                } else if (result.post?.post_channel_id) {
+                    router.push(`/app/channel/${result.post.post_channel_id}/${result.post.post_id}`)
+                } else {
+                    router.push(`/app/posts`)
                 }
                 break
             case "doc":
@@ -98,7 +102,7 @@ export const useSearch = ({
                 break
             case "attachment":
                 if (result.attachment?.attachment_doc_id) {
-                    router.push(`/app/doc/${result.attachment.attachment_doc_id}/comments`)
+                    router.push(`/app/doc/${result.attachment.attachment_doc_id}/comment`)
                 } else if (result.attachment?.attachment_chat_grp_id) {
                     if(result.attachment?.attachment_chat_grp_id.includes(" ")) {
                         const otherUUID = getOtherUserId(result.attachment?.attachment_chat_grp_id, selfProfile.data?.data.user_uuid || '')

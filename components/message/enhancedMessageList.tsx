@@ -141,7 +141,7 @@ export const EnhancedMessageList = ({
                 {items.map((item, index) => (
                     <div key={index}>
                         {item.type === "separator" ? (
-                            <div className="sticky top-0 z-10 bg-background backdrop-blur-sm py-2 text-center text-sm text-muted-foreground border-b">
+                            <div className="sticky top-0 z-[var(--z-sticky)] bg-background backdrop-blur-sm py-2 text-center text-sm text-muted-foreground border-b">
                                 {getDateHeading(item.date||'')}
                             </div>
                         ) : (

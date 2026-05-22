@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import {

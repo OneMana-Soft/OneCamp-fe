@@ -76,7 +76,12 @@ export const useMessageSyncManager = () => {
                         key.startsWith(GetEndpointUrl.GetUserLatestChatList) ||
                         key.startsWith("/dm/") ||
                         key.startsWith("/po/") ||
-                        key.startsWith("/groupChat/")),
+                        key.startsWith("/groupChat/") ||
+                        // Admin archive panel: published over MQTT, so a long
+                        // gap could mean we missed a "completed" event. Cheap
+                        // to revalidate (admin-only, two endpoints).
+                        key.startsWith("/admin/archive/jobs") ||
+                        key.startsWith("/admin/archive/stats")),
                 undefined,
                 { revalidate: true }
             )

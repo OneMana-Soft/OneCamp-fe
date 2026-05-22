@@ -1,6 +1,7 @@
 // components/file-upload/AudioPlayer.tsx
 import { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, FastForward } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX } from "@/lib/icons";
+import { FastForward } from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Slider} from "@/components/ui/slider";
 import { cn } from "@/lib/utils/helpers/cn";

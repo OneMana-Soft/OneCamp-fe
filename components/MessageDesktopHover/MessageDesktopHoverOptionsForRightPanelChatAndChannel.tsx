@@ -1,5 +1,5 @@
 import {Button} from "@/components/ui/button";
-import {ArrowRight, Bookmark, Forward, Hash, MessageSquareText, MoreVertical} from "lucide-react";
+import { ArrowRight, Bookmark, Forward, Hash, MessageSquareText, MoreVertical } from "@/lib/icons";
 import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
 import {useDispatch} from "react-redux";
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";

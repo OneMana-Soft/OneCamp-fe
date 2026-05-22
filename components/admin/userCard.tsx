@@ -8,7 +8,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { UserListResponseInterface, UserActivateOrDeactivateInterface, UserProfileDataInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { AdminUserList } from "./AdminUserList"
-import { Users2 } from "lucide-react"
+import { Users2 } from "lucide-react";
 
 const UserCard = () => {
   const [pageIndex, setPageIndex] = React.useState(0)

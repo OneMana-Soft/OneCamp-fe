@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, EyeOff, Lock, Shield, LoaderCircle, CheckCircle2 } from "lucide-react";
+import { Eye, EyeOff, Lock, Shield, LoaderCircle, CheckCircle2 } from "@/lib/icons";
 import AuthService from "@/services/auth/AuthService";
 
 export function ChangePasswordSection() {
@@ -90,7 +90,7 @@ export function ChangePasswordSection() {
         <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                    <div className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-full">
+                    <div className="bg-amber-500/10 p-2 rounded-full">
                         <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                     </div>
                     <div>

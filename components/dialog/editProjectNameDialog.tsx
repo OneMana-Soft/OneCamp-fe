@@ -131,7 +131,7 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
                                         </div>
                                         <div>
                                             {error && (
-                                                <p className="text-xs md:text-sm text-red-500">{error.message}</p>
+                                                <p className="text-xs md:text-sm text-destructive">{error.message}</p>
                                             )}
 
                                         </div>

@@ -9,7 +9,7 @@ import {
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import {Button} from "@/components/ui/button";
-import {Bell, Bookmark, MoreVertical, Pencil, Trash2} from "lucide-react";
+import { Bell, Bookmark, MoreVertical, Pencil, Trash2 } from "@/lib/icons";
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 
 interface MessageDesktopDropdownProps {

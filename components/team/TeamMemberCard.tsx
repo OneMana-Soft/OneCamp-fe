@@ -1,7 +1,7 @@
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
 import {TeamProjectList} from "@/components/team/TeamProjectList";
 import {TeamMemberContent} from "@/components/member/teamMemberContent";
-import {Users} from "lucide-react";
+import { Users } from "@/lib/icons";
 
 export const TeamMemberCard = ({teamId}:{teamId: string}) => {
 

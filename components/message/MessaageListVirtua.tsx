@@ -5,7 +5,7 @@ import type { VirtualizedListProps } from "@/types/virtual"
 import { Virtualizer } from "virtua"
 import { cn } from "@/lib/utils/helpers/cn"
 import {Button} from "@/components/ui/button";
-import {ChevronDown} from "lucide-react";
+import { ChevronDown } from "@/lib/icons";
 
 // Memoized item component to prevent unnecessary re-renders
 const MemoizedMessageItem = React.memo(({ item, index, total, renderItem }: { item: any, index: number, total: number, renderItem: any }) => {
@@ -184,7 +184,7 @@ export const MessageListVirtua = <T,>({
 
     return (
         <div
-            className={cn(containerClassName, "touch-pan-y w-full min-w-0 transition-opacity duration-300", {
+            className={cn(containerClassName, "touch-pan-y w-full min-w-0 flex-1 min-h-0 transition-opacity duration-300 md:pb-0 pb-[150px]", {
                 "opacity-0": items.length > 0 && !isReady,
                 "opacity-100": items.length === 0 || isReady
             })}
@@ -196,7 +196,7 @@ export const MessageListVirtua = <T,>({
         >
             {visibleDateIndex > -1 && items.length > 2 && (
                 <SeparatorPill
-                    className="sticky top-1 z-10 transition-opacity duration-200"
+                    className="sticky top-1 z-[var(--z-sticky)] transition-opacity duration-200"
                     lineClassName="bg-transparent"
                     pillClassName="border-2 bg-background"
                 >
@@ -272,7 +272,7 @@ export const MessageListVirtua = <T,>({
             </Virtualizer>
 
             {!isScrolledToBottom && (
-                <Button className="sticky bottom-8 float-right mr-8 z-10 rounded-full" onClick={scrollToBottom} size="icon">
+                <Button className="sticky bottom-8 float-right mr-8 z-[var(--z-sticky)] rounded-full" onClick={scrollToBottom} size="icon">
                     <ChevronDown />
                 </Button>
             )}

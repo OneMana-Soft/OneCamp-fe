@@ -1,4 +1,16 @@
-.minimal-tiptap-editor .ProseMirror > p.is-editor-empty::before {
+.minimal-tiptap-editor .ProseMirror p.is-editor-empty::before,
+.minimal-tiptap-editor .ProseMirror p.is-empty::before,
+.minimal-tiptap-editor .ProseMirror h1.is-empty::before,
+.minimal-tiptap-editor .ProseMirror h2.is-empty::before,
+.minimal-tiptap-editor .ProseMirror h3.is-empty::before,
+.minimal-tiptap-editor .ProseMirror h4.is-empty::before,
+.minimal-tiptap-editor .ProseMirror h5.is-empty::before,
+.minimal-tiptap-editor .ProseMirror h6.is-empty::before,
+.minimal-tiptap-editor .ProseMirror blockquote.is-empty::before,
+.minimal-tiptap-editor .ProseMirror li.is-empty::before {
   content: attr(data-placeholder);
-  @apply pointer-events-none float-left h-0 text-[var(--mt-secondary)];
+  color: var(--muted-foreground);
+  float: left;
+  height: 0;
+  pointer-events: none;
 }

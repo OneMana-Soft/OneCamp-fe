@@ -4,7 +4,7 @@ import type { Editor } from '@tiptap/react'
 import type { VariantProps } from 'class-variance-authority'
 import type { toggleVariants } from '@/components/ui/toggle'
 import { ToolbarButton } from '../toolbar-button'
-import {Smile} from "lucide-react";
+import { Smile } from "@/lib/icons";
 import {ReactionPicker} from "@/components/reactionPicker/reactionPicker";
 import { StandardReaction, SyncCustomReaction} from "@/types/reaction";
 

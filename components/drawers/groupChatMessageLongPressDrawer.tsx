@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Forward, Link, MessageSquareText, Pencil, Trash2, Type, Users} from "lucide-react"
+import { Forward, Link, MessageSquareText, Pencil, Trash2, Type, Users } from "@/lib/icons";
 
 import {
     Drawer,

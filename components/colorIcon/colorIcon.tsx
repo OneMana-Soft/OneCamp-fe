@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils/helpers/cn"
-import {LucideIcon} from "lucide-react";
+import { LucideIcon } from "lucide-react";
 
 interface ProjectIconProps {
     name: string

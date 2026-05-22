@@ -1,7 +1,7 @@
 import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
 import {cn} from "@/lib/utils/helpers/cn";
-import {Check, X} from "lucide-react";
+import { Check, X } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {useLongPress} from "@/hooks/useLongPress";
 import {useDispatch} from "react-redux";
@@ -13,7 +13,7 @@ import {usePathname, useRouter} from "next/navigation";
 import {MessageAttachments} from "@/components/message/MessageAttachments";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {BottomMenu} from "@/components/message/bottomMenu";
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
 import { AttachmentMediaReq} from "@/types/attachment";
@@ -52,6 +52,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
     const [reactions, setReactions] = useState<{ [key: string]: string[] }>({});
 
     const [updatedText, setUpdatedText] = useState<string>(chatInfo.chat_body_text||'');
+    const updatedTextRef = useRef<string>(chatInfo.chat_body_text || '');
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
@@ -166,41 +167,41 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
             wrap={(c) => (
                 <div onClick={handleOnCLick}>{c}</div>
             )}>
-        <div  className='flex p-4 space-x-4 select-none' {...longPressEvent} >
+        <div  className='flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100' {...longPressEvent} >
 
-            <div className='h-12 w-12 flex-shrink-0' onClick={handleUserClick}>
+            <div className='h-9 w-9 mt-0.5 flex-shrink-0' onClick={handleUserClick}>
                 <ChannelMessageAvatar
                     userName={userInfoState?.userName || chatInfo.chat_from.user_name}
                     userProfileKey={userInfoState?.profileKey ?? chatInfo.chat_from.user_profile_object_key}
                 />
 
             </div>
-            <div className='w-full'>
-                <div className='flex items-baseline space-x-2'>
-                    <div className='font-semibold text-m' onClick={handleUserClick}>
+            <div className='flex-1 min-w-0'>
+                <div className='flex items-baseline gap-2'>
+                    <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
                         {userInfoState?.userName || chatInfo.chat_from.user_name}
                     </div>
-                    <div className='text-xs text-muted-foreground text'>
+                    <div className='text-[11px] tabular-nums text-muted-foreground shrink-0'>
                         {formatTimeForPostOrComment(chatInfo.chat_created_at, true)}
 
                     </div>
                 </div>
 
-                    <div className='break-all' >
+                    <div className='break-words' >
 
 
                         <MinimalTiptapTextInput
                             throttleDelay={300}
-                            isOutputText={true}
-                            className={cn("max-w-full rounded-xl h-auto ", isMessageEditEnabled ? "p-2 ml-[-4]" : "border-none")}
+                            isOutputText={!isMessageEditEnabled}
+                            className={cn("max-w-full h-auto", isMessageEditEnabled && "p-2 ml-[-4]")}
                             editorContentClassName={cn("overflow-auto ")}
                             output="html"
                             content={chatInfo.chat_body_text}
-                            placeholder={"message"}
+                            placeholder={"Edit message..."}
                             editable={isMessageEditEnabled}
                             PrimaryButtonIcon={Check}
                             buttonOnclick={()=>{
-                                updateChat(updatedText)
+                                updateChat(updatedTextRef.current)
                                 setIsMessageEditEnabled(false)
 
                             }}
@@ -211,13 +212,11 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                             editorClassName="focus:outline-none "
                             onChange={(content) => {
                                 const s = content as string
-
+                                updatedTextRef.current = s
                                 setUpdatedText(s)
 
                             }}
-                        >
-                        </MinimalTiptapTextInput>
-                        <div className={`${chatInfo.chat_body_text && chatInfo.chat_body_text.length > 0 ? 'mb-2' : ''}`}/>
+                        />
 
 
                         {
@@ -241,7 +240,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                     <MessageAttachments priority={priority} attachmentSelected={handleSelectAttachment} attachments={chatInfo.chat_attachments} mediaGetUrl={GetEndpointUrl.GetGroupChatMedia + '/' + grpId}/>
                 }
 
-                {chatInfo.chat_comments && chatInfo.chat_comment_count && <div className='mb-3' onClick={handleOnCLick}><MessageReplyCount replyCount={chatInfo.chat_comment_count} lastCommentCreatedAt={chatInfo.chat_comments[0].comment_created_at}/></div>}
+                {chatInfo.chat_comments && (chatInfo.chat_comment_count || 0) > 0 && <div className='mb-3' onClick={handleOnCLick}><MessageReplyCount replyCount={chatInfo.chat_comment_count} lastCommentCreatedAt={chatInfo.chat_comments[0].comment_created_at}/></div>}
 
                 { !isMessageEditEnabled && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
 

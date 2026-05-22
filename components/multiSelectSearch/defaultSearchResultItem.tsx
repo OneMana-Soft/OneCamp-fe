@@ -1,6 +1,6 @@
 "use client"
 
-import { Hash } from "lucide-react"
+import { Hash } from "@/lib/icons";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {SearchableItem} from "@/types/search";
 

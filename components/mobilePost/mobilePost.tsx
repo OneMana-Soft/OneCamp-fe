@@ -33,6 +33,7 @@ import {
 } from "@/store/slice/channelSlice";
 import {usePost} from "@/hooks/usePost";
 import {CreateUpdateCommentReqInterface} from "@/types/comment";
+import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 
 export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUID: string }) => {
 
@@ -104,11 +105,14 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
 
     const handleUpdatePost = (postId: string, postHTMLText: string) => {
 
+        const trimmedHtml = removeEmptyPTags(postHTMLText)
+        if (!trimmedHtml) return
+
         post.makeRequest<CreateOrUpdatePostsReq, CreatePostsRes>({
             apiEndpoint: PostEndpointUrl.UpdateChannelPost,
             payload: {
                 post_id: postId,
-                post_text_html: postHTMLText
+                post_text_html: trimmedHtml
             },
             showToast: true
         })
@@ -118,7 +122,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                     dispatch(updatePostByPostId({
                         postId: postId,
                         channelId: channelId,
-                        htmlText: postHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                 }
 
@@ -223,12 +227,15 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
 
     const handleUpdatePostComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
 
+        const trimmedHtml = removeEmptyPTags(commentHTMLText)
+        if (!trimmedHtml) return
+
         post.makeRequest<CreateUpdateCommentReqInterface>({
             apiEndpoint: PostEndpointUrl.UpdatePostComment,
             payload: {
                 post_id: postUUID,
                 comment_id: commentUUID,
-                comment_text_html: commentHTMLText
+                comment_text_html: trimmedHtml
             },
             showToast: true
         })
@@ -238,7 +245,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                     dispatch(updateChannelComment({
                         commentIndex: commentIndex,
                         postId: postUUID,
-                        htmlText: commentHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                 }
 
@@ -287,7 +294,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
 
 
     return (
-            <div style={{height: window.innerHeight - 190}} className='overflow-y-auto'>
+            <div className="flex-1 min-h-0 overflow-y-auto">
                 <MobileMessage
                     userInfo={mainMessageData.userInfo}
                     createdAt={mainMessageData.createdAt}

@@ -5,8 +5,9 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import {Plus, CheckCircle2, ChevronRight, Link2, Download} from "lucide-react"
+import { Plus, CheckCircle2, ChevronRight, Link2, Download } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
+import { statusColors } from "@/lib/colors"
 import { DateField } from "./taskDateField"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
 import type {UserProfileDataInterface, UserProfileInterface} from "@/types/user"
@@ -278,7 +279,7 @@ const SubtaskItem = React.memo(function SubtaskItem({
     return (
         <div
             className={cn(
-                "flex items-center gap-1 p-1 py-0.5 rounded-lg hover:bg-primary/5",
+                "flex flex-wrap items-center gap-x-1 gap-y-1.5 p-1 py-1 rounded-lg hover:bg-primary/5",
                 isCompleted && "bg-primary/5",
                 isAnimating && "animate-gradient-completion"
             )}
@@ -292,16 +293,16 @@ const SubtaskItem = React.memo(function SubtaskItem({
                     type="button"
                 >
                     {isCompleted ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        <CheckCircle2 className="w-5 h-5 statusColors.success.text" />
                     ) : (
                         <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/50" />
                     )}
                 </button>
             </div>
 
-            {/* Task Name */}
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+            {/* Task Name — fills the first row */}
+            <div className="flex-1 min-w-0 basis-[60%] sm:basis-auto">
+                <div className="flex items-center gap-2 min-w-0">
                     {isAdmin ? (
                         <ResizeableTextInput
                             delay={500}
@@ -315,10 +316,10 @@ const SubtaskItem = React.memo(function SubtaskItem({
                         <span className={cn("text-sm font-medium truncate")}>{subtask.task_name}</span>
                     )}
 
-                    
+
                     {/* Comments and Subtasks Count */}
                     {(hasComments || hasSubtasks) && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                             {hasComments && (
                                 <span>{subtask.task_comment_count}</span>
                             )}
@@ -334,38 +335,46 @@ const SubtaskItem = React.memo(function SubtaskItem({
                 </div>
             </div>
 
-            {/* Dates */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-                <DateField
-                    isAdmin={isAdmin}
-                    label={("Start")}
-                    value={startDate}
-                    onSelect={(d) => onUpdateStart(subtask.task_uuid, d)}
-                    onClear={() => onUpdateStart(subtask.task_uuid, undefined)}
-                    compact
-                />
-                <DateField
-                    isAdmin={isAdmin}
-                    label="Due"
-                    value={dueDate}
-                    onSelect={(d) => onUpdateDue(subtask.task_uuid, d)}
-                    onClear={() => onUpdateDue(subtask.task_uuid, undefined)}
-                    compact
-                />
-            </div>
+            {/*
+              Meta cluster (dates + assignee + open arrow).
+              On mobile this wraps onto a second row beneath the name so
+              long subtask titles don't squeeze the dates off-screen.
+              `ml-auto` keeps the cluster right-aligned on its row.
+            */}
+            <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto basis-full sm:basis-auto justify-end pl-7 sm:pl-0">
+                {/* Dates */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <DateField
+                        isAdmin={isAdmin}
+                        label={("Start")}
+                        value={startDate}
+                        onSelect={(d) => onUpdateStart(subtask.task_uuid, d)}
+                        onClear={() => onUpdateStart(subtask.task_uuid, undefined)}
+                        compact
+                    />
+                    <DateField
+                        isAdmin={isAdmin}
+                        label="Due"
+                        value={dueDate}
+                        onSelect={(d) => onUpdateDue(subtask.task_uuid, d)}
+                        onClear={() => onUpdateDue(subtask.task_uuid, undefined)}
+                        compact
+                    />
+                </div>
 
-            {/* Assignee */}
-            <div className="flex-shrink-0">
-                <TaskSubTaskAssignee
-                    taskProjectMembers={projectMembers}
-                    userProfile={subtask.task_assignee}
-                    assigneeUpdate={(u) => onUpdateAssignee(subtask.task_uuid, u)}
-                />
-            </div>
+                {/* Assignee */}
+                <div className="flex-shrink-0">
+                    <TaskSubTaskAssignee
+                        taskProjectMembers={projectMembers}
+                        userProfile={subtask.task_assignee}
+                        assigneeUpdate={(u) => onUpdateAssignee(subtask.task_uuid, u)}
+                    />
+                </div>
 
-            {/* Navigation Arrow */}
-            <div className="flex-shrink-0" onClick={handleOpenClick}>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                {/* Navigation Arrow */}
+                <div className="flex-shrink-0" onClick={handleOpenClick}>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
             </div>
         </div>
     )

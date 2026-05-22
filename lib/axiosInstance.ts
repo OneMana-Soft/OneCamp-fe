@@ -53,7 +53,17 @@ const performLogout = async () => {
     clearClientCookies();
     localStorage.clear();
     sessionStorage.clear();
-    window.location.href = '/';
+    // Only redirect if not already on a public page to avoid reload loops
+    const publicPaths = ['/', '/signup', '/forgot-password', '/reset-password', '/admin-setup'];
+    if (!publicPaths.includes(window.location.pathname)) {
+        window.location.href = '/';
+    } else {
+        // We're already on a public page (e.g. login). Don't latch
+        // isLoggingOut forever or the next authed request from the same
+        // tab (e.g. /self_profile fired by AppProtectedRoute right after
+        // demo-login succeeds) will be aborted by the request interceptor.
+        isLoggingOut = false;
+    }
 };
 
 const axiosInstance = axios.create({

@@ -1,6 +1,7 @@
 import {UserProfileDataInterface} from "@/types/user";
 import {cn} from "@/lib/utils/helpers/cn";
-import {ExternalLink, SendHorizontal} from "lucide-react";
+import { SendHorizontal } from "@/lib/icons";
+import { ExternalLink } from "lucide-react";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {MessagePreviewAvatar} from "@/components/message/MessagePreviewAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
@@ -46,7 +47,7 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                     editorContentClassName="overflow-auto "
                     output="html"
                     content={msgInfo.msgText}
-                    placeholder={"message"}
+                    placeholder={""}
                     editable={false}
                     ButtonIcon={SendHorizontal}
                     buttonOnclick={() => {
@@ -67,7 +68,7 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                             <Button
                                 variant="link"
                                 size="sm"
-                                className="ml-2 h-auto p-0 text-xs text-blue-600 hover:text-blue-800"
+                                className="ml-2 h-auto p-0 text-xs text-primary hover:text-primary/80"
                                 onClick={()=>{}}
                             >
                                 view message
@@ -82,7 +83,7 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                             <Button
                                 variant="link"
                                 size="sm"
-                                className="ml-2 h-auto p-0 text-xs text-blue-600 hover:text-blue-800"
+                                className="ml-2 h-auto p-0 text-xs text-primary hover:text-primary/80"
                                 onClick={()=>{}}
                             >
                                 view conversation

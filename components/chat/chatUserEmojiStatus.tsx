@@ -35,7 +35,7 @@ export const ChatUserEmojiStatus = ({userUUID}: {userUUID: string}) => {
                 <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                     <PopoverTrigger asChild>
                         <button
-                            className="inline-flex items-center space-x-1 p-1 rounded-sm transition-colors hover:bg-gray-100 focus:outline-none "
+                            className="inline-flex items-center space-x-1 p-1 rounded-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                             aria-label={`User status: ${statusMessage}`}
                             onClick={(e) => {
                                     e.preventDefault()
@@ -64,16 +64,14 @@ export const ChatUserEmojiStatus = ({userUUID}: {userUUID: string}) => {
         <div className="flex">
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <div
-                            className="inline-flex items-center space-x-1 p-1 rounded-sm transition-colors hover:bg-gray-100 focus:outline-none "
-                            tabIndex={0}
-                            role="button"
+                        <button
+                            className="inline-flex items-center space-x-1 p-1 rounded-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                             aria-label={`User status: ${statusMessage}`}
                         >
               <span role="img" aria-label="Status emoji" className="text-sm">
                 {emojiInfo.skins[0].native}
               </span>
-                        </div>
+                        </button>
                     </TooltipTrigger>
                     <TooltipContent side="right" className="flex items-center gap-2">
                         <span className="text-sm">{statusMessage}</span>

@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import {CircleUser, ClipboardList, Shield, Users} from "lucide-react"
-
+import { Shield, Users } from "@/lib/icons"
+import { ClipboardList } from "lucide-react"
 import {
     Drawer,
     DrawerContent,
@@ -10,92 +10,56 @@ import {
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
-import {app_admin, app_channel_call, app_project_path, app_team_path} from "@/types/paths";
-import {useRouter} from "next/navigation";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import type {UserProfileInterface} from "@/types/user";
-import {GetEndpointUrl} from "@/services/endPoints";
+import { app_admin, app_project_path, app_team_path } from "@/types/paths"
+import { useRouter } from "next/navigation"
+import { useFetchOnlyOnce } from "@/hooks/useFetch"
+import type { UserProfileInterface } from "@/types/user"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { DrawerItem } from "@/components/drawers/drawerItem"
 
-
-interface orgDrawerDrawerProps {
-    drawerOpenState: boolean;
-    setOpenState: (state: boolean) => void;
+interface OrgDrawerProps {
+    drawerOpenState: boolean
+    setOpenState: (state: boolean) => void
 }
 
-export function OrgDrawer({drawerOpenState, setOpenState}:orgDrawerDrawerProps) {
-
+export function OrgDrawer({ drawerOpenState, setOpenState }: OrgDrawerProps) {
     const router = useRouter()
-
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
+    const closeDrawer = () => setOpenState(false)
 
-    function closeDrawer() {
-        setOpenState(false);
-    }
-
-    const clickAdmin = () => {
-        closeDrawer();
-        router.push(app_admin);
-    }
-
-    const clickTeams = () => {
-        closeDrawer();
-        router.push(app_team_path);
-    }
-
-
-    const clickProjects = () => {
-        closeDrawer();
-        router.push(app_project_path);
+    const handleNavigate = (path: string) => {
+        closeDrawer()
+        router.push(path)
     }
 
     return (
-        <Drawer  onOpenChange={closeDrawer} open={drawerOpenState}>
+        <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
-                <div className=" w-full mb-6">
-                    <DrawerHeader className='hidden'>
-                        <DrawerTitle className='capitalize'>{process.env.NEXT_PUBLIC_ORG_NAME}</DrawerTitle>
-                        <DrawerDescription>Org level</DrawerDescription>
-
-                    </DrawerHeader>
-                    <div className="p-4 pb-6">
-                        <div className="flex flex-col items-center justify-start space-y-1">
-                            <div
-                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={clickTeams}
-                            >
-                                <Users className="h-5 w-5 text-muted-foreground"/>
-                                <span className="text-base font-medium">Teams</span>
-                            </div>
-
-                            <div
-                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={clickProjects}
-                            >
-                                <ClipboardList className="h-5 w-5 text-muted-foreground"/>
-                                <span className="text-base font-medium">Projects</span>
-                            </div>
-
-
-                            {
-                                selfProfile.data?.data.user_is_admin &&
-                                <div
-                                className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-muted/50 rounded-xl px-4'
-                                onClick={clickAdmin}
-                            >
-                                <Shield className="h-5 w-5 text-muted-foreground"/>
-                                <span className="text-base font-medium">Admin control</span>
-                            </div>
-                            }
-                        </div>
-
-                    </div>
-                    {/*<DrawerFooter>*/}
-                    {/*    <Button>Submit</Button>*/}
-                    {/*    <DrawerClose asChild>*/}
-                    {/*        <Button variant="outline">Cancel</Button>*/}
-                    {/*    </DrawerClose>*/}
-                    {/*</DrawerFooter>*/}
+                <DrawerHeader className="sr-only">
+                    <DrawerTitle className="capitalize">
+                        {process.env.NEXT_PUBLIC_ORG_NAME}
+                    </DrawerTitle>
+                    <DrawerDescription>Organization-level navigation.</DrawerDescription>
+                </DrawerHeader>
+                <div className="p-3 pb-6 space-y-0.5">
+                    <DrawerItem
+                        icon={Users}
+                        label="Teams"
+                        onClick={() => handleNavigate(app_team_path)}
+                    />
+                    <DrawerItem
+                        icon={ClipboardList}
+                        label="Projects"
+                        onClick={() => handleNavigate(app_project_path)}
+                    />
+                    {selfProfile.data?.data.user_is_admin && (
+                        <DrawerItem
+                            icon={Shield}
+                            label="Admin control"
+                            onClick={() => handleNavigate(app_admin)}
+                        />
+                    )}
                 </div>
             </DrawerContent>
         </Drawer>

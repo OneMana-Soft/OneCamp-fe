@@ -1,25 +1,29 @@
 import {MobileTopNavigationBar} from "@/components/navigationBar/mobile/mobileTopNavigationBar";
 import {MobileBottomNavigationBar} from "@/components/navigationBar/mobile/mobileBottomNavigationBar";
+import { cn } from "@/lib/utils/helpers/cn";
 
 export function MobileNavigationBar({
-                                              children,
-                                          }: Readonly<{
+                                               children,
+                                               disableBottomPadding = false,
+                                           }: Readonly<{
     children: React.ReactNode;
+    disableBottomPadding?: boolean;
 }>) {
 
     return (
         <>
-            <div className='flex flex-col h-full max-h-[100dvh] justify-between overscroll-none'>
+            <div className="flex flex-col h-dvh overscroll-none">
                 <MobileTopNavigationBar/>
 
-                <div className='flex-1 overflow-y-auto'>
+                <div className={cn(
+                    "flex-1 overflow-y-auto",
+                    !disableBottomPadding && "pb-[calc(4rem+env(safe-area-inset-bottom))]"
+                )}>
                     {children}
-
                 </div>
 
                 <MobileBottomNavigationBar />
             </div>
         </>
-
     );
 }

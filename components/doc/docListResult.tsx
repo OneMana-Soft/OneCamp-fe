@@ -3,12 +3,15 @@ import {DocInfoInterface} from "@/types/doc";
 import {DocCard} from "@/components/doc/docCard";
 import * as React from "react";
 import {app_doc_path} from "@/types/paths";
-import Link from "next/link";
-import { Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, FileText } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
 import { VirtuosoGrid } from 'react-virtuoso';
+import { EmptyState } from "@/components/ui/empty-state";
+import { ListSkeleton } from "@/components/ui/ListSkeleton";
 
 export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate}: {docList: DocInfoInterface[], onLoadMore?: ()=>void, hasMore?: boolean, isLoading?: boolean, onCreate?: ()=>void}) => {
+    const router = useRouter();
     
     // Merge potential "Create Doc" card into the data list
     // We use a discriminated union type approach or just a mixed array
@@ -21,16 +24,23 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
     }, [docList, onCreate]);
 
 
+    if (isLoading && docList.length === 0) {
+        return <ListSkeleton rows={6} showAvatar={false} className="pt-6" />;
+    }
+
     if(docList.length == 0 && !isLoading && !onCreate) {
         return (
-            <div className='flex justify-center items-center h-full text-muted-foreground'>
-                No documents found 
-            </div>
+            <EmptyState
+                icon={FileText}
+                title="No documents yet"
+                description="Create your first document to get started."
+                className="h-full"
+            />
         )
     }
 
     return (
-        <div className="w-full flex-1 min-h-0 bg-gray-50/50 dark:bg-background">
+        <div className="w-full flex-1 min-h-0 bg-background">
              <VirtuosoGrid
                 style={{ height: '100%', width: '100%' }}
                 totalCount={data.length}
@@ -46,7 +56,7 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                     Footer: () => (
                         <div className="flex justify-center py-4 w-full">
                             {isLoading && (
-                                <span className="flex items-center gap-2 text-sm text-blue-600">
+                                <span className="flex items-center gap-2 text-sm text-primary">
                                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                                     Loading...
                                 </span>
@@ -58,27 +68,28 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                     )
                 }}
                 itemContent={(index, item) => {
+                     if (!item) return null;
                      if (item === 'CREATE_CARD') {
                          return (
                             <div 
                                 onClick={onCreate}
                                 className={cn(
-                                    "group relative flex flex-col items-center justify-center border border-dashed border-gray-300 dark:border-gray-700 rounded-lg bg-transparent hover:border-blue-400 dark:hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all duration-200 cursor-pointer h-64 md:h-72"
+                                    "group relative flex flex-col items-center justify-center border border-dashed border-border rounded-lg bg-transparent hover:border-primary/40 hover:bg-accent/30 transition-all duration-150 cursor-pointer h-64 md:h-72"
                                 )}
                             >
-                                 <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-secondary flex items-center justify-center text-gray-400 group-hover:text-blue-600 transition-colors">
+                                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors">
                                     <Plus size={24} />
                                  </div>
-                                 <span className="mt-3 text-sm font-medium text-gray-500 dark:text-gray-400 group-hover:text-blue-600">
+                                 <span className="mt-3 text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors">
                                     Blank document
                                  </span>
                             </div>
                          )
                      }
                      return (
-                         <Link href={`${app_doc_path}/${item.doc_uuid}`} className="block">
-                             <DocCard doc={item} onClick={() => {}} />
-                         </Link>
+                         <div className="block">
+                             <DocCard doc={item} onClick={(id) => router.push(`${app_doc_path}/${id}`)} />
+                         </div>
                      )
                 }}
              />

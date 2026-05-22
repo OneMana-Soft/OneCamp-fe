@@ -10,10 +10,10 @@ import {useEffect, useState, useMemo} from "react";
 import {ChatMessages} from "@/components/chat/chatMessages";
 import {CreateChatPaginationResRaw} from "@/types/chat";
 import {updateChats, updateChatScrollToBottom} from "@/store/slice/chatSlice";
-import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
+import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {updateChannelPosts, updateChannelScrollToBottom} from "@/store/slice/channelSlice";
 import {RawUserDMInterface, UserProfileInterface} from "@/types/user";
-import {LoaderCircle} from "lucide-react";
+import { LoaderCircle } from "@/lib/icons";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {
     LocallyCreatedGrpInfoInterface,
@@ -22,6 +22,7 @@ import {
 } from "@/store/slice/groupChatSlice";
 import {GroupChatMessages} from "@/components/groupChat/groupChatMessages";
 import {useSearchParams} from "next/navigation";
+import {useMedia} from "@/context/MediaQueryContext";
 
 interface ChatMessageListProps {
     grpId: string;
@@ -32,6 +33,7 @@ const EMPTY_CHATS: PostsRes[] = []
 
 export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMessageListProps) => {
 
+    const { isMobile } = useMedia();
     const searchParams = useSearchParams();
     const messageId = propMessageId || searchParams?.get('messageId') || undefined;
 
@@ -135,7 +137,7 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.visibilityState === "visible") {
-                // console.log("[Sync] Tab visible, fetching new group chat messages...");
+
                 getNewMessages();
             }
         };
@@ -172,7 +174,7 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
                 clickedScrollToBottom={handleClickedScrollToBottom}
                 grpId={grpId}
             />
-            <TypingIndicator users={chatTypingState}/>
+            <TypingIndicatorBar users={chatTypingState} />
         </div>
     )
 

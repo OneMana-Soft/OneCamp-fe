@@ -16,7 +16,7 @@ import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {usePost} from "@/hooks/usePost";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {CheckCircle} from "lucide-react";
+import { CheckCircle } from "@/lib/icons";
 import {useState} from "react";
 import {useFetch} from "@/hooks/useFetch";
 import {TeamInfoInterface, TeamNameExistsInterface} from "@/types/team";
@@ -136,17 +136,17 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
                           </div>
                           <div>
                             {error && (
-                                <p className="text-xs md:text-sm text-red-500">{error.message}</p>
+                                <p className="text-xs md:text-sm text-destructive">{error.message}</p>
                             )}
                             {teamNameToCheck == field.value && isTeamNameAvailable?.exists === false && (
-                                <div className="flex items-center text-green-500">
+                                <div className="flex items-center text-green-600 dark:text-green-400">
                                   <CheckCircle className="w-4 h-4 mr-1"/>
                                   <span
                                       className="text-xs md:text-sm">Channel name is available</span>
                                 </div>
                             )}
                             {teamNameToCheck == field.value && isTeamNameAvailable?.exists === true && (
-                                <p className="text-xs md:text-sm text-red-500">Team name is already
+                                <p className="text-xs md:text-sm text-destructive">Team name is already
                                   taken</p>
                             )}
                           </div>

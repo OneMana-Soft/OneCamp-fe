@@ -1,36 +1,28 @@
-"use client";
+"use client"
 
+import { useMedia } from "@/context/MediaQueryContext"
+import { ChatUserList } from "@/components/chat/chatUserList"
+import { EmptyState } from "@/components/ui/empty-state"
+import { MessageCircle } from "@/lib/icons"
 
-import {useMedia} from "@/context/MediaQueryContext";
-import {ChatUserList} from "@/components/chat/chatUserList";
+export default function ChatPage() {
+    const { isDesktop, isMobile } = useMedia()
 
+    if (isMobile) {
+        return <ChatUserList chatId={""} />
+    }
 
-function ChatPage() {
+    if (isDesktop) {
+        return (
+            <div className="flex h-full items-center justify-center">
+                <EmptyState
+                    icon={MessageCircle}
+                    title="Select a conversation"
+                    description="Choose a chat from the sidebar to start messaging."
+                />
+            </div>
+        )
+    }
 
-
-    const { isDesktop, isMobile } = useMedia();
-
-
-    return (
-        <>
-            {
-                isDesktop &&
-
-                <div className="flex justify-center items-center h-screen">
-                    <div className="text-muted-foreground text-lg text-center">
-                        Select a conversation
-                    </div>
-                </div>
-            }
-
-            {
-                isMobile &&
-                <ChatUserList chatId={''}/>
-
-            }
-
-        </>
-    )
+    return null
 }
-
-export default ChatPage;

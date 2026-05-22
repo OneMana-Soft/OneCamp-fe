@@ -48,7 +48,10 @@ export function TypingIndicator({ users, className }: TypingIndicatorProps) {
                     exit={{ opacity: 0, y: 10, scale: 0.95, transition: { duration: 0.2 } }}
                     transition={{ duration: 0.3, type: "spring", bounce: 0.25 }}
                     className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground bg-background/90 backdrop-blur-md rounded-2xl border border-border/50 shadow-sm overflow-hidden",
+                        // inline-flex + w-fit keeps the pill compact instead
+                        // of stretching to fill its parent on mobile, which
+                        // looked like a clunky full-width banner.
+                        "inline-flex w-fit max-w-full items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground bg-background/90 backdrop-blur-md rounded-full border border-border/50 shadow-sm overflow-hidden",
                         className,
                     )}
                     role="status"
@@ -57,14 +60,16 @@ export function TypingIndicator({ users, className }: TypingIndicatorProps) {
                 >
                     {renderAvatars()}
 
-                    <div className="flex items-center gap-1 px-1">
+                    <div className="flex items-center gap-1 px-0.5">
                         <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
                         <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
                         <div className="w-1.5 h-1.5 bg-muted-foreground/50 rounded-full animate-bounce" />
                     </div>
 
-                    <span className="font-medium whitespace-nowrap pl-1 truncate max-w-[120px] sm:max-w-[200px]">{getTypingText()}</span>
-                    <span className="text-muted-foreground/60 italic hidden sm:inline-block">typing...</span>
+                    <span className="font-medium whitespace-nowrap pl-1 truncate max-w-[110px] sm:max-w-[200px]">{getTypingText()}</span>
+                    <span className="text-muted-foreground/60 italic whitespace-nowrap">
+                        {users.length === 1 ? "is typing…" : "are typing…"}
+                    </span>
                 </motion.div>
             )}
         </AnimatePresence>

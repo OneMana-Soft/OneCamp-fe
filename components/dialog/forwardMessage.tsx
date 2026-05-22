@@ -22,9 +22,10 @@ import {usePost} from "@/hooks/usePost";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {clearFwdMsgInputState, createOrUpdateFwdMsg} from "@/store/slice/fwdMessageSlice";
-import {LoaderCircle} from "lucide-react";
+import { LoaderCircle } from "@/lib/icons";
 import * as React from "react";
 import {Skeleton} from "@/components/ui/skeleton";
+import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 
 
 interface FileDialogProps {
@@ -68,6 +69,7 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, groupChatMsgID, channe
 
     const clickFwdMessage = () => {
         if(selectedUsersOrChannels.length == 0) return
+        const trimmedText = removeEmptyPTags(fwdMsgInputState.fwdMsgBody)
         makeRequest<MessageFwdReq, any>({
             apiEndpoint: PostEndpointUrl.FwdMsgToChatOrChannel,
             payload: {
@@ -77,7 +79,7 @@ export const ForwardMessage = ({ chatUUID, chatMessageID, groupChatMsgID, channe
                 fwd_post_uuid: postUUID||'',
                 // Bug 4 fix: use explicit priority — groupChatMsgID is most specific, then chatMessageID, then legacy chatUUID
                 fwd_chat_uuid: groupChatMsgID ? groupChatMsgID : (chatMessageID ? chatMessageID : (chatUUID || '')),
-                fwd_text: fwdMsgInputState.fwdMsgBody
+                fwd_text: trimmedText
             },
             showToast: true
         }).then(()=>{

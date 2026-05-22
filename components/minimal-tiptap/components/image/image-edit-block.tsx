@@ -32,7 +32,7 @@ export const ImageEditBlock: React.FC<ImageEditBlockProps> = ({ editor, close })
                     contentBucket.push({ src: file })
                 }
 
-                console.log("inserting images")
+
 
                 editor.commands.setImages(contentBucket)
             }

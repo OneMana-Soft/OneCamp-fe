@@ -4,10 +4,15 @@ import React, { useRef, useEffect } from "react"
 import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { ShieldCheck, UserMinus } from "lucide-react"
+import { ShieldCheck } from "@/lib/icons";
+import { UserMinus } from "lucide-react";
 import { useTranslation } from "react-i18next"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
+import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { getNameInitials } from "@/lib/utils/getNameInitials"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
+import { cn } from "@/lib/utils/helpers/cn"
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -72,59 +77,14 @@ export const AdminAdminList: React.FC<AdminAdminListProps> = ({
     <TooltipProvider>
       <div className="overflow-y-auto h-[calc(100vh-320px)] pr-2 scrollbar-thin">
         {admins.map((admin) => (
-          <div
+          <AdminAdminRow
             key={admin.user_uuid}
-            className="flex items-center justify-between p-3 rounded-lg border border-border bg-card/50 backdrop-blur-sm transition-all hover:shadow-sm mb-4"
-          >
-            <div 
-              className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => handleOpenProfile(admin.user_uuid)}
-            >
-              <div className="relative">
-                <Avatar className="h-10 w-10 border border-border/50">
-                  <AvatarImage
-                    src={admin.user_profile_object_key}
-                    alt={admin.user_full_name || admin.user_name || admin.user_email_id}
-                  />
-                  <AvatarFallback>
-                    {(admin.user_full_name || admin.user_name || admin.user_email_id || "U").substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground rounded-full p-0.5 border border-background">
-                  <ShieldCheck className="h-3 w-3" />
-                </div>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium leading-none">
-                  {admin.user_full_name || admin.user_name || admin.user_email_id}
-                </span>
-                <span className="text-xs text-muted-foreground mt-1">
-                  {admin.user_email_id}
-                </span>
-              </div>
-            </div>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => onRemoveAdmin(admin.user_email_id!, admin.user_uuid)}
-                  disabled={isSubmitting || admin.user_uuid === currentUserUUID}
-                >
-                  <UserMinus className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>
-                  {admin.user_uuid === currentUserUUID 
-                    ? "You cannot remove yourself as admin" 
-                    : "Remove Admin Privileges"}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+            admin={admin}
+            isSubmitting={isSubmitting}
+            currentUserUUID={currentUserUUID}
+            onOpenProfile={handleOpenProfile}
+            onRemoveAdmin={onRemoveAdmin}
+          />
         ))}
 
         {hasMore && (
@@ -139,5 +99,74 @@ export const AdminAdminList: React.FC<AdminAdminListProps> = ({
         )}
       </div>
     </TooltipProvider>
+  )
+}
+
+interface AdminAdminRowProps {
+  admin: UserProfileDataInterface
+  isSubmitting: boolean
+  currentUserUUID?: string
+  onOpenProfile: (userUUID: string) => void
+  onRemoveAdmin: (email: string, userID: string) => void
+}
+
+function AdminAdminRow({ admin, isSubmitting, currentUserUUID, onOpenProfile, onRemoveAdmin }: AdminAdminRowProps) {
+  const { src: imageSrc } = useUserAvatar(admin.user_profile_object_key)
+  const seed = admin.user_full_name || admin.user_name || admin.user_email_id || ""
+
+  return (
+    <div
+      className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/60 bg-card transition-colors hover:bg-accent/40 mb-2"
+    >
+      <div
+        className="flex items-center gap-3 cursor-pointer min-w-0"
+        onClick={() => onOpenProfile(admin.user_uuid)}
+      >
+        <div className="relative shrink-0">
+          <Avatar className="h-9 w-9">
+            <AvatarImage
+              src={imageSrc}
+              alt={seed}
+            />
+            <AvatarFallback className={cn("text-[11px] font-semibold", getAvatarFallbackClass(seed))}>
+              {getNameInitials(seed)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground rounded-full p-0.5 ring-2 ring-background">
+            <ShieldCheck className="h-2.5 w-2.5" />
+          </div>
+        </div>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-medium leading-none truncate">
+            {admin.user_full_name || admin.user_name || admin.user_email_id}
+          </span>
+          <span className="text-xs text-muted-foreground mt-1 truncate">
+            {admin.user_email_id}
+          </span>
+        </div>
+      </div>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            onClick={() => onRemoveAdmin(admin.user_email_id!, admin.user_uuid)}
+            disabled={isSubmitting || admin.user_uuid === currentUserUUID}
+            aria-label="Remove admin"
+          >
+            <UserMinus className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>
+            {admin.user_uuid === currentUserUUID
+              ? "You cannot remove yourself as admin"
+              : "Remove admin privileges"}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </div>
   )
 }

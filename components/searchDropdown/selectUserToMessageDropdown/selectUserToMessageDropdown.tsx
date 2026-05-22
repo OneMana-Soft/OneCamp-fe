@@ -1,6 +1,6 @@
 "use client"
 
-import {Check, Search, User, X} from "lucide-react"
+import { Check, Search, User, X } from "@/lib/icons";
 import {GetEndpointUrl} from "@/services/endPoints"
 import {
     UserListInterfaceResp,

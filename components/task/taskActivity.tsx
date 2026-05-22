@@ -1,8 +1,8 @@
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
-import {useMediaFetch} from "@/hooks/useFetch";
-import {GetMediaURLRes} from "@/types/file";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {getNameInitials} from "@/lib/utils/format/getNameIntials";
+import {useUserAvatar} from "@/hooks/useUserAvatar";
+import {getNameInitials} from "@/lib/utils/getNameInitials";
+import {getAvatarFallbackClass} from "@/lib/utils/getAvatarColor";
+import {cn} from "@/lib/utils/helpers/cn";
 import {taskActivityConst} from "@/types/taskActivity";
 import {TaskActivityInterface} from "@/types/task";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
@@ -15,7 +15,7 @@ interface  TaskActivityProps {
 
 export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskActivityProps) {
 
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(taskActivity.activity_by.user_profile_object_key ? GetEndpointUrl.PublicAttachmentURL+'/'+taskActivity.activity_by.user_profile_object_key : '');
+    const {src: imageSrc} = useUserAvatar(taskActivity.activity_by.user_profile_object_key);
     const nameInitial = getNameInitials(taskActivity.activity_by.user_name||'');
 
 
@@ -29,8 +29,8 @@ export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskA
         <div className="flex items-start gap-2 relative">
             <div className="relative">
                 <Avatar className="h-8 w-8 mr-2">
-                    <AvatarImage src={profileImageRes.data?.url || ''} alt="@shadcn" />
-                    <AvatarFallback>{nameInitial}</AvatarFallback>
+                    <AvatarImage src={imageSrc} alt="@shadcn" />
+                    <AvatarFallback className={cn("text-[10px] font-semibold", getAvatarFallbackClass(taskActivity.activity_by.user_name))}>{nameInitial}</AvatarFallback>
                 </Avatar>{" "}
             </div>
             <div className="flex-1 pt-2">

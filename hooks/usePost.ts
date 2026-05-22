@@ -13,6 +13,7 @@ interface UsePostOptions<T> {
     apiEndpoint: PostEndpointUrl
     payload?: T
     appendToUrl?: string
+    url?: string // Full URL override (takes precedence over apiEndpoint + appendToUrl)
     onSuccess?: () => void
     showToast?: boolean
     showErrorToast?: boolean // Specific control for error toasts
@@ -509,6 +510,92 @@ const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error
         success: "Email logo operation completed successfully.",
         error: "Failed to perform email logo operation.",
     },
+
+    // Webhooks
+    [PostEndpointUrl.CreateWebhook]: {
+        success: "Webhook created successfully.",
+        error: "Failed to create webhook.",
+    },
+
+    // GitHub
+    [PostEndpointUrl.GitHubCallback]: {
+        success: "GitHub connected successfully.",
+        error: "Failed to connect GitHub.",
+    },
+    [PostEndpointUrl.GitHubDisconnect]: {
+        success: "GitHub disconnected. All links and metadata cleared.",
+        error: "Failed to disconnect GitHub.",
+    },
+    [PostEndpointUrl.GitHubLinkRepo]: {
+        success: "Repository linked successfully.",
+        error: "Failed to link repository.",
+    },
+    [PostEndpointUrl.GitHubUpdateAutomationRules]: {
+        success: "Automation rules updated.",
+        error: "Failed to update automation rules.",
+    },
+    [PostEndpointUrl.GitHubUpdateBranchFormat]: {
+        success: "Branch format updated.",
+        error: "Failed to update branch format.",
+    },
+    [PostEndpointUrl.GitHubLinkTask]: {
+        success: "Task linked to GitHub successfully.",
+        error: "Failed to link task to GitHub.",
+    },
+    [PostEndpointUrl.GitHubUnlinkTask]: {
+        success: "Task unlinked from GitHub.",
+        error: "Failed to unlink task from GitHub.",
+    },
+    [PostEndpointUrl.GitHubCreateBranch]: {
+        success: "Branch created on GitHub.",
+        error: "Failed to create branch.",
+    },
+    [PostEndpointUrl.GitHubRetrySync]: {
+        success: "Sync re-queued.",
+        error: "Failed to retry sync.",
+    },
+    [PostEndpointUrl.GitHubRefresh]: {
+        success: "Refresh started.",
+        error: "Failed to start refresh.",
+    },
+    [PostEndpointUrl.GitHubCreatePR]: {
+        success: "Pull request created.",
+        error: "Failed to create pull request.",
+    },
+    [PostEndpointUrl.GitHubBulkLink]: {
+        success: "Tasks linked to GitHub successfully.",
+        error: "Failed to link tasks.",
+    },
+    [PostEndpointUrl.GitHubBulkUnlink]: {
+        success: "Tasks unlinked from GitHub.",
+        error: "Failed to unlink tasks.",
+    },
+    [PostEndpointUrl.GitHubImportIssues]: {
+        success: "Issues imported successfully.",
+        error: "Failed to import issues.",
+    },
+    [PostEndpointUrl.GitHubImportPRs]: {
+        success: "PRs imported successfully.",
+        error: "Failed to import PRs.",
+    },
+
+    // Archive
+    [PostEndpointUrl.RestoreArchiveItems]: {
+        success: "Items restored successfully.",
+        error: "Failed to restore items.",
+    },
+    [PostEndpointUrl.RunArchiveJob]: {
+        success: "Archive job started.",
+        error: "Failed to start archive job.",
+    },
+    [PostEndpointUrl.UpdateArchivePolicy]: {
+        success: "Policy updated successfully.",
+        error: "Failed to update policy.",
+    },
+    [PostEndpointUrl.UndoArchiveJob]: {
+        success: "Archive job undone successfully.",
+        error: "Failed to undo archive job.",
+    },
 }
 
 
@@ -517,7 +604,7 @@ export const usePost = () => {
     const { toast } = useToast()
 
     const makeRequest = React.useCallback(async <T, R = GenericResponse>(options: UsePostOptions<T>): Promise<R | undefined> => {
-        const { apiEndpoint, payload, appendToUrl, onSuccess, showToast } = options
+        const { apiEndpoint, payload, appendToUrl, url: urlOverride, onSuccess, showToast } = options
 
         // Get success and error messages based on the API endpoint
         const { success: successMessage, error: errorMessage } = endpointMessages[apiEndpoint] || {
@@ -528,7 +615,7 @@ export const usePost = () => {
         setIsSubmitting(true)
         try {
             const method = options.method || "POST"
-            const url = `${apiEndpoint}${appendToUrl ? appendToUrl : ""}`
+            const url = urlOverride || `${apiEndpoint}${appendToUrl ? appendToUrl : ""}`
             
             let response;
             if (method === "GET") {

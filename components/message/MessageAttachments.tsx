@@ -12,7 +12,7 @@ import {downloadFile} from "@/lib/utils/file/downloadFile";
 
 import {getFriendlyFileExtension} from "@/lib/utils/format/getFriendlyFileExtension";
 import {formatFileSizeForAttachment} from "@/lib/utils/format/formatFileSizeForAttachment";
-import {Download} from "lucide-react";
+import { Download } from "@/lib/icons";
 
 interface MessageAttachmentProps {
     attachments:  AttachmentMediaReq[];
@@ -72,7 +72,7 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
                                         })}
                                         style={{ aspectRatio: only ? `${aspectRatio}` : undefined }}
                                     >
-                                        <div className='pointer-events-none absolute inset-0 z-[1] rounded-xl ring-1 ring-inset ring-black/5 dark:ring-white/10' />
+                                        <div className='pointer-events-none absolute inset-0 z-[var(--z-base)] rounded-xl ring-1 ring-inset ring-black/5 dark:ring-white/10' />
 
                                             <button
                                                 type="button"
@@ -96,7 +96,7 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
                                                     onUrlLoaded={(url) => setLoadedUrls(prev => ({ ...prev, [attachment.attachment_uuid]: url }))}
                                                 />
                                                 {overflow && (
-                                                    <div className="absolute inset-0 z-10 bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition-all duration-200 group-hover:bg-black/50 pointer-events-none">
+                                                    <div className="absolute inset-0 z-[var(--z-base)] bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition-all duration-150 group-hover:bg-black/50 pointer-events-none">
                                                         <div className='text-xl font-medium text-white'>
                                                             +{renderables.length - (ATTACHMENT_MAX_IMAGE_GRID_SIZE - 1)}
                                                         </div>
@@ -144,11 +144,11 @@ export function NonRenderableAttachment({ attachment, attachmentLength, mediaGet
             onClick={download}
             data-no-ripple="true"
             className={cn(
-                'group flex items-center gap-2.5 rounded-lg border border-border/40 bg-card/50 px-3 py-2 transition-all duration-200',
+                'group flex items-center gap-2.5 rounded-lg border border-border/40 bg-card/50 px-3 py-2 transition-all duration-150',
                 'hover:bg-accent/40 hover:border-border/80 hover:shadow-sm cursor-pointer relative overflow-hidden w-full'
             )}
         >
-            <div className="shrink-0 p-2 bg-background rounded-md border border-border/50 shadow-sm group-hover:scale-105 transition-transform duration-200">
+            <div className="shrink-0 p-2 bg-background rounded-md border border-border/50 shadow-sm group-hover:scale-105 transition-transform duration-150">
                 <FileTypeIcon name={attachment.attachment_file_name} fileType={attachment.attachment_raw_type} size={20}/>
             </div>
 
@@ -175,7 +175,7 @@ export function NonRenderableAttachment({ attachment, attachmentLength, mediaGet
             <button
                 onClick={download}
                 className={cn(
-                    "opacity-0 group-hover:opacity-100 transition-all duration-200",
+                    "opacity-0 group-hover:opacity-100 transition-all duration-150",
                     "p-1.5 hover:bg-background rounded-full shadow-sm border border-border/50 shrink-0",
                     "translate-x-2 group-hover:translate-x-0"
                 )}

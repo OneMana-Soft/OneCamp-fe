@@ -5,19 +5,35 @@ import {TaskStatusCell} from "@/components/task/taskStatusCell";
 import {TaskAssigneeCell} from "@/components/task/taskAssigneeCell";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
 import {Badge} from "@/components/ui/badge";
-import { CheckCircle2, GitBranch, MessageSquare} from "lucide-react";
+import { CheckCircle2, GitBranch, MessageSquare } from "@/lib/icons";
+import { GitHubBadgeGroup } from "@/components/task/PRStatusBadge";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {format} from "date-fns";
 import { app_task_path} from "@/types/paths";
 import Link from "next/link";
 import React, {useCallback} from "react";
 import {cn} from "@/lib/utils/helpers/cn";
+import { statusColors } from "@/lib/colors";
 
-export const TaskListTask = ({taskInfo, onToggleStatus, isAdmin, isAnimating}:{taskInfo: TaskInfoInterface,onToggleStatus: (task_uuid: string, projectId: string, newStatus: "done" | "todo") => void , isAdmin: boolean, isAnimating: boolean}) => {
+export const TaskListTask = ({
+  taskInfo,
+  onToggleStatus,
+  isAdmin,
+  isAnimating,
+  selectionMode,
+  isSelected,
+  onToggleSelect,
+}: {
+  taskInfo: TaskInfoInterface
+  onToggleStatus: (task_uuid: string, projectId: string, newStatus: "done" | "todo") => void
+  isAdmin: boolean
+  isAnimating: boolean
+  selectionMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: (taskUUID: string) => void
+}) => {
 
     const taskHref = `${app_task_path}/${taskInfo.task_uuid}`;
-
-
 
     const sd = new Date(taskInfo.task_start_date)
     const dd = new Date(taskInfo.task_due_date)
@@ -32,8 +48,7 @@ export const TaskListTask = ({taskInfo, onToggleStatus, isAdmin, isAnimating}:{t
     const handleDoneClick = useCallback((e: React.MouseEvent) => {
         e.stopPropagation()
         handleToggleClick()
-
-    },[onToggleStatus])
+    }, [handleToggleClick])
     const priority = priorities.find(
         (priority: prioritiesInterface) => priority.value === taskInfo.task_priority
     );
@@ -43,8 +58,23 @@ export const TaskListTask = ({taskInfo, onToggleStatus, isAdmin, isAnimating}:{t
     );
 
     return (
-        <div className={cn("flex p-4 border-1  border-primary/50 bg-muted/30 shadow-md justify-center items-start rounded-2xl h-44", isAnimating && "animate-gradient-completion")} >
-            <div className=' w-8 mt-1'>
+        <div className={cn("flex items-start gap-3 px-3 py-3 border-b hover:bg-accent/40 transition-colors duration-150", isAnimating && "animate-gradient-completion", isSelected && "bg-accent/60")} >
+            <div className={cn("mt-0.5 flex flex-col items-center gap-2", selectionMode ? "w-10" : "w-6")}>
+                {selectionMode && (
+                    <div
+                        className="flex items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                        data-no-ripple
+                    >
+                        <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => onToggleSelect?.(taskInfo.task_uuid)}
+                            className="h-4 w-4 cursor-pointer accent-primary"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                )}
                 <button
                     onClick={handleDoneClick}
                     className="flex items-center justify-center"
@@ -53,60 +83,54 @@ export const TaskListTask = ({taskInfo, onToggleStatus, isAdmin, isAnimating}:{t
                     disabled={!isAdmin}
                 >
                     {isCompleted ? (
-                        <CheckCircle2 className="w-5 h-5 text-green-500"/>
+                        <CheckCircle2 className={cn("w-5 h-5", statusColors.success.text)}/>
                     ) : (
-                        <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/50"/>
+                        <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/40"/>
                     )}
                 </button>
 
             </div>
-            <Link href={taskHref} className='flex-col space-y-3 flex-1'>
-                <div className="max-w-[60vw] flex items-center mb-2 ">
-                    {taskInfo.task_label && <Badge variant="secondary">{taskInfo.task_label}</Badge>}
-                    <div className=' text-ellipsis truncate'>{taskInfo.task_name}</div>
+            <Link href={taskHref} className="flex-1 min-w-0" onClick={(e) => { if (selectionMode) e.preventDefault() }}>
+                <div className="flex items-center gap-2 mb-1">
+                    {taskInfo.task_label && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{taskInfo.task_label}</Badge>}
+                    <span className="text-sm font-medium truncate">{taskInfo.task_name}</span>
+                </div>
 
-                </div>
-                <div className='flex justify-between'>
-                    <div className='flex space-x-2'>
-                        {priority && <TaskPriorityCell priority={priority}/>}
-                        {status && <TaskStatusCell status={status}/>}
-                    </div>
-                    {
-                        taskInfo.task_project ?
-                            <div className='flex justify-center items-center gap-x-1 text-sm max-w-20'>
-                                <ColorIcon name={taskInfo.task_project.project_uuid} size={'xs'}/>
-                                <div className='truncate text-ellipsis flex-1 min-w-0'>
-                                    {taskInfo.task_project.project_name} {/* Remove the duplicate if unintentional */}
-                                </div>
-                            </div>
-                            :
-                            (taskInfo.task_assignee && <TaskAssigneeCell userInfo={taskInfo.task_assignee}/>)
-                    }
-                </div>
-                <div className='capitalize space-y-1'>
-                    <div className='flex justify-between'>
-                        <div className='flex space-x-2 text-xs text-muted-foreground'>
-                            <div>start date</div>
-                            <div>{!isZeroEpoch(taskInfo.task_start_date) ? format(sd, "dd MMM yyyy") : "--"}</div>
-                        </div>
-                        <div className='flex space-x-2 text-xs text-muted-foreground'>
-                            <div>Created date</div>
-                            <div>{!isZeroEpoch(taskInfo.task_created_at) ? format(cd, "dd MMM yyyy") : "--"}</div>
-                        </div>
-                    </div>
-                    <div className='flex space-x-2 text-xs text-muted-foreground'>
-                        <div>due date</div>
-                        <div>{!isZeroEpoch(taskInfo.task_due_date) ? format(dd, "dd MMM yyyy") : "--"}</div>
-                    </div>
-                </div>
-                <div className='flex space-x-4 text-sm px-1'>
-                    {taskInfo.task_comment_count &&
-                        <span className='text-muted-foreground '>{taskInfo.task_comment_count}<MessageSquare
-                            className='h-3 w-3 inline ml-1'/></span>}
-                    {taskInfo.task_sub_task_count &&
-                        <span className='text-muted-foreground '>{taskInfo.task_sub_task_count}<GitBranch
-                            className='h-3 w-3 inline ml-1'/></span>}
+                <div className="flex items-center gap-3 flex-wrap">
+                    {priority && <TaskPriorityCell priority={priority}/>}
+                    {status && <TaskStatusCell status={status}/>}
 
+                    {taskInfo.task_project ? (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <ColorIcon name={taskInfo.task_project.project_uuid} size="xs"/>
+                            <span className="truncate max-w-[80px]">{taskInfo.task_project.project_name}</span>
+                        </div>
+                    ) : (
+                        taskInfo.task_assignee && <TaskAssigneeCell userInfo={taskInfo.task_assignee}/>
+                    )}
+
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground ml-auto">
+                        {!isZeroEpoch(taskInfo.task_due_date) && (
+                            <span className={cn(
+                                dd < new Date() && !isCompleted ? "text-destructive" : ""
+                            )}>
+                                {format(dd, "dd MMM")}
+                            </span>
+                        )}
+                        {taskInfo.task_comment_count > 0 && (
+                            <span className="flex items-center gap-0.5">
+                                {taskInfo.task_comment_count}
+                                <MessageSquare className="h-3 w-3"/>
+                            </span>
+                        )}
+                        {taskInfo.task_sub_task_count > 0 && (
+                            <span className="flex items-center gap-0.5">
+                                {taskInfo.task_sub_task_count}
+                                <GitBranch className="h-3 w-3"/>
+                            </span>
+                        )}
+                        <GitHubBadgeGroup task={taskInfo} size="sm" />
+                    </div>
                 </div>
             </Link>
 

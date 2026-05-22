@@ -50,9 +50,15 @@ export default function Page() {
     const latestMsg = useFetch<CreateChatMessagePaginationResRaw>( grpChatCreatedLocally.grpId && !grpChatCreatedLocally?.haveSentFirstChat ?  '' : (grpId ? GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId : ''))
 
 
-    const handleSend = () => {
+    const handleSend = (latestContent?: string) => {
 
-        const body = removeEmptyPTags(chatState.chatBody)
+        // Prefer the editor's latest HTML (passed in by the input wrapper
+        // after it flushed the pending throttle window) over the Redux
+        // snapshot. The snapshot lags by one keystroke when the user
+        // clicks Send before the throttle trailing-edge has fired, which
+        // would otherwise drop the most recently typed character.
+        const rawBody = latestContent ?? chatState.chatBody
+        const body = removeEmptyPTags(rawBody)
 
         if(body.length==0) return
 
@@ -83,8 +89,6 @@ export default function Page() {
                     latestMsg.data?.data?.chats?.[0]?.chat_uuid ==
                     chatMessageState[chatMessageState.length - 1]?.chat_uuid) || isLocallyCreated)
                 ) {
-
-                    console.log("adding CHAT")
                     dispatch(createGroupChat({
                         grpId: grpId,
                         chatCreatedAt:res?.chat_created_at,

@@ -1,27 +1,34 @@
-import type * as React from "react";
-import {UserProfileDataInterface} from "@/types/user";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
-import {useFetch, useMediaFetch} from "@/hooks/useFetch";
-import {GetMediaURLRes} from "@/types/file";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {getNameInitials} from "@/lib/utils/format/getNameIntials";
+import type * as React from "react"
+import { UserProfileDataInterface } from "@/types/user"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { getNameInitials } from "@/lib/utils/format/getNameIntials"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
+import { cn } from "@/lib/utils/helpers/cn"
 
-interface SingleAvatarProps  {
+interface SingleAvatarProps {
     userInfo: UserProfileDataInterface
-
 }
 
-export function SingleAvatar({ userInfo }: SingleAvatarProps) {
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(userInfo.user_profile_object_key ? GetEndpointUrl.PublicAttachmentURL+'/'+userInfo.user_profile_object_key : '');
-    const nameInitial = getNameInitials(userInfo.user_name);
+export function SingleAvatar({ userInfo, size }: SingleAvatarProps & { size?: number }) {
+    const { src: imageSrc } = useUserAvatar(userInfo.user_profile_object_key)
+    const nameInitial = getNameInitials(userInfo.user_name)
+
+    // Scale font size relative to avatar size to prevent overflow
+    const fontSize = size ? `${size * 0.4}px` : undefined
 
     return (
         <Avatar className="h-full w-full">
-            <AvatarImage src={profileImageRes.data?.url} />
-            <AvatarFallback className="bg-gradient-to-br from-orange-300 via-orange-400 to-orange-500 text-white md:text-sm">
+            <AvatarImage src={imageSrc} />
+            <AvatarFallback
+                className={cn(
+                    "font-semibold flex items-center justify-center",
+                    getAvatarFallbackClass(userInfo.user_name),
+                )}
+                style={fontSize ? { fontSize } : undefined}
+            >
                 {nameInitial}
             </AvatarFallback>
         </Avatar>
     )
-
 }

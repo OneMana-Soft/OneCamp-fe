@@ -1,6 +1,6 @@
 "use client"
 
-import { Hash, Users } from "lucide-react"
+import { Hash, Users } from "@/lib/icons";
 import { PostEndpointUrl } from "@/services/endPoints"
 import { usePost } from "@/hooks/usePost"
 import type { ChannelAndUserListInterfaceReq, ChannelAndUserListInterfaceResp } from "@/types/user"

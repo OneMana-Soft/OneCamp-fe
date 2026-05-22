@@ -40,7 +40,8 @@ import {
   updateCreateTaskDialogUserUUIDInputText,
 } from "@/store/slice/createTaskDailogSlice";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalenderIcon, X } from "lucide-react";
+import { X } from "@/lib/icons";
+import { Calendar as CalenderIcon } from "@/lib/icons";
 import { priorities, prioritiesInterface } from "@/types/table";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

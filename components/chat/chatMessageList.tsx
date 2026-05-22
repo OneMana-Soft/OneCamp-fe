@@ -5,17 +5,18 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {  PostsRes} from "@/types/post";
-import {useEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useMemo, useState} from "react";
 
 import {ChatMessages} from "@/components/chat/chatMessages";
 import {ChatInfo, CreateChatPaginationResRaw} from "@/types/chat";
 import {updateChats, updateChatScrollToBottom} from "@/store/slice/chatSlice";
-import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
+import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {updateChannelPosts, updateChannelScrollToBottom} from "@/store/slice/channelSlice";
 import {UserProfileInterface} from "@/types/user";
-import {LoaderCircle} from "lucide-react";
+import { LoaderCircle } from "@/lib/icons";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
+import {useMedia} from "@/context/MediaQueryContext";
 
 // Stable empty array reference to prevent unnecessary re-renders
 const EMPTY_CHAT_MESSAGES: ChatInfo[] = [];
@@ -27,6 +28,7 @@ interface ChatMessageListProps {
 
 export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessageListProps) => {
 
+    const { isMobile } = useMedia();
     const searchParams = useSearchParams();
     const messageId = propMessageId || searchParams?.get('messageId') || undefined;
 
@@ -128,39 +130,35 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
     }, [ newMsg.data?.data, safeChatMessageState]);
 
 
-    const handleClickedScrollToBottom = () => {
-
+    const handleClickedScrollToBottom = useCallback(() => {
         if(safeChatMessageState.length > 0 && safeChatMessageState[safeChatMessageState.length -1].chat_uuid != latestMsg.data?.data.chats?.[0]?.chat_uuid) {
             const newChats = latestMsg.data?.data.chats.reverse() ?? [];
             dispatch(updateChats({chatId, chats: newChats}))
             latestMsg.data?.data.chats.reverse()
         }
-
         dispatch(updateChatScrollToBottom({chatId: chatId, scrollToBottom: true}))
+    }, [safeChatMessageState, latestMsg.data?.data.chats, chatId, dispatch])
 
-    }
-
-    const getOldMessages = () => {
-
+    const getOldMessages = useCallback(() => {
         if(safeChatMessageState.length === 0) return;
         const lastTimeString = safeChatMessageState[0].chat_created_at
         const epochTime = Math.floor(Date.parse(lastTimeString) / 1000);
         setOldChatTime(epochTime)
         setHasMoreChat(false)
-    }
+    }, [safeChatMessageState])
 
-    const getNewMessages = () => {
+    const getNewMessages = useCallback(() => {
         if(safeChatMessageState.length === 0) return;
         const lastTimeString = safeChatMessageState[safeChatMessageState.length -1].chat_created_at
         const epochTime = Math.ceil(Date.parse(lastTimeString) / 1000);
         setNewChat(epochTime)
         setHasMoreNewChat(false)
-    }
+    }, [safeChatMessageState])
 
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.visibilityState === "visible") {
-                // console.log("[Sync] Tab visible, fetching new chat messages...");
+
                 getNewMessages();
             }
         };
@@ -196,7 +194,12 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
                 isOLdMsgLoading={oldMsg.isLoading}
                 clickedScrollToBottom={handleClickedScrollToBottom}
             />
-            <TypingIndicator users={chatTypingState}/>
+            {/*
+              Typing indicator. On desktop it sits inline at the bottom of
+              the message column. On mobile it floats just above the
+              DraggableDrawer (which publishes --mobile-drawer-h).
+            */}
+            <TypingIndicatorBar users={chatTypingState} />
         </div>
     )
 

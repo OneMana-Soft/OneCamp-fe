@@ -13,7 +13,7 @@ import { PostEndpointUrl } from "@/services/endPoints";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
-import { Share2 } from "lucide-react";
+import { Share2 } from "@/lib/icons";
 import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
 
@@ -76,7 +76,7 @@ export function DocTopBarBreadcrumb({ doc, canEdit = false }: DocTopBarBreadcrum
         }
     }, [title, isEditing]);
 
-    if (!doc) return <div className="h-6 w-32 bg-gray-200 animate-pulse rounded" />;
+    if (!doc) return <div className="h-6 w-32 bg-muted animate-pulse rounded" />;
 
     return (
         <div className="flex items-center justify-between w-full pr-4">
@@ -102,7 +102,7 @@ export function DocTopBarBreadcrumb({ doc, canEdit = false }: DocTopBarBreadcrum
                                     onChange={(e) => setTitle(e.target.value)}
                                     onBlur={handleSave} // Save on blur
                                     onKeyDown={handleKeyDown}
-                                    className="h-7 py-0 px-1 border-none shadow-none focus-visible:ring-1 focus-visible:ring-blue-500 bg-transparent text-sm font-medium p-0 m-0"
+                                    className="h-7 py-0 px-1 border-none shadow-none focus-visible:ring-1 focus-visible:ring-ring bg-transparent text-sm font-medium p-0 m-0"
                                     style={{ width: `${Math.max(inputWidth, 50)}px` }}
                                  />
                             </div>
@@ -110,7 +110,7 @@ export function DocTopBarBreadcrumb({ doc, canEdit = false }: DocTopBarBreadcrum
                             <BreadcrumbPage 
                                 className={cn(
                                     "px-1.5 py-0.5 rounded transition-colors text-sm font-medium truncate max-w-[300px] md:max-w-[500px]",
-                                    canEdit ? "cursor-text hover:bg-gray-100 dark:hover:bg-accent" : "cursor-default"
+                                    canEdit ? "cursor-text hover:bg-accent" : "cursor-default"
                                 )}
                                 onClick={() => canEdit && setIsEditing(true)}
                                 title={canEdit ? "Click to rename" : undefined}
@@ -129,7 +129,7 @@ export function DocTopBarBreadcrumb({ doc, canEdit = false }: DocTopBarBreadcrum
                 disabled={!canEdit}
                 onClick={() => {
                     if (canEdit && doc) {
-                        console.log("Dispatching openDocShareDialog with:", doc.doc_uuid);
+
                         dispatch(openUI({ key: 'docShare', data: doc.doc_uuid }));
                     }
                 }}

@@ -11,8 +11,7 @@ const fetcher = async <T>(url: string, schema?: z.ZodSchema<T>): Promise<T> => {
             return schema.parse(data);
         } catch (error) {
             console.error(`[Validation Error] [${url}]:`, error);
-            // In a real enterprise app, we might report this to Sentry
-            return data; // Fallback to raw data in dev/soft-launch
+            throw error;
         }
     }
 

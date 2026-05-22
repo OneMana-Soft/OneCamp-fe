@@ -3,7 +3,8 @@ import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
-import {SendHorizontal, Users, Video, Clapperboard} from "lucide-react";
+import { statusColors } from "@/lib/colors";
+import { SendHorizontal, Users, Video, Clapperboard } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
@@ -126,22 +127,10 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
             <div
                 className='flex font-semibold text-lg p-2 truncate overflow-auto overflow-ellipsis justify-start border-b'>
                 <div className='flex justify-center items-center space-x-2'>
-                    <div className='relative'>
-                        {/*<ChatUserAvatar userName={otherUserInfo.data?.data.user_name}*/}
-                        {/*                userProfileObjKey={otherUserInfo.data?.data.user_profile_object_key}/>*/}
-
-                    </div>
-                    <div>
-                        {/*{otherUserInfo.data?.data.user_name}*/}
-                    </div>
+                    <div className='relative' />
                 </div>
                 <div className='flex justify-center items-center ml-2 gap-x-2'>
-                {/*<Button size='icon' variant='ghost' onClick={toggleFavourite}><Star  className='text-muted-foreground' fill={isFavorite ?"#ffcc00":'none'}/></Button>*/}
-
                     <GroupedAvatar users={participants} max={2} overlap={20} className={'!pr-0'}/>
-
-                    {/*<Button size='icon' variant='ghost' onClick={()=>{dispatch(openUpdateChannelDialog({channelUUID: channelId}))}}><Pencil /></Button>*/}
-                    {/*<Button size='icon' variant='ghost' onClick={()=>{dispatch(openUpdateChannelMemberDialog({channelUUID: channelId}))}}> <Users /></Button>*/}
 
                     <div className="text-ellipsis truncate max-w-40">
 
@@ -164,15 +153,15 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
                         variant={chatCallActive ? 'secondary' : 'ghost'}
                         className={cn(
                             "relative transition-all duration-300",
-                            chatCallActive && "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/40"
+                            chatCallActive && "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
                         )}
                         onClick={clickVideoCall}
                     >
                         <Video size={18} />
                         {chatCallActive && (
                             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${statusColors.online.solid}`}></span>
                             </span>
                         )}
                     </Button>
@@ -187,8 +176,8 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
                 <GroupChatMessageList grpId={grpId} />
             </div>
 
-            <div className="sticky bottom-0 left-0 right-0 z-50 border-t p-4 ">
-                <div>
+            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
+                <div className="max-w-6xl mx-auto w-full">
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'groupChatFileUpload' }))}}
@@ -196,17 +185,17 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
                             if (!files?.length) return;
                             await uploadFile.makeRequestToUploadToGroupChat(files as unknown as FileList, grpId);
                         }}
-                        className={cn("max-w-full rounded-xl h-auto border-none")}
+                        className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatState.chatBody}
-                        placeholder={"message"}
+                        placeholder={"Type a message..."}
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={handleSend}
                         editorClassName="focus:outline-none px-2 py-2"
                         onChange={(content ) => {
-                            publishTyping()
+                            publishTyping(content as string)
                             dispatch(createOrUpdateGroupChatBody({grpID:grpId, body: content as string}))
                         }}
                     >

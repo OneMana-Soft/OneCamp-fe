@@ -7,7 +7,7 @@ import { PostsRes, CreatePostPaginationResRaw } from "@/types/post";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from "@/lib/icons";
 import { ConditionalWrap } from "@/components/conditionalWrap/conditionalWrap";
 import { useMedia } from "@/context/MediaQueryContext";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
@@ -28,13 +28,17 @@ const PostsPage = () => {
     const { data: pageData, isLoading } = useFetch<CreatePostPaginationResRaw>(endpoint);
 
     useEffect(() => {
-        if (pageData?.data.posts) {
+        if (pageData?.data) {
+            // Defensive default — Go encodes empty slices as null and
+            // an undefined here causes crashes downstream when we try
+            // to spread / dedupe.
+            const incomingPosts = pageData.data.posts ?? []
             setAllPosts((prev) => {
-                const combined = pageIndex === 0 ? pageData.data.posts : [...prev, ...pageData.data.posts];
+                const combined = pageIndex === 0 ? incomingPosts : [...prev, ...incomingPosts];
                 const unique = Array.from(new Map(combined.map(item => [item.post_uuid, item])).values());
                 return unique;
             });
-            setHasMore(pageData.data.has_more);
+            setHasMore(pageData.data.has_more ?? false);
         }
     }, [pageData, pageIndex]);
 
@@ -70,7 +74,7 @@ const PostsPage = () => {
     return (
         <div className="flex h-full flex-col bg-background/30">
             {isDesktop && <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-4 md:px-6 py-3 md:py-4 backdrop-blur-md">
-                <h1 className="text-lg md:text-xl font-bold tracking-tight text-foreground/90">Your Posts</h1>
+                <h1 className="text-base md:text-lg font-semibold tracking-tight text-foreground">Your Posts</h1>
                 {isLoading && (
                     <div className="flex items-center gap-2 text-[10px] md:text-xs text-muted-foreground animate-in fade-in">
                         <Loader2 className="h-3 w-3 animate-spin" />

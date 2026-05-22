@@ -8,7 +8,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { cn } from "@/lib/utils/helpers/cn";
 import ClientProviders from "./ClientProviders";
 import { UnifiedUIManager } from "@/components/ui/UnifiedUIManager";
-import { CommandPalette } from "@/components/ui/CommandPalette";
+import { CommandPaletteLoader } from "@/components/ui/CommandPaletteLoader";
 import { LayoutContent } from "./LayoutContent";
 import { GlobalErrorBoundary } from "@/components/error/GlobalErrorBoundary";
 import "@/lib/env"; // Validate environment variables early
@@ -28,7 +28,7 @@ export default function AppLayout({
               {children}
           </LayoutContent>
           <UnifiedUIManager />
-          {/*<CommandPalette />*/}
+          <CommandPaletteLoader />
           <FCMHandler />
         </AppProtectedRoute>
       {/*</GlobalErrorBoundary>*/}
