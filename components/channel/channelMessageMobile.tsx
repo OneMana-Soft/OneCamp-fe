@@ -4,7 +4,7 @@ import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import type { PostsRes } from "@/types/post"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Check, X } from "lucide-react"
+import { Check, X } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { useLongPress } from "@/hooks/useLongPress"
 import { useDispatch } from "react-redux"
@@ -16,7 +16,7 @@ import Link from "next/link"
 import { MessageAttachments } from "@/components/message/MessageAttachments"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { BottomMenu } from "@/components/message/bottomMenu"
-import { useCallback, useEffect, useState, memo } from "react"
+import { useCallback, useEffect, useRef, useState, memo } from "react"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface, UserSelectedOptionInterface } from "@/types/user"
 import type { AttachmentMediaReq } from "@/types/attachment"
@@ -66,6 +66,7 @@ const ChannelMessageMobileComponent = ({
     const [reactions, setReactions] = useState<{ [key: string]: string[] }>({})
 
     const [updatedText, setUpdatedText] = useState<string>(postInfo.post_text || "")
+    const updatedTextRef = useRef<string>(postInfo.post_text || "")
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
@@ -190,33 +191,33 @@ const ChannelMessageMobileComponent = ({
 
     return (
         <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
-            <div className="flex p-4 space-x-4 select-none" {...longPressEvent}>
-                <div className="h-12 w-12 flex-shrink-0" onClick={handleUserClick}>
+            <div className="flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100" {...longPressEvent}>
+                <div className="h-9 w-9 mt-0.5 flex-shrink-0" onClick={handleUserClick}>
                     <ChannelMessageAvatar
                         userName={userInfoState.userName || postInfo.post_by.user_name}
                         userProfileKey={userInfoState.profileKey ?? postInfo.post_by.user_profile_object_key}
                     />
                 </div>
-                <div className="w-full">
-                    <div className="flex items-baseline space-x-2">
-                        <div className="font-semibold text-m" onClick={handleUserClick}>{userInfoState.userName || postInfo.post_by.user_name}</div>
-                        <div className="text-xs text-muted-foreground text">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2">
+                        <div className="text-sm font-semibold text-foreground truncate" onClick={handleUserClick}>{userInfoState.userName || postInfo.post_by.user_name}</div>
+                        <div className="text-[11px] tabular-nums text-muted-foreground shrink-0">
                             {formatTimeForPostOrComment(postInfo.post_created_at, true)}
                         </div>
                     </div>
-                    <div className="break-all">
+                    <div className="break-words">
                         <MinimalTiptapTextInput
                             throttleDelay={300}
-                            isOutputText={true}
-                            className={cn("max-w-full rounded-xl h-auto ", isMessageEditEnabled ? "p-2 ml-[-4]" : "border-none")}
+                            isOutputText={!isMessageEditEnabled}
+                            className={cn("max-w-full h-auto", isMessageEditEnabled && "p-2 ml-[-4]")}
                             editorContentClassName={cn("overflow-auto")}
                             output="html"
                             content={postInfo.post_text}
-                            placeholder={"message"}
+                            placeholder={"Edit message..."}
                             editable={isMessageEditEnabled}
                             PrimaryButtonIcon={Check}
                             buttonOnclick={() => {
-                                updatePost(updatedText)
+                                updatePost(updatedTextRef.current)
                                 setIsMessageEditEnabled(false)
                             }}
                             SecondaryButtonIcon={X}
@@ -226,11 +227,10 @@ const ChannelMessageMobileComponent = ({
                             editorClassName="focus:outline-none "
                             onChange={(content) => {
                                 const s = content as string
-
+                                updatedTextRef.current = s
                                 setUpdatedText(s)
                             }}
-                        ></MinimalTiptapTextInput>
-                        <div className={`${postInfo.post_text && postInfo.post_text.length > 0 ? "mb-2" : ""}`} />
+                        />
 
                         {(postInfo.post_fwd_msg_chat || postInfo.post_fwd_msg_post) && (
                             <MessagePreview
@@ -255,7 +255,7 @@ const ChannelMessageMobileComponent = ({
                         />
                     )}
 
-                    {postInfo.post_comments && postInfo.post_comment_count && (
+                    {postInfo.post_comments && (postInfo.post_comment_count || 0) > 0 && (
                         <div className="mb-3">
                             <MessageReplyCount
                                 replyCount={postInfo.post_comment_count}

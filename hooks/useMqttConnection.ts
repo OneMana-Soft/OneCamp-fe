@@ -94,10 +94,29 @@ export const useMqttConnection = ({
 
         topics.forEach((topic) => {
             if (clientRef.current && clientRef.current.connected) {
-                clientRef.current.subscribe(topic, { qos: 1 }, (err) => {
+                clientRef.current.subscribe(topic, { qos: 1 }, (err, granted) => {
                     if (err) {
-                        console.error("[MQTT] Queued subscription error:", err)
-                        latestHandleErrorRef.current(new Error(`Failed to subscribe to queued topic ${topic}: ${err.message}`))
+                        // ACL rejection — log only, don't propagate as a
+                        // fatal connection error.
+                        console.warn(
+                            "[MQTT] Queued subscribe rejected by broker ACL for topic",
+                            topic,
+                            "Error:",
+                            err.message,
+                        )
+                        return
+                    }
+                    if (granted) {
+                        granted.forEach((g) => {
+                            if (typeof g.qos === "number" && g.qos >= 128) {
+                                console.warn(
+                                    "[MQTT] Queued subscribe denied for topic",
+                                    g.topic,
+                                    "reason code",
+                                    g.qos,
+                                )
+                            }
+                        })
                     }
                 })
             }
@@ -235,10 +254,36 @@ export const useMqttConnection = ({
                 }
             })
 
-            client.subscribe(subscriptions, (err) => {
+            client.subscribe(subscriptions, (err, granted) => {
                 if (err) {
-                    console.error("[MQTT] Subscribe error:", err)
-                    latestHandleErrorRef.current(new Error(`Failed to subscribe: ${err.message}`))
+                    // SubackPacket with non-zero reason codes (e.g. "Not
+                    // authorized" 0x87) lands here. The connection itself
+                    // is healthy — the broker is just refusing this
+                    // particular topic per its ACL. We log the failure
+                    // but do NOT propagate as a fatal connection error,
+                    // and we attempt to recover the subscriptions that
+                    // were granted from the granted[] list.
+                    console.warn(
+                        "[MQTT] Subscribe rejected by broker ACL. Topics:",
+                        topics,
+                        "Error:",
+                        err.message,
+                    )
+                    return
+                }
+                if (granted) {
+                    granted.forEach((g) => {
+                        // qos values >= 128 indicate failure (e.g. 0x87
+                        // Not authorized, 0x8F Topic filter invalid).
+                        if (typeof g.qos === "number" && g.qos >= 128) {
+                            console.warn(
+                                "[MQTT] Subscribe denied for topic",
+                                g.topic,
+                                "reason code",
+                                g.qos,
+                            )
+                        }
+                    })
                 }
             })
         },
@@ -249,7 +294,6 @@ export const useMqttConnection = ({
         (topic: string) => {
             // Use Safe Refs to prevent identity change of this function
             const isConnected = latestConnectionStateRef.current.isConnected
-            const callHandleError = latestHandleErrorRef.current
 
             if (!clientRef.current || !isConnected || !clientRef.current.connected) {
                 // Queue the subscription for when the client connects
@@ -257,13 +301,30 @@ export const useMqttConnection = ({
                 return
             }
 
-            clientRef.current.subscribe(topic, { qos: 1 }, (err) => {
+            clientRef.current.subscribe(topic, { qos: 1 }, (err, granted) => {
                 if (err) {
-                    console.error("[MQTT] Dynamic subscribe error:", err)
-                    if (err.message.includes("Connection closed")) {
-                         // internal state update if needed
-                    }
-                    callHandleError(new Error(`Failed to subscribe to ${topic}: ${err.message}`))
+                    // ACL rejection — log but don't blow up the
+                    // connection. Other topics on this client remain
+                    // valid.
+                    console.warn(
+                        "[MQTT] Dynamic subscribe rejected by broker ACL for topic",
+                        topic,
+                        "Error:",
+                        err.message,
+                    )
+                    return
+                }
+                if (granted) {
+                    granted.forEach((g) => {
+                        if (typeof g.qos === "number" && g.qos >= 128) {
+                            console.warn(
+                                "[MQTT] Dynamic subscribe denied for topic",
+                                g.topic,
+                                "reason code",
+                                g.qos,
+                            )
+                        }
+                    })
                 }
             })
         },

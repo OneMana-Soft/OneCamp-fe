@@ -33,7 +33,7 @@ export function GroupedAvatar({ users, max = 4, size = 40, overlap = 8, classNam
                         zIndex: visibleUsers.length - index,
                     }}
                 >
-                    < SingleAvatar userInfo={user}/>
+                    <SingleAvatar userInfo={user} size={size}/>
                 </div>
             ))}
 

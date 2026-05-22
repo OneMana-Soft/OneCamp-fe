@@ -2,7 +2,7 @@
 
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
-import { SendHorizontal } from "lucide-react";
+import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
 import { ChannelFileUpload } from "@/components/fileUpload/channelFileUpload";
@@ -21,7 +21,7 @@ import {useUploadFile} from "@/hooks/useUploadFile";
 
 const EMPTY_CHAT_INPUT_STATE = {};
 
-export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string, handleSend: ()=>void }) => {
+export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string, handleSend: (latestContent?: string)=>void }) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
     const [isExpanded, setIsExpanded] = useState(false);
@@ -62,17 +62,18 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
                             await uploadFile.makeRequestToUploadToGroupChat(files as unknown as FileList, grpId);
                         }}
                         throttleDelay={300}
-                        className={cn("max-w-full rounded-xl h-auto border-none")}
+                        noBorder={true}
+                        className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatInputState.chatBody}
-                        placeholder={"message"}
+                        placeholder={"Type a message..."}
                         editable={true}
                         buttonOnclick={handleSend}
                         ButtonIcon={SendHorizontal}
                         editorClassName="focus:outline-none px-5"
                         onChange={(content ) => {
-                            publishTyping()
+                            publishTyping(content?.toString() || '')
                             dispatch(createOrUpdateGroupChatBody({grpID: grpId, body: content?.toString()||'' }))
                         }}
                         fixedToolbarToBottom={true}

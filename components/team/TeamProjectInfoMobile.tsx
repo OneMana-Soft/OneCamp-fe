@@ -1,84 +1,106 @@
-import {useLongPress} from "@/hooks/useLongPress";
-import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
-import {ProjectInfoInterface} from "@/types/project";
-import {Badge} from "@/components/ui/badge";
-import {ColorIcon} from "@/components/colorIcon/colorIcon";
-import {openUI} from "@/store/slice/uiSlice";
-import {useDispatch} from "react-redux";
-import {Separator} from "@/components/ui/separator";
+import { useLongPress } from "@/hooks/useLongPress";
+import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
+import { ProjectInfoInterface } from "@/types/project";
+import { Badge } from "@/components/ui/badge";
+import { ColorIcon } from "@/components/colorIcon/colorIcon";
+import { openUI } from "@/store/slice/uiSlice";
+import { useDispatch } from "react-redux";
 import * as React from "react";
-import {useMedia} from "@/context/MediaQueryContext";
+import { useMedia } from "@/context/MediaQueryContext";
+import { statusColors } from "@/lib/colors";
+import { cn } from "@/lib/utils/helpers/cn";
+import { ListRow } from "@/components/ui/listRow";
 
-export const TeamProjectInfoMobile = ({projectInfo, isAdmin, teamId, isUsersProject}: {projectInfo: ProjectInfoInterface, isAdmin: boolean, teamId: string, isUsersProject: boolean})=>{
-
-    const {isDesktop} = useMedia()
-    const dispatch= useDispatch();
+/**
+ * Project row for the mobile project list (both team-scoped and user
+ * "all projects" views). Long-press opens the project options drawer
+ * (admins only). The leading slot uses the brand-colour avatar tile
+ * keyed off the project UUID; trailing badges show membership and
+ * archive state for admins. Member count and team name appear as
+ * subtitle so the row stays a single line on phones.
+ */
+export const TeamProjectInfoMobile = ({
+    projectInfo,
+    isAdmin,
+    teamId,
+    isUsersProject,
+}: {
+    projectInfo: ProjectInfoInterface
+    isAdmin: boolean
+    teamId: string
+    isUsersProject: boolean
+}) => {
+    const { isDesktop } = useMedia()
+    const dispatch = useDispatch()
 
     const onLongPress = () => {
+        if (isDesktop) return
+        if (!isAdmin && !projectInfo.project_is_member && !isUsersProject) return
 
-        if(isDesktop) return
-
-        if(!isAdmin && !projectInfo.project_is_member && !isUsersProject) return
-
-        dispatch(openUI({
-            key: 'projectLongPress',
-            data: {
-                isAdmin: isAdmin,
-                projectId: projectInfo.project_uuid,
-                teamId: teamId || projectInfo.project_team.team_uuid,
-                isMember: projectInfo.project_is_member || isUsersProject,
-                isDeleted: !isZeroEpoch(projectInfo.project_deleted_at),
-            }
-        }));
+        dispatch(
+            openUI({
+                key: "projectLongPress",
+                data: {
+                    isAdmin,
+                    projectId: projectInfo.project_uuid,
+                    teamId: teamId || projectInfo.project_team?.team_uuid,
+                    isMember: projectInfo.project_is_member || isUsersProject,
+                    isDeleted: !isZeroEpoch(projectInfo.project_deleted_at),
+                },
+            }),
+        )
     }
 
-    const longPressEvent = useLongPress(onLongPress, {
-        threshold: 500, // Reduced from 800ms to 500ms for quicker long press
-    })
+    const longPressEvent = useLongPress(onLongPress, { threshold: 500 })
+
+    const isArchived = isAdmin && !isZeroEpoch(projectInfo.project_deleted_at || "")
+
+    const memberCount = projectInfo.project_member_count || 0
+    const teamName = projectInfo.project_team?.team_name
+
+    const subtitleParts: string[] = []
+    if (memberCount > 0) {
+        subtitleParts.push(`${memberCount} ${memberCount === 1 ? "member" : "members"}`)
+    }
+    if (teamName && !teamId) {
+        // Only show team name in the "all projects" view; in a team-scoped
+        // list it's redundant.
+        subtitleParts.push(teamName)
+    }
+    const subtitle = subtitleParts.length > 0 ? subtitleParts.join(" · ") : undefined
+
+    const trailing = (
+        <>
+            {projectInfo.project_is_member && !isArchived && (
+                <Badge
+                    variant="outline"
+                    className={cn(
+                        "text-[10px] px-1.5 py-0 h-4 font-medium",
+                        statusColors.success.borderLight,
+                        statusColors.success.bgLight,
+                        statusColors.success.text,
+                    )}
+                >
+                    Member
+                </Badge>
+            )}
+            {isArchived && (
+                <Badge variant="secondary" className="text-[10px] h-5">
+                    Archived
+                </Badge>
+            )}
+        </>
+    )
 
     return (
-        <div className='flex  px-2 select-none' {...longPressEvent} >
-
-            <div className='flex justify-between w-full h-16 items-center '>
-                <div className='flex items-center space-x-2'>
-
-                        <ColorIcon name={projectInfo.project_uuid} size={'sm'}/>
-
-                    <div className="flex items-center gap-2 max-w-sm overflow-hidden">
-                        <div
-                            className={`whitespace-nowrap overflow-ellipsis overflow-hidden ${projectInfo.project_is_member ? "hover:underline cursor-pointer" : ""}`}>
-                            {projectInfo.project_name}
-                        </div>
-                        {projectInfo.project_is_member && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-emerald-500/30 bg-emerald-500/5 text-emerald-600 font-medium">
-                                Member
-                            </Badge>
-                        )}
-                    </div>
-                </div>
-
-                <div className='flex items-center space-x-3.5'>
-
-                    <div>
-                        {
-                            isAdmin && (isZeroEpoch(projectInfo.project_deleted_at || '') ?
-                                    <Badge variant="secondary" className='text-white bg-emerald-500'>Active</Badge>
-                                :
-                                <Badge variant="outline" className='text-white bg-destructive'>Archived</Badge>
-
-                            )
-                        }
-                        {
-                            projectInfo.project_team &&
-                            <div className='text-sm text-muted-foreground'>
-                                {projectInfo.project_team.team_name}
-                            </div>
-                        }
-                    </div>
-
-                </div>
-
-            </div>
+        <div {...longPressEvent}>
+            <ListRow
+                density="default"
+                leading={<ColorIcon name={projectInfo.project_uuid} size="sm" />}
+                title={projectInfo.project_name}
+                subtitle={subtitle}
+                trailing={trailing}
+            />
         </div>
     )
 }

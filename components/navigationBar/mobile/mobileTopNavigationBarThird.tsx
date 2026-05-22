@@ -7,19 +7,8 @@ import {UserAvatarNav} from "@/components/navigationBar/userAvatarNav";
 import {useDispatch, useSelector} from "react-redux";
 import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
-import {
-    ArrowLeft,
-    ArrowUpDown,
-    CircleCheck,
-    Clapperboard,
-    Ellipsis,
-    Filter,
-    Link,
-    PanelRight,
-    Plus,
-    SendHorizontal,
-    Users, Video,
-} from "lucide-react";
+import { ArrowLeft, Clapperboard, Filter, Link, PanelRight, Plus, SendHorizontal, Users, Video } from "@/lib/icons";
+import { ArrowUpDown, CircleCheck, Ellipsis } from "@/lib/icons";
 import {RootState} from "@/store/store";
 import {clickedMobileFwdMsgSend} from "@/store/slice/fwdMessageSlice";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";

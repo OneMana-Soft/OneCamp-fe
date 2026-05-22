@@ -4,6 +4,8 @@ import { memo } from "react"
 import type { TaskActivityInterface } from "@/types/task"
 import { ProgressiveList } from "@/components/ui/progressiveList"
 import TaskActivity from "@/components/task/taskActivity";
+import { EmptyState } from "@/components/ui/empty-state"
+import { Activity } from "lucide-react";
 
 interface TaskActivitySectionProps {
     taskActivity?: TaskActivityInterface[]
@@ -25,7 +27,7 @@ function TaskActivitySection({ taskActivity }: TaskActivitySectionProps) {
                 items={taskActivity}
                 renderItem={(activity) => <TaskActivity taskActivity={activity} openOtherUserProfile={openOtherUserProfile} />}
                 getItemKey={(activity) => activity.activity_uuid || ''}
-                emptyState={<div className="text-xs text-muted-foreground px-4">No activities yet</div>}
+                emptyState={<EmptyState icon={Activity} title="No activities yet" description="Task activities will appear here as changes are made." className="py-6" />}
                 className="space-y-6"
                 initialCount={50}
                 batchSize={50}

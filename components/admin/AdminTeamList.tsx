@@ -4,7 +4,7 @@ import React, { useRef, useEffect } from "react"
 import { TeamInfoInterface } from "@/types/team"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, RotateCcw, Users } from "lucide-react"
+import { Trash2, RotateCcw, Users } from "@/lib/icons";
 import { useTranslation } from "react-i18next"
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 
@@ -100,9 +100,10 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                      className="h-8 w-8 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 hover:bg-green-500/10"
                       onClick={() => onUnDelete(team.team_uuid)}
                       disabled={isSubmitting}
+                      aria-label="Restore team"
                     >
                       <RotateCcw className="h-4 w-4" />
                     </Button>
@@ -120,6 +121,7 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                       className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => onDelete(team.team_uuid)}
                       disabled={isSubmitting}
+                      aria-label="Delete team"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -142,6 +144,7 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                         data: { teamUUID: team.team_uuid, teamName: team.team_name }
                       }))
                     }}
+                    aria-label="View team members"
                   >
                     <Users className="h-4 w-4" />
                   </Button>

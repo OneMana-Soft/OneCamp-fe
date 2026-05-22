@@ -1,7 +1,6 @@
 import axios from 'axios'
 import store from "@/store/store"
 import {updateRefreshTokenStatus} from "@/store/slice/refreshSlice";
-import {getCookie, checkAuthCookieExists, checkRefreshCookieExists} from "@/lib/utils/helpers/getCookie";
 import {loadingBus} from "@/lib/utils/loadingBus";
 import { toast } from "@/hooks/use-toast";
 
@@ -53,7 +52,17 @@ const performLogout = async () => {
     clearClientCookies();
     localStorage.clear();
     sessionStorage.clear();
-    window.location.href = '/';
+    // Only redirect if not already on a public page to avoid reload loops
+    const publicPaths = ['/', '/signup', '/forgot-password', '/reset-password', '/admin-setup'];
+    if (!publicPaths.includes(window.location.pathname)) {
+        window.location.href = '/';
+    } else {
+        // We're already on a public page (e.g. login). Don't latch
+        // isLoggingOut forever or the next authed request from the same
+        // tab (e.g. /self_profile fired by AppProtectedRoute right after
+        // demo-login succeeds) will be aborted by the request interceptor.
+        isLoggingOut = false;
+    }
 };
 
 const axiosInstance = axios.create({
@@ -64,44 +73,18 @@ const axiosInstance = axios.create({
 });
 
 /**
- * Ensures a valid Authorization token is present in cookies.
- * If missing but RefreshToken exists, triggers a mutexed refresh.
+ * Browser cookie management is the source of truth for auth: requests carry
+ * cookies via `withCredentials: true` whether or not JS can see them. We do
+ * NOT pre-gate requests on `document.cookie` visibility — cookies set with
+ * an explicit `Domain` attribute, on a subdomain, or via a proxy can be
+ * stored in the browser's HTTP cookie jar but invisible to JS, and gating
+ * on JS visibility kicks freshly-logged-in users straight back to the login
+ * screen (e.g., after demo-login or OAuth callback).
+ *
+ * The response interceptor below handles a genuinely-missing/expired
+ * cookie via a 401 → refreshToken → logout chain, which is the correct
+ * authoritative signal.
  */
-export const ensureValidToken = async (): Promise<string | null> => {
-    const authExists = checkAuthCookieExists();
-    if (authExists) return getCookie("Authorization") || null;
-
-    if (!checkRefreshCookieExists()) {
-        return null;
-    }
-
-    if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-            failedQueue.push({
-                resolve: () => resolve(getCookie("Authorization") || null),
-                reject: (err) => reject(err),
-            });
-        });
-    }
-
-    isRefreshing = true;
-    try {
-        await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}refreshToken`, {
-            withCredentials: true
-        });
-        store.dispatch(updateRefreshTokenStatus({ exist: true }));
-        processQueue(null);
-        return getCookie("Authorization") || null;
-    } catch (err) {
-        processQueue(err);
-        if (axios.isAxiosError(err) && err.response?.status === 401) {
-            await performLogout();
-        }
-        return null;
-    } finally {
-        isRefreshing = false;
-    }
-};
 
 axiosInstance.interceptors.request.use(async req => {
     // Block all requests if we're in the middle of logging out
@@ -112,26 +95,30 @@ axiosInstance.interceptors.request.use(async req => {
         return req;
     }
 
-    loadingBus.start();
-
-    const token = await ensureValidToken();
-    if (!token) {
-        performLogout();
-        const controller = new AbortController();
-        req.signal = controller.signal;
-        controller.abort('FE: Not Authorised');
+    // @ts-ignore — silent flag suppresses global loading bar for background polls
+    if (!req.silent) {
+        loadingBus.start();
     }
 
+    // We deliberately do NOT pre-validate the auth cookie here. The browser
+    // sends cookies via `withCredentials: true` regardless of JS visibility,
+    // and a real 401 response is handled below.
     return req
 })
 
 axiosInstance.interceptors.response.use(
     (response) => {
-        loadingBus.end();
+        // @ts-ignore
+        if (!response.config.silent) {
+            loadingBus.end();
+        }
         return response;
     },
     async (error) => {
-        loadingBus.end();
+        // @ts-ignore
+        if (!error.config?.silent) {
+            loadingBus.end();
+        }
         const originalRequest = error.config;
 
         // Don't process anything if we're logging out

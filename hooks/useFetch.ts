@@ -12,8 +12,7 @@ const fetcher = async <T>(url: string, schema?: z.ZodSchema<T>): Promise<T> => {
             return schema.parse(data);
         } catch (error) {
             console.error(`[Validation Error] [${url}]:`, error);
-            // In a real enterprise app, we might report this to Sentry
-            return data; // Fallback to raw data in dev/soft-launch
+            throw error;
         }
     }
 
@@ -24,7 +23,18 @@ export const useFetch = <T>(url: string, schema?: z.ZodSchema<T>, config?: SWRCo
     const { data, error, isLoading, isValidating, mutate } = useSWR<T>(
         url == '' ? null : url, 
         () => fetcher<T>(url, schema),
-        config
+        {
+            // MQTT pushes real-time updates for messages, channels, tasks,
+            // docs, activity, calls, and admin events. Tab-focus refetches
+            // every cached SWR key on the screen, which produces a thundering
+            // herd against the API on a multi-tabbed workflow. Throttle to
+            // 60s so a user genuinely returning after a long break still gets
+            // a refresh, but rapid focus toggles don't replay the world.
+            // Consumers can still opt out per-call by passing
+            // `revalidateOnFocus: false` in `config`.
+            focusThrottleInterval: 60_000,
+            ...config,
+        }
     );
 
     return useMemo(() => ({

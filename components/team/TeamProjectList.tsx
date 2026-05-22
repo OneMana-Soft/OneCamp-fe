@@ -1,7 +1,7 @@
 import {Input} from "@/components/ui/input";
 import {Separator} from "@/components/ui/separator";
 import {ListSkeleton} from "@/components/ui/ListSkeleton";
-import {Search} from "lucide-react";
+import { Search } from "@/lib/icons";
 import {useFetch} from "@/hooks/useFetch";
 import {TeamInfoInterface, TeamInfoRawInterface} from "@/types/team";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";

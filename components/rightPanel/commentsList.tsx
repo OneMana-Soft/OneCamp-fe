@@ -2,6 +2,8 @@ import { MessageContent } from "./messageContent"
 import {CommentInfoInterface} from "@/types/comment";
 import TaskActivity from "@/components/task/taskActivity";
 import {ProgressiveList} from "@/components/ui/progressiveList";
+import { EmptyState } from "@/components/ui/empty-state"
+import { MessageSquare } from "@/lib/icons";
 
 
 interface CommentsListProps {
@@ -38,7 +40,7 @@ export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, re
                         attachments={comment.comment_attachments}
                     />}
                     getItemKey={(comment) => comment.comment_uuid || ''}
-                    emptyState={<div className="text-xs text-muted-foreground px-4">No activities yet</div>}
+                    emptyState={<EmptyState icon={MessageSquare} title="No comments yet" description="Be the first to share an update or ask a question." className="py-6" />}
                     className=""
                     initialCount={50}
                     batchSize={50}

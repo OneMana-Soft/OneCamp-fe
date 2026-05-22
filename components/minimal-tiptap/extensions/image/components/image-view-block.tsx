@@ -13,8 +13,7 @@ import { blobUrlToBase64, randomId } from '../../../utils'
 import { InfoCircledIcon, TrashIcon } from '@radix-ui/react-icons'
 import { ImageOverlay } from './image-overlay'
 import type { UploadReturnType } from '../image'
-import {LoaderCircle} from "lucide-react";
-;
+import { LoaderCircle } from "@/lib/icons";
 import { useMediaFetch } from '@/hooks/useFetch';
 import { GetMediaURLRes } from '@/types/file';
 
@@ -223,23 +222,21 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
   }, [editor, fileName, initSrc, updateAttributes])
 
   return (
-    <NodeViewWrapper ref={containerRef} data-drag-handle className="relative text-center leading-none">
+    <NodeViewWrapper ref={containerRef} data-drag-handle className="relative">
       <div
-        className="group/node-image relative mx-auto rounded-md object-contain"
+        className="group/node-image relative rounded-md"
         style={{
           maxWidth: `min(${maxWidth}px, 100%)`,
           width: currentWidth,
-          maxHeight: MAX_HEIGHT,
-          aspectRatio: `${imageState.naturalSize.width} / ${imageState.naturalSize.height}`
         }}
       >
         <div
-          className={cn('relative flex h-full cursor-default flex-col items-center gap-2 rounded', {
+          className={cn('relative flex cursor-default flex-col items-center rounded', {
             'outline outline-2 outline-offset-1 outline-primary': selected || isResizing
           })}
         >
-          <div className="h-full contain-paint">
-            <div className="relative h-full">
+          <div className="contain-paint">
+            <div className="relative">
               {imageState.isServerUploading && !imageState.error && (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <LoaderCircle className="h-4 w-4 animate-spin"/>
@@ -257,13 +254,14 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
               {!displaySrc || typeof displaySrc !== 'string' || displaySrc.trim() === "" || imageState.error ? null : (
                   <img
                     src={displaySrc}
-                    className={cn('h-auto rounded object-contain transition-shadow', {
+                    className={cn('rounded object-contain transition-shadow', {
                       'opacity-0': !imageState.imageLoaded || imageState.error
                     })}
                     style={{
-                      maxWidth: `min(100%, ${maxWidth}px)`,
-                      minWidth: `${MIN_WIDTH}px`,
-                      maxHeight: MAX_HEIGHT
+                      width: `${currentWidth}px`,
+                      height: `${currentHeight}px`,
+                      maxWidth: '100%',
+                      maxHeight: `${MAX_HEIGHT}px`,
                     }}
                     width={currentWidth}
                     height={currentHeight}
@@ -302,6 +300,30 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
             <ActionWrapper>
               <ActionButton icon={<TrashIcon className="size-4" />} tooltip="Remove image" onClick={onRemoveImg} />
             </ActionWrapper>
+          )}
+
+          {/* Caption input */}
+          {editor.isEditable && imageState.imageLoaded && !imageState.error && !imageState.isServerUploading && (
+            <div className="w-full mt-1.5">
+              <input
+                type="text"
+                placeholder="Add caption..."
+                defaultValue={node.attrs.caption || ''}
+                onBlur={(e) => updateAttributes({ caption: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    editor.chain().focus().createParagraphNear().run()
+                  }
+                }}
+                className="w-full text-center text-sm text-muted-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground/50 focus:text-foreground transition-colors"
+              />
+            </div>
+          )}
+          {!editor.isEditable && node.attrs.caption && (
+            <div className="w-full mt-1.5 text-center text-sm text-muted-foreground">
+              {node.attrs.caption}
+            </div>
           )}
 
           {!isResizing && !imageState.error && !imageState.isServerUploading && (

@@ -1,6 +1,6 @@
 "use client"
 
-import {LoaderCircle, Rocket, AlertCircle, Mail, Lock, Eye, EyeOff} from "lucide-react"
+import { LoaderCircle, Rocket, AlertCircle, Mail, Lock, Eye, EyeOff } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
 import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
 import {useEffect, useState, Suspense} from "react";
@@ -51,7 +51,20 @@ export default function SignUp() {
   const router = useRouter();
 
   useEffect(() => {
-    if (checkRefreshCookieExists()) {
+    // If we just got bounced back here from a failed protected-route
+    // redirect (cookie present but auth failed), don't immediately
+    // re-bounce to /app/home — that produces an infinite loop. The
+    // protected route sets this flag during its logout cleanup; we
+    // honor it for one mount, then clear it.
+    let bouncedFromProtected = false;
+    if (typeof window !== "undefined") {
+      bouncedFromProtected = sessionStorage.getItem("auth_bounce_guard") === "1";
+      if (bouncedFromProtected) {
+        sessionStorage.removeItem("auth_bounce_guard");
+      }
+    }
+
+    if (!bouncedFromProtected && checkRefreshCookieExists()) {
       router.push(app_home_path);
     } else {
       // Check if admin setup is required
@@ -100,11 +113,18 @@ export default function SignUp() {
     setIsDemoLoading(true);
     setDemoError("");
     try {
-      const success = await authService.loginAsDemo();
-      if (success) {
+      const result = await authService.loginAsDemo();
+      if (result.ok) {
+        // The BE has set auth cookies on the response. We don't gate
+        // navigation on document.cookie visibility because production
+        // setups (cross-subdomain cookies, Secure flag on dev HTTP, etc)
+        // can leave the cookie usable by HTTP requests but invisible to
+        // JS. If the cookie didn't actually authorise us, the protected
+        // route's BE-logout-and-bounce-guard cleanup handles it
+        // gracefully — no infinite redirect loop, no fake error toast.
         router.push(app_home_path);
       } else {
-        setDemoError("Demo login is currently unavailable. Please try again later.");
+        setDemoError(result.msg || "Demo login is currently unavailable. Please try again later.");
       }
     } catch (error) {
       console.error('Demo login error:', error);
@@ -243,6 +263,11 @@ export default function SignUp() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
+                        autoComplete="email"
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        aria-label="Email address"
                         className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
                       />
                     </div>
@@ -255,11 +280,14 @@ export default function SignUp() {
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         minLength={8}
+                        autoComplete="current-password"
+                        aria-label="Password"
                         className="w-full pl-10 pr-10 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

@@ -1,10 +1,9 @@
 import React from 'react';
 import { UserProfileDataInterface } from "@/types/user";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useMediaFetch } from "@/hooks/useFetch";
-import { GetMediaURLRes } from "@/types/file";
-import { GetEndpointUrl } from "@/services/endPoints";
+import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
 
 interface ComboboxChannelMemberList {
@@ -16,11 +15,7 @@ interface ComboboxChannelMemberList {
 
 const MentionMember: React.FC<ComboboxChannelMemberList> = ({ person, selectItem, ind, selectedIndex }) => {
     
-    const profileMediaRes = useMediaFetch<GetMediaURLRes>(
-        person.user_profile_object_key 
-            ? GetEndpointUrl.PublicAttachmentURL + '/' + person.user_profile_object_key 
-            : ''
-    );
+    const {src: imageSrc} = useUserAvatar(person.user_profile_object_key);
 
     const nameInitials = getNameInitials(person.user_name);
 
@@ -36,10 +31,10 @@ const MentionMember: React.FC<ComboboxChannelMemberList> = ({ person, selectItem
         >
             <Avatar className="h-6 w-6">
                 <AvatarImage
-                    src={profileMediaRes.data?.url}
+                    src={imageSrc}
                     alt={person.user_name}
                 />
-                <AvatarFallback className="text-[10px]">{nameInitials}</AvatarFallback>
+                <AvatarFallback className={cn("text-[9px] font-semibold", getAvatarFallbackClass(person.user_name))}>{nameInitials}</AvatarFallback>
             </Avatar>
 
             <div className='flex flex-col min-w-0'>

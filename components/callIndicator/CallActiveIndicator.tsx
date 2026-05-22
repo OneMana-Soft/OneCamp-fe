@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/utils/helpers/cn";
+import { statusColors } from "@/lib/colors";
 
 interface CallActiveIndicatorProps {
     /** 'sm' for list/sidebar items, 'md' for detail views */
@@ -22,14 +23,16 @@ export const CallActiveIndicator: React.FC<CallActiveIndicatorProps> = React.mem
                 {pulse && (
                     <span
                         className={cn(
-                            "animate-ping absolute inline-flex rounded-full bg-green-400 opacity-75",
+                            "animate-ping absolute inline-flex rounded-full opacity-75",
+                            statusColors.online.ping,
                             dotSize
                         )}
                     />
                 )}
                 <span
                     className={cn(
-                        "relative inline-flex rounded-full bg-green-500",
+                        "relative inline-flex rounded-full",
+                        statusColors.online.solid,
                         dotSize
                     )}
                 />

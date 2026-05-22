@@ -14,6 +14,7 @@ import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
 import {cn} from "@/lib/utils/helpers/cn";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {openUI} from "@/store/slice/uiSlice";
+import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {
     addChannelComments,
     clearChannelCommentMsgInputState,
@@ -27,7 +28,7 @@ import {
     updateChannelCommentReactionId
 } from "@/store/slice/channelCommentSlice";
 import {ChannelCommentFileUpload} from "@/components/fileUpload/channelCommentFileUpload";
-import {SendHorizontal} from "lucide-react";
+import { SendHorizontal } from "@/lib/icons";
 import {usePost} from "@/hooks/usePost";
 import {
     CreateCommentResInterface,
@@ -182,12 +183,15 @@ export const ChannelComments = () => {
 
     const handleUpdatePostComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
 
+        const trimmedHtml = removeEmptyPTags(commentHTMLText)
+        if (!trimmedHtml) return
+
         post.makeRequest<CreateUpdateCommentReqInterface>({
             apiEndpoint: PostEndpointUrl.UpdatePostComment,
             payload: {
                 post_id: rightPanelState.data.postUUID,
                 comment_id: commentUUID,
-                comment_text_html: commentHTMLText
+                comment_text_html: trimmedHtml
             },
             showToast: true
         })
@@ -197,7 +201,7 @@ export const ChannelComments = () => {
                     dispatch(updateChannelComment({
                         commentIndex: commentIndex,
                         postId: rightPanelState.data.postUUID,
-                        htmlText: commentHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                 }
 
@@ -206,11 +210,14 @@ export const ChannelComments = () => {
 
     const handleUpdatePost = (postHTMLText: string, postId: string) => {
 
+        const trimmedHtml = removeEmptyPTags(postHTMLText)
+        if (!trimmedHtml) return
+
         post.makeRequest<CreateOrUpdatePostsReq, CreatePostsRes>({
             apiEndpoint: PostEndpointUrl.UpdateChannelPost,
             payload: {
                 post_id: postId,
-                post_text_html: postHTMLText
+                post_text_html: trimmedHtml
             },
             showToast: true
         })
@@ -220,7 +227,7 @@ export const ChannelComments = () => {
                     dispatch(updatePostByPostId({
                         postId: postId,
                         channelId: rightPanelState.data.channelUUID,
-                        htmlText: postHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                 }
 
@@ -228,20 +235,25 @@ export const ChannelComments = () => {
 
     }
 
-    const handleSend = () => {
+    const handleSend = (latestContent?: string) => {
+
+        const rawBody = latestContent ?? channelCommentState.commentMsgBody
+        const body = removeEmptyPTags(rawBody)
+        const hasAttachments = (channelCommentState.filesUploaded?.length || 0) > 0
+        if (!body && !hasAttachments) return
 
         post.makeRequest<CreateUpdateCommentReqInterface, CreateCommentResInterface>({
             apiEndpoint: PostEndpointUrl.CreatePostComment,
             payload: {
                 post_id: rightPanelState.data.postUUID,
                 comment_attachments: channelCommentState.filesUploaded,
-                comment_text_html: channelCommentState.commentMsgBody,
+                comment_text_html: body,
             }
         })
             .then((res)=>{
 
                 if(res?.comment_id && selfProfile.data?.data) {
-                    dispatch(createChannelComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: channelCommentState.commentMsgBody, postId: rightPanelState.data.postUUID, commentBy: selfProfile.data?.data, attachments:channelCommentState.filesUploaded}))
+                    dispatch(createChannelComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, postId: rightPanelState.data.postUUID, commentBy: selfProfile.data?.data, attachments:channelCommentState.filesUploaded}))
 
                 }
 
@@ -451,7 +463,7 @@ export const ChannelComments = () => {
                     }}
                     ButtonIcon={SendHorizontal}
                     buttonOnclick={handleSend}
-                    className={cn("max-w-full rounded-xl h-auto border bg-secondary/20 p-2")}
+                    className={cn("max-w-full rounded-xl h-auto border bg-muted/30 p-2")}
                     editorContentClassName="overflow-auto"
                     output="html"
                     placeholder={"Add a message, if you'd like..."}

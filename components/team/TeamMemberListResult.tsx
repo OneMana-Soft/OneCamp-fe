@@ -44,7 +44,7 @@ export const TeamMemberListResult = ({userList, isAdmin}: {userList: UserProfile
                 }
 
                 {
-                    userList.length && <Separator orientation="horizontal" className=" mx-6 w-[calc(100%-3rem)]" />
+                    userList.length > 0 && <Separator orientation="horizontal" className=" mx-6 w-[calc(100%-3rem)]" />
                 }
 
 

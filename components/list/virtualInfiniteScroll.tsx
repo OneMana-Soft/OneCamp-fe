@@ -122,7 +122,7 @@ export function VirtualInfiniteScroll<T>({
             <VList
                 ref={listRef}
 
-                className="w-full pb-40 scrollbar-thin no-scrollbar h-[80vh]"
+                className="w-full pb-40 scrollbar-thin no-scrollbar h-full"
                 onScroll={debouncedHandleScroll}
             >
                 {items.map((item, index) => (

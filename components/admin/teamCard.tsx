@@ -6,7 +6,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { TeamDeleteOrUndeleteInterface, TeamListResponseInterface, TeamInfoInterface } from "@/types/team";
 import { usePost } from "@/hooks/usePost";
 import { AdminTeamList } from "./AdminTeamList";
-import { Users } from "lucide-react";
+import { Users } from "@/lib/icons";
 
 const TeamsCard = () => {
     const [pageIndex, setPageIndex] = React.useState(0)

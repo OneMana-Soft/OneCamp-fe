@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDispatch } from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
-import { X, Plus, Send, Sparkles, StopCircle, Loader2 } from "lucide-react";
+import { X, Send, Sparkles, Loader2, MessageSquarePlus } from "@/lib/icons";
+import { StopCircle } from "lucide-react";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useRouter } from "next/navigation";
 
@@ -100,9 +101,9 @@ const AiChatPanel: React.FC = () => {
         setMessages((prev) => [...prev, userMsg]);
         setInput("");
 
-        // Resize textarea back
+        // Reset textarea height to match the min-h-[36px] of the input.
         if (inputRef.current) {
-            inputRef.current.style.height = "44px";
+            inputRef.current.style.height = "36px";
         }
 
         // askStream returns the final text + actions synchronously as its
@@ -159,38 +160,43 @@ const AiChatPanel: React.FC = () => {
 
     const handleTextareaInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setInput(e.target.value);
-        // Auto-resize
+        // Auto-resize between min and max heights to keep the composer compact
+        // while still letting users review longer prompts before they send.
         const el = e.target;
-        el.style.height = "44px";
+        el.style.height = "36px";
         el.style.height = Math.min(el.scrollHeight, 120) + "px";
     }, []);
 
     return (
         <div className="flex flex-col h-full bg-background border-l border-border">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background shrink-0">
-                <div className="flex items-center gap-2 text-primary font-semibold">
-                    <Sparkles className="w-[18px] h-[18px]" />
-                    <span className="text-sm font-semibold">AI Assistant</span>
+            {/* Header — uses bg-card to match the rest of the right panel chrome */}
+            <div className="flex items-center justify-between px-3 h-12 border-b border-border/60 bg-card/40 backdrop-blur-sm shrink-0">
+                <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-primary/10 text-primary">
+                        <Sparkles className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">AI Assistant</span>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex items-center gap-0.5">
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="w-7 h-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
                         onClick={handleNewChat}
                         title="New conversation"
+                        aria-label="New conversation"
                     >
-                        <Plus size={16} />
+                        <MessageSquarePlus className="h-4 w-4" />
                     </Button>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="w-7 h-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
                         onClick={handleClose}
                         title="Close"
+                        aria-label="Close panel"
                     >
-                        <X size={16} />
+                        <X className="h-4 w-4" />
                     </Button>
                 </div>
             </div>
@@ -200,10 +206,10 @@ const AiChatPanel: React.FC = () => {
                 <div className="flex flex-col gap-4 scrollbar-thin">
                 {messages.length === 0 && !isStreaming && (
                     <div className="flex flex-col items-center justify-center flex-1 text-center p-6 gap-3">
-                        <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary">
-                            <Sparkles size={32} />
+                        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary">
+                            <Sparkles size={24} />
                         </div>
-                        <h3 className="text-lg font-semibold text-foreground m-0">OneCamp AI</h3>
+                        <h3 className="text-lg font-medium text-foreground m-0">OneCamp AI</h3>
                         <p className="text-[13px] text-muted-foreground max-w-[280px] leading-normal m-0">
                             Ask anything about your workspace — channels, tasks, docs, and more.
                         </p>
@@ -256,7 +262,7 @@ const AiChatPanel: React.FC = () => {
                             {msg.sources && msg.sources.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border">
                                     {msg.sources.map((src, i) => (
-                                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-primary/8 text-primary font-medium capitalize">
+                                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-normal capitalize">
                                             {src.content_type}
                                             {src.channel_name && ` · ${src.channel_name}`}
                                         </span>
@@ -321,8 +327,8 @@ const AiChatPanel: React.FC = () => {
                 )}
 
                 {error && (
-                    <div className="px-3 py-2 rounded-lg bg-red-500/8 border border-red-500/15 text-red-500 text-xs">
-                        ⚠️ {error}
+                    <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                        {error}
                     </div>
                 )}
 
@@ -330,41 +336,71 @@ const AiChatPanel: React.FC = () => {
                 </div>
             </ScrollArea>
 
-            {/* Input */}
-            <div className="px-4 py-3 border-t border-border bg-background shrink-0">
-                <div className="flex items-end gap-2 border border-border rounded-xl pl-3 pr-1 py-1 bg-card transition-colors duration-150 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10">
+            {/* Input composer */}
+            <div className="px-3 py-3 border-t border-border/60 bg-background shrink-0">
+                <div
+                    className={cn(
+                        "flex items-end gap-1.5 rounded-xl border bg-card",
+                        "pl-3 pr-1 py-1",
+                        "transition-shadow duration-150",
+                        "border-border/60 focus-within:border-primary/50 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.12)]",
+                        isStreaming && "opacity-90",
+                    )}
+                >
                     <Textarea
                         ref={inputRef}
                         value={input}
                         onChange={handleTextareaInput}
                         onKeyDown={handleKeyDown}
                         placeholder="Ask your workspace anything..."
-                        className="flex-1 border-none bg-transparent text-foreground text-[13px] leading-normal resize-none outline-none min-h-[36px] max-h-[120px] py-2 font-inherit disabled:opacity-50 ring-0 focus-visible:ring-0 shadow-none"
-                        disabled={isStreaming}
+                        className={cn(
+                            "flex-1 min-w-0 border-0 bg-transparent shadow-none",
+                            "text-[13px] leading-relaxed text-foreground",
+                            "placeholder:text-muted-foreground/70",
+                            "resize-none outline-none ring-0 focus-visible:ring-0",
+                            "min-h-[36px] max-h-[120px] py-2 px-0",
+                        )}
+                        // Keep the input visible & editable while streaming so the user
+                        // can compose a follow-up while the assistant finishes its
+                        // current reply. handleSend already guards against double-submit.
                         rows={1}
+                        aria-label="Message AI assistant"
                     />
                     {isStreaming ? (
                         <Button
                             size="icon"
-                            variant="destructive"
-                            className="w-8 h-8 rounded-lg shrink-0 transition-all duration-150 hover:opacity-90 hover:scale-[1.02]"
+                            variant="ghost"
+                            className={cn(
+                                "h-8 w-8 rounded-lg shrink-0 self-end mb-0.5",
+                                "text-destructive hover:text-destructive hover:bg-destructive/10",
+                            )}
                             onClick={cancelStream}
                             title="Stop generating"
+                            aria-label="Stop generating"
                         >
-                            <StopCircle size={18} />
+                            <StopCircle className="h-4 w-4" />
                         </Button>
                     ) : (
                         <Button
                             size="icon"
-                            className="w-8 h-8 rounded-lg bg-primary text-primary-foreground shrink-0 transition-all duration-150 hover:opacity-90 hover:scale-[1.02] disabled:opacity-30"
+                            className={cn(
+                                "h-8 w-8 rounded-lg shrink-0 self-end mb-0.5",
+                                "bg-primary text-primary-foreground hover:bg-primary/90",
+                                "transition-colors duration-150",
+                                "disabled:opacity-30 disabled:cursor-not-allowed",
+                            )}
                             onClick={handleSend}
                             disabled={!input.trim()}
-                            title="Send"
+                            title="Send (Enter)"
+                            aria-label="Send message"
                         >
-                            <Send size={18} />
+                            <Send className="h-4 w-4" />
                         </Button>
                     )}
                 </div>
+                <p className="mt-1.5 px-1 text-[10px] text-muted-foreground/70 leading-tight">
+                    Enter to send, Shift+Enter for a new line.
+                </p>
             </div>
 
         </div>

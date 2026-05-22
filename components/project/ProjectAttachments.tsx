@@ -1,4 +1,4 @@
-import {Plus} from "lucide-react"
+import { Plus } from "@/lib/icons";
 
 import * as React from "react";
 import {useEffect} from "react";

@@ -25,7 +25,9 @@ export const useDocMessageHandlers = ({ userUuid }: UseDocMessageHandlersProps) 
 
                 const mqttDocComment = mqttService.parseDocCommentMsg(messageStr)
 
-                if(userUuid == mqttDocComment.data.user_uuid) return
+                // Multi-device sync: don't skip self. createNewDocComment
+                // and incrementDocCommentCount both dedup so the originating
+                // tab is safe and the second device sees the new comment.
 
                 switch (mqttDocComment.data.type) {
                     case MqttActionType.Create:
@@ -85,7 +87,8 @@ export const useDocMessageHandlers = ({ userUuid }: UseDocMessageHandlersProps) 
             try {
 
                 const mqttDocCommentReaction = mqttService.parseDocCommentReactionMsg(messageStr)
-                if(userUuid == mqttDocCommentReaction.data.user_uuid) return
+                // Multi-device sync: don't skip self. The reducer dedups
+                // by (user, emoji) and upgrades temp -> real ids.
 
                 switch (mqttDocCommentReaction.data.type) {
                     case MqttActionType.Create:

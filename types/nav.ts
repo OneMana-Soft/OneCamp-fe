@@ -1,4 +1,5 @@
 import {LucideIcon} from "lucide-react";
+import React from "react";
 import {UserProfileDataInterface} from "@/types/user";
 
 export interface DesktopChildrenNavType {
@@ -11,6 +12,8 @@ export interface DesktopChildrenNavType {
     userParticipants?: UserProfileDataInterface[]
     userProfile?: UserProfileDataInterface
     isCallActive?: boolean
+    icon?: LucideIcon
+    isFavorite?: boolean
 }
 
 export interface DesktopNavType {
@@ -19,9 +22,10 @@ export interface DesktopNavType {
         icon?: LucideIcon  ;
         variant?: "default" | "ghost" | "sidebarActive";
         path?: string;
-        action?:(()=>void)|undefined
+        action?:((()=>void)|undefined)
         isOpen?: boolean;
         setIsOpen?:(b:boolean)=>void
         children?:DesktopChildrenNavType[]
-        className?: string
+        className?: string;
+        inlineCreator?: React.ReactNode;
 }

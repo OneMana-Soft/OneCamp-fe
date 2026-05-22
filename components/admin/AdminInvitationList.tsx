@@ -3,7 +3,7 @@
 import React from "react"
 import { Invitation } from "@/types/user"
 import { Button } from "@/components/ui/button"
-import { Trash2, Mail, RefreshCw, CheckCircle, Clock, AlertCircle, XCircle } from "lucide-react"
+import { Trash2, Mail, RefreshCw, CheckCircle, Clock, AlertCircle, XCircle } from "@/lib/icons";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface AdminInvitationListProps {
@@ -32,7 +32,7 @@ function getStatusBadge(status: string) {
       )
     case "expired":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-600 dark:text-red-400">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-destructive">
           <XCircle className="h-3 w-3" />
           Expired
         </span>
@@ -92,6 +92,7 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
                         className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
                         onClick={() => onResend(inv.email)}
                         disabled={isSubmitting || resendingEmail === inv.email}
+                        aria-label="Resend invitation"
                       >
                         <RefreshCw className={`h-4 w-4 ${resendingEmail === inv.email ? 'animate-spin' : ''}`} />
                       </Button>
@@ -109,6 +110,7 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
                       className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => onDelete(inv.email)}
                       disabled={isSubmitting}
+                      aria-label="Remove invitation"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

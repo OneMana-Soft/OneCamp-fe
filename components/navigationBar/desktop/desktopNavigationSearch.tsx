@@ -2,8 +2,8 @@
 
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
-import { useEffect, useRef, memo, useCallback } from "react"
-import { X, Search, Loader2, Eye } from "lucide-react"
+import { useRef, memo, useCallback } from "react"
+import { X, Search, Loader2, Eye } from "@/lib/icons";
 import { SearchResult } from "@/services/searchService"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -16,7 +16,7 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
     return (
         <div
             onClick={() => onClick(result)}
-            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/60 cursor-pointer group active:scale-[0.99] transition-all"
+            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/60 cursor-pointer group transition-all"
         >
             <div className={cn(
                 "shrink-0 transition-all",
@@ -26,11 +26,11 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                    <span className="px-1.5 py-0.5 rounded bg-muted text-[9px] font-bold uppercase tracking-wider text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                    <span className="px-1.5 py-0.5 rounded bg-muted text-[9px] font-medium uppercase tracking-wider text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                         {result.type}
                     </span>
                 </div>
-                <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                <div className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
                     {getHighlightedTitle(result)}
                 </div>
                 <div className="text-[11px] text-muted-foreground truncate">
@@ -69,17 +69,7 @@ export default function DesktopNavigationSearch() {
         handleSearchSubmit
     } = useSearch()
 
-    useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "k") {
-                event.preventDefault()
-                searchRef.current?.focus()
-            }
-        }
-
-        document.addEventListener("keydown", handleKeyDown)
-        return () => document.removeEventListener("keydown", handleKeyDown)
-    }, [])
+    // Note: Ctrl+K now opens the global Command Palette instead of focusing this input.
 
     const onClear = useCallback(() => {
         handleClear()
@@ -101,17 +91,17 @@ export default function DesktopNavigationSearch() {
                         <Input
                             ref={searchRef}
                             type="search"
-                            placeholder="Global Search... (Ctrl K)"
+                            placeholder="Global Search..."
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={handleKeyDownCapture}
                             onFocus={() => inputValue && setOpen(true)}
                             className={cn(
-                                "h-10 w-full pl-9 pr-32 font-medium",
+                                "h-10 w-full pl-9 pr-9 font-medium",
                                 "text-sm placeholder:text-muted-foreground/60",
                                 "rounded-xl border-border bg-muted/20",
                                 "focus-visible:ring-1 focus-visible:ring-primary focus-visible:bg-background",
-                                "transition-all duration-200",
+                                "transition-all duration-150",
                                 "[&::-webkit-search-cancel-button]:appearance-none"
                             )}
                         />
@@ -120,13 +110,17 @@ export default function DesktopNavigationSearch() {
                                 <button
                                     onClick={onClear}
                                     className="p-1 rounded-full hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+                                    aria-label="Clear search"
                                 >
                                     <X className="h-4 w-4" />
                                 </button>
                             )}
-                            <kbd className="pointer-events-none hidden md:inline-flex h-6 select-none items-center gap-1 rounded border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-sm">
-                                <span className="text-xs">{typeof navigator !== "undefined" && navigator?.platform?.toLowerCase()?.includes("mac") ? "⌘" : "Ctrl"}</span> K
-                            </kbd>
+                            {/*
+                              No kbd hint here. Ctrl/⌘+K opens the global
+                              Command Palette, NOT this input — surfacing
+                              the shortcut here would mislead users into
+                              expecting the input to focus.
+                            */}
                         </div>
                     </div>
                 </PopoverTrigger>
@@ -157,7 +151,7 @@ export default function DesktopNavigationSearch() {
                                             onClick={() => handleSearchSubmit()}
                                             className="p-3 text-center border-t border-border/50 hover:bg-muted/50 cursor-pointer transition-colors"
                                         >
-                                            <p className="text-xs font-semibold text-primary">View all results for "{inputValue}"</p>
+                                            <p className="text-xs font-medium text-primary">View all results for "{inputValue}"</p>
                                         </div>
                                     </div>
                                 ) : (

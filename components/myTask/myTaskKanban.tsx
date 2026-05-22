@@ -36,7 +36,7 @@ import {
     DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import {CSS} from '@dnd-kit/utilities';
-import {CirclePlus} from "lucide-react";
+import { CirclePlus } from "lucide-react";
 import {useDispatch} from "react-redux";
 import {coordinateGetter as multipleContainersCoordinateGetter} from "@/components/task/multipleContainersKeyboardCoordinates";
 import {
@@ -314,8 +314,16 @@ export const MyTaskKanban = ({
 
     const [clonedItems, setClonedItems] = useState<Items | null>(null);
     const sensors = useSensors(
-        useSensor(MouseSensor),
-        useSensor(TouchSensor),
+        // Require a small drag distance before initiating drag, so a plain
+        // click on the card surface (no movement) reaches the card's onClick
+        // and opens the task panel. Without this, dnd-kit treats every
+        // pointerdown as the start of a drag and swallows the click.
+        useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(TouchSensor, {
+            // Touch needs a short hold before drag to keep the tap-to-open
+            // affordance working on mobile, while still allowing reordering.
+            activationConstraint: { delay: 180, tolerance: 8 },
+        }),
         useSensor(KeyboardSensor, {
             coordinateGetter,
         })

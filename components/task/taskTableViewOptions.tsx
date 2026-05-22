@@ -35,7 +35,7 @@ export function TaskTableViewOptions<TData>({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[150px]">
-                <DropdownMenuLabel>{('toggleColumns')}</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("toggleColumns")}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {table
                     .getAllColumns()

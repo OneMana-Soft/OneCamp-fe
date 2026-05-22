@@ -33,6 +33,7 @@ import {
     updateGroupChatReactionByChatId
 } from "@/store/slice/groupChatSlice";
 import {RemoveMessageFromChatList, UpdateMessageTextInChatList} from "@/store/slice/chatSlice";
+import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {app_chat_path, app_grp_chat_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
 
@@ -163,11 +164,14 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
 
     const handleUpdateChat = ( messageId: string, postHTMLText: string) => {
 
+        const trimmedHtml = removeEmptyPTags(postHTMLText)
+        if (!trimmedHtml) return
+
         post.makeRequest<CreateOrUpdateChatsReq>({
             apiEndpoint: PostEndpointUrl.UpdateGroupChatMessage,
             payload: {
                 chat_id: messageId,
-                text_html: postHTMLText,
+                text_html: trimmedHtml,
                 grp_id: grpId
             },
             showToast: true
@@ -178,13 +182,13 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
                     dispatch(updateGroupChatByChatId({
                         grpId,
                         messageId,
-                        htmlText: postHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                     // Sync sidebar preview
                     dispatch(UpdateMessageTextInChatList({
                         grpId: grpId,
                         messageId,
-                        htmlText: postHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                 }
 
@@ -226,12 +230,15 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
 
     const handleUpdateChatComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
 
+        const trimmedHtml = removeEmptyPTags(commentHTMLText)
+        if (!trimmedHtml) return
+
         post.makeRequest<CreateUpdateCommentReqInterface>({
             apiEndpoint: PostEndpointUrl.UpdateChatComment,
             payload: {
                 chat_id: chatMessageUUID,
                 comment_id: commentUUID,
-                comment_text_html: commentHTMLText
+                comment_text_html: trimmedHtml
             },
             showToast: true
         })
@@ -241,7 +248,7 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
                     dispatch(updateChatComment({
                         commentIndex: commentIndex,
                         chatId: chatMessageUUID,
-                        htmlText: commentHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                 }
 
@@ -294,7 +301,7 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
 
 
     return (
-            <div style={{height: window.innerHeight - 190}} className='overflow-y-auto'>
+            <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className='pb-4'>
 
                 <MobileMessage

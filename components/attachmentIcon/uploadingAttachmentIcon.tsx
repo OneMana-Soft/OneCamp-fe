@@ -1,6 +1,7 @@
 'use client';
 
-import {FileImage, FileText, FileAudio2, FileVideo, File, X, Play} from 'lucide-react';
+import { FileImage, FileText, FileVideo, File, X, Play } from "@/lib/icons";
+import { FileAudio2 } from "lucide-react";
 import Image from 'next/image';
 import {useEffect, useState} from "react";
 import { AttachmentType} from "@/types/attachment";

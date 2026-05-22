@@ -1,6 +1,6 @@
 "use client"
 
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {
     ColumnFiltersState,
     SortingState,
@@ -26,7 +26,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle } from "@/lib/icons";
 import {TaskTableToolbar} from "@/components/task/taskTableToolbar";
 import {TaskTablePagination} from "@/components/task/taskTablePagination";
 import {useMyTaskColumn} from "@/hooks/useMyTaskColumn";
@@ -34,7 +34,7 @@ import {useDebounce} from "@/hooks/useDebounce";
 import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {UserInfoRawInterface} from "@/types/user";
-import {createListForTaskInfo} from "@/store/slice/taskInfoSlice";
+import {createListForTaskInfo, clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
 import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
@@ -107,6 +107,15 @@ export const MyTaskTable = () => {
         }),
         [pageIndex, pageSize]
     );
+
+    useLayoutEffect(() => {
+        // Reset taskListVisibleInfo on mount so we don't render the
+        // previous surface's tasks (e.g. project tasks if user came
+        // from /app/project/[id]) while we wait for the new fetch.
+        // taskInfoSlice.taskListVisibleInfo is shared between
+        // myTaskTable and projectTaskTable.
+        dispatch(clearTaskListVisibleInfo())
+    }, [])
 
     useEffect(() => {
 

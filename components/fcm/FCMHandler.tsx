@@ -33,7 +33,6 @@ export function FCMHandler() {
   // Effect 2: FCM setup — register SW, get token, sync with backend (with retry)
   useEffect(() => {
     if (!isFirebaseConfigured) {
-      console.log("[FCM] Skipped: Firebase not configured")
       return
     }
 
@@ -45,8 +44,6 @@ export function FCMHandler() {
       if (isCancelled || hasSyncedRef.current) return
 
       try {
-        console.log(`[FCM] Setup attempt ${attempt}/${MAX_RETRIES}`)
-
         const token = await getFCMToken()
         if (!token) {
           console.warn("[FCM] Token was null — permission denied or config issue")
@@ -63,13 +60,11 @@ export function FCMHandler() {
         })
 
         hasSyncedRef.current = true
-        console.log("[FCM] Token synced with backend ✓")
       } catch (e) {
         console.error(`[FCM] Setup attempt ${attempt} failed:`, e)
 
         if (!isCancelled && attempt < MAX_RETRIES) {
           const delay = BASE_DELAY * Math.pow(2, attempt - 1) // 3s, 6s, 12s
-          console.log(`[FCM] Retrying in ${delay / 1000}s...`)
           retryTimeoutRef.current = window.setTimeout(() => setupFCM(attempt + 1), delay)
         }
       }
@@ -81,7 +76,6 @@ export function FCMHandler() {
     // Recovery: retry when app returns to foreground if setup hasn't completed
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && !hasSyncedRef.current && !isCancelled) {
-        console.log("[FCM] App foregrounded — retrying setup")
         setupFCM(1)
       }
     }
@@ -100,8 +94,6 @@ export function FCMHandler() {
     if (!messaging) return
 
     const unsubscribe = onMessage(messaging, (payload: any) => {
-      console.log("[FCM] Foreground message received:", payload)
-      
       const title = payload.notification?.title || payload.data?.title || "New Notification"
       const body = payload.notification?.body || payload.data?.body || ""
       const icon = payload.notification?.icon || payload.data?.icon

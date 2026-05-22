@@ -5,6 +5,8 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { SeparatorPill } from "@/components/separator/separatorPill"
 import type { VirtualizedListProps } from "@/types/virtual"
 import { debounceUtil } from "@/lib/utils/helpers/debounce"
+import { EmptyState } from "@/components/ui/empty-state"
+import { MessageCircle } from "@/lib/icons";
 
 const STICKY_HEADER_BUFFER = 0
 const OVERSCAN_COUNT = 20
@@ -69,7 +71,7 @@ export const MessageList = <T,>({
         // This runs on subsequent renders where items.length might increase due to new messages
         if (initialScrollAttempted.current && isAtBottom && !olderMessageLoading) {
             // Keep smooth behavior for new messages for a better live chat experience
-            // console.log("ppppppp 88888")
+
             // virtualizer.scrollToIndex(items.length, { align: "end", behavior: "smooth" })
         }
     }, [virtualizer, items.length, isAtBottom, olderMessageLoading])
@@ -171,9 +173,12 @@ export const MessageList = <T,>({
 
     if (!items.length) {
         return (
-            <div className="flex items-center justify-center h-full text-muted-foreground" aria-label="No items available">
-                No messages available
-            </div>
+            <EmptyState
+                icon={MessageCircle}
+                title="No messages yet"
+                description="Start the conversation by sending a message."
+                className="h-full"
+            />
         )
     }
 
@@ -197,7 +202,7 @@ export const MessageList = <T,>({
 
             {visibleDateIndex > -1 && (
                 <SeparatorPill
-                    className="sticky top-1 z-10 transition-opacity duration-200 "
+                    className="sticky top-1 z-[var(--z-sticky)] transition-opacity duration-200 "
                     lineClassName="bg-transparent"
                     pillClassName="border-2 bg-background"
                 >

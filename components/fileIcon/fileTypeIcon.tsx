@@ -1,12 +1,5 @@
-import {
-    FileText,
-    FileSpreadsheet,
-    Presentation,
-    FileCode,
-    FileImage,
-    FileBox,
-    FileArchive
-} from 'lucide-react'
+import { FileText, FileSpreadsheet, FileCode, FileImage } from "@/lib/icons";
+import { Presentation, FileBox, FileArchive } from "@/lib/icons";
 
 import {
     FileAiIcon,

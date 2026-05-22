@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { BubbleMenu, Editor } from '@tiptap/react'
-import { Sparkles } from 'lucide-react'
+import { Sparkles } from "@/lib/icons";
 import { cn } from '@/lib/utils/helpers/cn'
 import { Button } from '@/components/ui/button'
 
@@ -58,10 +58,10 @@ export const SelectionAiBubbleMenu: React.FC<SelectionAiBubbleMenuProps> = ({ ed
           }}
           className={cn(
             "h-8 gap-1.5 px-3 text-xs font-medium transition-colors",
-            "hover:bg-indigo-500/10 hover:text-indigo-400"
+            "hover:bg-primary/10 hover:text-primary"
           )}
         >
-          <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
+          <Sparkles className="h-3.5 w-3.5 text-primary/60" />
           <span>Ask AI</span>
         </Button>
       </div>

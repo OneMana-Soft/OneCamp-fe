@@ -12,3 +12,8 @@ export function checkAuthCookieExists(): boolean {
 export function checkRefreshCookieExists(): boolean {
     return !!getCookie("RefreshToken");
 }
+
+export function clearAuthCookies() {
+    document.cookie = "Authorization=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "RefreshToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+}

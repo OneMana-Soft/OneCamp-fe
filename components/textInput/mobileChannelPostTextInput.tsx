@@ -2,7 +2,7 @@
 
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
-import { SendHorizontal } from "lucide-react";
+import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
 import { ChannelFileUpload } from "@/components/fileUpload/channelFileUpload";
@@ -63,9 +63,10 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
     }, []);
 
 
-    const handleSend = () => {
+    const handleSend = (latestContent?: string) => {
 
-        const body = removeEmptyPTags(channelPostState.commentMsgBody)
+        const rawBody = latestContent ?? channelPostState.commentMsgBody
+        const body = removeEmptyPTags(rawBody)
 
         if(body.length==0) return
 
@@ -104,11 +105,12 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'channelCommentFileUpload' })) }}
                         throttleDelay={300}
+                        noBorder={true}
                         className={cn("max-w-full rounded-xl h-auto border-none")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={channelPostState.commentMsgBody}
-                        placeholder={"message"}
+                        placeholder={"Reply..."}
                         editable={true}
                         buttonOnclick={handleSend}
                         ButtonIcon={SendHorizontal}

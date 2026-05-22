@@ -1,7 +1,7 @@
 "use client"
 
 
-import {Circle, Hash} from "lucide-react";
+import { Circle, Hash } from "@/lib/icons";
 import {ChannelListTabContent} from "@/components/channel/channelListTabContent";
 import {useState} from "react";
 import {useMedia} from "@/context/MediaQueryContext";

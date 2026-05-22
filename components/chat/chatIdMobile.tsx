@@ -1,19 +1,16 @@
 import {ChatMessageList} from "@/components/chat/chatMessageList";
 import {MobileChatTextInput} from "@/components/textInput/mobileChatTextInput";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
-import { useSelector } from "react-redux";
-import { RootState } from "@/store/store";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { UserProfileInterface } from "@/types/user";
 import { GetEndpointUrl } from "@/services/endPoints";
-import { useMemo } from "react";
+import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 
-export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: ()=>void, unreadCount?: number }) => {
-    const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
+export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number }) => {
     const otherUserInfo = useFetchOnlyOnce<UserProfileInterface>(chatId ? `${GetEndpointUrl.SelfProfile}/${chatId}` : '');
-    
-    const selfUuid = selfProfile.data?.data.user_uuid;
-    
+
+    if (otherUserInfo.isLoading) return <ChatSkeleton />
+
     return (
         <div className='flex flex-col h-full'>
             <CatchMeUpBanner
@@ -23,7 +20,7 @@ export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string,
                 isChannel={false}
                 type="dm"
             />
-            <div style={{ height: window.innerHeight - 185 }}>
+            <div className="flex-1 min-h-0">
                 <ChatMessageList chatId={chatId} />
             </div>
             <div>

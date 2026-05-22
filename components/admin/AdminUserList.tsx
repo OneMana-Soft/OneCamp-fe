@@ -5,11 +5,15 @@ import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, RotateCcw } from "lucide-react"
+import { Trash2, RotateCcw } from "@/lib/icons";
 import { useTranslation } from "react-i18next"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
+import { useUserAvatar } from "@/hooks/useUserAvatar";
+import { getNameInitials } from "@/lib/utils/getNameInitials";
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
+import { cn } from "@/lib/utils/helpers/cn";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -77,81 +81,14 @@ export const AdminUserList: React.FC<AdminUserListProps> = ({
     <TooltipProvider>
       <div className="overflow-y-auto h-[calc(100vh-320px)] pr-2 scrollbar-thin">
         {users.map((user) => (
-          <div
+          <AdminUserRow
             key={user.user_uuid}
-            className="flex items-center justify-between p-3 rounded-lg border border-border bg-card/50 backdrop-blur-sm transition-all hover:shadow-sm mb-4"
-          >
-            <div 
-              className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => handleOpenProfile(user.user_uuid)}
-            >
-              <Avatar className="h-10 w-10 border border-border/50">
-                <AvatarImage
-                  src={user.user_profile_object_key}
-                  alt={user.user_full_name || user.user_name || user.user_email_id}
-                />
-                <AvatarFallback>
-                  {(user.user_full_name || user.user_name || user.user_email_id || "U").substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium leading-none">
-                  {user.user_full_name || user.user_name || user.user_email_id}
-                </span>
-                <span className="text-xs text-muted-foreground mt-1">
-                  {user.user_email_id}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {!isZeroEpoch(user.user_deleted_at || '') ? (
-                <Badge variant="destructive" className="mr-2 text-[10px] h-5">
-                  Deactivated
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="mr-2 text-[10px] h-5 border-green-500/50 text-green-600 bg-green-500/5">
-                  Active
-                </Badge>
-              )}
-
-              {!isZeroEpoch(user.user_deleted_at || '') ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                      onClick={() => onActivate(user.user_email_id!, user.user_uuid)}
-                      disabled={isSubmitting}
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Reactivate User</p>
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => onDeactivate(user.user_email_id!, user.user_uuid)}
-                      disabled={isSubmitting}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Deactivate User</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-          </div>
+            user={user}
+            isSubmitting={isSubmitting}
+            onOpenProfile={handleOpenProfile}
+            onActivate={onActivate}
+            onDeactivate={onDeactivate}
+          />
         ))}
 
         {/* Load more sentinel */}
@@ -167,5 +104,97 @@ export const AdminUserList: React.FC<AdminUserListProps> = ({
         )}
       </div>
     </TooltipProvider>
+  )
+}
+
+interface AdminUserRowProps {
+  user: UserProfileDataInterface
+  isSubmitting: boolean
+  onOpenProfile: (userUUID: string) => void
+  onActivate: (email: string, userId: string) => void
+  onDeactivate: (email: string, userId: string) => void
+}
+
+function AdminUserRow({ user, isSubmitting, onOpenProfile, onActivate, onDeactivate }: AdminUserRowProps) {
+  const { src: imageSrc } = useUserAvatar(user.user_profile_object_key)
+  const seed = user.user_full_name || user.user_name || user.user_email_id || ""
+
+  return (
+    <div
+      className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/60 bg-card transition-colors hover:bg-accent/40 mb-2"
+    >
+      <div
+        className="flex items-center gap-3 cursor-pointer min-w-0"
+        onClick={() => onOpenProfile(user.user_uuid)}
+      >
+        <Avatar className="h-9 w-9 shrink-0">
+          <AvatarImage
+            src={imageSrc}
+            alt={seed}
+          />
+          <AvatarFallback className={cn("text-[11px] font-semibold", getAvatarFallbackClass(seed))}>
+            {getNameInitials(seed)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-medium leading-none truncate">
+            {user.user_full_name || user.user_name || user.user_email_id}
+          </span>
+          <span className="text-xs text-muted-foreground mt-1 truncate">
+            {user.user_email_id}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {!isZeroEpoch(user.user_deleted_at || '') ? (
+          <Badge variant="destructive" className="text-[10px] h-5">
+            Deactivated
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-[10px] h-5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">
+            Active
+          </Badge>
+        )}
+
+        {!isZeroEpoch(user.user_deleted_at || '') ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 dark:text-emerald-400"
+                onClick={() => onActivate(user.user_email_id!, user.user_uuid)}
+                disabled={isSubmitting}
+                aria-label="Reactivate user"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Reactivate user</p>
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                onClick={() => onDeactivate(user.user_email_id!, user.user_uuid)}
+                disabled={isSubmitting}
+                aria-label="Deactivate user"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Deactivate user</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </div>
   )
 }

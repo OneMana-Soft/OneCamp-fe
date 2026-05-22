@@ -149,7 +149,7 @@ export function MobileTopNavigationBarSecond() {
     };
 
     return (
-        <div className='font-bold capitalize text-lg text-center'>
+        <div className='font-medium text-base text-center min-w-0 truncate'>
             {renderPageName()}
         </div>
     );

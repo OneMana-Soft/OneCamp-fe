@@ -1,40 +1,34 @@
 "use client"
 
+import { useState } from "react"
+import { SectionTabs, SectionTabsContent } from "@/components/ui/sectionTabs"
+import { ProjectListTabContent } from "@/components/project/projectListTabContent"
 
-import {Circle, Hash} from "lucide-react";
-import {ChannelListTabContent} from "@/components/channel/channelListTabContent";
-import {useState} from "react";
-import {useMedia} from "@/context/MediaQueryContext";
-import {ProjectListTabContent} from "@/components/project/projectListTabContent";
-
-export function ProjectListTabs({projectId}:{projectId: string}) {
-
-    const [selectedTab, setSelectedTab] = useState("task");
-
-    const handleChangeTab = (t: string) => {
-        setSelectedTab(t);
-    }
-
+/**
+ * Mobile project detail tab bar. Switches between the Tasks list and
+ * the Attachments grid for a given project. Tabs use the shared
+ * `SectionTabs` primitive (Notion-style underline) so the look matches
+ * channel / chat / activity tabs.
+ */
+export function ProjectListTabs({ projectId }: { projectId: string }) {
+    const [selectedTab, setSelectedTab] = useState<"task" | "attachment">("task")
 
     return (
-        <div className='flex flex-col h-full'>
-
-            <div>
-                <div
-                    className='h-10 md:h-16 text-sm  flex w-full md:w-[25vw]   justify-around items-center p-1.5 space-x-3 md:p-4 md:ml-2'>
-
-                    <div onClick={() => handleChangeTab('task')}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center  md:w-fit md:px-8  h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'task' ? 'hover:text-muted-foreground bg-primary font-medium text-amber-50 shadow-sm' : "text-muted-foreground"}`}>
-                        Tasks
-                    </div>
-                    <div onClick={() => handleChangeTab('attachment')}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center  md:w-fit md:px-8  h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'attachment' ? 'hover:text-muted-foreground bg-primary font-medium text-amber-50 shadow-sm' : "text-muted-foreground"}`}>
-                        Attachments
-                    </div>
-                </div>
-            </div>
-
-            <ProjectListTabContent selectedTab={selectedTab} projectId={projectId}/>
-        </div>
+        <SectionTabs
+            tabs={[
+                { value: "task", label: "Tasks" },
+                { value: "attachment", label: "Attachments" },
+            ]}
+            value={selectedTab}
+            onValueChange={(v) => setSelectedTab(v as "task" | "attachment")}
+            className="h-full"
+        >
+            <SectionTabsContent value="task" className="flex-1 min-h-0 outline-none">
+                <ProjectListTabContent selectedTab="task" projectId={projectId} />
+            </SectionTabsContent>
+            <SectionTabsContent value="attachment" className="flex-1 min-h-0 outline-none">
+                <ProjectListTabContent selectedTab="attachment" projectId={projectId} />
+            </SectionTabsContent>
+        </SectionTabs>
     )
 }

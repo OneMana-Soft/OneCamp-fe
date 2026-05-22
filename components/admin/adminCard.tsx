@@ -8,7 +8,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { AdminListResponseInterface, AdminCreateOrRemoveInterface, UserProfileDataInterface, UserProfileInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { AdminAdminList } from "./AdminAdminList"
-import { ShieldAlert, Plus } from "lucide-react"
+import { ShieldAlert, Plus } from "@/lib/icons";
 import { AddAdminDialog } from "./AddAdminDialog"
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import { UserProfileResponseSchema } from "@/lib/validations/schemas"

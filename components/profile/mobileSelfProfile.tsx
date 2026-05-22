@@ -10,14 +10,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-import { useFetchOnlyOnce, useMediaFetch } from "@/hooks/useFetch";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { useUploadFile } from "@/hooks/useUploadFile";
 import { usePost } from "@/hooks/usePost";
 import { useTranslation } from "react-i18next";
 
 import { USER_STATUS_OFFLINE, USER_STATUS_ONLINE, UserProfileInterface, UserProfileUpdateInterface } from "@/types/user";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
-import { GetMediaURLRes } from "@/types/file";
+import { useUserAvatar } from "@/hooks/useUserAvatar";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -25,9 +25,15 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { AppLanguageCombobox } from "@/components/dialog/appLanguageCombobox";
-import { ArrowLeft, Trash, Camera, Calendar } from "lucide-react";
+import { ArrowLeft, Trash, Calendar, Moon, Sun } from "@/lib/icons";
+import { Camera } from "@/lib/icons";
 import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
+import { useTheme } from "next-themes";
+import { ColorThemePicker } from "@/components/activeTheme/ColorThemePicker";
+import { getNameInitials } from "@/lib/utils/getNameInitials";
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
+import { cn } from "@/lib/utils/helpers/cn";
 
 export const profileFormSchema = z.object({
     fullName: z
@@ -65,19 +71,20 @@ export function MobileSelfProfile() {
     const dispatch = useDispatch();
 
     const profileInfo = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(profileInfo?.data?.data?.user_profile_object_key ? GetEndpointUrl.PublicAttachmentURL + '/' + profileInfo.data.data.user_profile_object_key : '');
+    const {src: imageSrc} = useUserAvatar(profileInfo?.data?.data?.user_profile_object_key);
 
     const [selectedImage, setSelectedImage] = useState<string>("");
     const [selectedImageFile, selectedImageSetFile] = useState<FileList | null>(null);
     const uploadFile = useUploadFile();
     const post = usePost();
     const { t } = useTranslation();
+    const { theme, setTheme } = useTheme();
 
     useEffect(() => {
-        if (profileImageRes.data?.url) {
-            setSelectedImage(profileImageRes.data.url);
+        if (imageSrc) {
+            setSelectedImage(imageSrc);
         }
-    }, [profileImageRes.data]);
+    }, [imageSrc]);
 
     const form = useForm<ProfileFormValues>({
         resolver: zodResolver(profileFormSchema),
@@ -228,31 +235,31 @@ export function MobileSelfProfile() {
         }
     };
 
-    const nameIntialsArray = profileInfo.data?.data?.user_name?.split(" ") || ["Unknown"];
-    let nameIntial = nameIntialsArray[0][0]?.toUpperCase() || "U";
-    if (nameIntialsArray?.length > 1) {
-        nameIntial += nameIntialsArray[1][0]?.toUpperCase() || "";
-    }
+    const userSeed = profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "User";
+    const nameIntial = getNameInitials(userSeed);
 
     return (
         <div className="flex flex-col h-full bg-background w-full">
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto w-full">
-                <div className="p-4 md:p-6 lg:p-8 space-y-8 pb-[calc(env(safe-area-inset-bottom)+7rem)]">
+                <div className="p-4 md:p-6 lg:p-8 space-y-6 pb-[calc(env(safe-area-inset-bottom)+7rem)]">
                     
                     {/* Avatar Upload Section */}
                     <div className="flex flex-col justify-center items-center">
-                        <div className="relative group mb-4">
-                            <Avatar className="h-40 w-40 border-4 border-muted">
-                                <AvatarImage src={selectedImage || undefined} alt="Profile Image" />
-                                <AvatarFallback className="text-4xl">{nameIntial}</AvatarFallback>
+                        <div className="relative group mb-3">
+                            <Avatar className="h-32 w-32 ring-2 ring-border/50">
+                                <AvatarImage src={selectedImage || undefined} alt="Profile" />
+                                <AvatarFallback className={cn("text-3xl font-semibold", getAvatarFallbackClass(userSeed))}>
+                                    {nameIntial}
+                                </AvatarFallback>
                             </Avatar>
                             <label
                                 htmlFor="imageUploadMobile"
-                                className="absolute bottom-1 right-2 p-3 bg-primary text-primary-foreground rounded-full shadow-lg cursor-pointer hover:bg-primary/90 transition-transform active:scale-95"
+                                className="absolute bottom-1 right-1 p-2.5 bg-primary text-primary-foreground rounded-full shadow-md cursor-pointer hover:bg-primary/90 transition-colors"
+                                aria-label="Upload profile photo"
                             >
-                                <Camera className="h-5 w-5" />
+                                <Camera className="h-4 w-4" />
                             </label>
                             <Input
                                 id="imageUploadMobile"
@@ -263,12 +270,22 @@ export function MobileSelfProfile() {
                             />
                         </div>
                         {selectedImage && (
-                            <Button variant="ghost" className="text-muted-foreground hover:text-destructive transition-colors" size='sm' onClick={removeImage}>
-                                <Trash className="h-4 w-4 mr-2" />{t('removeImage')}
+                            <Button
+                                variant="ghost"
+                                className="text-muted-foreground hover:text-destructive"
+                                size="sm"
+                                onClick={removeImage}
+                            >
+                                <Trash className="h-3.5 w-3.5 mr-1.5" />
+                                {t("removeImage")}
                             </Button>
                         )}
-                        <h2 className="text-2xl font-semibold text-foreground mt-4">{profileInfo.data?.data?.user_name}</h2>
-                        <p className="text-sm text-muted-foreground">{profileInfo.data?.data?.user_email_id}</p>
+                        <h2 className="text-xl font-semibold text-foreground mt-3">
+                            {profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name}
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            {profileInfo.data?.data?.user_email_id}
+                        </p>
                     </div>
 
                     {/* Form Section */}
@@ -350,14 +367,22 @@ export function MobileSelfProfile() {
                                         control={form.control}
                                         name="status"
                                         render={({ field }) => (
-                                            <FormItem className="flex flex-col col-span-1 border rounded-xl p-3 bg-background/50 items-center justify-center space-y-2">
-                                                <FormLabel className="text-muted-foreground font-semibold uppercase tracking-wider text-xs m-0">{t('onlineLabel')}</FormLabel>
-                                                <Switch
-                                                    id="status"
-                                                    checked={!!field.value}
-                                                    onCheckedChange={field.onChange}
-                                                    className="m-0"
-                                                />
+                                            <FormItem className="flex flex-col col-span-1">
+                                                <FormLabel className="text-muted-foreground font-semibold uppercase tracking-wider text-xs">{t('status')}</FormLabel>
+                                                <div className="mt-1 flex items-center justify-between border rounded-xl px-3 h-12 bg-background/50">
+                                                    <span 
+                                                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer leading-none"
+                                                        onClick={() => field.onChange(!field.value)}
+                                                    >
+                                                        Appear online
+                                                    </span>
+                                                    <Switch
+                                                        id="status-mobile"
+                                                        checked={!!field.value}
+                                                        onCheckedChange={field.onChange}
+                                                        className="m-0"
+                                                    />
+                                                </div>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -365,15 +390,35 @@ export function MobileSelfProfile() {
                                 </div>
                             </div>
 
+                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm">
+                                <h3 className="text-muted-foreground font-medium uppercase tracking-wider text-xs">Appearance</h3>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
+                                                {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                                            </div>
+                                            <div className="text-sm font-medium">Dark Mode</div>
+                                        </div>
+                                        <Switch
+                                            checked={theme === "dark"}
+                                            onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                                            aria-label="Toggle dark mode"
+                                        />
+                                    </div>
+                                    <ColorThemePicker />
+                                </div>
+                            </div>
+
                             <ChangePasswordSection />
                             
                             <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm mt-4">
-                                <h3 className="text-muted-foreground font-semibold uppercase tracking-wider text-xs mb-3">Integrations</h3>
+                                <h3 className="text-muted-foreground font-medium uppercase tracking-wider text-xs mb-3">Integrations</h3>
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border">
                                         <div className="flex items-center space-x-3">
-                                            <div className="bg-blue-100 p-2 rounded-full">
-                                                <Calendar className="h-5 w-5 text-blue-600" />
+                                            <div className="bg-primary/10 p-2 rounded-full">
+                                                <Calendar className="h-5 w-5 text-primary" />
                                             </div>
                                             <div>
                                                 <p className="text-sm font-medium">Google Calendar</p>

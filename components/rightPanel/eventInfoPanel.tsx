@@ -6,7 +6,9 @@ import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { GetEventsResponse, CreateEventPayload } from "@/types/calendar";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
-import {Calendar, Clock, AlignLeft, User, Edit2, X, Check, Users, Plus, Trash2, ArrowRightToLine} from "lucide-react";
+import { Calendar, Clock, AlignLeft, User, X, Check, Users, Plus, Trash2 } from "@/lib/icons";
+import { Edit2, ArrowRightToLine } from "@/lib/icons";
+import { statusColors } from "@/lib/colors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -225,7 +227,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         <ScrollArea className="h-full">
             <div className="p-6 space-y-6 flex flex-col h-full bg-background relative">
                 <div className="flex items-center justify-between mb-2">
-                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-bold text-primary border-primary/20">Personal Event</Badge>
+                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-medium text-primary border-primary/20">Personal Event</Badge>
                     {!isEditing ? (
                         <div className="flex items-center gap-2">
                             {isCreator ? (
@@ -242,7 +244,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     Leave
                                 </Button>
                             ) : null}
-                            <Button size="icon" variant="ghost" onClick={handleClose} className="hidden md:flex">
+                            <Button size="icon" variant="ghost" onClick={handleClose} aria-label="Close panel" className="hidden md:flex">
                                 <ArrowRightToLine/>
                             </Button>
                         </div>
@@ -252,7 +254,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 <X className="h-4 w-4 text-destructive" />
                             </Button>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={form.handleSubmit(handleSave)}>
-                                <Check className="h-4 w-4 text-green-500" />
+                                <Check className="h-4 w-4 statusColors.success.text" />
                             </Button>
                         </div>
                     )}
@@ -261,7 +263,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                 {!isEditing ? (
                     <div className="space-y-6">
                         <div className="space-y-2">
-                            <h2 className="text-2xl font-bold tracking-tight text-foreground">{event.event_title}</h2>
+                            <h2 className="text-2xl font-medium tracking-tight text-foreground">{event.event_title}</h2>
                             
                             <div className="space-y-1.5 mt-4">
                                 <div className="flex items-center gap-3 text-muted-foreground">
@@ -295,7 +297,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                         </div>
 
                         <div className="space-y-2 pt-4 border-t border-border/50">
-                            <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80 lowercase tracking-tight">
+                            <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 lowercase tracking-tight">
                                 <AlignLeft className="h-3.5 w-3.5" />
                                 notes
                             </div>
@@ -311,7 +313,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
 
                         <div className="space-y-3 pt-4 border-t border-border/50">
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80 lowercase tracking-tight">
+                            <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 lowercase tracking-tight">
                                     <Users className="h-3.5 w-3.5" />
                                     participants
                                 </div>
@@ -350,7 +352,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 name="title"
                                 render={({ field }) => (
                                     <FormItem className="space-y-1">
-                                        <FormLabel className="text-xs font-bold text-muted-foreground uppercase">Title</FormLabel>
+                                        <FormLabel className="text-xs font-medium text-muted-foreground uppercase">Title</FormLabel>
                                         <FormControl>
                                             <Input {...field} className="h-9 focus-visible:ring-primary/30" />
                                         </FormControl>
@@ -365,7 +367,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     name="startTime"
                                     render={({ field }) => (
                                         <FormItem className="space-y-1">
-                                            <FormLabel className="text-xs font-bold text-muted-foreground uppercase">Start</FormLabel>
+                                            <FormLabel className="text-xs font-medium text-muted-foreground uppercase">Start</FormLabel>
                                             <FormControl>
                                                 <DateTimePicker 
                                                     value={field.value ? new Date(field.value) : undefined} 
@@ -381,7 +383,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     name="endTime"
                                     render={({ field }) => (
                                         <FormItem className="space-y-1">
-                                            <FormLabel className="text-xs font-bold text-muted-foreground uppercase">End</FormLabel>
+                                            <FormLabel className="text-xs font-medium text-muted-foreground uppercase">End</FormLabel>
                                             <FormControl>
                                                 <DateTimePicker 
                                                     value={field.value ? new Date(field.value) : undefined} 
@@ -399,7 +401,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 name="description"
                                 render={({ field }) => (
                                     <FormItem className="space-y-1">
-                                        <FormLabel className="text-xs font-bold text-muted-foreground uppercase">Notes</FormLabel>
+                                        <FormLabel className="text-xs font-medium text-muted-foreground uppercase">Notes</FormLabel>
                                         <FormControl>
                                             <Textarea {...field} className="min-h-[100px] resize-none text-sm focus-visible:ring-primary/30" />
                                         </FormControl>
@@ -409,7 +411,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             />
 
                             <div className="space-y-2">
-                                <FormLabel className="text-xs font-bold text-muted-foreground uppercase flex items-center justify-between">
+                                <FormLabel className="text-xs font-medium text-muted-foreground uppercase flex items-center justify-between">
                                     Participants
                                     <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
                                         <PopoverTrigger asChild>

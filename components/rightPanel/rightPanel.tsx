@@ -26,6 +26,7 @@ export const RightPanel = () => {
                     selectedText={rightPanelState.data.docAiData?.selectedText || ""} 
                     docId={rightPanelState.data.docAiData?.docId || ""}
                     surroundingContext={rightPanelState.data.docAiData?.surroundingContext}
+                    initialAction={rightPanelState.data.docAiData?.initialAction as any}
                     isSidebar={true}
                 />
             )

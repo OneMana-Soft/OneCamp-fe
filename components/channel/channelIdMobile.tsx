@@ -5,16 +5,16 @@ import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {Button} from "@/components/ui/button";
-import {LoaderCircle} from "lucide-react";
+import { LoaderCircle } from "@/lib/icons";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {UserProfileInterface} from "@/types/user";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
-import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
+import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 
-export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: ()=>void, unreadCount?: number }) => {
+export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number }) => {
 
     const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
     const channelInSidebar = userChannels.find(ch => ch.ch_uuid === channelId);
@@ -22,6 +22,8 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId
     const postJoinChannel = usePost()
 
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(`${GetEndpointUrl.ChannelBasicInfo}/${channelId}`)
+
+    const channelDisplayName = channelInSidebar?.ch_name || channelInfo.data?.channel_info?.ch_name || "";
 
 
 
@@ -32,7 +34,7 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId
     }
 
     if(channelInfo.isLoading) {
-        return <LoadingStateCircle />
+        return <ChatSkeleton />
     }
 
     const renderChatInput = () =>{
@@ -67,9 +69,9 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId
             <CatchMeUpBanner
                 channelUUID={channelId}
                 unreadCount={unreadCount || 0}
-                channelName={channelInSidebar?.ch_name}
+                channelName={channelDisplayName}
             />
-            <div style={{height: window.innerHeight-185}}>
+            <div className="flex-1 min-h-0">
                 <ChannelMessageList channelId={channelId}/>
             </div>
 

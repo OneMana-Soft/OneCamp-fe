@@ -1,120 +1,85 @@
-import {ChannelInfoInterface, ChannelInfoListInterfaceResp} from "@/types/channel";
-import {ChannelListChannel} from "@/components/channel/channelListChannel";
-import {Separator} from "@/components/ui/separator";
-import * as React from "react";
-import {app_channel_path} from "@/types/paths";
-import {useRouter} from "next/navigation";
-import {ConditionalWrap} from "@/components/conditionalWrap/conditionalWrap";
-import {useMedia} from "@/context/MediaQueryContext";
-import TouchableDiv from "@/components/animation/touchRippleAnimation";
-import {VirtualInfiniteScroll} from "@/components/list/virtualInfiniteScroll";
-import {ActivityCard} from "@/components/activity/activityCard";
-import {
-    CommentActivityPagination,
-    CommentActivityPaginationRes,
-    MentionActivityPagination,
-    UnifiedActivityItem
-} from "@/types/activity";
-import {MentionInfoInterface} from "@/types/mention";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {useEffect, useState} from "react";
-import {useFetch} from "@/hooks/useFetch";
-import {sortChannelList} from "@/lib/utils/sortChannelList";
-import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
-import {Button} from "@/components/ui/button";
-import {openUI} from "@/store/slice/uiSlice";
-import {CommentInfoInterface} from "@/types/comment";
+"use client"
+
+import { useEffect, useState } from "react"
+import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
+import { ActivityCard } from "@/components/activity/activityCard"
+import { CommentActivityPaginationRes, UnifiedActivityItem } from "@/types/activity"
+import { CommentInfoInterface } from "@/types/comment"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { useFetch } from "@/hooks/useFetch"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ListSkeleton } from "@/components/ui/ListSkeleton"
+import { PageContainer } from "@/components/ui/pageContainer"
+import { MessageSquare } from "@/lib/icons"
 
 export const ActivityCommentListResult = () => {
-
     const [pageIndex, setPageIndex] = useState(0)
     const [hasMore, setHasMore] = useState(true)
-    const [allComment, setAllComment] = useState<CommentInfoInterface[]>([])
+    const [allComments, setAllComments] = useState<CommentInfoInterface[]>([])
     const pageSize = 20
-    const endpoint = `${GetEndpointUrl.GetCommentActivity}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
+    const endpoint = `${GetEndpointUrl.GetCommentActivity}?pageIndex=${pageIndex}&pageSize=${pageSize}`
 
     const { data: pageData, isLoading } = useFetch<CommentActivityPaginationRes>(endpoint)
 
-    const {isMobile} = useMedia()
-
     useEffect(() => {
         if (pageData?.data) {
+            // Backend may return null for empty arrays (Go encodes nil
+            // slices as null). Default to [] so prev/spread + .length
+            // never blow up.
+            const comments = pageData.data.comments ?? []
             if (pageIndex === 0) {
-                setAllComment(pageData.data.comments)
+                setAllComments(comments)
             } else {
-                setAllComment(prev => [...prev, ...pageData.data.comments])
+                setAllComments((prev) => [...prev, ...comments])
             }
-
-            setHasMore(pageData.data.has_more)
-
+            setHasMore(pageData.data.has_more ?? false)
         }
     }, [pageData, pageIndex])
 
-
-    const renderItem = (activity: CommentInfoInterface, i: number) => {
-
-        const activityItem: UnifiedActivityItem = {
+    const renderItem = (activity: CommentInfoInterface) => {
+        const item: UnifiedActivityItem = {
             activity_type: "COMMENT",
             time: activity.comment_created_at,
-            comment: activity
+            comment: activity,
         }
-        return (
-            <ConditionalWrap key = {i} condition={isMobile} wrap={
-                (c)=>(
-                    <TouchableDiv rippleBrightness={0.8} rippleDuration={800}>{c}
-                    </TouchableDiv>
-
-                )
-            }>
-                <div key = {i}>
-                    <ActivityCard
-                        activity={activityItem}
-                        onClick={()=>{}}
-                    />
-                </div>
-            </ConditionalWrap>
-        )
+        return <ActivityCard activity={item} onClick={() => {}} />
     }
 
     const onLoadMore = () => {
-
-        // Main List Load More
         if (!isLoading && hasMore) {
-            setPageIndex(prev => prev + 1)
+            setPageIndex((prev) => prev + 1)
         }
-
     }
 
+    if (isLoading && allComments.length === 0) {
+        return (
+            <PageContainer>
+                <ListSkeleton rows={8} />
+            </PageContainer>
+        )
+    }
+
+    if (!isLoading && allComments.length === 0) {
+        return (
+            <PageContainer className="flex items-center justify-center">
+                <EmptyState
+                    icon={MessageSquare}
+                    title="No comments yet"
+                    description="Comments on your posts and docs will show up here."
+                />
+            </PageContainer>
+        )
+    }
 
     return (
-        <div className="flex-1 overflow-hidden flex flex-col">
-            {allComment && allComment.length > 0 ?
-                <div className="w-full h-full flex justify-center overflow-y-auto">
-                    <div className=" w-full md:w-[40vw]  md:px-6">
-                         <VirtualInfiniteScroll
-                             items={allComment}
-                             renderItem={renderItem}
-                             onLoadMore={onLoadMore || (()=>{})}
-                             hasMore={hasMore || false}
-                             keyExtractor={(item) => item.comment_uuid}
-                         />
-
-
-
-                    </div>
-                </div> :
-                (!isLoading && (
-                    <div className="p-4">
-                        <StatePlaceholder
-                            type={'empty'}
-                            title={"No comments found"}
-                            description={"No one has commented on your content yet."}
-
-                        />
-                    </div>
-                ))
-            }
-        </div>
-
+        <PageContainer className="overflow-y-auto py-2">
+            <VirtualInfiniteScroll
+                items={allComments}
+                renderItem={renderItem}
+                onLoadMore={onLoadMore}
+                hasMore={hasMore}
+                keyExtractor={(item) => item.comment_uuid}
+            />
+        </PageContainer>
     )
 }

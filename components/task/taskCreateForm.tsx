@@ -31,7 +31,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import MinimalTiptapTask from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Content } from "@tiptap/react";
-import { Calendar as CalenderIcon, X } from "lucide-react";
+import { X } from "@/lib/icons";
+import { Calendar as CalenderIcon } from "lucide-react";
 import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -180,7 +181,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
 
     optimisticCreateTask(tempTask, data.task_project_uuid);
 
-    post
+        post
       .makeRequest<CreateTaskInterface>({
         apiEndpoint: PostEndpointUrl.CreateTask,
         showToast: true,
@@ -194,6 +195,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
           task_priority: data.task_priority,
           task_due_date: data.task_due_date ? data.task_due_date.toISOString() : undefined,
           task_start_date: data.task_start_date ? data.task_start_date.toISOString() : undefined,
+          task_github_issue_url: data.task_github_issue_url || undefined,
         },
       })
       .then(() => {
@@ -212,7 +214,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
         <div className="grid gap-2 mb-2">
           <Label htmlFor="task_name">Task Name:</Label>
           <Input id="task_name" {...register("task_name")} placeholder="Enter task name" autoFocus />
-          {errors.task_name && <p className="text-red-500 text-sm">{errors.task_name.message}</p>}
+          {errors.task_name && <p className="text-destructive text-sm">{errors.task_name.message}</p>}
         </div>
         
         <div className="grid gap-2 mb-2">
@@ -265,7 +267,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
               />
             </div>
           )}
-          {errors.task_project_uuid && <p className="text-red-500 text-sm">{errors.task_project_uuid.message}</p>}
+          {errors.task_project_uuid && <p className="text-destructive text-sm">{errors.task_project_uuid.message}</p>}
           
           {selectedProject && (
             <div className="flex mt-2 flex-wrap gap-x-4 gap-y-4">
@@ -307,7 +309,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                     )}
                 />
               </div>
-              {errors.task_assignee_uuid && <p className="text-red-500 text-sm">{errors.task_assignee_uuid.message}</p>}
+              {errors.task_assignee_uuid && <p className="text-destructive text-sm">{errors.task_assignee_uuid.message}</p>}
               
               <div className="flex items-center space-x-4">
                 <p className="text-sm">Priority:</p>
@@ -368,7 +370,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
               <div className="flex items-center gap-x-4">
                 <Label htmlFor="task_label">Label:</Label>
                 <Input id="task_label" {...register("task_label")} placeholder="Enter label" />
-                {errors.task_label && <p className="text-red-500 text-sm">{errors.task_label.message}</p>}
+                {errors.task_label && <p className="text-destructive text-sm">{errors.task_label.message}</p>}
               </div>
             </div>
           )}
@@ -399,7 +401,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                 />
             )}
           />
-          {errors.task_description && <p className="text-red-500 text-sm">{errors.task_description.message}</p>}
+          {errors.task_description && <p className="text-destructive text-sm">{errors.task_description.message}</p>}
         </div>
         
         {selectedProject?.project_uuid && (
@@ -433,6 +435,26 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
               ))}
             </div>
             
+            {selectedProject?.project_uuid && (
+              <div className="mt-4">
+                <Label htmlFor="github-url">GitHub Issue URL (optional)</Label>
+                <Controller
+                  control={control}
+                  name="task_github_issue_url"
+                  render={({ field }) => (
+                    <Input
+                      id="github-url"
+                      placeholder="https://github.com/owner/repo/issues/123"
+                      value={field.value || ""}
+                      onChange={(e) => field.onChange(e.target.value || undefined)}
+                      className="mt-1"
+                    />
+                  )}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Link this task to an existing GitHub issue or pull request.</p>
+              </div>
+            )}
+
             <div className="flex space-x-8">
               <div className="relative">
                 <Controller
@@ -507,11 +529,11 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                 />
                 {startDateWatch && (
                   <Button variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_start_date", undefined)}>
-                    <X className="h-1 w-1" />
+                    <X className="h-3 w-3" />
                   </Button>
                 )}
               </div>
-              {errors.task_start_date && <p className="text-red-500 text-sm">{errors.task_start_date.message}</p>}
+              {errors.task_start_date && <p className="text-destructive text-sm">{errors.task_start_date.message}</p>}
               
               <div className="relative">
                 <Controller
@@ -586,11 +608,11 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                 />
                 {dueDateWatch && (
                   <Button variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_due_date", undefined)}>
-                    <X className="h-1 w-1" />
+                    <X className="h-3 w-3" />
                   </Button>
                 )}
               </div>
-              {errors.task_due_date && <p className="text-red-500 text-sm">{errors.task_due_date.message}</p>}
+              {errors.task_due_date && <p className="text-destructive text-sm">{errors.task_due_date.message}</p>}
             </div>
           </div>
         )}

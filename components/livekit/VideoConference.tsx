@@ -23,7 +23,7 @@ import {
 } from "@livekit/components-react";
 import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind, LocalAudioTrack } from "livekit-client";
 import { useEffect, useState, useRef } from "react";
-import { Loader2, Pin, PinOff } from "lucide-react";
+import { Loader2, Pin, PinOff } from "@/lib/icons";
 import { VideoControls } from "./VideoControls";
 import { FrontendTranscriber } from "./FrontendTranscriber";
 import { KrispNoiseFilter, isKrispNoiseFilterSupported } from "@livekit/krisp-noise-filter";
@@ -139,7 +139,6 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { on
         // Some versions might require initialization, but if 'enable' is missing, likely just instantiation
         // or it's a different API. We'll set it.
         setKrispProcessor(processor);
-        console.log("Krisp noise filter enabled");
       } catch (e) {
         console.error("Failed to enable Krisp noise filter", e);
       }
@@ -494,7 +493,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { on
             
             {/* Transcript Overlay */}
             {showCaptions && (
-                <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-full max-w-2xl flex flex-col justify-end items-center gap-3 pointer-events-none z-50 px-4">
+                <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-full max-w-2xl flex flex-col justify-end items-center gap-3 pointer-events-none z-[var(--z-fixed)] px-4">
                     {/* Sort by lastUpdate to keep stable order? No, keep fixed slots? Just map. */}
                     {Object.entries(activeTranscripts).map(([pIdentity, data]) => (
                         <div 

@@ -20,14 +20,17 @@ import "@/components/minimal-tiptap/styles/index.css";
 import { LetterCaseCapitalizeIcon} from "@radix-ui/react-icons";
 import ToolbarButton from "@/components/minimal-tiptap/components/toolbar-button";
 import {useMedia} from "@/context/MediaQueryContext";
-import {LucideIcon, Paperclip, X} from "lucide-react";
+import { Paperclip, X } from "@/lib/icons";
+import { LucideIcon } from "lucide-react";
 import {Toggle} from "@/components/ui/toggle";
 import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
+import { CHAT_COMMANDS } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
 
 export interface MinimalTiptapProps
     extends Omit<UseMinimalTiptapEditorProps, "onUpdate"> {
   value?: Content;
   isOutputText?: boolean;
+  noBorder?: boolean;
   onChange?: (value: Content) => void;
   className?: string;
   editorContentClassName?: string;
@@ -35,9 +38,14 @@ export interface MinimalTiptapProps
   PrimaryButtonIcon?: LucideIcon
   children?: React.ReactNode
   ButtonIcon?: LucideIcon
-  buttonOnclick?: () => Promise<void> | void;
+  /**
+   * Send handler. Receives the freshest editor HTML (already flushed past
+   * the throttle window) so parents can submit the just-typed character
+   * even when their `useSelector` snapshot hasn't caught up yet.
+   */
+  buttonOnclick?: (latestContent?: string) => Promise<void> | void;
   SecondaryButtonIcon?: LucideIcon
-  secondaryButtonOnclick?: () => Promise<void> | void;
+  secondaryButtonOnclick?: (latestContent?: string) => Promise<void> | void;
   fixedToolbarToBottom?: boolean;
     toggleToolbar?: boolean
     onActionFiles?: (files: File[]) => void
@@ -149,19 +157,81 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
           content,
             fixedToolbarToBottom,
             onActionFiles,
+            output,
           ...props
         },
         ref
     ) => {
         const {isMobile} = useMedia()
 
+      // Stable ref to the editor so the submit handlers below can flush
+      // pending throttled onChange calls before invoking the parent's send
+      // logic. This guarantees the parent reads the freshest content from
+      // its own state, even if the user pressed Enter / clicked Send while
+      // the throttle window was mid-flight.
+      const editorRef = React.useRef<Editor | null>(null);
+      // Throttle controls bound by the hook below. Used to flush pending
+      // updates before submit and cancel them after a successful send so
+      // a stale trailing-edge call cannot resurrect cleared input state.
+      const throttleRef = React.useRef<{ flush: () => void; cancel: () => void } | null>(null);
+      // Keep onChange in a ref so flushPendingChange has a stable identity
+      // across renders, avoiding the wrappedButtonOnclick memo from
+      // re-creating every keystroke.
+      const onChangeRef = React.useRef(onChange);
+      React.useLayoutEffect(() => {
+        onChangeRef.current = onChange;
+      });
+
+      const flushPendingChange = React.useCallback((): string | undefined => {
+        // First, drop any scheduled trailing-edge throttle call so it
+        // cannot fire after we have manually delivered the latest content.
+        throttleRef.current?.cancel();
+        const ed = editorRef.current;
+        if (!ed || ed.isDestroyed) return undefined;
+        const out = output === 'json'
+            ? ed.getJSON()
+            : (output === 'text' ? ed.getText() : ed.getHTML());
+        try {
+            onChangeRef.current?.(out as Content);
+        } catch {
+            // Never block submit on a parent onChange throw.
+        }
+        // Always return the freshest HTML for the submit handlers, even
+        // if the parent expects a different output mode in onChange.
+        return ed.getHTML();
+      }, [output]);
+
       const handleSubmit = React.useCallback(() => {
         if (buttonOnclick && !isMobile) {
-            buttonOnclick();
+            const latestHtml = flushPendingChange();
+            buttonOnclick(latestHtml);
+            // After the parent has consumed the latest content, cancel any
+            // throttle window that might still fire on the next tick.
+            throttleRef.current?.cancel();
             return true;
         }
         return false;
-      }, [buttonOnclick, isMobile]);
+      }, [buttonOnclick, isMobile, flushPendingChange]);
+
+      const wrappedButtonOnclick = React.useMemo(() => {
+        if (!buttonOnclick) return undefined;
+        return async () => {
+            const latestHtml = flushPendingChange();
+            await buttonOnclick(latestHtml);
+            throttleRef.current?.cancel();
+        };
+      }, [buttonOnclick, flushPendingChange]);
+
+      const wrappedSecondaryButtonOnclick = React.useMemo(() => {
+        if (!secondaryButtonOnclick) return undefined;
+        return async () => {
+            const latestHtml = flushPendingChange();
+            await secondaryButtonOnclick(latestHtml);
+            throttleRef.current?.cancel();
+        };
+      }, [secondaryButtonOnclick, flushPendingChange]);
+
+      const slashCommands = React.useMemo(() => CHAT_COMMANDS, []);
 
       const editor = useMinimalTiptapEditor({
         value,
@@ -169,8 +239,21 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
         onActionFiles,
         allowedMimeTypes: DEFAULT_ALLOWED_MIME_TYPES,
         onSubmit: handleSubmit,
+        placeholder: "Write a message...",
+        slashCommands,
+        output,
+        throttleRef,
         ...props,
       });
+
+      // Keep editorRef in sync so flushPendingChange can read the freshest
+      // editor HTML at submit time.
+      React.useEffect(() => {
+        editorRef.current = editor;
+        return () => {
+          editorRef.current = null;
+        };
+      }, [editor]);
 
       const divRef = useRef<HTMLDivElement>(null);
 
@@ -205,11 +288,30 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
         if (content !== undefined) {
            const c = (content as string) || "";
            const currentHtml = editor.getHTML();
-           
+
            const isEditorEmpty = editor.isEmpty || currentHtml === "<p></p>";
            const isNewContentEmpty = c.trim() === "" || c.trim() === "<p></p>";
 
-           if (!(isEditorEmpty && isNewContentEmpty) && currentHtml !== c.trim()) {
+           // CRITICAL: Do not overwrite editor content while the user is
+           // actively typing or composing (IME, autocorrect, mobile
+           // keyboards). The parent's `content` prop is fed back from a
+           // throttled/debounced `onChange`, so an in-flight throttle
+           // window can deliver a *stale* value that lags behind the
+           // editor by 1-2 characters. Calling setContent with that stale
+           // HTML wipes the most recent keystroke ("last character
+           // disappears"). The throttle will catch up shortly, so we only
+           // sync from the prop when the editor is NOT focused (i.e. user
+           // is not typing) AND not in an IME composition session, or
+           // when the slice was cleared (e.g. after sending — we DO want
+           // to mirror the empty state back into the editor).
+           const editorIsFocused = editor.isFocused;
+           // ProseMirror exposes the active composition flag on the view.
+           const isComposing = Boolean((editor as any).view?.composing);
+           const allowExternalSync =
+               (!editorIsFocused && !isComposing) ||
+               (isNewContentEmpty && !isEditorEmpty);
+
+           if (allowExternalSync && !(isEditorEmpty && isNewContentEmpty) && currentHtml !== c.trim()) {
                editor.commands.setContent(c, false);
            }
         }
@@ -229,7 +331,8 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
           <div
               ref={ref}
               className={cn(
-                  "flex  w-full flex-col  rounded-md border border-input justify-between focus-within:border-primary",
+                  "flex w-full flex-col overflow-hidden transition-all duration-200",
+                  !isOutputText && !props.noBorder && "rounded-xl border border-input bg-background shadow-sm focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20",
                   (isOutputText? '': 'max-h-[85vh]'),
                   className
               )}
@@ -237,7 +340,12 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
             <EditorContent
                 editor={editor}
                 className={cn(
-                    "minimal-tiptap-editor min-h-[10px] overflow-y-scroll ",
+                    "minimal-tiptap-editor overflow-y-auto outline-none prose-sm sm:prose-base",
+                    !isOutputText && (
+                        fixedToolbarToBottom
+                            ? "min-h-[30px]"
+                            : "min-h-[44px] px-3 pt-3"
+                    ),
                     editorContentClassName
                 )}
                 content={content as string}
@@ -245,32 +353,32 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
                 data-gramm="false"
             />
             { editor.isEditable && (
-                <div   className={isMobile && fixedToolbarToBottom ?'fixed bottom-0 w-full right-0 p-2 bg-gray-50 dark:bg-gray-900 pt-0 ':""}>
+                <div className={cn(
+                    isMobile && fixedToolbarToBottom ? 'fixed bottom-0 w-full right-0 p-2 pt-0 bg-background z-[360]' : 'px-2 pb-2 pt-1'
+                )}>
                     {children}
-                  <div className="flex justify-between md:mr-2 ">
+                  <div className="flex items-center justify-between gap-2 mt-1">
                     <Toolbar editor={editor} toggledTextEditor={toggledTextEditor}  setToggledTextEditor={setToggledTextEditor} toggleToolbar={toggleToolbar}/>
-                    <div className="flex justify-center items-center gap-x-2">
+                    <div className="flex items-center gap-1.5 pr-1">
                         {
                             attachmentOnclick && !(isMobile && toggledTextEditor) &&
-                            <Button size={"icon"} variant={'ghost'} className="rounded-full" onClick={attachmentOnclick}><Paperclip /> </Button>
+                            <Button size={"icon"} variant={'ghost'} className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4"/> </Button>
 
                         }
-                      {SecondaryButtonIcon && secondaryButtonOnclick && (
-                          <Button onClick={secondaryButtonOnclick}  size={"icon"} className="bg-destructive rounded-full">
-                            <SecondaryButtonIcon/>
+                      {SecondaryButtonIcon && wrappedSecondaryButtonOnclick && (
+                          <Button onClick={wrappedSecondaryButtonOnclick} variant="ghost" size={"icon"} className="h-8 w-8 rounded-full text-destructive hover:text-destructive hover:bg-destructive/10">
+                            <SecondaryButtonIcon className="h-4 w-4" />
                           </Button>
                       )}
-                      {PrimaryButtonIcon && buttonOnclick && (
-                          <Button onClick={buttonOnclick} size={"icon"} className="rounded-full bg-green-700"><PrimaryButtonIcon/></Button>
+                      {PrimaryButtonIcon && wrappedButtonOnclick && (
+                          <Button onClick={wrappedButtonOnclick} size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"><PrimaryButtonIcon className="h-4 w-4"/></Button>
                       )}
-                      {ButtonIcon && buttonOnclick && (
-                          <Button size={"icon"} className="rounded-full" onClick={buttonOnclick}><ButtonIcon /></Button>
+                      {ButtonIcon && wrappedButtonOnclick && (
+                          <Button size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm" onClick={wrappedButtonOnclick}><ButtonIcon className="h-4 w-4" /></Button>
                       )}
                     </div>
                   </div>
                   <LinkBubbleMenu editor={editor} />
-
-
                 </div>
             )}
           </div>

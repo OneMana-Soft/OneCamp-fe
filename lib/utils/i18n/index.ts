@@ -108,6 +108,25 @@ i18n
         lng: "en", // language to use, more information here: https://www.i18next.com/overview/configuration-options#languages-namespaces-resources
         // you can use the i18n.changeLanguage function to change the language manually: https://www.i18next.com/overview/api#changelanguage
         // if you're using a language detector, do not define the lng option
+        // Treat empty string returns from t() as missing so the
+        // configured fallback / parseMissingKeyHandler kicks in.
+        returnEmptyString: false,
+        // Last-resort safety net: if a key is missing in BOTH the
+        // active language and the fallback ('en'), render a humanised
+        // version of the camelCase key instead of the raw key. This
+        // prevents `t("myTasks")` from rendering as the literal
+        // "myTasks" if someone forgets to add the translation.
+        parseMissingKeyHandler: (key: string) => {
+            // Split camelCase / PascalCase / snake_case into words and
+            // Title Case the result.
+            const spaced = key
+                .replace(/[_-]+/g, " ")
+                .replace(/([a-z])([A-Z])/g, "$1 $2")
+                .trim()
+            return spaced
+                ? spaced.charAt(0).toUpperCase() + spaced.slice(1)
+                : key
+        },
 
         interpolation: {
             escapeValue: false // react already safes from xss

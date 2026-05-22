@@ -292,6 +292,7 @@ export const groupChatSlice = createSlice({
 
         updateGroupChatByChatId: (state, action: {payload: UpdateChatByChatId}) => {
             const { messageId, grpId, htmlText } = action.payload;
+            if (!state.chatMessages[grpId]) return
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
                 if(messageId == chat.chat_uuid) {
                     chat.chat_body_text = htmlText
@@ -303,6 +304,7 @@ export const groupChatSlice = createSlice({
 
         removeGroupChat: (state, action: {payload: RemoveChat}) => {
             const { grpId, chatIndex } = action.payload;
+            if (!state.chatMessages[grpId]) return
             if (chatIndex > -1 && chatIndex < state.chatMessages[grpId].length) {
                 state.chatMessages[grpId].splice(chatIndex, 1);
             }
@@ -310,6 +312,7 @@ export const groupChatSlice = createSlice({
 
         removeGroupChatByChatId: (state, action: {payload: RemoveChatByChatId}) => {
             const { messageId, grpId } = action.payload;
+            if (!state.chatMessages[grpId]) return
             state.chatMessages[grpId] = state.chatMessages[grpId].filter((chat) => {
                 return chat.chat_uuid !== messageId
             })
@@ -317,6 +320,7 @@ export const groupChatSlice = createSlice({
 
         removeGroupChatReactionByChatId: (state, action: {payload: RemoveChatReactionByChatId}) => {
             const { messageId, grpId, reactionId } = action.payload;
+            if (!state.chatMessages[grpId]) return
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
 
                 if(chat.chat_uuid == messageId) {
@@ -330,10 +334,13 @@ export const groupChatSlice = createSlice({
 
         decrementGroupChatCommentCountByChatID: (state, action: {payload: UpdateChatCommentCount}) => {
             const {chatId , grpId} = action.payload;
+            if (!state.chatMessages[grpId]) return
 
             state.chatMessages[grpId].map((post)=> {
                 if(post.chat_uuid == chatId) {
-                    post.chat_comment_count--
+                    // Guard against undefined/0 counters when MQTT races the
+                    // initial fetch. undefined-- yields NaN.
+                    post.chat_comment_count = Math.max(0, (post.chat_comment_count || 0) - 1)
                 }
                 return post
             })
@@ -358,6 +365,7 @@ export const groupChatSlice = createSlice({
 
         updateGroupChatReactionByChatId: (state, action: {payload: UpdatePostReactionByChatId}) => {
             const { messageId, grpId, emojiId, reactionId } = action.payload;
+            if (!state.chatMessages[grpId]) return
 
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
                 if(chat.chat_uuid == messageId) {
@@ -376,19 +384,35 @@ export const groupChatSlice = createSlice({
 
         createGroupChatReactionChatId: (state, action: {payload: CreateChatReactionByChatId}) => {
             const { messageId, grpId, emojiId, reactionId , addedBy} = action.payload;
+            if (!state.chatMessages[grpId]) return
 
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
                 if(chat.chat_uuid == messageId) {
                     if(!chat.chat_reactions) {
                         chat.chat_reactions = [] as GroupedReaction[]
                     }
-                    chat.chat_reactions.push({
-                        reaction_emoji_id: emojiId,
-                        uid: reactionId,
-                        reaction_added_by: addedBy,
-                        reaction_added_at: new Date().toISOString(),
-                        reaction_on_content_added_by: addedBy
-                    })
+                    // Idempotent: a user can only hold one reaction per emoji
+                    // on a given message. Match an existing (user, emoji)
+                    // entry and upgrade its uid (handles temp -> real swap)
+                    // instead of pushing a duplicate.
+                    const existingIdx = chat.chat_reactions.findIndex(
+                        (r) =>
+                            r.reaction_emoji_id === emojiId &&
+                            r.reaction_added_by?.user_uuid === addedBy?.user_uuid,
+                    )
+                    if (existingIdx > -1) {
+                        if (chat.chat_reactions[existingIdx].uid !== reactionId) {
+                            chat.chat_reactions[existingIdx].uid = reactionId
+                        }
+                    } else {
+                        chat.chat_reactions.push({
+                            reaction_emoji_id: emojiId,
+                            uid: reactionId,
+                            reaction_added_by: addedBy,
+                            reaction_added_at: new Date().toISOString(),
+                            reaction_on_content_added_by: addedBy
+                        })
+                    }
                 }
 
                 return chat
@@ -398,6 +422,7 @@ export const groupChatSlice = createSlice({
 
         updateGroupChatReactionId: (state, action: {payload: UpdateGroupChatReactionId}) => {
             const { grpId, messageId, oldReactionId, newReactionId } = action.payload;
+            if (!state.chatMessages[grpId]) return
 
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
                 if(chat.chat_uuid == messageId) {
@@ -430,13 +455,21 @@ export const groupChatSlice = createSlice({
         updateGroupChatMessageReplyIncrement: (state, action: {payload: UpdateReplyCountInterface}) => {
 
             const {grpId, messageId, comment} = action.payload;
+            if (!state.chatMessages[grpId]) return
 
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
 
                 if(chat.chat_uuid === messageId) {
                     chat.chat_comments = chat.chat_comments || [];
-                    chat.chat_comments.push(comment);
-                    chat.chat_comment_count++
+                    // Dedup by comment_uuid so an MQTT echo (same user, second
+                    // device) doesn't double-push and double-count the reply.
+                    const alreadyTracked = chat.chat_comments.some(
+                        (c) => c.comment_uuid === comment.comment_uuid
+                    );
+                    if (!alreadyTracked) {
+                        chat.chat_comments.push(comment);
+                        chat.chat_comment_count = (chat.chat_comment_count || 0) + 1
+                    }
                 }
 
                 return chat
@@ -446,13 +479,20 @@ export const groupChatSlice = createSlice({
         updateGroupChatMessageReplyDecrement: (state, action: {payload: UpdateReplyCountInterface}) => {
 
             const {grpId, messageId, comment} = action.payload;
+            if (!state.chatMessages[grpId]) return
 
             state.chatMessages[grpId] = state.chatMessages[grpId].map((chat) => {
 
                 if(chat.chat_uuid === messageId) {
                     chat.chat_comments = chat.chat_comments || [];
-                    chat.chat_comments = chat.chat_comments.filter((c) => c.comment_uuid != comment.comment_uuid)
-                    chat.chat_comment_count--
+                    // Only decrement when the comment was actually tracked.
+                    const wasTracked = chat.chat_comments.some(
+                        (c) => c.comment_uuid === comment.comment_uuid
+                    );
+                    if (wasTracked) {
+                        chat.chat_comments = chat.chat_comments.filter((c) => c.comment_uuid != comment.comment_uuid)
+                        chat.chat_comment_count = Math.max(0, (chat.chat_comment_count || 0) - 1)
+                    }
                 }
 
                 return chat

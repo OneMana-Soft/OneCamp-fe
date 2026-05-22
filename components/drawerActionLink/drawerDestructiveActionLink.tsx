@@ -1,23 +1,21 @@
-import {Bell, LucideIcon} from "lucide-react";
-import * as React from "react";
-import {Card, CardContent} from "@/components/ui/card";
+import * as React from "react"
+import { LucideIcon } from "lucide-react"
+import { DrawerItem } from "@/components/drawers/drawerItem"
 
 interface ActionCardPropInterface {
     onLinkClick: () => void
     Icon: LucideIcon
     linkText: string
-
 }
 
-export const DrawerDestructiveActionLink = ({onLinkClick, Icon, linkText}: ActionCardPropInterface) => {
-
-    return (
-        <div
-            className='w-full h-14 flex space-x-4 items-center cursor-pointer transition-colors hover:bg-destructive/10 text-destructive rounded-xl px-4 mt-2'
-            onClick={onLinkClick}
-        >
-            <Icon className='h-5 w-5'/>
-            <span className='text-base font-medium'>{linkText}</span>
-        </div>
-    )
+/**
+ * DrawerDestructiveActionLink — thin compatibility wrapper around DrawerItem
+ * with `destructive` enabled. New code should import `DrawerItem` directly.
+ */
+export const DrawerDestructiveActionLink = ({
+    onLinkClick,
+    Icon,
+    linkText,
+}: ActionCardPropInterface) => {
+    return <DrawerItem icon={Icon} label={linkText} onClick={onLinkClick} destructive />
 }

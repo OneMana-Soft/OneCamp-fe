@@ -4,12 +4,13 @@ import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import * as React from "react";
 import { memo } from "react";
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
-import {useMediaFetch} from "@/hooks/useFetch";
-import {GetMediaURLRes} from "@/types/file";
-import {GetEndpointUrl} from "@/services/endPoints";
+import {useUserAvatar} from "@/hooks/useUserAvatar";
 import {getNameInitials} from "@/lib/utils/format/getNameIntials";
+import {getAvatarFallbackClass} from "@/lib/utils/getAvatarColor";
+import {cn} from "@/lib/utils/helpers/cn";
 import {USER_STATUS_ONLINE} from "@/types/user";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
+import { statusColors } from "@/lib/colors";
 
 interface UserAvatarNavProp {
     toolTipString?: string
@@ -22,7 +23,7 @@ interface UserAvatarNavProp {
 export const UserAvatarNav = memo(({toolTipString, userProfileObjKey, userName, isOnline: manualIsOnline, userUUID}: UserAvatarNavProp) => {
 
     const userStatusState = useUserInfoState(userUUID);
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(userProfileObjKey ? GetEndpointUrl.PublicAttachmentURL+'/'+userProfileObjKey : '');
+    const {src: imageSrc} = useUserAvatar(userProfileObjKey);
 
     const nameInitial = getNameInitials(userName);
 
@@ -33,10 +34,10 @@ export const UserAvatarNav = memo(({toolTipString, userProfileObjKey, userName, 
             <TooltipTrigger asChild>
                 <div className="relative w-fit h-fit">
                     <Avatar className='h-8 w-8 hover:cursor-pointer' >
-                        <AvatarImage src={profileImageRes.data?.url}/>
-                        <AvatarFallback  className="bg-gradient-to-br from-orange-300 via-orange-400 to-orange-500 text-white md:text-sm">{nameInitial}</AvatarFallback>
+                        <AvatarImage src={imageSrc}/>
+                        <AvatarFallback className={cn("text-xs font-semibold", getAvatarFallbackClass(userName))}>{nameInitial}</AvatarFallback>
                     </Avatar>
-                    {isOnline && <div className={`h-2.5 w-2.5 md:h-2 md:w-2 ring-[1px] ring-background rounded-full bg-green-500 absolute bottom-0 right-0`}></div>}
+                    {isOnline && <div className={`h-2.5 w-2.5 md:h-2 md:w-2 ring-[1px] ring-background rounded-full ${statusColors.online.solid} absolute bottom-0 right-0`}></div>}
                 </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="flex items-center gap-4">

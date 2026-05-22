@@ -15,6 +15,7 @@ interface rightPanelProps {
         selectedText: string;
         docId: string;
         surroundingContext?: string;
+        initialAction?: string;
     };
     viewStartDate?: string;
     viewEndDate?: string;

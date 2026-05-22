@@ -232,6 +232,35 @@ export const taskInfoSlice = createSlice({
             })
         },
 
+        updateTaskPRStateInTaskList: (state, action: {payload: { taskId: string; prState: string }}) => {
+            const {taskId, prState} = action.payload;
+            state.taskListVisibleInfo = state.taskListVisibleInfo.map((task) => {
+                if (task.task_uuid == taskId) {
+                    task.task_github_pr_state = prState
+                }
+                return task
+            })
+        },
+
+        updateTaskPRIsDraftInTaskList: (state, action: {payload: { taskId: string; isDraft: boolean }}) => {
+            const {taskId, isDraft} = action.payload;
+            state.taskListVisibleInfo = state.taskListVisibleInfo.map((task) => {
+                if (task.task_uuid == taskId) {
+                    task.task_github_pr_is_draft = isDraft
+                }
+                return task
+            })
+        },
+
+        // Reset the visible task list. Both myTaskTable and projectTask
+        // Table read from the same slot, so we clear it on mount to
+        // avoid showing the previous surface's tasks while the new
+        // fetch is in flight (e.g. project tasks bleeding into the
+        // /app/myTask page on first paint).
+        clearTaskListVisibleInfo: (state) => {
+            state.taskListVisibleInfo = [] as TaskInfoInterface[];
+        },
+
     }
 });
 
@@ -250,7 +279,10 @@ export const {
     updateTaskStartDateInTaskList,
     updateTaskDueDateInTaskList,
     updateTaskAssigneeInTaskList,
+    updateTaskPRStateInTaskList,
+    updateTaskPRIsDraftInTaskList,
     createListForTaskInfo,
-    addTasksToTaskInfoList
+    addTasksToTaskInfoList,
+    clearTaskListVisibleInfo
 
 } =taskInfoSlice.actions

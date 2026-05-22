@@ -1,7 +1,8 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward, RotateCcw, RotateCw } from "lucide-react"
+import { Play, Pause, Volume2, VolumeX, RotateCcw } from "@/lib/icons";
+import { SkipBack, SkipForward, RotateCw } from "@/lib/icons";
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"

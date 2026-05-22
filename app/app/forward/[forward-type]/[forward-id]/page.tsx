@@ -20,7 +20,7 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
 import {MessagePreview} from "@/components/message/MessagePreview";
 import * as React from "react";
-import {LoaderCircle} from "lucide-react";
+import { LoaderCircle } from "@/lib/icons";
 
 export default function Page() {
 

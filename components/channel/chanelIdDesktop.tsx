@@ -8,7 +8,8 @@ import {
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
-import {ChevronLeft, ChevronRight, Hash, LoaderCircle, Pencil, SendHorizontal, Star, Users, Video, Clapperboard} from "lucide-react";
+import { statusColors } from "@/lib/colors";
+import { ChevronLeft, ChevronRight, Hash, LoaderCircle, Pencil, SendHorizontal, Star, Users, Video, Clapperboard } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -17,6 +18,7 @@ import {usePost} from "@/hooks/usePost";
 import React, {useEffect, useState, useMemo} from "react";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {openUI} from "@/store/slice/uiSlice";
+import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
 import {ChannelFileUpload} from "@/components/fileUpload/channelFileUpload";
 import {
     addUUIDToLocallyCreatedPost, clearChannelInputState,
@@ -41,7 +43,7 @@ import {useUploadFile} from "@/hooks/useUploadFile";
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
 const EMPTY_TYPING_LIST: any[] = []
 
-export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: ()=>void, unreadCount?: number}) => {
+export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
 
     const dispatch = useDispatch()
     const postFav  = usePost()
@@ -54,6 +56,9 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
 
     const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
     const channelNme = useMemo(() => userChannels?.find((item)=>item.ch_uuid == channelId), [userChannels, channelId]);
+    // Fallback to API response when channel isn't in sidebar state yet
+    // (e.g. direct navigation from notification/bookmark)
+    const channelDisplayName = channelNme?.ch_name || channelInfo.data?.channel_info?.ch_name || "channel";
 
     const channelState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || EMPTY_INPUT_STATE);
 
@@ -82,12 +87,28 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
     if(!channelInfo.data?.channel_info && channelInfo.isLoading) return <ChatSkeleton />
 
     const toggleFavourite = async () => {
-            if(isFavorite) {
-               await postFav.makeRequest({apiEndpoint: PostEndpointUrl.RemoveFavChannel, appendToUrl:`/${channelId}`, onSuccess : ()=>{
-                       setFavorite(false)}})
+        const nextState = !isFavorite;
+        // Optimistic update
+        setFavorite(nextState);
+        dispatch(toggleUserChannelFavorite({ channelUUID: channelId, isFavorite: nextState }));
+
+        try {
+            if (isFavorite) {
+                await postFav.makeRequest({
+                    apiEndpoint: PostEndpointUrl.RemoveFavChannel,
+                    appendToUrl: `/${channelId}`,
+                });
             } else {
-                await postFav.makeRequest({apiEndpoint: PostEndpointUrl.AddFavChannel, appendToUrl:`/${channelId}`, onSuccess : ()=>{setFavorite(true)}})
+                await postFav.makeRequest({
+                    apiEndpoint: PostEndpointUrl.AddFavChannel,
+                    appendToUrl: `/${channelId}`,
+                });
             }
+        } catch {
+            // Revert on failure
+            setFavorite(!nextState);
+            dispatch(toggleUserChannelFavorite({ channelUUID: channelId, isFavorite: !nextState }));
+        }
     }
 
     const joinChannel = async () => {
@@ -141,17 +162,17 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                 if (!files?.length) return;
                 await uploadFile.makeRequestToUploadToChannel(files as unknown as FileList, channelId);
             }}
-            className={cn("max-w-full rounded-xl h-auto border-none")}
+            className={cn("max-w-full h-auto")}
             editorContentClassName="overflow-auto mb-2"
             output="html"
             content={channelState.inputTextHTML}
-            placeholder={"message"}
+            placeholder={"Message #" + channelDisplayName}
             editable={true}
             ButtonIcon={SendHorizontal}
             buttonOnclick={handleSend}
             editorClassName="focus:outline-none px-2 py-2"
             onChange={(content ) => {
-                publishTyping()
+                publishTyping(content as string)
                 dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
             }}
         >
@@ -166,10 +187,12 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                 className='flex font-semibold text-lg p-2 truncate overflow-x-hidden overflow-ellipsis justify-start border-b'>
                 <div className='flex justify-center items-center space-x-1'>
                     <div><Hash className='h-5 w-5 text-muted-foreground'/></div>
-                    <div>{channelNme?.ch_name}</div>
+                    <div>{channelDisplayName}</div>
                 </div>
                 <div className='flex justify-center items-center ml-2'>
-                    <Button size='icon' variant='ghost' onClick={toggleFavourite}><Star  className='text-muted-foreground' fill={isFavorite ?"#ffcc00":'none'}/></Button>
+                    <Button size='icon' variant='ghost' onClick={toggleFavourite} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
+                        <Star className={isFavorite ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground'}/>
+                    </Button>
 
                     <NotificationBell notificationType={channelNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
                     <Button size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}}><Pencil /></Button>
@@ -180,14 +203,14 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                         variant={channelCallActive ? 'secondary' : 'ghost'}
                         className={cn(
                             "relative transition-all duration-300",
-                            channelCallActive && "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/40"
+                            channelCallActive && "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
                         )}
                     >
                         <Video size={18} />
                         {channelCallActive && (
                             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${statusColors.online.solid}`}></span>
                             </span>
                         )}
                     </Button>
@@ -204,12 +227,12 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                 <CatchMeUpBanner
                     channelUUID={channelId}
                     unreadCount={unreadCount || 0}
-                    channelName={channelNme?.ch_name}
+                    channelName={channelDisplayName}
                 />
                 <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin}/>
             </div>
-            <div className="sticky bottom-0 left-0 right-0 z-50 border-t focus:border p-4 ">
-                <div>
+            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
+                <div className="max-w-6xl mx-auto w-full">
                     {renderChatInput()}
                 </div>
             </div>

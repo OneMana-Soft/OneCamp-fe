@@ -1,268 +1,400 @@
 "use client"
 
-import {MobileHomeSearchBar} from "@/components/home/mobile/mobileHomeSearchBar";
-import {ClipboardList, FileIcon, FileText, Hash, MessageCircle, Users, Video} from "lucide-react";
-import {DesktopChildrenNavType, DesktopNavType} from "@/types/nav";
-import {useEffect, useMemo, useState} from "react";
-import {DesktopSideNavigationBar} from "@/components/navigationBar/desktop/desktopSideNavigationBar";
-import {Separator} from "@/components/ui/separator";
+import { useRouter } from "next/navigation"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store/store"
+import { useFetch } from "@/hooks/useFetch"
+import { UserProfileInterface } from "@/types/user"
+import { GetEndpointUrl } from "@/services/endPoints"
 import {
-    app_channel_path,
-    app_chat_path,
-    app_doc_path,
-    app_grp_chat_path, app_post_path,
-    app_project_path,
-    app_project_team, app_recording_activity
-} from "@/types/paths";
-import {useFetch} from "@/hooks/useFetch";
-import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
-import {useDispatch, useSelector} from "react-redux";
-import {openUI} from "@/store/slice/uiSlice";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {
-    createUserChannelList,
-    createUserChatList,
-    createUserProjectList,
-    createUserTeamList, updateUsersStatusFromList
-} from "@/store/slice/userSlice";
-import type {RootState} from "@/store/store";
-import {sortChannelList} from "@/lib/utils/sortChannelList";
-import {sortChatList} from "@/lib/utils/sortChatList";
-import {getOtherUserId} from "@/lib/utils/getOtherUserId";
-import Link from "next/link";
-import {formatCount} from "@/lib/utils/helpers/formatCount";
-import TouchableDiv from "@/components/animation/touchRippleAnimation";
+    ArrowRight,
+    Bell,
+    CheckSquare,
+    Clock,
+    FileText,
+    Folder,
+    Hash,
+    MessageCircle,
+    Sparkles,
+    Users,
+} from "@/lib/icons"
+import { MobileHomeSearchBar } from "@/components/home/mobile/mobileHomeSearchBar"
+import { cn } from "@/lib/utils/helpers/cn"
+import { formatDistanceToNow } from "date-fns"
+import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
+import { useTouchFlash } from "@/hooks/useTouchFlash"
+import { ListRow } from "@/components/ui/listRow"
+
+/**
+ * Tappable surface (button) with built-in CSS press-flash. No ripple.
+ * Used by quick action tiles and stat cards on mobile home.
+ */
+function TapSurface({
+    onClick,
+    className,
+    children,
+    ariaLabel,
+}: {
+    onClick: () => void
+    className?: string
+    children: React.ReactNode
+    ariaLabel?: string
+}) {
+    const { pressed, bind } = useTouchFlash()
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label={ariaLabel}
+            data-pressed={pressed || undefined}
+            {...bind}
+            className={cn(
+                "text-left transition-colors duration-150 ease-out",
+                "active:bg-accent data-[pressed=true]:bg-accent",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                className,
+            )}
+        >
+            {children}
+        </button>
+    )
+}
+
+function QuickActionTile({
+    icon: Icon,
+    label,
+    category,
+    onClick,
+}: {
+    icon: React.ElementType
+    label: string
+    category: CategoryKey
+    onClick: () => void
+}) {
+    const colors = categoryColors[category]
+    return (
+        <TapSurface
+            ariaLabel={label}
+            onClick={onClick}
+            className={cn(
+                "flex flex-col items-center justify-center gap-2 rounded-xl",
+                "border border-border/50 bg-card/40 p-3 aspect-square",
+            )}
+        >
+            <div
+                className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-xl",
+                    colors.bg,
+                )}
+            >
+                <Icon className={cn("h-5 w-5", colors.text)} />
+            </div>
+            <span className="text-xs font-medium text-foreground">{label}</span>
+        </TapSurface>
+    )
+}
+
+function StatTile({
+    icon: Icon,
+    label,
+    value,
+    category,
+    onClick,
+    badge,
+}: {
+    icon: React.ElementType
+    label: string
+    value: number | string
+    category: CategoryKey
+    onClick: () => void
+    badge?: { label: string; tone: "destructive" | "muted" }
+}) {
+    const colors = categoryColors[category]
+    return (
+        <TapSurface
+            ariaLabel={label}
+            onClick={onClick}
+            className={cn(
+                "flex items-center gap-3 rounded-xl p-3.5",
+                "border border-border/50 bg-card/40",
+            )}
+        >
+            <div
+                className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                    colors.bg,
+                )}
+            >
+                <Icon className={cn("h-5 w-5", colors.text)} />
+            </div>
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                    <span className="text-base font-semibold tabular-nums leading-none">
+                        {value}
+                    </span>
+                    {badge && (
+                        <span
+                            className={cn(
+                                "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                                badge.tone === "destructive"
+                                    ? "bg-destructive/10 text-destructive"
+                                    : "bg-muted text-muted-foreground",
+                            )}
+                        >
+                            {badge.label}
+                        </span>
+                    )}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                    {label}
+                </div>
+            </div>
+        </TapSurface>
+    )
+}
+
+function SectionHeader({
+    title,
+    actionLabel,
+    onAction,
+}: {
+    title: string
+    actionLabel?: string
+    onAction?: () => void
+}) {
+    return (
+        <div className="flex items-center justify-between mb-2">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {title}
+            </h2>
+            {actionLabel && onAction && (
+                <button
+                    type="button"
+                    onClick={onAction}
+                    className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    {actionLabel}
+                    <ArrowRight className="h-3 w-3" />
+                </button>
+            )}
+        </div>
+    )
+}
+
+const TYPE_ICON: Record<string, React.ElementType> = {
+    task: CheckSquare,
+    channel: Hash,
+    doc: FileText,
+    project: Folder,
+    team: Users,
+    chat: MessageCircle,
+    user: Users,
+}
 
 export function MobileHome() {
+    const router = useRouter()
+    const userSidebar = useSelector((state: RootState) => state.users.userSidebar)
+    const recentItems = useSelector((state: RootState) => state.recentItems.items)
+    const selfProfile = useFetch<UserProfileInterface>(
+        GetEndpointUrl.SelfProfileSideNav,
+        undefined,
+        { revalidateOnFocus: false, dedupingInterval: 30000 },
+    )
 
-    const dispatch = useDispatch();
+    const userName = selfProfile.data?.data?.user_name || "there"
+    const totalDMUnread = (userSidebar.userChats || []).reduce(
+        (acc, chat) => acc + (chat.dm_unread || 0),
+        0,
+    )
+    const unreadChannels = (userSidebar.userChannels || []).filter(
+        (c) => (c.unread_post_count || 0) > 0,
+    ).length
+    const incompleteTasks =
+        selfProfile.data?.data?.user_incomplete_task_count ??
+        selfProfile.data?.data?.user_task_count ??
+        0
+    const overdueTasks = selfProfile.data?.data?.user_overdue_task_count || 0
 
-    const [isProjectOpen, setIsProjectOpen] = useState(false);
-    const [isTeamOpen, setIsTeamOpen] = useState(false);
-    const [isChannelOpen, setIsChannelOpen] = useState(false);
-    const [isChatOpen, setIsChatOpen] = useState(false);
-
-    const projectNavGrp = [] as DesktopChildrenNavType[]
-    const teamNavGrp = [] as DesktopChildrenNavType[]
-    const channelNavGrp = [] as DesktopChildrenNavType[]
-    const dmNavGrp = [] as DesktopChildrenNavType[]
-
-
-
-    const userSideNav = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfileSideNav, undefined, {
-        revalidateOnFocus: false,
-        dedupingInterval: 30000,
-    })
-    const userSidebarState = useSelector((state: RootState) => state.users.userSidebar)
-    const channelCallStatus = useSelector((state: RootState) => state.channel.channelCallStatus);
-    const chatCallStatus = useSelector((state: RootState) => state.chat.chatCallStatus);
-
-
-    useEffect(() => {
-        if(userSideNav.data?.data?.user_teams) {
-            dispatch(createUserTeamList({teamUsers: userSideNav.data?.data.user_teams}))
-        }
-
-        if(userSideNav.data?.data?.user_projects) {
-            dispatch(createUserProjectList({projectUsers: userSideNav.data?.data.user_projects}))
-        }
-
-        if(userSideNav.data?.data?.user_channels) {
-            dispatch(createUserChannelList({channelsUser: userSideNav.data?.data.user_channels}))
-        }
-
-        if(userSideNav.data?.data?.user_dms) {
-            const otherUsersList = userSideNav.data.data.user_dms.reduce<UserProfileDataInterface[]>((acc, dm) => {
-                const originalUser = dm.dm_chats?.[0]?.chat_to || dm.dm_chats?.[0]?.chat_from || userSideNav.data?.data || {} as UserProfileDataInterface;
-
-                // Create a new object instead of mutating the original
-                const otherUser = {
-                    ...originalUser,
-                    user_dms: [JSON.parse(JSON.stringify(dm))]
-                };
-
-                return [...acc, otherUser];
-            }, []);
-
-
-            dispatch(createUserChatList({chatUsersDm: userSideNav.data.data.user_dms}))
-
-
-            dispatch(updateUsersStatusFromList({users: otherUsersList}))
-
-        }
-
-    }, [userSideNav.data?.data]);
-
-    for (const p of userSidebarState.userProjects||[]) {
-        // variant: path[2] && path[2]==p.project_uuid? "default" : "ghost",
-        projectNavGrp.push({
-            title: p.project_name,
-            project_uuid: p.project_uuid,
-            path: `${app_project_path}/${p.project_uuid}`,
-            variant: "ghost"
-        })
-    }
-
-    for (const t of userSidebarState.userTeams||[]) {
-        // variant: path[2] && path[2]==p.project_uuid? "default" : "ghost",
-        teamNavGrp.push({
-            title: t.team_name,
-            path: `${app_project_team}/${t.team_uuid}`,
-            variant: "ghost"
-        })
-    }
-
-    for (const c of sortChannelList(userSidebarState.userChannels||[])) {
-        // variant: path[2] && path[2]==p.project_uuid? "default" : "ghost",
-        channelNavGrp.push({
-            title: c.ch_name,
-            unread_count: c?.unread_post_count,
-            path: `${app_channel_path}/${c.ch_uuid}`,
-            variant: "ghost",
-            isCallActive: channelCallStatus[c.ch_uuid]?.active || false,
-        })
-    }
-
-
-    for (const d of sortChatList(userSidebarState.userChats||[])) {
-        let p = ''
-        const dm_participants = d.dm_participants.filter((t) => t.user_uuid != userSideNav.data?.data.user_uuid)
-
-        if(dm_participants.length > 1) {
-
-            p = `${app_grp_chat_path}/${d.dm_grouping_id}`
-        }else {
-            const u = getOtherUserId(d.dm_grouping_id, userSideNav.data?.data.user_uuid ||'')
-            p = `${app_chat_path}/${u}`
-        }
-
-        dmNavGrp.push({
-            title: dm_participants.length == 0 ? userSideNav.data?.data.user_name || '' : dm_participants.map((item) => item.user_name).join(","),
-            userParticipants: dm_participants.length > 1 ? dm_participants : [],
-            unread_count: d?.dm_unread,
-            userProfile: dm_participants.length == 0 ? d.dm_participants[0] : (dm_participants.length == 1 ? dm_participants[0] : undefined),
-            path: p,
-            variant: "ghost",
-            isCallActive: chatCallStatus[d.dm_grouping_id]?.active || false,
-        })
-    }
-
-    const totalChannelUnread = useMemo(() => 
-        (userSidebarState.userChannels || []).reduce((acc, channel) => acc + (channel.unread_post_count || 0), 0),
-        [userSidebarState.userChannels]
-    );
-
-    const totalDMUnread = useMemo(() => 
-        (userSidebarState.userChats || []).reduce((acc, chat) => acc + (chat.dm_unread || 0), 0),
-        [userSidebarState.userChats]
-    );
-
-    const secondaryNavLinks1:DesktopNavType[] = [
-        {
-            title: 'projects',
-            label: "",
-            icon: ClipboardList,
-            variant: "ghost",
-            path: "#",
-            action: ()=>{dispatch(openUI({ key: 'createProject' }))},
-            isOpen: isProjectOpen,
-            setIsOpen: setIsProjectOpen,
-            children: projectNavGrp
-        },
-    ];
-
-    const secondaryNavLinks2:DesktopNavType[] = [
-
-        {
-            title: 'teams',
-            label: "",
-            icon: Users,
-            variant: "ghost",
-            path: "#",
-            action: userSideNav.data?.data.user_is_admin ? ()=>{dispatch(openUI({ key: 'createTeam' }))} : undefined,
-            isOpen: isTeamOpen,
-            setIsOpen: setIsTeamOpen,
-            children: teamNavGrp
-        }
-    ];
-
-    const secondaryNavLinks3:DesktopNavType[] = [
-
-        {
-            title: 'channels',
-            label: formatCount(totalChannelUnread),
-            icon: Hash,
-            variant: "ghost",
-            path: "#",
-            action: ()=>{dispatch(openUI({ key: 'createChannel' }))},
-            isOpen: isChannelOpen,
-            setIsOpen: setIsChannelOpen,
-            children: channelNavGrp,
-            className: totalChannelUnread > 0 ? "font-bold" : ""
-        },
-    ];
-
-    const secondaryNavLinks4:DesktopNavType[] = [
-
-        {
-            title: 'chats',
-            label: formatCount(totalDMUnread),
-            icon: MessageCircle,
-            variant: "ghost",
-            path: "#",
-            action: ()=>{dispatch(openUI({ key: 'createChatMessage' }))},
-            isOpen: isChatOpen,
-            setIsOpen: setIsChatOpen,
-            children: dmNavGrp,
-            className: totalDMUnread > 0 ? "font-bold" : ""
-        },
-    ];
-
-
+    const greeting = (() => {
+        const hour = new Date().getHours()
+        if (hour < 12) return "Good morning"
+        if (hour < 18) return "Good afternoon"
+        return "Good evening"
+    })()
 
     return (
-        <div className='flex flex-col space-y-4 justify-center mt-6 pl-4 pr-4'>
-            <MobileHomeSearchBar/>
-            <div className='flex justify-between'>
-                <Link href={app_post_path}>
-                    <TouchableDiv className='h-[9vh] w-[29vw] bg-secondary rounded-2xl flex flex-col justify-center p-4'>
-                        <div className='bg-gray-500 flex justify-center items-center mb-2 rounded-md w-6 p-1'><FileText className="h-4 w-4" stroke={'white'}/></div>
-                            <span>Posts</span>
-
-                    </TouchableDiv>
-                </Link>
-                <Link href={app_doc_path}>
-                    <TouchableDiv className='h-[9vh] w-[29vw]  bg-secondary rounded-2xl flex flex-col justify-center p-4'>
-                        <div className='bg-blue-500 flex justify-center items-center mb-2 rounded-md w-6  p-1' ><FileIcon className="h-4 w-4" stroke={'white'}/></div>
-                        <span >Docs</span>
-                    </TouchableDiv>
-                </Link>
-
-                <Link href={app_recording_activity}>
-                    <TouchableDiv className='h-[9vh] w-[29vw] bg-secondary rounded-2xl flex flex-col justify-center p-4'>
-
-                        <div className='bg-green-500 flex justify-center items-center mb-2 rounded-md w-6 p-1'><Video className="h-4 w-4" stroke={'white'}/></div>
-                        <span>Recordings</span>
-
-                    </TouchableDiv>
-                </Link>
+        <div className="flex flex-col gap-6 p-4">
+            {/* Header */}
+            <div className="space-y-0.5">
+                <h1 className="text-xl font-semibold tracking-tight text-foreground">
+                    {greeting}, {userName}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                    Here&apos;s what&apos;s happening
+                </p>
             </div>
 
-            <div className='flex flex-col overflow-y-scroll h-full'>
-                <DesktopSideNavigationBar isCollapsed={false} links={secondaryNavLinks1} />
-                <Separator />
-                <DesktopSideNavigationBar isCollapsed={false} links={secondaryNavLinks2} />
-                <Separator />
-                <DesktopSideNavigationBar isCollapsed={false} links={secondaryNavLinks3} />
-                <Separator />
-                <DesktopSideNavigationBar isCollapsed={false} links={secondaryNavLinks4} />
-                <Separator />
+            {/* Search */}
+            <MobileHomeSearchBar />
 
-
+            {/* Quick Actions */}
+            <div className="grid grid-cols-4 gap-2.5">
+                <QuickActionTile
+                    icon={MessageCircle}
+                    label="DMs"
+                    category="chat"
+                    onClick={() => router.push("/app/chat")}
+                />
+                <QuickActionTile
+                    icon={Hash}
+                    label="Channels"
+                    category="channel"
+                    onClick={() => router.push("/app/channel")}
+                />
+                <QuickActionTile
+                    icon={FileText}
+                    label="Docs"
+                    category="doc"
+                    onClick={() => router.push("/app/doc")}
+                />
+                <QuickActionTile
+                    icon={CheckSquare}
+                    label="Tasks"
+                    category="task"
+                    onClick={() => router.push("/app/myTask")}
+                />
             </div>
 
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-2.5">
+                <StatTile
+                    icon={MessageCircle}
+                    label="Unread DMs"
+                    value={totalDMUnread}
+                    category="chat"
+                    onClick={() => router.push("/app/chat")}
+                />
+                <StatTile
+                    icon={Bell}
+                    label="Notifications"
+                    value={userSidebar.totalUnreadActivityCount || 0}
+                    category="notification"
+                    onClick={() => router.push("/app/activity")}
+                />
+                <StatTile
+                    icon={Hash}
+                    label="Unread channels"
+                    value={unreadChannels}
+                    category="channel"
+                    onClick={() => router.push("/app/channel")}
+                />
+                <StatTile
+                    icon={CheckSquare}
+                    label="Incomplete tasks"
+                    value={incompleteTasks}
+                    category="task"
+                    onClick={() => router.push("/app/myTask")}
+                    badge={
+                        overdueTasks > 0
+                            ? { label: `${overdueTasks} overdue`, tone: "destructive" }
+                            : undefined
+                    }
+                />
+            </div>
 
+            {/* Recent */}
+            {recentItems.length > 0 && (
+                <div>
+                    <SectionHeader title="Recent" />
+                    <div className="space-y-px">
+                        {recentItems.slice(0, 5).map((item) => {
+                            const Icon = TYPE_ICON[item.type] || Clock
+                            const colors = getCategoryColor(item.type)
+                            return (
+                                <ListRow
+                                    key={`${item.type}-${item.id}`}
+                                    density="default"
+                                    onClick={() => router.push(item.path)}
+                                    leading={
+                                        <div
+                                            className={cn(
+                                                "flex h-8 w-8 items-center justify-center rounded-md",
+                                                colors.bg,
+                                            )}
+                                        >
+                                            <Icon className={cn("h-4 w-4", colors.text)} />
+                                        </div>
+                                    }
+                                    title={item.title}
+                                    subtitle={formatDistanceToNow(item.timestamp)}
+                                />
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Channels */}
+            {userSidebar.userChannels && userSidebar.userChannels.length > 0 && (
+                <div>
+                    <SectionHeader
+                        title="Channels"
+                        actionLabel="See all"
+                        onAction={() => router.push("/app/channel")}
+                    />
+                    <div className="space-y-px">
+                        {userSidebar.userChannels.slice(0, 5).map((channel) => (
+                            <ListRow
+                                key={channel.ch_uuid}
+                                density="default"
+                                onClick={() =>
+                                    router.push(`/app/channel/${channel.ch_uuid}`)
+                                }
+                                leading={
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted/40">
+                                        <Hash className="h-4 w-4 text-muted-foreground" />
+                                    </div>
+                                }
+                                title={channel.ch_name}
+                                subtitle={
+                                    channel.unread_post_count > 0
+                                        ? `${channel.unread_post_count} unread`
+                                        : undefined
+                                }
+                                emphasize={channel.unread_post_count > 0}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* AI CTA */}
+            <TapSurface
+                ariaLabel="Open AI Assistant"
+                onClick={() => router.push("/app/ai")}
+                className={cn(
+                    "flex items-center gap-3 rounded-xl border p-3.5",
+                    "border-violet-500/20 bg-violet-500/5",
+                )}
+            >
+                <div
+                    className={cn(
+                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                        categoryColors.ai.bg,
+                    )}
+                >
+                    <Sparkles className={cn("h-5 w-5", categoryColors.ai.text)} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground">
+                        AI Assistant
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                        Ask questions, summarize docs, and more
+                    </div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            </TapSurface>
         </div>
-    );
+    )
 }

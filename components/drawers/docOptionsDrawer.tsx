@@ -1,18 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-    CircleUser,
-    Forward,
-    Link,
-    MessageCircle,
-    MessageSquareText,
-    Pencil,
-    Share2,
-    Trash2,
-    Type,
-    Users
-} from "lucide-react"
+import { CircleUser, Forward, Link, MessageCircle, MessageSquareText, Pencil, Share2, Trash2, Type, Users } from "@/lib/icons";
 
 import {
     Drawer,

@@ -4,10 +4,13 @@ import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { RawUserDMInterface } from "@/types/user";
 import { GetEndpointUrl } from "@/services/endPoints";
+import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 
-export const GrpChatIdMobile = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: ()=>void, unreadCount?: number }) => {
+export const GrpChatIdMobile = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number }) => {
     const dmParticipantsInfo  = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`)
     const participants = dmParticipantsInfo.data?.data?.dm_participants || []
+
+    if (dmParticipantsInfo.isLoading) return <ChatSkeleton />
 
     return (
         <div className='flex flex-col h-full'>
@@ -18,7 +21,7 @@ export const GrpChatIdMobile = ({grpId, handleSend, unreadCount}: {grpId: string
                 isChannel={false}
                 type="group"
             />
-            <div style={{ height: window.innerHeight - 185 }}>
+            <div className="flex-1 min-h-0">
                 <GroupChatMessageList grpId={grpId} />
             </div>
             <div>

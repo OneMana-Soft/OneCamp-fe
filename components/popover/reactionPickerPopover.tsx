@@ -59,7 +59,7 @@ export function ReactionPickerPopover({showCustomReactions, onReactionSelect, se
                 CONTAINER_STYLES.animation,
                 CONTAINER_STYLES.rounded,
                 CONTAINER_STYLES.shadows,
-                ' w-full h-[380px] !p-2 border bg-clip-border dark:shadow-[0_0_0_1px_black] z-[100]'
+                ' w-full h-[380px] !p-2 border bg-clip-border dark:shadow-[0_0_0_1px_black] z-[var(--z-popover)]'
             ])} style={{ maxHeight: `max(calc(100dvh - ${triggerRect.top}px), calc(${triggerRect.bottom}px))` }}>
                 <DesktopReactionPicker
                     showCustomReactions={showCustomReactions}

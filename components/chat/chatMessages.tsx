@@ -28,6 +28,7 @@ import {ChatMessage} from "@/components/chat/chatMessage";
 import {toast} from "@/hooks/use-toast";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
+import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 
 // Stable empty object reference to prevent unnecessary re-renders
 const EMPTY_SCROLL_TO_BOTTOM = { shouldScrollToBottom: false } as const;
@@ -255,6 +256,10 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     }
 
     const handleUpdateChat = (postHTMLText: string, messageId: string) => {
+        // Trim leading/trailing empty paragraphs and whitespace before sending.
+        const trimmedHtml = removeEmptyPTags(postHTMLText)
+        if (!trimmedHtml) return
+
         // Store for revert
         const originalMessage = chats.find(c => c.chat_uuid === messageId);
         const originalText = originalMessage?.chat_body_text || "";
@@ -263,7 +268,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         dispatch(updateChatByChatId({
             chatId: chatId,
             messageId,
-            htmlText: postHTMLText,
+            htmlText: trimmedHtml,
         }))
 
         // Sync sidebar preview immediately
@@ -272,7 +277,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
             dispatch(UpdateMessageTextInChatList({
                 grpId: getGroupingId(chatId, selfUuid),
                 messageId,
-                htmlText: postHTMLText,
+                htmlText: trimmedHtml,
             }))
         }
 
@@ -280,7 +285,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
             apiEndpoint: PostEndpointUrl.UpdateChatMessage,
             payload: {
                 chat_id: messageId,
-                text_html: postHTMLText
+                text_html: trimmedHtml
             },
             showToast: false, // We handle it ourselves now for cleaner UX
             showErrorToast: true,

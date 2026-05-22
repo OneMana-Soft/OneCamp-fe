@@ -1,4 +1,4 @@
-import {Plus} from "lucide-react"
+import { Plus } from "@/lib/icons";
 
 import * as React from "react";
 import {useEffect, useState} from "react";
@@ -25,6 +25,7 @@ import UploadingAttachmentIcon from "@/components/attachmentIcon/uploadingAttach
 import {AttachmentMediaReq} from "@/types/attachment";
 import {openUI} from "@/store/slice/uiSlice";
 import ProjectAttachment from "@/components/project/projectAttachment";
+import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
 
 
 interface ProjectAttachmentsProps {
@@ -176,81 +177,75 @@ export function ProjectAttachmentList({projectId, searchQuery}: ProjectAttachmen
 
 
     return (
-        <div>
-            <div className="flex flex-wrap mb-4 items-center">
-                {sortedProjectAttachmentList ?
-                    sortedProjectAttachmentList.map(
-                        (file) => {
-                            return (
-                                <div key={file.attachment_uuid}>
-
-                                    <ProjectAttachment
-                                        attachmentInfo={file}
-                                        isAdmin={projectAttachmentList.data?.data.project_is_admin || false}
-                                        handleRemoveAttachment={handleDelete}
-                                        projectUUID={projectId}
-                                        handleAttachmentIconCLick={()=>{handleAttachmentIconCLick(file)}}
-                                    />
-                                </div>
-                            );
-                        }
-                    ):
-
-                    !searchQuery && <div className='flex justify-center items-center h-[60vh] text-muted-foreground text-center'>
-                        {`Project doesn't have any attachment. add a attachment to get started`}
+        <div className="px-4 py-3">
+            <div className="flex flex-wrap gap-3 items-start">
+                {sortedProjectAttachmentList?.map((file) => (
+                    <div key={file.attachment_uuid}>
+                        <ProjectAttachment
+                            attachmentInfo={file}
+                            isAdmin={projectAttachmentList.data?.data.project_is_admin || false}
+                            handleRemoveAttachment={handleDelete}
+                            projectUUID={projectId}
+                            handleAttachmentIconCLick={() => { handleAttachmentIconCLick(file) }}
+                        />
                     </div>
-                }
-                {projectInputState[projectId]?.filesPreview &&
-                    projectInputState[projectId].filesPreview.map(
-                        (pfile) => {
+                ))}
 
-                            return <UploadingAttachmentIcon
-                                fileName={pfile.fileName}
-                                progress={pfile.progress}
-                                fileKey={pfile.key}
-                                removeFile={()=>{removeProjectPreviewFile(pfile.key)}}
-                                key={pfile.key}
-                                getUrl={pfile.uuid?(GetEndpointUrl.GetProjectMedia + '/' + projectId + '/' + pfile.uuid):undefined}
-                                attachmentOnCLick={()=>{}}
-                                attachmentType={pfile.attachmentType}/>
-
-                        }
-                    )}
-
-                {projectAttachmentList.data?.data.project_is_admin && <div>
-                    <Label htmlFor="project-file-upload" className="cursor-pointer">
-                        <div
-                            className="p-7 h-8 w-8 border-dashed bg-background rounded-2xl border-2 text-muted-foreground flex justify-center items-center ">
-                            <div>
-                                <Plus size='30'/>
-
-                            </div>
-                        </div>
-                    </Label>
-
-                    <Input
-                        ref={fileInputRef}
-                        type="file"
-                        key={
-                            (projectInputState[projectId] &&
-                                projectInputState[projectId].filesPreview
-                                    .length) ||
-                            0
-                        }
-                        id="project-file-upload"
-                        multiple
-                        onChange={handleProjectFileUpload}
-                        style={{display: "none"}}
+                {projectInputState[projectId]?.filesPreview?.map((pfile) => (
+                    <UploadingAttachmentIcon
+                        fileName={pfile.fileName}
+                        progress={pfile.progress}
+                        fileKey={pfile.key}
+                        removeFile={() => { removeProjectPreviewFile(pfile.key) }}
+                        key={pfile.key}
+                        getUrl={pfile.uuid ? (GetEndpointUrl.GetProjectMedia + '/' + projectId + '/' + pfile.uuid) : undefined}
+                        attachmentOnCLick={() => {}}
+                        attachmentType={pfile.attachmentType}
                     />
-                </div>}
+                ))}
 
-                {searchQuery && searchProjectAttachmentList && searchProjectAttachmentList.length == 0 && (
-                    <div className='flex h-[60vh] justify-center items-center text-center text-muted-foreground'>
-                        Project attachment not available 😓
-                    </div>)}
+                {projectAttachmentList.data?.data.project_is_admin && (
+                    <div>
+                        <Label htmlFor="project-file-upload" className="cursor-pointer">
+                            <div className="h-14 w-14 border-dashed border-2 border-border bg-muted/20 rounded-2xl text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 flex justify-center items-center transition-colors">
+                                <Plus className="h-6 w-6" />
+                            </div>
+                        </Label>
+                        <Input
+                            ref={fileInputRef}
+                            type="file"
+                            key={
+                                (projectInputState[projectId] &&
+                                    projectInputState[projectId].filesPreview.length) || 0
+                            }
+                            id="project-file-upload"
+                            multiple
+                            onChange={handleProjectFileUpload}
+                            style={{ display: "none" }}
+                        />
+                    </div>
+                )}
             </div>
 
+            {sortedProjectAttachmentList?.length === 0 && !searchQuery && (
+                <div className="flex flex-col items-center justify-center py-10 px-4 w-full min-h-[40vh]">
+                    <StatePlaceholder
+                        type="empty"
+                        title="No attachments yet"
+                        description="Drop files here or tap the + tile to upload your first attachment."
+                    />
+                </div>
+            )}
 
+            {searchQuery && searchProjectAttachmentList && searchProjectAttachmentList.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-10 px-4 w-full min-h-[40vh]">
+                    <StatePlaceholder
+                        type="search"
+                        title="No attachments found"
+                        description="We couldn't find any attachments matching your search."
+                    />
+                </div>
+            )}
         </div>
     )
 }

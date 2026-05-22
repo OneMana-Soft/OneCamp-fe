@@ -6,7 +6,6 @@ import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import {
     clearMyTask,
-    clearMyTaskSortingFilteringAndTask,
     type filterInterface,
     type sortingAndFilterOptionInterface,
     type sortInterface, updateMyTaskList, updateMyTaskListTaskStatus,
@@ -16,7 +15,6 @@ import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {CreateTaskInterface, TaskInfoInterface} from "@/types/task"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { TaskListTask } from "@/components/task/taskListTask"
-import TouchableDiv from "@/components/animation/touchRippleAnimation"
 import {usePost} from "@/hooks/usePost";
 import {useAnimationState} from "@/hooks/useAnimationState";
 import {UserInfoRawInterface} from "@/types/user";
@@ -96,6 +94,14 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
     }, [pageIndex, pathname, router])
 
     useLayoutEffect(() => {
+        // Reset Redux on mount so we don't display stale `myTaskList`
+        // entries from a prior visit. Without this, the SWR fetch
+        // de-dupes the cached payload and the merge reducer keeps any
+        // tasks already in the slice from a previous my-task session
+        // until the user reloads. The same applies if the user lands
+        // here from /app/project/[id] — Redux holds tasks from the
+        // last my-task render and never clears them on route change.
+        dispatch(clearMyTask())
         setUrlParams("")
     }, [])
 
@@ -199,14 +205,12 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
 
     const handleRenderIndex = (taskInfo: TaskInfoInterface) => {
         return (
-            <TouchableDiv rippleBrightness={0.8} rippleDuration={800} className=" m-2 rounded-2xl ">
-                <TaskListTask
-                    taskInfo={taskInfo}
-                    isAdmin={taskInfo.task_project.project_is_admin || false}
-                    onToggleStatus={handleToggleStatusWithAnimation}
-                    isAnimating={animatingSubtasks.has(taskInfo.task_uuid)}
-                />
-            </TouchableDiv>
+            <TaskListTask
+                taskInfo={taskInfo}
+                isAdmin={taskInfo.task_project.project_is_admin || false}
+                onToggleStatus={handleToggleStatusWithAnimation}
+                isAnimating={animatingSubtasks.has(taskInfo.task_uuid)}
+            />
         )
     }
 

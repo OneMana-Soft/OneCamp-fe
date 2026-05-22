@@ -10,6 +10,18 @@ import {useUserMessageHandlers} from "@/hooks/useUserMessageHandlers";
 import {useTaskMessageHandlers} from "@/hooks/useTaskMessageHandlers";
 import {useDocMessageHandlers} from "@/hooks/useDocMessageHandlers";
 import {useActivityMessageHandlers} from "@/hooks/useActivityMessageHandlers";
+import mqttService from "@/services/mqttService";
+import {GetEndpointUrl} from "@/services/endPoints";
+import {useDispatch} from "react-redux";
+import {mutate} from "swr";
+import {
+    updateTaskNameInTaskList,
+    updateTaskStatusInTaskList,
+    updateTaskLabelInTaskList,
+    updateTaskAssigneeInTaskList,
+    updateTaskPRStateInTaskList,
+    updateTaskPRIsDraftInTaskList
+} from "@/store/slice/taskInfoSlice";
 
 interface UseMqttMessageHandlerProps {
     connectionConfig: ConnectionConfig
@@ -17,6 +29,7 @@ interface UseMqttMessageHandlerProps {
 }
 
 export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMessageHandlerProps) => {
+    const dispatch = useDispatch()
     const typingTimeouts = useRef<Map<string, TypingTimeout>>(new Map())
 
     const userHandlers = useUserMessageHandlers({ userUuid })
@@ -119,6 +132,93 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                         activityHandler.handleActivityMessage(messageStr)
                         break
 
+                    case MqttMessageType.GitHub_Sync:
+                        try {
+                            const raw = mqttService.parseGitHubSyncMsg(messageStr)
+                            const data = raw.data
+                            if (data?.task_uuid && data.payload) {
+                                const { task_uuid, sync_type, payload } = data
+                                switch (sync_type) {
+                                    case "issue_edited":
+                                    case "pr_edited":
+                                        if (payload.name) {
+                                            dispatch(updateTaskNameInTaskList({ taskId: task_uuid, value: payload.name }))
+                                        }
+                                        break
+                                    case "status_synced":
+                                    case "issue_closed":
+                                    case "issue_reopened":
+                                        if (payload.status) {
+                                            dispatch(updateTaskStatusInTaskList({ taskId: task_uuid, value: payload.status }))
+                                        }
+                                        break
+                                    case "label_synced":
+                                        dispatch(updateTaskLabelInTaskList({ taskId: task_uuid, value: payload.label || "" }))
+                                        break
+                                    case "assignee_synced":
+                                        dispatch(updateTaskAssigneeInTaskList({
+                                            taskId: task_uuid,
+                                            assignee: payload.assignee_uuid ? {
+                                                user_uuid: payload.assignee_uuid,
+                                                user_name: payload.assignee_name || "",
+                                                user_profile_object_key: ""
+                                            } : undefined
+                                        }))
+                                        break
+                                    case "pr_opened":
+                                    case "pr_drafted":
+                                    case "pr_ready_for_review":
+                                    case "pr_reopened":
+                                    case "pr_closed":
+                                    case "pr_merged":
+                                        if (payload.status) {
+                                            dispatch(updateTaskStatusInTaskList({ taskId: task_uuid, value: payload.status }))
+                                        }
+                                        if (payload.pr_state !== undefined) {
+                                            dispatch(updateTaskPRStateInTaskList({ taskId: task_uuid, prState: payload.pr_state }))
+                                        }
+                                        if (payload.pr_is_draft !== undefined) {
+                                            dispatch(updateTaskPRIsDraftInTaskList({ taskId: task_uuid, isDraft: payload.pr_is_draft }))
+                                        }
+                                        break
+                                    case "check_run":
+                                        // check status is ephemeral metadata — rely on next panel open / 60s SWR fallback
+                                        break
+                                    case "comment":
+                                    case "comment_edited":
+                                    case "comment_deleted":
+                                        // comments have their own Task_Comment MQTT channel handled above
+                                        break
+                                    case "branch_created":
+                                        // branch is ephemeral metadata — rely on next panel open
+                                        break
+                                    case "sync_status_changed":
+                                        // Sync goroutine finished — invalidate sync status SWR cache immediately
+                                        // so the task panel reflects pending -> synced/failed without polling.
+                                        mutate(`${GetEndpointUrl.GetGitHubSyncStatus}/${task_uuid}`)
+                                        break
+                                    default:
+                                        // unknown sync type — silently ignore
+                                        break
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("[MQTT] Failed to parse GitHub sync message", e)
+                        }
+                        break
+
+                    case MqttMessageType.Archive_Job_Status:
+                        // Admin-only event. Bust the SWR cache for archive
+                        // jobs and stats so the panel updates without polling.
+                        // Idempotent: duplicate events (QoS 1 redelivery) just
+                        // re-trigger the same revalidation.
+                        mutate(
+                            (key: string) =>
+                                typeof key === "string" &&
+                                (key.includes("/admin/archive/jobs") ||
+                                    key.includes("/admin/archive/stats")),
+                        )
+                        break
 
                     default:
                         console.warn("[MQTT] Unknown message type:", parsedMessage.type)
@@ -128,7 +228,7 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                 console.error("[MQTT] Message parsing error:", error, "Raw message:", message.toString())
             }
         },
-        [postHandlers, chatHandlers, typingHandlers],
+        [postHandlers, chatHandlers, typingHandlers, taskHandler, docHandler, activityHandler, userHandlers],
     )
 
     const cleanup = useCallback(() => {

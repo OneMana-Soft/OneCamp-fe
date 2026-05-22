@@ -1,6 +1,5 @@
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
 import { usePost } from "@/hooks/usePost";
-import { ensureValidToken } from "@/lib/axiosInstance";
 import { useCallback, useState, useRef } from "react";
 
 // --- Response Types ---
@@ -207,8 +206,9 @@ export const useAskAIStream = () => {
             try {
                 const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000").replace(/\/+$/, '');
 
-                const token = await ensureValidToken();
-                if (!token) throw new Error("Unauthenticated: Please log in again");
+                // Auth is carried by the cookie via `credentials: include`.
+                // The BE auth middleware reads `Authorization` from the cookie
+                // jar exclusively, so we don't need to forward a Bearer header.
 
                 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
                 const localTime = new Date().toISOString();
@@ -219,7 +219,6 @@ export const useAskAIStream = () => {
                     headers: {
                         "Content-Type": "application/json",
                         "Accept": "text/event-stream",
-                        "Authorization": `Bearer ${token}`
                     },
                     body: JSON.stringify({ 
                         question, 
@@ -364,16 +363,12 @@ export const useDocAI = () => {
             try {
                 const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000").replace(/\/+$/, '');
 
-                const token = await ensureValidToken();
-                if (!token) throw new Error("Unauthenticated: Please log in again");
-
                 const response = await fetch(`${baseUrl}${PostEndpointUrl.AIDocCompleteStream}`, {
                     method: "POST",
                     credentials: "include",
                     headers: {
                         "Content-Type": "application/json",
                         "Accept": "text/event-stream",
-                        "Authorization": `Bearer ${token}`,
                     },
                     body: JSON.stringify({
                         action,

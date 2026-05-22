@@ -30,6 +30,15 @@ export function useLongPress(
             // Store initial touch position for touch events
             if (event.type === "touchstart") {
                 const touch = (event as TouchEvent).touches[0];
+                const screenWidth = window.innerWidth;
+                const edgeThreshold = 30; // px
+
+                // Ignore touches near screen edges — these are system gestures
+                // (iOS back swipe from right edge, Android back gesture from edges)
+                if (touch.clientX < edgeThreshold || touch.clientX > screenWidth - edgeThreshold) {
+                    return;
+                }
+
                 touchStartPos.current = { x: touch.clientX, y: touch.clientY };
                 hasMovedRef.current = false;
             }
@@ -72,8 +81,8 @@ export function useLongPress(
         const deltaX = Math.abs(touch.clientX - touchStartPos.current.x);
         const deltaY = Math.abs(touch.clientY - touchStartPos.current.y);
 
-        // If moved more than 10px in any direction, consider it a scroll gesture
-        if (deltaX > 10 || deltaY > 10) {
+        // If moved more than 20px in any direction, consider it a scroll/gesture
+        if (deltaX > 20 || deltaY > 20) {
             hasMovedRef.current = true;
             stop(event);
         }

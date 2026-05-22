@@ -30,6 +30,15 @@ export interface TaskInfoInterface {
     task_start_date: string;
     task_attachments: AttachmentMediaReq[]
     task_created_by: UserProfileDataInterface;
+    task_github_issue_number?: number;
+    task_github_issue_url?: string;
+    task_github_pr_number?: number;
+    task_github_pr_url?: string;
+    task_github_branch?: string;
+    task_github_pr_state?: string;
+    task_github_pr_check_status?: string;
+    task_github_pr_review_state?: string;
+    task_github_pr_is_draft?: boolean;
 }
 export interface TaskInfoRawInterface {
     data: TaskInfoInterface;
@@ -66,6 +75,7 @@ export interface CreateTaskInterface {
     task_label?: string;
     task_start_date?: string;
     task_attachments?: AttachmentMediaReq[];
+    task_github_issue_url?: string;
 }
 
 export interface CreateTaskCommentInterface {
@@ -100,8 +110,7 @@ export const createTaskFormSchema = z.object({
         .string()
         .trim()
         .min(4, "Task name must be at least 4 characters")
-        .max(30, "Task name must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Task name must only contain letters, numbers, underscores, or spaces"),
+        .max(100, "Task name must be at most 100 characters"),
     task_assignee_uuid: z
         .string()
         .optional(),
@@ -128,6 +137,12 @@ export const createTaskFormSchema = z.object({
         .string()
         .min(1, "Please select a priority")
         .optional(),
+    task_github_issue_url: z
+        .string()
+        .url("Must be a valid GitHub URL")
+        .regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(issues|pull)\/\d+$/, "Must be a GitHub issue or PR URL")
+        .optional()
+        .or(z.literal("")),
 });
 
 export type CreateTaskFormData = z.infer<typeof createTaskFormSchema>;

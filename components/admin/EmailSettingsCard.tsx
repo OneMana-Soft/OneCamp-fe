@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
-import { Settings, ImagePlus, Trash2, Mail, Save, RefreshCw } from "lucide-react"
+import { Settings, Trash2, Mail, Save, RefreshCw } from "@/lib/icons";
+import { ImagePlus } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"

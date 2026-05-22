@@ -21,7 +21,10 @@ export const useUserMessageHandlers = ({ userUuid }: UseUserMessageHandlersProps
 
                 const mqttUserEmoji = mqttService.parseUserEmojiStatusMsg(messageStr)
 
-                if(userUuid == mqttUserEmoji.data.user_uuid) return
+                // Multi-device sync: don't skip self. The reducer is a
+                // pure overwrite by userUUID, so applying our own emoji
+                // status update on a second device just mirrors what we
+                // set on the originating device.
 
 
                 switch (mqttUserEmoji.data.type) {
@@ -63,7 +66,9 @@ export const useUserMessageHandlers = ({ userUuid }: UseUserMessageHandlersProps
 
             const mqttUserEmoji = mqttService.parseUserStatusMsg(messageStr)
 
-            if(userUuid == mqttUserEmoji.data.user_uuid) return
+            // Multi-device sync: don't skip self. The reducer is a pure
+            // overwrite, so applying our own status update on a second
+            // device mirrors what we set elsewhere.
 
             try {
 
@@ -100,7 +105,10 @@ export const useUserMessageHandlers = ({ userUuid }: UseUserMessageHandlersProps
 
                 const mqttUserDevice = mqttService.parseUserDeviceMsg(messageStr)
 
-                if(userUuid == mqttUserDevice.data.user_uuid) return
+                // Multi-device sync: don't skip self. The reducer is a
+                // pure overwrite. Each device update broadcasts the new
+                // total to all devices for the same user; mirroring it
+                // here keeps the count consistent across tabs / phones.
 
                 switch (mqttUserDevice.data.type) {
 

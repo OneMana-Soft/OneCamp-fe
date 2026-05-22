@@ -3,6 +3,7 @@ import type { Editor } from '@tiptap/react'
 import type { Content, UseEditorOptions } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { useEditor, mergeAttributes, Extension } from '@tiptap/react'
+import { SlashCommand } from '../extensions/slash-command/slashCommandExtension'
 import { DOMOutputSpec } from '@tiptap/pm/model'
 import { Typography } from '@tiptap/extension-typography'
 import { Placeholder } from '@tiptap/extension-placeholder'
@@ -20,6 +21,7 @@ import {
   FileHandler,
   mentionSuggestionOptions
 } from '../extensions'
+import { SlashCommandItem } from '../extensions/slash-command/slashCommand'
 import { cn } from '@/lib/utils/helpers/cn'
 import { getOutput, randomId } from '../utils'
 import { useThrottle } from '../hooks/use-throttle'
@@ -35,6 +37,11 @@ import { UploadFileInterfaceRes } from "@/types/file";
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import MentionNodeView from '../extensions/mention-list/MentionNodeView'
 
+export interface ThrottleControls {
+  flush: () => void
+  cancel: () => void
+}
+
 export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
   value?: Content
   output?: 'html' | 'json' | 'text'
@@ -43,20 +50,35 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
   throttleDelay?: number
   onUpdate?: (content: Content) => void
   onBlur?: (content: Content) => void
+  /**
+   * Optional out-ref that receives flush/cancel handles for the throttled
+   * `onUpdate`. Wrapper components can call `flush()` right before invoking
+   * a submit handler to guarantee the parent reads the latest content, and
+   * `cancel()` after a successful send to drop any in-flight trailing-edge
+   * call that would otherwise re-populate cleared input state.
+   */
+  throttleRef?: React.MutableRefObject<ThrottleControls | null>
   collaboration?: {
     enabled: boolean
     documentId: string
     token: string
     username: string
+    userId?: string
     color?: string
+    profileKey?: string
     onAuthenticationFailed?: () => void
     onStatus?: (status: string) => void
+    activeUsers?: number
   }
   provider?: HocuspocusProvider
+  providerSynced?: boolean
   uploadFn?: (file: File) => Promise<{ id: string, src: string }>
   onActionFiles?: (files: File[], pos?: number) => void
   allowedMimeTypes?: string[]
   onSubmit?: () => boolean
+  extraExtensions?: any[]
+  slashCommands?: SlashCommandItem[]
+  showOnlyCurrentPlaceholder?: boolean
 }
 
 const createExtensions = (
@@ -67,7 +89,10 @@ const createExtensions = (
     customUploadFnRef?: React.RefObject<((file: File) => Promise<{ id: string, src: string }>) | undefined>,
     onActionFilesRef?: React.RefObject<((files: File[], pos?: number) => void) | undefined>,
     allowedMimeTypes: string[] = ['image/*'],
-    onSubmitRef?: React.RefObject<(() => boolean) | undefined>
+    onSubmitRef?: React.RefObject<(() => boolean) | undefined>,
+    extraExtensions?: Extension[],
+    slashCommands?: SlashCommandItem[],
+    showOnlyCurrentPlaceholder?: boolean
 ) => {
   const extensions = [
     StarterKit.configure({
@@ -185,7 +210,7 @@ const createExtensions = (
     FileHandler.configure({
       allowBase64: true,
       allowedMimeTypes: allowedMimeTypes,
-      maxFileSize: 50 * 1024 * 1024, // Relaxing file size limit for generic attachments
+      maxFileSize: 50 * 1024 * 1024,
       onDrop: (editor, files, pos) => {
         if (onActionFilesRef?.current) {
           onActionFilesRef.current(files, pos);
@@ -233,7 +258,30 @@ const createExtensions = (
     HorizontalRule,
     ResetMarksOnEnter,
     CodeBlockLowlight,
-    Placeholder.configure({ placeholder: () => placeholder }),
+    Placeholder.configure({
+      placeholder: ({ node }) => {
+        if (placeholder?.trim()) {
+          if (node.type.name === 'paragraph') return placeholder
+          if (node.type.name === 'heading') return `Heading ${node.attrs.level}`
+          if (node.type.name === 'blockquote') return 'Empty quote'
+          return ''
+        }
+        if (node.type.name === 'heading') {
+          return `Heading ${node.attrs.level}`
+        }
+        if (node.type.name === 'paragraph') {
+          return "Type '/' for commands"
+        }
+        if (node.type.name === 'blockquote') {
+          return 'Empty quote'
+        }
+        return ''
+      },
+      showOnlyWhenEditable: true,
+      showOnlyCurrent: showOnlyCurrentPlaceholder ?? false,
+      includeChildren: false,
+    }),
+    slashCommands ? SlashCommand.configure({ commands: slashCommands }) : SlashCommand,
     Extension.create({
       name: 'submitShortcut',
       addKeyboardShortcuts() {
@@ -259,15 +307,22 @@ const createExtensions = (
     extensions.push(
       Collaboration.configure({
         document: provider.document,
+        field: 'default',
       }),
       CollaborationCursor.configure({
         provider: provider,
         user: {
           name: collaboration.username,
           color: collaboration.color || '#f783ac',
+          id: collaboration.userId || collaboration.documentId,
+          profileKey: collaboration.profileKey,
         },
       })
     )
+  }
+
+  if (extraExtensions && extraExtensions.length > 0) {
+    extensions.push(...extraExtensions)
   }
 
   return extensions
@@ -283,10 +338,15 @@ export const useMinimalTiptapEditor = ({
   onBlur,
   collaboration,
   provider: externalProvider,
+  providerSynced,
   uploadFn,
   onActionFiles,
   allowedMimeTypes,
   onSubmit,
+  extraExtensions,
+  slashCommands,
+  showOnlyCurrentPlaceholder,
+  throttleRef,
   ...props
 }: UseMinimalTiptapEditorProps) => {
   const onUpdateRef = React.useRef(onUpdate)
@@ -295,6 +355,8 @@ export const useMinimalTiptapEditor = ({
   const onActionFilesRef = React.useRef(onActionFiles)
   const onSubmitRef = React.useRef(onSubmit)
   const placeholderRef = React.useRef(placeholder)
+  const providerRef = React.useRef(externalProvider)
+  const hasSeededRef = React.useRef(false)
 
   React.useLayoutEffect(() => {
     onUpdateRef.current = onUpdate
@@ -303,6 +365,7 @@ export const useMinimalTiptapEditor = ({
     onActionFilesRef.current = onActionFiles
     onSubmitRef.current = onSubmit
     placeholderRef.current = placeholder
+    providerRef.current = externalProvider
   })
 
   const throttledSetValue = useThrottle((value: Content) => onUpdateRef.current?.(value), throttleDelay)
@@ -310,8 +373,23 @@ export const useMinimalTiptapEditor = ({
   
   const provider = externalProvider;
 
-  // Provider is now handled externally or passed as prop
-
+  // Expose throttle flush/cancel via the optional out-ref. The wrapper
+  // component uses this to (a) flush before submitting so the parent
+  // sees the latest content synchronously and (b) cancel after a
+  // successful send so a stale trailing-edge call cannot resurrect
+  // already-sent text in the cleared input slice.
+  React.useLayoutEffect(() => {
+    if (!throttleRef) return
+    throttleRef.current = {
+      flush: () => throttledSetValue.flush?.(),
+      cancel: () => throttledSetValue.cancel?.(),
+    }
+    return () => {
+      if (throttleRef.current) {
+        throttleRef.current = null
+      }
+    }
+  }, [throttleRef, throttledSetValue])
 
   const handleUpdate = React.useCallback(
     (editor: Editor) => throttledSetValue(getOutput(editor, output)),
@@ -320,19 +398,71 @@ export const useMinimalTiptapEditor = ({
 
   const handleCreate = React.useCallback(
     (editor: Editor) => {
-      if (value && editor.isEmpty && !collaboration?.enabled) {
-        editor.commands.setContent(value)
+      if (!collaboration?.enabled) {
+        // Non-collaborative mode: set content from prop
+        if (value && editor.isEmpty) {
+          editor.commands.setContent(value)
+        }
+        return
+      }
+
+      // Collaborative mode: Yjs should provide content via sync.
+      // If the editor is still empty after a short delay, seed it from
+      // the API value as a fallback (prevents blank docs when Hocuspocus
+      // load fails or doc_body was empty on first creation).
+      // Only seed if provider hasn't synced yet to avoid overwriting Yjs content.
+      if (value && editor.isEmpty && !hasSeededRef.current && !providerSynced) {
+        hasSeededRef.current = true
+        window.setTimeout(() => {
+          if (editor.isDestroyed) return
+          // Only seed if still empty — Yjs may have synced by now
+          if (editor.isEmpty) {
+            editor.commands.setContent(value)
+          }
+        }, 800)
       }
     },
-    [value, collaboration?.enabled] // Don't set initial content if collaboration is enabled (let Y.js sync)
+    [value, collaboration?.enabled, providerSynced]
   )
 
   const handleBlur = React.useCallback((editor: Editor) => onBlurRef.current?.(getOutput(editor, output)), [output])
 
+  // Use a stable key for provider to avoid recreating extensions on every render.
+  // The provider object identity should be stable; if it isn't, the editor will
+  // be recreated, which is expensive but necessary for Yjs binding.
   const extensions = React.useMemo(
-    () => createExtensions(placeholderRef.current, toast, collaboration, provider || undefined, uploadFnRef, onActionFilesRef, allowedMimeTypes, onSubmitRef),
-    [toast, collaboration?.enabled, collaboration?.documentId, collaboration?.token, collaboration?.username, collaboration?.color, provider, allowedMimeTypes]
+    () => createExtensions(
+      placeholderRef.current,
+      toast,
+      collaboration,
+      provider || undefined,
+      uploadFnRef,
+      onActionFilesRef,
+      allowedMimeTypes,
+      onSubmitRef,
+      extraExtensions,
+      slashCommands,
+      showOnlyCurrentPlaceholder
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      toast,
+      collaboration?.enabled,
+      collaboration?.documentId,
+      collaboration?.token,
+      collaboration?.username,
+      collaboration?.color,
+      // We intentionally do NOT include collaboration?.activeUsers to avoid recreating
+      // the editor every time user count changes.
+      provider,
+      allowedMimeTypes,
+      extraExtensions,
+      slashCommands,
+      showOnlyCurrentPlaceholder,
+    ]
   )
+
+  const { editable = true } = props
 
   const editor = useEditor({
     extensions,
@@ -340,6 +470,7 @@ export const useMinimalTiptapEditor = ({
     onCreate: ({ editor }) => handleCreate(editor),
     onBlur: ({ editor }) => handleBlur(editor),
     immediatelyRender: false,
+    editable,
     editorProps: {
       attributes: {
         autocomplete: 'off',
@@ -348,7 +479,14 @@ export const useMinimalTiptapEditor = ({
         class: cn('focus:outline-none', editorClassName)
       }
     }
-  }, [extensions])
+  }, [extensions, editable])
+
+  // Update editor editable state dynamically
+  React.useEffect(() => {
+    if (editor && !editor.isDestroyed && editable !== undefined) {
+      editor.setEditable(editable)
+    }
+  }, [editor, editable])
 
   // Update editor attributes dynamically if editorClassName changes
   React.useEffect(() => {
@@ -363,9 +501,9 @@ export const useMinimalTiptapEditor = ({
     }
   }, [editor, editorClassName])
 
-  if (collaboration?.enabled && !provider) {
-    return null
-  }
+  // REMOVED: the early return that caused editor to vanish when provider was null.
+  // The parent component should handle loading states; the hook should return an
+  // editor whenever possible so that non-collaborative fallback works.
 
   return editor
 }

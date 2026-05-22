@@ -36,7 +36,7 @@ import {getTimeRemaining} from "@/lib/utils/status/memberStatus";
 import {Separator} from "@/components/ui/separator";
 import CustomExpirationCalendarDialog from "@/components/dialog/customExpirationCalendarDialog";
 import {addHours} from "date-fns";
-import {X} from "lucide-react";
+import { X } from "@/lib/icons";
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
 import {usePost} from "@/hooks/usePost";
@@ -250,7 +250,7 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
         />
         <div className='flex flex-col gap-3  '>
           <div className='relative'>
-            <div className='absolute left-1.5 top-1.5 z-[100]'>
+            <div className='absolute left-1.5 top-1.5 z-[var(--z-popover)]'>
               <ReactionPicker
                   onReactionSelect={(reaction) => {
                     if (!isStandardReaction(reaction)) return

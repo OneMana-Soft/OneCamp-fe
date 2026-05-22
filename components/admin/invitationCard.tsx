@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { Invitation, InvitationListResponseInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
-import { Mail, Plus } from "lucide-react"
+import { Mail, Plus } from "@/lib/icons";
 import { AdminInvitationList } from "./AdminInvitationList"
 import { AddInvitationDialog } from "./AddInvitationDialog"
 import { useFetch } from "@/hooks/useFetch"

@@ -128,9 +128,9 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
 
     return (
         <Dialog open={actions.length > 0} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[425px] p-0 border border-border bg-popover/95 backdrop-blur-xl shadow-2xl text-popover-foreground">
+            <DialogContent className="sm:max-w-[425px] p-0">
                 <DialogHeader className="p-6 pb-2">
-                    <DialogTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
+                    <DialogTitle className="text-base font-semibold flex items-center gap-2 text-foreground">
                         <span>🤖</span> AI Suggested Actions
                     </DialogTitle>
                 </DialogHeader>
@@ -146,7 +146,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                             )}>
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="text-[18px]">{TOOL_ICONS[action.tool_name] || '⚡'}</span>
-                                    <span className="font-semibold text-sm text-primary">{TOOL_LABELS[action.tool_name] || action.tool_name}</span>
+                                    <span className="font-medium text-sm text-primary">{TOOL_LABELS[action.tool_name] || action.tool_name}</span>
                                 </div>
                                 <p className="text-[13px] leading-relaxed text-muted-foreground m-0 mb-3">{action.description}</p>
 
@@ -164,7 +164,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                 {!executed ? (
                                     <div className="flex gap-2">
                                         <Button
-                                            className="flex-1 bg-gradient-to-br from-primary to-primary/80 text-white font-semibold transition-all duration-150 hover:from-primary/90 hover:to-primary/70 hover:shadow-primary/30"
+                                            className="flex-1 bg-primary text-primary-foreground font-medium transition-all duration-150 hover:bg-primary/90"
                                             onClick={() => handleConfirm(action, index)}
                                             disabled={submittingIndex !== null}
                                         >
@@ -181,7 +181,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                 ) : (
                                     <div className={cn(
                                         "text-[13px] p-2.5 rounded-lg font-medium",
-                                        executed.success ? "text-green-400 bg-green-500/10" : "text-red-300 bg-red-500/10"
+                                        executed.success ? "text-green-600 dark:text-green-400 bg-green-500/10" : "text-red-600 dark:text-red-400 bg-red-500/10"
                                     )}>
                                         {executed.success ? '' : '❌'} {executed.message}
                                     </div>

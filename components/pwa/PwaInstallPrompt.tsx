@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { X, Share, MoreVertical } from "lucide-react";
+import { X, Share, MoreVertical } from "@/lib/icons";
 import { useRouter } from "next/navigation";
 
 export function PwaInstallPrompt() {
@@ -73,7 +73,6 @@ export function PwaInstallPrompt() {
       setIsPromptVisible(false);
       setShowInstructions(false);
       setIsInstalled(true);
-      console.log("PWA was securely installed");
     };
 
     window.addEventListener("appinstalled", handleAppInstalled);
@@ -116,7 +115,6 @@ export function PwaInstallPrompt() {
 
     // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to the install prompt: ${outcome}`);
 
     // We've used the prompt, and can't use it again, throw it away
     setDeferredPrompt(null);
@@ -133,9 +131,8 @@ export function PwaInstallPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-[9999] md:w-[400px] md:left-auto md:right-4">
-      <div className="flex flex-col p-4 bg-background/95 backdrop-blur-xl border border-primary/20 shadow-2xl rounded-2xl relative overflow-hidden transition-all duration-300">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent pointer-events-none" />
+    <div className="fixed bottom-4 left-4 right-4 z-[var(--z-devtools)] md:w-[400px] md:left-auto md:right-4">
+      <div className="flex flex-col p-4 bg-background/95 backdrop-blur-xl border border-border/50 shadow-lg rounded-xl relative overflow-hidden transition-all duration-300">
         
         {!showInstructions ? (
           <div className="flex items-center gap-4 relative z-10 w-full pr-8">
@@ -149,7 +146,7 @@ export function PwaInstallPrompt() {
             </div>
             
             <div className="flex flex-col">
-              <h4 className="text-sm font-semibold text-foreground">
+              <h4 className="text-sm font-medium text-foreground">
                 {isInstalled ? "Open OneCamp" : "Install OneCamp"}
               </h4>
               <p className="text-xs text-muted-foreground line-clamp-2">
@@ -162,7 +159,7 @@ export function PwaInstallPrompt() {
             <div className="flex items-center gap-2 relative z-10 shrink-0 ml-auto mr-1">
               <button
                 onClick={handleInstallClick}
-                className="px-4 py-2 text-xs font-semibold text-white bg-primary hover:bg-primary/90 shadow-md shadow-primary/30 rounded-full transition-transform active:scale-95 whitespace-nowrap"
+                className="px-4 py-2 text-xs font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-full transition-colors whitespace-nowrap"
               >
                 {isInstalled ? "Open App" : "Install"}
               </button>
@@ -170,7 +167,7 @@ export function PwaInstallPrompt() {
           </div>
         ) : (
           <div className="flex flex-col gap-3 relative z-10 pr-6 pl-2 py-1">
-            <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
               Manual Installation
             </h4>
             {isIOS ? (

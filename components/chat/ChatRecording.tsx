@@ -2,11 +2,12 @@ import { DateRangeField } from "../dateRangePicker/dateRangeField";
 import {useState, useEffect, useCallback} from "react";
 import { DateRange } from "react-day-picker";
 import { useMedia } from "@/context/MediaQueryContext";
-import { Video, Loader2 } from "lucide-react";
+import { Video, Loader2 } from "@/lib/icons";
+import { statusColors } from "@/lib/colors";
 import { subDays } from "date-fns";
 import {RecordingListResult} from "@/components/recording/recordingListResult";
 import {useFetch} from "@/hooks/useFetch";
-import {GetEndpointUrl} from "@/services/endPoints";
+import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {ChannelInfoInterfaceResp} from "@/types/channel";
 import {RecordingInfoInterface, RecordingPaginationResRaw} from "@/types/recording";
 import {useDispatch} from "react-redux";
@@ -16,6 +17,7 @@ import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import {VirtualInfiniteScroll} from "@/components/list/virtualInfiniteScroll";
 import {RecordingListRecording} from "@/components/recording/recordingListRecording";
 import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import {usePost} from "@/hooks/usePost";
 
 export const ChatRecording = ({ chatId }: { chatId: string }) => { // Changed prop to chatId
   const [selectedDateRage, setSelectedDateRage] = useState<DateRange | undefined>({
@@ -28,6 +30,7 @@ export const ChatRecording = ({ chatId }: { chatId: string }) => { // Changed pr
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 20;
   const dispatch = useDispatch();
+  const post = usePost();
 
   const startDate = selectedDateRage?.from?.toISOString() || "";
   const endDate = selectedDateRage?.to?.toISOString() || "";
@@ -60,6 +63,19 @@ export const ChatRecording = ({ chatId }: { chatId: string }) => { // Changed pr
     }
   }, [isLoading, hasMore]);
 
+  const handleDelete = async (egressId: string) => {
+    try {
+      await post.makeRequest({
+        apiEndpoint: PostEndpointUrl.DeleteChatRecording,
+        appendToUrl: `/${egressId}`,
+        showToast: true,
+      })
+      setAllRecordings(prev => prev.filter(r => r.recording_egress_id !== egressId))
+    } catch {
+      // handled by usePost
+    }
+  };
+
   const handleClick = (recording: RecordingInfoInterface) => {
     const getMediaURL = GetEndpointUrl.GetChatRecordingMedia + '/' + chatId;
     const getTranscriptURL = GetEndpointUrl.GetChatRecordingTranscript + '/' + chatId;
@@ -91,7 +107,7 @@ export const ChatRecording = ({ chatId }: { chatId: string }) => { // Changed pr
         )
     }>
         <div onClick={isMobile ? undefined : () => handleClick(recording)}>
-            <RecordingListRecording recordingInfo={recording} />
+            <RecordingListRecording recordingInfo={recording} onDelete={handleDelete} />
         </div>
     </ConditionalWrap>
   );
@@ -103,7 +119,7 @@ export const ChatRecording = ({ chatId }: { chatId: string }) => { // Changed pr
               className='flex  px-3 font-semibold text-lg p-2 truncate overflow-x-hidden overflow-ellipsis justify-between border-b'>
 
               <div className="flex justify-center items-center space-x-2">
-                  <div className='bg-green-500 flex justify-center items-center rounded-md w-8 h-8 p-1.5 shadow-sm'>
+                  <div className='${statusColors.online.solid} flex justify-center items-center rounded-md w-8 h-8 p-1.5 shadow-sm'>
                     <Video className="text-white" size={18} />
                   </div>
                   <div>{"Recordings"}</div>

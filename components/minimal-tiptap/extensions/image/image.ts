@@ -175,6 +175,9 @@ export const Image = TiptapImage.extend<CustomImageOptions>({
       height: {
         default: null
       },
+      caption: {
+        default: null
+      },
       fileName: {
         default: null
       }

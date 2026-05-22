@@ -5,21 +5,8 @@ import {
   useTracks,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
-import {
-  Mic,
-  MicOff,
-  Video,
-  VideoOff,
-  MonitorUp,
-  MonitorOff,
-  PhoneOff,
-  MessageSquare,
-  MoreVertical,
-  LayoutGrid,
-  SquareUser,
-  Disc,
-  Loader2,
-} from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, MoreVertical, LayoutGrid, Loader2 } from "@/lib/icons";
+import { MonitorUp, MonitorOff, SquareUser, Disc } from "@/lib/icons";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -134,7 +121,7 @@ export function VideoControls({
   };
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 md:gap-4 p-2 md:p-3 rounded-2xl bg-black/80 md:bg-black/40 backdrop-blur-md border border-white/10 shadow-xl z-50 transition-all hover:bg-black/90 md:hover:bg-black/50 w-[95%] md:w-auto overflow-x-auto md:overflow-visible justify-center md:justify-start">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 md:gap-4 p-2 md:p-3 rounded-2xl bg-black/80 md:bg-black/40 backdrop-blur-md border border-white/10 shadow-xl z-[var(--z-fixed)] transition-all hover:bg-black/90 md:hover:bg-black/50 w-[95%] md:w-auto overflow-x-auto md:overflow-visible justify-center md:justify-start">
       
       <ControlBtn
         label={isMicrophoneEnabled ? "Mute" : "Unmute"}

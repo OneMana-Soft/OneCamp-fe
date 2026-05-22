@@ -3,13 +3,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Check, UserCircle } from "lucide-react"
+import { Check } from "@/lib/icons";
+import { UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils/helpers/cn"
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {UserProfileDataInterface} from "@/types/user";
-import {useMediaFetch} from "@/hooks/useFetch";
-import {GetMediaURLRes} from "@/types/file";
-import {GetEndpointUrl} from "@/services/endPoints";
+import {useUserAvatar} from "@/hooks/useUserAvatar";
 
 interface SubTaskAssigneeProps {
     userProfile?: UserProfileDataInterface
@@ -21,7 +20,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
     const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false)
 
 
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(userProfile?.user_profile_object_key ? GetEndpointUrl.PublicAttachmentURL+'/'+userProfile.user_profile_object_key : '');
+    const {src: imageSrc} = useUserAvatar(userProfile?.user_profile_object_key);
 
     const nameInitialArray = userProfile?.user_name.split(' ') || ["Unknown"]
 
@@ -39,7 +38,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                             {userProfile ? (
                                 <Avatar className="h-8 w-8">
                                     <AvatarImage
-                                        src={profileImageRes.data?.url || ""}
+                                        src={imageSrc}
                                         alt="Profile icon"
                                     />
                                     <AvatarFallback>
@@ -48,7 +47,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                                     </AvatarFallback>
                                 </Avatar>
                             ) : (
-                                <UserCircle className="p-0 text-gray-400" />
+                                <UserCircle className="p-0 text-muted-foreground" />
                             )}
                         </Button>
                     </PopoverTrigger>

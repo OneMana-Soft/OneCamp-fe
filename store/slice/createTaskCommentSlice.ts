@@ -234,8 +234,35 @@ export const createTaskCommentSlice = createSlice({
         addTaskComments: (state, action: {payload: UpdateTaskComment}) => {
             const { taskId, comments } = action.payload;
 
-            state.taskComments[taskId] = [...comments];
+            if (!state.taskComments[taskId]) {
+                state.taskComments[taskId] = comments as CommentInfoInterface[];
+                return;
+            }
 
+            // Merge instead of replace: preserves optimistic/MQTT updates and
+            // avoids flash.  Existing comments are updated in place (to pick up
+            // new reactions from SWR), new comments are appended, and local-only
+            // comments (added_locally === true) are preserved until the server
+            // copy arrives.
+            const existingMap = new Map(state.taskComments[taskId].map(c => [c.comment_uuid, c]));
+
+            for (const incoming of comments as CommentInfoInterface[]) {
+                const existing = existingMap.get(incoming.comment_uuid);
+                if (!existing) {
+                    // New server comment — add it
+                    state.taskComments[taskId].push(incoming);
+                } else if (!existing.comment_added_locally) {
+                    // Existing non-local comment — update in place (reactions, text, etc.)
+                    const idx = state.taskComments[taskId].findIndex(c => c.comment_uuid === incoming.comment_uuid);
+                    if (idx !== -1) {
+                        state.taskComments[taskId][idx] = incoming;
+                    }
+                }
+                // If existing.comment_added_locally === true, keep the local
+                // copy (our own optimistic update).  The server copy will
+                // replace it once the API response arrives and we clear the
+                // added_locally flag (or SWR merges it later).
+            }
         },
 
         updateTaskComment: (state, action: {payload: UpdateComment}) => {
@@ -274,6 +301,11 @@ export const createTaskCommentSlice = createSlice({
 
         createNewTaskComment: (state, action: {payload: CreateComment}) => {
             const {taskId, commentText, commentCreatedAt, commentId, commentBy, attachments} = action.payload;
+            // Guard: skip if comment already exists (prevents duplicate from
+            // API response + MQTT echo race).
+            if (!commentId || state.taskComments[taskId]?.find(c => c.comment_uuid === commentId)) {
+                return
+            }
             if(!state.taskComments[taskId]) {
                 state.taskComments[taskId] = [] as CommentInfoInterface[]
             }
@@ -283,7 +315,6 @@ export const createTaskCommentSlice = createSlice({
                 comment_created_at: commentCreatedAt,
                 comment_text: commentText,
                 comment_uuid: commentId,
-                comment_added_locally: true, // not seen by user yet
                 comment_attachments: attachments
             })
         },
@@ -334,7 +365,8 @@ export const createTaskCommentSlice = createSlice({
                     uid: reactionId,
                     reaction_added_by: addedBy,
                     reaction_added_at: new Date().toISOString(),
-                    reaction_on_content_added_by: addedBy
+                    reaction_on_content_added_by: addedBy,
+                    added_locally: true
                 })
             }
         },
@@ -349,13 +381,27 @@ export const createTaskCommentSlice = createSlice({
                         c.comment_reactions = [] as GroupedReaction[]
                     }
 
-                    c.comment_reactions.push({
-                        reaction_emoji_id: emojiId,
-                        uid: reactionId,
-                        reaction_added_by: addedBy,
-                        reaction_added_at: new Date().toISOString(),
-                        reaction_on_content_added_by: addedBy
-                    })
+                    // Idempotent: a user can only hold one reaction per emoji
+                    // on a given comment. Dedup by (user, emoji); upgrade
+                    // temp uid to real uid instead of pushing a duplicate row.
+                    const existingIdx = c.comment_reactions.findIndex(
+                        (r) =>
+                            r.reaction_emoji_id === emojiId &&
+                            r.reaction_added_by?.user_uuid === addedBy?.user_uuid,
+                    )
+                    if (existingIdx > -1) {
+                        if (c.comment_reactions[existingIdx].uid !== reactionId) {
+                            c.comment_reactions[existingIdx].uid = reactionId
+                        }
+                    } else {
+                        c.comment_reactions.push({
+                            reaction_emoji_id: emojiId,
+                            uid: reactionId,
+                            reaction_added_by: addedBy,
+                            reaction_added_at: new Date().toISOString(),
+                            reaction_on_content_added_by: addedBy
+                        })
+                    }
                 }
                 return c
             })

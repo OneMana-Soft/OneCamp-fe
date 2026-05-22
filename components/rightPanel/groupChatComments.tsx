@@ -12,7 +12,7 @@ import {CommentsList} from "@/components/rightPanel/commentsList";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
 import {cn} from "@/lib/utils/helpers/cn";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import {SendHorizontal} from "lucide-react";
+import { SendHorizontal } from "@/lib/icons";
 import {usePost} from "@/hooks/usePost";
 import {
     CreateCommentResInterface,
@@ -26,6 +26,7 @@ import {openUI} from "@/store/slice/uiSlice";
 
 import {CreateOrUpdateChatReaction, CreateOrUpdateCommentReaction} from "@/types/reaction";
 import {ChatInfoRes, CreateOrUpdateChatsReq} from "@/types/chat";
+import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {
     addChatComments,
     clearChatCommentInputState,
@@ -189,12 +190,15 @@ export const GroupChatComments = () => {
 
     const handleUpdateChatComment = ( commentUUID: string, commentHTMLText: string, commentIndex: number) => {
 
+        const trimmedHtml = removeEmptyPTags(commentHTMLText)
+        if (!trimmedHtml) return
+
         post.makeRequest<CreateUpdateCommentReqInterface>({
             apiEndpoint: PostEndpointUrl.UpdateChatComment,
             payload: {
                 chat_id: rightPanelState.data.chatMessageUUID,
                 comment_id: commentUUID,
-                comment_text_html: commentHTMLText
+                comment_text_html: trimmedHtml
             },
             showToast: true
         })
@@ -204,7 +208,7 @@ export const GroupChatComments = () => {
                     dispatch(updateChatComment({
                         commentIndex: commentIndex,
                         chatId: rightPanelState.data.chatMessageUUID,
-                        htmlText: commentHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                 }
 
@@ -213,11 +217,14 @@ export const GroupChatComments = () => {
 
     const handleUpdateChat = (postHTMLText: string, messageId: string) => {
 
+        const trimmedHtml = removeEmptyPTags(postHTMLText)
+        if (!trimmedHtml) return
+
         post.makeRequest<CreateOrUpdateChatsReq>({
             apiEndpoint: PostEndpointUrl.UpdateGroupChatMessage,
             payload: {
                 chat_id: messageId,
-                text_html: postHTMLText,
+                text_html: trimmedHtml,
                 grp_id: rightPanelState.data.groupUUID
             },
             showToast: true
@@ -228,33 +235,38 @@ export const GroupChatComments = () => {
                     dispatch(updateGroupChatByChatId({
                         grpId: rightPanelState.data.groupUUID,
                         messageId,
-                        htmlText: postHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                     // Sync sidebar preview
                     dispatch(UpdateMessageTextInChatList({
                         grpId: rightPanelState.data.groupUUID,
                         messageId,
-                        htmlText: postHTMLText,
+                        htmlText: trimmedHtml,
                     }))
                 }
 
             })
     }
 
-    const handleSend = () => {
+    const handleSend = (latestContent?: string) => {
+
+        const rawBody = latestContent ?? chatCommentInputState.commentBody
+        const body = removeEmptyPTags(rawBody)
+        const hasAttachments = (chatCommentInputState.filesUploaded?.length || 0) > 0
+        if (!body && !hasAttachments) return
 
         post.makeRequest<CreateUpdateCommentReqInterface, CreateCommentResInterface>({
             apiEndpoint: PostEndpointUrl.CreateChatComment,
             payload: {
                 chat_id: rightPanelState.data.chatMessageUUID,
                 comment_attachments: chatCommentInputState.filesUploaded,
-                comment_text_html: chatCommentInputState.commentBody,
+                comment_text_html: body,
             }
         })
             .then((res)=>{
 
                 if(res?.comment_id && selfProfile.data?.data) {
-                    dispatch(createChatComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: chatCommentInputState.commentBody, chatId: rightPanelState.data.chatMessageUUID, commentBy: selfProfile.data?.data, attachments:chatCommentInputState.filesUploaded}))
+                    dispatch(createChatComment({commentId: res?.comment_id, commentCreatedAt: res?.comment_created_at, commentText: body, chatId: rightPanelState.data.chatMessageUUID, commentBy: selfProfile.data?.data, attachments:chatCommentInputState.filesUploaded}))
                     dispatch(updateGroupChatMessageReplyIncrement({messageId: rightPanelState.data.chatMessageUUID, grpId: rightPanelState.data.groupUUID, comment: {comment_uuid: res?.comment_id || '', comment_created_at: res?.comment_created_at || new Date().toISOString(), comment_text: "", comment_by: selfProfile.data?.data || {user_uuid: '', user_name: '', user_profile_object_key: ''}}}))
 
                 }
@@ -460,7 +472,7 @@ export const GroupChatComments = () => {
                     }}
                     ButtonIcon={SendHorizontal}
                     buttonOnclick={handleSend}
-                    className={cn("max-w-full rounded-xl h-auto border p-2 bg-secondary/20")}
+                    className={cn("max-w-full rounded-xl h-auto border p-2 bg-muted/30")}
                     editorContentClassName="overflow-auto"
                     output="html"
                     placeholder={"Add a message, if you'd like..."}

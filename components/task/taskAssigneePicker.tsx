@@ -4,7 +4,7 @@ import React from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { ChevronsUpDown, Check } from "lucide-react"
+import { ChevronsUpDown, Check } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
 import {UserProfileDataInterface} from "@/types/user";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
@@ -22,18 +22,18 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
     const [open, setOpen] = React.useState(false)
 
     return (
-        <div className="grid items-center grid-cols-6 mb-2">
-            <div className="col-span-1">
-                <span className="text-xs capitalize">{label}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-2">
+            <div className="sm:col-span-1">
+                <span className="text-xs capitalize text-muted-foreground sm:text-foreground">{label}</span>
             </div>
-            <div className="col-span-5 md:-ml-4 ">
+            <div className="sm:col-span-5 sm:-ml-0 md:-ml-4 ">
                 <Popover open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild>
                         <Button
                             variant="ghost"
                             role="combobox"
                             aria-expanded={open}
-                            className="w-[220px] justify-between font-normal h-10 bg-transparent group hover:bg-muted/40 transition-all duration-300 rounded-xl px-4"
+                            className="w-full max-w-[220px] justify-between font-normal h-10 bg-transparent group hover:bg-muted/40 transition-all duration-300 rounded-xl px-4"
                             disabled={!isAdmin}
                         >
                             <div className='flex text-sm font-medium gap-x-2 items-center truncate'>
@@ -61,7 +61,7 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                             }}
                                             className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
                                         >
-                                            <span className="flex-1 font-semibold text-sm">{member.user_name}</span>
+                                            <span className="flex-1 font-medium text-sm">{member.user_name}</span>
                                             <Check
                                                 className={cn(
                                                     "ml-auto h-4 w-4 text-primary",

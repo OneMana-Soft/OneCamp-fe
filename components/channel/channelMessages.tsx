@@ -33,6 +33,7 @@ import { MessageListVirtua } from "@/components/message/MessaageListVirtua"
 import type { VListHandle } from "virtua"
 import type { RootState } from "@/store/store"
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
+import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 
 interface ChannelMessagesProps {
     posts: PostsRes[]
@@ -244,6 +245,10 @@ export const ChannelMessages = ({
     }
 
     const handleUpdatePost = (postHTMLText: string, postId: string) => {
+        // Trim leading/trailing empty paragraphs and whitespace before sending.
+        const trimmedHtml = removeEmptyPTags(postHTMLText)
+        if (!trimmedHtml) return
+
         // Store for revert
         const originalPost = posts.find(p => p.post_uuid === postId);
         const originalText = originalPost?.post_text || "";
@@ -253,7 +258,7 @@ export const ChannelMessages = ({
             updatePostByPostId({
                 postId: postId,
                 channelId: channelId,
-                htmlText: postHTMLText,
+                htmlText: trimmedHtml,
             }),
         )
 
@@ -262,7 +267,7 @@ export const ChannelMessages = ({
                 apiEndpoint: PostEndpointUrl.UpdateChannelPost,
                 payload: {
                     post_id: postId,
-                    post_text_html: postHTMLText,
+                    post_text_html: trimmedHtml,
                 },
                 showToast: false, // Cleaner UX with optimism
                 showErrorToast: true,

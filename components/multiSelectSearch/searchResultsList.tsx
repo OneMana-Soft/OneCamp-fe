@@ -31,8 +31,8 @@ export function SearchResultsList<T extends SearchableItem>({
                     onMouseEnter={() => onHighlight(index)}
                     className={cn(
                         "cursor-pointer px-3 py-2",
-                        "hover:bg-gray-400/10",
-                        selectedIndex === index && "bg-gray-400/10",
+                        "hover:bg-accent",
+                        selectedIndex === index && "bg-accent",
                     )}
                 >
                     {renderItem ? renderItem(item, selectedIndex === index) : <DefaultSearchResultItem item={item} />}

@@ -1,7 +1,8 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, SkipBack, SkipForward, Settings } from "lucide-react"
+import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, Settings } from "@/lib/icons";
+import { SkipBack, SkipForward } from "@/lib/icons";
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"

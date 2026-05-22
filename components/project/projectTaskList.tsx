@@ -1,11 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
+import { openUI } from "@/store/slice/uiSlice"
 import {
-    clearProjectSortingFilteringAndTask,
     clearProjectTask,
     type filterInterface,
     type sortingAndFilterOptionInterface,
@@ -19,11 +19,16 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { CreateTaskInterface, TaskInfoInterface } from "@/types/task"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
 import { TaskListTask } from "@/components/task/taskListTask"
-import TouchableDiv from "@/components/animation/touchRippleAnimation"
 import { usePost } from "@/hooks/usePost"
 import { useAnimationState } from "@/hooks/useAnimationState"
-import { mutate } from "swr"
 import { useTaskUpdate } from "@/hooks/useTaskUpdate"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { Github, Unlink, X } from "@/lib/icons";
+import { ListChecks } from "lucide-react";
+import { useToast } from "@/hooks/use-toast"
+import axiosInstance from "@/lib/axiosInstance"
 
 
 interface getURLPramInput {
@@ -71,11 +76,17 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
     const post = usePost()
     const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate();
     const { animatingSubtasks, triggerAnimation } = useAnimationState()
+    const { toast } = useToast()
+
+    const [selectionMode, setSelectionMode] = useState(false)
+    const [selectedTaskUUIDs, setSelectedTaskUUIDs] = useState<Set<string>>(new Set())
+    const [bulkUnlinking, setBulkUnlinking] = useState(false)
 
     const taskListState =
         useSelector((state: RootState) => state.taskFilter.projectsTaskList[projectId]) || ([] as TaskInfoInterface[])
     const taskFiltersAndSorts =
         useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId]) || EMPTY_SORT_FILTER
+    const githubBulkLinkOpen = useSelector((state: RootState) => state.ui.githubBulkLinkTask.isOpen)
 
     const projectInfo = useFetch<ProjectInfoRawInterface>(
         projectId && urlParams ? GetEndpointUrl.GetProjectTaskList + "/" + projectId + "?" + urlParams : "",
@@ -88,6 +99,10 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
     }, [pageIndex, pathname, router])
 
     useLayoutEffect(() => {
+        // Reset this project's task list slot on mount / project switch
+        // so a previous project's tasks never bleed in while we wait
+        // for the new fetch. Same defence-in-depth as MyTaskList.
+        dispatch(clearProjectTask({ projectId }))
         setUrlParams("")
     }, [projectId])
 
@@ -185,38 +200,180 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
                 updateTaskStatus(task_uuid, newStatus)
             } catch (error) {
                 console.error("Error handling subtask status toggle:", error)
-                // Fallback to direct toggle without animation
                 updateTaskStatus(task_uuid, newStatus)
             }
         },
         [updateTaskStatus, triggerAnimation],
     )
 
-    const handleRenderIndex = (taskInfo: TaskInfoInterface) => {
-        return (
-            <TouchableDiv rippleBrightness={0.8} rippleDuration={800} className=" m-2 rounded-2xl ">
-                <TaskListTask
-                    taskInfo={taskInfo}
-                    isAdmin={projectInfo.data?.data.project_is_admin || false}
-                    onToggleStatus={handleToggleStatusWithAnimation}
-                    isAnimating={animatingSubtasks.has(taskInfo.task_uuid)}
-                />
-            </TouchableDiv>
-        )
-    }
+    const handleToggleSelect = useCallback((taskUUID: string) => {
+        setSelectedTaskUUIDs(prev => {
+            const next = new Set(prev)
+            if (next.has(taskUUID)) {
+                next.delete(taskUUID)
+            } else {
+                next.add(taskUUID)
+            }
+            return next
+        })
+    }, [])
 
-    const handleItemKey = (taskInfo: TaskInfoInterface) => {
+    const handleSelectAll = useCallback(() => {
+        if (selectedTaskUUIDs.size === taskListState.length) {
+            setSelectedTaskUUIDs(new Set())
+        } else {
+            setSelectedTaskUUIDs(new Set(taskListState.map(t => t.task_uuid)))
+        }
+    }, [selectedTaskUUIDs.size, taskListState])
+
+    const handleExitSelectionMode = useCallback(() => {
+        setSelectionMode(false)
+        setSelectedTaskUUIDs(new Set())
+    }, [])
+
+    // Exit selection mode when bulk link dialog closes
+    const prevBulkLinkOpen = useRef(githubBulkLinkOpen)
+    useEffect(() => {
+        if (prevBulkLinkOpen.current && !githubBulkLinkOpen) {
+            handleExitSelectionMode()
+            revalidateTaskKeys(projectId)
+        }
+        prevBulkLinkOpen.current = githubBulkLinkOpen
+    }, [githubBulkLinkOpen, handleExitSelectionMode, revalidateTaskKeys, projectId])
+
+    const handleBulkUnlink = useCallback(async () => {
+        if (selectedTaskUUIDs.size === 0) return
+        setBulkUnlinking(true)
+        try {
+            const res = await post.makeRequest<{ task_uuids: string[] }, { success_count: number }>({
+                apiEndpoint: PostEndpointUrl.GitHubBulkUnlink,
+                payload: { task_uuids: Array.from(selectedTaskUUIDs) },
+                showErrorToast: true,
+            })
+            toast({
+                title: "Unlinked",
+                description: `Removed GitHub links from ${res?.success_count || selectedTaskUUIDs.size} tasks.`,
+            })
+            handleExitSelectionMode()
+            revalidateTaskKeys(projectId)
+        } catch {
+            // Error toast handled by usePost
+        } finally {
+            setBulkUnlinking(false)
+        }
+    }, [selectedTaskUUIDs, projectId, revalidateTaskKeys, handleExitSelectionMode, post])
+
+    const isAdmin = projectInfo.data?.data.project_is_admin || false
+
+    const handleRenderIndex = useCallback((taskInfo: TaskInfoInterface) => {
+        return (
+            <TaskListTask
+                taskInfo={taskInfo}
+                isAdmin={isAdmin}
+                onToggleStatus={handleToggleStatusWithAnimation}
+                isAnimating={animatingSubtasks.has(taskInfo.task_uuid)}
+                selectionMode={selectionMode}
+                isSelected={selectedTaskUUIDs.has(taskInfo.task_uuid)}
+                onToggleSelect={handleToggleSelect}
+            />
+        )
+    }, [isAdmin, handleToggleStatusWithAnimation, animatingSubtasks, selectionMode, selectedTaskUUIDs, handleToggleSelect])
+
+    const handleItemKey = useCallback((taskInfo: TaskInfoInterface) => {
         return taskInfo.task_uuid
-    }
+    }, [])
 
     return (
-        <VirtualInfiniteScroll
-            onLoadMore={handleLoadMore}
-            hasMore={(projectInfo.data?.pageCount || 0) > pageIndex}
-            items={taskListState || []}
-            renderItem={handleRenderIndex}
-            isLoading={projectInfo.isLoading}
-            keyExtractor={handleItemKey}
-        />
+        <div className="relative flex-1 min-h-0 flex flex-col">
+            {/* Selection mode toggle */}
+            {isAdmin && (
+                <div className="flex items-center justify-between px-2 py-1.5 flex-shrink-0">
+                    {selectionMode ? (
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs gap-1"
+                                onClick={handleSelectAll}
+                            >
+                                <ListChecks className="h-3.5 w-3.5" />
+                                {selectedTaskUUIDs.size === taskListState.length ? "Deselect All" : "Select All"}
+                            </Button>
+                            <Badge variant="secondary" className="text-xs">
+                                {selectedTaskUUIDs.size} selected
+                            </Badge>
+                        </div>
+                    ) : (
+                        <div />
+                    )}
+                    <Button
+                        variant={selectionMode ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs gap-1"
+                        onClick={() => {
+                            if (selectionMode) {
+                                handleExitSelectionMode()
+                            } else {
+                                setSelectionMode(true)
+                            }
+                        }}
+                    >
+                        {selectionMode ? (
+                            <><X className="h-3.5 w-3.5" /> Done</>
+                        ) : (
+                            <><ListChecks className="h-3.5 w-3.5" /> Select</>
+                        )}
+                    </Button>
+                </div>
+            )}
+            <Separator className="shrink-0" />
+
+            <VirtualInfiniteScroll
+                onLoadMore={handleLoadMore}
+                hasMore={(projectInfo.data?.pageCount || 0) > pageIndex}
+                items={taskListState || []}
+                renderItem={handleRenderIndex}
+                isLoading={projectInfo.isLoading}
+                keyExtractor={handleItemKey}
+            />
+
+            {/* Floating action bar */}
+            {selectionMode && selectedTaskUUIDs.size > 0 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
+                    <div className="flex items-center gap-2 bg-card/95 backdrop-blur-sm border shadow-lg rounded-full px-4 py-2">
+                        <Badge variant="secondary" className="text-xs rounded-full">
+                            {selectedTaskUUIDs.size}
+                        </Badge>
+                        <Button
+                            size="sm"
+                            className="h-7 text-xs gap-1.5 rounded-full"
+                            onClick={() => dispatch(openUI({ key: 'githubBulkLinkTask', data: { taskIds: Array.from(selectedTaskUUIDs) } }))}
+                        >
+                            <Github className="h-3.5 w-3.5" />
+                            Link to GitHub
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1.5 rounded-full text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10"
+                            onClick={handleBulkUnlink}
+                            disabled={bulkUnlinking}
+                        >
+                            <Unlink className="h-3.5 w-3.5" />
+                            Unlink GitHub
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 rounded-full"
+                            onClick={handleExitSelectionMode}
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+        </div>
     )
 }

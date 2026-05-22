@@ -37,7 +37,7 @@ export function TaskStatusPriorityControl({
     const [openPriority, setOpenPriority] = React.useState(false)
 
     return (
-            <div className="flex space-x-2 mb-6 -ml-2">
+            <div className="flex flex-wrap gap-2 mb-6 -ml-2">
                 <Popover open={openStatus} onOpenChange={setOpenStatus} >
                     <Tooltip>
                         <PopoverTrigger asChild>

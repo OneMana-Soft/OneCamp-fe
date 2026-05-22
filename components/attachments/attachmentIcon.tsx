@@ -1,5 +1,6 @@
 import Image from "next/image";
-import {File, FileAudio2, FileImage, FileText, FileVideo, Play} from "lucide-react";
+import { File, FileImage, FileText, FileVideo, Play } from "@/lib/icons";
+import { FileAudio2 } from "@/lib/icons";
 import {useEffect, useState} from "react";
 import {useMediaFetch} from "@/hooks/useFetch";
 import {GetMediaURLRes} from "@/types/file";

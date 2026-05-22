@@ -50,6 +50,7 @@ export type GroupedReaction = {
     reaction_added_by: UserProfileDataInterface
     reaction_on_content_added_by: UserProfileDataInterface
     custom_content?: SyncCustomReaction | null
+    added_locally?: boolean
 }
 
 export interface ReactionActivity extends GroupedReaction {

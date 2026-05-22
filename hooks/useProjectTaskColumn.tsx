@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { priorities, taskStatuses } from "@/types/table";
 import {format} from "date-fns";
-import {Calendar, GitBranch, MessageSquare} from "lucide-react";
+import { Calendar, GitBranch, MessageSquare } from "@/lib/icons";
 import {prioritiesInterface} from "@/types/table";
 import {TaskTableColumnHeader} from "@/components/task/taskTableColumnHeader";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";

@@ -1,60 +1,74 @@
-import {Search, X} from "lucide-react";
-import {Input} from "@/components/ui/input";
-import {cn} from "@/lib/utils/helpers/cn";
-import {Button} from "@/components/ui/button";
-import {useCallback, useRef, useState} from "react";
-import {sanitizeFilterQuery} from "@/lib/utils/sanitizeFilterQuery";
+"use client"
+
+import { Search, X } from "@/lib/icons"
+import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils/helpers/cn"
+import { useCallback, useRef } from "react"
+import { sanitizeFilterQuery } from "@/lib/utils/sanitizeFilterQuery"
 
 interface SearchFieldProps {
-    placeholder: string;
-    value: string;
-    onChange: (value: string) => void;
-
+    placeholder: string
+    value: string
+    onChange: (value: string) => void
+    className?: string
 }
-export const SearchField: React.FC<SearchFieldProps> = ({placeholder, value, onChange}) => {
+
+export const SearchField: React.FC<SearchFieldProps> = ({
+    placeholder,
+    value,
+    onChange,
+    className,
+}) => {
     const searchRef = useRef<HTMLInputElement>(null)
+
     const handleClear = () => {
         onChange("")
         searchRef.current?.focus()
-
     }
 
-
-    const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const sanitized = sanitizeFilterQuery(e.target.value)
-        onChange(sanitized)
-    }, [])
-
-
+    const handleChange = useCallback(
+        (e: React.ChangeEvent<HTMLInputElement>) => {
+            const sanitized = sanitizeFilterQuery(e.target.value)
+            onChange(sanitized)
+        },
+        [onChange],
+    )
 
     return (
-        <div className="relative flex justify-center items-center">
-            <div className="absolute left-3 bottom-[2] md:bottom-[6] -translate-y-1/2 transform text-zinc-500">
-                <Search className="h-5 w-5"/> {/* Magnifying glass icon */}
-            </div>
+        <div className={cn("relative flex items-center px-3 md:px-4 py-2", className)}>
+            <Search
+                className="absolute left-5 md:left-6 h-4 w-4 text-muted-foreground pointer-events-none"
+                aria-hidden
+            />
             <Input
+                ref={searchRef}
                 type="search"
                 placeholder={placeholder}
                 value={value}
                 onChange={handleChange}
                 className={cn(
-                    "h-10 md:h-12 w-full pl-10 border-r-0 border-l-0 pr-10 rounded-none pb-2 pt-2", // Increased font size and left padding for the icon
-                    "placeholder:text-zinc-500",
-                    "shadow-sm",
-                    "focus-visible:ring-0 focus-visible:ring-zinc-500",
+                    "h-9 w-full pl-8 pr-8 rounded-md",
+                    "bg-muted/40 border-transparent shadow-none",
+                    "placeholder:text-muted-foreground/80 text-sm",
+                    "focus-visible:ring-1 focus-visible:ring-ring/40 focus-visible:bg-background focus-visible:border-border",
                     "transition-colors",
-                    "[&::-webkit-search-cancel-button]:appearance-none" // Hide default clear icon
+                    "[&::-webkit-search-cancel-button]:appearance-none",
                 )}
-                ref={searchRef}
             />
             {value && (
-                <Button
-                    variant='secondary'
+                <button
+                    type="button"
                     onClick={handleClear}
-                    className="absolute right-2 top-1/2 !h-6  -translate-y-1/2 transform rounded p-1 text-zinc-500 hover:cursor-pointer"
+                    aria-label="Clear search"
+                    className={cn(
+                        "absolute right-5 md:right-6 h-5 w-5 rounded",
+                        "flex items-center justify-center",
+                        "text-muted-foreground hover:text-foreground hover:bg-accent",
+                        "transition-colors",
+                    )}
                 >
-                    <X className="h-4 w-4"/> {/* Custom clear icon */}
-                </Button>
+                    <X className="h-3.5 w-3.5" />
+                </button>
             )}
         </div>
     )

@@ -7,33 +7,43 @@
 }
 
 .minimal-tiptap-editor .ProseMirror h1 {
-  @apply mb-4 mt-[46px] text-[1.375rem] leading-7 tracking-[-0.004375rem];
+  @apply mb-4 mt-8 text-3xl leading-tight tracking-tight;
+  font-weight: 700;
 }
 
 .minimal-tiptap-editor .ProseMirror h2 {
-  @apply mb-3.5 mt-8 text-[1.1875rem] leading-7 tracking-[0.003125rem];
+  @apply mb-3 mt-6 text-2xl leading-snug tracking-tight;
+  font-weight: 600;
 }
 
 .minimal-tiptap-editor .ProseMirror h3 {
-  @apply mb-3 mt-6 text-[1.0625rem] leading-6 tracking-[0.00625rem];
+  @apply mb-2 mt-5 text-xl leading-snug tracking-tight;
+  font-weight: 600;
 }
 
 .minimal-tiptap-editor .ProseMirror h4 {
-  @apply mb-2 mt-4 text-[0.9375rem] leading-6;
+  @apply mb-2 mt-4 text-lg leading-snug;
+  font-weight: 600;
 }
 
 .minimal-tiptap-editor .ProseMirror h5 {
-  @apply mb-2 mt-4 text-sm;
+  @apply mb-2 mt-4 text-base leading-snug;
+  font-weight: 600;
 }
 
-.minimal-tiptap-editor .ProseMirror h5 {
-  @apply mb-2 mt-4 text-sm;
+.minimal-tiptap-editor .ProseMirror h6 {
+  @apply mb-2 mt-4 text-sm leading-snug;
+  font-weight: 600;
+}
+
+.minimal-tiptap-editor .ProseMirror p {
+  @apply leading-relaxed;
 }
 
 .minimal-tiptap-editor .ProseMirror a.link {
-  @apply cursor-pointer text-primary;
+  @apply cursor-pointer text-primary underline underline-offset-4 decoration-primary/30 hover:decoration-primary transition-all;
 }
 
 .minimal-tiptap-editor .ProseMirror a.link:hover {
-  @apply underline;
+  @apply decoration-primary;
 }

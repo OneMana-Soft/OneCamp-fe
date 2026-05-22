@@ -2,7 +2,7 @@
 
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
-import { SendHorizontal } from "lucide-react";
+import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
 import { ChannelFileUpload } from "@/components/fileUpload/channelFileUpload";
@@ -21,11 +21,9 @@ import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-
-
 const EMPTY_CHAT_INPUT_STATE = {};
 
-export const MobileChatTextInput = ({ chatId, handleSend }: { chatId: string, handleSend: ()=>void }) => {
+export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string)=>void}) => {
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const uploadFile = useUploadFile()
     const editorRef = useRef<HTMLDivElement>(null);
@@ -68,17 +66,18 @@ export const MobileChatTextInput = ({ chatId, handleSend }: { chatId: string, ha
                             await uploadFile.makeRequestToUploadToChat(files as unknown as FileList, chatId, grpId);
                         }}
                         throttleDelay={300}
-                        className={cn("max-w-full rounded-xl h-auto border-none")}
+                        noBorder={true}
+                        className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatInputState.chatBody}
-                        placeholder={"message"}
+                        placeholder={"Type a message..."}
                         editable={true}
                         buttonOnclick={handleSend}
                         ButtonIcon={SendHorizontal}
                         editorClassName="focus:outline-none px-5"
                         onChange={(content ) => {
-                            publishTyping()
+                            publishTyping(content?.toString() || '')
                             dispatch(createOrUpdateChatBody({chatUUID: chatId, body: content?.toString()||'' }))
                         }}
                         fixedToolbarToBottom={true}
@@ -89,7 +88,6 @@ export const MobileChatTextInput = ({ chatId, handleSend }: { chatId: string, ha
                     </MinimalTiptapTextInput>
                     <div className='pb-2'>
                         <ChatFileUpload chatUUID={chatId}/>
-
                     </div>
                 </div>
             </div>

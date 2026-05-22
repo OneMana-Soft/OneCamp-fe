@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { cn } from '@/lib/utils/helpers/cn'
-import {LoaderCircle} from "lucide-react";
+import { LoaderCircle } from "@/lib/icons";
 
 export const ImageOverlay = React.memo(() => {
   return (

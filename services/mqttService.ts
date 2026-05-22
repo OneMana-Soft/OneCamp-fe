@@ -25,6 +25,8 @@ export enum MqttMessageType {
     Activity,
     Channel_call,
     Chat_call,
+    GitHub_Sync,
+    Archive_Job_Status,
 }
 
 export enum MqttActionType {
@@ -325,6 +327,31 @@ interface rawMsgActivityInterface {
     data: msgActivityInterface
 }
 
+export interface msgGitHubSyncInterface {
+    task_uuid: string
+    sync_type: string
+    project_uuid: string
+    payload?: {
+        name?: string
+        description?: string
+        status?: string
+        label?: string
+        assignee_uuid?: string
+        assignee_name?: string
+        pr_state?: string
+        pr_is_draft?: boolean
+        check_status?: string
+        branch?: string
+        comment_uuid?: string
+        body?: string
+    }
+}
+
+interface rawMsgGitHubSyncInterface {
+    type: number
+    data: msgGitHubSyncInterface
+}
+
 
 class MqttService {
     parsePostMsg(messageStr: string) {
@@ -443,6 +470,11 @@ class MqttService {
     parseActivityMsg(messageStr: string) {
         const rawActivity: rawMsgActivityInterface = JSON.parse(messageStr)
         return rawActivity
+    }
+
+    parseGitHubSyncMsg(messageStr: string) {
+        const rawGitHubSync: rawMsgGitHubSyncInterface = JSON.parse(messageStr)
+        return rawGitHubSync
     }
 
 }

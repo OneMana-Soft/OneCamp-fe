@@ -5,7 +5,7 @@ import {ImageAttachmentCard} from "@/components/attachmentCard/imageAttachmentCa
 import {VideoAttachmentCard} from "@/components/attachmentCard/videoAttachmentCard";
 import {useMediaFetch} from "@/hooks/useFetch";
 import {GetMediaURLRes} from "@/types/file";
-import {EyeOff, Play} from "lucide-react";
+import { EyeOff, Play } from "@/lib/icons";
 import {cn} from "@/lib/utils/helpers/cn";
 
 function getApproximateAspectRatio(val: number, lim = 10) {

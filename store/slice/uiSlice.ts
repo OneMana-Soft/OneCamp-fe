@@ -54,6 +54,19 @@ export interface RootUIState {
   addInvitation: SingleUIState;
   createCalendarEvent: SingleUIState;
   
+  // Admin card dialogs
+  webhookCreate: SingleUIState;
+  webhookEdit: SingleUIState<{ id: string; name: string; description?: string; type: "incoming" | "outgoing"; target_url?: string; bot_name: string; events?: string; is_active: boolean }>;
+  webhookDelete: SingleUIState<{ id: string; name: string; type: "incoming" | "outgoing" }>;
+  githubDisconnect: SingleUIState;
+  githubUnlink: SingleUIState<{ id: string; repo_owner: string; repo_name: string }>;
+  archiveEditPolicy: SingleUIState<{ id: string; entity_type: string; retention_days: number; auto_archive: boolean; archive_completed_tasks: boolean; archive_inactive_channels_days: number; compress_attachments: boolean }>;
+  archiveRunJob: SingleUIState<{ entityLabel: string; entityType: string }>;
+  archiveRestore: SingleUIState;
+  githubLinkTask: SingleUIState<{ taskId: string }>;
+  githubBulkLinkTask: SingleUIState<{ taskIds: string[] }>;
+  createBranch: SingleUIState<{ taskId: string; taskName: string }>;
+  
   // Drawers/Sheets
   orgProfileDrawer: SingleUIState;
   userProfileDrawer: SingleUIState;
@@ -126,6 +139,19 @@ const initialState: RootUIState = {
   teamMembers: { isOpen: false, data: { teamUUID: "", teamName: "" } },
   addInvitation: { isOpen: false, data: null },
   createCalendarEvent: { isOpen: false, data: null },
+
+  // Admin card dialogs
+  webhookCreate: { isOpen: false, data: null },
+  webhookEdit: { isOpen: false, data: { id: "", name: "", description: "", type: "incoming" as const, target_url: "", bot_name: "Webhook Bot", events: "[]", is_active: true } },
+  webhookDelete: { isOpen: false, data: { id: "", name: "", type: "incoming" as const } },
+  githubDisconnect: { isOpen: false, data: null },
+  githubUnlink: { isOpen: false, data: { id: "", repo_owner: "", repo_name: "" } },
+  archiveEditPolicy: { isOpen: false, data: { id: "", entity_type: "", retention_days: 365, auto_archive: false, archive_completed_tasks: true, archive_inactive_channels_days: 90, compress_attachments: false } },
+  archiveRunJob: { isOpen: false, data: { entityLabel: "", entityType: "" } },
+  archiveRestore: { isOpen: false, data: null },
+  githubLinkTask: { isOpen: false, data: { taskId: "" } },
+  githubBulkLinkTask: { isOpen: false, data: { taskIds: [] as string[] } },
+  createBranch: { isOpen: false, data: { taskId: "", taskName: "" } },
   
   // Drawers/Sheets
   orgProfileDrawer: { isOpen: false, data: null },

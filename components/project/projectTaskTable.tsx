@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
     type ColumnFiltersState,
     type SortingState,
@@ -17,7 +17,7 @@ import {
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-import { LoaderCircle } from "lucide-react"
+import { LoaderCircle } from "@/lib/icons";
 import { useDebounce } from "@/hooks/useDebounce"
 import { TaskTablePagination } from "@/components/task/taskTablePagination"
 import { TaskTableToolbar } from "@/components/task/taskTableToolbar"
@@ -26,7 +26,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import {useDispatch, useSelector} from "react-redux";
-import {createListForTaskInfo, TaskInfoInputState} from "@/store/slice/taskInfoSlice";
+import {createListForTaskInfo, clearTaskListVisibleInfo, TaskInfoInputState} from "@/store/slice/taskInfoSlice";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import {useTranslation} from "react-i18next";
@@ -123,6 +123,15 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
             prevColumnFiltersRef.current = columnFilters
         }
     }, [taskSearchString, columnFilters])
+
+    useLayoutEffect(() => {
+        // Reset taskListVisibleInfo on mount / project change so a
+        // previous project's tasks (or my-task entries) never show
+        // through while we wait for the new fetch. The slot is shared
+        // between myTaskTable and projectTaskTable in
+        // taskInfoSlice.
+        dispatch(clearTaskListVisibleInfo())
+    }, [projectId])
 
     useEffect(() => {
 

@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useRef, useEffect, useMemo } from "react"
-import { Loader2, X } from "lucide-react"
+import { Loader2, X } from "@/lib/icons";
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -162,13 +162,13 @@ export function MultiSelectSearch<T extends SearchableItem>({
                 />
                 {isLoading && (
                     <div className="flex-shrink-0">
-                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
                 )}
             </div>
 
             {isOpen && (filteredResults.length > 0 || isLoading) && (
-                <div ref={dropdownRef} className="absolute z-10 mt-1 w-full rounded-md border bg-background shadow-lg">
+                <div ref={dropdownRef} className="absolute z-[var(--z-dropdown)] mt-1 w-full rounded-md border bg-background shadow-lg">
                     <SearchResultsList
                         items={filteredResults}
                         selectedIndex={selectedIndex}

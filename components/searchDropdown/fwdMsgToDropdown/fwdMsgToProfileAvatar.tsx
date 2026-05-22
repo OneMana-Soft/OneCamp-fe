@@ -1,26 +1,34 @@
 "use client"
 
-import {useFetch, useMediaFetch} from "@/hooks/useFetch";
-import {GetMediaURLRes} from "@/types/file";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {getNameInitials} from "@/lib/utils/format/getNameIntials";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
+import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { getNameInitials } from "@/lib/utils/getNameInitials"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
+import { cn } from "@/lib/utils/helpers/cn"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface FwdMsgToProfileAvatarProps {
-    userProfileObjKey: string|undefined
+    userProfileObjKey: string | undefined
     userName: string
 }
-export const FwdMsgToProfileAvatar = ({userProfileObjKey, userName}: FwdMsgToProfileAvatarProps) => {
-    const profileImageRes = useMediaFetch<GetMediaURLRes>(userProfileObjKey ? GetEndpointUrl.PublicAttachmentURL+'/'+userProfileObjKey : '');
-    const nameInitial = getNameInitials(userName);
+
+export const FwdMsgToProfileAvatar = ({
+    userProfileObjKey,
+    userName,
+}: FwdMsgToProfileAvatarProps) => {
+    const { src: imageSrc } = useUserAvatar(userProfileObjKey)
+    const nameInitial = getNameInitials(userName)
 
     return (
         <Avatar className="w-6 h-6">
-            <AvatarImage src={profileImageRes.data?.url} className='rounded-full'/>
-            <AvatarFallback>
+            <AvatarImage src={imageSrc} />
+            <AvatarFallback
+                className={cn(
+                    "text-[9px] font-semibold",
+                    getAvatarFallbackClass(userName),
+                )}
+            >
                 {nameInitial}
             </AvatarFallback>
         </Avatar>
     )
 }
-

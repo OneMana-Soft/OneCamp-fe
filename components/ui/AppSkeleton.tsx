@@ -1,93 +1,76 @@
 "use client"
 
 import { Skeleton } from "@/components/ui/skeleton"
-import { motion } from "framer-motion"
-import {cn} from "@/lib/utils/helpers/cn";
+import { cn } from "@/lib/utils/helpers/cn"
 
+/**
+ * ChatSkeleton — placeholder for chat / channel / group thread surfaces
+ * while the initial fetch resolves. Matches the post-refactor density:
+ * 48px header chrome, 36px message avatars, gap-3 px-4 py-2.5 rows.
+ */
 export const ChatSkeleton = () => {
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.08
-      }
-    }
-  }
+    return (
+        <div className="flex flex-col h-full bg-background">
+            {/* Header chrome — 48px to match chatIdDesktop / SectionTabs */}
+            <div className="flex h-12 items-center gap-2.5 px-3 md:px-4 border-b border-border/60 shrink-0">
+                <Skeleton className="h-9 w-9 rounded-full" />
+                <div className="flex flex-col gap-1">
+                    <Skeleton className="h-3.5 w-32" />
+                    <Skeleton className="h-2.5 w-20" />
+                </div>
+                <div className="ml-auto flex gap-1">
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                </div>
+            </div>
 
-  const item = {
-    hidden: { opacity: 0, y: 10 },
-    show: { opacity: 1, y: 0 }
-  }
+            {/* Message stream */}
+            <div className="flex-1 overflow-hidden px-2 py-3 space-y-1">
+                {Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="flex items-start gap-3 px-2 py-2">
+                        <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex items-baseline gap-2">
+                                <Skeleton className="h-3 w-20" />
+                                <Skeleton className="h-2.5 w-10" />
+                            </div>
+                            <Skeleton className="h-3 w-[88%]" />
+                            <Skeleton
+                                className={cn(
+                                    "h-3",
+                                    i % 3 === 0 ? "w-[55%]" : i % 2 === 0 ? "w-[70%]" : "w-[40%]",
+                                )}
+                            />
+                        </div>
+                    </div>
+                ))}
+            </div>
 
-  return (
-    <motion.div 
-      variants={container}
-      initial="hidden"
-      animate="show"
-      className="flex flex-col h-full bg-background"
-    >
-      {/* Header Skeleton */}
-      <motion.div variants={item} className="flex items-center space-x-4 p-3 border-b">
-        <Skeleton className="h-10 w-10 rounded-full" />
-        <div className="space-y-2">
-          <Skeleton className="h-4 w-[150px]" />
-          <Skeleton className="h-3 w-[100px]" />
+            {/* Input chrome */}
+            <div className="px-3 md:px-4 py-3 border-t border-border/60 shrink-0">
+                <Skeleton className="h-12 w-full rounded-lg" />
+            </div>
         </div>
-        <div className="ml-auto flex space-x-2">
-           <Skeleton className="h-8 w-8 rounded-md" />
-           <Skeleton className="h-8 w-8 rounded-md" />
-        </div>
-      </motion.div>
-
-      {/* Messages Skeleton */}
-      <div className="flex-1 p-4 space-y-6 overflow-hidden">
-        {Array.from({ length: 15 }).map((_, i) => (
-          <motion.div 
-            key={i} 
-            variants={item}
-            className={`flex items-start space-x-3 }`}
-          >
-              <Skeleton className="h-12 w-12 rounded-full flex-shrink-0" />
-
-              <div className="flex-1 space-y-2">
-                  {/* Name and Time */}
-                  <div className="flex items-baseline space-x-2">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-3 w-12" />
-                  </div>
-
-                  {/* Message Body - Random widths for realism */}
-                  <div className="space-y-1">
-                      <Skeleton className="h-4 w-[90%]" />
-                      <Skeleton className={cn("h-4", i % 2 === 0 ? "w-[70%]" : "w-[40%]")} />
-                  </div>
-              </div>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Input Skeleton */}
-      <motion.div variants={item} className="p-4 border-t">
-        <Skeleton className="h-14 w-full rounded-xl" />
-      </motion.div>
-    </motion.div>
-  )
+    )
 }
 
+/**
+ * GenericSkeleton — generic page-level placeholder. Used by detail pages
+ * that don't have a chat-specific layout. Matches PageContainer density.
+ */
 export const GenericSkeleton = () => {
     return (
-        <div className="p-6 space-y-4">
-            <Skeleton className="h-8 w-[200px]" />
+        <div className="p-4 md:p-6 space-y-6">
+            <Skeleton className="h-7 w-48" />
             <div className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-[90%]" />
-                <Skeleton className="h-4 w-[95%]" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-[92%]" />
+                <Skeleton className="h-3 w-[80%]" />
             </div>
-            <div className="pt-4 grid grid-cols-3 gap-4">
-                <Skeleton className="h-32 rounded-xl" />
-                <Skeleton className="h-32 rounded-xl" />
-                <Skeleton className="h-32 rounded-xl" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <Skeleton className="h-28 rounded-lg" />
+                <Skeleton className="h-28 rounded-lg" />
+                <Skeleton className="h-28 rounded-lg" />
             </div>
         </div>
     )

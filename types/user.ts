@@ -5,6 +5,7 @@ import {ChannelInfoInterface} from "@/types/channel";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {ChatInfo} from "@/types/chat";
 import {RecordingInfoInterface} from "@/types/recording";
+import {DocSidebarInfo} from "@/types/doc";
 
 export interface UserProfileDataInterface {
     uid?: string;
@@ -21,10 +22,13 @@ export interface UserProfileDataInterface {
     user_tasks_canceled?: TaskInfoInterface[];
     user_tasks_done?: TaskInfoInterface[];
     user_channels?: ChannelInfoInterface[];
+    user_fav_channels?: ChannelInfoInterface[];
     user_task_count?: number;
+    user_incomplete_task_count?: number;
+    user_overdue_task_count?: number;
     user_teams?: TeamInfoInterface[];
     user_projects?: ProjectInfoInterface[];
-    user_overdue_task_count?: string;
+    user_docs?: DocSidebarInfo[];
     user_app_lang?: string;
     user_hobbies?: string
     user_profile_object_key: string;
@@ -41,6 +45,9 @@ export interface UserProfileDataInterface {
     user_custom_notification?: NotificationSchedule
     user_dms?: UserDMInterface[]
     user_total_unread_activity_count?: number
+    user_theme_color?: string
+    user_theme_mode?: string
+    is_external?: boolean
 }
 
 export interface UserDMSearchTextInterface {

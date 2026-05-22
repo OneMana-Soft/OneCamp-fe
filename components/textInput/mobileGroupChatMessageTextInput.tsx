@@ -2,7 +2,7 @@
 
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
-import { SendHorizontal } from "lucide-react";
+import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
 import {openUI} from "@/store/slice/uiSlice";
@@ -52,8 +52,9 @@ export const MobileGroupChatMessageTextInput = ({ grpId, chatMessageUUID }: { gr
     }, []);
 
 
-    const handleSend = () => {
-        const body = removeEmptyPTags(chatCommentState.commentBody)
+    const handleSend = (latestContent?: string) => {
+        const rawBody = latestContent ?? chatCommentState.commentBody
+        const body = removeEmptyPTags(rawBody)
 
         if(body.length==0) return
 
@@ -90,11 +91,12 @@ export const MobileGroupChatMessageTextInput = ({ grpId, chatMessageUUID }: { gr
                         attachmentOnclick={() => { dispatch(openUI({ key: 'groupChatCommentFileUpload' }))
  }}
                         throttleDelay={300}
+                        noBorder={true}
                         className={cn("max-w-full rounded-xl h-auto border-none")}
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatCommentState.commentBody}
-                        placeholder={"message"}
+                        placeholder={"Reply..."}
                         editable={true}
                         buttonOnclick={handleSend}
                         ButtonIcon={SendHorizontal}

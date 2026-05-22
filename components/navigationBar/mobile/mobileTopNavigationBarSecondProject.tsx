@@ -1,32 +1,23 @@
 "use client"
 
-import {usePathname} from "next/navigation";
-import {Ellipsis, Star} from "lucide-react";
-import {useDispatch} from "react-redux";
-import {openUI} from "@/store/slice/uiSlice";
-import {useFetch} from "@/hooks/useFetch";
-import {getStaticPaths} from "next/dist/build/templates/pages";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {ChannelInfoInterfaceResp} from "@/types/channel";
-import {Button} from "@/components/ui/button";
-import {useEffect, useState} from "react";
-import {usePost} from "@/hooks/usePost";
-import {ProjectInfoRawInterface} from "@/types/project";
-import {ColorIcon} from "@/components/colorIcon/colorIcon";
+import { useFetch } from "@/hooks/useFetch"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { ProjectInfoRawInterface } from "@/types/project"
+import { ColorIcon } from "@/components/colorIcon/colorIcon"
 
-export function MobileTopNavigationBarSecondProject({projectUUID}:{projectUUID: string}) {
+export function MobileTopNavigationBarSecondProject({ projectUUID }: { projectUUID: string }) {
+    const projectInfo = useFetch<ProjectInfoRawInterface>(
+        GetEndpointUrl.GetProjectInfo + "/" + projectUUID,
+    )
 
-    const projectInfo = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectInfo + '/' + projectUUID)
-
+    const projectName = projectInfo.data?.data.project_name || "Project"
 
     return (
-        <div className='flex justify-center items-center space-x-3'>
-
-            <ColorIcon name={projectInfo.data?.data.project_uuid || ''} size={'sm'}/>
-            <div className='font-bold text-lg text-center truncate overflow-auto overflow-ellipsis'>
-                {projectInfo.data?.data.project_name}
-            </div>
+        <div className="flex justify-center items-center gap-2 min-w-0 px-2">
+            <ColorIcon name={projectInfo.data?.data.project_uuid || projectUUID} size="xs" />
+            <span className="text-base font-semibold text-foreground truncate">
+                {projectName}
+            </span>
         </div>
-
-    );
+    )
 }

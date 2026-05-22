@@ -2,13 +2,14 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
-import {useCallback} from "react";
+import {useCallback, useMemo} from "react";
 import mqttService, {MqttActionType} from "@/services/mqttService";
 import {
     createNewTaskComment, createTaskCommentReactionByCommentId, removeTaskCommentByCommentUUID,
     removeTaskCommentReactionByReactionId,
     updateTaskCommentByCommentUUID, updateTaskCommentReactionByCommentId
 } from "@/store/slice/createTaskCommentSlice";
+import store from "@/store/store";
 
 interface UseTaskMessageHandlersProps {
     userUuid?: string
@@ -24,10 +25,19 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
 
                 const mqttTaskComment = mqttService.parseTaskCommentMsg(messageStr)
 
-                if(userUuid == mqttTaskComment.data.user_uuid) return
+                const taskId = mqttTaskComment.data.task_id
+                const commentUUID = mqttTaskComment.data.comment_uuid
 
                 switch (mqttTaskComment.data.type) {
                     case MqttActionType.Create:
+                        // Guard: skip if comment already exists in Redux.
+                        // Use store.getState() to avoid stale closure — the
+                        // useSelector snapshot may be outdated if MQTT arrives
+                        // before React has re-rendered with the latest state.
+                        const currentComments = store.getState().createTaskComment.taskComments
+                        const existingComment = currentComments[taskId]?.find(c => c.comment_uuid === commentUUID)
+                        if (existingComment) return
+
                         dispatch(createNewTaskComment({
                             commentBy: {
                                 user_uuid: mqttTaskComment.data.user_uuid,
@@ -80,10 +90,19 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
             try {
 
                 const mqttTaskCommentReaction = mqttService.parseTaskCommentReactionMsg(messageStr)
-                if(userUuid == mqttTaskCommentReaction.data.user_uuid) return
+                const taskId = mqttTaskCommentReaction.data.task_uuid
+                const commentId = mqttTaskCommentReaction.data.comment_uuid
+                const reactionId = mqttTaskCommentReaction.data.reaction_id
 
                 switch (mqttTaskCommentReaction.data.type) {
                     case MqttActionType.Create:
+                        // Guard: skip if reaction already exists.
+                        // Use store.getState() to avoid stale closure.
+                        const currentComments = store.getState().createTaskComment.taskComments
+                        const existingComment = currentComments[taskId]?.find(c => c.comment_uuid === commentId)
+                        const existingReaction = existingComment?.comment_reactions?.find(r => r.uid === reactionId)
+                        if (existingReaction) return
+
                         dispatch(createTaskCommentReactionByCommentId({
                             taskId: mqttTaskCommentReaction.data.task_uuid,
                             commentId: mqttTaskCommentReaction.data.comment_uuid,
@@ -131,8 +150,8 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
         [dispatch, userUuid]
     )
 
-    return {
+    return useMemo(() => ({
         handleTaskCommentMessage,
         handleTaskCommentReactionMessage
-    }
+    }), [handleTaskCommentMessage, handleTaskCommentReactionMessage])
 }

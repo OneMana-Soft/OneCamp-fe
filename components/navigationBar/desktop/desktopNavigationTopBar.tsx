@@ -9,7 +9,8 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import { ConnectionStatusIndicator } from "@/components/mqtt/ConnectionStatusIndicator";
-import { Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils/helpers/cn";
+import { Sparkles } from "@/lib/icons";
 import { useDispatch, useSelector } from "react-redux";
 import { openRightPanel, closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { RootState } from "@/store/store";
@@ -31,19 +32,21 @@ export default function DesktopNavigationTopBar() {
     };
 
     return (
-        <div className="w-full h-16 flex p-4 justify-between items-center glass sticky top-0 z-50">
+        <div className="w-full h-14 flex px-4 justify-between items-center bg-background/80 backdrop-blur-xl border-b border-border/40 sticky top-0 z-[var(--z-sticky)]">
             <DesktopNavigationOrgProfile/>
             <DesktopNavigationSearch/>
-            <div className='flex space-x-6 justify-center items-center'>
+            <div className="flex items-center gap-3">
                 <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>
                         <button
                             onClick={handleAiToggle}
-                            className={`p-2 rounded-lg transition-all duration-200 ${
+                            aria-label={isAiOpen ? "Close AI Assistant" : "Open AI Assistant"}
+                            className={cn(
+                                "h-9 w-9 flex items-center justify-center rounded-md transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                                 isAiOpen
                                     ? "bg-primary/15 text-primary"
                                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                            }`}
+                            )}
                         >
                             <Sparkles className="h-[18px] w-[18px]" />
                         </button>
@@ -52,14 +55,15 @@ export default function DesktopNavigationTopBar() {
                         AI Assistant
                     </TooltipContent>
                 </Tooltip>
-                <ConnectionStatusIndicator />
-                <UserStatusNav userUUID={selfProfile.data?.data.user_uuid || ''}/>
+
+                <div className="flex items-center gap-1.5">
+                    <ConnectionStatusIndicator compact />
+                    <UserStatusNav userUUID={selfProfile.data?.data.user_uuid || ''}/>
+                    <ThemeToggle/>
+                </div>
+
                 <DesktopNavigationUserProfile/>
-                <ThemeToggle/>
             </div>
-
-
         </div>
     )
 }
-

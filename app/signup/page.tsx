@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle, User, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from "lucide-react"
+import { LoaderCircle, User, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { useEffect, useState, Suspense } from "react"
@@ -132,6 +132,10 @@ function SignupForm() {
               onChange={(e) => setUsername(e.target.value)}
               required
               maxLength={25}
+              autoComplete="username"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
               className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
@@ -149,11 +153,13 @@ function SignupForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
+              autoComplete="new-password"
               className="w-full pl-10 pr-10 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -173,6 +179,7 @@ function SignupForm() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               minLength={8}
+              autoComplete="new-password"
               className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </div>

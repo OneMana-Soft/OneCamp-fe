@@ -15,6 +15,7 @@ import {
     RemoveMessageFromChatList, UpdateMessageTextInChatList
 } from "@/store/slice/chatSlice"
 import {incrementUserChatUnread} from "@/store/slice/userSlice";
+import { RemoveChatTyping, RemoveGroupChatTyping } from "@/store/slice/typingSlice";
 import {getOtherUserId} from "@/lib/utils/getOtherUserId";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
@@ -66,9 +67,15 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
 
                 switch (mqttChatInfo.data.type) {
                     case MqttActionType.Create:
-                        // Only create the chat message in state if it's from another user
-                        // (self-sent messages are added via optimistic updates in the send handler)
-                        if (userUuid != mqttChatInfo.data.user_uuid && !mqttChatInfo.data.chat_fwd_msg_chat && !mqttChatInfo.data.chat_fwd_msg_post) {
+                        // Add the chat to the conversation. The reducer dedups
+                        // by chat_uuid, so the MQTT echo for a chat THIS user
+                        // just sent (whether from this tab or another device
+                        // logged in as the same user) is safely a no-op for
+                        // the local optimistic copy and a real insert for
+                        // every other client. Forwarded messages also need
+                        // to land in state on this code path because the
+                        // optimistic-create handler skips them.
+                        if (!mqttChatInfo.data.chat_fwd_msg_chat && !mqttChatInfo.data.chat_fwd_msg_post) {
                             if (isGroupChat) {
                                 dispatch(
                                     createGroupChat({
@@ -116,6 +123,25 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                             chatUuid: mqttChatInfo.data.chat_uuid,
                             msg: mqttChatInfo.data.chat_html_text
                         }))
+
+                        // The author just sent a message — they're no longer
+                        // typing, so drop the indicator immediately. Without
+                        // this, the receiver would still see "user is typing"
+                        // for up to 4s after the message landed because the
+                        // setTimeout cleanup waits for the natural TTL.
+                        if (userUuid != mqttChatInfo.data.user_uuid) {
+                            if (isGroupChat) {
+                                dispatch(RemoveGroupChatTyping({
+                                    userId: mqttChatInfo.data.user_uuid,
+                                    grpId,
+                                }))
+                            } else {
+                                dispatch(RemoveChatTyping({
+                                    userId: mqttChatInfo.data.user_uuid,
+                                    chatId: mqttChatInfo.data.user_uuid,
+                                }))
+                            }
+                        }
 
                         // Increment unread if it's from someone else and we aren't viewing it
                         if((userUuid || '') != mqttChatInfo.data.user_uuid && path3 != grpId && path4 != dmId && path4 != grpId) {
@@ -191,7 +217,9 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
             try {
                 const mqttChatReaction = mqttService.parseChatReactionMsg(messageStr)
 
-                if(userUuid == mqttChatReaction.data.user_uuid) return
+                // Multi-device sync: do NOT skip self-reactions. The reducer
+                // dedups by (user, emoji) so the originating tab is safe and
+                // the second device gets the reaction reflected.
 
                 const isGroupChat = mqttChatReaction.data.chat_grp_id.split(" ").length === 1;
                 const dmId = isGroupChat ? "" : getOtherUserId(mqttChatReaction.data.chat_grp_id, userUuid || "");
@@ -277,7 +305,9 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
             try {
                 const mqttChatCommentReaction = mqttService.parseChatCommentReactionMsg(messageStr)
 
-                if(userUuid == mqttChatCommentReaction.data.user_uuid) return
+                // Multi-device sync: don't skip self. The reducer dedups by
+                // (user, emoji) and upgrades temp -> real reaction id, so
+                // both Device A and Device B converge to the same state.
 
 
                 switch (mqttChatCommentReaction.data.type) {
@@ -333,10 +363,9 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
         (messageStr: string) => {
             try {
                 const mqttChatCall = mqttService.parseChatCallMsg(messageStr)
-                const isGroupChat = mqttChatCall.data.grpId.split(" ").length === 1;
-                const dmId = isGroupChat ? "" : getOtherUserId(mqttChatCall.data.grpId, userUuid || "")
-                const grpId = isGroupChat ? mqttChatCall.data.grpId :  dmId;
-                console.log("aksd chat call dfsdf ", mqttChatCall, grpId)
+                // Use the raw grpId from MQTT directly — it already matches dm_grouping_id
+                // For 1:1 DMs it's "uuid-A uuid-B", for group chats it's a hash
+                const grpId = mqttChatCall.data.grpId;
                 dispatch(updateChatCallStatus({
                     callStatus: mqttChatCall?.data?.call_status ?? false,
                     grpId: grpId
@@ -355,7 +384,10 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
             try {
                 const mqttChatComment = mqttService.parseChatCommentMsg(messageStr)
 
-                if(userUuid == mqttChatComment.data.user_uuid) return
+                // Multi-device sync: don't skip self. The reply increment
+                // and createChatComment reducers both dedup by comment_uuid
+                // so the originating tab is safe and the second device
+                // sees the new reply.
 
                 const isGroupChat = mqttChatComment.data.chat_grp_id.split(" ").length === 1;
                 const dmId = isGroupChat ? "" : getOtherUserId(mqttChatComment.data.chat_grp_id, userUuid || "");

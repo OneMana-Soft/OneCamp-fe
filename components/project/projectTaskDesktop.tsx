@@ -4,7 +4,8 @@ import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {ProjectInfoRawInterface, ProjectNotificationInterface} from "@/types/project"
 import { Button } from "@/components/ui/button"
-import { ClipboardList, Kanban, List, Paperclip, Pencil, Users } from "lucide-react"
+import { List, Paperclip, Pencil, Users } from "@/lib/icons";
+import { ClipboardList, Kanban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectTaskTable } from "@/components/project/projectTaskTable"
 import { ProjectAttachments } from "@/components/project/ProjectAttachments"
@@ -87,6 +88,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             size="icon"
                             variant="ghost"
                             className="h-9 w-9"
+                            aria-label="Edit project name"
                             onClick={() => {
                                 dispatch(openUI({ key: 'editProjectName', data: { projectUUID: projectId || "" } }))
                             }}
@@ -97,6 +99,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             size="icon"
                             variant="ghost"
                             className="h-9 w-9"
+                            aria-label="Manage project members"
                             onClick={() => {
                                 dispatch(openUI({ key: 'editProjectMember', data: { projectUUID: projectId || "" } }))
                             }}

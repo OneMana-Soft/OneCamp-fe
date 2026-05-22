@@ -8,7 +8,7 @@ import * as z from "zod";
 import { usePost } from "@/hooks/usePost";
 import { PostEndpointUrl } from "@/services/endPoints";
 import { CreateEventPayload } from "@/types/calendar";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon, Clock } from "@/lib/icons";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";

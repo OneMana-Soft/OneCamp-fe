@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle, Mail, CheckCircle, ArrowLeft } from "lucide-react"
+import { LoaderCircle, Mail, CheckCircle, ArrowLeft } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { useState } from "react"
@@ -77,6 +77,11 @@ export default function ForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  aria-label="Email address"
                   className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>

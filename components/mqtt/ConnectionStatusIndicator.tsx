@@ -10,7 +10,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-export function ConnectionStatusIndicator() {
+interface ConnectionStatusIndicatorProps {
+  compact?: boolean
+}
+
+export function ConnectionStatusIndicator({ compact = false }: ConnectionStatusIndicatorProps) {
   const { connectionState } = useMqtt()
   const { isConnected, isConnecting, error } = connectionState
 
@@ -29,16 +33,23 @@ export function ConnectionStatusIndicator() {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-muted transition-colors cursor-help">
+          <div className={cn(
+            "flex items-center rounded-md transition-colors cursor-help",
+            compact
+              ? "h-9 w-9 justify-center hover:bg-accent"
+              : "gap-2 px-2 py-1 hover:bg-muted"
+          )}>
             <div className="relative flex h-2 w-2">
               {isConnected && (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               )}
               <div className={cn("relative inline-flex rounded-full h-2 w-2", statusColor)} />
             </div>
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden md:block">
-              {isConnected ? "Live" : statusText}
-            </span>
+            {!compact && (
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden md:block">
+                {isConnected ? "Live" : statusText}
+              </span>
+            )}
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">

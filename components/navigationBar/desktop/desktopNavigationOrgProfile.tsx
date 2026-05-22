@@ -19,14 +19,14 @@ export default function DesktopNavigationOrgProfile() {
 
     return (
 
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full focus-visible:ring-0 focus-visible:outline-none">
+        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
             <OrgAvatarNav/>
 
         </Button>
         //
         // <DropdownMenu>
         //     <DropdownMenuTrigger asChild>
-        //         <Button variant="ghost" className="relative h-8 w-8 rounded-full focus-visible:ring-0 focus-visible:outline-none">
+        //         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
         //             <OrgAvatarNav/>
         //
         //         </Button>

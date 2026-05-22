@@ -3,7 +3,7 @@
 import {useMedia} from "@/context/MediaQueryContext";
 import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
-import {Plus} from "lucide-react";
+import { Plus } from "@/lib/icons";
 import {useDispatch} from "react-redux";
 import {ChatUserList} from "@/components/chat/chatUserList";
 import {usePathname} from "next/navigation";

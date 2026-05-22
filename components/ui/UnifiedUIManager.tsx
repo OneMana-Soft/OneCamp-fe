@@ -1,9 +1,11 @@
 "use client"
 
+import { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store/store";
 import dynamic from "next/dynamic";
 import { closeUI } from "@/store/slice/uiSlice";
+import { mutate } from "swr";
 
 // Lazy load dialogs/drawers to keep bundle size small
 const CreateChannelDialog = dynamic(() => import("@/components/dialog/createChannelDialog"), { ssr: false });
@@ -31,6 +33,18 @@ const UpdateDocTitleDialog =  dynamic(() => import("@/components/dialog/updateDo
 const AdminTeamMembersDialog = dynamic(() => import("@/components/dialog/adminTeamMembersDialog"), { ssr: false });
 const AddInvitationDialog = dynamic(() => import("@/components/admin/AddInvitationDialog").then(mod => mod.AddInvitationDialog), { ssr: false });
 const CreateCalendarEventDialog = dynamic(() => import("@/components/calendar/createCalendarEventDialog").then(mod => mod.CreateCalendarEventDialog), { ssr: false });
+
+// Admin card dialogs
+const WebhookCreateDialog = dynamic(() => import("@/components/admin/WebhookCreateDialog"), { ssr: false });
+const WebhookEditDialog = dynamic(() => import("@/components/admin/WebhookEditDialog"), { ssr: false });
+const WebhookDeleteDialog = dynamic(() => import("@/components/admin/WebhookDeleteDialog"), { ssr: false });
+const GitHubDisconnectDialog = dynamic(() => import("@/components/admin/GitHubDisconnectDialog"), { ssr: false });
+const GitHubUnlinkDialog = dynamic(() => import("@/components/admin/GitHubUnlinkDialog"), { ssr: false });
+const ArchiveEditPolicyDialog = dynamic(() => import("@/components/admin/ArchiveEditPolicyDialog"), { ssr: false });
+const ArchiveRunJobDialog = dynamic(() => import("@/components/admin/ArchiveRunJobDialog"), { ssr: false });
+const ArchiveRestoreDialog = dynamic(() => import("@/components/admin/ArchiveRestoreDialog"), { ssr: false });
+const GitHubIssueSearchDialog = dynamic(() => import("@/components/task/GitHubIssueSearchDialog"), { ssr: false });
+const CreateBranchDialog = dynamic(() => import("@/components/task/CreateBranchDialog"), { ssr: false });
 
 
 // Drawers
@@ -68,6 +82,8 @@ const ProjectLongPressDrawer = dynamic(() => import("@/components/drawers/projec
 export function UnifiedUIManager() {
   const dispatch = useDispatch();
   const ui = useSelector((state: RootState) => state.ui);
+  const [ghDisconnectSubmitting, setGhDisconnectSubmitting] = useState(false);
+  const [ghUnlinkSubmitting, setGhUnlinkSubmitting] = useState(false);
 
   return (
     <>
@@ -270,6 +286,168 @@ export function UnifiedUIManager() {
         <CreateCalendarEventDialog
           open={ui.createCalendarEvent.isOpen}
           onOpenChange={() => dispatch(closeUI('createCalendarEvent'))}
+        />
+      )}
+
+      {/* Admin card dialogs */}
+      {ui.webhookCreate.isOpen && (
+        <WebhookCreateDialog
+          open={ui.webhookCreate.isOpen}
+          onOpenChange={() => dispatch(closeUI('webhookCreate'))}
+          onSuccess={() => mutate((key) => typeof key === "string" && key.includes("/admin/webhooks"))}
+        />
+      )}
+
+      {ui.webhookEdit.isOpen && (
+        <WebhookEditDialog
+          open={ui.webhookEdit.isOpen}
+          onOpenChange={() => dispatch(closeUI('webhookEdit'))}
+          onSuccess={() => mutate((key) => typeof key === "string" && key.includes("/admin/webhooks"))}
+          webhook={ui.webhookEdit.data}
+        />
+      )}
+
+      {ui.webhookDelete.isOpen && (
+        <WebhookDeleteDialog
+          open={ui.webhookDelete.isOpen}
+          onOpenChange={() => dispatch(closeUI('webhookDelete'))}
+          onConfirm={async () => {
+            const axios = (await import("@/lib/axiosInstance")).default;
+            const { PostEndpointUrl } = await import("@/services/endPoints");
+            try {
+              await axios.delete(`${PostEndpointUrl.DeleteWebhook}/${ui.webhookDelete.data.id}`);
+              dispatch(closeUI('webhookDelete'));
+              mutate((key) => typeof key === "string" && key.includes("/admin/webhooks"));
+            } catch {
+              dispatch(closeUI('webhookDelete'));
+            }
+          }}
+          webhook={ui.webhookDelete.data}
+        />
+      )}
+
+      {ui.githubDisconnect.isOpen && (
+        <GitHubDisconnectDialog
+          open={ui.githubDisconnect.isOpen}
+          onOpenChange={() => dispatch(closeUI('githubDisconnect'))}
+          onConfirm={async () => {
+            setGhDisconnectSubmitting(true);
+            const axios = (await import("@/lib/axiosInstance")).default;
+            const { PostEndpointUrl } = await import("@/services/endPoints");
+            try {
+              await axios.post(PostEndpointUrl.GitHubDisconnect, {});
+              dispatch(closeUI('githubDisconnect'));
+              mutate((key) => typeof key === "string" && key.includes("/admin/github"));
+            } catch {
+              // Error already toasted by axios interceptor
+            } finally {
+              setGhDisconnectSubmitting(false);
+            }
+          }}
+          repoCount={ui.githubDisconnect.data?.repoCount || 0}
+          isSubmitting={ghDisconnectSubmitting}
+        />
+      )}
+
+      {ui.githubUnlink.isOpen && (
+        <GitHubUnlinkDialog
+          open={ui.githubUnlink.isOpen}
+          onOpenChange={() => dispatch(closeUI('githubUnlink'))}
+          onConfirm={async () => {
+            setGhUnlinkSubmitting(true);
+            const axios = (await import("@/lib/axiosInstance")).default;
+            const { PostEndpointUrl } = await import("@/services/endPoints");
+            try {
+              await axios.delete(`${PostEndpointUrl.GitHubUnlinkRepo}/${ui.githubUnlink.data.id}`);
+              dispatch(closeUI('githubUnlink'));
+              mutate((key) => typeof key === "string" && key.includes("/admin/github"));
+            } catch {
+              // Error already toasted by axios interceptor
+            } finally {
+              setGhUnlinkSubmitting(false);
+            }
+          }}
+          link={ui.githubUnlink.data}
+          isSubmitting={ghUnlinkSubmitting}
+        />
+      )}
+
+      {ui.archiveEditPolicy.isOpen && (
+        <ArchiveEditPolicyDialog
+          open={ui.archiveEditPolicy.isOpen}
+          onOpenChange={() => dispatch(closeUI('archiveEditPolicy'))}
+          onSuccess={() => mutate((key) => typeof key === "string" && key.includes("/admin/archive/policies"))}
+          policy={ui.archiveEditPolicy.data}
+        />
+      )}
+
+      {ui.archiveRunJob.isOpen && (
+        <ArchiveRunJobDialog
+          open={ui.archiveRunJob.isOpen}
+          onOpenChange={() => dispatch(closeUI('archiveRunJob'))}
+          onConfirm={async () => {
+            const axios = (await import("@/lib/axiosInstance")).default;
+            const { PostEndpointUrl } = await import("@/services/endPoints");
+            const entityType = ui.archiveRunJob.data.entityType;
+            await axios.post(`${PostEndpointUrl.RunArchiveJob}/${entityType}`);
+            dispatch(closeUI('archiveRunJob'));
+            mutate((key) => typeof key === "string" && key.includes("/admin/archive/jobs"));
+          }}
+          entityLabel={ui.archiveRunJob.data.entityLabel}
+        />
+      )}
+
+      {ui.archiveRestore.isOpen && (
+        <ArchiveRestoreDialog
+          open={ui.archiveRestore.isOpen}
+          onOpenChange={() => dispatch(closeUI('archiveRestore'))}
+          onSuccess={() => {
+            mutate((key) => typeof key === "string" && key.includes("/admin/archive/policies"));
+            mutate((key) => typeof key === "string" && key.includes("/admin/archive/jobs"));
+          }}
+        />
+      )}
+
+      {ui.githubLinkTask.isOpen && (
+        <GitHubIssueSearchDialog
+          open={ui.githubLinkTask.isOpen}
+          onOpenChange={() => dispatch(closeUI('githubLinkTask'))}
+          onSuccess={() => {
+            dispatch(closeUI('githubLinkTask'))
+            mutate((key) => typeof key === "string" && key.includes("/task/info/"))
+            mutate((key) => typeof key === "string" && key.includes("/task/github-activity/"))
+          }}
+          taskId={ui.githubLinkTask.data.taskId}
+        />
+      )}
+
+      {ui.githubBulkLinkTask.isOpen && (
+        <GitHubIssueSearchDialog
+          open={ui.githubBulkLinkTask.isOpen}
+          onOpenChange={() => dispatch(closeUI('githubBulkLinkTask'))}
+          onSuccess={() => {
+            dispatch(closeUI('githubBulkLinkTask'))
+            mutate((key) => typeof key === "string" && (
+              key.includes("/task/info/") ||
+              key.includes("/task/github-activity/") ||
+              key.includes("/project/taskList")
+            ))
+          }}
+          taskIds={ui.githubBulkLinkTask.data.taskIds}
+        />
+      )}
+
+      {ui.createBranch.isOpen && (
+        <CreateBranchDialog
+          open={ui.createBranch.isOpen}
+          onOpenChange={() => dispatch(closeUI('createBranch'))}
+          onSuccess={() => {
+            dispatch(closeUI('createBranch'))
+            mutate((key) => typeof key === "string" && key.includes("/task/info/"))
+            mutate((key) => typeof key === "string" && key.includes("/task/github-activity/"))
+          }}
+          taskId={ui.createBranch.data.taskId}
+          taskName={ui.createBranch.data.taskName}
         />
       )}
 
