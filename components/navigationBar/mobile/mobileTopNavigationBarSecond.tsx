@@ -23,6 +23,8 @@ export function MobileTopNavigationBarSecond() {
             case "home":
                 return "Home";
                 break;
+            case "admin":
+                return "Admin"
             case "team":
                 if (path.length < 4)
                     return "Team";

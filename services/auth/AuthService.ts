@@ -192,7 +192,7 @@ class AuthService {
         }
     }
 
-    static async hasPassword(): Promise<{ hasPassword: boolean }> {
+        static async hasPassword(): Promise<{ hasPassword: boolean }> {
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/has-password`,
@@ -205,6 +205,72 @@ class AuthService {
         }
     }
 
+    static async loginWithOIDC() {
+        const oauthEndpoint = `${
+            process.env.NEXT_PUBLIC_BACKEND_URL
+        }oauth_login/oidc?redirect_uri=${process.env.NEXT_PUBLIC_FRONTEND_URL}app`;
+
+        window.location.href = oauthEndpoint;
+    }
+
+    static async loginWithSAML() {
+        window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL}saml/login`;
+    }
+
+    static async loginWithLDAP(usernameOrEmail: string, password: string): Promise<{ ok: boolean; msg: string }> {
+        try {
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/ldap-login`,
+                {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username_or_email: usernameOrEmail, password }),
+                }
+            );
+            const data = await res.json();
+            return { ok: res.ok, msg: data.msg || '' };
+        } catch (error) {
+            console.error('LDAP authentication failed:', error);
+            return { ok: false, msg: 'Directory server unreachable.' };
+        }
+    }
+
+    /**
+     * Fetch the runtime list of enabled auth providers from the backend.
+     * Used by the login page so toggling a provider doesn't require a FE redeploy.
+     * Falls back to build-time NEXT_PUBLIC_AUTH_* flags on network failure.
+     */
+    static async getEnabledProviders(): Promise<{
+        email: boolean;
+        google: boolean;
+        github: boolean;
+        oidc: boolean;
+        saml: boolean;
+        ldap: boolean;
+        demo: boolean;
+    } | null> {
+        try {
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/providers`,
+                { credentials: 'include' }
+            );
+            if (!res.ok) return null;
+            const data = await res.json();
+            const p = data?.providers || {};
+            return {
+                email: !!p.email,
+                google: !!p.google,
+                github: !!p.github,
+                oidc: !!p.oidc,
+                saml: !!p.saml,
+                ldap: !!p.ldap,
+                demo: !!p.demo,
+            };
+        } catch {
+            return null;
+        }
+    }
 }
 
 export default AuthService;

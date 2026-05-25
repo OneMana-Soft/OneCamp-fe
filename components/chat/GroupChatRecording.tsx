@@ -118,7 +118,7 @@ export const GroupChatRecording = ({ grpId }: { grpId: string }) => {
               className='flex  px-3 font-semibold text-lg p-2 truncate overflow-x-hidden overflow-ellipsis justify-between border-b'>
 
               <div className="flex justify-center items-center space-x-2">
-                  <div className='${statusColors.online.solid} flex justify-center items-center rounded-md w-8 h-8 p-1.5 shadow-sm'>
+                  <div className={`${statusColors.online.solid} flex justify-center items-center rounded-md w-8 h-8 p-1.5 shadow-sm`}>
                     <Video className="text-white" size={18} />
                   </div>
                   <div>{"Recordings"}</div>

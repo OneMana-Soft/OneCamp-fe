@@ -643,11 +643,14 @@ export const channelSlice = createSlice({
         },
 
         updateChannelCallStatus: (state, action: {payload: UpdateChannelCallStatus}) => {
-
             const {channelId, callStatus} = action.payload;
-
             state.channelCallStatus[channelId] = {active:callStatus}
-
+        },
+        batchUpdateChannelCallStatus: (state, action: {payload: {channelIds: string[], callStatus: boolean}}) => {
+            const {channelIds, callStatus} = action.payload;
+            for (const channelId of channelIds) {
+                state.channelCallStatus[channelId] = {active:callStatus}
+            }
         },
 
         // SYNC: Clear all loaded channel posts to force API refetch after stale reconnection
@@ -686,6 +689,7 @@ export const {
     updateChannelMessageReplyIncrement,
     updateChannelMessageReplyDecrement,
     updateChannelCallStatus,
+    batchUpdateChannelCallStatus,
     updatePostReactionId,
     invalidateChannelPosts
 

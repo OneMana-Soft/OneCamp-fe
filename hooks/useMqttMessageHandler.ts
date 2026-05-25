@@ -220,6 +220,19 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                         )
                         break
 
+                    case MqttMessageType.Slack_Import_Progress:
+                        // Admin-only progress ticks for slack imports. The
+                        // payload itself is consumed by SlackImportCard via
+                        // useMqttTopic; we only need to keep SWR caches for
+                        // the job list / detail in sync so other admin tabs
+                        // also see fresh data.
+                        mutate(
+                            (key: string) =>
+                                typeof key === "string" &&
+                                key.includes("/admin/import/slack/jobs"),
+                        )
+                        break
+
                     default:
                         console.warn("[MQTT] Unknown message type:", parsedMessage.type)
 

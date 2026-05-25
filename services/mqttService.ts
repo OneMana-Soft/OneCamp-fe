@@ -27,6 +27,7 @@ export enum MqttMessageType {
     Chat_call,
     GitHub_Sync,
     Archive_Job_Status,
+    Slack_Import_Progress,
 }
 
 export enum MqttActionType {

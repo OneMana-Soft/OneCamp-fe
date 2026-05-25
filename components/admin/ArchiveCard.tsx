@@ -165,16 +165,17 @@ const ArchiveCard = () => {
   return (
     <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
       <CardHeader className="px-0 pt-0 pb-6 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <div className="bg-primary/10 p-1.5 rounded-md"><Archive className="h-4 w-4 text-primary" /></div>
-              <CardTitle className="text-xl font-bold tracking-tight">Data Archiving</CardTitle>
+              <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight">Data Archiving</CardTitle>
             </div>
             <CardDescription className="text-sm text-muted-foreground">Configure retention policies and manage data archiving across all OneCamp data stores.</CardDescription>
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => dispatch(openUI({ key: "archiveRestore" }))}>
-            <RotateCcw className="h-3.5 w-3.5" />Restore Items
+          <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0 self-start" onClick={() => dispatch(openUI({ key: "archiveRestore" }))}>
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>Restore Items</span>
           </Button>
         </div>
       </CardHeader>
@@ -207,20 +208,20 @@ const ArchiveCard = () => {
             policies.length === 0 ? <div className="text-center py-8 text-sm text-muted-foreground">No archive policies configured.</div> :
             <div className="space-y-3">
               {policies.map(policy => (
-                <div key={policy.id} className={`border border-border/50 rounded-lg bg-card/50 p-4 flex items-center justify-between ${isUnsupported(policy.entity_type) ? "opacity-60" : ""}`}>
-                  <div className="flex items-center gap-3">
-                    <div className="bg-muted/50 p-2 rounded-lg">{ENTITY_ICONS[policy.entity_type] || <Database className="h-4 w-4" />}</div>
-                    <div>
+                <div key={policy.id} className={`border border-border/50 rounded-lg bg-card/50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${isUnsupported(policy.entity_type) ? "opacity-60" : ""}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="bg-muted/50 p-2 rounded-lg shrink-0">{ENTITY_ICONS[policy.entity_type] || <Database className="h-4 w-4" />}</div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-medium text-sm">{ENTITY_LABELS[policy.entity_type] || policy.entity_type}</h4>
+                        <h4 className="font-medium text-sm truncate">{ENTITY_LABELS[policy.entity_type] || policy.entity_type}</h4>
                       </div>
-                      <div className="flex items-center gap-3 mt-1">
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-xs text-muted-foreground">Retain for <span className="font-semibold text-foreground">{policy.retention_days}</span> days</span>
                         {policy.auto_archive ? <Badge className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20 gap-1"><CheckCircle2 className="h-2.5 w-2.5" />Auto</Badge> : <Badge variant="outline" className="text-[10px]">Manual only</Badge>}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
                     <Button variant="outline" size="sm" className="gap-1.5 h-7 text-xs" disabled={isUnsupported(policy.entity_type)}
                       onClick={() => dispatch(openUI({ key: "archiveRunJob", data: { entityLabel: ENTITY_LABELS[policy.entity_type] || policy.entity_type, entityType: policy.entity_type } }))}>
                       <PlayCircle className="h-3 w-3" />Run Now
@@ -245,22 +246,22 @@ const ArchiveCard = () => {
               {jobs.slice(0, 20).map(job => {
                 const s = STATUS_STYLES[job.status] || STATUS_STYLES.pending
                 return (
-                  <div key={job.id} className="border border-border/50 rounded-lg bg-card/50 px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="bg-muted/50 p-1.5 rounded-md">{ENTITY_ICONS[job.entity_type] || <Database className="h-3.5 w-3.5" />}</div>
+                  <div key={job.id} className="border border-border/50 rounded-lg bg-card/50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="bg-muted/50 p-1.5 rounded-md shrink-0">{ENTITY_ICONS[job.entity_type] || <Database className="h-3.5 w-3.5" />}</div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2"><span className="text-sm font-medium capitalize">{ENTITY_LABELS[job.entity_type] || job.entity_type}</span><Badge className={`text-[10px] gap-1 ${s.color}`}>{s.icon}{job.status}</Badge></div>
-                        <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium capitalize">{ENTITY_LABELS[job.entity_type] || job.entity_type}</span><Badge className={`text-[10px] gap-1 ${s.color}`}>{s.icon}{job.status}</Badge></div>
+                        <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
                           <span>{new Date(job.created_at).toLocaleString()}</span>
                           {job.items_processed > 0 && <span>{job.items_processed} processed</span>}
                           {job.items_archived > 0 && <span className="text-green-600 dark:text-green-400">{job.items_archived} archived</span>}
                           {job.items_failed > 0 && <span className="text-red-500">{job.items_failed} failed</span>}
                         </div>
-                        {job.error_message && <p className="text-xs text-red-500 mt-1 truncate">{job.error_message}</p>}
+                        {job.error_message && <p className="text-xs text-red-500 mt-1 break-words">{job.error_message}</p>}
                       </div>
                     </div>
-                    <span className="text-xs text-muted-foreground flex-shrink-0 font-mono">{formatDuration(job)}</span>
-                    <div className="flex items-center gap-1 ml-2">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground font-mono">{formatDuration(job)}</span>
                       {job.status === "completed" && !UNSUPPORTED_UNDO.includes(job.entity_type) && (
                         <Button
                           variant="ghost" size="icon" className="h-7 w-7" title="Undo this archive"

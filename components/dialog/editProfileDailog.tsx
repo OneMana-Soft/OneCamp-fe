@@ -278,10 +278,10 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
             {/*<DialogTrigger asChild>*/}
             {/*    <Button variant="secondary">Save</Button>*/}
             {/*</DialogTrigger>*/}
-            <DialogContent className="sm:max-w-2xl p-0 overflow-hidden border-none shadow-2xl">
-                <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
+            <DialogContent className="sm:max-w-2xl p-0 md:overflow-hidden border-none shadow-2xl md:h-[85dvh]">
+                <div className="flex flex-col md:flex-row md:h-full md:max-h-[85dvh]">
                     {/* Left Sidebar - Profile Summary */}
-                    <div className="md:w-1/3 bg-muted/30 p-8 flex flex-col items-center border-r">
+                    <div className="w-full md:w-1/3 bg-muted/30 p-8 flex flex-col items-center border-b md:border-b-0 md:border-r">
                         <DialogHeader className="w-full mb-8">
                             <DialogTitle className="text-base font-semibold tracking-tight">Settings</DialogTitle>
                             <DialogDescription className="text-xs">{t('editProfile')}</DialogDescription>
@@ -324,7 +324,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                     </div>
 
                     {/* Right Content - Form */}
-                    <div className="md:w-2/3 p-8 overflow-y-auto bg-background custom-scrollbar">
+                    <div className="w-full md:w-2/3 p-8 md:overflow-y-auto bg-background custom-scrollbar">
                         <Form {...form}>
                             <form id="profile-edit-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

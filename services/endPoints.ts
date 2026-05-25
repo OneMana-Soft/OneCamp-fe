@@ -89,6 +89,8 @@ export enum GetEndpointUrl {
     GoogleCalendarStatus = "/integration/google-calendar/status",
     GoogleCalendarEvents = "/event/getEvents",
 
+// Email notification preferences (per-user).
+    GetNotificationPreferences = "/user/notificationPreferences",
     // Webhooks (Admin)
     GetAllWebhooks = "/admin/webhooks",
     GetWebhookLogs = "/admin/webhooks", // append /{webhookId}/logs
@@ -98,8 +100,11 @@ export enum GetEndpointUrl {
     GetGitHubAuthUrl = "/admin/github/auth-url",
     GetGitHubStatus = "/admin/github/status",
     GetGitHubRateLimit = "/admin/github/rate-limit",
+    GetGitHubWebhookHealth = "/admin/github/webhook-health",
     GetGitHubRepos = "/admin/github/repos",
     GetGitHubLinkedRepos = "/admin/github/linked-repos", // append /{projectId}
+    GetGitHubImportJobs = "/admin/github/import-jobs", // append /{linkId}
+    GetGitHubImportJob = "/admin/github/import-job", // append /{jobId}
 
     // GitHub (Task)
     GetGitHubTaskActivity = "/task/github-activity",
@@ -114,6 +119,18 @@ export enum GetEndpointUrl {
     GetArchivePolicies = "/admin/archive/policies",
     GetArchiveJobs = "/admin/archive/jobs",
     GetArchiveStats = "/admin/archive/stats",
+
+    // Slack Import (Admin)
+    GetSlackImportJobs = "/admin/import/slack/jobs",
+    GetSlackImportJob = "/admin/import/slack/jobs", // append /{jobId}
+    GetSlackImportErrors = "/admin/import/slack/jobs", // append /{jobId}/errors
+
+    // Generic Import (Admin) — Asana / Jira / Trello / Notion / Todoist
+    GetImportProviders = "/admin/import/providers",
+    GetImportConnections = "/admin/import/connections",
+    GetImportJobs = "/admin/import/jobs",
+    GetImportJob = "/admin/import/jobs", // append /{jobId}
+    GetImportJobErrors = "/admin/import/jobs", // append /{jobId}/errors
 }
 
 
@@ -251,6 +268,8 @@ export enum PostEndpointUrl {
     LeaveEvent = "/event/leaveEvent",
     UpdateGoogleCalendarSyncTask = "/integration/google-calendar/sync-task",
 
+// Email notification preferences (per-user).
+    UpdateNotificationPreferences = "/user/notificationPreferences",
     // Webhooks (Admin)
     CreateWebhook = "/admin/webhooks",
     UpdateWebhook = "/admin/webhooks", // append /{webhookId} — use PUT
@@ -287,4 +306,22 @@ export enum PostEndpointUrl {
     RunArchiveJob = "/admin/archive/run", // append /{entityType}
     RestoreArchiveItems = "/admin/archive/restore",
     UndoArchiveJob = "/admin/archive/undo", // append /{jobId}
+
+    // Slack Import (Admin)
+    SlackImportUpload = "/admin/import/slack/upload",
+    SlackImportPlan = "/admin/import/slack/plan", // append /{jobId}
+    SlackImportRun = "/admin/import/slack/run", // append /{jobId}
+    SlackImportCancel = "/admin/import/slack/cancel", // append /{jobId}
+    SlackImportRollback = "/admin/import/slack/rollback", // append /{jobId}
+
+    // Generic Import (Admin)
+    ImportConnect = "/admin/import",         // /{provider}/connect
+    ImportDisconnect = "/admin/import",      // /{provider}/disconnect
+    ImportCreateJob = "/admin/import",       // /{provider}/jobs
+    ImportPresign = "/admin/import",         // /{provider}/presign
+    ImportFinalize = "/admin/import",        // /{provider}/finalize/{jobId}
+    ImportPlan = "/admin/import/jobs",       // /{jobId}/plan
+    ImportRun = "/admin/import/jobs",        // /{jobId}/run
+    ImportCancel = "/admin/import/jobs",     // /{jobId}/cancel
+    ImportRollback = "/admin/import/jobs",   // /{jobId}/rollback
 }

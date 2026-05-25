@@ -25,6 +25,7 @@ export function MobileTopNavigationBarFirst() {
             case "meet":
             case "search":
             case "home":
+case "admin":
             case "calendar":
             case "profile":
             case "activity":

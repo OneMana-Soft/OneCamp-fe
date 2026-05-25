@@ -151,20 +151,24 @@ const WebhooksCard = () => {
   return (
     <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
       <CardHeader className="px-0 pt-0 pb-6 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <div className="bg-primary/10 p-1.5 rounded-md">
                 <Webhook className="h-4 w-4 text-primary" />
               </div>
-              <CardTitle className="text-xl font-bold tracking-tight">Webhooks</CardTitle>
+              <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight">Webhooks</CardTitle>
+              <span className="text-xs font-medium text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
+                {webhooks.length}
+              </span>
             </div>
             <CardDescription className="text-sm text-muted-foreground">
               Manage incoming and outgoing webhooks for bots, AI agents, and external integrations.
             </CardDescription>
           </div>
-          <Button size="sm" className="gap-2" onClick={() => dispatch(openUI({ key: "webhookCreate" }))}>
-            <Plus className="h-4 w-4" />Create Webhook
+          <Button size="sm" className="h-9 gap-2 shrink-0 self-start" onClick={() => dispatch(openUI({ key: "webhookCreate" }))}>
+            <Plus className="h-4 w-4" />
+            <span>Create Webhook</span>
           </Button>
         </div>
       </CardHeader>
@@ -182,7 +186,7 @@ const WebhooksCard = () => {
           <div className="space-y-4">
             {webhooks.map(webhook => (
               <div key={webhook.id} className="border border-border/50 rounded-lg bg-card/50 backdrop-blur-sm overflow-hidden">
-                <div className="p-4 flex items-start justify-between">
+                <div className="p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className={`p-2 rounded-lg ${webhook.type === "incoming" ? "bg-blue-500/10" : "bg-orange-500/10"}`}>
                       {webhook.type === "incoming" ? (
@@ -206,7 +210,7 @@ const WebhooksCard = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-1 flex-wrap shrink-0 -ml-1 sm:ml-0">
                     {webhook.type === "outgoing" && (
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleTest(webhook.id)} title="Send test event">
                         <PlayCircle className="h-3.5 w-3.5" />
