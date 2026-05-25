@@ -1,13 +1,12 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { useTranslation } from "react-i18next"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { usePost } from "@/hooks/usePost"
 import { ExternalUserList, ExternalUserItem } from "./ExternalUserList"
-import { UserX } from "lucide-react";
+import { UserX } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface ExternalUsersResponse {
@@ -17,19 +16,18 @@ interface ExternalUsersResponse {
 }
 
 const ExternalUsersCard = () => {
-  const { t } = useTranslation()
   const { toast } = useToast()
-  const [pageIndex, setPageIndex] = React.useState(0)
-  const [allUsers, setAllUsers] = React.useState<ExternalUserItem[]>([])
-  const [hasMore, setHasMore] = React.useState(true)
-  const [searchQuery, setSearchQuery] = React.useState("")
+  const [pageIndex, setPageIndex] = useState(0)
+  const [allUsers, setAllUsers] = useState<ExternalUserItem[]>([])
+  const [hasMore, setHasMore] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
 
   const userList = useFetch<ExternalUsersResponse>(
     `${GetEndpointUrl.GetExternalUsers}?pageIndex=${pageIndex}&pageSize=20`
   )
   const post = usePost()
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (userList.data?.data) {
       if (pageIndex === 0) {
         setAllUsers(userList.data.data)
@@ -53,16 +51,13 @@ const ExternalUsersCard = () => {
 
   const handleUnlink = (userUUID: string) => {
     if (!userUUID || post.isSubmitting) return
-
-    const previousUsers = [...allUsers]
+    const previous = allUsers
     setAllUsers((prev) => prev.filter((u) => u.user_uuid !== userUUID))
 
     post
       .makeRequest<{ user_uuid: string }>({
         apiEndpoint: PostEndpointUrl.UnlinkExternalUser,
-        payload: {
-          user_uuid: userUUID,
-        },
+        payload: { user_uuid: userUUID },
       })
       .then(() => {
         toast({
@@ -71,7 +66,7 @@ const ExternalUsersCard = () => {
         })
       })
       .catch(() => {
-        setAllUsers(previousUsers)
+        setAllUsers(previous)
         toast({
           title: "Error",
           description: "Failed to unlink external user. Please try again.",
@@ -81,26 +76,30 @@ const ExternalUsersCard = () => {
   }
 
   return (
-    <Card className="w-full border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-6">
+    <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
+      <CardHeader className="px-0 pt-0 pb-4 shrink-0">
         <div className="flex items-center gap-2 mb-1">
           <div className="bg-primary/10 p-1.5 rounded-md">
             <UserX className="h-4 w-4 text-primary" />
           </div>
-          <CardTitle className="text-xl font-bold tracking-tight">
+          <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight">
             External Users
           </CardTitle>
+          <span className="text-xs font-medium text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
+            {allUsers.length}
+            {hasMore ? "+" : ""}
+          </span>
         </div>
         <CardDescription className="text-sm text-muted-foreground">
           View and manage ghost users auto-provisioned from GitHub. Unlinking clears their GitHub association.
         </CardDescription>
       </CardHeader>
-      <CardContent className="px-0">
+      <CardContent className="px-0 flex-1 min-h-0 flex flex-col">
         <ExternalUserList
           users={allUsers}
           isSubmitting={post.isSubmitting}
           onLoadMore={handleLoadMore}
-          hasMore={hasMore}
+          hasMore={hasMore && !searchQuery.trim()}
           isLoading={userList.isLoading}
           onUnlink={handleUnlink}
           searchQuery={searchQuery}

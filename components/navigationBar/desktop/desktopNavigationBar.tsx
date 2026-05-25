@@ -40,8 +40,8 @@ import {InlineDocCreator} from "@/components/doc/inlineDocCreator";
 import {sortChatList} from "@/lib/utils/sortChatList";
 import {isExternalUser} from "@/lib/utils/isExternalUser";
 import {formatCount} from "@/lib/utils/helpers/formatCount";
-import {updateChannelCallStatus} from "@/store/slice/channelSlice";
-import {updateChatCallStatus} from "@/store/slice/chatSlice";
+import {batchUpdateChannelCallStatus} from "@/store/slice/channelSlice";
+import {batchUpdateChatCallStatus} from "@/store/slice/chatSlice";
 
 
 export function DesktopNavigationBar({
@@ -100,11 +100,12 @@ export function DesktopNavigationBar({
                 favChannelsUser: userSideNav.data.data.user_fav_channels || []
             }))
 
-            // Hydrate channel call status from initial sidebar API
-            for (const ch of userSideNav.data.data.user_channels) {
-                if (ch.ch_call_active) {
-                    dispatch(updateChannelCallStatus({ channelId: ch.ch_uuid, callStatus: true }));
-                }
+            // Hydrate channel call status from initial sidebar API (single batch dispatch)
+            const activeChannelIds = (userSideNav.data.data.user_channels || [])
+                .filter(ch => ch.ch_call_active)
+                .map(ch => ch.ch_uuid);
+            if (activeChannelIds.length > 0) {
+                dispatch(batchUpdateChannelCallStatus({ channelIds: activeChannelIds, callStatus: true }));
             }
         }
 
@@ -126,11 +127,12 @@ export function DesktopNavigationBar({
             dispatch(createUserChatList({ chatUsersDm: userSideNav.data.data.user_dms }));
             dispatch(updateUsersStatusFromList({ users: otherUsersList }));
 
-            // Hydrate DM/group chat call status from initial sidebar API
-            for (const dm of userSideNav.data.data.user_dms) {
-                if (dm.dm_call_active) {
-                    dispatch(updateChatCallStatus({ grpId: dm.dm_grouping_id, callStatus: true }));
-                }
+            // Hydrate DM/group chat call status from initial sidebar API (single batch dispatch)
+            const activeDmIds = (userSideNav.data.data.user_dms || [])
+                .filter(dm => dm.dm_call_active)
+                .map(dm => dm.dm_grouping_id);
+            if (activeDmIds.length > 0) {
+                dispatch(batchUpdateChatCallStatus({ grpIds: activeDmIds, callStatus: true }));
             }
         }
 
@@ -156,65 +158,67 @@ export function DesktopNavigationBar({
         [userSidebarState.userChannels]
     );
 
-    const navLinks:DesktopNavType[] = useMemo(() => [
-        {
-            title: 'Home',
-            label: "",
-            icon: Home,
-            variant: (path.length > 2 && path[2] == 'home') ? "sidebarActive" : "ghost",
-            path: app_home_path,
-        },
-        {
-            title: 'Channels',
-            label: formatCount(totalChannelUnread),
-            icon: Hash,
-            variant: (path.length > 2 && path[2] == 'channel') ? "sidebarActive" : "ghost",
-            path: app_channel_path,
-        },
-        {
-            title: 'DMs',
-            label: formatCount(totalDMUnread),
-            icon: MessageCircle,
-            variant: (path.length > 2 && path[2] == 'chat') ? "sidebarActive" : "ghost",
-            path: app_chat_path,
-        },
-        {
-            title: 'My Tasks',
-            label: "",
-            icon: CircleCheck,
-            variant: (path.length > 2 && path[2] == 'myTask') ? "sidebarActive" : "ghost",
-            path: app_my_task_path,
-        },
-        {
-            title: 'Calendar',
-            label: "",
-            icon: Calendar,
-            variant: (path.length > 2 && path[2] == 'calendar') ? "sidebarActive" : "ghost",
-            path: app_calendar_path,
-        },
-        {
-            title: 'Activity',
-            label: formatCount(userSidebarState.totalUnreadActivityCount),
-            icon: BellIcon,
-            variant: (path.length > 2 && path[2] == 'activity') ? "sidebarActive" : "ghost",
-            path: app_doc_activity,
-        },
-    ], [path, userSidebarState.totalUnreadActivityCount, totalDMUnread, totalChannelUnread]);
+    const isAdmin = userSideNav.data && userSideNav.data.data.user_is_admin
+
+    const navLinks:DesktopNavType[] = useMemo(() => {
+        const links: DesktopNavType[] = [
+            {
+                title: 'Home',
+                label: "",
+                icon: Home,
+                variant: (path.length > 2 && path[2] == 'home') ? "sidebarActive" : "ghost",
+                path: app_home_path,
+            },
+            {
+                title: 'Channels',
+                label: formatCount(totalChannelUnread),
+                icon: Hash,
+                variant: (path.length > 2 && path[2] == 'channel') ? "sidebarActive" : "ghost",
+                path: app_channel_path,
+            },
+            {
+                title: 'DMs',
+                label: formatCount(totalDMUnread),
+                icon: MessageCircle,
+                variant: (path.length > 2 && path[2] == 'chat') ? "sidebarActive" : "ghost",
+                path: app_chat_path,
+            },
+            {
+                title: 'My Tasks',
+                label: "",
+                icon: CircleCheck,
+                variant: (path.length > 2 && path[2] == 'myTask') ? "sidebarActive" : "ghost",
+                path: app_my_task_path,
+            },
+            {
+                title: 'Calendar',
+                label: "",
+                icon: Calendar,
+                variant: (path.length > 2 && path[2] == 'calendar') ? "sidebarActive" : "ghost",
+                path: app_calendar_path,
+            },
+            {
+                title: 'Activity',
+                label: formatCount(userSidebarState.totalUnreadActivityCount),
+                icon: BellIcon,
+                variant: (path.length > 2 && path[2] == 'activity') ? "sidebarActive" : "ghost",
+                path: app_doc_activity,
+            },
+        ];
+        if (isAdmin) {
+            links.push({
+                title: 'Admin',
+                label: "",
+                icon: Shield,
+                variant: (path.length > 2 && path[2] == 'admin') ? "sidebarActive" : "ghost",
+                path: app_admin,
+            });
+        }
+        return links;
+    }, [path, userSidebarState.totalUnreadActivityCount, totalDMUnread, totalChannelUnread, isAdmin]);
 
     const channelLabel = formatCount(totalChannelUnread);
     const dmLabel = formatCount(totalDMUnread);
-
-
-    const isAdmin = userSideNav.data && userSideNav.data.data.user_is_admin
-    if(isAdmin) {
-        navLinks.push({
-            title: 'Admin',
-            label: "",
-            icon: Shield,
-            variant: (path.length > 2 && path[2] == 'admin') ? "sidebarActive" : "ghost",
-            path: app_admin,
-        })
-    }
 
     for (const p of (userSidebarState.userProjects || []).filter(Boolean)) {
         projectNavGrp.push({
@@ -555,7 +559,7 @@ export function DesktopNavigationBar({
                         </div>
                     </ResizablePanel>
                     <ResizableHandle withHandle onDragging={setIsDragging} />
-                    <ResizablePanel defaultSize={panelSizes[1]} minSize={20} className="overflow-y-auto overflow-x-hidden w-full min-w-0">
+                    <ResizablePanel defaultSize={panelSizes[1]} minSize={20} className="overflow-hidden w-full min-w-0">
                         {children}
                     </ResizablePanel>
                 </ResizablePanelGroup>

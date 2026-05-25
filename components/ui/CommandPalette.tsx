@@ -346,6 +346,14 @@ export function CommandPalette() {
         action: () => dispatch(openUI({ key: "selfUserProfile" })),
       },
       {
+        id: "notification-settings",
+        label: "Notification Preferences",
+        keywords: ["notifications", "email", "alerts", "preferences", "mute", "subscribe", "unsubscribe", "digest", "quiet hours"],
+        icon: <Bell className="mr-2 h-4 w-4" />,
+        group: "Settings",
+        action: () => router.push("/app/settings/notifications"),
+      },
+      {
         id: "status",
         label: "Update Status",
         keywords: ["status", "emoji", "mood"],

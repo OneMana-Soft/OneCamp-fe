@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-build-unit:
+    name: Lint / Build / Unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        # Next.js builds the app as it would in prod; this catches any
+        # runtime/typecheck errors that get past the editor. Build is
+        # also a prerequisite for `pnpm start` in the e2e job.
+        run: pnpm build
+
+      - name: Unit tests (vitest)
+        run: pnpm exec vitest --run
+
+      # Stash the .next build so the e2e job can `pnpm start` against
+      # the same compiled bundle without re-building. Cuts CI time in
+      # half for the e2e path.
+      - name: Cache .next for e2e job
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-build
+          path: |
+            .next
+            public
+          retention-days: 1
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: lint-build-unit
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore .next from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: next-build
+
+      # Playwright caches browsers in ~/.cache/ms-playwright. Caching it
+      # makes the e2e job ~30s faster on warm runs.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        # When the browser cache hits we still need OS deps (libnss,
+        # libatk, etc.) installed before chromium can launch. The
+        # --with-deps flag in the previous step covers both; this is
+        # the cache-hit equivalent.
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Run Playwright tests
+        run: pnpm exec playwright test
+        env:
+          CI: "1"
+          # Hint the playwright webServer command to use start (prod
+          # build) instead of dev, mirroring what users actually see.
+          PLAYWRIGHT_PORT: "3001"
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

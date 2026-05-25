@@ -170,7 +170,7 @@ const EmailSettingsCard = () => {
           <div className="bg-primary/10 p-1.5 rounded-md">
             <Settings className="h-4 w-4 text-primary" />
           </div>
-          <CardTitle className="text-xl font-bold tracking-tight">
+          <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight">
             Email Settings
           </CardTitle>
         </div>

@@ -18,6 +18,8 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
 import { openUI } from "@/store/slice/uiSlice"
 import type { ProjectInfoInterface } from "@/types/project"
+import axiosInstance from "@/lib/axiosInstance"
+import GitHubWebhookHealth from "@/components/admin/GitHubWebhookHealth"
 
 interface AutomationRules {
   // Issue rules
@@ -157,27 +159,76 @@ const GitHubIntegrationCard = () => {
     } catch {} finally { setLinkingRepo(null) }
   }
 
+  // Polls a GitHub import job until it transitions out of running.
+  // We use a fixed 1.5s cadence and cap the wait at ~3 minutes; the
+  // background worker drains far quicker than that for typical
+  // repositories. On a hard cap timeout we tell the user the job is
+  // still running and surface the job id so they can check later.
+  const pollImportJob = async (jobId: string, kind: "issues" | "PRs"): Promise<void> => {
+    const maxAttempts = 120 // 120 * 1500ms = 3 minutes
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const res = await axiosInstance.get(`${GetEndpointUrl.GetGitHubImportJob}/${jobId}`)
+        const job = res.data?.job
+        if (job?.Status === "completed" || job?.status === "completed") {
+          const imported = job.ItemsImported ?? job.items_imported ?? 0
+          const skipped = job.ItemsSkipped ?? job.items_skipped ?? 0
+          const failed = job.ItemsFailed ?? job.items_failed ?? 0
+          const parts = [`${imported} ${kind} imported`]
+          if (skipped > 0) parts.push(`${skipped} skipped`)
+          if (failed > 0) parts.push(`${failed} failed`)
+          toast({ title: "Import complete", description: parts.join(" · ") })
+          return
+        }
+        if (job?.Status === "failed" || job?.status === "failed") {
+          const errMsg = job.ErrorMessage ?? job.error_message ?? "import failed"
+          toast({ title: "Import failed", description: errMsg, variant: "destructive" })
+          return
+        }
+      } catch {
+        // transient error; let the loop retry
+      }
+      await new Promise(r => setTimeout(r, 1500))
+    }
+    toast({
+      title: "Import still running",
+      description: "The import is taking longer than expected. It will continue in the background.",
+    })
+  }
+
   const handleImportIssues = async (linkId: string) => {
     setImportingIssuesLink(linkId)
     try {
-      const res = await post.makeRequest<any, { count: number }>({
+      const res = await post.makeRequest<any, { job_id: string }>({
         apiEndpoint: PostEndpointUrl.GitHubImportIssues,
         appendToUrl: `/${linkId}`,
         showErrorToast: true,
       })
-      toast({ title: "Import complete", description: `${res?.count || 0} issues imported as tasks` })
+      const jobId = res?.job_id
+      if (!jobId) {
+        toast({ title: "Import scheduled", description: "Import will run in the background." })
+        return
+      }
+      toast({ title: "Import scheduled", description: "Importing issues — this may take a moment." })
+      await pollImportJob(jobId, "issues")
     } catch {} finally { setImportingIssuesLink(null) }
   }
 
   const handleImportPRs = async (linkId: string) => {
     setImportingPRsLink(linkId)
     try {
-      const res = await post.makeRequest<any, { count: number }>({
+      const res = await post.makeRequest<any, { job_id: string }>({
         apiEndpoint: PostEndpointUrl.GitHubImportPRs,
         appendToUrl: `/${linkId}`,
         showErrorToast: true,
       })
-      toast({ title: "Import complete", description: `${res?.count || 0} PRs imported as tasks` })
+      const jobId = res?.job_id
+      if (!jobId) {
+        toast({ title: "Import scheduled", description: "Import will run in the background." })
+        return
+      }
+      toast({ title: "Import scheduled", description: "Importing PRs — this may take a moment." })
+      await pollImportJob(jobId, "PRs")
     } catch {} finally { setImportingPRsLink(null) }
   }
 
@@ -207,15 +258,11 @@ const GitHubIntegrationCard = () => {
   return (
     <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
       <CardHeader className="px-0 pt-0 pb-6 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="bg-primary/10 p-1.5 rounded-md"><GitBranch className="h-4 w-4 text-primary" /></div>
-              <CardTitle className="text-xl font-bold tracking-tight">Integrations</CardTitle>
-            </div>
-            <CardDescription className="text-sm text-muted-foreground">Connect external services for bidirectional sync. Link GitHub repositories to sync issues, PRs, and branches with your tasks.</CardDescription>
-          </div>
+        <div className="flex items-center gap-2 mb-1">
+          <div className="bg-primary/10 p-1.5 rounded-md"><GitBranch className="h-4 w-4 text-primary" /></div>
+          <CardTitle className="text-lg sm:text-xl font-semibold tracking-tight">Integrations</CardTitle>
         </div>
+        <CardDescription className="text-sm text-muted-foreground">Connect external services for bidirectional sync. Link GitHub repositories to sync issues, PRs, and branches with your tasks.</CardDescription>
       </CardHeader>
 
       <CardContent className="px-0 flex-1 overflow-y-auto pr-4 custom-scrollbar pb-10 min-h-0">
@@ -223,15 +270,15 @@ const GitHubIntegrationCard = () => {
           <div className="text-sm text-muted-foreground animate-pulse">Loading integration status...</div>
         ) : (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-gray-900 dark:bg-gray-100 p-2.5 rounded-xl"><Github className="h-5 w-5 text-white dark:text-gray-900" /></div>
-                <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="bg-gray-900 dark:bg-gray-100 p-2.5 rounded-xl shrink-0"><Github className="h-5 w-5 text-white dark:text-gray-900" /></div>
+                <div className="min-w-0">
                   <h3 className="font-semibold text-sm">GitHub</h3>
-                  <p className="text-xs text-muted-foreground">Sync issues, PRs, and branches with OneCamp tasks</p>
+                  <p className="text-xs text-muted-foreground truncate">Sync issues, PRs, and branches with OneCamp tasks</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
                 {isConnected ? (
                   <>
                     <Badge className="gap-1 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"><CheckCircle2 className="h-3 w-3" />Connected</Badge>
@@ -262,22 +309,22 @@ const GitHubIntegrationCard = () => {
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Linked Repositories</h4>
                   <div className="space-y-3">
                     {linkedRepos.map(link => (
-                      <div key={link.id} className="border border-border/50 rounded-lg bg-card/50 p-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Github className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <a href={`https://github.com/${link.repo_owner}/${link.repo_name}`} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:underline flex items-center gap-1">{link.repo_owner}/{link.repo_name}<ExternalLink className="h-3 w-3" /></a>
+                      <div key={link.id} className="border border-border/50 rounded-lg bg-card/50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Github className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <a href={`https://github.com/${link.repo_owner}/${link.repo_name}`} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:underline flex items-center gap-1 truncate">{link.repo_owner}/{link.repo_name}<ExternalLink className="h-3 w-3 shrink-0" /></a>
                               <Badge variant="outline" className="text-[10px]">{getProjectName(link.project_id)}</Badge>
                             </div>
-                            <div className="flex gap-2 mt-1">
+                            <div className="flex gap-2 mt-1 flex-wrap">
                               {link.sync_issues && <Badge variant="outline" className="text-[10px]">Issues</Badge>}
                               {link.sync_prs && <Badge variant="outline" className="text-[10px]">PRs</Badge>}
                               {link.auto_create_tasks && <Badge variant="secondary" className="text-[10px]">Auto-create tasks</Badge>}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-wrap shrink-0">
                           <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7" onClick={() => handleImportIssues(link.id)} disabled={importingIssuesLink === link.id || importingPRsLink === link.id}>
                             {importingIssuesLink === link.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}Import Issues
                           </Button>
@@ -296,6 +343,16 @@ const GitHubIntegrationCard = () => {
                     ))}
                   </div>
                 </div>
+              </>
+            )}
+
+            {/* Webhook delivery health — only meaningful once we're
+                 connected and have at least one linked repo (no repos
+                 means no webhooks were registered). */}
+            {isConnected && linkedRepos.length > 0 && (
+              <>
+                <Separator />
+                <GitHubWebhookHealth />
               </>
             )}
 

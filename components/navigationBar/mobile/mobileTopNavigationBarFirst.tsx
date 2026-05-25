@@ -26,6 +26,7 @@ export function MobileTopNavigationBarFirst() {
             case "search":
             case "home":
             case "ai":
+            case "admin":
             case "calendar":
             case "profile":
             case "activity":

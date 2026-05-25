@@ -67,13 +67,15 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           id="main-panel"
           order={1}
           className={cn(
-            "h-full relative w-full min-w-0 overflow-x-hidden",
+            "h-full relative w-full min-w-0",
             isDragging ? "transition-none" : "transition-[flex-basis] duration-75 ease-out"
           )}
         >
-          <PageTransition>
-            {children}
-          </PageTransition>
+          <div className="h-full w-full overflow-y-auto overflow-x-hidden custom-scrollbar">
+            <PageTransition>
+              {children}
+            </PageTransition>
+          </div>
         </ResizablePanel>
         <ResizableHandle withHandle={true} className={rightPanelState.isOpen ? "" : "hidden"} onDragging={setIsDragging} />
         <ResizablePanel

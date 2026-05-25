@@ -677,11 +677,14 @@ export const chatSlice = createSlice({
         },
 
         updateChatCallStatus: (state, action: {payload: UpdateChatCallStatus}) => {
-
             const {grpId, callStatus} = action.payload;
-
             state.chatCallStatus[grpId] = {active:callStatus}
-
+        },
+        batchUpdateChatCallStatus: (state, action: {payload: {grpIds: string[], callStatus: boolean}}) => {
+            const {grpIds, callStatus} = action.payload;
+            for (const grpId of grpIds) {
+                state.chatCallStatus[grpId] = {active:callStatus}
+            }
         },
 
         // SYNC: Clear all loaded chat messages to force API refetch after stale reconnection
@@ -723,6 +726,7 @@ export const {
     updateChatScrollPosition,
     updateChatReactionId,
     updateChatCallStatus,
+    batchUpdateChatCallStatus,
     invalidateAllChatMessages,
     RemoveMessageFromChatList,
     UpdateMessageTextInChatList

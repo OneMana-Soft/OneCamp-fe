@@ -385,8 +385,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                 offset: 50
             },);
         }
-
-    },[safeChannelScrollToBottom.shouldScrollToBottom])
+    },[safeChannelScrollToBottom.shouldScrollToBottom, chatId, dispatch, flatItems.length])
 
     const handleGetOldMessage = () => {
         setVirtualShift(true)

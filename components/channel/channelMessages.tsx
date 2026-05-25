@@ -377,17 +377,15 @@ export const ChannelMessages = ({
     const containerRef = useRef<VListHandle>(null)
 
     useEffect(() => {
-
         if (channelScrollToBottom.shouldScrollToBottom && containerRef.current) {
             dispatch(updateChannelScrollToBottom({ channelId, scrollToBottom: false }))
-
             containerRef.current.scrollToIndex(flatItems.length - 1, {
                 smooth: true,
                 align: "end",
                 offset: 50
             })
         }
-    }, [channelScrollToBottom.shouldScrollToBottom, flatItems.length])
+    }, [channelScrollToBottom.shouldScrollToBottom, channelId, dispatch, flatItems.length])
     
     const handleGetOldMessage = () => {
         setVirtualShift(true)
