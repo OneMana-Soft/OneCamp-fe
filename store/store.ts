@@ -22,6 +22,9 @@ import {createDocCommentSlice} from "@/store/slice/createDocCommentSlice";
 import uiSlice from "@/store/slice/uiSlice";
 import mentionSlice from "./slice/mentionSlice";
 import { recentItemsSlice } from "./slice/recentItemsSlice";
+import messageResyncSlice from "@/store/slice/messageResyncSlice";
+import { commandSlice } from "@/store/slice/commandSlice";
+import nudgeSlice from "@/store/slice/nudgeSlice";
 
 
 const rootPersistConfig = {
@@ -32,11 +35,25 @@ const rootPersistConfig = {
     ]
 }
 
+// RESET_STORE_ACTION is dispatched on logout to wipe ALL Redux state back to
+// each slice's initial state. Without this, the redux-persist singleton keeps
+// the previous user's persisted slice(s) (e.g. recentItems) in memory and can
+// re-flush them after a naive localStorage.clear(), leaking one user's Recent
+// items / state into the next user's session. Pairs with persistor.purge() in
+// useLogout.
+export const RESET_STORE_ACTION = "store/RESET"
+
 // Manually compose root reducer to avoid combineReducers type complexity
 const rootReducer = (
     state: RootState | undefined,
     action: any
 ): RootState => {
+    // On logout, drop all slice state so every reducer rebuilds from its
+    // initial state. This guarantees no cross-user leakage regardless of which
+    // slices are persisted.
+    if (action?.type === RESET_STORE_ACTION) {
+        state = undefined
+    }
     if (!state) {
         return {
             [userSlice.name]: userSlice.reducer(undefined, action),
@@ -60,6 +77,9 @@ const rootReducer = (
             [chatCommentSlice.name]: chatCommentSlice.reducer(undefined, action),
             [mentionSlice.name]: mentionSlice.reducer(undefined, action),
             [recentItemsSlice.name]: recentItemsSlice.reducer(undefined, action),
+            [messageResyncSlice.name]: messageResyncSlice.reducer(undefined, action),
+            [commandSlice.name]: commandSlice.reducer(undefined, action),
+            [nudgeSlice.name]: nudgeSlice.reducer(undefined, action),
         } as RootState
     }
 
@@ -85,6 +105,9 @@ const rootReducer = (
         [chatCommentSlice.name]: chatCommentSlice.reducer(state[chatCommentSlice.name], action),
         [mentionSlice.name]: mentionSlice.reducer(state[mentionSlice.name], action),
         [recentItemsSlice.name]: recentItemsSlice.reducer(state[recentItemsSlice.name], action),
+        [messageResyncSlice.name]: messageResyncSlice.reducer(state[messageResyncSlice.name], action),
+        [commandSlice.name]: commandSlice.reducer(state[commandSlice.name], action),
+        [nudgeSlice.name]: nudgeSlice.reducer(state[nudgeSlice.name], action),
     } as RootState
 }
 
@@ -110,6 +133,9 @@ export type RootState = {
     [chatCommentSlice.name]: ReturnType<typeof chatCommentSlice.reducer>
     [mentionSlice.name]: ReturnType<typeof mentionSlice.reducer>
     [recentItemsSlice.name]: ReturnType<typeof recentItemsSlice.reducer>
+    [messageResyncSlice.name]: ReturnType<typeof messageResyncSlice.reducer>
+    [commandSlice.name]: ReturnType<typeof commandSlice.reducer>
+    [nudgeSlice.name]: ReturnType<typeof nudgeSlice.reducer>
 }
 
 const persistedReducer = persistReducer(rootPersistConfig, rootReducer);

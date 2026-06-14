@@ -11,6 +11,7 @@ import {RootState} from "@/store/store";
 import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {useMedia} from "@/context/MediaQueryContext";
+import {useStatusIsExpired} from "@/hooks/useStatusIsExpired";
 
 
 export const DesktopNavigationEmojiStatus = ({userUUID}: {userUUID: string}) => {
@@ -21,9 +22,22 @@ export const DesktopNavigationEmojiStatus = ({userUUID}: {userUUID: string}) => 
 
 
     const userStatusState = useSelector((state: RootState) => state.users.usersStatus[userUUID] || {} );
-    const emojiInfo = findEmojiMartEmojiByEmojiID(emojiData.data, userStatusState.emojiStatus?.status_user_emoji_id ?? '')
 
-    const statusMessage =  userStatusState.emojiStatus?.status_user_emoji_desc ?? null
+    /**
+     * Drop expired statuses at render time. The BE doesn't publish a
+     * delete event on auto-expiry, so a peer's expired emoji could
+     * otherwise linger in Redux until the next profile fetch. The
+     * hook re-evaluates every minute to sweep expired entries.
+     */
+    const cachedStatus = userStatusState.emojiStatus?.status_user_emoji_id
+        ? userStatusState.emojiStatus
+        : null
+    const isExpired = useStatusIsExpired(cachedStatus)
+    const activeStatus = cachedStatus && !isExpired ? cachedStatus : null
+
+    const emojiInfo = findEmojiMartEmojiByEmojiID(emojiData.data, activeStatus?.status_user_emoji_id ?? '')
+
+    const statusMessage = activeStatus?.status_user_emoji_desc ?? null
 
     if(!emojiInfo) return null
 

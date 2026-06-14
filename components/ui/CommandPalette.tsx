@@ -3,7 +3,8 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
-import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck } from "@/lib/icons";
+import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus } from "@/lib/icons";
+import { Plug } from "lucide-react";
 
 import {
   CommandDialog,
@@ -19,6 +20,8 @@ import { addRecentItem, type RecentItem } from "@/store/slice/recentItemsSlice"
 import { useFetch } from "@/hooks/useFetch"
 import { useSearch } from "@/hooks/useSearch"
 import { useTrackPageVisit } from "@/hooks/useTrackPageVisit"
+import { useCapabilities } from "@/hooks/useCapabilities"
+import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { UserProfileInterface } from "@/types/user"
 import type { RootState } from "@/store/store"
@@ -48,6 +51,9 @@ interface PaletteCommand {
   group: string
   action: () => void
   adminOnly?: boolean
+  // capabilityKey gates the command behind a delegatable capability — shown
+  // only when the current user may exercise it (admins always can).
+  capabilityKey?: string
 }
 
 /* ------------------------------------------------------------------ */
@@ -114,6 +120,7 @@ export function CommandPalette() {
 
   const { data: selfProfile } = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const isAdmin = selfProfile?.data?.user_is_admin || false
+  const { can } = useCapabilities()
 
   // Track page visits with real names from Redux
   useTrackPageVisit()
@@ -327,6 +334,14 @@ export function CommandPalette() {
         group: "AI",
         action: () => router.push("/app/ai"),
       },
+      {
+        id: "ai-memory",
+        label: "Workspace Memory",
+        keywords: ["ai", "memory", "decisions", "commitments", "open questions", "knowledge"],
+        icon: <Sparkles className="mr-2 h-4 w-4" />,
+        group: "AI",
+        action: () => router.push("/app/ai/memory"),
+      },
 
       // Settings & Account
       {
@@ -352,6 +367,32 @@ export function CommandPalette() {
         icon: <Bell className="mr-2 h-4 w-4" />,
         group: "Settings",
         action: () => router.push("/app/settings/notifications"),
+      },
+      {
+        id: "connectors",
+        label: "Connectors",
+        keywords: ["connectors", "gmail", "email", "google calendar", "github", "integrations", "connect", "oauth", "accounts"],
+        icon: <Plug className="mr-2 h-4 w-4" />,
+        group: "Settings",
+        action: () => router.push("/app/settings/connectors"),
+      },
+      {
+        id: "workflows",
+        label: "Workflows",
+        keywords: ["workflows", "automation", "automate", "rules", "triggers", "bot"],
+        icon: <Zap className="mr-2 h-4 w-4" />,
+        group: "Settings",
+        capabilityKey: CAP_WORKFLOW_MANAGE,
+        action: () => router.push("/app/settings/workflows"),
+      },
+      {
+        id: "invite-people",
+        label: "Invite people",
+        keywords: ["invite", "add member", "add people", "invitation"],
+        icon: <UserPlus className="mr-2 h-4 w-4" />,
+        group: "Settings",
+        capabilityKey: CAP_INVITATION_CREATE,
+        action: () => window.dispatchEvent(new CustomEvent("open-invite-people")),
       },
       {
         id: "status",
@@ -418,8 +459,12 @@ export function CommandPalette() {
       },
     ]
 
-    return base.filter((cmd) => !cmd.adminOnly || isAdmin)
-  }, [router, dispatch, isAdmin])
+    return base.filter((cmd) => {
+      if (cmd.adminOnly && !isAdmin) return false
+      if (cmd.capabilityKey && !can(cmd.capabilityKey)) return false
+      return true
+    })
+  }, [router, dispatch, isAdmin, can])
 
   const hasSearchQuery = inputValue.trim().length > 0
   const hasSearchResults = searchResults.length > 0

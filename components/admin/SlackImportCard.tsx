@@ -19,7 +19,7 @@
  *   without touching unrelated state.
  */
 
-import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
+import React, { useMemo, useState, Suspense, lazy } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +27,7 @@ import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
+import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
 import { GetEndpointUrl } from "@/services/endPoints"
 import {
@@ -108,33 +109,17 @@ const SlackImportCard: React.FC = () => {
   const runningJobs = useMemo(() => jobs.filter((j) => isLive(j.status)), [jobs])
 
   // -------- Polling fallback --------
-  const pollRef = useRef<NodeJS.Timeout | null>(null)
-  const pollStartedAtRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current)
-      pollRef.current = null
-    }
-    if (isMqttHealthy || runningJobs.length === 0) {
-      pollStartedAtRef.current = null
-      return
-    }
-    if (pollStartedAtRef.current === null) {
-      pollStartedAtRef.current = Date.now()
-    }
-    pollRef.current = setInterval(() => {
-      if (pollStartedAtRef.current && Date.now() - pollStartedAtRef.current > POLL_CAP_MS) {
-        if (pollRef.current) clearInterval(pollRef.current)
-        pollRef.current = null
-        return
-      }
-      refetch()
-    }, POLL_INTERVAL_MS)
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
-  }, [isMqttHealthy, runningJobs.length, refetch])
+  // useResilientPolling does the heavy lifting: pause on hidden tabs,
+  // skip when MQTT is healthy, exponential backoff on errors, hard
+  // cap on total duration. Keeping the hook usage minimal makes
+  // every admin card use the same lifecycle.
+  useResilientPolling({
+    enabled: runningJobs.length > 0,
+    mqttHealthy: isMqttHealthy,
+    interval: POLL_INTERVAL_MS,
+    capMs: POLL_CAP_MS,
+    onPoll: refetch,
+  })
 
   // -------- Dialog state --------
   const [uploadOpen, setUploadOpen] = useState(false)

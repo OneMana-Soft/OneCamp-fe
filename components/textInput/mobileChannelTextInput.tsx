@@ -1,6 +1,7 @@
 "use client"
 
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
+import { ComposerAIButton } from "@/components/ai/ComposerAIButton";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
@@ -18,6 +19,7 @@ import {useUploadFile} from "@/hooks/useUploadFile";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { ChannelInfoInterfaceResp } from "@/types/channel";
 import { GetEndpointUrl } from "@/services/endPoints";
+import CommandSurface from "@/components/command/CommandSurface";
 
 
 export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: string, handleSend: (latestContent?: string)=>void }) => {
@@ -64,14 +66,25 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
 
     return (
         <DraggableDrawer isExpanded={isExpanded} setIsExpanded={setIsExpanded} initialHeight={initialHeight}>
-
+            <CommandSurface
+                surfaceKey={channelId}
+                channelId={channelId}
+                onComposerText={(text) =>
+                    dispatch(updateChannelInputText({ channelId, inputTextHTML: `<p>${text}</p>` }))
+                }
+                onComposerHtml={(html) =>
+                    dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))
+                }
+            />
             <div ref={contentRef}> {/* Wrap all content in a ref */}
                 <div ref={editorRef}>
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'channelFileUpload' })) }}
                         onActionFiles={async (files) => {
                             if (!files?.length) return;
-                            await uploadFile.makeRequestToUploadToChannel(files as unknown as FileList, channelId);
+                            const valid = uploadFile.validateFiles(files);
+                            if (valid.length === 0) return;
+                            await uploadFile.makeRequestToUploadToChannel(valid as unknown as FileList, channelId);
                         }}
                         throttleDelay={300}
                         noBorder={true}
@@ -89,6 +102,12 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
                             dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
                         }}
                         fixedToolbarToBottom={true}
+                        aiSlot={
+                            <ComposerAIButton
+                                getText={() => channelInputState.inputTextHTML || ""}
+                                onResult={(html) => dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))}
+                            />
+                        }
                     >
 
 

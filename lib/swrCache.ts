@@ -122,9 +122,16 @@ let registered = false
  * Wired at the root via <SWRConfig provider={localStorageProvider}>.
  * This function runs once per page-mount; the listeners it registers
  * deliberately leak for the document lifetime.
+ *
+ * The public return type is SWR's `Cache<unknown>` (what SWRConfig's
+ * `provider` prop expects). The concrete runtime value is a `Map`; SWR's
+ * `Cache.get` is typed to return `State<T>` rather than the raw stored
+ * value, so a `Map` is structurally wider than `Cache` and needs a cast
+ * here. Tests that need Map-only members (`.size`) narrow the result
+ * themselves since they exercise the concrete implementation.
  */
 export function localStorageProvider(): Cache<unknown> {
-  if (typeof window === "undefined") return new Map() as Cache<unknown>
+  if (typeof window === "undefined") return new Map() as unknown as Cache<unknown>
 
   const map = rehydrate()
 
@@ -143,8 +150,5 @@ export function localStorageProvider(): Cache<unknown> {
     })
   }
 
-  // SWR's Cache<T> is a Map-like with state values; the actual
-  // concrete shape we hand back is a Map, which satisfies the
-  // structural interface SWR expects.
   return map as unknown as Cache<unknown>
 }

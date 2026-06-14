@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import {UploadedFile} from "@/types/file";
 import {getFileType} from "@/lib/utils/file/getFileType";
-import {Dialog, DialogContent} from "@/components/ui/dialog";
+import {Dialog, DialogContent, DialogTitle} from "@/components/ui/dialog";
 
 
 interface FileDialogProps {
@@ -18,6 +18,7 @@ export const FileDialog = ({ file, open, onOpenChange }: FileDialogProps) => {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-4xl">
+                <DialogTitle className="sr-only">File Preview: {file.file.name}</DialogTitle>
                 {fileType === 'image' && (
                     <Image
                         src={file.signedUrl || file.preview}

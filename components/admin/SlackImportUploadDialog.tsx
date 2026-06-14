@@ -66,7 +66,7 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
     onOpenChange(next)
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] || null
     if (!f) {
       setFile(null)
@@ -84,11 +84,41 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
       })
       return
     }
+    // Magic-byte validation client-side. The backend re-validates
+    // (auth-of-record), but rejecting here gives the operator instant
+    // feedback for typos (drag-dropping a .docx renamed to .zip, etc.)
+    // and saves a multi-GB upload that's destined to fail.
+    if (!(await isPKZipFile(f))) {
+      toast({
+        title: "Not a ZIP file",
+        description: "The file's contents don't match a ZIP archive (PKZIP signature missing).",
+        variant: "destructive",
+      })
+      return
+    }
     setFile(f)
     // Best-effort default for slack_workspace_name if the user hasn't typed one yet.
     if (!workspaceName) {
       const stem = f.name.replace(/\.zip$/i, "").replace(/[._-]?Slack[ _-]?export.*/i, "")
       setWorkspaceName(stem || "Slack Workspace")
+    }
+  }
+
+  // isPKZipFile reads the first 4 bytes of f and checks for any of the
+  // three PKZIP signatures. Cheap (browser FileReader is async but
+  // bounded to 4 bytes) so we always run it before showing the file.
+  async function isPKZipFile(f: File): Promise<boolean> {
+    try {
+      const head = new Uint8Array(await f.slice(0, 4).arrayBuffer())
+      if (head.length < 4) return false
+      const isLocalFile = head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04
+      const isEOCD = head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x05 && head[3] === 0x06
+      const isSpan = head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x07 && head[3] === 0x08
+      return isLocalFile || isEOCD || isSpan
+    } catch {
+      // If we can't read the file (very small files, browser quirks),
+      // skip the client-side check and let the BE decide.
+      return true
     }
   }
 

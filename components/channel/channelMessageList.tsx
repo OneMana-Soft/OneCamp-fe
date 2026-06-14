@@ -6,8 +6,9 @@ import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import { CreatePostPaginationResRaw, PostsRes} from "@/types/post";
 import {useEffect, useState, useMemo} from "react";
-import {updateChannelPosts, updateChannelScrollToBottom} from "@/store/slice/channelSlice";
+import {updateChannelPosts, updateChannelScrollToBottom, mergeChannelPosts} from "@/store/slice/channelSlice";
 import {ChannelMessages} from "@/components/channel/channelMessages";
+import {useMessageResync} from "@/hooks/useMessageResync";
 import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {UserProfileInterface} from "@/types/user";
 import { LoaderCircle } from "@/lib/icons";
@@ -32,6 +33,16 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
     const postId = propPostId || searchParams?.get('postId') || undefined;
     const latestMsg = useFetch<CreatePostPaginationResRaw>(postId ? '' : GetEndpointUrl.GetChannelLatestPost + '/' + channelId)
     const getNewPostsWithCurrentPost = useFetch<CreatePostPaginationResRaw>(postId ? GetEndpointUrl.GetNewPostIncludingCurrentPost + '/' + channelId + '/' + postId: '')
+
+    // Revalidate the latest window on open/switch so a revisited channel picks
+    // up posts that arrived while away (notification deep-link). The merge
+    // effect reconciles without clobbering optimistic sends.
+    useEffect(() => {
+        if (!postId && channelId) {
+            void latestMsg.mutate()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [channelId, postId])
 
     const rawChannelTyping = useSelector((state: RootState) => state.typing.channelTyping[channelId] || EMPTY_TYPING_LIST);
     const channelTypingState = useMemo(() => rawChannelTyping.map(item => item.user), [rawChannelTyping]);
@@ -61,9 +72,16 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
         if(!postId && latestMsg.data?.data?.posts && channelPostState.length == 0 ) {
             const newPosts = [...latestMsg.data.data.posts].reverse();
             dispatch(updateChannelPosts({channelId, posts: newPosts}))
+        } else if (!postId && latestMsg.data?.data?.posts && channelPostState.length > 0) {
+            // Already-loaded channel revisited (navigation / notification
+            // deep-link): merge the fresh latest window so a post that arrived
+            // while away appears without a hard refresh. Preserves optimistic
+            // sends + paginated history; no-op when nothing changed.
+            const latest = [...latestMsg.data.data.posts].reverse();
+            dispatch(mergeChannelPosts({ channelId, posts: latest }))
         }
 
-    }, [getNewPostsWithCurrentPost, latestMsg]);
+    }, [getNewPostsWithCurrentPost, latestMsg, channelPostState, postId, channelId, dispatch]);
 
     useEffect(() => {
 
@@ -71,9 +89,11 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
             setHasMoreOldPost(oldMsg.data.data.has_more)
             setOldChannelPostTime(0)
             if(oldMsg.data?.data.posts && oldMsg.data?.data.posts.length !== 0) {
-                const posts = oldMsg.data.data.posts.reverse().concat(channelPostState)
+                const existingUuids = new Set(channelPostState.map(p => p.post_uuid))
+                // Copy before reversing — don't mutate the live SWR cache.
+                const dedupedOld = [...oldMsg.data.data.posts].reverse().filter(p => !existingUuids.has(p.post_uuid))
+                const posts = dedupedOld.concat(channelPostState)
                 dispatch(updateChannelPosts({channelId: channelId, posts: posts}))
-                oldMsg.data.data.posts.reverse()
             }
         }
 
@@ -85,7 +105,9 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
             setHasMoreNewPost(newMsg.data.data.has_more)
             setNewChannelPostsTime(0)
             if(newMsg.data?.data.posts && newMsg.data?.data.posts.length !== 0) {
-                const posts = channelPostState.concat(newMsg.data.data.posts)
+                const existingUuids = new Set(channelPostState.map(p => p.post_uuid))
+                const dedupedNew = newMsg.data.data.posts.filter(p => !existingUuids.has(p.post_uuid))
+                const posts = channelPostState.concat(dedupedNew)
                 dispatch(updateChannelPosts({channelId: channelId, posts: posts}))
             }
         }
@@ -118,6 +140,21 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
         setNewChannelPostsTime(epochTime)
         setHasMoreNewPost(false)
     }
+
+    // Reconcile against the server when MQTT recovers from a long gap
+    // (idle tab). Window-reconcile: applies missed posts, edits, and deletes
+    // within the latest window without clearing what's already on screen.
+    // Disabled in permalink mode (postId) where the user is parked on an
+    // older post.
+    useMessageResync<PostsRes>({
+        enabled: !postId,
+        latestUrl: postId ? '' : GetEndpointUrl.GetChannelLatestPost + '/' + channelId,
+        extract: (payload) => {
+            const posts = payload?.data?.posts as PostsRes[] | undefined
+            return posts ? [...posts].reverse() : undefined
+        },
+        onMerge: (posts) => dispatch(mergeChannelPosts({ channelId, posts })),
+    })
 
     useEffect(() => {
         const handleVisibilityChange = () => {

@@ -10,11 +10,18 @@ import { getOtherUserId } from "@/lib/utils/getOtherUserId"
 import { isRenderable } from "@/lib/utils/validation/isRenderable"
 import { getAttachmentType } from "@/lib/utils/file/getAttachmentType"
 import { AttachmentMediaReq } from "@/types/attachment"
+import { sanitizePlainHtml } from "@/lib/sanitizeHtml"
+import { SafeHtml } from "@/components/safeHtml/SafeHtml"
 
 export const HighlightedText = memo(({ text, highlights, field }: { text: string, highlights?: any, field: string }) => {
     if (!highlights || !highlights[field]) return <span>{text}</span>
     const highlight = highlights[field][0]
-    return <span dangerouslySetInnerHTML={{ __html: highlight }} />
+    // OpenSearch highlights wrap matched terms with <em>...</em>, but
+    // the surrounding content is the user-authored body — sanitise so
+    // a hostile message body cannot inject tags via the search-result
+    // panel. SafeHtml defers sanitization to the client to keep the
+    // server rendering JSDOM-free.
+    return <SafeHtml as="span" html={highlight} sanitizer={sanitizePlainHtml} />
 })
 HighlightedText.displayName = "HighlightedText"
 
@@ -117,8 +124,12 @@ export const getHighlightedContext = (result: SearchResult) => {
             return (
                 <div className="flex flex-col gap-1">
                     <span className="opacity-70">{context}</span>
-                    <div className="text-xs bg-muted/30 p-1.5 rounded border border-border/50 italic" 
-                         dangerouslySetInnerHTML={{ __html: `...${result.highlight[field][0]}...` }} />
+                    <SafeHtml
+                        as="div"
+                        className="text-xs bg-muted/30 p-1.5 rounded border border-border/50 italic"
+                        html={`...${result.highlight[field][0]}...`}
+                        sanitizer={sanitizePlainHtml}
+                    />
                 </div>
             )
         }

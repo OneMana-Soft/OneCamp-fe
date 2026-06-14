@@ -12,7 +12,7 @@ function getApproximateAspectRatio(val: number, lim = 10) {
     let lower = [0, 1]
     let upper = [1, 0]
 
-    // eslint-disable-next-line no-constant-condition
+     
     while (true) {
         const mediant = [lower[0] + upper[0], lower[1] + upper[1]]
 

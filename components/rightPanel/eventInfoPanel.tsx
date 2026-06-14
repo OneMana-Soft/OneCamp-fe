@@ -27,6 +27,8 @@ import { useSWRConfig } from "swr";
 import {closeRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {useSelector, useDispatch} from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
+import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
+import { SafeHtml } from "@/components/safeHtml/SafeHtml";
 
 const formSchema = z.object({
     title: z.string().min(1, "Title is required"),
@@ -302,9 +304,11 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 notes
                             </div>
                             {event.event_description ? (
-                                <div 
+                                <SafeHtml
+                                    as="div"
+                                    sanitizer={sanitizeRichHtml}
+                                    html={event.event_description}
                                     className="text-sm leading-relaxed text-muted-foreground pl-5 transition-all prose prose-sm dark:prose-invert max-w-none [&_a]:text-primary [&_a]:underline [&_a]:break-all"
-                                    dangerouslySetInnerHTML={{ __html: event.event_description }}
                                 />
                             ) : (
                                 <p className="text-xs text-muted-foreground italic pl-5">No additional notes.</p>

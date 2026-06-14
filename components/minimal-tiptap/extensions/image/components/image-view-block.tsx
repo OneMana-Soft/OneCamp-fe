@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react'
 import type { ElementDimensions } from '../hooks/use-drag-resize'
 import { useDragResize } from '../hooks/use-drag-resize'
@@ -10,7 +11,7 @@ import { cn } from '@/lib/utils/helpers/cn'
 import { ActionButton, ActionWrapper, ImageActions } from './image-actions'
 import { useImageActions } from '../hooks/use-image-actions'
 import { blobUrlToBase64, randomId } from '../../../utils'
-import { InfoCircledIcon, TrashIcon } from '@radix-ui/react-icons'
+import { Cross2Icon, InfoCircledIcon, TrashIcon } from '@radix-ui/react-icons'
 import { ImageOverlay } from './image-overlay'
 import type { UploadReturnType } from '../image'
 import { LoaderCircle } from "@/lib/icons";
@@ -21,6 +22,38 @@ import { GetMediaURLRes } from '@/types/file';
 const MAX_HEIGHT = 600
 const MIN_HEIGHT = 120
 const MIN_WIDTH = 120
+// Fallback display cap when no editor column width can be measured. Keeps a
+// lone GIF/image from blowing out the layout while still being comfortably
+// large on desktop and full-bleed on mobile (clamped by maxWidth:100%).
+const MAX_DISPLAY_WIDTH = 480
+
+// isCrossOrigin reports whether an absolute http(s) URL points at a different
+// origin than the app. Cross-origin images (Giphy, third-party CDNs) must be
+// rendered directly in <img> and never fetched via the credentialed axios
+// client, which would trip CORS. Relative URLs ("/getFile/…") are same-origin.
+function isCrossOrigin(src: string): boolean {
+  if (!/^https?:\/\//i.test(src)) return false // relative → same-origin
+  try {
+    if (typeof window === "undefined") return true
+    return new URL(src, window.location.href).origin !== window.location.origin
+  } catch {
+    return true
+  }
+}
+
+// measureColumnWidth resolves the available display width for an image. It
+// prefers the editor's --editor-width CSS var (the text column width) when
+// defined, otherwise measures the node's own container, and finally falls back
+// to MAX_DISPLAY_WIDTH. This keeps a lone GIF/image sized to the column rather
+// than to a tiny first-paint placeholder, on both desktop and mobile.
+function measureColumnWidth(el: HTMLElement | null): number {
+  if (!el) return MAX_DISPLAY_WIDTH
+  const cssVar = parseFloat(getComputedStyle(el).getPropertyValue('--editor-width'))
+  if (cssVar && cssVar > 0) return cssVar
+  const measured = el.clientWidth
+  if (measured && measured > 0) return measured
+  return MAX_DISPLAY_WIDTH
+}
 
 interface ImageState {
   src: string
@@ -62,9 +95,18 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
 
   const shouldFetchMedia = React.useMemo(() => {
     if (!isExternal) return false
-    // Skip fetching if it's already a direct attachment endpoint that redirects to MinIO
-    // These work fine in <img> tags but fail in authenticated XHR due to CORS * + credentials:true
-    return !imageState.src.includes('/getDocAttachment/') && !imageState.src.includes('/getFile/')
+    const src = imageState.src as string
+    // Only OneCamp's OWN media-resolution endpoints return a {url} JSON that
+    // needs an authenticated fetch. A truly cross-origin image (Giphy, any
+    // third-party CDN, or an absolute URL on another host) is already a
+    // directly-renderable <img> source — fetching it via axios (which sends
+    // withCredentials:true) trips CORS ("Allow-Origin: *" can't be combined
+    // with credentials) and floods the console with net::ERR_FAILED on every
+    // render + 4-min refresh. So: never XHR a cross-origin URL.
+    if (isCrossOrigin(src)) return false
+    // Same-origin direct attachment endpoints stream/redirect to MinIO and
+    // render fine in <img> but fail an authenticated XHR — skip them too.
+    return !src.includes('/getDocAttachment/') && !src.includes('/getFile/')
   }, [isExternal, imageState.src])
 
   const { data: mediaData } = useMediaFetch<GetMediaURLRes>(shouldFetchMedia ? imageState.src : '')
@@ -85,9 +127,7 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
 
   const aspectRatio = imageState.naturalSize.width / imageState.naturalSize.height
   const maxWidth = MAX_HEIGHT * aspectRatio
-  const containerMaxWidth = containerRef.current
-    ? parseFloat(getComputedStyle(containerRef.current).getPropertyValue('--editor-width'))
-    : Infinity
+  const containerMaxWidth = measureColumnWidth(containerRef.current)
 
   const { isLink, onView, onDownload, onCopy, onCopyLink, onRemoveImg } = useImageActions({
     editor,
@@ -129,21 +169,35 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
         naturalSize: newNaturalSize,
         imageLoaded: true
       }))
-      
-      const newWidth = img.width || newNaturalSize.width
-      const newHeight = img.height || newNaturalSize.height
 
-      if (Math.abs((initialWidth || 0) - newWidth) > 1 || Math.abs((initialHeight || 0) - newHeight) > 1) {
+      // Size from the image's INTRINSIC (natural) dimensions, not img.width —
+      // img.width is the *rendered* width, which on first paint is the tiny
+      // placeholder size (the node had no width/height attrs, e.g. a /giphy
+      // GIF inserted as <img src=…>). Reading the rendered width and writing it
+      // back permanently shrank the image. Natural size, capped to the editor
+      // column width, gives a correctly-sized image on both desktop and mobile.
+      if (!newNaturalSize.width || !newNaturalSize.height) return
+
+      const colWidth = measureColumnWidth(containerRef.current)
+      // Never upscale past the image's own resolution; cap to the column width.
+      const cap = Math.min(colWidth || MAX_DISPLAY_WIDTH, MAX_DISPLAY_WIDTH)
+      const targetWidth = Math.min(newNaturalSize.width, cap)
+
+      if (
+        Math.abs((initialWidth || 0) - targetWidth) > 1 ||
+        !initialHeight
+      ) {
         updateAttributes({
-          width: newWidth,
-          height: newHeight,
+          width: targetWidth,
+          // Let height follow the aspect ratio from natural size.
+          height: Math.round(targetWidth * (newNaturalSize.height / newNaturalSize.width)),
           alt: img.alt,
           title: img.title
         })
       }
 
       if (!initialWidth) {
-        updateDimensions(state => ({ ...state, width: newNaturalSize.width }))
+        updateDimensions(state => ({ ...state, width: targetWidth }))
       }
     },
     [initialWidth, initialHeight, updateAttributes, updateDimensions]
@@ -152,6 +206,25 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
   const handleImageError = React.useCallback(() => {
     setImageState(prev => ({ ...prev, error: true, imageLoaded: true }))
   }, [])
+
+  const closeZoom = React.useCallback(() => {
+    setImageState(prev => (prev.isZoomed ? { ...prev, isZoomed: false } : prev))
+  }, [])
+
+  // Close the lightbox on Escape and lock body scroll while it's open.
+  React.useEffect(() => {
+    if (!imageState.isZoomed) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeZoom()
+    }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [imageState.isZoomed, closeZoom])
 
   const handleResizeStart = React.useCallback(
     (direction: 'left' | 'right') => (event: React.PointerEvent<HTMLDivElement>) => {
@@ -255,7 +328,8 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
                   <img
                     src={displaySrc}
                     className={cn('rounded object-contain transition-shadow', {
-                      'opacity-0': !imageState.imageLoaded || imageState.error
+                      'opacity-0': !imageState.imageLoaded || imageState.error,
+                      'cursor-zoom-in': !editor.isEditable && imageState.imageLoaded
                     })}
                     style={{
                       width: `${currentWidth}px`,
@@ -267,6 +341,14 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
                     height={currentHeight}
                     onError={handleImageError}
                     onLoad={handleImageLoad}
+                    onClick={() => {
+                      // In read-only surfaces (chat/posts), clicking the image
+                      // opens the lightbox — matching Notion/Slack. In the
+                      // editor the click is reserved for selection/resize.
+                      if (!editor.isEditable && imageState.imageLoaded && !imageState.error) {
+                        onView()
+                      }
+                    }}
                     alt={node.attrs.alt || ''}
                     title={node.attrs.title || ''}
                     id={node.attrs.id}
@@ -338,6 +420,38 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
           )}
         </div>
       </div>
+
+      {imageState.isZoomed && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={closeZoom}
+            style={{
+              paddingTop: 'env(safe-area-inset-top)',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+            }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          >
+            <button
+              type="button"
+              onClick={closeZoom}
+              aria-label="Close"
+              style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
+              className="absolute right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 active:bg-white/30"
+            >
+              <Cross2Icon className="size-6" />
+            </button>
+            {/* Stop propagation so clicking the image itself doesn't close. */}
+            <img
+              src={displaySrc}
+              alt={node.attrs.alt || ''}
+              onClick={e => e.stopPropagation()}
+              className="max-h-[90vh] max-w-[95vw] rounded object-contain shadow-2xl sm:max-w-[90vw]"
+            />
+          </div>,
+          document.body
+        )}
     </NodeViewWrapper>
   )
 }

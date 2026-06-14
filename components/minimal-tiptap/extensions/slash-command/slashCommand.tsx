@@ -2,7 +2,7 @@ import { ReactRenderer } from "@tiptap/react"
 import { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion"
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import tippy, { Instance as TippyInstance } from "tippy.js"
-import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Minus, CheckSquare, Image, Sparkles, MessageSquare, ChevronRight, Bold, Italic, Strikethrough } from "@/lib/icons";
+import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Minus, CheckSquare, Image, Sparkles, MessageSquare, ChevronRight, Bold, Italic, Strikethrough, Zap } from "@/lib/icons";
 import { Lightbulb, Command, Underline as UnderlineIcon, Eraser } from "@/lib/icons";
 
 export interface SlashCommandItem {
@@ -273,16 +273,207 @@ export const COMMANDS: SlashCommandItem[] = DOC_SLASH_COMMANDS
 export const BASE_COMMANDS: SlashCommandItem[] = CHAT_COMMANDS
 export const DOC_COMMANDS: SlashCommandItem[] = DOC_BLOCK_COMMANDS
 
+// ─── Backend command provider (Slack-style app/core commands) ───
+//
+// The chat composer registers an async provider that returns the scoped
+// command catalog (/remind, /giphy, /poll, ...). These are merged into the
+// "/" menu alongside the formatting commands above. Selecting one dispatches
+// a `chat-slash-command` CustomEvent — the same decoupled pattern the AI
+// commands use (`doc-ai-slash`) — which the composer's command runner handles
+// (execute server-side, render an interactive card, or perform a client
+// action). Keeping this as a module-level provider avoids threading async
+// props through every composer while ensuring docs (which never register a
+// provider) keep their formatting-only menu unchanged.
+
+export interface BackendCommandEntry {
+  command: string        // canonical name without leading slash
+  description: string
+  usage_hint?: string
+  app_name?: string
+  icon_url?: string
+  is_builtin: boolean
+}
+
+type BackendCommandProvider = (query: string) => BackendCommandEntry[]
+
+let backendCommandProvider: BackendCommandProvider | null = null
+
+// slashMenuOpen tracks whether the "/" suggestion popup is currently showing.
+// The composer's Enter-to-send handler reads this (via isSlashMenuOpen) and
+// yields while the menu is open so Enter selects the highlighted command
+// instead of sending the raw "/" text as a message. Set by the render
+// lifecycle below — deterministic, no ProseMirror plugin-key guesswork.
+let slashMenuOpen = false
+
+/** isSlashMenuOpen reports whether the "/" command menu is currently visible. */
+export function isSlashMenuOpen(): boolean {
+  return slashMenuOpen
+}
+
+/** Register/replace the backend command provider (called by the chat composer). */
+export function setBackendCommandProvider(provider: BackendCommandProvider | null) {
+  backendCommandProvider = provider
+}
+
+/** Map a backend catalog entry to a SlashCommandItem that dispatches an event. */
+function toBackendItem(entry: BackendCommandEntry): SlashCommandItem {
+  const hint = entry.usage_hint ? ` ${entry.usage_hint}` : ""
+  return {
+    id: `cmd-${entry.command}`,
+    title: `/${entry.command}${hint}`,
+    description: entry.app_name ? `${entry.description} · ${entry.app_name}` : entry.description,
+    icon: Zap,
+    section: "Commands",
+    command: ({ editor, range }) => {
+      // Slack/Notion-grade UX:
+      //  • A command that needs arguments → insert "/command " into the
+      //    composer and leave the cursor after it, so the user types the args
+      //    and presses Enter (send-time interception then runs it).
+      //  • A no-argument command (e.g. /active, /shortcuts) → run immediately,
+      //    so a single click does the thing — no second keystroke.
+      if (commandNeedsArgs(entry.usage_hint)) {
+        editor
+          .chain()
+          .focus()
+          .deleteRange(range)
+          .insertContent(`/${entry.command} `)
+          .run()
+        return
+      }
+      editor.chain().focus().deleteRange(range).run()
+      window.dispatchEvent(
+        new CustomEvent("chat-slash-command", {
+          detail: { command: entry.command, typed: entry.command },
+        }),
+      )
+    },
+  }
+}
+
+// commandNeedsArgs decides whether selecting a command should wait for the user
+// to type arguments (insert "/command ") vs run immediately. A usage hint that
+// contains a required placeholder ("<...>"), a mention/channel token ("@"/"#"),
+// or a quoted example ('"') means the command expects input. Empty or
+// purely-optional hints ("[name]") run immediately.
+function commandNeedsArgs(usageHint?: string): boolean {
+  const h = (usageHint || "").trim()
+  if (!h) return false
+  return /[<@#"]/.test(h)
+}
+
+/**
+ * resolveBackendCommandName returns the canonical command name when `query`
+ * exactly matches an installed/scoped backend command (case-insensitive), or
+ * null otherwise. Used by the composer's send-time interception to decide
+ * whether a leading-slash message is a command to run vs plain text to post.
+ */
+export function resolveBackendCommandName(query: string): string | null {
+  if (!backendCommandProvider) return null
+  const name = (query || "").trim().toLowerCase()
+  if (!name) return null
+  try {
+    const entries = backendCommandProvider(name)
+    const exact = entries.find((e) => e.command.toLowerCase() === name)
+    return exact ? exact.command : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * maybeDispatchSlashCommand inspects the composer's plain text at send time.
+ * If it's `/<known-command> [args]`, it dispatches the `chat-slash-command`
+ * event (handled by the surface's command runner) and returns true so the
+ * caller skips the normal message send. Returns false for plain text or an
+ * unknown command (which should post as a normal message).
+ *
+ * `mentions` maps a display label (lowercased, no "@") to the real user UUID,
+ * extracted from the composer's mention nodes — so a command like
+ * "/dm @Akash hi" can resolve @Akash to the exact UUID the user picked instead
+ * of fuzzy-matching the display name. The runner forwards it in the event.
+ */
+export function maybeDispatchSlashCommand(
+  plainText: string,
+  mentions?: Record<string, string>,
+): boolean {
+  const text = (plainText || "").trim()
+  if (!text.startsWith("/")) return false
+  const afterSlash = text.slice(1)
+  const name = afterSlash.split(/\s+/)[0] || ""
+  const resolved = resolveBackendCommandName(name)
+  if (!resolved) return false
+  // `typed` carries the command name + args (no leading slash); the runner
+  // strips the command token to get the argument text.
+  window.dispatchEvent(
+    new CustomEvent("chat-slash-command", {
+      detail: { command: resolved, typed: afterSlash, mentions: mentions || {} },
+    }),
+  )
+  return true
+}
+
+/**
+ * extractSlashCommandFromEditor reads the editor's structured doc and returns
+ * the composer's plain text PLUS a label→uuid map built from mention nodes.
+ * Mention nodes render as "@username" in plain text (losing the id), so we walk
+ * the doc to recover each mention's data-id (formatted "<uuid>@<dgraphUid>") and
+ * key it by the lowercased label. Returns null when there's nothing to send.
+ */
+export function extractSlashCommandFromEditor(editor: {
+  getText: () => string
+  state: { doc: { descendants: (cb: (node: NodeLike) => void) => void } }
+}): { text: string; mentions: Record<string, string> } | null {
+  if (!editor) return null
+  const text = editor.getText().trim()
+  if (!text) return null
+  const mentions: Record<string, string> = {}
+  try {
+    editor.state.doc.descendants((node: NodeLike) => {
+      if (node.type?.name === "mention" && node.attrs) {
+        const rawId = String(node.attrs.id || "")
+        const label = String(node.attrs.label || "").trim().toLowerCase()
+        // id is "<uuid>@<dgraphUid>"; the UUID is the part before "@".
+        const uuid = rawId.split("@")[0]
+        if (label && uuid) mentions[label] = uuid
+      }
+    })
+  } catch {
+    /* structured walk failed — fall back to text-only */
+  }
+  return { text, mentions }
+}
+
+interface NodeLike {
+  type?: { name?: string }
+  attrs?: { id?: unknown; label?: unknown }
+}
+
 export const slashCommandSuggestion = {
   items: ({ query, commands }: { query: string; commands: SlashCommandItem[] }): SlashCommandItem[] => {
     const q = query.toLowerCase().slice(1) // Remove leading /
-    if (!q) return commands.slice(0, 12)
-    return commands.filter(
+
+    // Merge backend (app/core) commands when a provider is registered (chat
+    // composer). Docs register no provider, so their menu is unchanged.
+    let backendItems: SlashCommandItem[] = []
+    if (backendCommandProvider) {
+      try {
+        backendItems = backendCommandProvider(q).map(toBackendItem)
+      } catch {
+        backendItems = []
+      }
+    }
+
+    if (!q) {
+      // Show backend commands first, then a trimmed set of formatting commands.
+      return [...backendItems, ...commands].slice(0, 16)
+    }
+    const filteredLocal = commands.filter(
       (item) =>
         item.title.toLowerCase().includes(q) ||
         item.description.toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q)
-    ).slice(0, 12)
+    )
+    return [...backendItems, ...filteredLocal].slice(0, 16)
   },
 
   render: () => {
@@ -291,6 +482,7 @@ export const slashCommandSuggestion = {
 
     return {
       onStart: (props: SuggestionProps) => {
+        slashMenuOpen = true
         component = new ReactRenderer(SlashCommandList, {
           props,
           editor: props.editor,
@@ -318,6 +510,7 @@ export const slashCommandSuggestion = {
 
       onKeyDown(props: SuggestionKeyDownProps) {
         if (props.event.key === "Escape") {
+          slashMenuOpen = false
           popup?.hide()
           return true
         }
@@ -326,6 +519,7 @@ export const slashCommandSuggestion = {
       },
 
       onExit() {
+        slashMenuOpen = false
         popup?.destroy()
         component?.destroy()
         popup = undefined
@@ -343,7 +537,7 @@ interface SlashProps extends SuggestionProps {
   items: SlashCommandItem[]
 }
 
-const SECTION_ORDER = ["Basic blocks", "Advanced blocks", "Format", "AI"]
+const SECTION_ORDER = ["Commands", "Basic blocks", "Advanced blocks", "Format", "AI"]
 
 const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
   const [selectedIndex, setSelectedIndex] = useState(0)

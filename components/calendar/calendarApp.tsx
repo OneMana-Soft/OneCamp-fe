@@ -196,7 +196,7 @@ export function CalendarApp() {
         const weekEnd = endOfWeek(weekStart);
         const dayIntervals = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
         
-        let weekEvents: any[] = [];
+        const weekEvents: any[] = [];
         if (showEvents) {
             personalEvents.forEach(event => {
                 const start = parseISO(event.event_start_time);

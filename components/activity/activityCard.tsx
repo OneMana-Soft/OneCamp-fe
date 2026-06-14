@@ -143,11 +143,18 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
     );
 
     const titleNode = (
-        <span>
-            <span className="font-semibold text-foreground">
-                {meta.user?.user_full_name || "Unknown user"}
-            </span>{" "}
-            <span className="font-normal text-muted-foreground">{meta.title}</span>
+        <span className="inline-flex items-center gap-1.5 min-w-0">
+            <span className="min-w-0 truncate">
+                <span className="font-semibold text-foreground">
+                    {meta.user?.user_full_name || "Unknown user"}
+                </span>{" "}
+                <span className="font-normal text-muted-foreground">{meta.title}</span>
+            </span>
+            {activity.priority === "high" && (
+                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    Needs reply
+                </span>
+            )}
         </span>
     );
 

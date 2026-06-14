@@ -4,6 +4,7 @@ import type { Content, UseEditorOptions } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { useEditor, mergeAttributes, Extension } from '@tiptap/react'
 import { SlashCommand } from '../extensions/slash-command/slashCommandExtension'
+import { isSlashMenuOpen } from '../extensions/slash-command/slashCommand'
 import { DOMOutputSpec } from '@tiptap/pm/model'
 import { Typography } from '@tiptap/extension-typography'
 import { Placeholder } from '@tiptap/extension-placeholder'
@@ -61,7 +62,7 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
   collaboration?: {
     enabled: boolean
     documentId: string
-    token: string
+    token?: string
     username: string
     userId?: string
     color?: string
@@ -287,10 +288,21 @@ const createExtensions = (
       addKeyboardShortcuts() {
         return {
           'Enter': () => {
+            // While the "/" command menu is open, Enter belongs to the menu
+            // (it selects the highlighted command). Return FALSE — NOT true —
+            // so this keymap is treated as "unhandled" and ProseMirror
+            // continues to the suggestion plugin's keydown handler, which
+            // performs the selection. Returning true would mark Enter handled
+            // and swallow it (menu never selects); returning the submit result
+            // would send the raw "/" as a message. False is the only correct
+            // choice here.
+            if (isSlashMenuOpen()) {
+              return false
+            }
             if (onSubmitRef?.current) {
               return onSubmitRef.current();
             }
-            return false;
+            return false
           },
           'Shift-Enter': () => {
              if (this.editor.isActive('codeBlock')) {
@@ -428,8 +440,11 @@ export const useMinimalTiptapEditor = ({
   const handleBlur = React.useCallback((editor: Editor) => onBlurRef.current?.(getOutput(editor, output)), [output])
 
   // Use a stable key for provider to avoid recreating extensions on every render.
-  // The provider object identity should be stable; if it isn't, the editor will
-  // be recreated, which is expensive but necessary for Yjs binding.
+  // Build the extension list. With the upstream provider now created via state
+  // (stable identity for a document's lifetime) and the editor gated on the
+  // provider being ready before mount, this memo runs once per document — the
+  // editor is created already bound to Yjs rather than rebuilt mid-session.
+  // `activeUsers` is deliberately excluded so presence updates never rebuild.
   const extensions = React.useMemo(
     () => createExtensions(
       placeholderRef.current,

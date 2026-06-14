@@ -40,7 +40,7 @@ import { X } from "@/lib/icons";
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
 import {usePost} from "@/hooks/usePost";
-import {updateUserEmojiStatus} from "@/store/slice/userSlice";
+import {clearUserEmojiStatus, updateUserEmojiStatus} from "@/store/slice/userSlice";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 
@@ -183,7 +183,11 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
           setMessage(defaultState.message)
           setExpiresIn(defaultState.expiration_setting)
           setExpiresAt(defaultState.expires_at)
-          dispatch(updateUserEmojiStatus({userUUID: selfProfile.data?.data.user_uuid || '', status: {} as UserEmojiStatus}));
+          // Explicit clear-intent: route through the dedicated reducer
+          // so the empty payload actually wipes Redux state. The
+          // generic updateUserEmojiStatus reducer ignores empty
+          // payloads to defend against profile-fetch clobbers.
+          dispatch(clearUserEmojiStatus({userUUID: selfProfile.data?.data.user_uuid || ''}));
         })
   }
 

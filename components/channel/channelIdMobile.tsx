@@ -5,15 +5,17 @@ import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {Button} from "@/components/ui/button";
-import {LoaderCircle} from "lucide-react";
+import { LoaderCircle, Megaphone } from "@/lib/icons";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {UserProfileInterface} from "@/types/user";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
+import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 
-export const ChannelIdMobile = ({channelId, handleSend}: {channelId: string, handleSend: ()=>void }) => {
+export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number }) => {
+
     const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
     const channelInSidebar = userChannels.find(ch => ch.ch_uuid === channelId);
 
@@ -60,15 +62,29 @@ export const ChannelIdMobile = ({channelId, handleSend}: {channelId: string, han
             )
         }
 
+        if (
+            channelInfo.data?.channel_info.ch_post_policy === "admins_only" &&
+            !channelInfo.data?.channel_info.ch_is_admin
+        ) {
+            return (
+                <div className='border-t fixed bottom-0 flex items-center justify-center gap-2 w-full py-5 text-center text-sm text-muted-foreground bg-background'>
+                    <Megaphone className="h-4 w-4" />
+                    <span>Only moderators can post here.</span>
+                </div>
+            )
+        }
+
         return (<MobileChannelTextInput channelId={channelId} handleSend={handleSend}/>)
     }
-
     return (
         <div className='flex flex-col h-full'>
-
-            <div style={{height: window.innerHeight-185}}>
+            <CatchMeUpBanner
+                channelUUID={channelId}
+                unreadCount={unreadCount || 0}
+                channelName={channelDisplayName}
+            />
+            <div className="flex-1 min-h-0">
                 <ChannelMessageList channelId={channelId}/>
-
             </div>
 
             <div>

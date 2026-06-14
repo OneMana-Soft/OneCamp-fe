@@ -30,13 +30,13 @@ const Tooltip = ({ children, ...props }: React.ComponentProps<typeof TooltipPrim
     const [isOpen, setIsOpen] = React.useState(false)
     const isLongPressRef = React.useRef(false)
 
-    const onLongPress = () => {
+    const onLongPress = React.useCallback(() => {
         if (isMobile) {
             isLongPressRef.current = true
             setIsOpen(true)
         }
-    }
-
+    }, [isMobile])
+ 
     const longPressProps = useLongPress(onLongPress, { threshold: 500 })
 
     const rootProps = isMobile ? {
@@ -49,8 +49,16 @@ const Tooltip = ({ children, ...props }: React.ComponentProps<typeof TooltipPrim
         }
     } : {}
 
+    const contextValue = React.useMemo(() => ({
+        isMobile,
+        longPressProps,
+        isOpen,
+        setIsOpen,
+        isLongPressRef
+    }), [isMobile, longPressProps, isOpen, setIsOpen])
+
     return (
-        <TooltipMobileContext.Provider value={{ isMobile, longPressProps, isOpen, setIsOpen, isLongPressRef }}>
+        <TooltipMobileContext.Provider value={contextValue}>
             <TooltipPrimitive.Root {...props} {...rootProps}>
                 {children}
             </TooltipPrimitive.Root>
@@ -64,7 +72,7 @@ const TooltipTrigger = React.forwardRef<
 >(({ className, onClick, ...props }, ref) => {
     const { isMobile, longPressProps, isLongPressRef } = React.useContext(TooltipMobileContext)
 
-    const mergedRef = (element: any) => {
+    const mergedRef = React.useCallback((element: any) => {
         // Handle external ref
         if (typeof ref === 'function') ref(element)
         else if (ref) (ref as any).current = element
@@ -74,9 +82,9 @@ const TooltipTrigger = React.forwardRef<
             if (typeof longPressProps.ref === 'function') longPressProps.ref(element)
             else if (longPressProps.ref) (longPressProps.ref as any).current = element
         }
-    }
+    }, [isMobile, longPressProps.ref, ref])
 
-    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const handleClick = React.useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
         if (isMobile && isLongPressRef.current) {
              e.preventDefault()
              e.stopPropagation()
@@ -84,7 +92,7 @@ const TooltipTrigger = React.forwardRef<
              return
         }
         onClick?.(e)
-    }
+    }, [isMobile, isLongPressRef, onClick])
 
     return (
         <TooltipPrimitive.Trigger

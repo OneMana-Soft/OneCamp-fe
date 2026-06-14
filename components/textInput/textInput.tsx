@@ -24,7 +24,7 @@ import { Paperclip, X } from "@/lib/icons";
 import { LucideIcon } from "lucide-react";
 import {Toggle} from "@/components/ui/toggle";
 import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
-import { CHAT_COMMANDS } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
+import { CHAT_COMMANDS, maybeDispatchSlashCommand, extractSlashCommandFromEditor } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
 
 export interface MinimalTiptapProps
     extends Omit<UseMinimalTiptapEditorProps, "onUpdate"> {
@@ -35,6 +35,8 @@ export interface MinimalTiptapProps
   className?: string;
   editorContentClassName?: string;
   attachmentOnclick?: ()=>void
+  /** Optional inline AI affordance rendered in the composer action row. */
+  aiSlot?: React.ReactNode
   PrimaryButtonIcon?: LucideIcon
   children?: React.ReactNode
   ButtonIcon?: LucideIcon
@@ -153,6 +155,7 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
           editable,
           children,
             attachmentOnclick,
+            aiSlot,
             editorContentClassName,
           content,
             fixedToolbarToBottom,
@@ -201,7 +204,45 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
         return ed.getHTML();
       }, [output]);
 
+      // trySlashCommand intercepts a leading-slash message at send time. The
+      // Tiptap "/" menu only fires a command when picked with no args; once the
+      // user types a space (e.g. "/giphy cats", "/remind me ... in 5m") the
+      // menu closes and the text would otherwise post as a literal message.
+      // Here we check the composer's plain text against the registered command
+      // catalog: if it's a known command we dispatch it (the surface's command
+      // runner executes it), clear the composer, and return true so the caller
+      // skips the normal send. Plain text or an unknown "/word" returns false
+      // and sends normally. A no-op in composers without a command provider
+      // (docs/comments/tasks) since maybeDispatchSlashCommand bails when none
+      // is registered.
+      const trySlashCommand = React.useCallback((): boolean => {
+        const ed = editorRef.current;
+        if (!ed || ed.isDestroyed) return false;
+        const extracted = extractSlashCommandFromEditor(ed as unknown as Parameters<typeof extractSlashCommandFromEditor>[0]);
+        if (!extracted) return false;
+        if (!extracted.text.startsWith("/")) return false;
+        if (!maybeDispatchSlashCommand(extracted.text, extracted.mentions)) return false;
+        // Known command dispatched — clear the composer so the slash text
+        // isn't also sent, and drop any pending throttle write.
+        ed.chain().clearContent().run();
+        throttleRef.current?.cancel();
+        try {
+            // Mirror the cleared state to the parent (Redux body) in whatever
+            // output mode it expects, so the slash text doesn't linger.
+            const emptyOut = output === 'json' ? ed.getJSON() : (output === 'text' ? "" : "");
+            onChangeRef.current?.(emptyOut as Content);
+        } catch {
+            // ignore
+        }
+        return true;
+      }, [output]);
+
       const handleSubmit = React.useCallback(() => {
+        // Slash-command interception runs first on Enter, regardless of
+        // platform, so commands work in every composer (desktop + mobile).
+        if (trySlashCommand()) {
+            return true;
+        }
         if (buttonOnclick && !isMobile) {
             const latestHtml = flushPendingChange();
             buttonOnclick(latestHtml);
@@ -211,16 +252,18 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
             return true;
         }
         return false;
-      }, [buttonOnclick, isMobile, flushPendingChange]);
+      }, [buttonOnclick, isMobile, flushPendingChange, trySlashCommand]);
 
       const wrappedButtonOnclick = React.useMemo(() => {
         if (!buttonOnclick) return undefined;
         return async () => {
+            // Intercept slash commands before the normal send (Send button).
+            if (trySlashCommand()) return;
             const latestHtml = flushPendingChange();
             await buttonOnclick(latestHtml);
             throttleRef.current?.cancel();
         };
-      }, [buttonOnclick, flushPendingChange]);
+      }, [buttonOnclick, flushPendingChange, trySlashCommand]);
 
       const wrappedSecondaryButtonOnclick = React.useMemo(() => {
         if (!secondaryButtonOnclick) return undefined;
@@ -360,6 +403,7 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
                   <div className="flex items-center justify-between gap-2 mt-1">
                     <Toolbar editor={editor} toggledTextEditor={toggledTextEditor}  setToggledTextEditor={setToggledTextEditor} toggleToolbar={toggleToolbar}/>
                     <div className="flex items-center gap-1.5 pr-1">
+                        {aiSlot}
                         {
                             attachmentOnclick && !(isMobile && toggledTextEditor) &&
                             <Button size={"icon"} variant={'ghost'} className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4"/> </Button>

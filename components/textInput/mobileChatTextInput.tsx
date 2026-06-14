@@ -5,22 +5,19 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
-import { ChannelFileUpload } from "@/components/fileUpload/channelFileUpload";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch, useSelector} from "react-redux";
 import type { RootState } from "@/store/store";
-import {
-
-    updateChannelInputText
-} from "@/store/slice/channelSlice";
 import {createOrUpdateChatBody} from "@/store/slice/chatSlice";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
+import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
+import CommandSurface from "@/components/command/CommandSurface";
 const EMPTY_CHAT_INPUT_STATE = {};
 
 export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string)=>void}) => {
@@ -56,14 +53,26 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
 
     return (
         <DraggableDrawer isExpanded={isExpanded} setIsExpanded={setIsExpanded} initialHeight={initialHeight}>
+            <CommandSurface
+                surfaceKey={chatId}
+                dmGroupId={getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')}
+                onComposerText={(text) =>
+                    dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: `<p>${text}</p>` }))
+                }
+                onComposerHtml={(html) =>
+                    dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))
+                }
+            />
             <div ref={contentRef}> {/* Wrap all content in a ref */}
                 <div ref={editorRef}>
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'chatFileUpload' })) }}
                         onActionFiles={async (files) => {
                             if (!files?.length) return;
+                            const valid = uploadFile.validateFiles(files);
+                            if (valid.length === 0) return;
                             const grpId = getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')
-                            await uploadFile.makeRequestToUploadToChat(files as unknown as FileList, chatId, grpId);
+                            await uploadFile.makeRequestToUploadToChat(valid as unknown as FileList, chatId, grpId);
                         }}
                         throttleDelay={300}
                         noBorder={true}
@@ -81,6 +90,12 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
                             dispatch(createOrUpdateChatBody({chatUUID: chatId, body: content?.toString()||'' }))
                         }}
                         fixedToolbarToBottom={true}
+                        aiSlot={
+                            <ComposerAIButton
+                                getText={() => chatInputState.chatBody || ""}
+                                onResult={(html) => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))}
+                            />
+                        }
                     >
 
 

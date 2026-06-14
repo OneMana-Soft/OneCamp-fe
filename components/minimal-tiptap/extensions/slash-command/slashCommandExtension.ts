@@ -8,6 +8,12 @@ export const SlashCommandPluginKey = new PluginKey("slash-command")
 export const SlashCommand = Extension.create<{ commands?: SlashCommandItem[] }>({
   name: "slash-command",
 
+  // Higher than the default (100) so the suggestion plugin's handleKeyDown is
+  // consulted before the composer's Enter-to-send keymap. Combined with the
+  // submit handler yielding while the menu is open, this guarantees Enter
+  // selects the highlighted command rather than sending the raw "/".
+  priority: 200,
+
   addOptions() {
     return {
       commands: undefined,

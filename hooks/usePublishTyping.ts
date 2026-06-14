@@ -1,4 +1,8 @@
-import { throttle } from 'lodash';
+// Use the path import so webpack tree-shakes the rest of lodash. The
+// project already has a custom throttle in `lib/utils/helpers/`, but
+// lodash/throttle.cancel() is the API every existing call site
+// expects, so we keep lodash here and pay only for the one function.
+import throttle from 'lodash/throttle';
 import { useCallback, useMemo } from 'react';
 import axiosInstance from '@/lib/axiosInstance';
 import { PostEndpointUrl } from '@/services/endPoints';

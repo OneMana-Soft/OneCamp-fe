@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 
 import {UserEmojiInterface} from "@/store/slice/userSlice";
+import {useStatusIsExpired} from "@/hooks/useStatusIsExpired";
 
 export const ChatUserEmojiStatus = ({userUUID}: {userUUID: string}) => {
 
@@ -21,12 +22,33 @@ export const ChatUserEmojiStatus = ({userUUID}: {userUUID: string}) => {
     const EMPTY_USER_STATUS = {} as UserEmojiInterface;
 
     const userStatusState = useSelector((state: RootState) => state.users.usersStatus[userUUID] || EMPTY_USER_STATUS );
-    const emojiInfo = findEmojiMartEmojiByEmojiID(emojiData.data, userStatusState.emojiStatus?.status_user_emoji_id ?? '')
 
-    const statusMessage =  userStatusState.emojiStatus?.status_user_emoji_desc ?? null
+    /**
+     * Auto-expiry guard.
+     *
+     * The BE never publishes an MQTT delete event when an emoji status
+     * naturally expires (the row stays in Dgraph; the active-emoji
+     * query just filters it out via `gt(expiry_at, $time)`). That
+     * means a peer who already had the active emoji cached in Redux
+     * will keep rendering it indefinitely until they re-fetch the
+     * profile. This client-side check hides expired badges
+     * immediately; the next profile fetch (which now correctly leaves
+     * Redux alone for missing emoji fields) eventually trims the
+     * cached row.
+     *
+     * The hook re-evaluates every minute to sweep up status that
+     * expire while the tab is open.
+     */
+    const memberStatus = userStatusState.emojiStatus?.status_user_emoji_id
+        ? userStatusState.emojiStatus
+        : null
+    const isExpired = useStatusIsExpired(memberStatus)
 
+    const emojiInfo = findEmojiMartEmojiByEmojiID(emojiData.data, memberStatus?.status_user_emoji_id ?? '')
 
-    if(!emojiInfo) return null
+    const statusMessage = memberStatus?.status_user_emoji_desc ?? null
+
+    if (!emojiInfo || isExpired) return null
 
 
     if (isMobile) {

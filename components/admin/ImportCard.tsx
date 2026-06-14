@@ -18,7 +18,7 @@
  * piggy-back on that. SWR poll fallback is kicked when MQTT is down.
  */
 
-import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
+import React, { useEffect, useMemo, useState, Suspense, lazy } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
+import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
 import { mutate as swrMutate } from "swr"
 import {
@@ -132,39 +133,24 @@ const ImportCard: React.FC = () => {
   const [errorsJobId, setErrorsJobId] = useState<string | null>(null)
 
   // Polling fallback when MQTT is down or there are running jobs.
-  const pollStartRef = useRef<number | null>(null)
-  useEffect(() => {
-    if (runningJobs.length === 0) {
-      pollStartRef.current = null
-      return
-    }
-    if (pollStartRef.current === null) pollStartRef.current = Date.now()
-    const interval = setInterval(() => {
-      if (Date.now() - (pollStartRef.current ?? 0) > POLL_CAP_MS) {
-        clearInterval(interval)
-        return
-      }
-      refetchJobs()
-    }, POLL_INTERVAL_MS)
-    return () => clearInterval(interval)
-  }, [runningJobs.length, refetchJobs])
+  // useResilientPolling handles tab visibility, exponential backoff,
+  // and the MQTT-healthy short-circuit. Without isMqttHealthy in the
+  // gate, the previous implementation polled even when MQTT was up.
+  useResilientPolling({
+    enabled: runningJobs.length > 0,
+    mqttHealthy: isMqttHealthy,
+    interval: POLL_INTERVAL_MS,
+    capMs: POLL_CAP_MS,
+    onPoll: refetchJobs,
+  })
 
-  // MQTT progress events.
-  useEffect(() => {
-    const handler = (msg: any) => {
-      if (msg?.type !== "Slack_Import_Progress") return
-      // The MQTT struct is shared between providers (publishes job_id +
-      // status + stage). On any progress message we revalidate.
-      refetchJobs()
-    }
-    // Listen on the MQTT provider's broadcast queue.
-    // Note: useMqtt's registerHandler API may differ; this is the
-    // expected shape — wire up to your project's actual handler.
-    const unsubscribe = (window as any).__mqttBroadcastHandlers?.register?.(handler)
-    return () => {
-      if (typeof unsubscribe === "function") unsubscribe()
-    }
-  }, [refetchJobs])
+  // Note: real-time MQTT progress for imports is delivered via the
+  // canonical useMqtt subscription wired in `mqttProvider`. The
+  // SlackImportCard / ImportCard read the same job-list SWR key, so
+  // when MQTT publishes a progress event the provider's broadcast
+  // handler triggers a `mutate` of GetSlackImportJobs / GetImportJobs
+  // and our polling fallback short-circuits. We don't need a
+  // per-card MQTT subscription here.
 
   const providerInfo = useMemo(
     () => providers.find((p) => p.name === selectedProvider) ?? null,

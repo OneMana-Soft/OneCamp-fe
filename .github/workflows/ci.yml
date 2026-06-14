@@ -53,6 +53,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: next-build
+          # actions/upload-artifact@v4 excludes hidden paths
+          # (anything starting with `.`) by default. Without this
+          # flag the `.next` directory is uploaded as an empty shell
+          # and the e2e job's `next start` fails with
+          # "Could not find a production build in the '.next' directory".
+          include-hidden-files: true
           path: |
             .next
             public

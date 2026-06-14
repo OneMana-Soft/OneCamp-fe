@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon"
 import { truncateFileName } from "@/lib/utils/format/truncateFileName"
 import { downloadFile } from "@/lib/utils/file/downloadFile"
+import { isImageByExtension } from "@/lib/utils/file/getAttachmentType"
 
 /**
  * Attachment lightbox.
@@ -45,6 +46,34 @@ interface MediaLightboxProps {
     dialogOpenState: boolean
     allMedia: AttachmentMediaReq[]
     mediaGetUrl: string
+}
+
+/**
+ * Resolve the *effective* attachment type for the lightbox renderer.
+ *
+ * The persisted `attachment_type` on the row is sometimes wrong for
+ * historical reasons (the FE classifier used to bucket `webp` under
+ * `video`, so legacy rows still carry that classification in Dgraph).
+ * Rather than a one-off backfill — which would be expensive and would
+ * still leave imported / API-sourced rows at risk if any other client
+ * ever miscategorises them — the lightbox does a cheap, deterministic
+ * filename check: if the file extension is one a browser <img> can
+ * render, we route to the image branch regardless of what the row says.
+ *
+ * This is purely additive: rows that already classify correctly are
+ * unaffected.
+ */
+function resolveEffectiveType(media: AttachmentMediaReq): AttachmentType {
+    const persisted = media?.attachment_type || "other"
+    const fileName = media?.attachment_file_name || ""
+
+    // Legacy webp/avif/heic rows were stored as "video" or "other";
+    // recover them here so they render natively in <img> instead of
+    // failing inside <video>.
+    if (persisted !== "image" && isImageByExtension(fileName)) {
+        return "image"
+    }
+    return persisted
 }
 
 function MediaPrefetcher({
@@ -75,11 +104,22 @@ function MediaPrefetcher({
     const { data: prevData } = useMediaFetch<GetMediaURLRes>(prevUrl)
 
     useEffect(() => {
-        if (nextData?.url && nextMedia.attachment_type === "image") {
+        // Treat anything renderable by <img> as an image for prefetch
+        // purposes. This covers webp / avif / heic that older rows
+        // persisted under a different attachment_type before the
+        // classifier was fixed.
+        const nextIsImage =
+            nextMedia?.attachment_type === "image" ||
+            isImageByExtension(nextMedia?.attachment_file_name || "")
+        const prevIsImage =
+            prevMedia?.attachment_type === "image" ||
+            isImageByExtension(prevMedia?.attachment_file_name || "")
+
+        if (nextData?.url && nextIsImage) {
             const img = new (window as any).Image()
             img.src = nextData.url
         }
-        if (prevData?.url && prevMedia.attachment_type === "image") {
+        if (prevData?.url && prevIsImage) {
             const img = new (window as any).Image()
             img.src = prevData.url
         }
@@ -245,16 +285,21 @@ export function MediaLightboxDialog({
         }
     }, [currentIndex])
 
-    if (!currentMedia || allMedia?.length == 0) {
-        return
-    }
+    // NOTE: hooks must come before any early return. The previous
+    // arrangement had `if (!currentMedia) return` above the
+    // useCallbacks, which violated the Rules of Hooks (callbacks
+    // captured stale references on the first render where currentMedia
+    // is null, then ran out of order on the second render). We now
+    // declare all callbacks first and gate rendering at the JSX layer.
 
     const handlePrevious = useCallback(() => {
+        if (!allMedia || allMedia.length === 0) return
         const prevIndex = (currentIndex - 1 + allMedia.length) % allMedia.length
         setCurrentMedia(allMedia[prevIndex])
     }, [currentIndex, allMedia])
 
     const handleNext = useCallback(() => {
+        if (!allMedia || allMedia.length === 0) return
         const nextIndex = (currentIndex + 1) % allMedia.length
         setCurrentMedia(allMedia[nextIndex])
     }, [currentIndex, allMedia])
@@ -276,6 +321,10 @@ export function MediaLightboxDialog({
         if (!url) return
         downloadFile(url, currentMedia?.attachment_file_name || "attachment")
     }, [mediaReq.data?.url, currentMedia])
+
+    if (!currentMedia || allMedia?.length == 0) {
+        return null
+    }
 
     /**
      * Tailwind class shared by every floating control that sits on top
@@ -538,7 +587,7 @@ export function MediaLightboxDialog({
                         {/* Image canvas — neutral dark in both themes. */}
                         <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-zinc-950">
                             {renderAsPerAttachmentType(
-                                currentMedia?.attachment_type || "other",
+                                resolveEffectiveType(currentMedia),
                                 currentMedia?.attachment_file_name || "unknown",
                             )}
 

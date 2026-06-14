@@ -10,7 +10,6 @@ import { useParams } from "next/navigation";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
-import { getCookie, checkAuthCookieExists } from "@/lib/utils/helpers/getCookie";
 import * as React from 'react';
 import {generateColorFromUUID} from "@/lib/utils/generateColorFromUUID";
 import {DocInfoResponse} from "@/types/doc";
@@ -108,12 +107,6 @@ export default function Page() {
 
     const docCommentCount = useSelector((state: RootState) => state.createDocComment.docCommentCount[docId]);
 
-    const [token, setToken] = React.useState<string>(() => {
-        if (typeof window !== 'undefined') {
-            return getCookie("Authorization") || '';
-        }
-        return '';
-    });
     const { isMobile, isDesktop } = useMedia();
     const { makeRequest: updateDoc } = usePost();
 
@@ -136,28 +129,56 @@ export default function Page() {
         return docInfo.doc_created_by?.user_uuid === userProfile.data.data.user_uuid;
     }, [docInfo, userProfile.data?.data]);
 
-    // Collaboration configuration
+    // Collaboration configuration. The provider hook fetches and manages its
+    // own auth token internally (the Authorization cookie is HttpOnly), so the
+    // page does not need to fetch or pass a token here.
     const collaborationConfig = React.useMemo(() => {
-        if (!hasEditAccess || !docId || !token || !userProfile.data?.data) return undefined;
-        const cleanedToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+        if (!hasEditAccess || !docId || !userProfile.data?.data) return undefined;
         return {
             enabled: true,
             documentId: docId,
-            token: cleanedToken,
             username: userProfile.data.data.user_full_name || userProfile.data.data.user_name || 'Anonymous',
             userId: userProfile.data.data.user_uuid,
             color: generateColorFromUUID(userProfile.data?.data?.user_uuid || "default"),
             profileKey: userProfile.data.data.user_profile_object_key,
         };
-    }, [docId, token, userProfile.data?.data, hasEditAccess]);
+    }, [docId, userProfile.data?.data, hasEditAccess]);
 
     // Collaboration provider
     const { provider, status: collabStatus, synced: collabSynced, activeUsers, awarenessUsers } = useCollaborationProvider(collaborationConfig);
 
-    // HTTP fallback auto-save
+    // ---------------------------------------------------------------------------
+    // EDITOR MOUNT GATE
+    // When the user has edit access we want the TipTap editor to be created
+    // exactly once — already bound to the Yjs provider — rather than mounting in
+    // non-collaborative mode and being torn down/rebuilt a few seconds later when
+    // the WebSocket connects (the visible "re-render" flash). So we hold the
+    // editor behind a skeleton until the provider object exists.
+    //
+    // Resilience: if the collab server is unreachable, `provider` may never
+    // arrive. A fallback timer releases the gate after a short grace period so
+    // the editor still mounts (non-collaborative) instead of hanging on the
+    // skeleton forever.
+    const needsCollabBeforeMount = !!collaborationConfig?.enabled;
+    const [collabGraceElapsed, setCollabGraceElapsed] = React.useState(false);
+    React.useEffect(() => {
+        if (!needsCollabBeforeMount || provider) return;
+        setCollabGraceElapsed(false);
+        const t = setTimeout(() => setCollabGraceElapsed(true), 6000);
+        return () => clearTimeout(t);
+    }, [needsCollabBeforeMount, provider, docId]);
+
+    const editorReady = !needsCollabBeforeMount || !!provider || collabGraceElapsed;
+
+    // HTTP fallback auto-save. Only active when collaboration is NOT enabled
+    // (read-only viewers, or environments without the collab server). When
+    // collaboration is on, the Hocuspocus server is the single source of truth
+    // for the body and persists it server-side, so HTTP body writes would be
+    // redundant and could clobber concurrent Yjs state.
+    const httpAutoSaveEnabled = hasEditAccess && !collaborationConfig?.enabled;
     const { saveStatus, lastSavedAt, scheduleSave } = useDocAutoSave({
         docId,
-        enabled: hasEditAccess,
+        enabled: httpAutoSaveEnabled,
         initialBody: docInfo?.doc_body || '',
         collaborationEnabled: collaborationConfig?.enabled,
         providerSynced: collabSynced,
@@ -239,12 +260,15 @@ export default function Page() {
         return { ...docInfo, doc_title: docTitle };
     }, [docInfo, docTitle]);
 
-    // Handle document body changes
+    // Handle document body changes. In collaboration mode the Yjs provider
+    // streams and persists changes, so we skip the HTTP scheduleSave to avoid
+    // double-writes. The autosave path is the fallback for non-collab editing.
     const handleBodyChange = React.useCallback((content: Content) => {
+        if (collaborationConfig?.enabled) return;
         if (typeof content === 'string') {
             scheduleSave(content)
         }
-    }, [scheduleSave]);
+    }, [scheduleSave, collaborationConfig?.enabled]);
 
     // Export to markdown
     const handleExportMarkdown = React.useCallback(() => {
@@ -274,7 +298,7 @@ export default function Page() {
         return null;
     }
 
-    if (isDocLoading || userProfile.isLoading || (!token && checkAuthCookieExists())) {
+    if (isDocLoading || userProfile.isLoading) {
         return <DocPageSkeleton />;
     }
 
@@ -392,29 +416,38 @@ export default function Page() {
 
             {/* Document content area */}
             <div className="flex-1 w-full flex flex-col overflow-hidden relative">
-                <MinimalTiptapDocInput
-                    throttleDelay={3000}
-                    className='w-full h-full'
-                    editorContentClassName="pb-8"
-                    output="html"
-                    onChange={handleBodyChange}
-                    value={docInfo.doc_body}
-                    editable={hasEditAccess}
-                    editorClassName="focus:outline-none"
-                    collaboration={editorCollaborationProp}
-                    provider={provider || undefined}
-                    providerSynced={collabSynced}
-                    docId={docId}
-                    title={docTitle}
-                    onTitleChange={handleTitleChange}
-                    onTitleBlur={handleTitleBlur}
-                    editableTitle={hasEditAccess}
-                    saveStatus={saveStatus}
-                    lastSavedAt={lastSavedAt}
-                    lastEditedAt={docInfo.doc_updated_at}
-                    lastEditedRelative={lastEditedRelative}
-                    focusMode={focusMode}
-                />
+                {editorReady ? (
+                    <MinimalTiptapDocInput
+                        throttleDelay={3000}
+                        className='w-full h-full'
+                        editorContentClassName="pb-8"
+                        output="html"
+                        onChange={handleBodyChange}
+                        value={docInfo.doc_body}
+                        editable={hasEditAccess}
+                        editorClassName="focus:outline-none"
+                        collaboration={editorCollaborationProp}
+                        provider={provider || undefined}
+                        providerSynced={collabSynced}
+                        docId={docId}
+                        title={docTitle}
+                        onTitleChange={handleTitleChange}
+                        onTitleBlur={handleTitleBlur}
+                        editableTitle={hasEditAccess}
+                        saveStatus={saveStatus}
+                        lastSavedAt={lastSavedAt}
+                        lastEditedAt={docInfo.doc_updated_at}
+                        lastEditedRelative={lastEditedRelative}
+                        focusMode={focusMode}
+                    />
+                ) : (
+                    <div className="flex-1 w-full flex items-center justify-center">
+                        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Connecting to live editor…</span>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <ShortcutsHelp open={showShortcuts} onClose={() => setShowShortcuts(false)} />

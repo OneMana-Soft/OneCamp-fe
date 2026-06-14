@@ -20,6 +20,7 @@ import {USER_STATUS_ONLINE, UserEmojiStatus, UserProfileInterface} from "@/types
 import {ChatNotificationInterface} from "@/types/chat";
 import {ChatUserAvatar} from "@/components/chat/chatUserAvatar";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
+import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {createOrUpdateChatBody} from "@/store/slice/chatSlice";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus, UserEmojiInterface} from "@/store/slice/userSlice";
@@ -30,12 +31,13 @@ import Link from "next/link";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
-
+import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
+import CommandSurface from "@/components/command/CommandSurface";
 
 
-export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend: ()=>void}) => {
+export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
 
     const dispatch = useDispatch()
     const postNotification  = usePost()
@@ -88,7 +90,12 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
 
         if(otherUserInfo.data?.data) {
             setChatNotificationType(otherUserInfo.data?.data.notification_type || NotificationType.NotificationAll)
-            dispatch(updateUserEmojiStatus({userUUID: otherUserInfo.data?.data.user_uuid, status:otherUserInfo.data?.data?.user_emoji_statuses?.[0] || {}  as UserEmojiStatus}));
+            // Reducer ignores empty/undefined payloads — see
+            // userSlice.updateUserEmojiStatus. Profile responses omit
+            // user_emoji_statuses when there is no active status, and
+            // we mustn't let that absence clobber a value delivered by
+            // MQTT or the self-profile load.
+            dispatch(updateUserEmojiStatus({userUUID: otherUserInfo.data?.data.user_uuid, status: otherUserInfo.data?.data?.user_emoji_statuses?.[0] as UserEmojiStatus}));
             dispatch(updateUserStatus({userUUID: otherUserInfo.data?.data.user_uuid, status:otherUserInfo.data.data.user_status || 'online'}));
             dispatch(updateUserConnectedDeviceCount({userUUID: otherUserInfo.data?.data.user_uuid, deviceConnected:otherUserInfo.data?.data.user_device_connected || 0}));
 
@@ -116,61 +123,75 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
 
     return (
         <div className='flex flex-col h-full relative'>
-            <div
-                className='flex font-semibold text-lg p-2 truncate overflow-auto overflow-ellipsis justify-start border-b'>
-                <div className='flex justify-center items-center space-x-2'>
-                    <div className='relative'>
+            <header className='flex items-center justify-between gap-2 h-12 md:h-14 px-3 md:px-4 border-b border-border/60 bg-background sticky top-0 z-[var(--z-sticky)]'>
+                <div className='flex items-center gap-2.5 min-w-0'>
+                    <div className='relative shrink-0'>
                         <ChatUserAvatar userName={otherUserInfo.data?.data.user_name ?? undefined}
                                         userProfileObjKey={otherUserInfo.data?.data.user_profile_object_key ?? undefined}/>
-                        {isOnline && <div className={`h-2.5 w-2.5 ring-[2px] ring-background rounded-full bg-green-500 absolute bottom-0 right-0`}></div>}
+                        {isOnline && <span aria-hidden className={`h-2.5 w-2.5 ring-2 ring-background rounded-full ${statusColors.online.solid} absolute bottom-0 right-0`}/>}
 
                     </div>
-                    <div>{otherUserInfo.data?.data.user_name}</div>
+                    <div className='flex flex-col min-w-0'>
+                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>{otherUserInfo.data?.data.user_name}</span>
+                        {isOnline && <span className='text-[11px] text-muted-foreground leading-tight'>Active now</span>}
+                    </div>
                 </div>
-                <div className='flex justify-center items-center ml-2'>
-                {/*<Button size='icon' variant='ghost' onClick={toggleFavourite}><Star  className='text-muted-foreground' fill={isFavorite ?"#ffcc00":'none'}/></Button>*/}
+                <div className='flex items-center gap-0.5 shrink-0'>
                     <ChatUserEmojiStatus userUUID={chatId}/>
                     <NotificationBell notificationType={chatNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
-                    <Link href={chatCallHref}>
+                    <Link href={chatCallHref} aria-label={chatCallStatusActive ? "Join active call" : "Start video call"}>
                     <Button
                         size='icon'
                         variant={chatCallStatusActive ? 'secondary' : 'ghost'}
                         className={cn(
                             "relative transition-all duration-300",
-                            chatCallStatusActive && "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/40"
+                            chatCallStatusActive && "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-800/40"
                         )}
                     >
                         <Video size={18} />
                         {chatCallStatusActive && (
                             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${statusColors.online.solid}`}></span>
                             </span>
                         )}
                     </Button>
                     </Link>
-                    <Link href={chatRecordingHref}><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
-                    {/*<Button size='icon' variant='ghost' onClick={()=>{dispatch(openUpdateChannelDialog({channelUUID: channelId}))}}><Pencil /></Button>*/}
-                    {/*<Button size='icon' variant='ghost' onClick={()=>{dispatch(openUpdateChannelMemberDialog({channelUUID: channelId}))}}> <Users /></Button>*/}
-
-
+                    <Link href={chatRecordingHref} aria-label="View recordings"><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
                 </div>
-
-
-            </div>
+            </header>
             <div className="flex-1 overflow-y-auto">
+                <CatchMeUpBanner
+                    channelUUID={chatId}
+                    unreadCount={unreadCount || 0}
+                    channelName={otherUserInfo.data?.data.user_name}
+                    isChannel={false}
+                    type="dm"
+                />
                 <ChatMessageList chatId={chatId} />
             </div>
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto w-full">
+                    <CommandSurface
+                        surfaceKey={chatId}
+                        dmGroupId={getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')}
+                        onComposerText={(text) =>
+                            dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: `<p>${text}</p>` }))
+                        }
+                        onComposerHtml={(html) =>
+                            dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))
+                        }
+                    />
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'chatFileUpload' }))}}
                         onActionFiles={async (files) => {
                             if (!files?.length) return;
+                            const valid = uploadFile.validateFiles(files);
+                            if (valid.length === 0) return;
                             const grpId = getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')
-                            await uploadFile.makeRequestToUploadToChat(files as unknown as FileList, chatId, grpId);
+                            await uploadFile.makeRequestToUploadToChat(valid as unknown as FileList, chatId, grpId);
                         }}
                         className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
@@ -185,6 +206,12 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                             publishTyping(content as string)
                             dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
                         }}
+                        aiSlot={
+                            <ComposerAIButton
+                                getText={() => chatState.chatBody || ""}
+                                onResult={(html) => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))}
+                            />
+                        }
                     >
                         <ChatFileUpload chatUUID={chatId} />
                     </MinimalTiptapTextInput>

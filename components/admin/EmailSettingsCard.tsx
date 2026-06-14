@@ -13,6 +13,8 @@ import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
+import { sanitizeImportedDocument } from "@/lib/sanitizeHtml"
+import { SafeHtml } from "@/components/safeHtml/SafeHtml"
 import axiosInstance from "@/lib/axiosInstance"
 
 interface EmailConfigResponse {
@@ -329,9 +331,11 @@ const EmailSettingsCard = () => {
                     </div>
                   </div>
                   {/* Email body preview */}
-                  <div 
+                  <SafeHtml
+                    as="div"
                     className="p-8 prose prose-sm max-w-none flex-1 bg-white break-words"
-                    dangerouslySetInnerHTML={{ __html: previewHtml || "<div class='text-gray-400 italic'>Template is empty...</div>" }}
+                    html={previewHtml || "<div class='text-gray-400 italic'>Template is empty...</div>"}
+                    sanitizer={sanitizeImportedDocument}
                   />
                 </div>
             </div>

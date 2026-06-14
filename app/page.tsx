@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
 import {useEffect, useState, Suspense} from "react";
 import authService from "@/services/auth/AuthService";
-import {checkRefreshCookieExists} from "@/lib/utils/helpers/getCookie";
 import {app_home_path} from "@/types/paths";
 import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
@@ -127,6 +126,8 @@ export default function SignUp() {
   const router = useRouter();
 
   useEffect(() => {
+    let cancelled = false;
+
     let bouncedFromProtected = false;
     if (typeof window !== "undefined") {
       bouncedFromProtected = sessionStorage.getItem("auth_bounce_guard") === "1";
@@ -135,33 +136,72 @@ export default function SignUp() {
       }
     }
 
-    if (!bouncedFromProtected && checkRefreshCookieExists()) {
-      router.push(app_home_path);
-      return;
-    }
+    // Resolve providers + admin-setup gate. Kept in a helper so both the
+    // "already logged in" and "needs to log in" paths can reuse it, and so
+    // the loading screen always resolves even if the session probe throws.
+    const resolveLoginUI = async () => {
+      try {
+        const [runtimeProviders, adminRequired] = await Promise.all([
+          authService.getEnabledProviders(),
+          authService.checkAdminSetupRequired(),
+        ]);
+        if (cancelled) return;
 
-    // Resolve providers + admin-setup gate in parallel. If providers fetch
-    // fails (e.g., BE down), we keep buildTimeDefaults — the page still
-    // renders something useful.
-    Promise.all([
-      authService.getEnabledProviders(),
-      authService.checkAdminSetupRequired(),
-    ]).then(([runtimeProviders, adminRequired]) => {
-      if (runtimeProviders) {
-        setProviders(runtimeProviders);
-        // If neither OAuth nor LDAP/SSO is on, fall back to email by default.
-        if (!runtimeProviders.google && !runtimeProviders.github) {
+        if (runtimeProviders) {
+          setProviders(runtimeProviders);
+          // If neither OAuth nor LDAP/SSO is on, fall back to email by default.
+          if (!runtimeProviders.google && !runtimeProviders.github) {
+            setShowEmailLogin(true);
+          }
+        } else if (!buildTimeDefaults.google && !buildTimeDefaults.github) {
           setShowEmailLogin(true);
         }
-      } else if (!buildTimeDefaults.google && !buildTimeDefaults.github) {
-        setShowEmailLogin(true);
+
+        if (adminRequired) {
+          router.push('/admin-setup');
+        } else {
+          setIsChecking(false);
+        }
+      } catch {
+        // Providers/admin-setup probe failed (e.g. BE unreachable). Render
+        // the login page with build-time defaults rather than hang on the
+        // blank loading screen.
+        if (!cancelled) setIsChecking(false);
       }
-      if (adminRequired) {
-        router.push('/admin-setup');
-      } else {
-        setIsChecking(false);
+    };
+
+    // Session detection can't read the auth cookies: Authorization /
+    // RefreshToken are HttpOnly (invisible to document.cookie by design),
+    // so the BE is the only authoritative source of "am I logged in".
+    // authService.hasActiveSession() probes a cheap authenticated endpoint
+    // with credentials and (on a stale access token) a single silent
+    // refresh, returning a plain boolean. We intentionally do NOT route
+    // this through axiosInstance: its 401 interceptor would fire a
+    // refresh→logout cascade (logout POST + storage clear) for every
+    // anonymous visitor to the landing page, which is wasteful and
+    // destructive. A self-contained probe keeps the logged-out path inert.
+    //
+    // Skip the probe when we were just bounced out of a protected route:
+    // the BE logout that triggered the bounce may not have fully cleared
+    // the session yet, and re-probing could ping-pong the user back in.
+    const detectSessionThenResolve = async () => {
+      if (!bouncedFromProtected) {
+        const loggedIn = await authService.hasActiveSession();
+        if (loggedIn) {
+          // Live session. Redirect and stop; don't flip isChecking so the
+          // login UI never flashes before the route change completes.
+          if (!cancelled) router.push(app_home_path);
+          return;
+        }
       }
-    });
+      await resolveLoginUI();
+    };
+
+    detectSessionThenResolve();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const handleLogin = async (action: () => Promise<void>) => {

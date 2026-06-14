@@ -394,6 +394,7 @@ export function UnifiedUIManager() {
             mutate((key) => typeof key === "string" && key.includes("/admin/archive/jobs"));
           }}
           entityLabel={ui.archiveRunJob.data.entityLabel}
+          entityType={ui.archiveRunJob.data.entityType}
         />
       )}
 

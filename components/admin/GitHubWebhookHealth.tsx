@@ -53,7 +53,9 @@ function formatRelative(iso?: string | null): string {
 
 const GitHubWebhookHealth: React.FC = () => {
   // Refresh every 60s. The endpoint is a cheap aggregate so polling
-  // doesn't impose meaningful load even at a fleet level.
+  // doesn't impose meaningful load even at a fleet level. SWR's
+  // refreshWhenHidden / refreshWhenOffline defaults (false) mean a
+  // forgotten admin tab does not keep this firing.
   const { data, isLoading, isError } = useFetch<HealthResp>(
     GetEndpointUrl.GetGitHubWebhookHealth,
     undefined,

@@ -6,6 +6,8 @@ import TaskInfoPanel from "@/components/rightPanel/taskInfoPanel";
 import {GroupChatComments} from "@/components/rightPanel/groupChatComments";
 import {DocCommentList} from "@/components/rightPanel/docCommentList";
 import EventInfoPanel from "@/components/rightPanel/eventInfoPanel";
+import AiChatPanel from "@/components/ai/AiChatPanel";
+import { DocAiAssistantPanel } from "@/components/ai/DocAiAssistantPanel";
 
 export const RightPanel = () => {
 
@@ -13,6 +15,22 @@ export const RightPanel = () => {
 
 
     const renderRightPanel = () => {
+
+        if (rightPanelState.data.aiChatOpen) {
+            return <AiChatPanel />
+        }
+
+        if (rightPanelState.data.docAiOpen) {
+            return (
+                <DocAiAssistantPanel 
+                    selectedText={rightPanelState.data.docAiData?.selectedText || ""} 
+                    docId={rightPanelState.data.docAiData?.docId || ""}
+                    surroundingContext={rightPanelState.data.docAiData?.surroundingContext}
+                    initialAction={rightPanelState.data.docAiData?.initialAction as any}
+                    isSidebar={true}
+                />
+            )
+        }
 
 
         if (rightPanelState.data.chatUUID && rightPanelState.data.chatMessageUUID) {

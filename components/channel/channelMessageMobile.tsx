@@ -260,6 +260,14 @@ const ChannelMessageMobileComponent = ({
                             <MessageReplyCount
                                 replyCount={postInfo.post_comment_count}
                                 lastCommentCreatedAt={postInfo.post_comments[postInfo.post_comments.length - 1].comment_created_at}
+                                participants={postInfo.post_comments
+                                    .slice()
+                                    .reverse()
+                                    .map((c) => ({
+                                        uuid: c.comment_by?.user_uuid || "",
+                                        name: c.comment_by?.user_name || "",
+                                        profileKey: c.comment_by?.user_profile_object_key,
+                                    }))}
                             />
                         </div>
                     )}

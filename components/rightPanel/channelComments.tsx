@@ -9,6 +9,7 @@ import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 import {MessageContent} from "@/components/rightPanel/messageContent";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
+import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
 import {CommentsList} from "@/components/rightPanel/commentsList";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
 import {cn} from "@/lib/utils/helpers/cn";
@@ -29,13 +30,14 @@ import {
 } from "@/store/slice/channelCommentSlice";
 import {ChannelCommentFileUpload} from "@/components/fileUpload/channelCommentFileUpload";
 import { SendHorizontal } from "@/lib/icons";
+import { Checkbox } from "@/components/ui/checkbox";
 import {usePost} from "@/hooks/usePost";
 import {
     CreateCommentResInterface,
      CreateUpdateCommentReqInterface,
      CommentInfoInterface,
 } from "@/types/comment";
-import {useEffect, useRef} from "react";
+import {useEffect, useRef, useState} from "react";
 import {CreateOrUpdateCommentReaction, CreateOrUpdatePostReaction} from "@/types/reaction";
 import {
     createPostReactionPostId,
@@ -81,6 +83,10 @@ export const ChannelComments = () => {
     const postState = channelState?.find(p => p.post_uuid === rightPanelState.data.postUUID);
 
     const pendingCommentReactionDeletes = useRef<Set<string>>(new Set())
+
+    // "Also send to channel" toggle (Slack parity) — when checked, the reply
+    // is also posted as a top-level message in the channel.
+    const [alsoSendToChannel, setAlsoSendToChannel] = useState(false)
 
 
     useEffect(() => {
@@ -248,6 +254,7 @@ export const ChannelComments = () => {
                 post_id: rightPanelState.data.postUUID,
                 comment_attachments: channelCommentState.filesUploaded,
                 comment_text_html: body,
+                also_send_to_channel: alsoSendToChannel,
             }
         })
             .then((res)=>{
@@ -259,6 +266,7 @@ export const ChannelComments = () => {
 
                 // postInfo.mutate()
                 dispatch(clearChannelCommentMsgInputState({channelId: rightPanelState.data.channelUUID}))
+                setAlsoSendToChannel(false)
 
                 dispatch(updateChannelMessageReplyIncrement({channelId: rightPanelState.data.channelUUID, messageId: rightPanelState.data.postUUID, comment:{comment_uuid: res?.comment_id||'', comment_created_at: res?.comment_created_at || new Date().toISOString(), comment_text: "", comment_by: selfProfile.data?.data || {user_uuid: '', user_name: '', user_profile_object_key: ''}}}))
 
@@ -438,6 +446,25 @@ export const ChannelComments = () => {
 
                 )}
 
+                {/* TL;DR for long threads — calm, on-demand. Reuses doc-AI
+                    summarize over the assembled root + replies text. Each line
+                    is attributed with the author so the recap can say who said
+                    what ("@alex asked… @sam replied…"). */}
+                {mainMessageData.commentCount >= 4 && (
+                    <div className="mx-4 mt-2">
+                        <ThreadSummaryButton
+                            getText={() =>
+                                [
+                                    `${mainMessageData.userName || "Someone"}: ${mainMessageData.content}`,
+                                    ...postCommentState.map(
+                                        (c) => `${c.comment_by?.user_name || "Someone"}: ${c.comment_text}`,
+                                    ),
+                                ].join("\n")
+                            }
+                        />
+                    </div>
+                )}
+
             <div className="flex-1 overflow-y-auto pb-4 pt-2 space-y-4">
 
 
@@ -478,6 +505,14 @@ export const ChannelComments = () => {
                     <ChannelCommentFileUpload channelId={rightPanelState.data.channelUUID}/>
 
                 </MinimalTiptapTextInput>
+
+                <label className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground cursor-pointer select-none">
+                    <Checkbox
+                        checked={alsoSendToChannel}
+                        onCheckedChange={(v) => setAlsoSendToChannel(v === true)}
+                    />
+                    Also send to channel
+                </label>
             </div>
         </div>
     )

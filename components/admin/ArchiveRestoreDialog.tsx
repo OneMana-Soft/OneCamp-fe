@@ -134,6 +134,12 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
                 ))}
               </SelectContent>
             </Select>
+            {(entityType === "posts" || entityType === "chats") && (
+              <p className="text-xs text-muted-foreground">
+                Restoring also revives any AI memory that was archived with these
+                items, so it surfaces again in AI search and briefings.
+              </p>
+            )}
           </div>
 
           <div>

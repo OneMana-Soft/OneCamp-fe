@@ -9,6 +9,14 @@ interface rightPanelProps {
     groupUUID: string;
     docUUID: string;
     eventUUID: string;
+    aiChatOpen: boolean;
+    docAiOpen: boolean;
+    docAiData?: {
+        selectedText: string;
+        docId: string;
+        surroundingContext?: string;
+        initialAction?: string;
+    };
     viewStartDate?: string;
     viewEndDate?: string;
 }
@@ -24,6 +32,8 @@ const initialState = {
             groupUUID: "",
             docUUID: "",
             eventUUID: "",
+            aiChatOpen: false,
+            docAiOpen: false,
         } as rightPanelProps 
     },
 };

@@ -20,17 +20,31 @@ export default function AudioPlayer({ url }: AudioPlayerProps) {
     const [volume, setVolume] = useState(1)
     const [isMuted, setIsMuted] = useState(false)
     const [playbackRate, setPlaybackRate] = useState(1)
-    const [audioContext, setAudioContext] = useState<AudioContext | null>(null)
     const [analyser, setAnalyser] = useState<AnalyserNode | null>(null)
-    const [audioSource, setAudioSource] = useState<MediaElementAudioSourceNode | null>(null)
     const [dataArray, setDataArray] = useState<Uint8Array | null>(null)
     const animationRef = useRef<number | null>(null)
+
+    // Audio-context lifecycle is tracked via refs so the effect runs
+    // exactly once and the cleanup runs only on real unmount. The
+    // previous implementation listed `audioContext` in the deps array
+    // — which meant `setAudioContext(ctx)` re-ran the effect, the
+    // cleanup of the *previous* run fired, and `ctx.close()` was
+    // called on the just-created context the moment we tried to use
+    // it. Visible symptom: silent audio after the first click.
+    //
+    // Refs hold the live nodes; React state still mirrors them so
+    // visualiser code that depends on them re-renders correctly.
+    const audioContextRef = useRef<AudioContext | null>(null)
+    const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null)
 
     // Initialize audio context and analyzer
     useEffect(() => {
         if (!audioRef.current) return
 
         const initAudioContext = () => {
+            // Idempotent: if a click already created the context, do
+            // nothing on subsequent clicks.
+            if (audioContextRef.current) return
             const context = new (window.AudioContext || (window as any).webkitAudioContext)()
             const analyzerNode = context.createAnalyser()
             analyzerNode.fftSize = 256
@@ -41,18 +55,16 @@ export default function AudioPlayer({ url }: AudioPlayerProps) {
             source.connect(analyzerNode)
             analyzerNode.connect(context.destination)
 
-            setAudioContext(context)
+            audioContextRef.current = context
+            audioSourceRef.current = source
             setAnalyser(analyzerNode)
-            setAudioSource(source)
             setDataArray(dataArr)
         }
 
         // Only initialize on first interaction to comply with autoplay policies
         const handleInteraction = () => {
-            if (!audioContext) {
-                initAudioContext()
-                document.removeEventListener("click", handleInteraction)
-            }
+            initAudioContext()
+            document.removeEventListener("click", handleInteraction)
         }
 
         document.addEventListener("click", handleInteraction)
@@ -62,14 +74,25 @@ export default function AudioPlayer({ url }: AudioPlayerProps) {
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current)
             }
-            if (audioSource) {
-                audioSource.disconnect()
+            // Disconnect / close exactly once on real unmount, using
+            // the ref values (state values may be stale by the time
+            // the cleanup fires).
+            try {
+                audioSourceRef.current?.disconnect()
+            } catch {
+                // disconnect throws if already disconnected; ignore.
             }
-            if (audioContext) {
-                audioContext.close()
+            const ctx = audioContextRef.current
+            if (ctx && ctx.state !== "closed") {
+                ctx.close().catch(() => {
+                    // close() can reject during teardown on some
+                    // browsers; swallow because we're unmounting.
+                })
             }
+            audioSourceRef.current = null
+            audioContextRef.current = null
         }
-    }, [audioContext])
+    }, [])
 
     // Handle audio events
     useEffect(() => {
@@ -257,30 +280,30 @@ export default function AudioPlayer({ url }: AudioPlayerProps) {
 
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                        <Button variant="outline" size="icon" onClick={() => skip(-10)} title="Rewind 10 seconds">
+                        <Button variant="outline" size="icon" onClick={() => skip(-10)} title="Rewind 10 seconds" aria-label="Rewind 10 seconds">
                             <RotateCcw className="h-4 w-4" />
                         </Button>
 
-                        <Button variant="outline" size="icon" onClick={() => skip(-5)}>
+                        <Button variant="outline" size="icon" onClick={() => skip(-5)} aria-label="Skip back 5 seconds">
                             <SkipBack className="h-4 w-4" />
                         </Button>
 
-                        <Button variant="default" size="icon" onClick={togglePlay} className="h-10 w-10">
+                        <Button variant="default" size="icon" onClick={togglePlay} className="h-10 w-10" aria-label={isPlaying ? "Pause" : "Play"}>
                             {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
                         </Button>
 
-                        <Button variant="outline" size="icon" onClick={() => skip(5)}>
+                        <Button variant="outline" size="icon" onClick={() => skip(5)} aria-label="Skip forward 5 seconds">
                             <SkipForward className="h-4 w-4" />
                         </Button>
 
-                        <Button variant="outline" size="icon" onClick={() => skip(10)} title="Forward 10 seconds">
+                        <Button variant="outline" size="icon" onClick={() => skip(10)} title="Forward 10 seconds" aria-label="Forward 10 seconds">
                             <RotateCw className="h-4 w-4" />
                         </Button>
                     </div>
 
                     <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="icon" onClick={toggleMute}>
+                            <Button variant="ghost" size="icon" onClick={toggleMute} aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}>
                                 {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                             </Button>
 

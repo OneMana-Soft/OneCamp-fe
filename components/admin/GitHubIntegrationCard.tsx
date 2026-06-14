@@ -20,6 +20,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import type { ProjectInfoInterface } from "@/types/project"
 import axiosInstance from "@/lib/axiosInstance"
 import GitHubWebhookHealth from "@/components/admin/GitHubWebhookHealth"
+import GitHubConfigDialog from "@/components/admin/GitHubConfigDialog"
 
 interface AutomationRules {
   // Issue rules
@@ -83,6 +84,7 @@ const GitHubIntegrationCard = () => {
   const [repoSearch, setRepoSearch] = useState("")
   const [showSettingsLinkId, setShowSettingsLinkId] = useState<string | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
+  const [showConfigDialog, setShowConfigDialog] = useState(false)
 
   const statusOptions = [
     { id: "backlog", label: "Backlog" },
@@ -283,12 +285,16 @@ const GitHubIntegrationCard = () => {
                   <>
                     <Badge className="gap-1 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"><CheckCircle2 className="h-3 w-3" />Connected</Badge>
                     <Button variant="outline" size="sm" className="gap-1.5" onClick={handleFetchRepos}><Link2 className="h-3.5 w-3.5" />Link Repo</Button>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowConfigDialog(true)}><Settings2 className="h-3.5 w-3.5" />Credentials</Button>
                     <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => dispatch(openUI({ key: "githubDisconnect", data: { repoCount: linkedRepos.length } }))}>
                       <Unlink className="h-3.5 w-3.5" />Disconnect
                     </Button>
                   </>
                 ) : (
-                  <Button size="sm" className="gap-1.5" onClick={handleConnect}><Plug className="h-3.5 w-3.5" />Connect GitHub</Button>
+                  <>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowConfigDialog(true)}><Settings2 className="h-3.5 w-3.5" />Credentials</Button>
+                    <Button size="sm" className="gap-1.5" onClick={handleConnect}><Plug className="h-3.5 w-3.5" />Connect GitHub</Button>
+                  </>
                 )}
               </div>
             </div>
@@ -621,6 +627,7 @@ const GitHubIntegrationCard = () => {
           </DialogContent>
         </Dialog>
       </CardContent>
+      <GitHubConfigDialog open={showConfigDialog} onOpenChange={setShowConfigDialog} onSaved={() => mutate()} />
     </Card>
   )
 }

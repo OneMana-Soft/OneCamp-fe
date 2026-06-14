@@ -5,6 +5,7 @@ import {ReactionActivity} from "@/types/reaction";
 export interface UnifiedActivityItem {
     activity_type: "MENTION" | "COMMENT" | "REACTION";
     time: string;
+    priority?: "high" | "normal" | "low";
     mention?: MentionInfoInterface;
     comment?: CommentInfoInterface;
     reaction?: ReactionActivity;

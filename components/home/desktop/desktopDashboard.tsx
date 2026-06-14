@@ -11,6 +11,7 @@ import {
     FileText,
     Folder,
     Hash,
+    Lock,
     MessageCircle,
     Sparkles,
     Users,
@@ -25,6 +26,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
 import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
+import BriefingCard from "@/components/ai/BriefingCard"
 
 function StatCard({
     icon: Icon,
@@ -132,6 +134,10 @@ export function DesktopDashboard() {
     )
     const userSidebar = useSelector((state: RootState) => state.users.userSidebar)
     const recentItems = useSelector((state: RootState) => state.recentItems.items)
+    const rightPanelState = useSelector(
+        (state: RootState) => state.rightPanel.rightPanelState,
+    )
+    const isAiOpen = rightPanelState.isOpen && rightPanelState.data.aiChatOpen
 
     const userName = selfProfile.data?.data?.user_full_name || "there"
     const totalDMUnread = (userSidebar.userChats || []).reduce(
@@ -154,7 +160,10 @@ export function DesktopDashboard() {
         return "Good evening"
     })()
 
-
+    const handleAiToggle = () => {
+        if (isAiOpen) dispatch(closeRightPanel())
+        else dispatch(openRightPanel({ aiChatOpen: true }))
+    }
 
     return (
         <PageContainer className="overflow-y-auto py-8" bounded={false}>
@@ -168,6 +177,9 @@ export function DesktopDashboard() {
                         Here&apos;s what&apos;s happening in your workspace
                     </p>
                 </div>
+
+                {/* AI briefing — self-hides when AI/memory is off or empty */}
+                <BriefingCard />
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -281,21 +293,59 @@ export function DesktopDashboard() {
                                             href={`/app/channel/${channel.ch_uuid}`}
                                             scroll={false}
                                             className={cn(
-                                                "flex items-center gap-3 rounded-lg border border-border/50 bg-card/30 px-3 py-2.5",
+                                                "group flex items-center gap-3 rounded-lg border border-border/50 bg-card/30 px-3 py-2.5",
                                                 "transition-colors duration-150",
                                                 "hover:bg-accent/40 hover:border-border",
                                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                                             )}
                                         >
-                                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted/40">
-                                                <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                                            {/* Channel icon — tinted when there are unreads */}
+                                            <div className={cn(
+                                                "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                                                channel.unread_post_count > 0
+                                                    ? "bg-primary/15"
+                                                    : "bg-muted/40 group-hover:bg-muted/60",
+                                            )}>
+                                                <Hash className={cn(
+                                                    "h-3.5 w-3.5",
+                                                    channel.unread_post_count > 0
+                                                        ? "text-primary"
+                                                        : "text-muted-foreground",
+                                                )} />
                                             </div>
-                                            <div className="min-w-0">
-                                                <div className="truncate text-sm font-medium text-foreground">
-                                                    {channel.ch_name}
+
+                                            <div className="min-w-0 flex-1">
+                                                {/* Name row: private lock + name + active-call dot */}
+                                                <div className="flex items-center gap-1.5">
+                                                    {channel.ch_private && (
+                                                        <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                                                    )}
+                                                    <span className="truncate text-sm font-medium text-foreground">
+                                                        {channel.ch_name}
+                                                    </span>
+                                                    {channel.ch_call_active && (
+                                                        <span className="ml-auto shrink-0 flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-500">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                            Live
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <div className="text-[11px] text-muted-foreground truncate">
-                                                    {channel.ch_about || "No description"}
+
+                                                {/* Subtitle: description when set, otherwise member count */}
+                                                <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                    <span className="text-[11px] text-muted-foreground truncate">
+                                                        {channel.ch_about
+                                                            ? channel.ch_about
+                                                            : channel.ch_member_count > 0
+                                                                ? `${channel.ch_member_count} member${channel.ch_member_count === 1 ? "" : "s"}`
+                                                                : ""}
+                                                    </span>
+                                                    {/* Unread badge — only when there are unreads */}
+                                                    {channel.unread_post_count > 0 && (
+                                                        <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center px-1">
+                                                            {channel.unread_post_count > 99 ? "99+" : channel.unread_post_count}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </Link>
@@ -350,7 +400,37 @@ export function DesktopDashboard() {
                                     </div>
                                     <span className="text-sm font-medium">New task</span>
                                 </button>
-
+                                <button
+                                    type="button"
+                                    onClick={handleAiToggle}
+                                    className={cn(
+                                        "w-full text-left flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+                                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                                        isAiOpen
+                                            ? "border-violet-500/30 bg-violet-500/10"
+                                            : "border-border/50 bg-card/30 hover:bg-accent/40 hover:border-border",
+                                    )}
+                                >
+                                    <div
+                                        className={cn(
+                                            "flex h-7 w-7 items-center justify-center rounded-md",
+                                            categoryColors.ai.bg,
+                                        )}
+                                    >
+                                        <Sparkles
+                                            className={cn(
+                                                "h-3.5 w-3.5",
+                                                categoryColors.ai.text,
+                                            )}
+                                        />
+                                    </div>
+                                    <span className="text-sm font-medium">AI assistant</span>
+                                    {isAiOpen && (
+                                        <span className="ml-auto text-[10px] font-medium text-violet-600 dark:text-violet-400">
+                                            Open
+                                        </span>
+                                    )}
+                                </button>
                             </div>
                         </div>
 

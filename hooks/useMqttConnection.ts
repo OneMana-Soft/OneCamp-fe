@@ -13,6 +13,15 @@ interface UseMqttConnectionProps {
     onDisconnect?: () => void
     onReconnect?: () => void
     onError?: (error: Error) => void
+    /**
+     * Fired when the broker rejects our credentials (CONNACK
+     * "Bad User Name or Password" / "Not authorized"). The provider
+     * uses this to revalidate the cached MQTT config (which holds a
+     * 24h JWT) so a fresh token can be issued without forcing a tab
+     * reload. The hook will not auto-reconnect after an auth failure
+     * until a new `config` prop is passed in.
+     */
+    onAuthFailure?: () => void
     userUuid?: string
     dynamicTopicManager?: {
         getTopicsToSubscribe: () => string[]
@@ -29,6 +38,7 @@ export const useMqttConnection = ({
                                       onDisconnect,
                                       onReconnect,
                                       onError,
+                                      onAuthFailure,
                                       userUuid,
                                       dynamicTopicManager,
                                   }: UseMqttConnectionProps) => {
@@ -48,6 +58,20 @@ export const useMqttConnection = ({
     const connectionPending = useRef<boolean>(false)
     const settleDelayRef = useRef<NodeJS.Timeout | null>(null)
     const hasConnectedOnceRef = useRef<boolean>(false)
+    /**
+     * Fingerprint of the credentials currently being used by the
+     * client. We refuse to reconnect with these exact creds again
+     * after an auth failure — that would just spam the broker. The
+     * provider must fetch fresh creds (mutate the SWR cache) and pass
+     * a new `config` object whose fingerprint differs.
+     */
+    const lastAuthFailedCredsRef = useRef<string | null>(null)
+    /**
+     * Latest credential fingerprint we've observed. Lets the
+     * effect-driven reconnect logic detect that the password rotated
+     * and clear the auth-failure latch.
+     */
+    const currentCredsRef = useRef<string | null>(null)
 
     const clearReconnectTimeout = useCallback(() => {
         if (reconnectTimeoutRef.current) {
@@ -202,18 +226,65 @@ export const useMqttConnection = ({
         (error: Error) => {
             console.error("[MQTT] Connection error:", error)
             connectionPending.current = false
-            
-            if (error.message.includes("Connection closed") || error.message.includes("Connection refused")) {
+
+            const msg = error?.message || ""
+            // EMQX surfaces credential rejection as either "Bad User Name
+            // or Password" (CONNACK 0x04 in v3.1.1, 0x86/0x87 in v5) or
+            // "Not authorized". Both mean: the JWT we sent is no longer
+            // valid (expired, broker secret rotation, user-context drift
+            // after re-login). Latch the failure so we stop hammering
+            // the broker, and ask the provider for fresh credentials.
+            const isAuthFailure =
+                msg.includes("Bad User Name or Password") ||
+                msg.includes("Not authorized") ||
+                msg.includes("not authorized")
+
+            if (isAuthFailure) {
+                // Remember which creds were rejected so we don't retry
+                // them on a tab-focus event.
+                if (currentCredsRef.current) {
+                    lastAuthFailedCredsRef.current = currentCredsRef.current
+                }
+                // Stop the auto-reconnect chain; we'll restart only when
+                // the provider hands us fresh credentials via the
+                // `config` prop.
+                isManualDisconnect.current = true
+                clearReconnectTimeout()
+
+                updateConnectionState({
+                    error: msg,
+                    isConnecting: false,
+                    isConnected: false,
+                    reconnectAttempts: 0,
+                })
+
+                // Best-effort cleanup of the rejected client so it doesn't
+                // sit in CLOSED state holding the slot.
+                if (clientRef.current) {
+                    try {
+                        clientRef.current.end(true)
+                    } catch {
+                        /* ignore — client already torn down */
+                    }
+                    clientRef.current = null
+                }
+
+                onAuthFailure?.()
+                onError?.(error)
+                return
+            }
+
+            if (msg.includes("Connection closed") || msg.includes("Connection refused")) {
                 handleDisconnect()
             }
 
             updateConnectionState({
-                error: error.message,
+                error: msg,
                 isConnecting: false,
             })
             onError?.(error)
         },
-        [onError, updateConnectionState, handleDisconnect],
+        [onError, onAuthFailure, updateConnectionState, handleDisconnect, clearReconnectTimeout],
     )
 
     // STABILITY REFS: Keep latest references to avoid dependency churn
@@ -351,6 +422,18 @@ export const useMqttConnection = ({
             return
         }
 
+        // Fingerprint the credentials we're about to use. If they
+        // match the last set the broker rejected, refuse to retry —
+        // it would just produce another "Bad User Name or Password".
+        // The provider will mutate() the config SWR cache after
+        // onAuthFailure fires, which propagates a new fingerprint and
+        // unblocks this guard.
+        const credsFingerprint = `${config.username}::${config.password}`
+        if (lastAuthFailedCredsRef.current === credsFingerprint) {
+            return
+        }
+        currentCredsRef.current = credsFingerprint
+
         try {
             connectionPending.current = true
             updateConnectionState({ isConnecting: true, error: null })
@@ -440,12 +523,11 @@ export const useMqttConnection = ({
                         reconnectPeriod: 0,
                     })
 
-                    // ATTACH ERROR LISTENER IMMEDIATELY to prevent "Uncaught" bubbles
+                    // ATTACH ERROR LISTENER IMMEDIATELY to prevent "Uncaught" bubbles.
+                    // Auth-failure latching, manual-disconnect bookkeeping, and
+                    // credential refresh signaling all live in handleError to
+                    // keep one source of truth.
                     client.on("error", (err: any) => {
-                        console.error("[MQTT] Client error:", err.message)
-                        if (err.message.includes("Not authorized") || err.message.includes("Connection refused")) {
-                            isManualDisconnect.current = true
-                        }
                         handleError(err)
                     })
 
@@ -529,19 +611,67 @@ export const useMqttConnection = ({
     )
 
     useEffect(() => {
-        // Initial connect only. Reconnects are handled by handleDisconnect & handleConnect
-        if (config && !connectionState.isConnected && !connectionState.isConnecting && connectionState.reconnectAttempts === 0 && !isManualDisconnect.current) {
+        // Initial connect only. Reconnects are handled by handleDisconnect & handleConnect.
+        // When `config` rotates (e.g. provider mutate()'d after an auth failure), we
+        // detect the new credential fingerprint, clear the latch, and try again.
+        if (!config) return
+
+        const incomingFingerprint = `${config.username}::${config.password}`
+        if (
+            lastAuthFailedCredsRef.current &&
+            lastAuthFailedCredsRef.current !== incomingFingerprint
+        ) {
+            // Fresh creds delivered. Reset the latch and unmute the
+            // auto-reconnect chain so the next connect() call proceeds.
+            lastAuthFailedCredsRef.current = null
+            isManualDisconnect.current = false
+            updateConnectionState({ error: null, reconnectAttempts: 0 })
+        }
+
+        if (
+            !connectionState.isConnected &&
+            !connectionState.isConnecting &&
+            connectionState.reconnectAttempts === 0 &&
+            !isManualDisconnect.current
+        ) {
             connect()
         }
-    }, [config, connectionState.isConnected, connectionState.isConnecting, connectionState.reconnectAttempts, connect])
+    }, [config, connectionState.isConnected, connectionState.isConnecting, connectionState.reconnectAttempts, connect, updateConnectionState])
 
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.visibilityState === "visible") {
-                // console.log("[MQTT] Tab became visible, checking connection...")
-                if (!latestConnectionStateRef.current.isConnected) {
-                    // console.log("[MQTT] Tab became visible, forcing reconnection...")
-                    // Reset attempts to allow a fresh cycle of reconnections if we previously gave up
+                // Don't fight EMQX: if we last failed with rejected
+                // credentials, only reconnect after the provider has
+                // delivered fresh ones (the config-rotation effect
+                // above will clear isManualDisconnect when that
+                // happens).
+                if (isManualDisconnect.current || lastAuthFailedCredsRef.current) {
+                    return
+                }
+
+                const stateConnected = latestConnectionStateRef.current.isConnected
+                // ZOMBIE-SOCKET DETECTION (iOS PWA): after the OS suspends a
+                // backgrounded tab the WebSocket can die WITHOUT firing
+                // 'close', so our state still reads connected while the
+                // underlying client is actually dead. Trust the client's own
+                // liveness over our cached flag: if state says connected but
+                // the client isn't, tear the zombie down and reconnect so the
+                // stream (and the reconnect-driven resync) actually resumes.
+                const clientLive = !!clientRef.current && clientRef.current.connected
+                if (stateConnected && !clientLive) {
+                    if (clientRef.current) {
+                        clientRef.current.removeAllListeners()
+                        clientRef.current.end(true)
+                        clientRef.current = null
+                    }
+                    updateConnectionState({ isConnected: false, isConnecting: true, reconnectAttempts: 0 })
+                    connect()
+                    return
+                }
+
+                if (!stateConnected) {
+                    // Reset attempts to allow a fresh cycle of reconnections if we previously gave up.
                     updateConnectionState({ reconnectAttempts: 0, isConnecting: true })
                     connect()
                 }

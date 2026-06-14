@@ -3,6 +3,7 @@
 import { useLocalParticipant, useRoomContext } from "@livekit/components-react";
 import { LocalParticipant, RoomEvent, Track } from "livekit-client";
 import { useEffect, useRef, useState } from "react";
+import { useClientConfig } from "@/hooks/useClientConfig";
 
 interface FrontendTranscriberProps {
   onTranscript: (data: any) => void;
@@ -12,7 +13,11 @@ export function FrontendTranscriber({ onTranscript }: FrontendTranscriberProps) 
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   const [isListening, setIsListening] = useState(false);
-  const mode = process.env.NEXT_PUBLIC_TRANSCRIPTION_MODE === 'backend' ? 'backend' : 'frontend';
+  // Runtime transcription mode, admin-controlled via /config/client (no longer
+  // a build-time env var). "frontend" → run the browser Web-Speech recognizer
+  // here; "backend" → the server-side agent transcribes, we only relay/render
+  // remote transcripts; "off" → no transcription at all.
+  const { transcription_mode: mode } = useClientConfig();
   const enabled = mode === 'frontend';
   
   // Use refs to keep track of latest values without triggering re-renders/effect cleanup
@@ -29,6 +34,48 @@ export function FrontendTranscriber({ onTranscript }: FrontendTranscriberProps) 
 
   // Map to store the start time of each utterance (keyed by resultIndex)
   const startTimesRef = useRef<Map<number, number>>(new Map());
+
+  // Browser-clock wall time (ms) at which THIS client first observed the
+  // active recording (egress) in room metadata. Utterance offsets are measured
+  // relative to this anchor, in the SAME browser clock as the utterance
+  // timestamp — so the seek position in the recorded video is free of the
+  // browser-vs-egress-server clock skew that plagues absolute-timestamp math.
+  const recordingStartMsRef = useRef<number | null>(null);
+  const recordingEgressRef = useRef<string>("");
+
+  // Watch room metadata for the active recording. When a NEW egress appears,
+  // stamp the browser clock; when recording stops, clear the anchor so the
+  // next recording re-anchors cleanly.
+  useEffect(() => {
+    if (!room) return;
+    const syncRecordingAnchor = () => {
+      let egressID = "";
+      let isRecording = false;
+      try {
+        if (room.metadata) {
+          const meta = JSON.parse(room.metadata);
+          isRecording = !!meta.isRecording;
+          egressID = meta.egressID || "";
+        }
+      } catch {
+        /* malformed metadata — treat as no recording */
+      }
+      if (isRecording && egressID) {
+        if (recordingEgressRef.current !== egressID) {
+          recordingEgressRef.current = egressID;
+          recordingStartMsRef.current = Date.now();
+        }
+      } else {
+        recordingEgressRef.current = "";
+        recordingStartMsRef.current = null;
+      }
+    };
+    syncRecordingAnchor(); // capture initial state (recording may already be live on join)
+    room.on(RoomEvent.RoomMetadataChanged, syncRecordingAnchor);
+    return () => {
+      room.off(RoomEvent.RoomMetadataChanged, syncRecordingAnchor);
+    };
+  }, [room]);
 
   // Update refs
   useEffect(() => {
@@ -215,7 +262,7 @@ export function FrontendTranscriber({ onTranscript }: FrontendTranscriberProps) 
         if (!startTimesRef.current.has(i)) {
             startTimesRef.current.set(i, Date.now());
         }
-        let rawStartTime = startTimesRef.current.get(i) || Date.now();
+        const rawStartTime = startTimesRef.current.get(i) || Date.now();
         
         // VAD Latency Compensation (Pre-roll)
         // WebSpeech often detects speech 200-500ms AFTER it actually started.
@@ -242,6 +289,12 @@ export function FrontendTranscriber({ onTranscript }: FrontendTranscriberProps) 
             text: text,
             timestamp: adjustedStartTime, // Client Clock (Shifted back)
             duration: durationMs, // Duration (Includes pre-roll)
+            // Skew-free seek anchor: utterance start measured from when THIS
+            // browser saw recording start, in the same browser clock. Only set
+            // while a recording is active (offsets are meaningless otherwise).
+            offsetMs: recordingStartMsRef.current != null
+                ? Math.max(0, adjustedStartTime - recordingStartMsRef.current)
+                : undefined,
             isFinal: isFinal,
             id: stableId,
             source: 'frontend'

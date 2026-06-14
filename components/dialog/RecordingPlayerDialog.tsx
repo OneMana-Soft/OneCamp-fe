@@ -129,19 +129,33 @@ export const RecordingPlayerDialog = () => {
     };
 
     const renderTranscriptItem = (item: TranscriptInfoInterface, index: number) => {
-      // Normalize Transcript Timestamp to Milliseconds
-      // Legacy data is in Seconds (10 digits). New data is in MS (13 digits).
-      // Cutoff: 10000000000 (Year 2286).
-      let transcriptTsMs = item.transcript_timestamp;
-      if (transcriptTsMs < 10000000000) {
-        transcriptTsMs = transcriptTsMs * 1000;
+      // Resolve the utterance's position in the recorded video, in seconds.
+      //
+      // Preferred path (skew-free): the producer (browser in frontend mode,
+      // agent in backend mode) recorded transcript_offset_ms — the utterance
+      // start measured from recording start IN ITS OWN CLOCK. Using it directly
+      // avoids subtracting two unsynchronized clocks (the speaker's browser /
+      // agent vs. the LiveKit egress server), which is what made earlier
+      // recordings seek several seconds off.
+      //
+      // Legacy fallback: older rows have no offset, so we reconstruct it from
+      // (absolute transcript timestamp − recording start). This keeps existing
+      // recordings working, just without the skew correction.
+      let startTimeSeconds: number
+      if (typeof item.transcript_offset_ms === "number" && item.transcript_offset_ms >= 0) {
+        startTimeSeconds = item.transcript_offset_ms / 1000
+      } else {
+        // Normalize legacy timestamp to milliseconds (10-digit = seconds).
+        let transcriptTsMs = item.transcript_timestamp
+        if (transcriptTsMs < 10000000000) {
+          transcriptTsMs = transcriptTsMs * 1000
+        }
+        startTimeSeconds = (transcriptTsMs - recordingStartMs) / 1000
       }
-      
-      // Calculate relative time from start of recording
-      const itemTimeMs = transcriptTsMs - recordingStartMs;
-      
-      // For seeking (in seconds)
-      const startTimeSeconds = itemTimeMs / 1000;
+      // Guard against negative offsets (clock jitter / pre-roll over-shift).
+      if (!isFinite(startTimeSeconds) || startTimeSeconds < 0) {
+        startTimeSeconds = 0
+      }
 
       // Estimate Duration for Highlighting (Heuristic: 0.4s per word)
       const wordCount = item.transcript_text ? item.transcript_text.trim().split(/\s+/).length : 1;
@@ -227,7 +241,7 @@ export const RecordingPlayerDialog = () => {
                     <div className={cn("flex-1 bg-black flex justify-center items-center relative min-h-[30vh]", isFullscreen ? "h-full" : "")}>
                         {mediaUrl ? (
                             <div className="w-full h-full flex justify-center items-center">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                { }
                                 <video 
                                     ref={videoRef}
                                     src={mediaUrl} 

@@ -11,12 +11,20 @@ import InvitationCard from "@/components/admin/invitationCard"
 import EmailSettingsCard from "@/components/admin/EmailSettingsCard"
 import WebhooksCard from "@/components/admin/WebhooksCard"
 import GitHubIntegrationCard from "@/components/admin/GitHubIntegrationCard"
+import OAuthConfigCard from "@/components/admin/OAuthConfigCard"
 import ArchiveCard from "@/components/admin/ArchiveCard"
 import ExternalUsersCard from "@/components/admin/ExternalUsersCard"
 import SlackImportCard from "@/components/admin/SlackImportCard"
 import ImportCard from "@/components/admin/ImportCard"
-import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch } from "@/lib/icons"
-import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight } from "lucide-react"
+import AIModelsCard from "@/components/admin/AIModelsCard"
+import AppsCard from "@/components/admin/AppsCard"
+import WorkspaceSettingsCard from "@/components/admin/WorkspaceSettingsCard"
+import PermissionsCard from "@/components/admin/PermissionsCard"
+import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsCard"
+import WorkflowsCard from "@/components/admin/WorkflowsCard"
+import AdminAuditLog from "@/components/admin/AdminAuditLog"
+import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic } from "@/lib/icons"
+import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useMedia } from "@/context/MediaQueryContext"
 
@@ -32,7 +40,13 @@ const TABS: TabDef[] = [
   { value: "admins", label: "Admins", icon: ShieldAlert },
   { value: "invitations", label: "Invitations", icon: Mail },
   { value: "email-settings", label: "Email Config", icon: Settings },
+  { value: "settings", label: "Settings", icon: SlidersHorizontal },
+  { value: "permissions", label: "Permissions", icon: KeyRound },
+  { value: "transcription", label: "Transcription", icon: Mic },
+  { value: "ai-models", label: "AI Models", icon: Sparkles },
   { value: "webhooks", label: "Webhooks", icon: Webhook },
+  { value: "workflows", label: "Workflows", icon: Zap },
+  { value: "apps", label: "Apps", icon: Plug },
   { value: "integrations", label: "Integrations", icon: GitBranch },
   { value: "external-users", label: "External Users", icon: UserX },
   { value: "archive", label: "Archive", icon: Archive },
@@ -220,11 +234,35 @@ const AdminPage = () => {
               <TabsContent value="email-settings" className="mt-0 h-full outline-none">
                 <EmailSettingsCard />
               </TabsContent>
+              <TabsContent value="settings" className="mt-0 h-full outline-none">
+                <div className="space-y-6">
+                  <WorkspaceSettingsCard />
+                  <AdminAuditLog />
+                </div>
+              </TabsContent>
+              <TabsContent value="permissions" className="mt-0 h-full outline-none">
+                <PermissionsCard />
+              </TabsContent>
+              <TabsContent value="transcription" className="mt-0 h-full outline-none">
+                <TranscriptionSettingsCard />
+              </TabsContent>
+              <TabsContent value="ai-models" className="mt-0 h-full outline-none">
+                <AIModelsCard />
+              </TabsContent>
               <TabsContent value="webhooks" className="mt-0 h-full outline-none">
                 <WebhooksCard />
               </TabsContent>
+              <TabsContent value="workflows" className="mt-0 h-full outline-none">
+                <WorkflowsCard />
+              </TabsContent>
+              <TabsContent value="apps" className="mt-0 h-full outline-none">
+                <AppsCard />
+              </TabsContent>
               <TabsContent value="integrations" className="mt-0 h-full outline-none">
-                <GitHubIntegrationCard />
+                <div className="space-y-6">
+                  <GitHubIntegrationCard />
+                  <OAuthConfigCard />
+                </div>
               </TabsContent>
               <TabsContent value="external-users" className="mt-0 h-full outline-none">
                 <ExternalUsersCard />

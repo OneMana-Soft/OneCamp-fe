@@ -67,6 +67,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                                 <CommandItem
                                     key={member.user_uuid}
                                     value={member.user_uuid}
+                                    keywords={member.user_name ? [member.user_name] : undefined}
                                     onSelect={(currentValue) => {
                                         const m = taskProjectMembers.find((m) => m.user_uuid === currentValue);
 

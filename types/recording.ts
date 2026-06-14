@@ -18,6 +18,10 @@ export interface TranscriptInfoInterface {
     transcript_from: UserProfileDataInterface
     transcript_text: string
     transcript_timestamp: number
+    // Skew-free seek anchor: ms from recording start, measured in the
+    // producer's own clock. Present on new recordings; absent on legacy rows
+    // (playback falls back to transcript_timestamp − recording_start).
+    transcript_offset_ms?: number
 }
 
 export interface RecordingPaginationResRaw {

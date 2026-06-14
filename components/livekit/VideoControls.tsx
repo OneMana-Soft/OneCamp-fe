@@ -5,7 +5,7 @@ import {
   useTracks,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
-import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, MoreVertical, LayoutGrid, Loader2 } from "@/lib/icons";
+import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, MoreVertical, LayoutGrid, Loader2, Sparkles } from "@/lib/icons";
 import { MonitorUp, MonitorOff, SquareUser, Disc } from "@/lib/icons";
 
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,9 @@ interface VideoControlsProps {
   isRecordingLoading?: boolean;
   onToggleCaptions?: () => void;
   showCaptions?: boolean;
+  onToggleAI?: () => void;
+  isAIOpen?: boolean;
+  aiUnreadCount?: number;
 }
 
 
@@ -48,6 +51,9 @@ export function VideoControls({
   isRecordingLoading,
   onToggleCaptions,
   showCaptions,
+  onToggleAI,
+  isAIOpen,
+  aiUnreadCount,
 }: VideoControlsProps) {
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
@@ -182,6 +188,25 @@ export function VideoControls({
         </div>
       )}
 
+      {/* AI Assistant Toggle */}
+      {onToggleAI && (
+        <div className="relative">
+        <ControlBtn
+            label={isAIOpen ? "Hide AI Assistant" : "Ask AI"}
+            onClick={onToggleAI}
+            isActive={isAIOpen}
+            activeClass="bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 border-violet-500/50"
+        >
+            <Sparkles className="h-5 w-5" />
+        </ControlBtn>
+        {!isAIOpen && (aiUnreadCount ?? 0) > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-bold leading-none shadow ring-2 ring-black/40 pointer-events-none">
+                {(aiUnreadCount ?? 0) > 9 ? "9+" : aiUnreadCount}
+            </span>
+        )}
+        </div>
+      )}
+
       {/* Layout Toggle */}
       {onLayoutChange && (
         <div className="hidden md:block">
@@ -250,6 +275,13 @@ export function VideoControls({
                     <DropdownMenuItem onClick={onToggleCaptions} className="py-3">
                         <div className="mr-2 font-bold text-xs border border-current rounded px-1">CC</div>
                         {showCaptions ? "Hide Captions" : "Show Captions"}
+                    </DropdownMenuItem>
+                )}
+
+                {onToggleAI && (
+                    <DropdownMenuItem onClick={onToggleAI} className="py-3">
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        {isAIOpen ? "Hide AI Assistant" : "Ask AI"}
                     </DropdownMenuItem>
                 )}
                 

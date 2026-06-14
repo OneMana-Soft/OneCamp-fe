@@ -4,9 +4,23 @@ import {PostsRes} from "@/types/post";
 import {UserProfileDataInterface} from "@/types/user";
 import {AttachmentMediaReq, AttachmentType} from "@/types/attachment";
 import {GroupedReaction} from "@/types/reaction";
-import {undefined} from "zod";
 import {CommentInfoInterface} from "@/types/comment";
 import {ChatInfo} from "@/types/chat";
+
+
+// postContentDiffers reports whether a freshly-fetched server post differs
+// from the loaded copy in a way the reconcile should apply (edit, reaction
+// change, comment-count change). Cheap field comparison — avoids a deep
+// equality pass on every reconcile while still catching the mutations a
+// "latest" window can carry. Reaction/comment changes also flow over MQTT,
+// but a missed-while-idle edit is exactly what the reconcile exists to fix.
+function postContentDiffers(a: PostsRes, b: PostsRes): boolean {
+    if (a.post_text !== b.post_text) return true;
+    if ((a.post_comment_count || 0) !== (b.post_comment_count || 0)) return true;
+    if ((a.post_reactions?.length || 0) !== (b.post_reactions?.length || 0)) return true;
+    if ((a.post_attachments?.length || 0) !== (b.post_attachments?.length || 0)) return true;
+    return false;
+}
 
 
 export interface FilePreview {
@@ -305,6 +319,89 @@ export const channelSlice = createSlice({
 
             state.channelPosts[channelId] = [...posts];
 
+        },
+
+        // SYNC (window-reconcile): reconcile the loaded conversation against a
+        // freshly-fetched "latest" window after an idle gap (MQTT reconnect or
+        // tab foreground). Within the contiguous time-range the window covers,
+        // the server is authoritative, so this applies the THREE things an
+        // add-only merge misses:
+        //   • adds    — posts created while idle appear,
+        //   • edits   — a post whose server copy changed is refreshed in place,
+        //   • deletes — a post removed while idle (absent from the window but
+        //               inside its time-range) is dropped.
+        // Everything OUTSIDE the window's range is untouched: older paginated
+        // history is preserved, and optimistic local posts (post_added_locally,
+        // or newer than the window) are never removed — so there's no empty
+        // flash and no lost unconfirmed sends. Reference-stable: an idle
+        // reconnect with nothing changed is a no-op.
+        mergeChannelPosts: (state, action: {payload: UpdateChannelPosts}) => {
+            const { channelId, posts } = action.payload;
+            if (!posts || posts.length === 0) return;
+
+            const existing = state.channelPosts[channelId] || [];
+            if (existing.length === 0) {
+                // Nothing loaded yet → adopt the window wholesale (self-heal).
+                state.channelPosts[channelId] = [...posts].sort(
+                    (a, b) => new Date(a.post_created_at).getTime() - new Date(b.post_created_at).getTime()
+                );
+                return;
+            }
+
+            // Time-range the window authoritatively covers.
+            const times = posts.map((p) => new Date(p.post_created_at).getTime());
+            const windowMin = Math.min(...times);
+            const windowMax = Math.max(...times);
+
+            const serverById = new Map<string, PostsRes>();
+            for (const p of posts) if (p.post_uuid) serverById.set(p.post_uuid, p);
+
+            let changed = false;
+            const next: PostsRes[] = [];
+
+            for (const cur of existing) {
+                const t = new Date(cur.post_created_at).getTime();
+                const inWindow = t >= windowMin && t <= windowMax;
+                const server = cur.post_uuid ? serverById.get(cur.post_uuid) : undefined;
+
+                if (server) {
+                    // Present on the server. Preserve optimistic local objects
+                    // as-is; otherwise refresh if the server copy differs (edit
+                    // / reaction / comment-count change while idle).
+                    if (cur.post_added_locally) {
+                        next.push(cur);
+                    } else if (postContentDiffers(cur, server)) {
+                        next.push({ ...cur, ...server });
+                        changed = true;
+                    } else {
+                        next.push(cur);
+                    }
+                    serverById.delete(cur.post_uuid);
+                } else if (inWindow && !cur.post_added_locally && cur.post_uuid) {
+                    // Inside the authoritative window but gone from the server →
+                    // it was deleted while we were idle. Drop it. (A row without
+                    // a uuid can't be matched, so we never drop it.)
+                    changed = true;
+                } else {
+                    // Older than the window, an optimistic local post, or a
+                    // uuid-less row → keep.
+                    next.push(cur);
+                }
+            }
+
+            // Whatever remains in serverById are brand-new posts.
+            for (const p of posts) {
+                if (p.post_uuid && serverById.has(p.post_uuid)) {
+                    next.push(p);
+                    changed = true;
+                }
+            }
+
+            if (!changed) return; // stable reference: no needless re-render
+
+            state.channelPosts[channelId] = next.sort(
+                (a, b) => new Date(a.post_created_at).getTime() - new Date(b.post_created_at).getTime()
+            );
         },
 
         updatePostReaction: (state, action: {payload: UpdatePostReaction}) => {
@@ -691,7 +788,8 @@ export const {
     updateChannelCallStatus,
     batchUpdateChannelCallStatus,
     updatePostReactionId,
-    invalidateChannelPosts
+    invalidateChannelPosts,
+    mergeChannelPosts
 
 } = channelSlice.actions
 

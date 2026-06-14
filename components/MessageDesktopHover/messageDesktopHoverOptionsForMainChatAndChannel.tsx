@@ -1,22 +1,30 @@
-import {Button} from "@/components/ui/button";
-import { Bookmark, Forward, MessageSquareText, MoreVertical } from "@/lib/icons";
-import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
-import {useDispatch} from "react-redux";
-import {openUI} from "@/store/slice/uiSlice";
-import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
-import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
-import {useState} from "react";
-import {AddReactionTrigger} from "@/components/reactionPicker/AddReactionTrigger";
-import {motion} from "framer-motion";
+"use client";
 
+import { memo, useCallback, type ReactNode } from "react";
+import { useDispatch } from "react-redux";
+import { motion } from "framer-motion";
+
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Forward, MessageSquareText } from "@/lib/icons";
+import { cn } from "@/lib/utils/helpers/cn";
+
+import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
+import { AddReactionTrigger } from "@/components/reactionPicker/AddReactionTrigger";
+import { SaveToMemoryButton } from "@/components/ai/SaveToMemoryButton";
+
+import { openUI } from "@/store/slice/uiSlice";
+import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 
 interface MessageDesktopHoverOptionProps {
     setIsDropdownOpen: (open: boolean) => void;
     chatUUID?: string;
     groupUUID?: string;
+    chatGrpID?: string;
     chatMessageID?: string;
     channelUUID?: string;
     postUUID?: string;
+    messageText?: string;
     getReplyNotification?: () => void;
     setEmojiPopupState?: (open: boolean) => void;
     editMessage: () => void;
@@ -25,86 +33,181 @@ interface MessageDesktopHoverOptionProps {
     isOwner: boolean;
     onReactionSelect: (id: string) => void;
 }
-// raised_hands
-export const MessageDesktopHoverOptionsForMainChatAndChannel = ({ groupUUID, isOwner, isAdmin, setEmojiPopupState, setIsDropdownOpen, channelUUID, chatUUID, postUUID, deleteMessage, editMessage, getReplyNotification, onReactionSelect, chatMessageID }: MessageDesktopHoverOptionProps) => {
-    const dispatch = useDispatch();
 
-    
+type QuickReaction = {
+    readonly id: string;
+    readonly emoji: string;
+    readonly label: string;
+};
 
-    return (
-        <motion.div 
-            initial={{ opacity: 0, x: 10, scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className='bg-background/80 backdrop-blur-md rounded-lg flex items-center space-x-0.5 border shadow-lg p-1'
-        >
-            <Button variant="ghost" size="icon" className="h-8 w-8 " onClick={()=>{onReactionSelect('white_check_mark')}}>
-                {'✅'}
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 " onClick={()=>{onReactionSelect('eyes')}}>
-                {'👀'}
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={()=>{onReactionSelect('raised_hands')}}>
-                {'🙌'}
-            </Button>
-            <AddReactionTrigger onReactionSelect={(id)=>{ onReactionSelect(id) }} showCustomReactions={false} setPopupState={setEmojiPopupState} />
+const QUICK_REACTIONS: ReadonlyArray<QuickReaction> = [
+    { id: "white_check_mark", emoji: "✅", label: "Mark as done" },
+    { id: "eyes", emoji: "👀", label: "Take a look" },
+    { id: "raised_hands", emoji: "🙌", label: "Nice work" },
+];
 
-            <Tooltip >
-                <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 " onClick={()=>{dispatch(openRightPanel({
-                        taskUUID: "",
-                        docUUID: "",
-                        chatMessageUUID: chatMessageID || '',
-                        postUUID: postUUID||'', channelUUID: channelUUID || '', chatUUID: chatUUID || '', groupUUID: groupUUID || ''}))}}>
-                        <MessageSquareText className="h-4 w-4" stroke='#616060'/>
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent  className="flex items-center gap-4">
+const ICON_BUTTON_CLASS =
+    "h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
-                        <span className="ml-auto">
-                    {"Thread"}
-                  </span>
-
-                </TooltipContent>
-            </Tooltip>
-            <Tooltip >
-                <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={()=>{dispatch(openUI({ key: 'forwardMessage', data: {
-                        chatUUID: chatUUID || '',
-                        chatMessageID: !groupUUID ? (chatMessageID || '') : '',
-                        groupChatMsgID: groupUUID ? (chatMessageID || '') : '',
-                        channelUUID: channelUUID || '',
-                        postUUID: postUUID || ''
-                    } }))}}>
-                        <Forward className="h-4 w-4" stroke='#616060'/>
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent  className="flex items-center gap-4">
-
-                        <span className="ml-auto">
-                    {"Forward"}
-                  </span>
-
-                </TooltipContent>
-            </Tooltip>
-            {/*<Tooltip >*/}
-            {/*    <TooltipTrigger asChild>*/}
-            {/*        <Button variant="ghost" size="icon" className="h-8 w-8 ">*/}
-            {/*            <Bookmark className="h-4 w-4" stroke='#616060' />*/}
-            {/*        </Button>*/}
-            {/*    </TooltipTrigger>*/}
-            {/*    <TooltipContent  className="flex items-center gap-4">*/}
-
-            {/*            <span className="ml-auto">*/}
-            {/*        {"Save for later"}*/}
-            {/*      </span>*/}
-
-            {/*    </TooltipContent>*/}
-            {/*</Tooltip>*/}
-
-
-            { (isAdmin || isOwner || getReplyNotification) && <MessageDesktopDropdown isAdmin={isAdmin} isOwner={isOwner} setIsDropdownOpen={setIsDropdownOpen} deleteMessage={deleteMessage} editMessage={editMessage} getReplyNotification={getReplyNotification}/>}
-        </motion.div>
-    )
+interface HoverIconButtonProps {
+    label: string;
+    onClick: () => void;
+    children: ReactNode;
 }
 
+const HoverIconButton = ({ label, onClick, children }: HoverIconButtonProps) => (
+    <Tooltip>
+        <TooltipTrigger asChild>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={label}
+                onClick={onClick}
+                className={ICON_BUTTON_CLASS}
+            >
+                {children}
+            </Button>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+);
+
+const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
+    groupUUID,
+    chatGrpID,
+    isOwner,
+    isAdmin,
+    setEmojiPopupState,
+    setIsDropdownOpen,
+    channelUUID,
+    chatUUID,
+    postUUID,
+    messageText,
+    deleteMessage,
+    editMessage,
+    getReplyNotification,
+    onReactionSelect,
+    chatMessageID,
+}: MessageDesktopHoverOptionProps) => {
+    const dispatch = useDispatch();
+
+    const handleOpenThread = useCallback(() => {
+        dispatch(
+            openRightPanel({
+                taskUUID: "",
+                docUUID: "",
+                chatMessageUUID: chatMessageID ?? "",
+                postUUID: postUUID ?? "",
+                channelUUID: channelUUID ?? "",
+                chatUUID: chatUUID ?? "",
+                groupUUID: groupUUID ?? "",
+            }),
+        );
+    }, [dispatch, chatMessageID, postUUID, channelUUID, chatUUID, groupUUID]);
+
+    const handleForward = useCallback(() => {
+        dispatch(
+            openUI({
+                key: "forwardMessage",
+                data: {
+                    chatUUID: chatUUID ?? "",
+                    chatMessageID: groupUUID ? "" : chatMessageID ?? "",
+                    groupChatMsgID: groupUUID ? chatMessageID ?? "" : "",
+                    channelUUID: channelUUID ?? "",
+                    postUUID: postUUID ?? "",
+                },
+            }),
+        );
+    }, [dispatch, chatUUID, groupUUID, chatMessageID, channelUUID, postUUID]);
+
+    const showDropdown = Boolean(isAdmin || isOwner || getReplyNotification);
+
+    return (
+        <motion.div
+            role="toolbar"
+            aria-label="Message actions"
+            initial={{ opacity: 0, y: -2, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.12, ease: "easeOut" }}
+            className={cn(
+                "flex items-center gap-0.5 rounded-lg border border-border/60 p-1",
+                "bg-background/85 shadow-md backdrop-blur-md",
+                "supports-[backdrop-filter]:bg-background/70",
+            )}
+        >
+            {QUICK_REACTIONS.map(({ id, emoji, label }) => (
+                <Tooltip key={id}>
+                    <TooltipTrigger asChild>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`React with ${label}`}
+                            onClick={() => onReactionSelect(id)}
+                            className={cn(
+                                "h-8 w-8 rounded-md text-base leading-none",
+                                "transition-transform duration-150 hover:scale-110 hover:bg-accent",
+                            )}
+                        >
+                            <span aria-hidden="true">{emoji}</span>
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{label}</TooltipContent>
+                </Tooltip>
+            ))}
+
+            <AddReactionTrigger
+                onReactionSelect={onReactionSelect}
+                showCustomReactions={false}
+                setPopupState={setEmojiPopupState}
+            />
+
+            <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-border/70" />
+
+            <HoverIconButton label="Reply in thread" onClick={handleOpenThread}>
+                <MessageSquareText className="h-4 w-4" />
+            </HoverIconButton>
+
+            <HoverIconButton label="Forward" onClick={handleForward}>
+                <Forward className="h-4 w-4" />
+            </HoverIconButton>
+
+            {/* Save to memory — channel posts, group chats, and DMs (every
+                scope the memory layer understands). Renders only when the
+                message has a resolvable scope + source. */}
+            {channelUUID && postUUID ? (
+                <SaveToMemoryButton
+                    messageText={messageText}
+                    channelUUID={channelUUID}
+                    sourceType="post"
+                    sourceUUID={postUUID}
+                    onOpenChange={setIsDropdownOpen}
+                />
+            ) : (groupUUID || chatGrpID) && chatMessageID ? (
+                <SaveToMemoryButton
+                    messageText={messageText}
+                    chatGrpID={groupUUID || chatGrpID}
+                    sourceType="chat"
+                    sourceUUID={chatMessageID}
+                    onOpenChange={setIsDropdownOpen}
+                />
+            ) : null}
+
+            {showDropdown && (
+                <MessageDesktopDropdown
+                    isAdmin={isAdmin}
+                    isOwner={isOwner}
+                    setIsDropdownOpen={setIsDropdownOpen}
+                    deleteMessage={deleteMessage}
+                    editMessage={editMessage}
+                    getReplyNotification={getReplyNotification}
+                />
+            )}
+        </motion.div>
+    );
+};
+
+export const MessageDesktopHoverOptionsForMainChatAndChannel = memo(
+    MessageDesktopHoverOptionsForMainChatAndChannelComponent,
+);

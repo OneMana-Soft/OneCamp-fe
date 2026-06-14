@@ -2,6 +2,7 @@ import { useFetchOnlyOnce} from "@/hooks/useFetch";
 import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
+import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
 import { SendHorizontal, Users, Video, Clapperboard } from "@/lib/icons";
@@ -22,6 +23,7 @@ import { GrpChatNotificationInterface} from "@/types/chat";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {createOrUpdateGroupChatBody, LocallyCreatedGrpInfoInterface, ChatInputState} from "@/store/slice/groupChatSlice";
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
+import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
 import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {ErrorState} from "@/components/error/errorState";
@@ -34,14 +36,14 @@ import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {useRouter} from "next/navigation";
 import {app_grp_call, app_grp_chat_path, app_home_path} from "@/types/paths";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
-
+import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import {useUploadFile} from "@/hooks/useUploadFile";
 
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
 const EMPTY_TYPING_LIST: any[] = []
 const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
 
-export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend: ()=>void}) => {
+export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
 
     const dispatch = useDispatch()
     const grpChatCreatedLocally = useSelector((state: RootState) => state.groupChat.locallyCreatedGrpInfo[grpId] || EMPTY_GRP_INFO);
@@ -67,7 +69,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
 
         }
 
-    }, [dmParticipantsInfo.data?.data])
+    }, [dmParticipantsInfo.data?.data, grpId, dispatch])
 
     useEffect(() => {
 
@@ -91,7 +93,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
         }
 
 
-    }, [grpChatCreatedLocally,dmParticipantsInfo]);
+    }, [grpChatCreatedLocally, dmParticipantsInfo.data, dispatch]);
 
     if(dmParticipantsInfo.isLoading && !grpChatCreatedLocally.participants) return <LoadingStateCircle />
 
@@ -173,17 +175,36 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
 
             </div>
             <div className="flex-1 overflow-y-auto">
+                <CatchMeUpBanner
+                    channelUUID={grpId}
+                    unreadCount={unreadCount || 0}
+                    channelName={participants.slice(0, 3).map(u => u.user_name).join(', ') + (participants.length > 3 ? '...' : '')}
+                    isChannel={false}
+                    type="group"
+                />
                 <GroupChatMessageList grpId={grpId} />
             </div>
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto w-full">
+                    <CommandSurface
+                        surfaceKey={grpId}
+                        dmGroupId={grpId}
+                        onComposerText={(text) =>
+                            dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: `<p>${text}</p>` }))
+                        }
+                        onComposerHtml={(html) =>
+                            dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))
+                        }
+                    />
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'groupChatFileUpload' }))}}
                         onActionFiles={async (files) => {
                             if (!files?.length) return;
-                            await uploadFile.makeRequestToUploadToGroupChat(files as unknown as FileList, grpId);
+                            const valid = uploadFile.validateFiles(files);
+                            if (valid.length === 0) return;
+                            await uploadFile.makeRequestToUploadToGroupChat(valid as unknown as FileList, grpId);
                         }}
                         className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
@@ -198,6 +219,12 @@ export const ChatGrpIdDesktop = ({grpId, handleSend}: {grpId: string, handleSend
                             publishTyping(content as string)
                             dispatch(createOrUpdateGroupChatBody({grpID:grpId, body: content as string}))
                         }}
+                        aiSlot={
+                            <ComposerAIButton
+                                getText={() => chatState.chatBody || ""}
+                                onResult={(html) => dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))}
+                            />
+                        }
                     >
                         <GroupChatFileUpload groupChatID={grpId} />
                     </MinimalTiptapTextInput>

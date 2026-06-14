@@ -23,9 +23,12 @@ type DateFieldProps = {
     onClear?: () => void
     className?: string
     compact?: boolean // when true, renders inline control without outer grid/label
+    /** Notifies the parent when the picker opens/closes (e.g. to pin a
+        hover-revealed action row so it doesn't fade while picking). */
+    onOpenChange?: (open: boolean) => void
 }
 
-export function DateField({ isAdmin, label, value, onSelect, onClear, className, compact = false }: DateFieldProps) {
+export function DateField({ isAdmin, label, value, onSelect, onClear, className, compact = false, onOpenChange }: DateFieldProps) {
     const [inputValue, setInputValue] = useState<string>(value ? format(value, "dd/MM/yyyy") : "")
 
     useEffect(() => {
@@ -53,7 +56,12 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
     }
 
     const { isMobile } = useMedia()
-    const [open, setOpen] = useState(false)
+    const [open, setOpenState] = useState(false)
+    // Wrap setOpen so the parent is always notified of open/close transitions.
+    const setOpen = (next: boolean) => {
+        setOpenState(next)
+        onOpenChange?.(next)
+    }
 
     const TriggerButton = (
         <Button

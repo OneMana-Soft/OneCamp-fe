@@ -9,7 +9,8 @@ import {useCallback, useEffect, useMemo, useState} from "react";
 
 import {ChatMessages} from "@/components/chat/chatMessages";
 import {ChatInfo, CreateChatPaginationResRaw} from "@/types/chat";
-import {updateChats, updateChatScrollToBottom} from "@/store/slice/chatSlice";
+import {updateChats, updateChatScrollToBottom, mergeChats} from "@/store/slice/chatSlice";
+import {useMessageResync} from "@/hooks/useMessageResync";
 import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {updateChannelPosts, updateChannelScrollToBottom} from "@/store/slice/channelSlice";
 import {UserProfileInterface} from "@/types/user";
@@ -34,6 +35,19 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
 
     const latestMsg = useFetch<CreateChatPaginationResRaw>(messageId ? '' : GetEndpointUrl.GetChatLatestMessage + '/' + chatId)
     const getNewChatsWithCurrentChat = useFetch<CreateChatPaginationResRaw>(messageId ? GetEndpointUrl.GetNewChatIncludingCurrentChat + '/' + chatId + '/' + messageId: '')
+
+    // Revalidate the "latest" window whenever we open/switch into this
+    // conversation. SWR caches by key, so navigating to an already-visited
+    // chat would otherwise serve a stale cached window and never surface
+    // messages that arrived while we were elsewhere (e.g. the message behind a
+    // notification deep-link, or a /dm slash-command send). The merge effect
+    // below reconciles the fresh result without clobbering optimistic sends.
+    useEffect(() => {
+        if (!messageId && chatId) {
+            void latestMsg.mutate()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chatId, messageId])
 
     // Use a memoized selector with custom equality to prevent unnecessary re-renders
     const rawChatTypingState = useSelector(
@@ -94,13 +108,26 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
         }
 
         if(!messageId && latestMsg.data?.data.chats && safeChatMessageState.length == 0 ) {
-            const newChats = latestMsg.data?.data.chats.reverse() ?? [];
+            // Copy before reversing: latestMsg.data is the live SWR cache
+            // object. Mutating it in place corrupts the cached value and
+            // races concurrent revalidations.
+            const newChats = [...latestMsg.data.data.chats].reverse();
             dispatch(updateChats({chatId, chats: newChats}))
-            latestMsg.data?.data.chats.reverse()
             setHasMoreNewChat(false)
+        } else if (!messageId && latestMsg.data?.data.chats && safeChatMessageState.length > 0) {
+            // Conversation already in Redux (revisited via navigation or a
+            // notification deep-link). The empty-guard above would skip the
+            // freshly-fetched latest window, so the message that triggered the
+            // notification — or one sent via the /dm slash command (which adds
+            // no optimistic copy) — would be missing until a hard refresh.
+            // mergeChats reconciles the latest window WITHOUT clobbering
+            // optimistic/unconfirmed sends or paginated history, and is
+            // reference-stable (no-op) when nothing changed.
+            const latest = [...latestMsg.data.data.chats].reverse();
+            dispatch(mergeChats({ chatId, chats: latest }))
         }
 
-    }, [getNewChatsWithCurrentChat, latestMsg]);
+    }, [getNewChatsWithCurrentChat, latestMsg, safeChatMessageState, messageId, chatId, dispatch]);
 
     useEffect(() => {
 
@@ -108,9 +135,11 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
             setHasMoreChat(oldMsg.data.data.has_more)
             setOldChatTime(0)
             if(oldMsg.data?.data.chats && oldMsg.data?.data.chats.length !== 0) {
-                const chats = oldMsg.data.data.chats.reverse().concat(safeChatMessageState)
+                const existingUuids = new Set(safeChatMessageState.map(c => c.chat_uuid))
+                // Copy before reversing — don't mutate the live SWR cache.
+                const dedupedOld = [...oldMsg.data.data.chats].reverse().filter(c => !existingUuids.has(c.chat_uuid))
+                const chats = dedupedOld.concat(safeChatMessageState)
                 dispatch(updateChats({chats, chatId}))
-                oldMsg.data.data.chats.reverse()
             }
         }
 
@@ -122,7 +151,9 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
             setHasMoreNewChat(newMsg.data.data.has_more)
             setNewChat(0)
             if(newMsg.data?.data.chats && newMsg.data?.data.chats.length !== 0) {
-                const chats = safeChatMessageState.concat(newMsg.data.data.chats)
+                const existingUuids = new Set(safeChatMessageState.map(c => c.chat_uuid))
+                const dedupedNew = newMsg.data.data.chats.filter((c: ChatInfo) => !existingUuids.has(c.chat_uuid))
+                const chats = safeChatMessageState.concat(dedupedNew)
                 dispatch(updateChats({chats, chatId}))
             }
         }
@@ -132,9 +163,9 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
 
     const handleClickedScrollToBottom = useCallback(() => {
         if(safeChatMessageState.length > 0 && safeChatMessageState[safeChatMessageState.length -1].chat_uuid != latestMsg.data?.data.chats?.[0]?.chat_uuid) {
-            const newChats = latestMsg.data?.data.chats.reverse() ?? [];
+            // Copy before reversing — don't mutate the live SWR cache.
+            const newChats = latestMsg.data?.data.chats ? [...latestMsg.data.data.chats].reverse() : [];
             dispatch(updateChats({chatId, chats: newChats}))
-            latestMsg.data?.data.chats.reverse()
         }
         dispatch(updateChatScrollToBottom({chatId: chatId, scrollToBottom: true}))
     }, [safeChatMessageState, latestMsg.data?.data.chats, chatId, dispatch])
@@ -154,6 +185,23 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
         setNewChat(epochTime)
         setHasMoreNewChat(false)
     }, [safeChatMessageState])
+
+    // Reconcile against the server when MQTT recovers from a long gap
+    // (idle tab). Window-reconcile: applies missed messages, edits, and
+    // deletes within the latest window without clearing what's already on
+    // screen. Disabled in permalink mode (messageId) where the user is
+    // parked on an older message.
+    useMessageResync<ChatInfo>({
+        enabled: !messageId,
+        latestUrl: messageId ? '' : GetEndpointUrl.GetChatLatestMessage + '/' + chatId,
+        extract: (payload) => {
+            const chats = payload?.data?.chats as ChatInfo[] | undefined
+            // "latest" comes newest-first; our store is oldest-first. Copy
+            // before reversing so we never touch the response object twice.
+            return chats ? [...chats].reverse() : undefined
+        },
+        onMerge: (chats) => dispatch(mergeChats({ chatId, chats })),
+    })
 
     useEffect(() => {
         const handleVisibilityChange = () => {

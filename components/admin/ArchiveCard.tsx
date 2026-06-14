@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useRef, useEffect, useState } from "react"
+import React, { useMemo, useState } from "react"
 import { useDispatch } from "react-redux"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, FileText, MessageSquare, ListTodo, Video, Paperclip, FileCode, RotateCcw, Undo2 } from "@/lib/icons";
 import { Archive, PlayCircle, Database } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch"
+import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useToast } from "@/hooks/use-toast"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { openUI } from "@/store/slice/uiSlice"
@@ -60,12 +61,6 @@ const ArchiveCard = () => {
   const { data: statsData } = useFetch<{ stats: ArchiveStats }>(GetEndpointUrl.GetArchiveStats)
   const { connectionState: mqttState } = useMqtt()
   const isMqttHealthy = mqttState.isConnected
-  const pollRef = useRef<NodeJS.Timeout | null>(null)
-  // Wall-clock anchor for the current fallback polling session. Survives
-  // effect re-runs so we can enforce a real time-based cap. The session key
-  // is the comma-joined sorted list of running job IDs — when it changes
-  // (a new job starts or an existing one finishes), we reset the timer.
-  const pollSessionRef = useRef<{ key: string; startedAt: number } | null>(null)
   const { toast } = useToast()
   const [undoingJobId, setUndoingJobId] = useState<string | null>(null)
 
@@ -75,61 +70,23 @@ const ArchiveCard = () => {
   const POLL_CAP_MS = 6 * 60 * 1000
   const POLL_INTERVAL_MS = 6000
 
+  const runningJobIds = useMemo(() => {
+    const j = jobData?.jobs || []
+    return j.filter(x => x.status === "running").map(x => x.id).sort().join(",")
+  }, [jobData])
+
   // Job status updates arrive via MQTT (`MqttMessageType.Archive_Job_Status`),
-  // which busts the SWR cache for `/admin/archive/jobs` directly. Polling
-  // is a fallback when MQTT is unavailable (dev without broker, transient
-  // disconnect, non-admin user). We poll every 6 seconds while a job runs,
-  // capped at 6 minutes of elapsed real time (not attempts) to survive
-  // SWR-driven effect re-runs.
-  useEffect(() => {
-    const currentJobs = jobData?.jobs || []
-    const runningIds = currentJobs
-      .filter(j => j.status === "running")
-      .map(j => j.id)
-      .sort()
-    const sessionKey = runningIds.join(",")
-
-    if (pollRef.current) {
-      clearInterval(pollRef.current)
-      pollRef.current = null
-    }
-
-    // No fallback polling needed when MQTT is healthy or no jobs are running.
-    if (isMqttHealthy || runningIds.length === 0) {
-      pollSessionRef.current = null
-      return
-    }
-
-    // Establish or continue the polling session.
-    if (pollSessionRef.current?.key !== sessionKey) {
-      pollSessionRef.current = { key: sessionKey, startedAt: Date.now() }
-    }
-
-    pollRef.current = setInterval(() => {
-      if (document.visibilityState === "hidden") return
-
-      const session = pollSessionRef.current
-      if (!session) return
-
-      // Wall-clock cap: stop polling after POLL_CAP_MS regardless of how
-      // many SWR-triggered effect re-runs happened in between.
-      if (Date.now() - session.startedAt > POLL_CAP_MS) {
-        if (pollRef.current) {
-          clearInterval(pollRef.current)
-          pollRef.current = null
-        }
-        return
-      }
-      mutateJobs()
-    }, POLL_INTERVAL_MS)
-
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current)
-        pollRef.current = null
-      }
-    }
-  }, [jobData, mutateJobs, isMqttHealthy])
+  // which busts the SWR cache for `/admin/archive/jobs` directly.
+  // useResilientPolling is the fallback when MQTT is unavailable (dev
+  // without broker, transient disconnect, non-admin user). It also
+  // pauses on hidden tabs and applies exponential backoff on errors.
+  useResilientPolling({
+    enabled: runningJobIds.length > 0,
+    mqttHealthy: isMqttHealthy,
+    interval: POLL_INTERVAL_MS,
+    capMs: POLL_CAP_MS,
+    onPoll: mutateJobs,
+  })
 
   const getStatValue = (entityType: string): number => {
     if (!statsData?.stats) return 0

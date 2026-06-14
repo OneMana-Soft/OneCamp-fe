@@ -28,6 +28,9 @@ export {
   CheckSquare,
   Folder,
   FileText,
+  Flag,
+  Megaphone,
+  UserPlus,
   Users,
   User,
   CircleUser,
@@ -95,6 +98,7 @@ export {
   SendHorizontal,
   Send,
   Mail,
+  MailPlus,
   AtSign,
   Reply,
   Forward,
@@ -252,6 +256,11 @@ export {
   Unlock,
   Key,
   Fingerprint,
+  Cpu,
+  HardDrive,
+  MemoryStick,
+  Brain,
+  Wrench,
 } from "lucide-react";
 
 // ─── Layout / UI ────────────────────────────────────────────
