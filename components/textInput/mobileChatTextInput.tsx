@@ -10,7 +10,6 @@ import {useDispatch, useSelector} from "react-redux";
 import type { RootState } from "@/store/store";
 import {createOrUpdateChatBody} from "@/store/slice/chatSlice";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
-import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
@@ -90,12 +89,6 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
                             dispatch(createOrUpdateChatBody({chatUUID: chatId, body: content?.toString()||'' }))
                         }}
                         fixedToolbarToBottom={true}
-                        aiSlot={
-                            <ComposerAIButton
-                                getText={() => chatInputState.chatBody || ""}
-                                onResult={(html) => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))}
-                            />
-                        }
                     >
 
 

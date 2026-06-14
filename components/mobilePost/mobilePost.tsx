@@ -14,7 +14,6 @@ import {MobileMessage} from "@/components/mobileMessage/mobileMessage";
 import {getForwardedMessageData, getMainMessageData} from "@/lib/utils/rightPanelHelper";
 import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
-import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 import { UserProfileInterface} from "@/types/user";
@@ -314,22 +313,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                 />
                 <ReplyDivider replyCount={mainMessageData.commentCount}/>
 
-                {/* TL;DR for long threads — parity with the desktop right panel.
-                    Reuses doc-AI summarize over the attributed root + replies. */}
-                {mainMessageData.commentCount >= 4 && (
-                    <div className="mx-4 mt-2">
-                        <ThreadSummaryButton
-                            getText={() =>
-                                [
-                                    `${mainMessageData.userName || "Someone"}: ${mainMessageData.content}`,
-                                    ...postCommentState.map(
-                                        (c) => `${c.comment_by?.user_name || "Someone"}: ${c.comment_text}`,
-                                    ),
-                                ].join("\n")
-                            }
-                        />
-                    </div>
-                )}
+
 
                     <MobileMessageCommentList
                         comments={postCommentState}

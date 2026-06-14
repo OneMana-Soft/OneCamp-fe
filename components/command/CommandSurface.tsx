@@ -11,7 +11,7 @@ import { useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { useCommandRunner, type CommandSurfaceContext } from "./useCommandRunner"
 import BlockKitCard from "./BlockKitCard"
-import MarkdownMessage from "@/components/ai/MarkdownMessage"
+
 import { Button } from "@/components/ui/button"
 import { X, Zap } from "@/lib/icons"
 import type { BlockElement } from "@/types/command"
@@ -68,7 +68,7 @@ const CommandSurface: React.FC<CommandSurfaceContext> = (ctx) => {
                                     />
                                 ) : resp.text ? (
                                     <div className="text-[13px] leading-relaxed text-foreground">
-                                        <MarkdownMessage content={resp.text} />
+                                        <span className="text-[13px] leading-relaxed text-foreground">{resp.text}</span>
                                     </div>
                                 ) : null}
                                 {resp.ephemeral && (

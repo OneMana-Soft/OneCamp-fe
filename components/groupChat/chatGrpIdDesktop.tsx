@@ -23,7 +23,6 @@ import { GrpChatNotificationInterface} from "@/types/chat";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {createOrUpdateGroupChatBody, LocallyCreatedGrpInfoInterface, ChatInputState} from "@/store/slice/groupChatSlice";
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
-import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
 import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {ErrorState} from "@/components/error/errorState";
@@ -36,7 +35,6 @@ import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {useRouter} from "next/navigation";
 import {app_grp_call, app_grp_chat_path, app_home_path} from "@/types/paths";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
-import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import {useUploadFile} from "@/hooks/useUploadFile";
 
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
@@ -175,13 +173,6 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
 
             </div>
             <div className="flex-1 overflow-y-auto">
-                <CatchMeUpBanner
-                    channelUUID={grpId}
-                    unreadCount={unreadCount || 0}
-                    channelName={participants.slice(0, 3).map(u => u.user_name).join(', ') + (participants.length > 3 ? '...' : '')}
-                    isChannel={false}
-                    type="group"
-                />
                 <GroupChatMessageList grpId={grpId} />
             </div>
 
@@ -219,12 +210,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                             publishTyping(content as string)
                             dispatch(createOrUpdateGroupChatBody({grpID:grpId, body: content as string}))
                         }}
-                        aiSlot={
-                            <ComposerAIButton
-                                getText={() => chatState.chatBody || ""}
-                                onResult={(html) => dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))}
-                            />
-                        }
+
                     >
                         <GroupChatFileUpload groupChatID={grpId} />
                     </MinimalTiptapTextInput>

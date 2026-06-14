@@ -12,7 +12,7 @@
 import React, { useEffect, useState, useCallback } from "react"
 import { useToast } from "@/hooks/use-toast"
 import BlockKitCard from "./BlockKitCard"
-import MarkdownMessage from "@/components/ai/MarkdownMessage"
+
 import { Button } from "@/components/ui/button"
 import { Bell, X } from "@/lib/icons"
 import type { CommandResponse } from "@/types/command"
@@ -81,7 +81,7 @@ const GlobalCommandHost: React.FC = () => {
                                         <BlockKitCard blocks={card.response.blocks} />
                                     ) : card.response.text ? (
                                         <div className="text-[13px] leading-relaxed text-foreground">
-                                            <MarkdownMessage content={card.response.text} />
+                                            <span className="text-[13px] leading-relaxed text-foreground">{card.response.text}</span>
                                         </div>
                                     ) : null}
                                 </div>

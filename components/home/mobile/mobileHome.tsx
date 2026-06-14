@@ -19,7 +19,6 @@ import {
     Users,
 } from "@/lib/icons"
 import { MobileHomeSearchBar } from "@/components/home/mobile/mobileHomeSearchBar"
-import BriefingCard from "@/components/ai/BriefingCard"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatDistanceToNow } from "date-fns"
 import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
@@ -239,8 +238,6 @@ export function MobileHome() {
             <MobileHomeSearchBar />
 
             {/* AI briefing — self-hides when AI/memory is off or empty */}
-            <BriefingCard />
-
             {/* Quick Actions */}
             <div className="grid grid-cols-4 gap-2.5">
                 <QuickActionTile

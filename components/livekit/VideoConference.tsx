@@ -26,8 +26,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Loader2, Pin, PinOff } from "@/lib/icons";
 import { VideoControls } from "./VideoControls";
 import { FrontendTranscriber } from "./FrontendTranscriber";
-import { InCallAIPanel } from "./InCallAIPanel";
-import { useInCallAgent } from "./useInCallAgent";
+
 import { KrispNoiseFilter, isKrispNoiseFilterSupported } from "@livekit/krisp-noise-filter";
 
 interface VideoConferenceProps {
@@ -305,7 +304,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { on
 
   // State for active transcripts: map participantIdentity -> { accumulated, lastFinalId, name, lastUpdate }
   const [showCaptions, setShowCaptions] = useState(false);
-  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+
   // Rolling buffer of recent FINAL utterances ("Name: text"), newest last.
   // Fed from handleTranscript; this is the freshest in-call context source for
   // the in-call AI agent (the persisted Dgraph copy only exists while recording
@@ -450,19 +449,6 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { on
 
   const toggleCaptions = () => setShowCaptions(!showCaptions);
 
-  // Multiplayer in-call AI agent — owns the shared Q&A conversation and the
-  // LiveKit data-channel broadcast, so the conversation survives the panel
-  // being closed and every participant sees the same answers.
-  const inCallAgent = useInCallAgent(room.name, getTranscriptBuffer);
-
-  // Unread indicator: count exchanges that arrived while the panel was closed
-  // so we can badge the AI button (and clear it when the panel opens).
-  const [aiSeenCount, setAiSeenCount] = useState(0);
-  useEffect(() => {
-    if (aiPanelOpen) setAiSeenCount(inCallAgent.items.length);
-  }, [aiPanelOpen, inCallAgent.items.length]);
-  const aiUnread = aiPanelOpen ? 0 : Math.max(0, inCallAgent.items.length - aiSeenCount);
-
    const [isRecordingActionLoading, setIsRecordingActionLoading] = useState(false);
 
   const toggleRecording = async () => {
@@ -556,20 +542,6 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { on
                 </div>
             )}
 
-            {/* In-Call AI Assistant side panel. On desktop it docks to the
-                right as a flex sibling (shrinking the video area); on mobile it
-                overlays full-screen. */}
-            {aiPanelOpen && (
-                <div className="absolute inset-0 z-30 md:static md:inset-auto md:z-auto md:h-full shrink-0">
-                    <InCallAIPanel
-                        items={inCallAgent.items}
-                        isStreaming={inCallAgent.isStreaming}
-                        onAsk={inCallAgent.ask}
-                        onCancel={inCallAgent.cancel}
-                        onClose={() => setAiPanelOpen(false)}
-                    />
-                </div>
-            )}
         </div>
         <VideoControls 
             onDisconnect={onDisconnect} 
@@ -582,9 +554,9 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { on
             isRecordingLoading={isRecordingActionLoading}
             onToggleCaptions={toggleCaptions}
             showCaptions={showCaptions}
-            onToggleAI={() => setAiPanelOpen((v) => !v)}
-            isAIOpen={aiPanelOpen}
-            aiUnreadCount={aiUnread}
+            onToggleAI={undefined}
+            isAIOpen={false}
+            aiUnreadCount={0}
         />
         <FrontendTranscriber onTranscript={handleTranscript} />
     </div>

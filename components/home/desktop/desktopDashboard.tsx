@@ -26,7 +26,6 @@ import { openUI } from "@/store/slice/uiSlice"
 import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
 import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
-import BriefingCard from "@/components/ai/BriefingCard"
 
 function StatCard({
     icon: Icon,
@@ -179,8 +178,6 @@ export function DesktopDashboard() {
                 </div>
 
                 {/* AI briefing — self-hides when AI/memory is off or empty */}
-                <BriefingCard />
-
                 {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <StatCard

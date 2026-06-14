@@ -31,7 +31,7 @@ import { useMedia } from "@/context/MediaQueryContext"
 import { Drawer } from 'vaul'
 import { Image as ImageIcon, Users, Loader2, Check } from "@/lib/icons";
 import { Cloud, CloudOff } from "lucide-react";
-import { DocAiAssistantPanel } from '@/components/ai/DocAiAssistantPanel'
+
 import { PostFileUploadURL, GetEndpointUrl } from "@/services/endPoints"
 import axiosInstance from "@/lib/axiosInstance"
 import { UploadFileInterfaceRes } from "@/types/file"
@@ -265,7 +265,7 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
         const { isDesktop, isMobile } = useMedia()
         const docAiOpen = useSelector((state: any) => state.rightPanel.rightPanelState.data.docAiOpen)
         const [isDrawerOpen, setIsDrawerOpen] = React.useState(false)
-        const suppressOverlays = isDrawerOpen || docAiOpen
+        const suppressOverlays = docAiOpen
         const [selectedText, setSelectedText] = React.useState('')
         const [hasSelection, setHasSelection] = React.useState(false)
         const [wordCount, setWordCount] = React.useState(0)
@@ -588,24 +588,7 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                 <LinkBubbleMenu editor={editor} hide={suppressOverlays} />
                 <SelectionAiBubbleMenu editor={editor} onAIClick={handleAIClick} hide={suppressOverlays} />
 
-                {/* Mobile AI Drawer */}
-                <Drawer.Root open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-                    <Drawer.Portal>
-                        <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[var(--z-modal-backdrop)]" />
-                        <Drawer.Content className="bg-background flex flex-col rounded-t-[20px] h-[85vh] mt-24 fixed bottom-0 left-0 right-0 z-[var(--z-modal)] outline-none border-t border-border">
-                            <Drawer.Title className="sr-only">AI Assistant</Drawer.Title>
-                            <Drawer.Description className="sr-only">AI powered document assistant for writing and transforming text.</Drawer.Description>
-                            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted my-4" />
-                            <div className="flex-1 overflow-y-auto">
-                                <DocAiAssistantPanel 
-                                    selectedText={selectedText} 
-                                    docId={docId || ''} 
-                                    onClose={() => setIsDrawerOpen(false)}
-                                />
-                            </div>
-                        </Drawer.Content>
-                    </Drawer.Portal>
-                </Drawer.Root>
+
             </MeasuredContainer>
         )
     }

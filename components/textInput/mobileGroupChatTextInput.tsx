@@ -8,7 +8,6 @@ import { useEffect, useRef, useState } from "react";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch, useSelector} from "react-redux";
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
-import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {RootState} from "@/store/store";
 import {createOrUpdateGroupChatBody} from "@/store/slice/groupChatSlice";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
@@ -85,12 +84,6 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
                             dispatch(createOrUpdateGroupChatBody({grpID: grpId, body: content?.toString()||'' }))
                         }}
                         fixedToolbarToBottom={true}
-                        aiSlot={
-                            <ComposerAIButton
-                                getText={() => chatInputState.chatBody || ""}
-                                onResult={(html) => dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))}
-                            />
-                        }
                     >
 
 

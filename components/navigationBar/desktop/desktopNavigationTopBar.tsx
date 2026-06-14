@@ -15,7 +15,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { openRightPanel, closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { RootState } from "@/store/store";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import NudgeBell from "@/components/ai/NudgeBell";
+
 
 export default function DesktopNavigationTopBar() {
 
@@ -57,7 +57,6 @@ export default function DesktopNavigationTopBar() {
                     </TooltipContent>
                 </Tooltip>
 
-                <NudgeBell />
 
                 <div className="flex items-center gap-1.5">
                     <ConnectionStatusIndicator compact />

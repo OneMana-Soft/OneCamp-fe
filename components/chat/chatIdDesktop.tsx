@@ -20,7 +20,6 @@ import {USER_STATUS_ONLINE, UserEmojiStatus, UserProfileInterface} from "@/types
 import {ChatNotificationInterface} from "@/types/chat";
 import {ChatUserAvatar} from "@/components/chat/chatUserAvatar";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
-import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {createOrUpdateChatBody} from "@/store/slice/chatSlice";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus, UserEmojiInterface} from "@/store/slice/userSlice";
@@ -31,7 +30,6 @@ import Link from "next/link";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
-import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 import CommandSurface from "@/components/command/CommandSurface";
@@ -161,13 +159,6 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                 </div>
             </header>
             <div className="flex-1 overflow-y-auto">
-                <CatchMeUpBanner
-                    channelUUID={chatId}
-                    unreadCount={unreadCount || 0}
-                    channelName={otherUserInfo.data?.data.user_name}
-                    isChannel={false}
-                    type="dm"
-                />
                 <ChatMessageList chatId={chatId} />
             </div>
 
@@ -206,12 +197,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                             publishTyping(content as string)
                             dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
                         }}
-                        aiSlot={
-                            <ComposerAIButton
-                                getText={() => chatState.chatBody || ""}
-                                onResult={(html) => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))}
-                            />
-                        }
+
                     >
                         <ChatFileUpload chatUUID={chatId} />
                     </MinimalTiptapTextInput>

@@ -16,11 +16,11 @@ import ArchiveCard from "@/components/admin/ArchiveCard"
 import ExternalUsersCard from "@/components/admin/ExternalUsersCard"
 import SlackImportCard from "@/components/admin/SlackImportCard"
 import ImportCard from "@/components/admin/ImportCard"
-import AIModelsCard from "@/components/admin/AIModelsCard"
+
 import AppsCard from "@/components/admin/AppsCard"
 import WorkspaceSettingsCard from "@/components/admin/WorkspaceSettingsCard"
 import PermissionsCard from "@/components/admin/PermissionsCard"
-import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsCard"
+
 import WorkflowsCard from "@/components/admin/WorkflowsCard"
 import AdminAuditLog from "@/components/admin/AdminAuditLog"
 import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic } from "@/lib/icons"
@@ -42,8 +42,7 @@ const TABS: TabDef[] = [
   { value: "email-settings", label: "Email Config", icon: Settings },
   { value: "settings", label: "Settings", icon: SlidersHorizontal },
   { value: "permissions", label: "Permissions", icon: KeyRound },
-  { value: "transcription", label: "Transcription", icon: Mic },
-  { value: "ai-models", label: "AI Models", icon: Sparkles },
+
   { value: "webhooks", label: "Webhooks", icon: Webhook },
   { value: "workflows", label: "Workflows", icon: Zap },
   { value: "apps", label: "Apps", icon: Plug },
@@ -243,12 +242,7 @@ const AdminPage = () => {
               <TabsContent value="permissions" className="mt-0 h-full outline-none">
                 <PermissionsCard />
               </TabsContent>
-              <TabsContent value="transcription" className="mt-0 h-full outline-none">
-                <TranscriptionSettingsCard />
-              </TabsContent>
-              <TabsContent value="ai-models" className="mt-0 h-full outline-none">
-                <AIModelsCard />
-              </TabsContent>
+
               <TabsContent value="webhooks" className="mt-0 h-full outline-none">
                 <WebhooksCard />
               </TabsContent>
