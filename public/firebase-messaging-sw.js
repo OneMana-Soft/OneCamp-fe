@@ -161,6 +161,11 @@ self.addEventListener('notificationclick', (event) => {
                 urlToOpen = `/app/channel/${data.type_id}`;
             } else if (data.type === 'post_comment') {
                 urlToOpen = `/app/channel/${data.type_id}/${data.thread_id}`;
+            } else if (data.type === 'reminder') {
+                // A fired /remind. Just focus the app; the in-app
+                // GlobalCommandHost / toast surfaces the reminder content when
+                // the tab regains focus (and MQTT re-delivers if still pending).
+                urlToOpen = '/app';
             }
         }
 

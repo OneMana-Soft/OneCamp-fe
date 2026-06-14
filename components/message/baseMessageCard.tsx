@@ -137,6 +137,7 @@ export interface BaseMessageCardProps {
   hoverOptionsConfig: {
     chatUUID?: string
     groupUUID?: string
+    chatGrpID?: string
     chatMessageID?: string
     channelUUID?: string
     postUUID?: string
@@ -307,6 +308,7 @@ export const BaseMessageCard = React.memo(({
               setEmojiPopupState={setIsEmojiPickerOpen}
               onReactionSelect={handleEmojiClick}
               setIsDropdownOpen={setIsDropdownOpen}
+              messageText={message.bodyText}
               {...hoverOptionsConfig}
             />
           </div>
@@ -372,6 +374,14 @@ export const BaseMessageCard = React.memo(({
                 openDesktopThread={handleOpenThread}
                 replyCount={message.commentCount}
                 lastCommentCreatedAt={message.comments[message.comments.length - 1].comment_created_at}
+                participants={message.comments
+                  .slice()
+                  .reverse()
+                  .map((c) => ({
+                    uuid: c.comment_by?.user_uuid || "",
+                    name: c.comment_by?.user_name || "",
+                    profileKey: c.comment_by?.user_profile_object_key,
+                  }))}
               />
             </div>
           )}

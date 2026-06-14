@@ -8,6 +8,7 @@ import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 import {MessageContent} from "@/components/rightPanel/messageContent";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
+import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
 import {CommentsList} from "@/components/rightPanel/commentsList";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
 import {cn} from "@/lib/utils/helpers/cn";
@@ -444,6 +445,22 @@ export const ChatComments = () => {
                 <ReplyDivider replyCount={mainMessageData.commentCount} />
 
 
+            )}
+
+            {/* TL;DR for long threads — attributed root + replies, on-demand. */}
+            {mainMessageData.commentCount >= 4 && (
+                <div className="mx-4 mt-2">
+                    <ThreadSummaryButton
+                        getText={() =>
+                            [
+                                `${mainMessageData.userName || "Someone"}: ${mainMessageData.content}`,
+                                ...chatCommentState.map(
+                                    (c) => `${c.comment_by?.user_name || "Someone"}: ${c.comment_text}`,
+                                ),
+                            ].join("\n")
+                        }
+                    />
+                </div>
             )}
 
             <div className="flex-1 overflow-y-auto pb-4 pt-2 space-y-4">

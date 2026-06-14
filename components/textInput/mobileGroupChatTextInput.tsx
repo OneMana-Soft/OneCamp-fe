@@ -5,19 +5,15 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
-import { ChannelFileUpload } from "@/components/fileUpload/channelFileUpload";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch, useSelector} from "react-redux";
-import {
-
-    updateChannelInputText
-} from "@/store/slice/channelSlice";
-import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
+import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {RootState} from "@/store/store";
 import {createOrUpdateGroupChatBody} from "@/store/slice/groupChatSlice";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUploadFile} from "@/hooks/useUploadFile";
+import CommandSurface from "@/components/command/CommandSurface";
 
 const EMPTY_CHAT_INPUT_STATE = {};
 
@@ -52,6 +48,16 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
 
     return (
         <DraggableDrawer isExpanded={isExpanded} setIsExpanded={setIsExpanded} initialHeight={initialHeight}>
+            <CommandSurface
+                surfaceKey={grpId}
+                dmGroupId={grpId}
+                onComposerText={(text) =>
+                    dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: `<p>${text}</p>` }))
+                }
+                onComposerHtml={(html) =>
+                    dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))
+                }
+            />
             <div ref={contentRef}> {/* Wrap all content in a ref */}
                 <div ref={editorRef}>
                     <MinimalTiptapTextInput
@@ -59,7 +65,9 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
  }}
                         onActionFiles={async (files) => {
                             if (!files?.length) return;
-                            await uploadFile.makeRequestToUploadToGroupChat(files as unknown as FileList, grpId);
+                            const valid = uploadFile.validateFiles(files);
+                            if (valid.length === 0) return;
+                            await uploadFile.makeRequestToUploadToGroupChat(valid as unknown as FileList, grpId);
                         }}
                         throttleDelay={300}
                         noBorder={true}
@@ -77,6 +85,12 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
                             dispatch(createOrUpdateGroupChatBody({grpID: grpId, body: content?.toString()||'' }))
                         }}
                         fixedToolbarToBottom={true}
+                        aiSlot={
+                            <ComposerAIButton
+                                getText={() => chatInputState.chatBody || ""}
+                                onResult={(html) => dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))}
+                            />
+                        }
                     >
 
 

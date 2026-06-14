@@ -131,14 +131,65 @@ export const userSlice = createSlice({
   initialState,
   reducers: {
 
+    /**
+     * Set the user's emoji status from a profile / list fetch.
+     *
+     * IMPORTANT: this reducer treats an empty status (no emoji_id) as
+     * "no information" rather than "clear it". Profile fetches
+     * (`/user/profile/{userUUID}`, `useFetchOnlyOnce`, etc.) come back
+     * without `user_emoji_statuses` whenever the user has no active
+     * status — Dgraph filters by expiry and the Go struct has
+     * `omitempty`, so the field disappears from the JSON entirely.
+     *
+     * Before this guard, every chat header re-fetch would clobber the
+     * Redux entry with `{}`, making the user's status emoji visibly
+     * disappear the moment they (or anyone else) opened a chat —
+     * including their own self-chat — even though MQTT had not
+     * actually delivered a delete event.
+     *
+     * Explicit "clear" intent (the user opened the status dialog and
+     * cleared it, or an MQTT delete event arrived) flows through
+     * `clearUserEmojiStatus` instead, which IS allowed to wipe the
+     * cached value.
+     */
     updateUserEmojiStatus: (state, action: {payload: UpdateUserEmojiStatusInterface}) => {
       const { userUUID, status } = action.payload;
+      if (!userUUID) return;
 
-      if(!state.usersStatus[userUUID]) {
-        state.usersStatus[userUUID] = {} as UserEmojiInterface
+      // Treat undefined / null / empty payloads as "no info, leave as
+      // is". A valid status always carries a non-empty
+      // status_user_emoji_id; we use that as the truthiness check.
+      const hasValidStatus =
+        !!status && typeof status.status_user_emoji_id === "string" && status.status_user_emoji_id.length > 0;
+      if (!hasValidStatus) {
+        return;
       }
 
-      state.usersStatus[userUUID].emojiStatus  = status;
+      if (!state.usersStatus[userUUID]) {
+        state.usersStatus[userUUID] = {} as UserEmojiInterface;
+      }
+
+      state.usersStatus[userUUID].emojiStatus = status;
+    },
+
+    /**
+     * Explicit "no active emoji status" intent. Use this from:
+     *   - MQTT MqttActionType.Delete
+     *   - the user's own clear-status dialog
+     *
+     * Profile-fetch handlers must not call this — they have no way of
+     * distinguishing "user actively cleared" from "BE filtered out an
+     * expired row".
+     */
+    clearUserEmojiStatus: (state, action: {payload: {userUUID: string}}) => {
+      const { userUUID } = action.payload;
+      if (!userUUID) return;
+
+      if (!state.usersStatus[userUUID]) {
+        state.usersStatus[userUUID] = {} as UserEmojiInterface;
+      }
+
+      state.usersStatus[userUUID].emojiStatus = {} as UserEmojiStatus;
     },
 
     updateUserStatus: (state, action: {payload: UpdateUserStatusInterface}) => {
@@ -177,8 +228,17 @@ export const userSlice = createSlice({
           state.usersStatus[user.user_uuid] = {} as UserEmojiInterface
         }
 
-        if(user.user_emoji_statuses) {
-          state.usersStatus[user.user_uuid].emojiStatus = user.user_emoji_statuses[0]
+        // Same guard as updateUserEmojiStatus: only write when the
+        // payload carries a real status row. An empty / missing
+        // user_emoji_statuses field on a list response means
+        // "no information here", not "clear the cached value".
+        const candidate = user.user_emoji_statuses?.[0]
+        if (
+          candidate &&
+          typeof candidate.status_user_emoji_id === "string" &&
+          candidate.status_user_emoji_id.length > 0
+        ) {
+          state.usersStatus[user.user_uuid].emojiStatus = candidate
         }
 
         if(user.user_status) {
@@ -461,6 +521,7 @@ export const userSlice = createSlice({
 
 export const {
   updateUserEmojiStatus,
+  clearUserEmojiStatus,
   updateUserStatus,
   updateUserConnectedDeviceCount,
   createUserChatList,

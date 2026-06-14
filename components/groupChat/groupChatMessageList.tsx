@@ -9,7 +9,9 @@ import {useEffect, useState, useMemo} from "react";
 
 import {ChatMessages} from "@/components/chat/chatMessages";
 import {CreateChatPaginationResRaw} from "@/types/chat";
+import {ChatInfo} from "@/types/chat";
 import {updateChats, updateChatScrollToBottom} from "@/store/slice/chatSlice";
+import {useMessageResync} from "@/hooks/useMessageResync";
 import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {updateChannelPosts, updateChannelScrollToBottom} from "@/store/slice/channelSlice";
 import {RawUserDMInterface, UserProfileInterface} from "@/types/user";
@@ -18,7 +20,8 @@ import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {
     LocallyCreatedGrpInfoInterface,
     updateGroupChats,
-    updateGroupChatScrollToBottom
+    updateGroupChatScrollToBottom,
+    mergeGroupChats
 } from "@/store/slice/groupChatSlice";
 import {GroupChatMessages} from "@/components/groupChat/groupChatMessages";
 import {useSearchParams} from "next/navigation";
@@ -41,6 +44,16 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
 
     const latestMsg = useFetch<CreateChatPaginationResRaw>(messageId || (!dmParticipantsInfo.data?.data) ? '' : GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId)
     const getNewChatsWithCurrentChat = useFetch<CreateChatPaginationResRaw>(messageId ? GetEndpointUrl.GetNewGroupChatIncludingCurrentChat + '/' + grpId + '/' + messageId: '')
+
+    // Revalidate the latest window on open/switch so a revisited group picks
+    // up messages that arrived while away. The merge effect reconciles without
+    // clobbering optimistic sends.
+    useEffect(() => {
+        if (!messageId && grpId && dmParticipantsInfo.data?.data) {
+            void latestMsg.mutate()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [grpId, messageId, dmParticipantsInfo.data?.data])
 
     const chatMessageState = useSelector((state: RootState) => state.groupChat.chatMessages[grpId] || EMPTY_CHATS);
 
@@ -67,13 +80,18 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
         }
 
         if(!messageId && latestMsg.data?.data.chats && chatMessageState.length == 0 ) {
-            const newChats = latestMsg.data?.data.chats.reverse() ?? [];
+            // Copy before reversing: latestMsg.data is the live SWR cache.
+            const newChats = [...latestMsg.data.data.chats].reverse();
 
             dispatch(updateGroupChats({grpId, chats: newChats}))
-            latestMsg.data?.data.chats.reverse()
+        } else if (!messageId && latestMsg.data?.data.chats && chatMessageState.length > 0) {
+            // Already-loaded group revisited: merge the fresh latest window so
+            // a message that arrived while away appears without a hard refresh.
+            const latest = [...latestMsg.data.data.chats].reverse();
+            dispatch(mergeGroupChats({ grpId, chats: latest }))
         }
 
-    }, [getNewChatsWithCurrentChat, latestMsg]);
+    }, [getNewChatsWithCurrentChat, latestMsg, chatMessageState, messageId, grpId, dispatch]);
 
     useEffect(() => {
 
@@ -82,11 +100,11 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
             setOldChatTime(0)
             if(oldMsg.data?.data.chats && oldMsg.data?.data.chats.length !== 0) {
                 const existingUuids = new Set(chatMessageState.map(c => c.chat_uuid))
-                const dedupedOld = oldMsg.data.data.chats.reverse().filter(c => !existingUuids.has(c.chat_uuid))
+                // Copy before reversing — don't mutate the live SWR cache.
+                const dedupedOld = [...oldMsg.data.data.chats].reverse().filter(c => !existingUuids.has(c.chat_uuid))
                 const chats = dedupedOld.concat(chatMessageState)
 
                 dispatch(updateGroupChats({chats, grpId}))
-                oldMsg.data.data.chats.reverse()
             }
         }
 
@@ -111,11 +129,11 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
 
     const handleClickedScrollToBottom = () => {
 
-        if(chatMessageState[chatMessageState.length -1].chat_uuid != latestMsg.data?.data.chats?.[0]?.chat_uuid) {
-            const newChats = latestMsg.data?.data.chats.reverse() ?? [];
+        if(chatMessageState.length > 0 && chatMessageState[chatMessageState.length -1].chat_uuid != latestMsg.data?.data.chats?.[0]?.chat_uuid) {
+            // Copy before reversing — don't mutate the live SWR cache.
+            const newChats = latestMsg.data?.data.chats ? [...latestMsg.data.data.chats].reverse() : [];
 
             dispatch(updateGroupChats({grpId, chats: newChats}))
-            latestMsg.data?.data.chats.reverse()
         }
 
         dispatch(updateGroupChatScrollToBottom({grpId, scrollToBottom: true}))
@@ -123,7 +141,7 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
     }
 
     const getOldMessages = () => {
-
+        if (chatMessageState.length === 0) return
         const lastTimeString = chatMessageState[0].chat_created_at
         const epochTime = Math.floor(Date.parse(lastTimeString) / 1000);
         setOldChatTime(epochTime)
@@ -131,12 +149,25 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
     }
 
     const getNewMessages = () => {
-
+        if (chatMessageState.length === 0) return
         const lastTimeString = chatMessageState[chatMessageState.length -1].chat_created_at
         const epochTime = Math.ceil(Date.parse(lastTimeString) / 1000);
         setNewChat(epochTime)
         setHasMoreNewChat(false)
     }
+
+    // Reconcile against the server when MQTT recovers from a long gap
+    // (idle tab). Window-reconcile (adds/edits/deletes within the latest
+    // window); disabled in permalink mode.
+    useMessageResync<ChatInfo>({
+        enabled: !messageId && !!dmParticipantsInfo.data?.data,
+        latestUrl: messageId || !dmParticipantsInfo.data?.data ? '' : GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId,
+        extract: (payload) => {
+            const chats = payload?.data?.chats as ChatInfo[] | undefined
+            return chats ? [...chats].reverse() : undefined
+        },
+        onMerge: (chats) => dispatch(mergeGroupChats({ grpId, chats })),
+    })
 
     useEffect(() => {
         const handleVisibilityChange = () => {

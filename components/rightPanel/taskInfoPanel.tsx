@@ -126,12 +126,19 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const taskLabelDebounce = useDebounce(taskLabel, CONSTANTS.DEBOUNCE_DELAY)
 
     const taskInfo = useFetch<TaskInfoRawInterface>(taskUUID ? `${GetEndpointUrl.GetTaskInfo}/${taskUUID}` : "", undefined, {
-        // Long-interval fallback refresh. Catches missed MQTT messages and
-        // GitHub-side changes (title, status, PR state) without being noisy.
-        // Real-time comment/reaction updates come via MQTT, so when MQTT is
-        // healthy we can lengthen this to 5 minutes (5x less server traffic).
-        // When MQTT is disconnected we drop back to 60s to bound staleness.
+        // Long-interval fallback refresh. Catches missed MQTT messages
+        // and GitHub-side changes (title, status, PR state) without
+        // being noisy. Real-time comment/reaction updates come via
+        // MQTT, so when MQTT is healthy we lengthen significantly.
+        //
+        // refreshWhenHidden: false (SWR default) means a backgrounded
+        // tab pauses; refreshWhenOffline: false (default) means an
+        // offline laptop doesn't burn retries. The user is reactivating
+        // the panel will trigger an immediate revalidate via SWR's
+        // built-in revalidateOnFocus.
         refreshInterval: isMqttHealthy ? 5 * 60 * 1000 : 60 * 1000,
+        refreshWhenHidden: false,
+        refreshWhenOffline: false,
     })
     const syncStatus = useFetch<{ data: { status: string; error?: string; attempts: number } }>(
         taskUUID && (taskInfo.data?.data?.task_github_issue_url || taskInfo.data?.data?.task_github_pr_url)
@@ -150,6 +157,10 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                 // Lengthen significantly when MQTT is healthy.
                 return isMqttHealthy ? 5 * 60 * 1000 : 60 * 1000
             },
+            // Pause when hidden / offline so a forgotten tab doesn't
+            // hit the API every 5s indefinitely.
+            refreshWhenHidden: false,
+            refreshWhenOffline: false,
         }
     )
     const githubConnection = useFetch<{ connected: boolean }>(GetEndpointUrl.GetGitHubStatus)

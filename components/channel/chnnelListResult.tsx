@@ -52,6 +52,7 @@ export const ChannelListResult = ({
                     unseenMessageCount={channel.unread_post_count || 0}
                     userSelected={false}
                     attachmentCount={channel.ch_posts?.[0]?.post_attachments?.length || 0}
+                    lastAttachments={channel.ch_posts?.[0]?.post_attachments}
                     isCallActive={
                         channelCallStatus[channel.ch_uuid]?.active ||
                         channel.ch_call_active ||

@@ -50,6 +50,7 @@ import {
     updateChannelCommentMsgPreviewFiles, updateChannelCommentMsgPreviewFilesUUID
 } from "@/store/slice/channelCommentSlice";
 import {getMediaDimensions} from "@/lib/utils/file/getMediaDimensions";
+import {useClientConfig, formatBytes} from "@/hooks/useClientConfig";
 import {
     addCreateTaskDialogPreviewFiles,
     addCreateTaskDialogUploadedFiles, deleteCreateTaskDialogPreviewFiles,
@@ -189,6 +190,37 @@ export const useUploadFile = () => {
     const dispatch = useDispatch();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+    const clientConfig = useClientConfig();
+
+    // validateFiles enforces the workspace upload limit on the client BEFORE
+    // any bytes leave the browser. Oversized files are rejected with a precise,
+    // friendly toast ("X.X MB exceeds the 10 MB limit") and excluded from the
+    // upload set. Returns the files that are within the limit. The server still
+    // enforces the same cap (defence in depth) and returns a 413 the upload
+    // callers also surface, but this gives instant feedback with no wasted
+    // request or progress bar.
+    const validateFiles = React.useCallback(
+        (files: FileList | File[]): File[] => {
+            const limitBytes = clientConfig.upload_limit_bytes
+            const within: File[] = []
+            const tooBig: File[] = []
+            const arr = Array.from(files as ArrayLike<File>)
+            for (const f of arr) {
+                if (f.size > limitBytes) tooBig.push(f)
+                else within.push(f)
+            }
+            if (tooBig.length > 0) {
+                const names = tooBig.map((f) => `${f.name} (${formatBytes(f.size)})`).join(", ")
+                toast({
+                    title: tooBig.length === 1 ? "File too large" : "Some files too large",
+                    description: `${names} — the maximum upload size is ${clientConfig.upload_limit_mb} MB.`,
+                    variant: "destructive",
+                })
+            }
+            return within
+        },
+        [clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb, toast],
+    )
 
 
     const makeRequestToUploadToCreateTask = async (files: FileList, projectId: string) => {
@@ -1598,6 +1630,8 @@ export const useUploadFile = () => {
         makeRequestToUploadToChatComment,
         makeRequestToUploadToChat,
         makeRequestToUploadToChatAndChannels,
+        validateFiles,
+        uploadLimitMB: clientConfig.upload_limit_mb,
         isSubmitting
-    }), [isSubmitting]);
+    }), [isSubmitting, validateFiles, clientConfig.upload_limit_mb]);
 }

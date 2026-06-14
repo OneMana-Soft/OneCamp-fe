@@ -20,6 +20,7 @@ import {USER_STATUS_ONLINE, UserEmojiStatus, UserProfileInterface} from "@/types
 import {ChatNotificationInterface} from "@/types/chat";
 import {ChatUserAvatar} from "@/components/chat/chatUserAvatar";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
+import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {createOrUpdateChatBody} from "@/store/slice/chatSlice";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus, UserEmojiInterface} from "@/store/slice/userSlice";
@@ -33,6 +34,7 @@ import {useUserInfoState} from "@/hooks/useUserInfoState";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
+import CommandSurface from "@/components/command/CommandSurface";
 
 
 export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
@@ -88,7 +90,12 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
 
         if(otherUserInfo.data?.data) {
             setChatNotificationType(otherUserInfo.data?.data.notification_type || NotificationType.NotificationAll)
-            dispatch(updateUserEmojiStatus({userUUID: otherUserInfo.data?.data.user_uuid, status:otherUserInfo.data?.data?.user_emoji_statuses?.[0] || {}  as UserEmojiStatus}));
+            // Reducer ignores empty/undefined payloads — see
+            // userSlice.updateUserEmojiStatus. Profile responses omit
+            // user_emoji_statuses when there is no active status, and
+            // we mustn't let that absence clobber a value delivered by
+            // MQTT or the self-profile load.
+            dispatch(updateUserEmojiStatus({userUUID: otherUserInfo.data?.data.user_uuid, status: otherUserInfo.data?.data?.user_emoji_statuses?.[0] as UserEmojiStatus}));
             dispatch(updateUserStatus({userUUID: otherUserInfo.data?.data.user_uuid, status:otherUserInfo.data.data.user_status || 'online'}));
             dispatch(updateUserConnectedDeviceCount({userUUID: otherUserInfo.data?.data.user_uuid, deviceConnected:otherUserInfo.data?.data.user_device_connected || 0}));
 
@@ -166,13 +173,25 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto w-full">
+                    <CommandSurface
+                        surfaceKey={chatId}
+                        dmGroupId={getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')}
+                        onComposerText={(text) =>
+                            dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: `<p>${text}</p>` }))
+                        }
+                        onComposerHtml={(html) =>
+                            dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))
+                        }
+                    />
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'chatFileUpload' }))}}
                         onActionFiles={async (files) => {
                             if (!files?.length) return;
+                            const valid = uploadFile.validateFiles(files);
+                            if (valid.length === 0) return;
                             const grpId = getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')
-                            await uploadFile.makeRequestToUploadToChat(files as unknown as FileList, chatId, grpId);
+                            await uploadFile.makeRequestToUploadToChat(valid as unknown as FileList, chatId, grpId);
                         }}
                         className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
@@ -187,6 +206,12 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                             publishTyping(content as string)
                             dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
                         }}
+                        aiSlot={
+                            <ComposerAIButton
+                                getText={() => chatState.chatBody || ""}
+                                onResult={(html) => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))}
+                            />
+                        }
                     >
                         <ChatFileUpload chatUUID={chatId} />
                     </MinimalTiptapTextInput>

@@ -31,12 +31,14 @@ export function MobileTopNavigationBarSecondChat({ chatUUID }: { chatUUID: strin
 
     useEffect(() => {
         if (otherUserInfo.data?.data) {
+            // Reducer-side guard ignores empty/undefined payloads, so
+            // a profile fetch that simply doesn't include
+            // user_emoji_statuses won't wipe a status delivered by
+            // MQTT. See userSlice.updateUserEmojiStatus.
             dispatch(
                 updateUserEmojiStatus({
                     userUUID: otherUserInfo.data.data.user_uuid,
-                    status:
-                        otherUserInfo.data.data.user_emoji_statuses?.[0] ||
-                        ({} as UserEmojiStatus),
+                    status: otherUserInfo.data.data.user_emoji_statuses?.[0] as UserEmojiStatus,
                 }),
             )
             dispatch(

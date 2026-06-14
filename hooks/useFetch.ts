@@ -33,6 +33,13 @@ export const useFetch = <T>(url: string, schema?: z.ZodSchema<T>, config?: SWRCo
             // Consumers can still opt out per-call by passing
             // `revalidateOnFocus: false` in `config`.
             focusThrottleInterval: 60_000,
+            // Pause refresh polling when the tab is hidden or offline.
+            // SWR will resume on the next focus / online event so a user
+            // returning to a forgotten tab still gets a fresh paint
+            // within `focusThrottleInterval`. Without these, a long-
+            // forgotten admin tab keeps hitting the API every Nms 24/7.
+            refreshWhenHidden: false,
+            refreshWhenOffline: false,
             ...config,
         }
     );
@@ -59,10 +66,10 @@ export const useFetchOnlyOnce = <T>(url: string, schema?: z.ZodSchema<T>) => {
 
     return useMemo(() => ({
         data,
-        isLoading: isLoading || isValidating,
+        isLoading: isLoading,
         isError: error,
         mutate
-    }), [data, isLoading, isValidating, error, mutate]);
+    }), [data, isLoading, error, mutate]);
 };
 
 const mediaFetcher = async <T>(url: string): Promise<T> => {

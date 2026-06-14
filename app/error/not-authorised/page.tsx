@@ -13,6 +13,7 @@ import { app_home_path, app_login_path } from "@/types/paths"
  * "401 / Not Authorised" message: explains what happened, offers two
  * paths forward (sign in again, go home), and stays on-brand.
  */
+
 export default function NotAuthorised() {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12 text-foreground">

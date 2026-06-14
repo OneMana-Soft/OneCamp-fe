@@ -13,6 +13,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { UserProfileInterface } from "@/types/user"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { setWorkerUserUUID } from "@/lib/workerCommunication"
+import { isDndActive } from "@/components/command/CommandActionBridge"
 
 export function FCMHandler() {
   const { makeRequest } = usePost()
@@ -94,6 +95,11 @@ export function FCMHandler() {
     if (!messaging) return
 
     const unsubscribe = onMessage(messaging, (payload: any) => {
+      // Do Not Disturb: suppress the in-app notification toast entirely while
+      // a DND window is active (set via /dnd). The push itself is still
+      // recorded server-side; we just don't interrupt the user.
+      if (isDndActive()) return
+
       const title = payload.notification?.title || payload.data?.title || "New Notification"
       const body = payload.notification?.body || payload.data?.body || ""
       const icon = payload.notification?.icon || payload.data?.icon

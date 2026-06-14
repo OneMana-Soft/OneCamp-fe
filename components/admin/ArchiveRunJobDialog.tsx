@@ -11,9 +11,10 @@ interface Props {
   onOpenChange: (open: boolean) => void
   onConfirm: () => Promise<void>
   entityLabel: string
+  entityType?: string
 }
 
-export default function ArchiveRunJobDialog({ open, onOpenChange, onConfirm, entityLabel }: Props) {
+export default function ArchiveRunJobDialog({ open, onOpenChange, onConfirm, entityLabel, entityType }: Props) {
   const [isRunning, setIsRunning] = useState(false)
   const { toast } = useToast()
 
@@ -39,6 +40,13 @@ export default function ArchiveRunJobDialog({ open, onOpenChange, onConfirm, ent
           <AlertDialogDescription>
             <p>This will archive all <strong className="text-foreground">{entityLabel}</strong> items that are older than the configured retention period.</p>
             <p className="mt-2">Archived items are soft-deleted and can be restored later. The job runs asynchronously in the background.</p>
+            {(entityType === "posts" || entityType === "chats") && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Any AI memory (decisions, commitments, questions) captured from
+                these items is also archived, so it stops surfacing in AI search
+                and briefings. Restoring brings it back.
+              </p>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

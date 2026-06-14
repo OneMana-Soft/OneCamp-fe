@@ -2,6 +2,7 @@ import { useFetchOnlyOnce} from "@/hooks/useFetch";
 import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
+import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
 import { SendHorizontal, Users, Video, Clapperboard } from "@/lib/icons";
@@ -22,6 +23,7 @@ import { GrpChatNotificationInterface} from "@/types/chat";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {createOrUpdateGroupChatBody, LocallyCreatedGrpInfoInterface, ChatInputState} from "@/store/slice/groupChatSlice";
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
+import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
 import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {ErrorState} from "@/components/error/errorState";
@@ -185,12 +187,24 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto w-full">
+                    <CommandSurface
+                        surfaceKey={grpId}
+                        dmGroupId={grpId}
+                        onComposerText={(text) =>
+                            dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: `<p>${text}</p>` }))
+                        }
+                        onComposerHtml={(html) =>
+                            dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))
+                        }
+                    />
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'groupChatFileUpload' }))}}
                         onActionFiles={async (files) => {
                             if (!files?.length) return;
-                            await uploadFile.makeRequestToUploadToGroupChat(files as unknown as FileList, grpId);
+                            const valid = uploadFile.validateFiles(files);
+                            if (valid.length === 0) return;
+                            await uploadFile.makeRequestToUploadToGroupChat(valid as unknown as FileList, grpId);
                         }}
                         className={cn("max-w-full h-auto")}
                         editorContentClassName="overflow-auto mb-2"
@@ -205,6 +219,12 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                             publishTyping(content as string)
                             dispatch(createOrUpdateGroupChatBody({grpID:grpId, body: content as string}))
                         }}
+                        aiSlot={
+                            <ComposerAIButton
+                                getText={() => chatState.chatBody || ""}
+                                onResult={(html) => dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))}
+                            />
+                        }
                     >
                         <GroupChatFileUpload groupChatID={grpId} />
                     </MinimalTiptapTextInput>

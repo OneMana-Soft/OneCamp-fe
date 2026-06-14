@@ -10,6 +10,7 @@ import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
 import {Button} from "@/components/ui/button";
 import {RootState} from "@/store/store";
 import {useMemo} from "react";
+import {useStatusIsExpired} from "@/hooks/useStatusIsExpired";
 
 export function UserStatusNav({userUUID}: {userUUID: string}) {
 
@@ -32,6 +33,7 @@ export function UserStatusNav({userUUID}: {userUUID: string}) {
             return (
                 prev.emojiStatus?.status_user_emoji_id === next.emojiStatus?.status_user_emoji_id &&
                 prev.emojiStatus?.status_user_emoji_desc === next.emojiStatus?.status_user_emoji_desc &&
+                prev.emojiStatus?.status_user_emoji_expiry_at === next.emojiStatus?.status_user_emoji_expiry_at &&
                 prev.status === next.status &&
                 prev.deviceConnected === next.deviceConnected
             );
@@ -43,10 +45,23 @@ export function UserStatusNav({userUUID}: {userUUID: string}) {
         userStatusState || { emojiStatus: undefined } as any,
         [userStatusState]
     );
-    
-    const emojiInfo = findEmojiMartEmojiByEmojiID(emojiData.data, safeUserStatusState.emojiStatus?.status_user_emoji_id ?? '')
 
-    const statusMessage =  safeUserStatusState.emojiStatus?.status_user_emoji_desc ?? null
+    /**
+     * Treat an expired status as "no status". The BE never publishes
+     * an MQTT delete event when an emoji status auto-expires (the row
+     * stays in Dgraph and is just filtered out of subsequent active-
+     * status queries), so without a render-time guard a stale entry
+     * sticks in Redux until the next profile fetch.
+     */
+    const cachedStatus = safeUserStatusState.emojiStatus?.status_user_emoji_id
+        ? safeUserStatusState.emojiStatus
+        : null
+    const isExpired = useStatusIsExpired(cachedStatus)
+    const activeStatus = cachedStatus && !isExpired ? cachedStatus : null
+
+    const emojiInfo = findEmojiMartEmojiByEmojiID(emojiData.data, activeStatus?.status_user_emoji_id ?? '')
+
+    const statusMessage = activeStatus?.status_user_emoji_desc ?? null
 
     return (
         <div className='flex'>

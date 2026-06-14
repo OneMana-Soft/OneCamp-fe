@@ -139,6 +139,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                         const lastUserMessage = lastChat?.chat_body_text || ""
                         const lastUsername = lastChat?.chat_from?.user_name || ""
                         const attachmentCount = lastChat?.chat_attachments?.length || 0
+                        const lastAttachments = lastChat?.chat_attachments
                         const isSelected =
                             dmData.dm_participants.length > 2
                                 ? chatId === dmData.dm_grouping_id
@@ -165,6 +166,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                                     dmParticipants={filteredUser}
                                     userSelected={isSelected}
                                     attachmentCount={attachmentCount}
+                                    lastAttachments={lastAttachments}
                                     selfProfile={
                                         selfProfile.data?.data as UserProfileDataInterface
                                     }

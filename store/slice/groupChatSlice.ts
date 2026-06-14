@@ -6,7 +6,7 @@ import {UserProfileDataInterface} from "@/types/user";
 import {GroupedReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {PostsRes} from "@/types/post";
-import { ExtendedChats } from "./chatSlice";
+import { ExtendedChats, chatContentDiffers } from "./chatSlice";
 
 
 export interface ChatInputState {
@@ -362,6 +362,68 @@ export const groupChatSlice = createSlice({
 
         },
 
+        // SYNC (window-reconcile): reconcile this group chat against a
+        // freshly-fetched "latest" window after an idle gap. Within the time-
+        // range the window covers the server is authoritative, so this applies
+        // adds, edits, AND deletes. Messages newer than the window (optimistic
+        // sends) and older paginated history are preserved. Reference-stable
+        // when nothing changed. (Mirrors chatSlice.mergeChats.)
+        mergeGroupChats: (state, action: {payload: UpdateChats}) => {
+            const { grpId, chats } = action.payload;
+            if (!chats || chats.length === 0) return;
+
+            const existing = state.chatMessages[grpId] || [];
+            if (existing.length === 0) {
+                state.chatMessages[grpId] = [...chats].sort(
+                    (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at)
+                );
+                return;
+            }
+
+            const times = chats.map((c) => Date.parse(c.chat_created_at));
+            const windowMin = Math.min(...times);
+            const windowMax = Math.max(...times);
+
+            const serverById = new Map<string, ChatInfo>();
+            for (const c of chats) if (c.chat_uuid) serverById.set(c.chat_uuid, c);
+
+            let changed = false;
+            const next: ChatInfo[] = [];
+
+            for (const cur of existing) {
+                const t = Date.parse(cur.chat_created_at);
+                const inWindow = t >= windowMin && t <= windowMax;
+                const server = cur.chat_uuid ? serverById.get(cur.chat_uuid) : undefined;
+
+                if (server) {
+                    if (chatContentDiffers(cur, server)) {
+                        next.push({ ...cur, ...server });
+                        changed = true;
+                    } else {
+                        next.push(cur);
+                    }
+                    serverById.delete(cur.chat_uuid);
+                } else if (inWindow && cur.chat_uuid) {
+                    changed = true; // deleted while idle (uuid-less rows kept)
+                } else {
+                    next.push(cur);
+                }
+            }
+
+            for (const c of chats) {
+                if (c.chat_uuid && serverById.has(c.chat_uuid)) {
+                    next.push(c);
+                    changed = true;
+                }
+            }
+
+            if (!changed) return;
+
+            state.chatMessages[grpId] = next.sort(
+                (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at)
+            );
+        },
+
 
         updateGroupChatReactionByChatId: (state, action: {payload: UpdatePostReactionByChatId}) => {
             const { messageId, grpId, emojiId, reactionId } = action.payload;
@@ -531,7 +593,8 @@ export const {
     updateGroupChatMessageReplyDecrement,
     createGrpChatLocally,UpdateGrpChatLocally,
     updateGroupChatReactionId,
-    invalidateGroupChatMessages
+    invalidateGroupChatMessages,
+    mergeGroupChats
 } = groupChatSlice.actions
 
 export default groupChatSlice;

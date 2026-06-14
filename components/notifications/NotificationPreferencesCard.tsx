@@ -331,7 +331,9 @@ export function NotificationPreferencesCard() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            A periodic summary of mentions and unread highlights you might have missed.
+            A periodic summary of your open items — overdue commitments and unresolved
+            questions OneCamp&apos;s AI captured from your meetings, channels, and projects.
+            Weekly digests arrive on Mondays.
           </p>
         </div>
 

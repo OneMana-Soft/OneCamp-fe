@@ -28,7 +28,6 @@ import {
     updateChatCommentByCommentId, updateChatCommentReactionByCommentId
 } from "@/store/slice/chatCommentSlice";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
-import {usePathname} from "next/navigation";
 
 import {
     createGroupChat,
@@ -52,9 +51,6 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
     const dispatch = useDispatch()
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
-
-    const path3 = usePathname().split('/')[3] || ''
-    const path4 = usePathname().split('/')[4] || ''
 
     const handleChatMessage = useCallback(
         (messageStr: string) => {
@@ -143,8 +139,18 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                             }
                         }
 
-                        // Increment unread if it's from someone else and we aren't viewing it
-                        if((userUuid || '') != mqttChatInfo.data.user_uuid && path3 != grpId && path4 != dmId && path4 != grpId) {
+                        // Increment unread only when the message is from
+                        // someone else and we aren't currently viewing this
+                        // conversation. Read the path at call time (the
+                        // callback is memoized, so a closed-over value would be
+                        // stale) and match the route shape: a 1:1 DM is
+                        // /app/chat/{otherUserId}; a group chat is
+                        // /app/chat/group/{grpId}.
+                        const segs = window.location.pathname.split('/')
+                        const isViewingThis = isGroupChat
+                            ? (segs[3] === 'group' && segs[4] === grpId)
+                            : (segs[3] === dmId)
+                        if ((userUuid || '') !== mqttChatInfo.data.user_uuid && !isViewingThis) {
                             dispatch(IncrementUnreadCount({grpId: grpId}))
                             dispatch(incrementUserChatUnread({dm_grouping_id: grpId}))
                         }

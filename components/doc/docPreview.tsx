@@ -1,5 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils/helpers/cn';
+import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
+import { SafeHtml } from '@/components/safeHtml/SafeHtml';
 
 interface DocPreviewProps {
     content: string;
@@ -25,9 +27,11 @@ export const DocPreview: React.FC<DocPreviewProps> = ({ content, className }) =>
                 }}
             >
                 {hasContent ? (
-                    <div 
+                    <SafeHtml
+                        as="div"
                         className="w-full h-full overflow-hidden"
-                        dangerouslySetInnerHTML={{ __html: sanitizePreviewContent(content) }}
+                        sanitizer={sanitizePreviewContent}
+                        html={content}
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -42,17 +46,27 @@ export const DocPreview: React.FC<DocPreviewProps> = ({ content, className }) =>
 /**
  * Prepare HTML content for miniature preview display.
  * Renders at native small sizes for sharp text (no CSS scale transforms).
+ *
+ * SECURITY: the styling logic below operates on a detached DOM, then
+ * the result is reattached via dangerouslySetInnerHTML. Without
+ * sanitisation a script tag in the doc body would execute when the
+ * preview is rendered. We pass everything through sanitizeRichHtml
+ * first, then run the cosmetic styling on the cleaned subtree.
  */
 function sanitizePreviewContent(html: string): string {
     if (!html) return '';
-    
+
+    // First-pass strip of any dangerous tags / attributes.
+    const cleaned = sanitizeRichHtml(html);
+
     if (typeof document === 'undefined') {
-        // Basic fallback for Server-Side Rendering
-        return `<div style="padding:10px 12px 0 12px; font-size: 9px; color: #3c4043;">${html.replace(/<[^>]*>?/gm, ' ')}</div>`;
+        // Basic fallback for Server-Side Rendering — return the
+        // sanitised HTML wrapped in our preview container.
+        return `<div style="padding:10px 12px 0 12px; font-size: 9px; color: #3c4043;">${cleaned}</div>`;
     }
 
     const temp = document.createElement('div');
-    temp.innerHTML = html;
+    temp.innerHTML = cleaned;
 
     // Remove task checkbox attributes
     temp.querySelectorAll('li[data-checked]').forEach(item => {

@@ -9,11 +9,18 @@ import {
     LogOut,
     Moon,
     Sun,
+    Zap,
+    MailPlus,
 } from "@/lib/icons"
+import { Plug } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { useLogout } from "@/hooks/useLogout"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
+import { useCapabilities } from "@/hooks/useCapabilities"
+import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
+import { MemberInviteDialog } from "@/components/invite/MemberInviteDialog"
+import { useState } from "react"
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { Switch } from "@/components/ui/switch"
@@ -74,6 +81,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const { logout } = useLogout()
     const router = useRouter()
     const { theme, setTheme } = useTheme()
+    const { can } = useCapabilities()
+    const [inviteOpen, setInviteOpen] = useState(false)
 
     const closeDrawer = () => setOpenState(false)
 
@@ -85,6 +94,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const isDark = theme === "dark"
 
     return (
+        <>
         <Drawer onOpenChange={closeDrawer} open={drawerOpenState}>
             <DrawerContent>
                 <DrawerHeader className="sr-only">
@@ -119,6 +129,31 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     />
 
                     <DrawerItem
+                        icon={Plug}
+                        label="Connectors"
+                        onClick={() => handleNavigate("/app/settings/connectors")}
+                    />
+
+                    {can(CAP_WORKFLOW_MANAGE) && (
+                        <DrawerItem
+                            icon={Zap}
+                            label="Workflows"
+                            onClick={() => handleNavigate("/app/settings/workflows")}
+                        />
+                    )}
+
+                    {can(CAP_INVITATION_CREATE) && (
+                        <DrawerItem
+                            icon={MailPlus}
+                            label="Invite people"
+                            onClick={() => {
+                                setInviteOpen(true)
+                                closeDrawer()
+                            }}
+                        />
+                    )}
+
+                    <DrawerItem
                         icon={isDark ? Moon : Sun}
                         label="Dark mode"
                         onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -143,5 +178,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                 </div>
             </DrawerContent>
         </Drawer>
+        <MemberInviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+        </>
     )
 }

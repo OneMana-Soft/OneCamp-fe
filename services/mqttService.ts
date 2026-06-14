@@ -28,6 +28,11 @@ export enum MqttMessageType {
     GitHub_Sync,
     Archive_Job_Status,
     Slack_Import_Progress,
+    Command_Ephemeral,
+    AI_Nudge,
+    // Channel_Update mirrors the backend MESSAGE_CHANNEL_UPDATE code. MUST
+    // stay last to keep the numeric values aligned with the Go iota enum.
+    Channel_Update,
 }
 
 export enum MqttActionType {
@@ -186,6 +191,17 @@ export interface msgChannelTypingInterface {
     user_profile: string
     user_name: string
     channel_uuid: string
+}
+
+export interface msgChannelUpdateInterface {
+    type: MqttActionType
+    channel_uuid: string
+    action?: string
+}
+
+interface rawMsgChannelUpdateInterface {
+    type: number
+    data: msgChannelUpdateInterface
 }
 
 export interface msgChatComment {
@@ -476,6 +492,11 @@ class MqttService {
     parseGitHubSyncMsg(messageStr: string) {
         const rawGitHubSync: rawMsgGitHubSyncInterface = JSON.parse(messageStr)
         return rawGitHubSync
+    }
+
+    parseChannelUpdateMsg(messageStr: string) {
+        const rawChannelUpdate: rawMsgChannelUpdateInterface = JSON.parse(messageStr)
+        return rawChannelUpdate
     }
 
 }

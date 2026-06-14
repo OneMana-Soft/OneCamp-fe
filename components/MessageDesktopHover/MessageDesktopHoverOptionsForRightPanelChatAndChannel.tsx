@@ -6,7 +6,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {ReactionPicker} from "@/components/reactionPicker/reactionPicker";
 import Image from "next/image";
 import addEmojiIconSrc from "@/assets/addEmoji.svg";
-import {useState} from "react";
+import {useState, type ReactNode} from "react";
 import {AddReactionTrigger} from "@/components/reactionPicker/AddReactionTrigger";
 
 interface MessageDesktopHoverOptionProps {
@@ -21,10 +21,12 @@ interface MessageDesktopHoverOptionProps {
     setEmojiPopupState?: (open: boolean) => void;
     isAdmin?: boolean;
     isOwner: boolean;
+    /** Optional extra action (e.g. Save to memory) rendered inline. */
+    captureSlot?: ReactNode;
 
 }
 
-export const MessageDesktopHoverOptionsForRightPanelChatAndChannel = ({isOwner, isAdmin, onReactionSelect, setEmojiPopupState, setIsDropdownOpen, channelUUID, chatUUID, postUUID, deleteMessage, editMessage, getReplyNotification }: MessageDesktopHoverOptionProps) => {
+export const MessageDesktopHoverOptionsForRightPanelChatAndChannel = ({isOwner, isAdmin, onReactionSelect, setEmojiPopupState, setIsDropdownOpen, channelUUID, chatUUID, postUUID, deleteMessage, editMessage, getReplyNotification, captureSlot }: MessageDesktopHoverOptionProps) => {
     const [isTooltipOpen, setIsTooltipOpen] = useState(false)
     const [isEmojiPopupOpen, setIsEmojiPopupOpen] = useState(false)
     const [suppressUntilLeave, setSuppressUntilLeave] = useState(false)
@@ -82,6 +84,7 @@ export const MessageDesktopHoverOptionsForRightPanelChatAndChannel = ({isOwner, 
 
 
             {(isAdmin || isOwner || getReplyNotification) && <MessageDesktopDropdown isAdmin={isAdmin} isOwner={isOwner} setIsDropdownOpen={setIsDropdownOpen} deleteMessage={deleteMessage} editMessage={editMessage} getReplyNotification={getReplyNotification}/>}
+            {captureSlot}
         </div>
     )
 }

@@ -45,6 +45,95 @@ type TaskCreateFormProps = {
   onSuccess?: () => void;
 };
 
+/**
+ * DateField — reusable date picker for the task-create form.
+ *
+ * Why it exists as a real component instead of inline render={() => ...}:
+ * react-hook-form's <Controller render>'s render callback runs during
+ * the parent's render but *not* as a React component, so calling
+ * `useState` / `useMedia` inside it is a Rules-of-Hooks violation. The
+ * symptom is intermittent — works in dev because the callback re-runs
+ * on every parent render, breaks in prod when React's rules-of-hooks
+ * checker swaps hook positions between desktop/mobile transitions.
+ *
+ * Hoisting the picker into a real subcomponent that takes `field` as a
+ * prop fixes the violation. Identical UX, identical styling.
+ */
+type DateFieldProps = {
+  field: {
+    value?: Date | null;
+    onChange: (value: Date | undefined) => void;
+  };
+  placeholder: string;
+  drawerTitle: string;
+};
+
+const DateField: React.FC<DateFieldProps> = ({ field, placeholder, drawerTitle }) => {
+  const { isMobile } = useMedia();
+  const [open, setOpen] = useState(false);
+
+  const Trigger = (
+    <Button
+      variant="outline"
+      className={cn(
+        "pl-3 text-left font-normal mt-4",
+        !field.value && "text-muted-foreground",
+      )}
+    >
+      {field.value ? format(field.value, "PP") : <span>{placeholder}</span>}
+      <CalenderIcon className="ml-2 h-4 w-4" />
+    </Button>
+  );
+
+  const Content = (
+    <Calendar
+      mode="single"
+      selected={field.value ?? undefined}
+      onSelect={(date) => {
+        field.onChange(date);
+        if (isMobile) setOpen(false);
+      }}
+      initialFocus
+      className={cn("p-3", isMobile && "w-full flex justify-center")}
+      classNames={
+        isMobile
+          ? {
+              months: "w-full flex flex-col space-y-4 sm:space-x-4 sm:space-y-0",
+              month: "space-y-4 w-full",
+              table: "w-full border-collapse space-y-1",
+              head_row: "flex w-full justify-between",
+              row: "flex w-full mt-2 justify-between",
+              cell: "text-center flex-1 p-0 relative focus-within:relative [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected].day-range-end)]:rounded-r-md first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
+              head_cell: "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem]",
+              day: "h-9 w-full p-0 font-normal aria-selected:opacity-100",
+            }
+          : undefined
+      }
+    />
+  );
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerTrigger asChild>{Trigger}</DrawerTrigger>
+        <DrawerContent>
+          <DrawerTitle className="sr-only">{drawerTitle}</DrawerTitle>
+          <div className="mt-4 border-t pt-4 pb-4 flex flex-col items-center">{Content}</div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{Trigger}</PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start" portalled={false}>
+        {Content}
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create Task", onSuccess }) => {
   const [popOpenProjectName, setPopOpenProjectName] = useState(false);
   const [popOpenUserName, setPopOpenUserName] = useState(false);
@@ -460,72 +549,13 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                 <Controller
                     control={control}
                     name="task_start_date"
-
-                    render={({ field }) => {
-                        const { isMobile } = useMedia();
-                        const [open, setOpen] = useState(false);
-
-                        const Trigger = (
-                            <Button
-                            variant="outline"
-                            className={cn("pl-3 text-left font-normal mt-4", !field.value && "text-muted-foreground")}
-                            >
-                            {field.value ? (
-                                format(field.value, "PP")
-                            ) : (
-                                <span>Start Date</span>
-                            )}
-                            <CalenderIcon className="ml-2 h-4 w-4" />
-                            </Button>
-                        );
-
-                        const Content = (
-                             <Calendar 
-                                mode="single" 
-                                selected={field.value} 
-                                onSelect={(date) => {
-                                    field.onChange(date);
-                                    if(isMobile) setOpen(false);
-                                }} 
-                                initialFocus 
-                                className={cn("p-3", isMobile && "w-full flex justify-center")}
-                                classNames={isMobile ? {
-                                    months: "w-full flex flex-col space-y-4 sm:space-x-4 sm:space-y-0",
-                                    month: "space-y-4 w-full",
-                                    table: "w-full border-collapse space-y-1",
-                                    head_row: "flex w-full justify-between",
-                                    row: "flex w-full mt-2 justify-between",
-                                    cell: "text-center flex-1 p-0 relative focus-within:relative [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected].day-range-end)]:rounded-r-md first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
-                                    head_cell: "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem]",
-                                    day: "h-9 w-full p-0 font-normal aria-selected:opacity-100",
-                                } : undefined}
-                             />
-                        );
-
-                        if (isMobile) {
-                            return (
-                                <Drawer open={open} onOpenChange={setOpen}>
-                                    <DrawerTrigger asChild>{Trigger}</DrawerTrigger>
-                                    <DrawerContent>
-                                        <DrawerTitle className="sr-only">Select Start Date</DrawerTitle>
-                                        <div className="mt-4 border-t pt-4 pb-4 flex flex-col items-center">
-                                            {Content}
-                                        </div>
-                                    </DrawerContent>
-                                </Drawer>
-                            );
-                        }
-
-                        return (
-                            <Popover open={open} onOpenChange={setOpen}>
-                                <PopoverTrigger asChild>{Trigger}</PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start" portalled={false}>
-                                    {Content}
-                                </PopoverContent>
-                            </Popover>
-                        );
-                    }}
-
+                    render={({ field }) => (
+                        <DateField
+                            field={field}
+                            placeholder="Start Date"
+                            drawerTitle="Select Start Date"
+                        />
+                    )}
                 />
                 {startDateWatch && (
                   <Button variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_start_date", undefined)}>
@@ -539,72 +569,13 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                 <Controller
                     control={control}
                     name="task_due_date"
-
-                    render={({ field }) => {
-                        const { isMobile } = useMedia();
-                        const [open, setOpen] = useState(false);
-
-                        const Trigger = (
-                            <Button
-                            variant="outline"
-                            className={cn("pl-3 text-left font-normal mt-4", !field.value && "text-muted-foreground")}
-                            >
-                            {field.value ? (
-                                format(field.value, "PP")
-                            ) : (
-                                <span>Due Date</span>
-                            )}
-                            <CalenderIcon className="ml-2 h-4 w-4" />
-                            </Button>
-                        );
-
-                        const Content = (
-                             <Calendar 
-                                mode="single" 
-                                selected={field.value} 
-                                onSelect={(date) => {
-                                    field.onChange(date);
-                                    if(isMobile) setOpen(false);
-                                }} 
-                                initialFocus 
-                                className={cn("p-3", isMobile && "w-full flex justify-center")}
-                                classNames={isMobile ? {
-                                    months: "w-full flex flex-col space-y-4 sm:space-x-4 sm:space-y-0",
-                                    month: "space-y-4 w-full",
-                                    table: "w-full border-collapse space-y-1",
-                                    head_row: "flex w-full justify-between",
-                                    row: "flex w-full mt-2 justify-between",
-                                    cell: "text-center flex-1 p-0 relative focus-within:relative [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected].day-range-end)]:rounded-r-md first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
-                                    head_cell: "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem]",
-                                    day: "h-9 w-full p-0 font-normal aria-selected:opacity-100",
-                                } : undefined}
-                             />
-                        );
-
-                        if (isMobile) {
-                            return (
-                                <Drawer open={open} onOpenChange={setOpen}>
-                                    <DrawerTrigger asChild>{Trigger}</DrawerTrigger>
-                                    <DrawerContent>
-                                        <DrawerTitle className="sr-only">Select Due Date</DrawerTitle>
-                                        <div className="mt-4 border-t pt-4 pb-4 flex flex-col items-center">
-                                            {Content}
-                                        </div>
-                                    </DrawerContent>
-                                </Drawer>
-                            );
-                        }
-
-                        return (
-                            <Popover open={open} onOpenChange={setOpen}>
-                                <PopoverTrigger asChild>{Trigger}</PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start" portalled={false}>
-                                    {Content}
-                                </PopoverContent>
-                            </Popover>
-                        );
-                    }}
-
+                    render={({ field }) => (
+                        <DateField
+                            field={field}
+                            placeholder="Due Date"
+                            drawerTitle="Select Due Date"
+                        />
+                    )}
                 />
                 {dueDateWatch && (
                   <Button variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_due_date", undefined)}>

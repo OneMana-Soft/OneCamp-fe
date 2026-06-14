@@ -63,8 +63,61 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
     const stableConfig = useMemo(() => mqttConfigRes.data?.data || null, [
         mqttConfigRes.data?.data?.ws_url,
         mqttConfigRes.data?.data?.clientId,
-        mqttConfigRes.data?.data?.username
+        mqttConfigRes.data?.data?.username,
+        // The password rotation is what unblocks the connection hook's
+        // auth-failure latch. Without it in the dep list, mutate() would
+        // refresh the SWR cache but stableConfig would keep the old
+        // password reference and the hook would never reconnect.
+        mqttConfigRes.data?.data?.password,
     ])
+
+    /**
+     * Auth-failure recovery. The MQTT JWT lives in mqttConfigRes
+     * (24h lifetime per business/Mqtt/mqttBusiness.go). When EMQX
+     * rejects it (token expired, secret rotation, post-relogin user
+     * drift), the connection hook calls back into here. We force-
+     * revalidate the SWR cache so the BE issues a fresh JWT, which
+     * cascades through stableConfig into the hook and clears the
+     * "do-not-reconnect-with-these-creds" latch.
+     *
+     * If the broker keeps rejecting freshly-issued tokens, the
+     * problem is environmental (JWT_SECRET drift between go-service
+     * and EMQX, or the user's session was killed server-side). We
+     * cap retries so we don't hammer /mqttConfig forever.
+     */
+    const authFailureCountRef = useRef(0)
+    const lastAuthFailureAtRef = useRef(0)
+    const MAX_AUTH_RETRIES = 3
+
+    const handleAuthFailure = useCallback(() => {
+        const now = Date.now()
+        // Treat failures more than 5 minutes apart as independent
+        // sessions (e.g. broker secret rotated long after a healthy
+        // run); reset the counter in that case.
+        if (now - lastAuthFailureAtRef.current > 5 * 60 * 1000) {
+            authFailureCountRef.current = 0
+        }
+        lastAuthFailureAtRef.current = now
+        authFailureCountRef.current += 1
+
+        if (authFailureCountRef.current > MAX_AUTH_RETRIES) {
+            console.error(
+                "[MQTT] Broker rejected credentials after",
+                MAX_AUTH_RETRIES,
+                "fresh-token retries. Likely a JWT_SECRET mismatch between the API and EMQX, or the session was revoked. Stopping reconnection.",
+            )
+            return
+        }
+
+        console.warn(
+            "[MQTT] Broker rejected credentials. Refreshing JWT via /mqttConfig (attempt",
+            authFailureCountRef.current,
+            "of",
+            MAX_AUTH_RETRIES,
+            ")...",
+        )
+        mqttConfigRes.mutate?.()
+    }, [mqttConfigRes.mutate])
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const userUuid = selfProfile.data?.data.user_uuid
@@ -172,6 +225,7 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
         onConnect: onConnect,
         onDisconnect: onDisconnect,
         onReconnect: onReconnect,
+        onAuthFailure: handleAuthFailure,
         userUuid: userUuid,
         onError: (error) => console.error("[MQTT] Provider error:", error),
     })
@@ -225,6 +279,29 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
             messageHandler.cleanup()
         }
     }, [messageHandler])
+
+    /**
+     * Foreground reconcile. When the tab/PWA returns to the foreground after
+     * being idle, reconcile mounted conversations against the server —
+     * independently of MQTT socket state. This is the safety net for the
+     * iOS-PWA "zombie socket" case where the connection silently died while
+     * backgrounded but mqtt.js still reports connected, so no reconnect event
+     * (and thus no reconnect-driven resync) ever fires. See
+     * useMessageSyncManager.handleForeground for the full rationale.
+     */
+    useEffect(() => {
+        const onForeground = () => {
+            if (document.visibilityState === "visible") {
+                syncManager.handleForeground()
+            }
+        }
+        document.addEventListener("visibilitychange", onForeground)
+        window.addEventListener("focus", onForeground)
+        return () => {
+            document.removeEventListener("visibilitychange", onForeground)
+            window.removeEventListener("focus", onForeground)
+        }
+    }, [syncManager.handleForeground])
 
     /**
      * Prune stale typing entries.

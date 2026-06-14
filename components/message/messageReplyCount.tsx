@@ -3,15 +3,19 @@ import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCoun
 import { useMedia } from "@/context/MediaQueryContext"
 import { ChevronRight } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { ThreadParticipants, ThreadParticipant } from "@/components/message/threadParticipants"
 
 interface MessageReplyCountProps {
     replyCount?: number
     lastCommentCreatedAt?: string
     openDesktopThread?: () => void
+    /** Reply authors, used to render a participant facepile (Slack parity). */
+    participants?: ThreadParticipant[]
 }
 
 /**
- * MessageReplyCount — shows "N replies" + last-reply time below a message.
+ * MessageReplyCount — shows a participant facepile + "N replies" + last-reply
+ * time below a message.
  *
  * On desktop, the row is a clickable Button that opens the thread panel.
  * On mobile, it's a static row (the parent message handles tap-to-open).
@@ -23,6 +27,7 @@ export const MessageReplyCount = ({
     replyCount,
     lastCommentCreatedAt,
     openDesktopThread,
+    participants,
 }: MessageReplyCountProps) => {
     const { isDesktop } = useMedia()
 
@@ -30,6 +35,9 @@ export const MessageReplyCount = ({
 
     const content = (
         <div className="group flex items-center gap-2 text-xs">
+            {participants && participants.length > 0 && (
+                <ThreadParticipants participants={participants} />
+            )}
             <span className="font-semibold text-primary hover:underline">
                 {replyCount} {replyCount === 1 ? "reply" : "replies"}
             </span>

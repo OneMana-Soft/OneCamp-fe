@@ -1,3 +1,16 @@
+/**
+ * Centralised endpoint URL enums.
+ *
+ * IMPORTANT: many entries intentionally share the same string value
+ * because they are URL *prefixes* that callers extend with a path
+ * suffix (`/{webhookId}/logs`, `/{jobId}/plan`, etc.). The lint rule
+ * `@typescript-eslint/no-duplicate-enum-values` flags these as
+ * "duplicates", but in this codebase the duplication is the contract:
+ * each name documents the intent at the call site, the value
+ * documents the base URL. We disable the rule for this file only.
+ */
+/* eslint-disable @typescript-eslint/no-duplicate-enum-values */
+
 export enum GetEndpointUrl {
     Logout = "/logout",
     SelfProfile = "/user/profile",
@@ -48,6 +61,7 @@ export enum GetEndpointUrl {
     GetChatWithAllComments = "/dm/chatWithAllComments",
     GetAllCommentOfDoc = "/doc/getCommentList",
     GetMqttConfig = "/config/mqttConfig",
+    GetClientConfig = "/config/client",
     GetUserLatestChatList = "/dm/getLatestChatList",
     GetUserTeamList = "/team/teamListByUserUID",
     GetAllUser = "/user/allUsers",
@@ -89,19 +103,61 @@ export enum GetEndpointUrl {
     GoogleCalendarStatus = "/integration/google-calendar/status",
     GoogleCalendarEvents = "/event/getEvents",
 
+    // Per-user connectors (Gmail, Calendar, GitHub) the AI can read/act through.
+    Connectors = "/connectors",
+
     // Email notification preferences (per-user).
     GetNotificationPreferences = "/user/notificationPreferences",
 
     // AI Second Brain
     AIStatus = "/ai/status",
 
+    // Slash command framework (user-facing)
+    GetCommandCatalog = "/command/catalog",
+
+    // App platform (admin)
+    GetApps = "/admin/apps",
+    GetApp = "/admin/apps", // append /{appId}
+    GetAppOAuthURL = "/admin/apps", // append /{appId}/oauth-url
+    GetMarketplace = "/admin/marketplace",
+
+    // Login OAuth credentials (admin)
+    GetOAuthConfig = "/admin/auth/oauth-config",
+
+    // Workspace settings (admin)
+    GetWorkspaceSettings = "/admin/settings",
+    GetAdminAuditLog = "/admin/audit-log",
+    GetTranscriptionConfig = "/admin/transcription/config",
+
+    // AI model management (Admin)
+    GetAIConfig = "/admin/ai/config",
+    GetAISystemStats = "/admin/ai/system",
+    GetAIReindexStatus = "/admin/ai/reindex/status",
+    GetAIMemoryRebuildStatus = "/admin/ai/memory/rebuild/status",
+    GetAIBriefing = "/ai/briefing",
+    GetChannelMemoryExclusion = "/ai/memory/channel-exclusion",
+    GetAIProviderModels = "/admin/ai/providers", // append /{providerId}/models
+    GetAIOllamaCatalog = "/admin/ai/providers", // append /{providerId}/catalog
+
+    // Workspace Memory (user-facing)
+    GetWorkspaceMemory = "/ai/memory",
+
     // Webhooks (Admin)
     GetAllWebhooks = "/admin/webhooks",
     GetWebhookLogs = "/admin/webhooks", // append /{webhookId}/logs
     GetWebhookEventTypes = "/admin/webhooks/event-types",
 
+    // Workflows (capability-gated: admins always, members when allowed)
+    GetAllWorkflows = "/workflows",
+    GetWorkflow = "/workflows", // append /{id}
+    // Capability permission policies (Admin)
+    GetCapabilityPolicies = "/admin/capabilities",
+    // Current user's resolved capabilities (member-accessible)
+    MyCapabilities = "/me/capabilities",
+
     // GitHub (Admin)
     GetGitHubAuthUrl = "/admin/github/auth-url",
+    GetGitHubConfig = "/admin/github/config",
     GetGitHubStatus = "/admin/github/status",
     GetGitHubRateLimit = "/admin/github/rate-limit",
     GetGitHubWebhookHealth = "/admin/github/webhook-health",
@@ -150,6 +206,7 @@ export enum PostEndpointUrl {
     UpdateDoc = "/doc/updateDoc",
     JoinChannel = "/ch/joinChannel",
     UpdateChannel = "/ch/updateInfo",
+    SetChannelPostPolicy = "/ch/postPolicy",
     RemoveProjectModerator = "/project/removeAdminRole",
     RemoveTeamModerator = "/team/removeAdminRole",
     RemoveChannelModerator = "/ch/removeModerator",
@@ -182,6 +239,7 @@ export enum PostEndpointUrl {
     SearchUserAndChannel = "/user/searchUserAndChannelList",
     FwdMsgToChatOrChannel = "/user/fwdMessage",
     UpdateUserEmojiStatus = "/user/updateStatusEmojiStatus",
+    UpdateUserPresence = "/user/updateStatus",
     ClearEmojiStatus = "/user/clearUserEmojiStatus",
     CreatePostComment = "/po/createComment",
     CreateChannelVideoCallToken = "/ch/getCallToken",
@@ -265,6 +323,31 @@ export enum PostEndpointUrl {
     UpdateEmailConfig = "/admin/config/email",
     UploadEmailLogo = "/admin/config/email/logo",
     DeleteEmailLogo = "/admin/config/email/logo",
+
+    // AI model management (Admin)
+    SetAIEnabled = "/admin/ai/enabled",
+    SetAIRateLimit = "/admin/ai/rate-limit",
+    SetAIContextWindow = "/admin/ai/context-window",
+    SetAIReasoning = "/admin/ai/reasoning",
+    SetAIMeetingRecap = "/admin/ai/meeting-recap",
+    CreateAIProvider = "/admin/ai/providers",
+    TestAIProvider = "/admin/ai/providers/test",
+    UpdateAIProvider = "/admin/ai/providers", // append /{providerId} (PATCH)
+    DeleteAIProvider = "/admin/ai/providers", // append /{providerId} (DELETE)
+    SetAIChatModel = "/admin/ai/chat-model",
+    SetAIEmbeddingModel = "/admin/ai/embedding-model",
+    PullAIModel = "/admin/ai/models/pull",
+    DeleteAIModel = "/admin/ai/models/delete",
+    SetAIMemoryLayer = "/admin/ai/memory-layer",
+    SetAITeamReport = "/admin/ai/team-report",
+    SetAINudges = "/admin/ai/nudges",
+    RebuildAIMemory = "/admin/ai/memory/rebuild",
+    UpdateMemoryStatus = "/ai/memory", // append /{id}/status
+    DeleteMemoryItem = "/ai/memory", // append /{id}
+    CaptureMemory = "/ai/memory/capture",
+    MemoryCreateTask = "/ai/memory/{id}/create-task",
+    MemoryRemind = "/ai/memory/{id}/remind",
+    SetChannelMemoryExclusion = "/ai/memory/channel-exclusion",
     GoogleCalendarUnlink = "/integration/google-calendar/unlink",
     CreateCalendarEvent = "/event/createEvent",
     UpdateCalendarEvent = "/event/updateEvent",
@@ -281,9 +364,33 @@ export enum PostEndpointUrl {
     AISummarizeGroup = "/ai/summarize/group",
     AIAsk = "/ai/ask",
     AIAskStream = "/ai/ask/stream",
+    AICatchUp = "/ai/catch-up",
     AIDocComplete = "/ai/doc/complete",
     AIDocCompleteStream = "/ai/doc/complete/stream",
     AIExecuteAction = "/ai/action/execute",
+    AIInCallAskStream = "/ai/in-call/ask/stream",
+
+    // Slash command framework (user-facing)
+    ExecuteCommand = "/command/execute",
+    InteractCommand = "/command/interact",
+
+    // App platform (admin)
+    CreateApp = "/admin/apps",
+    UpdateApp = "/admin/apps", // append /{appId} (PATCH)
+    DeleteApp = "/admin/apps", // append /{appId} (DELETE)
+    SetAppEnabled = "/admin/apps", // append /{appId}/enabled
+    DisconnectApp = "/admin/apps", // append /{appId}/oauth-disconnect
+    TestApp = "/admin/apps", // append /{appId}/test
+    InstallTemplate = "/admin/marketplace/install",
+    UninstallTemplate = "/admin/marketplace/uninstall",
+
+    // Login OAuth credentials (admin)
+    UpdateOAuthConfig = "/admin/auth/oauth-config",
+
+    // Workspace settings (admin)
+    UpdateWorkspaceSettings = "/admin/settings",
+    UpdateTranscriptionConfig = "/admin/transcription/config",
+    TestTranscriptionConfig = "/admin/transcription/test",
 
     // Webhooks (Admin)
     CreateWebhook = "/admin/webhooks",
@@ -293,8 +400,19 @@ export enum PostEndpointUrl {
     RegenerateWebhookSecret = "/admin/webhooks", // append /{webhookId}/regenerate-secret
     TestWebhook = "/admin/webhooks", // append /{webhookId}/test
 
+    // Workflows (capability-gated: admins always, members when allowed)
+    CreateWorkflow = "/workflows",
+    UpdateWorkflow = "/workflows", // append /{id} — use PUT
+    DeleteWorkflow = "/workflows", // append /{id} — use DELETE
+    SetWorkflowActive = "/workflows", // append /{id}/active
+    // Capability permission policies (Admin)
+    SetCapabilityPolicy = "/admin/capabilities",
+    // Member-managed invitation create (capability-gated)
+    CreateInvitation = "/invitations",
+
     // GitHub (Admin)
     GitHubCallback = "/admin/github/callback",
+    UpdateGitHubConfig = "/admin/github/config",
     GitHubDisconnect = "/admin/github/disconnect",
     GitHubLinkRepo = "/admin/github/link-repo",
     GitHubUnlinkRepo = "/admin/github/unlink-repo", // append /{linkId} — use DELETE

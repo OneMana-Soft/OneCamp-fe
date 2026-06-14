@@ -33,6 +33,9 @@ const TOOL_ICONS: Record<string, string> = {
     summarize_channel: '📝',
     summarize_dm: '💬',
     summarize_group_chat: '👥',
+    gmail_send: '📧',
+    calendar_create_event: '📅',
+    github_comment: '🐙',
 };
 
 const TOOL_LABELS: Record<string, string> = {
@@ -45,6 +48,9 @@ const TOOL_LABELS: Record<string, string> = {
     summarize_channel: 'Summarize Channel',
     summarize_dm: 'Summarize Direct Message',
     summarize_group_chat: 'Summarize Group Chat',
+    gmail_send: 'Send Email (Gmail)',
+    calendar_create_event: 'Create Calendar Event',
+    github_comment: 'Comment on GitHub',
 };
 
 const ActionConfirmation: React.FC<ActionConfirmationProps> = ({

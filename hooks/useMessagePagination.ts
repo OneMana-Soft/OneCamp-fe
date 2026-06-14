@@ -69,7 +69,11 @@ export const useMessagePagination = <T>({
                 setHasMoreNew(false);
             }
         }
-    }, [getNewChatsWithCurrentChat, latestMsg]);
+        // state.messages is intentionally a dependency: if the store is
+        // cleared/empties out from under us (e.g. a sync event), this
+        // effect must re-run and refill from `latestMsg` instead of
+        // leaving the pane permanently empty.
+    }, [getNewChatsWithCurrentChat, latestMsg, state.messages, messageId]);
 
     useEffect(() => {
         if (state.messages && oldMsg.data?.data && oldTime != 0) {

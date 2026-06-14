@@ -6,11 +6,12 @@ import StreamingText from "./StreamingText"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Sparkles, X } from "@/lib/icons"
-import {
-    useSummarizeChannel,
-    useSummarizeDM,
-    useSummarizeGroup,
-} from "@/services/aiService"
+import { useCatchUp } from "@/services/aiService"
+import { CatchUpRequest } from "@/services/catchUpService"
+import { isTTLActive, setTTL } from "@/lib/utils/helpers/ttlStorage"
+
+const DISMISS_PREFIX = "catchmeup_dismissed_"
+const DISMISS_TTL_MS = 60 * 60 * 1000 // 1 hour
 
 interface CatchMeUpBannerProps {
     /** UUID of the channel, user, or group to summarize */
@@ -44,28 +45,12 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
     const [summary, setSummary] = useState("")
     const [error, setError] = useState<string | null>(null)
 
-    const channelSummarizer = useSummarizeChannel()
-    const dmSummarizer = useSummarizeDM()
-    const groupSummarizer = useSummarizeGroup()
-
-    const { summarize, isSubmitting } =
-        type === "dm"
-            ? dmSummarizer
-            : type === "group"
-              ? groupSummarizer
-              : channelSummarizer
+    const { catchUp, isLoading } = useCatchUp()
+    const isSubmitting = isLoading
 
     useEffect(() => {
-        const dismissKey = `catchmeup_dismissed_${channelUUID}`
-        const dismissed = localStorage.getItem(dismissKey)
-        if (dismissed) {
-            const dismissedTime = new Date(dismissed).getTime()
-            const oneHourAgo = Date.now() - 60 * 60 * 1000
-            if (dismissedTime > oneHourAgo) {
-                setState("dismissed")
-            } else {
-                localStorage.removeItem(dismissKey)
-            }
+        if (isTTLActive(DISMISS_PREFIX, channelUUID, DISMISS_TTL_MS)) {
+            setState("dismissed")
         }
     }, [channelUUID])
 
@@ -73,25 +58,41 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
         setState("loading")
         setError(null)
 
+        // Map the conversation type to a precise catch-up scope. The recap
+        // covers ONLY the unread window (since last seen), not the last N
+        // messages — that's the UX leap over a blunt summary.
+        const req: CatchUpRequest =
+            type === "dm"
+                ? { scope_type: "chat", to_user_uuid: channelUUID }
+                : type === "group"
+                  ? { scope_type: "chat", chat_grp_id: channelUUID }
+                  : { scope_type: "channel", channel_uuid: channelUUID }
+
         try {
-            const result = await summarize(channelUUID, 50)
-            if (result?.summary) {
-                setSummary(result.summary)
-                setState("summary")
-            } else {
-                setError("No summary available")
-                setState("idle")
+            const result = await catchUp(req)
+            if (!result || !result.enabled) {
+                // AI disabled — silently dismiss; no surface.
+                setState("dismissed")
+                return
             }
-        } catch (err: any) {
-            setError(err.message || "Failed to generate summary")
+            if (!result.has_unread) {
+                // Nothing actually missed — clear the banner calmly.
+                setState("dismissed")
+                setTTL(DISMISS_PREFIX, channelUUID, DISMISS_TTL_MS)
+                return
+            }
+            setSummary(result.summary)
+            setState("summary")
+        } catch (err: unknown) {
+            const e = err as { response?: { data?: { err?: string } }; message?: string }
+            setError(e?.response?.data?.err || e?.message || "Failed to generate summary")
             setState("idle")
         }
-    }, [channelUUID, summarize])
+    }, [channelUUID, catchUp, type])
 
     const handleDismiss = useCallback(() => {
         setState("dismissed")
-        const dismissKey = `catchmeup_dismissed_${channelUUID}`
-        localStorage.setItem(dismissKey, new Date().toISOString())
+        setTTL(DISMISS_PREFIX, channelUUID, DISMISS_TTL_MS)
     }, [channelUUID])
 
     if (unreadCount < threshold || state === "dismissed") {

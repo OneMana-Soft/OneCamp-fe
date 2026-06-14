@@ -8,6 +8,21 @@ import {CommentInfoInterface} from "@/types/comment";
 import {PostsRes} from "@/types/post";
 
 
+// chatContentDiffers reports whether a freshly-fetched server message differs
+// from the loaded copy in a way the reconcile should apply (edit, reaction or
+// comment-count change). Used by the window-reconcile so a message edited
+// while the tab was idle is refreshed in place. Shared shape with the group
+// chat slice (both key on ChatInfo).
+export function chatContentDiffers(a: ChatInfo, b: ChatInfo): boolean {
+    if (a.chat_body_text !== b.chat_body_text) return true;
+    if ((a.chat_updated_at || "") !== (b.chat_updated_at || "")) return true;
+    if ((a.chat_comment_count || 0) !== (b.chat_comment_count || 0)) return true;
+    if ((a.chat_reactions?.length || 0) !== (b.chat_reactions?.length || 0)) return true;
+    if ((a.chat_attachments?.length || 0) !== (b.chat_attachments?.length || 0)) return true;
+    return false;
+}
+
+
 export interface ChatInputState {
     chatBody: string,
     filesUploaded: AttachmentMediaReq[],
@@ -393,6 +408,74 @@ export const chatSlice = createSlice({
 
         },
 
+        // SYNC (window-reconcile): reconcile this DM against a freshly-fetched
+        // "latest" window after an idle gap (MQTT reconnect / tab foreground).
+        // Within the time-range the window covers, the server is authoritative,
+        // so this applies adds, edits, AND deletes — the two latter an add-only
+        // merge misses. Messages newer than the window (just-sent optimistic
+        // sends not yet round-tripped) and older paginated history are left
+        // untouched, so nothing unconfirmed is dropped and there's no empty
+        // flash. Reference-stable when nothing changed.
+        mergeChats: (state, action: {payload: UpdateChats}) => {
+            const { chatId, chats } = action.payload;
+            if (!chats || chats.length === 0) return;
+
+            const existing = state.chatMessages[chatId] || [];
+            if (existing.length === 0) {
+                state.chatMessages[chatId] = [...chats].sort(
+                    (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at)
+                );
+                return;
+            }
+
+            const times = chats.map((c) => Date.parse(c.chat_created_at));
+            const windowMin = Math.min(...times);
+            const windowMax = Math.max(...times);
+
+            const serverById = new Map<string, ChatInfo>();
+            for (const c of chats) if (c.chat_uuid) serverById.set(c.chat_uuid, c);
+
+            let changed = false;
+            const next: ChatInfo[] = [];
+
+            for (const cur of existing) {
+                const t = Date.parse(cur.chat_created_at);
+                const inWindow = t >= windowMin && t <= windowMax;
+                const server = cur.chat_uuid ? serverById.get(cur.chat_uuid) : undefined;
+
+                if (server) {
+                    if (chatContentDiffers(cur, server)) {
+                        next.push({ ...cur, ...server });
+                        changed = true;
+                    } else {
+                        next.push(cur);
+                    }
+                    serverById.delete(cur.chat_uuid);
+                } else if (inWindow && cur.chat_uuid) {
+                    // Inside the authoritative window but gone → deleted while
+                    // idle. (Optimistic sends are newer than windowMax, so
+                    // they're outside the window and safe. A uuid-less row is
+                    // never dropped.)
+                    changed = true;
+                } else {
+                    next.push(cur);
+                }
+            }
+
+            for (const c of chats) {
+                if (c.chat_uuid && serverById.has(c.chat_uuid)) {
+                    next.push(c);
+                    changed = true;
+                }
+            }
+
+            if (!changed) return;
+
+            state.chatMessages[chatId] = next.sort(
+                (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at)
+            );
+        },
+
 
         updateChatReactionByChatId: (state, action: {payload: UpdatePostReactionByChatId}) => {
             const { messageId, chatId, emojiId, reactionId } = action.payload;
@@ -729,7 +812,8 @@ export const {
     batchUpdateChatCallStatus,
     invalidateAllChatMessages,
     RemoveMessageFromChatList,
-    UpdateMessageTextInChatList
+    UpdateMessageTextInChatList,
+    mergeChats
 } = chatSlice.actions
 
 export default chatSlice;

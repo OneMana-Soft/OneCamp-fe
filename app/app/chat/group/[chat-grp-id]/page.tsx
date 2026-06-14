@@ -21,6 +21,7 @@ import {
     ChatInputState, UpdateGrpChatLocally
 } from "@/store/slice/groupChatSlice";
 import {UpdateMessageInChatList, UpdateUnreadCountToZero} from "@/store/slice/chatSlice";
+import {resetUserChatUnread} from "@/store/slice/userSlice";
 import {useEffect, useRef} from "react";
 
 
@@ -128,8 +129,10 @@ export default function Page() {
     const unreadCountRef = useRef(chatInSidebar?.dm_unread || 0);
 
     useEffect(()=>{
+        if(!grpId) return
         dispatch(UpdateUnreadCountToZero({grpId}))
-    },[])
+        dispatch(resetUserChatUnread({dm_grouping_id: grpId}))
+    },[grpId, dispatch])
 
 
     const { isMobile, isDesktop } = useMedia();

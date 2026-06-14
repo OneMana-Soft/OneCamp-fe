@@ -2,19 +2,21 @@
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useAskAIStream } from "@/services/aiService";
-import StreamingText from "@/components/ai/StreamingText";
+import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import ActionConfirmation from "@/components/ai/ActionConfirmation";
 import { ProposedAction } from "@/services/aiService";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDispatch } from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
-import { X, Send, Sparkles, Loader2, MessageSquarePlus } from "@/lib/icons";
+import { X, Send, Sparkles, Loader2, MessageSquarePlus, Lightbulb, FileText, ArrowUpRight } from "@/lib/icons";
 import { StopCircle } from "lucide-react";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useRouter } from "next/navigation";
+import { getOtherUserId } from "@/lib/utils/getOtherUserId";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import { GetEndpointUrl } from "@/services/endPoints";
 
 // --- Client-side AI text sanitization ---
 // Defense-in-depth: strip tool_call XML, UUIDs, and command syntax before display.
@@ -57,9 +59,153 @@ interface ChatMessage {
 interface SourceDisplay {
     content_type: string;
     content_uuid: string;
+    channel_uuid?: string;
     channel_name?: string;
     snippet?: string;
+    chat_grp_id?: string;
+    chat_by_user_id?: string;
+    chat_to_user_id?: string;
+    post_uuid?: string;
+    task_uuid?: string;
+    doc_uuid?: string;
 }
+
+// searchHref is the graceful last resort for a source we can't deep-link.
+// The search page reads the `query` param (NOT `q`), and we only build it when
+// there's a non-empty snippet to search for — otherwise route home so the user
+// never lands on an empty "no matches" Global Search.
+function searchHref(snippet?: string): string {
+    const q = (snippet || "").trim();
+    return q ? `/app/search?query=${encodeURIComponent(q)}` : "/app/home";
+}
+
+// chatHref routes a chat source to the right conversation: group chats use the
+// 32-char grouping id (no space); DMs encode both user uuids separated by a
+// space, so we route to the OTHER participant (needs the current user id).
+function chatHref(grp?: string, msgUuid?: string, currentUserId?: string): string {
+    if (!grp) return "";
+    if (!grp.includes(" ")) return `/app/chat/group/${grp}/${msgUuid}`;
+    if (currentUserId) {
+        const other = getOtherUserId(grp, currentUserId);
+        if (other) return `/app/chat/${other}/${msgUuid}`;
+    }
+    return "";
+}
+
+// sourceHref maps a source ref to a deep link. Mirrors the briefing card's
+// highlight routing so every citation opens its real content. Falls back to
+// search (then home) only when no precise target can be built — never the
+// old broken `?q=` empty-search link.
+function sourceHref(src: SourceDisplay, currentUserId?: string): string {
+    switch (src.content_type) {
+        case "post":
+            if (src.channel_uuid) return `/app/channel/${src.channel_uuid}/${src.content_uuid}`;
+            return searchHref(src.snippet);
+        case "task":
+            return `/app/task/${src.content_uuid}`;
+        case "doc":
+            return `/app/doc/${src.content_uuid}`;
+        case "chat":
+            return chatHref(src.chat_grp_id, src.content_uuid, currentUserId) || searchHref(src.snippet);
+        case "comment": {
+            // A comment isn't separately addressable — route to its parent.
+            if (src.post_uuid && src.channel_uuid) return `/app/channel/${src.channel_uuid}/${src.post_uuid}`;
+            if (src.task_uuid) return `/app/task/${src.task_uuid}`;
+            if (src.doc_uuid) return `/app/doc/${src.doc_uuid}/comment`;
+            return searchHref(src.snippet);
+        }
+        case "memory":
+            return `/app/ai/memory`;
+        default:
+            return searchHref(src.snippet);
+    }
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+    post: "Post",
+    chat: "Message",
+    doc: "Doc",
+    task: "Task",
+    comment: "Comment",
+    memory: "Memory",
+};
+
+// cleanSnippet strips HTML markup and collapses whitespace so source previews
+// read as plain text. Backend snippets sometimes carry raw doc markup (e.g.
+// "<p xmlns=...>") — without this they leak tags into the citation strip.
+function cleanSnippet(raw: string): string {
+    return raw
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+// SourceList renders the grounding citations under an assistant answer in a
+// calm, collapsible "Sources" strip — the trust signal that the answer is
+// drawn from real workspace content, each one clickable.
+const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; onOpen: (href: string) => void }> = ({ sources, currentUserId, onOpen }) => {
+    // De-dupe by content uuid; cap to keep the strip compact.
+    const unique = useMemo(() => {
+        const seen = new Set<string>();
+        const out: SourceDisplay[] = [];
+        for (const s of sources) {
+            const key = `${s.content_type}:${s.content_uuid}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push(s);
+        }
+        return out.slice(0, 6);
+    }, [sources]);
+
+    if (unique.length === 0) return null;
+
+    return (
+        <div className="mt-2.5 pt-2.5 border-t border-border/70 min-w-0">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70 mb-1.5">
+                Sources
+            </p>
+            <div className="flex flex-col gap-1 min-w-0">
+                {unique.map((src, i) => {
+                    const preview = src.snippet ? cleanSnippet(src.snippet) : "";
+                    return (
+                        <button
+                            key={`${src.content_uuid}-${i}`}
+                            type="button"
+                            onClick={() => onOpen(sourceHref(src, currentUserId))}
+                            title={preview || undefined}
+                            className="group/src flex items-center gap-2 text-left rounded-md px-1.5 py-1 -mx-1.5 hover:bg-background/60 transition-colors min-w-0"
+                        >
+                            <span className="inline-flex items-center justify-center h-4 w-4 shrink-0 text-primary/70">
+                                <FileText size={12} />
+                            </span>
+                            <span className="text-[11px] font-medium text-foreground/80 shrink-0">
+                                {SOURCE_LABEL[src.content_type] || src.content_type}
+                            </span>
+                            {src.channel_name && (
+                                <span className="text-[11px] text-muted-foreground shrink-0 truncate max-w-[120px]">
+                                    #{src.channel_name}
+                                </span>
+                            )}
+                            {preview && (
+                                <span className="text-[11px] text-muted-foreground/80 truncate min-w-0">
+                                    {preview}
+                                </span>
+                            )}
+                            <ArrowUpRight
+                                size={11}
+                                className="ml-auto shrink-0 text-muted-foreground/0 group-hover/src:text-muted-foreground/60 transition-colors"
+                            />
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
 
 // --- Component ---
 
@@ -68,18 +214,28 @@ const AiChatPanel: React.FC = () => {
     const [input, setInput] = useState("");
     const [sessionId, setSessionId] = useState<string | null>(null);
     const { askStream, cancelStream, isStreaming, streamText, streamActions, error } = useAskAIStream();
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const dispatch = useDispatch();
     const { isMobile } = useMedia();
     const router = useRouter();
 
+    // Current user id — needed to resolve DM source links to the OTHER
+    // participant (a DM grouping id contains both user uuids).
+    const { data: selfProfile } = useFetchOnlyOnce<{ data?: { user_uuid?: string } }>(GetEndpointUrl.SelfProfile);
+    const currentUserId = selfProfile?.data?.user_uuid;
+
     // Sanitize streaming text in real-time so <tool_call> blocks never render
     const sanitizedStreamText = useMemo(() => sanitizeAIText(streamText), [streamText]);
 
-    // Auto-scroll to bottom
+    // Auto-scroll to bottom. We scroll the container directly (rather than
+    // scrollIntoView, which can nudge the whole page) so growth during
+    // streaming keeps the latest text in view without layout jumps.
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        const el = scrollContainerRef.current;
+        if (el) {
+            el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        }
     }, [messages, sanitizedStreamText]);
 
     // Focus input on mount
@@ -127,6 +283,7 @@ const AiChatPanel: React.FC = () => {
                 role: "assistant",
                 content: finalText,
                 actions: finalActions && finalActions.length > 0 ? finalActions : undefined,
+                sources: result.sources && result.sources.length > 0 ? result.sources : undefined,
                 timestamp: new Date(),
             };
             setMessages((prev) => [...prev, assistantMsg]);
@@ -182,6 +339,16 @@ const AiChatPanel: React.FC = () => {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => router.push("/app/ai/memory")}
+                        title="Workspace Memory"
+                        aria-label="Open Workspace Memory"
+                    >
+                        <Lightbulb className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
                         onClick={handleNewChat}
                         title="New conversation"
                         aria-label="New conversation"
@@ -202,8 +369,11 @@ const AiChatPanel: React.FC = () => {
             </div>
 
             {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
-                <div className="flex flex-col gap-4 scrollbar-thin">
+            <div
+                ref={scrollContainerRef}
+                className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar"
+            >
+                <div className="flex flex-col gap-4 min-w-0">
                 {messages.length === 0 && !isStreaming && (
                     <div className="flex flex-col items-center justify-center flex-1 text-center p-6 gap-3">
                         <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary">
@@ -238,7 +408,7 @@ const AiChatPanel: React.FC = () => {
                 {messages.map((msg) => (
                     <div
                         key={msg.id}
-                        className={cn("flex gap-2 animate-msg-fade-in", msg.role === "user" && "justify-end")}
+                        className={cn("flex gap-2 min-w-0 animate-msg-fade-in", msg.role === "user" && "justify-end")}
                     >
                         {msg.role === "assistant" && (
                             <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
@@ -246,28 +416,24 @@ const AiChatPanel: React.FC = () => {
                             </div>
                         )}
                         <div className={cn(
-                            "max-w-[85%] px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed relative",
-                            msg.role === "user" 
-                                ? "bg-primary text-primary-foreground rounded-br-sm shadow-sm" 
-                                : "bg-muted text-foreground border border-border rounded-bl-sm"
+                            "min-w-0 px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed relative",
+                            msg.role === "user"
+                                ? "max-w-[85%] bg-primary text-primary-foreground rounded-br-sm shadow-sm"
+                                : "max-w-[92%] bg-muted text-foreground border border-border rounded-bl-sm"
                         )}>
-                            <div className="whitespace-pre-wrap break-words">
-                                {msg.content.split("\n").map((line, i) => (
-                                    <React.Fragment key={i}>
-                                        {line}
-                                        {i < msg.content.split("\n").length - 1 && <br />}
-                                    </React.Fragment>
-                                ))}
-                            </div>
-                            {msg.sources && msg.sources.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border">
-                                    {msg.sources.map((src, i) => (
-                                        <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-primary/10 text-primary font-normal capitalize">
-                                            {src.content_type}
-                                            {src.channel_name && ` · ${src.channel_name}`}
-                                        </span>
-                                    ))}
+                            {msg.role === "assistant" ? (
+                                <MarkdownMessage content={msg.content} />
+                            ) : (
+                                <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+                                    {msg.content}
                                 </div>
+                            )}
+                            {msg.sources && msg.sources.length > 0 && (
+                                <SourceList
+                                    sources={msg.sources}
+                                    currentUserId={currentUserId}
+                                    onOpen={(href) => router.push(href)}
+                                />
                             )}
                             {msg.actions && msg.actions.length > 0 && (
                                 <ActionConfirmation
@@ -306,21 +472,23 @@ const AiChatPanel: React.FC = () => {
 
                 {/* Streaming in progress */}
                 {isStreaming && (
-                    <div className="flex gap-2 animate-msg-fade-in">
+                    <div className="flex gap-2 min-w-0 animate-msg-fade-in">
                         <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
                             <Sparkles size={14} />
                         </div>
-                        <div className="max-w-[85%] px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed bg-muted text-foreground border border-border rounded-bl-sm">
+                        <div className="min-w-0 max-w-[92%] px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed bg-muted text-foreground border border-border rounded-bl-sm">
                             {sanitizedStreamText.length === 0 ? (
                                 <div className="flex items-center gap-2 py-1 text-muted-foreground text-[13px]">
                                     <Loader2 size={14} className="animate-spin" />
                                     <span>Thinking...</span>
                                 </div>
                             ) : (
-                                <StreamingText
-                                    text={sanitizedStreamText}
-                                    isStreaming={isStreaming}
-                                />
+                                <div className="min-w-0">
+                                    <MarkdownMessage content={sanitizedStreamText} />
+                                    <span className="inline-block animate-blink text-primary text-[12px] ml-[1px] align-text-bottom">
+                                        ▊
+                                    </span>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -331,13 +499,10 @@ const AiChatPanel: React.FC = () => {
                         {error}
                     </div>
                 )}
-
-                <div ref={messagesEndRef} />
                 </div>
-            </ScrollArea>
+            </div>
 
-            {/* Input composer */}
-            <div className="px-3 py-3 border-t border-border/60 bg-background shrink-0">
+            {/* Input composer */}            <div className="px-3 py-3 border-t border-border/60 bg-background shrink-0">
                 <div
                     className={cn(
                         "flex items-end gap-1.5 rounded-xl border bg-card",

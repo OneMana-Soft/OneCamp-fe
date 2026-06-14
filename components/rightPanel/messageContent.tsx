@@ -22,6 +22,7 @@ import {MessageAttachments} from "@/components/message/MessageAttachments";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
+import {SaveToMemoryButton} from "@/components/ai/SaveToMemoryButton";
 
 interface MessageContentProps {
     userInfo?: UserProfileDataInterface
@@ -145,7 +146,16 @@ export const MessageContent = ({
                     isOwner={selfProfile.data?.data.user_uuid == userInfo?.user_uuid}
                     isAdmin={isAdmin}
                     deleteMessage={()=>{deleteMessage(chatUUID || postUUID || commentUUID || '')}}
-
+                    captureSlot={
+                        commentUUID && channelUUID ? (
+                            <SaveToMemoryButton
+                                messageText={content}
+                                channelUUID={channelUUID}
+                                sourceType="comment"
+                                sourceUUID={commentUUID}
+                            />
+                        ) : undefined
+                    }
                 />
             </div>}
             <div className="h-12 w-12 flex-shrink-0" onClick={handleUserClick}>

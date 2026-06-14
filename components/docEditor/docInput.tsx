@@ -570,7 +570,7 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                                     </div>
                                     <div className="flex items-center gap-1 opacity-60">
                                         <Users className="size-3" />
-                                        <span className="text-[10px] font-medium">{(collaboration as any).activeUsers || 1}</span>
+                                        <span className="text-[10px] font-medium">{collaboration?.activeUsers ?? 0}</span>
                                     </div>
                                 </div>
                             )}

@@ -53,6 +53,7 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                         <CommandItem
                                             key={member.user_uuid}
                                             value={member.user_uuid}
+                                            keywords={member.user_name ? [member.user_name] : undefined}
                                             onSelect={(currentValue) => {
                                                 const t = members.find((m) => m.user_uuid === currentValue)
                                                 const selected = currentValue === assignee?.user_uuid ? undefined : t

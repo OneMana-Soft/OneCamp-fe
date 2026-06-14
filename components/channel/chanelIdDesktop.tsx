@@ -7,9 +7,10 @@ import {
 } from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
+import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { ChevronLeft, ChevronRight, Hash, LoaderCircle, Pencil, SendHorizontal, Star, Users, Video, Clapperboard } from "@/lib/icons";
+import { ChevronLeft, ChevronRight, Hash, LoaderCircle, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -20,6 +21,7 @@ import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {openUI} from "@/store/slice/uiSlice";
 import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
 import {ChannelFileUpload} from "@/components/fileUpload/channelFileUpload";
+import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {
     addUUIDToLocallyCreatedPost, clearChannelInputState,
     createPostLocally, updateChannelInputText, MessageInputState, updateChannelCallStatus
@@ -38,6 +40,7 @@ import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {ChatSkeleton} from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
+import {ChannelMemoryIndicator} from "@/components/ai/ChannelMemoryIndicator";
 import {useUploadFile} from "@/hooks/useUploadFile";
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
@@ -155,12 +158,39 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
             )
         }
 
-        return (<MinimalTiptapTextInput
+        // Announcement channel: only moderators can post. Everyone else sees a
+        // read-only notice instead of a composer that would 403 on send.
+        if (
+            channelInfo.data?.channel_info.ch_post_policy === "admins_only" &&
+            !channelInfo.data?.channel_info.ch_is_admin
+        ) {
+            return (
+                <div className="flex items-center justify-center gap-2 w-full py-4 text-center text-sm text-muted-foreground">
+                    <Megaphone className="h-4 w-4" />
+                    <span>Only moderators can post in this announcement channel.</span>
+                </div>
+            )
+        }
+
+        return (<>
+        <CommandSurface
+            surfaceKey={channelId}
+            channelId={channelId}
+            onComposerText={(text) =>
+                dispatch(updateChannelInputText({ channelId, inputTextHTML: `<p>${text}</p>` }))
+            }
+            onComposerHtml={(html) =>
+                dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))
+            }
+        />
+        <MinimalTiptapTextInput
             throttleDelay={300}
             attachmentOnclick = {()=>{dispatch(openUI({ key: 'channelFileUpload' }))}}
             onActionFiles={async (files) => {
                 if (!files?.length) return;
-                await uploadFile.makeRequestToUploadToChannel(files as unknown as FileList, channelId);
+                const valid = uploadFile.validateFiles(files);
+                if (valid.length === 0) return;
+                await uploadFile.makeRequestToUploadToChannel(valid as unknown as FileList, channelId);
             }}
             className={cn("max-w-full h-auto")}
             editorContentClassName="overflow-auto mb-2"
@@ -175,9 +205,16 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                 publishTyping(content as string)
                 dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
             }}
+            aiSlot={
+                <ComposerAIButton
+                    getText={() => channelState.inputTextHTML || ""}
+                    onResult={(html) => dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))}
+                />
+            }
         >
             <ChannelFileUpload channelId={channelId}/>
-        </MinimalTiptapTextInput>)
+        </MinimalTiptapTextInput>
+        </>)
     }
 
 
@@ -188,6 +225,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                 <div className='flex justify-center items-center space-x-1'>
                     <div><Hash className='h-5 w-5 text-muted-foreground'/></div>
                     <div>{channelDisplayName}</div>
+                    <ChannelMemoryIndicator channelUUID={channelId} isMember={!!channelInfo.data?.channel_info.ch_is_member} />
                 </div>
                 <div className='flex justify-center items-center ml-2'>
                     <Button size='icon' variant='ghost' onClick={toggleFavourite} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
@@ -195,7 +233,9 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                     </Button>
 
                     <NotificationBell notificationType={channelNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
-                    <Button size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}}><Pencil /></Button>
+                    {channelInfo.data?.channel_info.ch_is_admin && (
+                        <Button size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}}><Pencil /></Button>
+                    )}
                     <Button size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannelMember', data: { channelUUID: channelId } }))}}> <Users /></Button>
                     <Link href={channelCallHref}>
                     <Button
@@ -216,6 +256,14 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                     </Button>
                     </Link>
                     <Link href={channelRecordingHref}><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
+                    <Link
+                        href={`/app/ai/memory?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channelDisplayName)}`}
+                        title="Channel memory — decisions, commitments & open questions"
+                    >
+                        <Button size='icon' variant='ghost' aria-label="Channel memory">
+                            <Lightbulb className="text-muted-foreground" />
+                        </Button>
+                    </Link>
 
 
 

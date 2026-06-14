@@ -10,6 +10,7 @@ export interface ChannelInfoInterface {
     ch_name: string,
     ch_icon: string,
     ch_private: boolean,
+    ch_post_policy?: string,
     ch_is_user_fav: boolean,
     ch_about: string,
     ch_call_active: boolean,

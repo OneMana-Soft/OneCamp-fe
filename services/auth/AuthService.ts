@@ -1,3 +1,5 @@
+import { withCsrfHeader } from "@/lib/utils/csrf";
+
 class AuthService {
     static async loginWithGoogle() {
         const oauthEndpoint = `${
@@ -180,7 +182,7 @@ class AuthService {
                 {
                     method: 'POST',
                     credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
                 }
             );
@@ -203,6 +205,59 @@ class AuthService {
         } catch {
             return { hasPassword: false };
         }
+    }
+
+    /**
+     * Probe whether the caller has a live BE session.
+     *
+     * The auth cookies (Authorization / RefreshToken) are HttpOnly, so the
+     * FE cannot detect login state by reading document.cookie — the BE is
+     * the only authoritative source. This hits a cheap authenticated
+     * endpoint with credentials. If the short-lived access token has
+     * expired (401) we attempt a single refresh and re-probe, mirroring the
+     * access→refresh handshake the app uses elsewhere.
+     *
+     * Deliberately uses raw fetch (not the app axiosInstance) so the
+     * logged-out path stays inert: axiosInstance's 401 interceptor would
+     * fire a refresh→logout cascade (logout POST + localStorage/sessionStorage
+     * clear + redirect) which is wasteful and destructive for an anonymous
+     * visitor landing on the login page. Returns a plain boolean and never
+     * throws.
+     */
+    static async hasActiveSession(): Promise<boolean> {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL;
+        const probe = async (): Promise<number> => {
+            try {
+                const res = await fetch(`${base}user/profile`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    // Don't let a never-resolving network hang the loading
+                    // screen; treat a slow/failed probe as "not logged in".
+                    cache: 'no-store',
+                });
+                return res.status;
+            } catch {
+                return 0; // network error → treat as not logged in
+            }
+        };
+
+        let status = await probe();
+        if (status === 401) {
+            // Access token likely expired; try one refresh, then re-probe.
+            try {
+                const refresh = await fetch(`${base}refreshToken`, {
+                    method: 'GET',
+                    credentials: 'include',
+                    cache: 'no-store',
+                });
+                if (refresh.ok) {
+                    status = await probe();
+                }
+            } catch {
+                /* refresh unreachable → fall through as not logged in */
+            }
+        }
+        return status >= 200 && status < 300;
     }
 
     static async loginWithOIDC() {

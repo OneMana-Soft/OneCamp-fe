@@ -217,9 +217,6 @@ export function DesktopNavigationBar({
         return links;
     }, [path, userSidebarState.totalUnreadActivityCount, totalDMUnread, totalChannelUnread, isAdmin]);
 
-    const channelLabel = formatCount(totalChannelUnread);
-    const dmLabel = formatCount(totalDMUnread);
-
     for (const p of (userSidebarState.userProjects || []).filter(Boolean)) {
         projectNavGrp.push({
             title: p.project_name,
@@ -371,7 +368,7 @@ export function DesktopNavigationBar({
         },
         {
             title: 'channels',
-            label: channelLabel,
+            label: "",
             icon: Hash,
             variant: "ghost",
             path: "#",
@@ -383,7 +380,7 @@ export function DesktopNavigationBar({
 
         {
             title: 'chats',
-            label: dmLabel,
+            label: "",
             icon: MessageCircle,
             variant: "ghost",
             path: "#",

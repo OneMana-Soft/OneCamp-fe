@@ -29,6 +29,8 @@ export interface CreateUpdateCommentReqInterface {
     task_id?: string
     chat_id?: string
     comment_id?: string
+    // Slack-parity "Also send to #channel": post the reply to the channel too.
+    also_send_to_channel?: boolean
 }
 
 export interface CreateCommentResInterface {

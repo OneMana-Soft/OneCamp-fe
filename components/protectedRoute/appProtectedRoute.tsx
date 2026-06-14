@@ -12,6 +12,7 @@ import {useDispatch} from "react-redux";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus} from "@/store/slice/userSlice";
 import { UserProfileResponseSchema } from "@/lib/validations/schemas";
 import axios from "axios";
+import store, { persistor, RESET_STORE_ACTION } from "@/store/store";
 
 export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
 
@@ -62,6 +63,15 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
                 .post(url, null, { withCredentials: true })
                 .catch(() => {})
                 .finally(() => {
+                    // Reset + purge persisted Redux so the previous user's
+                    // state (e.g. the sidebar "Recent" items) can't leak into
+                    // the next session — same rationale as useLogout.
+                    try {
+                        store.dispatch({ type: RESET_STORE_ACTION });
+                        void persistor.purge();
+                    } catch {
+                        /* ignore */
+                    }
                     localStorage.clear();
                     sessionStorage.clear();
                     // Full-page nav. router.replace inside SPA wouldn't drop
@@ -74,7 +84,12 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
 
 
         if(userProfile.data?.data) {
-            dispatch(updateUserEmojiStatus({userUUID: userProfile.data?.data.user_uuid, status:userProfile.data?.data.user_emoji_statuses?.[0] || {} as UserEmojiStatus}));
+            // The reducer ignores empty/undefined emoji-status payloads
+            // (profile-fetch responses omit the field when no active
+            // status exists, and we don't want that absence to clobber
+            // a value just delivered by MQTT). Pass the raw value
+            // through and let the reducer make the decision.
+            dispatch(updateUserEmojiStatus({userUUID: userProfile.data?.data.user_uuid, status: userProfile.data?.data.user_emoji_statuses?.[0] as UserEmojiStatus}));
             dispatch(updateUserStatus({userUUID: userProfile.data?.data.user_uuid, status:userProfile.data.data.user_status || 'online'}));
             dispatch(updateUserConnectedDeviceCount({userUUID: userProfile.data?.data.user_uuid, deviceConnected:userProfile.data?.data.user_device_connected || 0}));
 

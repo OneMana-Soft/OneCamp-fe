@@ -21,6 +21,7 @@ import {
     MobileTopNavigationBarSecondGroupChat
 } from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondGroupChat";
 import {MobileTopNavigationBarThirdDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarThirdDoc";
+import NudgeBell from "@/components/ai/NudgeBell";
 
 export function MobileTopNavigationBarThird() {
 
@@ -42,7 +43,8 @@ export function MobileTopNavigationBarThird() {
             case "admin":
             case "profile":
 
-                return <div className='flex space-x-6 justify-end '>
+                return <div className='flex items-center space-x-4 justify-end '>
+                    <NudgeBell />
                     <UserStatusNav userUUID={selfProfile.data?.data.user_uuid || ''}/>
                     <div onClick={()=>{dispatch(openUI({ key: 'userProfileDrawer' }))}}>
                         <UserAvatarNav userUUID={selfProfile.data?.data.user_uuid} userName={selfProfile.data?.data.user_name} userProfileObjKey={selfProfile.data?.data.user_profile_object_key}/>

@@ -89,6 +89,7 @@ export const BlockHandle = Extension.create({
     let currentHoverPos: number | null = null
     let currentHoverDom: HTMLElement | null = null
     let hideTimeout: ReturnType<typeof setTimeout> | null = null
+    let initTimeout: ReturnType<typeof setTimeout> | null = null
     
     let isDragging = false
     let globalDragState: { pos: number; node: any } | null = null
@@ -136,6 +137,7 @@ export const BlockHandle = Extension.create({
 
     const updateFocusHandle = (view: any) => {
       if (isDragging) return
+      if (!view || view.isDestroyed || view.destroyed || !view.docView) return
       const focusedPos = BlockFocusPluginKey.getState(view.state) as number | null
       if (focusedPos != null) {
         const dom = view.nodeDOM(focusedPos) as HTMLElement | null
@@ -171,12 +173,12 @@ export const BlockHandle = Extension.create({
               const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })
               if (!dropPos) return false
 
-              let $pos = view.state.doc.resolve(dropPos.pos)
+              const $pos = view.state.doc.resolve(dropPos.pos)
               let insertPos = dropPos.pos
               
               if ($pos.depth > 0) {
-                let blockBefore = $pos.before(1)
-                let blockAfter = $pos.after(1)
+                const blockBefore = $pos.before(1)
+                const blockAfter = $pos.after(1)
                 insertPos = (dropPos.pos - blockBefore < blockAfter - dropPos.pos) ? blockBefore : blockAfter
               }
 
@@ -187,7 +189,7 @@ export const BlockHandle = Extension.create({
                 return true 
               }
 
-              let tr = view.state.tr
+              const tr = view.state.tr
               let finalInsertPos = insertPos
 
               if (finalInsertPos > sourcePos) {
@@ -290,7 +292,7 @@ export const BlockHandle = Extension.create({
           handle.addEventListener('dragend', cleanupDrag)
           window.addEventListener('dragend', cleanupDrag)
 
-          setTimeout(() => updateFocusHandle(editorView), 100)
+          initTimeout = setTimeout(() => updateFocusHandle(editorView), 100)
 
           return {
             update(view) {
@@ -298,6 +300,7 @@ export const BlockHandle = Extension.create({
               updateFocusHandle(view)
             },
             destroy() {
+              if (initTimeout) clearTimeout(initTimeout)
               window.removeEventListener('scroll', onScroll, true)
               window.removeEventListener('dragend', cleanupDrag)
               handle?.remove()

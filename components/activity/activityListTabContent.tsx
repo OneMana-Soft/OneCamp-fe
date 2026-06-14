@@ -6,9 +6,17 @@ import { ActivityCommentListResult } from "@/components/activity/activityComment
 import { ActivityReactionListResult } from "@/components/activity/activityReactionListResult"
 import { ActivityAllListResult } from "@/components/activity/activityAllListResult"
 
-export const ActivityListTabContent = ({ selectedTab }: { selectedTab: string }) => {
+export const ActivityListTabContent = ({
+    selectedTab,
+    onSelectTab,
+}: {
+    selectedTab: string
+    onSelectTab?: (tab: string) => void
+}) => {
     const renderTab = useMemo(() => {
         switch (selectedTab) {
+            case "priority":
+                return <ActivityAllListResult priorityOnly onViewAll={() => onSelectTab?.("all")} />
             case "all":
                 return <ActivityAllListResult />
             case "mentions":
@@ -20,7 +28,7 @@ export const ActivityListTabContent = ({ selectedTab }: { selectedTab: string })
             default:
                 return null
         }
-    }, [selectedTab])
+    }, [selectedTab, onSelectTab])
 
     return <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{renderTab}</div>
 }

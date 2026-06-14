@@ -213,7 +213,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="icon" onClick={() => skip(-10)} className="text-white hover:bg-white/20 rounded-full h-8 w-8">
+                            <Button variant="ghost" size="icon" onClick={() => skip(-10)} className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label="Skip back 10 seconds">
                                 <SkipBack className="h-4 w-4" />
                             </Button>
 
@@ -225,11 +225,12 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
                                     togglePlay()
                                 }}
                                 className="text-white hover:bg-white/20 rounded-full h-10 w-10"
+                                aria-label={isPlaying ? "Pause" : "Play"}
                             >
                                 {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
                             </Button>
 
-                            <Button variant="ghost" size="icon" onClick={() => skip(10)} className="text-white hover:bg-white/20 rounded-full h-8 w-8">
+                            <Button variant="ghost" size="icon" onClick={() => skip(10)} className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label="Skip forward 10 seconds">
                                 <SkipForward className="h-4 w-4" />
                             </Button>
 
@@ -240,7 +241,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
 
                         <div className="flex items-center space-x-2">
                             <div className="flex items-center space-x-2 group">
-                                <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white hover:bg-white/20 rounded-full h-8 w-8">
+                                <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}>
                                     {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                                 </Button>
 
@@ -258,7 +259,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full h-8 w-8">
+                                    <Button variant="ghost" size="icon" className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label="Playback settings">
                                         <Settings className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -278,7 +279,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/20 rounded-full h-8 w-8">
+                            <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/20 rounded-full h-8 w-8" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
                                 {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
                             </Button>
                         </div>

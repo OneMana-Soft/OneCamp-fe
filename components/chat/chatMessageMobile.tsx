@@ -243,7 +243,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                     <MessageAttachments priority={priority} attachmentSelected={handleSelectAttachment} attachments={chatInfo.chat_attachments} mediaGetUrl={GetEndpointUrl.GetChatMedia + '/' + otherUserUUID}/>
                 }
 
-                {chatInfo.chat_comments && (chatInfo.chat_comment_count || 0) > 0 && <div className='mb-3' onClick={handleOnCLick}><MessageReplyCount replyCount={chatInfo.chat_comment_count} lastCommentCreatedAt={chatInfo.chat_comments[0].comment_created_at}/></div>}
+                {chatInfo.chat_comments && (chatInfo.chat_comment_count || 0) > 0 && <div className='mb-3' onClick={handleOnCLick}><MessageReplyCount replyCount={chatInfo.chat_comment_count} lastCommentCreatedAt={chatInfo.chat_comments[0].comment_created_at} participants={chatInfo.chat_comments.map((c) => ({ uuid: c.comment_by?.user_uuid || "", name: c.comment_by?.user_name || "", profileKey: c.comment_by?.user_profile_object_key }))}/></div>}
 
                 { !isMessageEditEnabled && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
 

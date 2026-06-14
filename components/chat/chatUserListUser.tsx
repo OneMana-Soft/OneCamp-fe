@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
+import { getLastMessagePreview } from "@/lib/utils/lastMessagePreview";
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment";
 import { ChatUserListUserAvatar } from "@/components/chat/chatUserListUserAvatar";
 import { useUserInfoState } from "@/hooks/useUserInfoState";
@@ -9,6 +9,7 @@ import { CallActiveIndicator } from "@/components/callIndicator/CallActiveIndica
 import { cn } from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
 import { ListRow, UnreadBadge } from "@/components/ui/listRow";
+import { AttachmentMediaReq } from "@/types/attachment";
 
 interface DmItemProps {
     lastUsername: string;
@@ -17,6 +18,7 @@ interface DmItemProps {
     unseenMessageCount: number;
     userSelected: boolean;
     attachmentCount: number;
+    lastAttachments?: AttachmentMediaReq[];
     dmParticipants: UserProfileDataInterface[];
     selfProfile: UserProfileDataInterface;
     isCallActive?: boolean;
@@ -29,7 +31,7 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
     unseenMessageCount,
     userSelected,
     dmParticipants,
-    attachmentCount,
+    lastAttachments,
     selfProfile,
     isCallActive,
 }) => {
@@ -44,15 +46,10 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
         [dmParticipants, isSelfDm, selfProfile],
     );
 
-    const message = useMemo(() => {
-        if (lastUserMessage === "" && attachmentCount > 0) {
-            return "sent an attachment";
-        }
-        if (lastUserMessage !== "") {
-            return removeHtmlTags(lastUserMessage);
-        }
-        return "";
-    }, [lastUserMessage, attachmentCount]);
+    const message = useMemo(
+        () => getLastMessagePreview(lastUserMessage, lastAttachments),
+        [lastUserMessage, lastAttachments],
+    );
 
     const otherParticipant = useMemo(() => {
         if (dmParticipants.length === 1) return dmParticipants[0];

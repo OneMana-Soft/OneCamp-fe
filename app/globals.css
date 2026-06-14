@@ -62,13 +62,17 @@
   --animate-shimmer: shimmer 1.5s infinite;
   /* Z-Index Layer System — each layer must be higher than all UI below it */
   --z-base: 0;
-  --z-sticky: 100;        /* sticky headers, section labels */
-  --z-fixed: 200;         /* fixed bottom nav, floating controls */
-  --z-dropdown: 650;      /* dropdowns, select menus — MUST be above modals/popovers */
+  --z-sticky: 100;
+  /* sticky headers, section labels */
+  --z-fixed: 200;
+  /* fixed bottom nav, floating controls */
+  --z-dropdown: 650;
+  /* dropdowns, select menus — MUST be above modals/popovers */
   --z-modal-backdrop: 400;
   --z-modal: 500;
   --z-popover: 600;
-  --z-tooltip: 700;       /* highest non-devtool layer */
+  --z-tooltip: 700;
+  /* highest non-devtool layer */
   --z-toast: 800;
   --z-devtools: 9999;
 }
@@ -168,17 +172,31 @@
 }
 
 @keyframes blink {
-  50% { opacity: 0; }
+  50% {
+    opacity: 0;
+  }
 }
 
 @keyframes text-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @keyframes msg-fade-in {
-  0% { opacity: 0; transform: translateY(4px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes shimmer {
@@ -563,6 +581,7 @@
     touch-action: pan-y;
     overscroll-behavior: contain;
   }
+
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: var(--scroll-bar-color) transparent;
@@ -589,6 +608,7 @@
 
 /* Respect user's motion preferences globally */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -634,4 +654,13 @@
 
 .dark .collaboration-cursor__label {
   color: hsl(var(--primary));
+}
+
+
+/* /collapse and /expand slash commands toggle this attribute on <html> via
+   CommandActionBridge. When collapsed, inline images and link-preview cards in
+   the message stream are hidden workspace-wide for this client (Slack parity).
+   Message media containers opt in with the `data-message-media` attribute. */
+html[data-media-collapsed="true"] [data-message-media] {
+  display: none !important;
 }

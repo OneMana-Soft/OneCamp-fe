@@ -22,6 +22,8 @@ import {
     updateTaskPRStateInTaskList,
     updateTaskPRIsDraftInTaskList
 } from "@/store/slice/taskInfoSlice";
+import { upsertNudge, setOpenCount } from "@/store/slice/nudgeSlice";
+import type { Nudge } from "@/services/nudgeService";
 
 interface UseMqttMessageHandlerProps {
     connectionConfig: ConnectionConfig
@@ -231,6 +233,83 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                                 typeof key === "string" &&
                                 key.includes("/admin/import/slack/jobs"),
                         )
+                        break
+
+                    case MqttMessageType.Command_Ephemeral:
+                        // Async slash-command result (a fired /remind, or an
+                        // external app callback). The payload is a
+                        // CommandResponse; we surface it as a global ephemeral
+                        // card by dispatching a window event the active
+                        // CommandSurface(s) pick up. We keep this decoupled from
+                        // Redux here because the surface key is conversation-
+                        // scoped on the FE; a fired reminder is global.
+                        try {
+                            const parsed = JSON.parse(messageStr)
+                            window.dispatchEvent(
+                                new CustomEvent("command-ephemeral", {
+                                    detail: parsed.data,
+                                }),
+                            )
+                        } catch (e) {
+                            console.warn("[MQTT] Failed to parse command ephemeral message", e)
+                        }
+                        break
+
+                    case MqttMessageType.AI_Nudge:
+                        // Proactive AI nudge. "new" carries a full nudge to
+                        // surface live; "cleared" carries only an updated open
+                        // count (e.g. another tab dismissed, or the engine
+                        // superseded a stale signal).
+                        try {
+                            const parsed = JSON.parse(messageStr)
+                            const data = parsed.data ?? {}
+                            if (data.action === "new" && data.nudge_id) {
+                                const n: Nudge = {
+                                    id: data.nudge_id,
+                                    kind: data.kind,
+                                    title: data.title ?? "",
+                                    body: data.body ?? "",
+                                    cta_url: data.cta_url,
+                                    cta_text: data.cta_text,
+                                    status: "open",
+                                    priority: data.priority ?? 0,
+                                    created_at: data.created_at ?? new Date().toISOString(),
+                                    updated_at: data.created_at ?? new Date().toISOString(),
+                                }
+                                dispatch(upsertNudge(n))
+                            }
+                            if (typeof data.open_count === "number") {
+                                dispatch(setOpenCount(data.open_count))
+                            }
+                        } catch (e) {
+                            console.warn("[MQTT] Failed to parse AI nudge message", e)
+                        }
+                        break
+
+                    case MqttMessageType.Channel_Update:
+                        // An admin changed this channel (post policy / archive /
+                        // membership / name / privacy / moderators). Revalidate
+                        // the affected SWR caches so the channel page (composer,
+                        // header) and the channel lists reflect the change live
+                        // without a manual refresh. Idempotent under QoS-1
+                        // redelivery — a repeat event just re-validates.
+                        try {
+                            const parsedChannelUpdate = mqttService.parseChannelUpdateMsg(messageStr)
+                            const channelUuid = parsedChannelUpdate.data?.channel_uuid
+                            if (channelUuid) {
+                                mutate(
+                                    (key: string) =>
+                                        typeof key === "string" &&
+                                        ((key.includes(GetEndpointUrl.ChannelBasicInfo) &&
+                                            key.includes(channelUuid)) ||
+                                            key.includes(GetEndpointUrl.GetUserActiveChannelList) ||
+                                            key.includes(GetEndpointUrl.GetUserArchiveChannelList) ||
+                                            key.includes(GetEndpointUrl.GetAllActiveChannelList)),
+                                )
+                            }
+                        } catch (e) {
+                            console.warn("[MQTT] Failed to parse channel update message", e)
+                        }
                         break
 
                     default:

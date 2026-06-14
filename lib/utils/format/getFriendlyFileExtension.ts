@@ -94,7 +94,7 @@ export function getFriendlyFileExtension(mimeType?: string, fileName?: string): 
         // but usually just taking the second part is "okay" as a last resort, 
         // though it might be verbose. 
         // Let's try to be smarter: if it starts with "vnd.", strip it.
-        let subtype = parts[1];
+        const subtype = parts[1];
         if (subtype.startsWith('vnd.')) {
             // e.g. vnd.android.package-archive
             const subParts = subtype.split('.');

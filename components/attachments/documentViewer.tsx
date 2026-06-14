@@ -1,7 +1,7 @@
 import type React from "react"
 import {useEffect, useState} from "react";
-import * as mammoth from "mammoth";
-import * as XLSX from "xlsx";
+import { sanitizeImportedDocument } from "@/lib/sanitizeHtml";
+import { SafeHtml } from "@/components/safeHtml/SafeHtml";
 
 interface DocumentViewerProps {
     type: string
@@ -28,17 +28,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
                     const text = await res.text();
                     setTextContent(text);
                 }
-                // DOCX
+                // DOCX — lazy-load mammoth so it doesn't bloat the
+                // every-page bundle. mammoth is ~700 KB and only used
+                // when the user opens a .docx attachment.
                 else if (['docx', 'doc'].includes(type)) {
                     const res = await fetch(url);
                     const arrayBuffer = await res.arrayBuffer();
+                    const mammoth = await import("mammoth");
                     const result = await mammoth.convertToHtml({ arrayBuffer });
                     setHtmlContent(result.value);
                 }
-                // Excel
+                // Excel — same lazy-load story; xlsx is ~900 KB.
                 else if (['xlsx', 'xls'].includes(type)) {
                     const res = await fetch(url);
                     const arrayBuffer = await res.arrayBuffer();
+                    const XLSX = await import("xlsx");
                     const workbook = XLSX.read(arrayBuffer);
                     const sheetName = workbook.SheetNames[0];
                     const sheet = workbook.Sheets[sheetName];
@@ -92,7 +96,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
         return (
             <div className="w-full h-[60vh] md:h-[80vh] bg-white rounded-lg overflow-hidden shadow-lg flex flex-col">
                 <div className="flex-1 overflow-auto p-8 prose max-w-none dark:prose-invert bg-white text-black">
-                    <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
+                    <SafeHtml html={htmlContent} sanitizer={sanitizeImportedDocument} />
                 </div>
                  <div className="bg-muted/50 p-3 text-center text-sm text-muted-foreground border-t border-border/50">
                     <span>Rendering locally. Formatting may vary. </span>

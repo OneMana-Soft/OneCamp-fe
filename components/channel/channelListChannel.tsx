@@ -1,10 +1,11 @@
 import React from "react";
-import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
+import { getLastMessagePreview } from "@/lib/utils/lastMessagePreview";
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment";
 import { Hash } from "@/lib/icons";
 import { CallActiveIndicator } from "@/components/callIndicator/CallActiveIndicator";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ListRow, UnreadBadge } from "@/components/ui/listRow";
+import { AttachmentMediaReq } from "@/types/attachment";
 
 interface DmItemProps {
     lastUsername: string;
@@ -14,6 +15,7 @@ interface DmItemProps {
     unseenMessageCount: number;
     userSelected: boolean;
     attachmentCount: number;
+    lastAttachments?: AttachmentMediaReq[];
     isCallActive?: boolean;
 }
 
@@ -25,16 +27,10 @@ export const ChannelListChannel: React.FC<DmItemProps> = React.memo(
         channelName,
         unseenMessageCount,
         userSelected,
-        attachmentCount,
+        lastAttachments,
         isCallActive,
     }) => {
-        let message = "";
-        if (lastUserMessage === "" && attachmentCount > 0) {
-            message = "sent an attachment";
-        }
-        if (lastUserMessage !== "") {
-            message = removeHtmlTags(lastUserMessage);
-        }
+        const message = getLastMessagePreview(lastUserMessage, lastAttachments);
 
         const hasUnread = unseenMessageCount > 0;
 

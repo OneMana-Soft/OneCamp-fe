@@ -1,6 +1,8 @@
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
 import { usePost } from "@/hooks/usePost";
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { authedStreamFetch } from "@/lib/utils/streamFetch";
+import { getCatchUp, CatchUpRequest, CatchUpResult } from "@/services/catchUpService";
 
 // --- Response Types ---
 
@@ -18,6 +20,16 @@ export interface SourceRef {
     channel_name?: string;
     snippet?: string;
     score?: number;
+    // Chat routing: group chats use a 32-char chat_grp_id (no space); DMs
+    // encode both user uuids separated by a space, and the other participant
+    // is derived from chat_by_user_id / chat_to_user_id.
+    chat_grp_id?: string;
+    chat_by_user_id?: string;
+    chat_to_user_id?: string;
+    // Parent FKs for a comment source — deep-link to the parent it belongs to.
+    post_uuid?: string;
+    task_uuid?: string;
+    doc_uuid?: string;
 }
 
 export interface AskAIResponse {
@@ -124,6 +136,30 @@ export const useSummarizeGroup = () => {
 };
 
 /**
+ * Hook for "Catch me up" — an AI recap of exactly what the user missed in a
+ * scope since they last looked (the unread window), rather than the last N
+ * messages. Wraps POST /ai/catch-up. Self-describing result: enabled=false
+ * (AI off) or has_unread=false (nothing missed) let the caller hide cleanly.
+ */
+export const useCatchUp = () => {
+    const [isLoading, setIsLoading] = useState(false);
+
+    const catchUp = useCallback(
+        async (req: CatchUpRequest): Promise<CatchUpResult | undefined> => {
+            setIsLoading(true);
+            try {
+                return await getCatchUp(req);
+            } finally {
+                setIsLoading(false);
+            }
+        },
+        [],
+    );
+
+    return { catchUp, isLoading };
+};
+
+/**
  * Hook for AI Q&A with multi-turn conversation support.
  * Tracks session_id across requests for conversation continuity.
  */
@@ -172,6 +208,7 @@ export const useAskAI = () => {
 export interface AskStreamResult {
     text: string;
     actions: ProposedAction[];
+    sources: SourceRef[];
 }
 
 /**
@@ -202,30 +239,23 @@ export const useAskAIStream = () => {
             // the ground truth, immune to React batching / useEffect timing.
             let accumulated = "";
             let parsedActions: ProposedAction[] = [];
+            let parsedSources: SourceRef[] = [];
 
             try {
-                const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000").replace(/\/+$/, '');
-
-                // Auth is carried by the cookie via `credentials: include`.
-                // The BE auth middleware reads `Authorization` from the cookie
-                // jar exclusively, so we don't need to forward a Bearer header.
-
                 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
                 const localTime = new Date().toISOString();
 
-                const response = await fetch(`${baseUrl}${PostEndpointUrl.AIAskStream}`, {
-                    method: "POST",
-                    credentials: "include",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Accept": "text/event-stream",
-                    },
-                    body: JSON.stringify({ 
-                        question, 
+                // Auth is carried by the cookie via `credentials: include`.
+                // authedStreamFetch refreshes an expired access token and
+                // retries once, so a stream started after the short-lived
+                // Authorization cookie lapsed doesn't hard-fail with a 401.
+                const response = await authedStreamFetch(PostEndpointUrl.AIAskStream, {
+                    jsonBody: {
+                        question,
                         session_id: sessionId,
                         timezone,
                         local_time: localTime,
-                    }),
+                    },
                     signal: abortRef.current.signal,
                 });
 
@@ -272,9 +302,13 @@ export const useAskAIStream = () => {
                                     parsedActions = data.actions;
                                     setStreamActions(parsedActions);
                                 }
+                                // Server sends grounding sources (citations)
+                                if (data.sources) {
+                                    parsedSources = data.sources;
+                                }
                                 if (data.done) {
                                     setIsStreaming(false);
-                                    return { text: accumulated, actions: parsedActions };
+                                    return { text: accumulated, actions: parsedActions, sources: parsedSources };
                                 }
                             } catch {
                                 // Skip malformed JSON chunks
@@ -284,13 +318,13 @@ export const useAskAIStream = () => {
                 }
 
                 // Stream ended without explicit done event — return what we have
-                return { text: accumulated, actions: parsedActions };
+                return { text: accumulated, actions: parsedActions, sources: parsedSources };
             } catch (err: any) {
                 if (err.name !== "AbortError") {
                     setError(err.message || "Streaming failed");
                 }
                 // Return accumulated text even on error so partial responses are usable
-                return accumulated ? { text: accumulated, actions: parsedActions } : null;
+                return accumulated ? { text: accumulated, actions: parsedActions, sources: parsedSources } : null;
             } finally {
                 setIsStreaming(false);
             }
@@ -301,6 +335,15 @@ export const useAskAIStream = () => {
     const cancelStream = useCallback(() => {
         abortRef.current?.abort();
         setIsStreaming(false);
+    }, []);
+
+    // Abort any in-flight stream when the consuming component unmounts
+    // — without this, navigating away from the AI assistant mid-stream
+    // leaves the fetch reading the response body, calling setState on
+    // an unmounted component (React 19 swallows the warning, but the
+    // network and CPU work continue).
+    useEffect(() => () => {
+        abortRef.current?.abort();
     }, []);
 
     return { askStream, cancelStream, isStreaming, streamText, streamActions, error };
@@ -315,9 +358,9 @@ export const useAIStatus = () => {
     const getStatus = useCallback(async (): Promise<AIStatusResponse | undefined> => {
         setIsLoading(true);
         try {
-            const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000").replace(/\/+$/, '');
-            const response = await fetch(`${baseUrl}${GetEndpointUrl.AIStatus}`, {
-                credentials: "include",
+            const response = await authedStreamFetch(GetEndpointUrl.AIStatus, {
+                method: "GET",
+                accept: "application/json",
             });
             if (!response.ok) return undefined;
             const json = await response.json();
@@ -361,22 +404,14 @@ export const useDocAI = () => {
             abortRef.current = new AbortController();
 
             try {
-                const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000").replace(/\/+$/, '');
-
-                const response = await fetch(`${baseUrl}${PostEndpointUrl.AIDocCompleteStream}`, {
-                    method: "POST",
-                    credentials: "include",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Accept": "text/event-stream",
-                    },
-                    body: JSON.stringify({
+                const response = await authedStreamFetch(PostEndpointUrl.AIDocCompleteStream, {
+                    jsonBody: {
                         action,
                         text,
                         prompt: customPrompt || "",
                         doc_id: docId || "",
                         context: context || "",
-                    }),
+                    },
                     signal: abortRef.current.signal,
                 });
 
@@ -438,21 +473,15 @@ export const useDocAI = () => {
     const complete = useCallback(
         async (action: DocAIAction, text: string, docId?: string, customPrompt?: string, context?: string): Promise<DocAIResponse | undefined> => {
             try {
-                const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000").replace(/\/+$/, '');
-
-                const response = await fetch(`${baseUrl}${PostEndpointUrl.AIDocComplete}`, {
-                    method: "POST",
-                    credentials: "include",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
+                const response = await authedStreamFetch(PostEndpointUrl.AIDocComplete, {
+                    jsonBody: {
                         action,
                         text,
                         prompt: customPrompt || "",
                         doc_id: docId || "",
                         context: context || "",
-                    }),
+                    },
+                    accept: "application/json",
                 });
 
                 if (!response.ok) return undefined;
@@ -468,6 +497,11 @@ export const useDocAI = () => {
     const cancelStream = useCallback(() => {
         abortRef.current?.abort();
         setIsStreaming(false);
+    }, []);
+
+    // Abort on unmount — see useAskAIStream for rationale.
+    useEffect(() => () => {
+        abortRef.current?.abort();
     }, []);
 
     const resetResult = useCallback(() => {

@@ -82,7 +82,7 @@ export function SectionTabs({
                                 key={tab.value}
                                 value={tab.value}
                                 className={cn(
-                                    "relative inline-flex items-center justify-center gap-1.5",
+                                    "group relative inline-flex items-center justify-center gap-1.5",
                                     "h-full px-3 md:px-4 text-sm font-medium whitespace-nowrap",
                                     "text-muted-foreground hover:text-foreground transition-colors",
                                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-inset",
