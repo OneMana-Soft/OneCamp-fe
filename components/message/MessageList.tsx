@@ -6,7 +6,7 @@ import { SeparatorPill } from "@/components/separator/separatorPill"
 import type { VirtualizedListProps } from "@/types/virtual"
 import { debounceUtil } from "@/lib/utils/helpers/debounce"
 import { EmptyState } from "@/components/ui/empty-state"
-import { MessageCircle } from "@/lib/icons";
+import { MessageCircle, Loader2 } from "@/lib/icons";
 
 const STICKY_HEADER_BUFFER = 0
 const OVERSCAN_COUNT = 20
@@ -195,8 +195,8 @@ export const MessageList = <T,>({
         >
             {/* Loading indicator for older messages */}
             {olderMessageLoading && (
-                <div className="flex justify-center py-2">
-                    <span className="text-sm text-muted-foreground">Loading older messages...</span>
+                <div className="flex justify-center py-2.5">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
             )}
 
@@ -204,7 +204,7 @@ export const MessageList = <T,>({
                 <SeparatorPill
                     className="sticky top-1 z-[var(--z-sticky)] transition-opacity duration-200 "
                     lineClassName="bg-transparent"
-                    pillClassName="border-2 bg-background"
+                    pillClassName="shadow-overlay"
                 >
                     {getDateHeading(dateKeys[visibleDateIndex])}
                 </SeparatorPill>
@@ -226,7 +226,7 @@ export const MessageList = <T,>({
                             }}
                         >
                             {item.type === "separator" ? (
-                                <SeparatorPill pillClassName="border-2 bg-background">{getDateHeading(item.date!)}</SeparatorPill>
+                                <SeparatorPill>{getDateHeading(item.date!)}</SeparatorPill>
                             ) : (
                                 renderItem(item.data!, virtualItem.index, items.length)
                             )}
@@ -237,8 +237,8 @@ export const MessageList = <T,>({
 
             {/* Loading indicator for new messages */}
             {newMessageLoading  && (
-                <div className="flex justify-center py-2">
-                    <span className="text-sm text-muted-foreground">Loading new messages...</span>
+                <div className="flex justify-center py-2.5">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
             )}
         </div>

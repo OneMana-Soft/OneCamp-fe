@@ -132,7 +132,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
             transition={{ duration: 0.12, ease: "easeOut" }}
             className={cn(
                 "flex items-center gap-0.5 rounded-lg border border-border/60 p-1",
-                "bg-background/85 shadow-md backdrop-blur-md",
+                "bg-background/85 shadow-overlay backdrop-blur-md",
                 "supports-[backdrop-filter]:bg-background/70",
             )}
         >

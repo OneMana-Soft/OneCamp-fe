@@ -130,7 +130,7 @@ const initialState: RootUIState = {
   docUpdateTitle: { isOpen: false, data: { title: "", docId: "" } },
   createChatMessage: { isOpen: false, data: null },
   forwardMessage: { isOpen: false, data: { chatUUID: "", chatMessageID: "", groupChatMsgID: "", channelUUID: "", postUUID: "" } },
-  attachmentLightbox: { isOpen: false, data: { allMedia: [] as AttachmentMediaReq[], mediaGetUrl: "", media: {} as AttachmentMediaReq } },
+  attachmentLightbox: { isOpen: false, data: { allMedia: [] as AttachmentMediaReq[], mediaGetUrl: "", media: {} as AttachmentMediaReq, analyzeContext: undefined as undefined | { srcKey: string; srcRef: string } } },
   confirmAlert: { isOpen: false, data: { title: "", description: "", confirmText: "Confirm", onConfirm: () => {} } },
   recordingPlayer: { isOpen: false, data: null as RecordingPlayerInterface | null },
   userStatusUpdate: { isOpen: false, data: { userUUID: "" } },

@@ -54,8 +54,8 @@ export function ConnectionStatusIndicator({ compact = false }: ConnectionStatusI
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">
           <p className="font-semibold">{statusText}</p>
-          {error && <p className="text-destructive mt-1 max-w-[200px] break-words">{error}</p>}
-          <p className="text-muted-foreground mt-1 text-[10px]">Real-time connection status</p>
+          {error && <p className="text-primary-foreground/90 mt-1 max-w-[200px] break-words">{error}</p>}
+          <p className="text-primary-foreground/70 mt-1 text-[10px]">Real-time connection status</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

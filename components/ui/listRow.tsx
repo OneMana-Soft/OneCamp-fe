@@ -114,7 +114,7 @@ export const ListRow = React.forwardRef<HTMLDivElement, ListRowProps>(
                     "data-[pressed=true]:bg-accent",
                     // Pointer active fallback (mouse / desktop).
                     "active:bg-accent",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                     selected && "bg-accent text-accent-foreground",
                     d.row,
                     d.gap,

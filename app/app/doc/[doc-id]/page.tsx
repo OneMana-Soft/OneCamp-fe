@@ -2,7 +2,6 @@
 
 import {useMedia} from "@/context/MediaQueryContext";
 import {DocTopBarBreadcrumb} from "@/components/doc/docTopBarBreadcrumb";
-import DocOptionsDesktopTopBar from "@/components/doc/docOptionsDesktopTopBar";
 import MinimalTiptapDocInput from "@/components/docEditor/docInput";
 import {ActiveUsersBar} from "@/components/docEditor/ActiveUsersBar";
 import {cn} from "@/lib/utils/helpers/cn";
@@ -188,6 +187,18 @@ export default function Page() {
     // Focus mode
     const [focusMode, setFocusMode] = React.useState(false);
 
+    // Exit focus mode on Escape so it's never a trap. Only active in focus
+    // mode; an open editor menu (slash/link) that stops propagation closes
+    // first, so a second Escape exits — the expected precedence.
+    React.useEffect(() => {
+        if (!focusMode) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setFocusMode(false);
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [focusMode]);
+
     // Keyboard shortcuts modal
     const [showShortcuts, setShowShortcuts] = React.useState(false);
 
@@ -357,7 +368,6 @@ export default function Page() {
                             <MessageCircle className='h-4 w-4'/>
                             <span className="text-sm">{docCommentCount || 0}</span>
                         </Button>
-                        <DocOptionsDesktopTopBar/>
                     </div>
                 </div>
             )}
@@ -372,7 +382,6 @@ export default function Page() {
                             <MessageCircle className='h-4 w-4'/>
                             <span className="text-sm">{docCommentCount || 0}</span>
                         </Button>
-                        <DocOptionsDesktopTopBar/>
                     </div>
                 </div>
             )}
@@ -399,14 +408,15 @@ export default function Page() {
                 </div>
             )}
 
-            {/* Focus mode exit hint */}
+            {/* Focus mode exit — always visible so it's never a trap; also exits on Esc. */}
             {focusMode && (
-                <div className="fixed top-4 right-4 z-50 opacity-0 hover:opacity-100 transition-opacity">
+                <div className="fixed top-4 right-4 z-50">
                     <Button
                         variant="secondary"
                         size="sm"
                         onClick={() => setFocusMode(false)}
-                        className="shadow-lg"
+                        className="shadow-lg border opacity-80 hover:opacity-100 transition-opacity"
+                        title="Exit focus mode (Esc)"
                     >
                         <Minimize className="h-4 w-4 mr-1.5" />
                         Exit focus mode

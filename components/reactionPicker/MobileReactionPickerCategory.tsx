@@ -23,7 +23,7 @@ export const MobileReactionPickerCategory = React.memo(function MobileReactionPi
                 '[&:first-child>h2]:pl-safe-offset-5 [&:last-child>h2]:pr-safe-offset-3'
             )}
         >
-            <h2 className='sticky left-0 w-fit whitespace-nowrap px-5 py-2 text-base font-medium'>
+            <h2 className='sticky left-0 w-fit whitespace-nowrap px-5 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
                 {getReactionCategoryLabel(id)}
             </h2>
             <div
@@ -35,7 +35,7 @@ export const MobileReactionPickerCategory = React.memo(function MobileReactionPi
                         data-vaul-no-drag
                         key={reaction.id}
                         onClick={() => onReactionSelect(reaction)}
-                        className='flex aspect-square h-10 w-10 shrink-0 items-center justify-center font-[emoji] text-3xl leading-none'
+                        className='flex aspect-square h-10 w-10 shrink-0 items-center justify-center rounded-lg font-[emoji] text-3xl leading-none transition-colors active:bg-accent'
                     >
                         {isStandardReaction(reaction) ? (
                             <span>{reaction.native}</span>

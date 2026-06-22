@@ -12,7 +12,7 @@ export function SeparatorPill({ children, className, pillClassName, lineClassNam
         <div className={cn("relative flex items-center w-full", className)} {...props}>
     <div className={cn("flex-grow h-px bg-border", lineClassName)} />
     <div
-    className={cn("px-3 py-1 mx-2 text-sm font-medium rounded-full bg-muted text-muted-foreground", pillClassName)}
+    className={cn("px-2.5 py-0.5 mx-2 text-xs font-medium rounded-full border border-border bg-background text-muted-foreground", pillClassName)}
 >
     {children}
     </div>

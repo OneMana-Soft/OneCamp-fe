@@ -5,7 +5,7 @@ import type { VirtualizedListProps } from "@/types/virtual"
 import { Virtualizer } from "virtua"
 import { cn } from "@/lib/utils/helpers/cn"
 import {Button} from "@/components/ui/button";
-import { ChevronDown } from "@/lib/icons";
+import { ChevronDown, Loader2 } from "@/lib/icons";
 
 // Memoized item component to prevent unnecessary re-renders
 const MemoizedMessageItem = React.memo(({ item, index, total, renderItem }: { item: any, index: number, total: number, renderItem: any }) => {
@@ -198,7 +198,7 @@ export const MessageListVirtua = <T,>({
                 <SeparatorPill
                     className="sticky top-1 z-[var(--z-sticky)] transition-opacity duration-200"
                     lineClassName="bg-transparent"
-                    pillClassName="border-2 bg-background"
+                    pillClassName="shadow-overlay"
                 >
                     {getDateHeading(dateKeys[visibleDateIndex])}
                 </SeparatorPill>
@@ -253,8 +253,8 @@ export const MessageListVirtua = <T,>({
             >
                 {/* Loading indicator for older messages */}
                 {olderMessageLoading && (
-                    <div className="flex justify-center py-2">
-                        <span className="text-sm text-muted-foreground">Loading older messages...</span>
+                    <div className="flex justify-center py-2.5">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>
                 )}
 
@@ -262,7 +262,7 @@ export const MessageListVirtua = <T,>({
                     return (
                         <div key={item.key}>
                             {item.type === "separator" ? (
-                                <SeparatorPill pillClassName="border-2 bg-background">{getDateHeading(item.date!)}</SeparatorPill>
+                                <SeparatorPill>{getDateHeading(item.date!)}</SeparatorPill>
                             ) : (
                                 <MemoizedMessageItem item={item} index={index} total={items.length} renderItem={renderItem} />
                             )}
@@ -272,7 +272,7 @@ export const MessageListVirtua = <T,>({
             </Virtualizer>
 
             {!isScrolledToBottom && (
-                <Button className="sticky bottom-8 float-right mr-8 z-[var(--z-sticky)] rounded-full" onClick={scrollToBottom} size="icon">
+                <Button className="sticky bottom-2 md:bottom-8 float-right mr-4 md:mr-8 z-[var(--z-sticky)] rounded-full shadow-overlay" onClick={scrollToBottom} size="icon">
                     <ChevronDown />
                 </Button>
             )}

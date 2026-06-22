@@ -86,7 +86,7 @@ const PostsPage = () => {
             <div className="flex-1 overflow-auto">
                 {allPosts.length > 0 ? (
                     <div className="w-full h-full flex justify-center">
-                        <div className="w-full md:w-[40vw] ">
+                        <div className="w-full max-w-[760px]">
                             <VirtualInfiniteScroll
                                 items={allPosts}
                                 renderItem={renderItem}

@@ -17,7 +17,6 @@ import {useSearchReactions} from "@/hooks/reactions/useSearchReactions";
 import {Input} from "@/components/ui/input";
 import {MobileReactionPickerCategory} from "@/components/reactionPicker/MobileReactionPickerCategory";
 import * as React from "react";
-import {app_channel_path} from "@/types/paths"; // Import emoji data
 
 
 export interface MobileReactionPickerProps {
@@ -114,7 +113,7 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
     }), [showCustomReactions, customReactions.data?.data, frequentlyUsedReactions, data, handleReactionSelect])
 
     return (
-        <Drawer open={localOpen} onOpenChange={closeDrawer}>
+        <Drawer open={localOpen} onOpenChange={closeDrawer} repositionInputs={false}>
             <DrawerContent className="bottom-0 left-0 right-0 p-4">
                 <DrawerHeader className='hidden'>
                     <DrawerTitle></DrawerTitle>
@@ -122,14 +121,12 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
 
                 </DrawerHeader>
                 <div className='relative flex w-full flex-col focus:outline-none'>
-                    <div className='mx-auto mt-2 h-1 w-8 rounded-full bg-[--text-primary] opacity-20'/>
-
                     <div className='px-safe-offset-3 pt-3'>
                         <Input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder='Search'
-                            className=' h-10 border-transparent rounded-lg px-3 text-base'
+                            className='h-10 rounded-lg border-transparent bg-muted px-3 text-base focus-visible:bg-background'
                         />
                     </div>
                     <div
