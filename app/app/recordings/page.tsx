@@ -107,11 +107,11 @@ const RecordingsPage = () => {
                 </TouchableDiv>
             )
         }>
-            {i !== 0 && <Separator orientation="horizontal" className="w-[calc(100%-3rem)" />}
+            {i !== 0 && <Separator orientation="horizontal" className="w-[calc(100%-3rem)]" />}
             <div onClick={isMobile ? undefined : () => handleClick(recording)}>
                 <RecordingListRecording recordingInfo={recording} currentUserId={selfProfile?.data.user_uuid} />
             </div>
-            {i == (allRecordings.length-1) && <Separator orientation="horizontal" className="w-[calc(100%-3rem)" />}
+            {i == (allRecordings.length-1) && <Separator orientation="horizontal" className="w-[calc(100%-3rem)]" />}
 
         </ConditionalWrap>
     );
@@ -158,7 +158,7 @@ const RecordingsPage = () => {
             <div className="flex-1 overflow-auto">
                 {allRecordings.length > 0 ? (
                     <div className="w-full h-full flex justify-center">
-                        <div className="w-full md:w-[45vw] flex flex-col">
+                        <div className="w-full max-w-[760px] flex flex-col">
                             <VirtualInfiniteScroll
                                 items={allRecordings}
                                 renderItem={renderItem}

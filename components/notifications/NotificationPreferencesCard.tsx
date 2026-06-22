@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Bell, Mail, Save, Moon } from "@/lib/icons"
+import { Bell, Mail, Save, Moon, Loader2 } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
@@ -279,20 +279,20 @@ export function NotificationPreferencesCard() {
           {working.quiet_hours_enabled && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-md border p-3">
               <div className="space-y-1">
-                <Label htmlFor="qh_start" className="text-xs">Start (HH:MM)</Label>
+                <Label htmlFor="qh_start" className="text-xs">Start</Label>
                 <Input
                   id="qh_start"
-                  placeholder="22:00"
+                  type="time"
                   value={working.quiet_hours_start || ""}
                   onChange={(e) => setField("quiet_hours_start", e.target.value)}
                   disabled={masterOff}
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="qh_end" className="text-xs">End (HH:MM)</Label>
+                <Label htmlFor="qh_end" className="text-xs">End</Label>
                 <Input
                   id="qh_end"
-                  placeholder="07:00"
+                  type="time"
                   value={working.quiet_hours_end || ""}
                   onChange={(e) => setField("quiet_hours_end", e.target.value)}
                   disabled={masterOff}
@@ -343,8 +343,8 @@ export function NotificationPreferencesCard() {
             disabled={!dirty || isLoading || post.isSubmitting}
             className="gap-2"
           >
-            <Save className="h-4 w-4" />
-            Save changes
+            {post.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {post.isSubmitting ? "Saving..." : "Save changes"}
           </Button>
         </div>
       </CardContent>

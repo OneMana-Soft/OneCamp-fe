@@ -149,7 +149,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
         if(chatInfo.chat_attachments) {
             dispatch(openUI({
                 key: 'attachmentLightbox',
-                data: {allMedia: chatInfo.chat_attachments, media: attachment, mediaGetUrl: GetEndpointUrl.GetChatMedia + '/' + otherUserUUID}
+                data: {allMedia: chatInfo.chat_attachments, media: attachment, mediaGetUrl: GetEndpointUrl.GetChatMedia + '/' + otherUserUUID, analyzeContext: { srcKey: 'chat', srcRef: otherUserUUID }}
             }))
 
         }

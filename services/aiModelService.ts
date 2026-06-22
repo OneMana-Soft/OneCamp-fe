@@ -68,6 +68,8 @@ export interface AIConfig {
   embedding_provider_id: string
   embedding_model: string
   embedding_dimension: number
+  vision_provider_id: string
+  vision_model: string
   context_window_tokens: number
   effective_context_window: number
   reasoning_enabled: boolean
@@ -75,6 +77,10 @@ export interface AIConfig {
   memory_layer_enabled: boolean
   team_report_enabled: boolean
   nudges_enabled: boolean
+  coworker_enabled: boolean
+  issue_triage_enabled: boolean
+  code_analysis_max_files: number
+  effective_code_analysis_max_files: number
   circuit_state: string
 }
 
@@ -230,6 +236,12 @@ export async function setChatModel(providerId: string, model: string): Promise<v
   await axiosInstance.post(PostEndpointUrl.SetAIChatModel, { provider_id: providerId, model })
 }
 
+// Sets or clears the optional vision (multimodal) model used for image
+// analysis. Passing empty strings clears the selection (image analysis off).
+export async function setVisionModel(providerId: string, model: string): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIVisionModel, { provider_id: providerId, model })
+}
+
 /**
  * Set the active embedding model. If `dimension` differs from the current
  * index dimension, the backend rejects with HTTP 409 unless `reindex` is
@@ -263,6 +275,11 @@ export async function setAIContextWindow(contextWindowTokens: number): Promise<v
   await axiosInstance.post(PostEndpointUrl.SetAIContextWindow, { context_window_tokens: contextWindowTokens })
 }
 
+// Set the code-agent per-analysis file budget. 0 = use the built-in default.
+export async function setAICodeAnalysisMaxFiles(maxFiles: number): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAICodeAnalysisMaxFiles, { max_files: maxFiles })
+}
+
 // Toggle "thinking"/reasoning mode for reasoning-capable models. false = faster.
 export async function setAIReasoning(enabled: boolean): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAIReasoning, { enabled })
@@ -280,8 +297,181 @@ export async function setTeamReportEnabled(enabled: boolean): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAITeamReport, { enabled })
 }
 
+// Admin verify: run the weekly team report immediately (posts into active
+// channels), bypassing the Monday/hour schedule and the idempotency lock.
+export async function runTeamReportNow(): Promise<{ posted: number; processed: number; msg: string }> {
+  const res = await axiosInstance.post(PostEndpointUrl.RunAITeamReport, {})
+  return {
+    posted: res.data?.data?.posted ?? 0,
+    processed: res.data?.data?.processed ?? 0,
+    msg: res.data?.msg ?? "",
+  }
+}
+
+// Admin verify: email the calling admin a one-off open-items digest now.
+export async function sendTestDigest(): Promise<string> {
+  const res = await axiosInstance.post(PostEndpointUrl.SendAITestDigest, {})
+  return res.data?.msg ?? "Test digest sent."
+}
+
 export async function setNudgesEnabled(enabled: boolean): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAINudges, { enabled })
+}
+
+export async function setCoworkerEnabled(enabled: boolean): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAICoworker, { enabled })
+}
+
+export async function setIssueTriageEnabled(enabled: boolean): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIIssueTriage, { enabled })
+}
+
+// ─── Authorized models (admin allowlist) ──────────────────────────────────
+
+export interface AuthorizedModel {
+  id: string
+  provider_id: string
+  provider_kind: string
+  provider_label: string
+  model: string
+  label: string
+  enabled: boolean
+  provider_enabled: boolean
+  updated_at?: string
+}
+
+export async function getAuthorizedModels(): Promise<AuthorizedModel[]> {
+  const res = await axiosInstance.get(GetEndpointUrl.GetAIAuthorizedModels)
+  return res.data?.data ?? []
+}
+
+export async function authorizeModel(providerId: string, model: string, label = ""): Promise<AuthorizedModel> {
+  const res = await axiosInstance.post(PostEndpointUrl.AuthorizeAIModel, {
+    provider_id: providerId,
+    model,
+    label,
+  })
+  return res.data?.data
+}
+
+export async function setAuthorizedModelEnabled(id: string, enabled: boolean): Promise<void> {
+  await axiosInstance.post(`${PostEndpointUrl.SetAIAuthorizedModelEnabled}/${encodeURIComponent(id)}/enabled`, {
+    enabled,
+  })
+}
+
+export async function revokeAuthorizedModel(id: string): Promise<void> {
+  await axiosInstance.delete(`${PostEndpointUrl.RevokeAIAuthorizedModel}/${encodeURIComponent(id)}`)
+}
+
+// ─── Per-user model choice ─────────────────────────────────────────────────
+
+export interface UserModelOption {
+  id: string
+  model: string
+  label: string
+  provider_label: string
+  provider_kind: string
+}
+
+export interface UserModelsResponse {
+  models: UserModelOption[]
+  selected_model_id: string
+}
+
+export async function getMyModels(): Promise<UserModelsResponse> {
+  const res = await axiosInstance.get(GetEndpointUrl.GetAIMyModels)
+  return res.data?.data ?? { models: [], selected_model_id: "" }
+}
+
+// Set (or clear, when modelId is empty) the current user's model choice.
+export async function setMyModel(modelId: string): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIModelPreference, { model_id: modelId })
+}
+
+// ─── AI self-test ("Test AI") ──────────────────────────────────────────────
+
+export interface SelfTestCheck {
+  name: string
+  passed: boolean
+  detail?: string
+}
+
+export interface SelfTestStatus {
+  state: "idle" | "running" | "completed" | "failed"
+  provider?: string
+  model?: string
+  started_at?: number
+  finished_at?: number
+  passed: number
+  failed: number
+  total: number
+  checks?: SelfTestCheck[]
+  error?: string
+}
+
+// Start an async self-test. modelId targets a specific authorized model; pass
+// "" to test the workspace default. Returns immediately; poll getSelfTestStatus.
+export async function runAISelfTest(modelId = ""): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.RunAISelfTest, modelId ? { model_id: modelId } : {})
+}
+
+export async function getAISelfTestStatus(): Promise<SelfTestStatus> {
+  const res = await axiosInstance.get(GetEndpointUrl.GetAISelfTestStatus)
+  return res.data?.data
+}
+
+// ─── Code-aware bug analysis (member-facing) ────────────────────────────────
+
+export interface CodeAnalysisResult {
+  answer: string
+  files_considered: string[]
+  partial: boolean
+}
+
+export interface AnalyzeCodeInput {
+  owner: string
+  repo: string
+  title: string
+  body: string
+  ref?: string
+  deep?: boolean
+}
+
+// Analyze a bug/issue against a linked GitHub repo and get a root-cause +
+// proposed fix. Read-only against GitHub. `deep` widens the file budget for a
+// "look harder" retry.
+export async function analyzeCodeIssue(input: AnalyzeCodeInput): Promise<CodeAnalysisResult> {
+  const res = await axiosInstance.post(PostEndpointUrl.AnalyzeCode, input)
+  return res.data?.data
+}
+
+// ─── AI release notes (member-facing) ──────────────────────────────────────
+
+export interface ReleaseNotesResult {
+  notes: string
+  pr_count: number
+  days: number
+}
+
+// Draft user-facing release notes from PRs merged on a repo in the last `days`.
+export async function draftReleaseNotes(owner: string, repo: string, days: number): Promise<ReleaseNotesResult> {
+  const res = await axiosInstance.post(PostEndpointUrl.DraftReleaseNotes, { owner, repo, days })
+  return res.data?.data
+}
+
+// ─── AI social posts (member-facing) ────────────────────────────────────────
+
+export interface SocialPostView {
+  platform: string
+  label: string
+  content: string
+}
+
+// Draft platform-tailored social posts (X / Reddit / ...) for a topic.
+export async function draftSocialPosts(topic: string, platforms: string[]): Promise<SocialPostView[]> {
+  const res = await axiosInstance.post(PostEndpointUrl.DraftSocialPosts, { topic, platforms })
+  return res.data?.data ?? []
 }
 
 // ─── Memory backfill ("rebuild memory") ──────────────────────────────────

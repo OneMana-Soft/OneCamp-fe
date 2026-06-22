@@ -147,7 +147,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
     const handleSelectAttachment = (attachment: AttachmentMediaReq) => {
 
         if(chatInfo.chat_attachments) {
-            dispatch(openUI({ key: 'attachmentLightbox', data: {allMedia: chatInfo.chat_attachments, media: attachment, mediaGetUrl: GetEndpointUrl.GetGroupChatMedia + '/' + grpId} }))
+            dispatch(openUI({ key: 'attachmentLightbox', data: {allMedia: chatInfo.chat_attachments, media: attachment, mediaGetUrl: GetEndpointUrl.GetGroupChatMedia + '/' + grpId, analyzeContext: { srcKey: 'grpChat', srcRef: grpId }} }))
 
         }
 

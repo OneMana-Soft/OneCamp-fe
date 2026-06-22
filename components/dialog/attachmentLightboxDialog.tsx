@@ -21,6 +21,7 @@ import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon"
 import { truncateFileName } from "@/lib/utils/format/truncateFileName"
 import { downloadFile } from "@/lib/utils/file/downloadFile"
 import { isImageByExtension } from "@/lib/utils/file/getAttachmentType"
+import { useAnalyzeImage } from "@/services/aiService"
 
 /**
  * Attachment lightbox.
@@ -46,6 +47,12 @@ interface MediaLightboxProps {
     dialogOpenState: boolean
     allMedia: AttachmentMediaReq[]
     mediaGetUrl: string
+    // When provided (and the media is an image), shows an "Analyze with AI"
+    // action. srcKey/srcRef identify the parent for the server-side access
+    // check; the user never supplies them. srcRef is the identifier the FE
+    // already holds (channel uuid, the other user's uuid for a DM, the group
+    // id, or the doc uuid) - the server resolves it to the real src_value.
+    analyzeContext?: { srcKey: string; srcRef: string }
 }
 
 /**
@@ -245,6 +252,7 @@ export function MediaLightboxDialog({
     allMedia,
     mediaGetUrl,
     setOpenState,
+    analyzeContext,
 }: MediaLightboxProps) {
     const [currentMedia, setCurrentMedia] = useState<AttachmentMediaReq>(media)
     const mediaReq = useMediaFetch<GetMediaURLRes>(
@@ -321,6 +329,22 @@ export function MediaLightboxDialog({
         if (!url) return
         downloadFile(url, currentMedia?.attachment_file_name || "attachment")
     }, [mediaReq.data?.url, currentMedia])
+
+    // AI image analysis (only offered when a source context is provided).
+    const { analyzeImage, isSubmitting: analyzing } = useAnalyzeImage()
+    const [aiResult, setAiResult] = useState<string | null>(null)
+    useEffect(() => {
+        setAiResult(null)
+    }, [currentMedia?.attachment_uuid])
+    const runAnalyze = useCallback(async () => {
+        if (!analyzeContext || !currentMedia?.attachment_uuid) return
+        const res = await analyzeImage(
+            currentMedia.attachment_uuid,
+            analyzeContext.srcKey,
+            analyzeContext.srcRef,
+        )
+        if (res?.description) setAiResult(res.description)
+    }, [analyzeContext, currentMedia?.attachment_uuid, analyzeImage])
 
     if (!currentMedia || allMedia?.length == 0) {
         return null
@@ -621,11 +645,35 @@ export function MediaLightboxDialog({
                             )}
                         </div>
 
+                        {/* AI analysis result panel (image only). */}
+                        {aiResult && (
+                            <div className="border-t bg-background px-4 py-3 max-h-40 overflow-y-auto shrink-0">
+                                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    AI analysis
+                                </p>
+                                <p className="text-sm text-foreground whitespace-pre-line">{aiResult}</p>
+                            </div>
+                        )}
+
                         {/* Bottom info / download bar — themed. */}
-                        <div className="flex justify-between items-center px-4 py-3 border-t bg-background shrink-0">
-                            <div className="text-xs text-muted-foreground">
-                                {formatFileSizeForAttachment(currentMedia?.attachment_size || 1)} ·{" "}
-                                {formatDateForAttachment(currentMedia?.attachment_created_at || "")}
+                        <div className="flex justify-between items-center gap-2 px-4 py-3 border-t bg-background shrink-0">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="text-xs text-muted-foreground truncate">
+                                    {formatFileSizeForAttachment(currentMedia?.attachment_size || 1)} ·{" "}
+                                    {formatDateForAttachment(currentMedia?.attachment_created_at || "")}
+                                </div>
+                                {analyzeContext && resolveEffectiveType(currentMedia) === "image" && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={runAnalyze}
+                                        disabled={analyzing}
+                                        className="gap-1.5 shrink-0"
+                                    >
+                                        <span aria-hidden>✨</span>
+                                        {analyzing ? "Analyzing…" : aiResult ? "Re-analyze" : "Analyze with AI"}
+                                    </Button>
+                                )}
                             </div>
                             <Button
                                 variant="outline"
@@ -636,7 +684,7 @@ export function MediaLightboxDialog({
                                         currentMedia?.attachment_file_name,
                                     )
                                 }
-                                className="gap-2"
+                                className="gap-2 shrink-0"
                             >
                                 <Download className="h-4 w-4" />
                                 Download

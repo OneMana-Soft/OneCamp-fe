@@ -30,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Plug, Save, Trash2, X, KeyRound, CheckCircle2, XCircle, Loader2 } from "lucide-react"
+import { Plug, Save, Trash2, X, KeyRound, CheckCircle2, XCircle, Loader2, Settings2, ChevronDown } from "lucide-react"
 import {
   ModelView,
   ProviderView,
@@ -100,6 +100,10 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
   const { provider, models, modelsLoading, onEnsureModels, onDeleteModel, onChanged } = props
   const isOllama = provider.kind === "ollama"
   const isCustom = provider.kind === "openai_compatible"
+  // Only the hosted built-ins always need a key; custom OpenAI-compatible
+  // endpoints (vLLM, LM Studio, ...) and local Ollama can run keyless.
+  const requiresKey = provider.kind === "openai" || provider.kind === "anthropic"
+  const needsKey = requiresKey && !provider.has_api_key
 
   const [baseURL, setBaseURL] = useState(provider.base_url)
   const [apiKey, setApiKey] = useState("") // empty = unchanged
@@ -111,7 +115,35 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
   const [expanded, setExpanded] = useState(isOllama)
 
   const dirty =
-    baseURL !== provider.base_url || apiKey !== "" || enabled !== provider.enabled || insecureTLS !== provider.insecure_tls
+    baseURL !== provider.base_url || apiKey !== "" || insecureTLS !== provider.insecure_tls
+
+  // Enable/disable persists immediately (optimistic) — a toggle that only
+  // saved via the form was the source of "the toggle does nothing". Enabling a
+  // key-required provider with no key would just create a broken "on" state, so
+  // in that one case we open configure and prompt for the key instead.
+  const toggleEnabled = async (next: boolean) => {
+    if (next && needsKey) {
+      setExpanded(true)
+      toast({
+        title: "API key required",
+        description: `Add an API key to enable ${provider.label}.`,
+      })
+      return
+    }
+    const prev = enabled
+    setEnabled(next)
+    setBusy(true)
+    try {
+      await updateProvider(provider.id, { enabled: next })
+      toast({ title: next ? `${provider.label} enabled` : `${provider.label} disabled` })
+      await onChanged()
+    } catch (e: any) {
+      setEnabled(prev) // roll back on failure
+      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const save = async () => {
     setBusy(true)
@@ -181,16 +213,31 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
           <span className="font-medium text-sm truncate">{provider.label}</span>
           {kindBadge(provider.kind)}
           {provider.has_api_key && <Badge variant="outline" className="gap-1"><KeyRound className="h-3 w-3" /> key set</Badge>}
+          {needsKey && (
+            <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400">
+              <KeyRound className="h-3 w-3" /> key required
+            </Badge>
+          )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Switch checked={enabled} disabled={busy} onCheckedChange={setEnabled} />
-          <button
+        <div className="flex items-center gap-3 shrink-0">
+          <Switch
+            checked={enabled}
+            disabled={busy}
+            onCheckedChange={toggleEnabled}
+            aria-label={`Enable ${provider.label}`}
+          />
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => setExpanded((v) => !v)}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            aria-expanded={expanded}
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
           >
-            {expanded ? "hide" : "configure"}
-          </button>
+            <Settings2 className="h-3.5 w-3.5" />
+            Configure
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+          </Button>
         </div>
       </div>
 

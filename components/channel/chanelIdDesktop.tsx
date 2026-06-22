@@ -74,8 +74,8 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
 
     useEffect(() => {
 
-        if(channelInfo.data?.channel_info.ch_is_user_fav) {
-            setFavorite(true)
+        if (channelInfo.data?.channel_info) {
+            setFavorite(!!channelInfo.data.channel_info.ch_is_user_fav)
         }
 
         if(channelInfo.data?.channel_info.notification_type) {

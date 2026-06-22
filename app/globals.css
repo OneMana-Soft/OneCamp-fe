@@ -228,6 +228,12 @@
   body {
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
+    /* Crisp Inter rendering. Without antialiasing, Inter renders heavier and
+       slightly blurry on macOS WebKit/Blink; the subtle negative tracking is
+       what Inter is designed for and gives the app a tighter, premium feel. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.011em;
     @apply bg-background text-foreground;
     overscroll-behavior: none;
     overflow: hidden;
@@ -245,6 +251,15 @@
   a:active,
   button:active {
     @apply opacity-60 md:opacity-100;
+  }
+
+  /* Tighter display tracking for semantic headings. Element selectors keep
+     specificity low, so any explicit tracking-* utility still overrides this. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.02em;
   }
 }
 
@@ -310,7 +325,13 @@
 }
 
 @utility focus-ring {
-  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1 focus-visible:ring-offset-background;
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40;
+}
+
+/* Premium layered elevation for floating surfaces (menus, popovers, dialogs):
+   a soft shadow plus a hairline ring so edges read crisply on any background. */
+@utility shadow-overlay {
+  @apply shadow-lg ring-1 ring-black/[0.06] dark:ring-white/10;
 }
 
 @utility hover-lift {

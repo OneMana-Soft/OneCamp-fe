@@ -1,16 +1,19 @@
 "use client";
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { useAskAIStream } from "@/services/aiService";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import ActionConfirmation from "@/components/ai/ActionConfirmation";
+import AiModelPicker from "@/components/ai/AiModelPicker";
+import ReleaseNotesDialog from "@/components/ai/ReleaseNotesDialog";
+import SocialComposeDialog from "@/components/ai/SocialComposeDialog";
 import { ProposedAction } from "@/services/aiService";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useDispatch } from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
-import { X, Send, Sparkles, Loader2, MessageSquarePlus, Lightbulb, FileText, ArrowUpRight } from "@/lib/icons";
+import { X, Send, Sparkles, Loader2, MessageSquarePlus, Lightbulb, FileText, ArrowUpRight, Megaphone } from "@/lib/icons";
 import { StopCircle } from "lucide-react";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useRouter } from "next/navigation";
@@ -213,6 +216,9 @@ const AiChatPanel: React.FC = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
+    const [socialOpen, setSocialOpen] = useState(false);
+    const [socialTopic, setSocialTopic] = useState("");
     const { askStream, cancelStream, isStreaming, streamText, streamActions, error } = useAskAIStream();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -317,12 +323,22 @@ const AiChatPanel: React.FC = () => {
 
     const handleTextareaInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setInput(e.target.value);
-        // Auto-resize between min and max heights to keep the composer compact
-        // while still letting users review longer prompts before they send.
-        const el = e.target;
+    }, []);
+
+    // Auto-resize the composer between its min and max height on every value
+    // change - typing, deleting, or a programmatic set (e.g. clicking a
+    // suggestion). Resetting to the min first then measuring scrollHeight lets
+    // it BOTH grow and shrink. Runs in a layout effect (not just onChange) so
+    // it also fires for programmatic changes and AFTER the new value is in the
+    // DOM. The composer disables the height transition so this measurement is
+    // synchronous - an animated height makes scrollHeight read a stale value
+    // and the box never shrinks.
+    useLayoutEffect(() => {
+        const el = inputRef.current;
+        if (!el) return;
         el.style.height = "36px";
         el.style.height = Math.min(el.scrollHeight, 120) + "px";
-    }, []);
+    }, [input]);
 
     return (
         <div className="flex flex-col h-full bg-background border-l border-border">
@@ -335,6 +351,27 @@ const AiChatPanel: React.FC = () => {
                     <span className="text-sm font-semibold text-foreground">AI Assistant</span>
                 </div>
                 <div className="flex items-center gap-0.5">
+                    <AiModelPicker />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => setReleaseNotesOpen(true)}
+                        title="Draft release notes"
+                        aria-label="Draft release notes from merged PRs"
+                    >
+                        <FileText className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => { setSocialTopic(""); setSocialOpen(true); }}
+                        title="Draft social posts"
+                        aria-label="Draft social posts for X, Reddit and more"
+                    >
+                        <Megaphone className="h-4 w-4" />
+                    </Button>
                     <Button
                         variant="ghost"
                         size="icon"
@@ -523,7 +560,10 @@ const AiChatPanel: React.FC = () => {
                             "text-[13px] leading-relaxed text-foreground",
                             "placeholder:text-muted-foreground/70",
                             "resize-none outline-none ring-0 focus-visible:ring-0",
-                            "min-h-[36px] max-h-[120px] py-2 px-0",
+                            // transition-none: the height is set imperatively for
+                            // auto-resize; an animated height makes scrollHeight
+                            // read a stale value so the box never shrinks.
+                            "transition-none min-h-[36px] max-h-[120px] py-2 px-0",
                         )}
                         // Keep the input visible & editable while streaming so the user
                         // can compose a follow-up while the assistant finishes its
@@ -568,6 +608,16 @@ const AiChatPanel: React.FC = () => {
                 </p>
             </div>
 
+            <ReleaseNotesDialog
+                open={releaseNotesOpen}
+                onOpenChange={setReleaseNotesOpen}
+                onDraftSocial={(notes) => {
+                    setReleaseNotesOpen(false);
+                    setSocialTopic(notes);
+                    setSocialOpen(true);
+                }}
+            />
+            <SocialComposeDialog open={socialOpen} onOpenChange={setSocialOpen} initialTopic={socialTopic} />
         </div>
     );
 };

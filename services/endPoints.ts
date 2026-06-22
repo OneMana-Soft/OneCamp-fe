@@ -111,6 +111,7 @@ export enum GetEndpointUrl {
 
     // AI Second Brain
     AIStatus = "/ai/status",
+    GetAIMyModels = "/ai/models",
 
     // Slash command framework (user-facing)
     GetCommandCatalog = "/command/catalog",
@@ -134,6 +135,8 @@ export enum GetEndpointUrl {
     GetAISystemStats = "/admin/ai/system",
     GetAIReindexStatus = "/admin/ai/reindex/status",
     GetAIMemoryRebuildStatus = "/admin/ai/memory/rebuild/status",
+    GetAIAuthorizedModels = "/admin/ai/authorized-models",
+    GetAISelfTestStatus = "/admin/ai/self-test/status",
     GetAIBriefing = "/ai/briefing",
     GetChannelMemoryExclusion = "/ai/memory/channel-exclusion",
     GetAIProviderModels = "/admin/ai/providers", // append /{providerId}/models
@@ -328,6 +331,7 @@ export enum PostEndpointUrl {
     SetAIEnabled = "/admin/ai/enabled",
     SetAIRateLimit = "/admin/ai/rate-limit",
     SetAIContextWindow = "/admin/ai/context-window",
+    SetAICodeAnalysisMaxFiles = "/admin/ai/code-analysis-max-files",
     SetAIReasoning = "/admin/ai/reasoning",
     SetAIMeetingRecap = "/admin/ai/meeting-recap",
     CreateAIProvider = "/admin/ai/providers",
@@ -335,12 +339,22 @@ export enum PostEndpointUrl {
     UpdateAIProvider = "/admin/ai/providers", // append /{providerId} (PATCH)
     DeleteAIProvider = "/admin/ai/providers", // append /{providerId} (DELETE)
     SetAIChatModel = "/admin/ai/chat-model",
+    SetAIVisionModel = "/admin/ai/vision-model",
     SetAIEmbeddingModel = "/admin/ai/embedding-model",
     PullAIModel = "/admin/ai/models/pull",
     DeleteAIModel = "/admin/ai/models/delete",
     SetAIMemoryLayer = "/admin/ai/memory-layer",
     SetAITeamReport = "/admin/ai/team-report",
+    RunAITeamReport = "/admin/ai/team-report/run",
+    SendAITestDigest = "/admin/ai/memory/digest/test",
     SetAINudges = "/admin/ai/nudges",
+    SetAICoworker = "/admin/ai/coworker",
+    SetAIIssueTriage = "/admin/ai/issue-triage",
+    AuthorizeAIModel = "/admin/ai/authorized-models",
+    SetAIAuthorizedModelEnabled = "/admin/ai/authorized-models", // append /{id}/enabled
+    RevokeAIAuthorizedModel = "/admin/ai/authorized-models", // append /{id} (DELETE)
+    RunAISelfTest = "/admin/ai/self-test",
+    SetAIModelPreference = "/ai/model-preference",
     RebuildAIMemory = "/admin/ai/memory/rebuild",
     UpdateMemoryStatus = "/ai/memory", // append /{id}/status
     DeleteMemoryItem = "/ai/memory", // append /{id}
@@ -363,11 +377,15 @@ export enum PostEndpointUrl {
     AISummarizeDM = "/ai/summarize/dm",
     AISummarizeGroup = "/ai/summarize/group",
     AIAsk = "/ai/ask",
+    AIAnalyzeImage = "/ai/analyze-image",
     AIAskStream = "/ai/ask/stream",
     AICatchUp = "/ai/catch-up",
     AIDocComplete = "/ai/doc/complete",
     AIDocCompleteStream = "/ai/doc/complete/stream",
     AIExecuteAction = "/ai/action/execute",
+    AnalyzeCode = "/ai/code/analyze",
+    DraftReleaseNotes = "/ai/release-notes",
+    DraftSocialPosts = "/ai/social-posts",
     AIInCallAskStream = "/ai/in-call/ask/stream",
 
     // Slash command framework (user-facing)

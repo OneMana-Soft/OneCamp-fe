@@ -31,6 +31,7 @@ export const ChatMessage = React.memo(({ updatePost, chatInfo, addReaction, remo
     <BaseMessageCard
       message={mapChatInfoToBaseMessage(chatInfo)}
       mediaGetUrl={GetEndpointUrl.GetChatMedia + "/" + otherUserUUID}
+      analyzeContext={{ srcKey: "chat", srcRef: otherUserUUID }}
       rightPanelConfig={{ chatMessageUUID: chatInfo.chat_uuid, chatUUID: otherUserUUID, channelUUID: "", postUUID: "", taskUUID: "", groupUUID: "", docUUID: "" }}
       hoverOptionsConfig={{ chatUUID: otherUserUUID, chatMessageID: chatInfo.chat_uuid, chatGrpID }}
       isAdmin={isAdmin}

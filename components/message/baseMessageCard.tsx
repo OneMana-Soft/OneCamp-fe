@@ -133,6 +133,12 @@ export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
 export interface BaseMessageCardProps {
   message: BaseMessage
   mediaGetUrl: string
+  // Optional source context that enables the "Analyze with AI" action in the
+  // attachment lightbox. srcRef is the identifier the FE already holds
+  // (channel uuid, the other user's uuid for a DM, or the group id); the
+  // server resolves it to the real src_value and enforces access. Omitted for
+  // surfaces the vision backend doesn't support (task/project/profile).
+  analyzeContext?: { srcKey: string; srcRef: string }
   rightPanelConfig: RightPanelConfig
   hoverOptionsConfig: {
     chatUUID?: string
@@ -155,6 +161,7 @@ export interface BaseMessageCardProps {
 export const BaseMessageCard = React.memo(({
   message,
   mediaGetUrl,
+  analyzeContext,
   rightPanelConfig,
   hoverOptionsConfig,
   isAdmin,
@@ -233,12 +240,12 @@ export const BaseMessageCard = React.memo(({
         dispatch(
           openUI({
             key: "attachmentLightbox",
-            data: { allMedia: message.attachments, media: attachment, mediaGetUrl },
+            data: { allMedia: message.attachments, media: attachment, mediaGetUrl, analyzeContext },
           }),
         )
       }
     },
-    [message.attachments, mediaGetUrl, dispatch],
+    [message.attachments, mediaGetUrl, analyzeContext, dispatch],
   )
 
   const handleOpenThread = useCallback(() => {

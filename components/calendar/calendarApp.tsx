@@ -32,6 +32,7 @@ import { calendarColors } from "@/lib/colors";
 import { useDispatch } from "react-redux";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { CreateCalendarEventDialog } from "@/components/calendar/createCalendarEventDialog";
+import { WeekView } from "@/components/calendar/weekView";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
@@ -48,6 +49,7 @@ export function CalendarApp() {
     const router = useRouter();
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [miniCalendarMonth, setMiniCalendarMonth] = useState(new Date());
+    const [view, setView] = useState<"month" | "week">("month");
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [defaultDate, setDefaultDate] = useState<Date | undefined>(undefined);
     
@@ -60,8 +62,8 @@ export function CalendarApp() {
     // Generate Calendar Grid Date Boundaries early for fetches
     const monthStart = useMemo(() => startOfMonth(currentMonth), [currentMonth]);
     const monthEnd = useMemo(() => endOfMonth(monthStart), [monthStart]);
-    const startDate = useMemo(() => startOfWeek(monthStart), [monthStart]);
-    const endDate = useMemo(() => endOfWeek(monthEnd), [monthEnd]);
+    const startDate = useMemo(() => view === "week" ? startOfWeek(currentMonth) : startOfWeek(monthStart), [view, currentMonth, monthStart]);
+    const endDate = useMemo(() => view === "week" ? endOfWeek(currentMonth) : endOfWeek(monthEnd), [view, currentMonth, monthEnd]);
 
     // Fetch personal events
     const { data: eventsRes, isLoading: isLoadingEvents, mutate: mutateEvents } = useFetch<GetEventsResponse>(
@@ -134,6 +136,10 @@ export function CalendarApp() {
     const nextMonth = () => { setCurrentMonth(addMonths(currentMonth, 1)); setMiniCalendarMonth(addMonths(currentMonth, 1)); }
     const prevMonth = () => { setCurrentMonth(subMonths(currentMonth, 1)); setMiniCalendarMonth(subMonths(currentMonth, 1)); }
     const goToToday = () => { const now = new Date(); setCurrentMonth(now); setMiniCalendarMonth(now); }
+
+    // View-aware navigation: steps by week in week view, by month otherwise.
+    const goPrev = () => { const d = view === "week" ? addDays(currentMonth, -7) : subMonths(currentMonth, 1); setCurrentMonth(d); setMiniCalendarMonth(d); }
+    const goNext = () => { const d = view === "week" ? addDays(currentMonth, 7) : addMonths(currentMonth, 1); setCurrentMonth(d); setMiniCalendarMonth(d); }
     
     const nextMiniMonth = () => setMiniCalendarMonth(addMonths(miniCalendarMonth, 1));
     const prevMiniMonth = () => setMiniCalendarMonth(subMonths(miniCalendarMonth, 1));
@@ -563,8 +569,8 @@ export function CalendarApp() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={prevMonth}
-                                    aria-label="Previous month"
+                                    onClick={goPrev}
+                                    aria-label={view === "week" ? "Previous week" : "Previous month"}
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
@@ -572,15 +578,35 @@ export function CalendarApp() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8"
-                                    onClick={nextMonth}
-                                    aria-label="Next month"
+                                    onClick={goNext}
+                                    aria-label={view === "week" ? "Next week" : "Next month"}
                                 >
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             </div>
                             <span className="text-base font-semibold tracking-tight text-foreground truncate">
-                                {format(currentMonth, "MMMM yyyy")}
+                                {view === "week"
+                                    ? `${format(startDate, "MMM d")} - ${format(endDate, "MMM d, yyyy")}`
+                                    : format(currentMonth, "MMMM yyyy")}
                             </span>
+                            <div className="ml-1 flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
+                                {(["month", "week"] as const).map((v) => (
+                                    <button
+                                        key={v}
+                                        type="button"
+                                        onClick={() => setView(v)}
+                                        aria-pressed={view === v}
+                                        className={cn(
+                                            "rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors",
+                                            view === v
+                                                ? "bg-background text-foreground shadow-sm"
+                                                : "text-muted-foreground hover:text-foreground",
+                                        )}
+                                    >
+                                        {v}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
@@ -612,28 +638,47 @@ export function CalendarApp() {
                 </header>
 
                 <div className="flex-1 overflow-y-auto bg-background custom-scrollbar">
-                    {/* Calendar Grid Container */}
-                    <div className="min-w-[800px] flex flex-col h-full"> 
-                        {/* Days of week header */}
-                        <div className="grid grid-cols-7 w-full border-b border-border/60 sticky top-0 bg-background z-20 border-l text-center">
-                            {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((dayName, i) => (
-                                <div key={dayName} className="py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60">
-                                    {dayName}
-                                </div>
-                            ))}
+                    {(isLoadingEvents || isLoadingTasks) ? (
+                        <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] text-muted-foreground gap-4">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p>Syncing calendar...</p>
                         </div>
-                        
-                        {(isLoadingEvents || isLoadingTasks) ? (
-                            <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] text-muted-foreground gap-4">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                <p>Syncing calendar...</p>
+                    ) : view === "week" ? (
+                        <div className="min-w-[760px] h-full">
+                            <WeekView
+                                weekStart={startDate}
+                                events={personalEvents}
+                                tasks={tasks}
+                                showEvents={showEvents}
+                                showTasks={showTasks}
+                                onSlotClick={(date) => { setDefaultDate(date); setIsCreateOpen(true); }}
+                                onEventClick={(uuid) => {
+                                    if (isMobile) { router.push(`/app/calendar/event/${uuid}`); return; }
+                                    dispatch(openRightPanel({ eventUUID: uuid, viewStartDate: startDate.toISOString(), viewEndDate: endDate.toISOString() }));
+                                }}
+                                onTaskClick={(uuid) => {
+                                    if (isMobile) { router.push(`/app/task/${uuid}`); return; }
+                                    dispatch(openRightPanel({ taskUUID: uuid }));
+                                }}
+                            />
+                        </div>
+                    ) : (
+                        /* Calendar Grid Container */
+                        <div className="min-w-[800px] flex flex-col h-full">
+                            {/* Days of week header */}
+                            <div className="grid grid-cols-7 w-full border-b border-border/60 sticky top-0 bg-background z-20 border-l text-center">
+                                {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((dayName) => (
+                                    <div key={dayName} className="py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60">
+                                        {dayName}
+                                    </div>
+                                ))}
                             </div>
-                        ) : (
+
                             <div className="flex flex-col w-full flex-1">
                                 {weeks}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             </main>
 

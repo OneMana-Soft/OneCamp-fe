@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { cn } from "@/lib/utils/helpers/cn";
 import { useExecuteAction, type ProposedAction } from '@/services/aiService';
 import { createPostLocally, updateChannelScrollToBottom } from '@/store/slice/channelSlice';
-import { createListForTaskInfo, updateTaskDueDateInTaskList } from '@/store/slice/taskInfoSlice';
+import { createListForTaskInfo, updateTaskDueDateInTaskList, updateTaskStatusInTaskList, updateTaskAssigneeInTaskList } from '@/store/slice/taskInfoSlice';
 import { createChat } from '@/store/slice/chatSlice';
 import { createGroupChat } from '@/store/slice/groupChatSlice';
 import { useFetchOnlyOnce } from '@/hooks/useFetch';
@@ -120,6 +120,30 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                     dispatch(createListForTaskInfo({ tasksInfo: [] }));
                 }
 
+                // Live-patch the visible task list so agent task edits show
+                // immediately, without a page refresh. task_uuid in action_data
+                // is the server-reconciled id, so it always matches a row.
+                if (data?.tool === 'update_task_status' && data.task_uuid) {
+                    dispatch(updateTaskStatusInTaskList({ taskId: data.task_uuid, value: data.status || '' }));
+                }
+
+                if (data?.tool === 'set_task_due_date' && data.task_uuid) {
+                    dispatch(updateTaskDueDateInTaskList({ taskId: data.task_uuid, value: data.due_date || '' }));
+                }
+
+                if (data?.tool === 'assign_task' && data.task_uuid) {
+                    dispatch(updateTaskAssigneeInTaskList({
+                        taskId: data.task_uuid,
+                        assignee: data.assignee_uuid
+                            ? {
+                                user_uuid: data.assignee_uuid,
+                                user_name: data.assignee_name || data.assignee_full_name || '',
+                                user_profile_object_key: '',
+                            }
+                            : undefined,
+                    }));
+                }
+
                 if (action.tool_name === 'set_reminder' && action.params.task_uuid) {
                     dispatch(updateTaskDueDateInTaskList({
                         taskId: action.params.task_uuid,
@@ -160,9 +184,9 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                     {Object.entries(action.params || {})
                                         .filter(([key]) => !key.endsWith('_uuid'))
                                         .map(([key, value]) => (
-                                        <div key={key} className="flex gap-2">
+                                        <div key={key} className="flex gap-2 min-w-0">
                                             <span className="text-muted-foreground capitalize min-w-[80px] font-medium">{key.replace(/_/g, ' ')}:</span>
-                                            <span className="text-foreground break-words">{value as string}</span>
+                                            <div className="text-foreground break-words whitespace-pre-wrap flex-1 min-w-0 max-h-40 overflow-y-auto">{value as string}</div>
                                         </div>
                                     ))}
                                 </div>

@@ -30,6 +30,7 @@ export const ChannelMessage = ({ updatePost, postInfo, addReaction, removeReacti
     <BaseMessageCard
       message={mapPostsResToBaseMessage(postInfo)}
       mediaGetUrl={GetEndpointUrl.GetChannelMedia + "/" + channelId}
+      analyzeContext={{ srcKey: "channel", srcRef: channelId }}
       rightPanelConfig={{ channelUUID: channelId, postUUID: postInfo.post_uuid || "", chatMessageUUID: "", chatUUID: "", taskUUID: "", groupUUID: "", docUUID: "" }}
       hoverOptionsConfig={{ channelUUID: channelId, postUUID: postInfo.post_uuid }}
       isAdmin={isAdmin}

@@ -39,20 +39,28 @@ import {
   setAIEnabled,
   setAIRateLimit,
   setAIContextWindow,
+  setAICodeAnalysisMaxFiles,
   setAIReasoning,
   setMeetingRecapEnabled,
   setMemoryLayerEnabled,
   setTeamReportEnabled,
+  runTeamReportNow,
+  sendTestDigest,
   setNudgesEnabled,
+  setCoworkerEnabled,
+  setIssueTriageEnabled,
   rebuildAIMemory,
   getMemoryBackfillStatus,
   setChatModel,
+  setVisionModel,
   setEmbeddingModel,
   deleteModel,
 } from "@/services/aiModelService"
 import { ProviderEditor } from "@/components/admin/ai/ProviderEditor"
 import { SystemStatsBar } from "@/components/admin/ai/SystemStatsBar"
 import { ModelCombobox } from "@/components/admin/ai/ModelCombobox"
+import AuthorizedModelsSection from "@/components/admin/ai/AuthorizedModelsSection"
+import AISelfTestSection from "@/components/admin/ai/AISelfTestSection"
 
 const AIModelsCard = () => {
   const { toast } = useToast()
@@ -237,6 +245,35 @@ const AIModelsCard = () => {
     }
   }
 
+  // Admin verify: run the weekly team report now (posts into active channels),
+  // bypassing the Monday/hour schedule + idempotency lock.
+  const [runningReport, setRunningReport] = useState(false)
+  const handleRunTeamReport = async () => {
+    setRunningReport(true)
+    try {
+      const res = await runTeamReportNow()
+      toast({ title: "Team report run", description: res.msg || `Posted ${res.posted} report(s).` })
+    } catch (e: any) {
+      toast({ title: "Could not run team report", description: e?.response?.data?.msg || e?.message || "failed", variant: "destructive" })
+    } finally {
+      setRunningReport(false)
+    }
+  }
+
+  // Admin verify: email the calling admin a one-off open-items digest now.
+  const [sendingDigest, setSendingDigest] = useState(false)
+  const handleSendTestDigest = async () => {
+    setSendingDigest(true)
+    try {
+      const msg = await sendTestDigest()
+      toast({ title: "Test digest sent", description: msg })
+    } catch (e: any) {
+      toast({ title: "Could not send test digest", description: e?.response?.data?.msg || e?.message || "failed", variant: "destructive" })
+    } finally {
+      setSendingDigest(false)
+    }
+  }
+
   const handleToggleNudges = async (enabled: boolean) => {
     setSaving(true)
     try {
@@ -245,6 +282,32 @@ const AIModelsCard = () => {
       toast({ title: enabled ? "Proactive Nudges enabled" : "Proactive Nudges disabled" })
     } catch {
       toast({ title: "Error", description: "Failed to toggle Proactive Nudges", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleToggleCoworker = async (enabled: boolean) => {
+    setSaving(true)
+    try {
+      await setCoworkerEnabled(enabled)
+      setConfig((c) => (c ? { ...c, coworker_enabled: enabled } : c))
+      toast({ title: enabled ? "AI Coworker enabled" : "AI Coworker disabled" })
+    } catch {
+      toast({ title: "Error", description: "Failed to toggle AI Coworker", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleToggleIssueTriage = async (enabled: boolean) => {
+    setSaving(true)
+    try {
+      await setIssueTriageEnabled(enabled)
+      setConfig((c) => (c ? { ...c, issue_triage_enabled: enabled } : c))
+      toast({ title: enabled ? "GitHub auto-review enabled" : "GitHub auto-review disabled" })
+    } catch {
+      toast({ title: "Error", description: "Failed to toggle GitHub auto-review", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -335,6 +398,16 @@ const AIModelsCard = () => {
               await setAIContextWindow(n)
               setConfig((c) => (c ? { ...c, context_window_tokens: n } : c))
               toast({ title: "Context window updated" })
+            }}
+          />
+
+          <CodeAnalysisRow
+            initial={config.code_analysis_max_files}
+            effective={config.effective_code_analysis_max_files}
+            onSave={async (n) => {
+              await setAICodeAnalysisMaxFiles(n)
+              setConfig((c) => (c ? { ...c, code_analysis_max_files: n } : c))
+              toast({ title: "Code analysis budget updated" })
             }}
           />
 
@@ -449,20 +522,50 @@ const AIModelsCard = () => {
             )}
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
-            <div className="pr-4">
-              <h4 className="text-sm font-medium">Weekly Team Report</h4>
-              <p className="text-xs text-muted-foreground">
-                Post a weekly &quot;state of the channel&quot; report — open decisions, commitments (with owners),
-                and unresolved questions — into each active channel, grounded in workspace memory. Requires
-                Workspace Memory.
-              </p>
+          <div className="rounded-lg border border-border bg-card/50 p-4">
+            <div className="flex items-center justify-between">
+              <div className="pr-4">
+                <h4 className="text-sm font-medium">Weekly Team Report</h4>
+                <p className="text-xs text-muted-foreground">
+                  Post a weekly &quot;state of the channel&quot; report — open decisions, commitments (with owners),
+                  and unresolved questions — into each active channel, grounded in workspace memory. Requires
+                  Workspace Memory.
+                </p>
+              </div>
+              <Switch
+                checked={config.team_report_enabled}
+                disabled={saving || !config.enabled || !config.memory_layer_enabled}
+                onCheckedChange={handleToggleTeamReport}
+              />
             </div>
-            <Switch
-              checked={config.team_report_enabled}
-              disabled={saving || !config.enabled || !config.memory_layer_enabled}
-              onCheckedChange={handleToggleTeamReport}
-            />
+
+            {/* Verify: the report POSTS INTO CHANNELS on a weekly schedule; the
+                email path is the opt-in per-user digest. These buttons let an
+                admin confirm both now instead of waiting for the schedule. */}
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={runningReport || !config.enabled || !config.memory_layer_enabled}
+                onClick={handleRunTeamReport}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${runningReport ? "animate-spin" : ""}`} />
+                {runningReport ? "Running…" : "Run now (post to channels)"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={sendingDigest || !config.enabled || !config.memory_layer_enabled}
+                onClick={handleSendTestDigest}
+              >
+                <Lightbulb className="h-3.5 w-3.5 mr-1.5" />
+                {sendingDigest ? "Sending…" : "Email me a test digest"}
+              </Button>
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              The report posts into channels (not email). The only email is the per-user open-items digest, which
+              each member opts into under their notification settings — &quot;Email me a test digest&quot; sends one to you now.
+            </p>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
@@ -478,6 +581,39 @@ const AIModelsCard = () => {
               checked={config.nudges_enabled}
               disabled={saving || !config.enabled || !config.memory_layer_enabled}
               onCheckedChange={handleToggleNudges}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
+            <div className="pr-4">
+              <h4 className="text-sm font-medium">AI Coworker (@mention)</h4>
+              <p className="text-xs text-muted-foreground">
+                Let members @mention the AI in a channel to get an answer posted right there, grounded only in
+                that channel&apos;s recent messages and the asker&apos;s access. It only ever replies when
+                explicitly mentioned, so it stays quiet otherwise.
+              </p>
+            </div>
+            <Switch
+              checked={config.coworker_enabled}
+              disabled={saving || !config.enabled}
+              onCheckedChange={handleToggleCoworker}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
+            <div className="pr-4">
+              <h4 className="text-sm font-medium">GitHub auto-review (issues &amp; PRs)</h4>
+              <p className="text-xs text-muted-foreground">
+                When a new issue or pull request is opened on a linked repo, the AI reviews it against the repo
+                code and posts its findings (a proposed fix for issues, a review for PRs) as a comment on the
+                linked task. Read-only: nothing is pushed back to GitHub. Off by default since it uses one AI
+                call per opened issue or PR.
+              </p>
+            </div>
+            <Switch
+              checked={config.issue_triage_enabled}
+              disabled={saving || !config.enabled}
+              onCheckedChange={handleToggleIssueTriage}
             />
           </div>
         </section>
@@ -496,6 +632,16 @@ const AIModelsCard = () => {
             await refreshStats()
           }}
         />
+
+        <Separator />
+
+        {/* Member-selectable model allowlist */}
+        <AuthorizedModelsSection config={config} />
+
+        <Separator />
+
+        {/* Admin "Test AI" — real-model validation from the dashboard */}
+        <AISelfTestSection config={config} />
       </CardContent>
     </Card>
   )
@@ -621,6 +767,77 @@ const ContextWindowRow: React.FC<{
   )
 }
 
+// CodeAnalysisRow lets an admin choose how thorough the code-aware bug agent
+// is, as a simple Quick / Balanced / Thorough preset rather than a raw file
+// count. The presets map to a file budget under the hood; cost is ultimately
+// bounded by the model context window, so this only trades breadth vs speed.
+const CODE_DEPTH_PRESETS: { label: string; value: number; hint: string }[] = [
+  { label: "Quick", value: 3, hint: "Fewer files, fastest" },
+  { label: "Balanced", value: 6, hint: "Recommended" },
+  { label: "Thorough", value: 12, hint: "More files, slower" },
+]
+
+const CodeAnalysisRow: React.FC<{
+  initial: number
+  effective: number
+  onSave: (n: number) => Promise<void>
+}> = ({ initial, effective, onSave }) => {
+  const [busy, setBusy] = useState(false)
+  // Map the stored/effective file budget to the nearest preset for display.
+  const current = (() => {
+    const v = initial > 0 ? initial : effective
+    let best = CODE_DEPTH_PRESETS[1].value
+    let bestDist = Infinity
+    for (const p of CODE_DEPTH_PRESETS) {
+      const d = Math.abs(p.value - v)
+      if (d < bestDist) {
+        bestDist = d
+        best = p.value
+      }
+    }
+    return best
+  })()
+
+  const pick = async (value: number) => {
+    if (busy || value === current) return
+    setBusy(true)
+    try {
+      await onSave(value)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card/50 p-4">
+      <Label className="text-sm font-semibold">Code analysis depth</Label>
+      <p className="text-xs text-muted-foreground mb-3">
+        How many repo files the bug-analysis agent reviews per run. More is better grounded but slower. Cost stays
+        bounded by your model&apos;s context window.
+      </p>
+      <div className="inline-flex rounded-md border border-border overflow-hidden">
+        {CODE_DEPTH_PRESETS.map((p) => (
+          <button
+            key={p.value}
+            type="button"
+            disabled={busy}
+            onClick={() => pick(p.value)}
+            title={p.hint}
+            className={
+              "px-3 py-1.5 text-xs font-medium transition-colors border-r border-border last:border-r-0 " +
+              (p.value === current
+                ? "bg-primary text-primary-foreground"
+                : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50")
+            }
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Active model selection ───────────────────────────────────────────
 
 interface SectionProps {
@@ -648,8 +865,12 @@ const ActiveModelSection: React.FC<SectionProps> = ({
   const [embProvider, setEmbProvider] = useState(config.embedding_provider_id)
   const [embModel, setEmbModel] = useState(config.embedding_model)
   const [embDim, setEmbDim] = useState(config.embedding_dimension)
+  // Vision selection state (optional multimodal model for image analysis).
+  const [visionProvider, setVisionProvider] = useState(config.vision_provider_id)
+  const [visionModel, setVisionModelState] = useState(config.vision_model)
   const [savingChat, setSavingChat] = useState(false)
   const [savingEmb, setSavingEmb] = useState(false)
+  const [savingVision, setSavingVision] = useState(false)
 
   useEffect(() => {
     if (chatProvider) onEnsureModels(chatProvider)
@@ -657,6 +878,41 @@ const ActiveModelSection: React.FC<SectionProps> = ({
   useEffect(() => {
     if (embProvider) onEnsureModels(embProvider)
   }, [embProvider, onEnsureModels])
+  useEffect(() => {
+    if (visionProvider) onEnsureModels(visionProvider)
+  }, [visionProvider, onEnsureModels])
+
+  const saveVision = async () => {
+    setSavingVision(true)
+    try {
+      // Empty provider+model clears the selection (image analysis off).
+      await setVisionModel(visionProvider || "", visionModel || "")
+      toast({
+        title: visionProvider && visionModel ? "Vision model updated" : "Vision turned off",
+        description: visionProvider && visionModel ? `${visionModel} will analyze images.` : "Image analysis is disabled.",
+      })
+      await onChanged()
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } finally {
+      setSavingVision(false)
+    }
+  }
+
+  const turnOffVision = async () => {
+    setVisionProvider("")
+    setVisionModelState("")
+    setSavingVision(true)
+    try {
+      await setVisionModel("", "")
+      toast({ title: "Vision turned off", description: "Image analysis is disabled." })
+      await onChanged()
+    } catch (e: any) {
+      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } finally {
+      setSavingVision(false)
+    }
+  }
 
   const saveChat = async () => {
     if (!chatProvider || !chatModel) {
@@ -769,6 +1025,41 @@ const ActiveModelSection: React.FC<SectionProps> = ({
           Current index dimension: {config.embedding_dimension}. Switching to a model with a different
           dimension rebuilds the search index.
         </p>
+      </div>
+
+      {/* Vision model (optional) */}
+      <div className="space-y-2">
+        <ModelSelectorRow
+          title="Vision model (optional)"
+          hint="Lets the AI analyze images and GIFs. Pick a multimodal model (e.g. gpt-4o, a Claude vision model, or local llava / llama3.2-vision). Leave unset to keep image analysis off. Text documents do not need this."
+          providers={enabledProviders}
+          providerId={visionProvider}
+          model={visionModel}
+          models={modelsByProvider[visionProvider] ?? []}
+          loading={!!modelsLoading[visionProvider]}
+          onProviderChange={(id) => {
+            setVisionProvider(id)
+            setVisionModelState("")
+          }}
+          onModelChange={setVisionModelState}
+          onRefreshModels={() => onEnsureModels(visionProvider, true)}
+          onSave={saveVision}
+          saving={savingVision}
+          extra={
+            config.vision_model ? (
+              <Button variant="outline" className="h-9" onClick={turnOffVision} disabled={savingVision}>
+                Turn off
+              </Button>
+            ) : undefined
+          }
+        />
+        {config.vision_model ? (
+          <p className="text-xs text-muted-foreground">
+            Active vision model: <span className="font-medium text-foreground">{config.vision_model}</span>.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">No vision model set. Image analysis is unavailable.</p>
+        )}
       </div>
     </section>
   )

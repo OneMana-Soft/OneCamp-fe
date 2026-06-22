@@ -548,3 +548,39 @@ export const useExecuteAction = () => {
 
     return { executeAction, isSubmitting };
 };
+
+export interface AnalyzeImageResponse {
+    description: string;
+}
+
+/**
+ * Hook for analyzing an image attachment with the configured vision model.
+ * The caller passes identifiers it already holds from the rendered message
+ * (attachment uuid + its source); the user never provides an id. Access is
+ * enforced server-side. Returns undefined and surfaces a toast on failure
+ * (e.g. no vision model configured, or no access).
+ */
+export const useAnalyzeImage = () => {
+    const { makeRequest, isSubmitting } = usePost();
+
+    const analyzeImage = useCallback(
+        async (
+            objUuid: string,
+            srcKey: string,
+            srcRef: string,
+            prompt?: string,
+        ): Promise<AnalyzeImageResponse | undefined> => {
+            return makeRequest<
+                { obj_uuid: string; src_key: string; src_ref: string; prompt?: string },
+                AnalyzeImageResponse
+            >({
+                apiEndpoint: PostEndpointUrl.AIAnalyzeImage,
+                payload: { obj_uuid: objUuid, src_key: srcKey, src_ref: srcRef, prompt },
+                showToast: true,
+            });
+        },
+        [makeRequest],
+    );
+
+    return { analyzeImage, isSubmitting };
+};

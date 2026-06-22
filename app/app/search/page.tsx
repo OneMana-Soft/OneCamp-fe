@@ -137,6 +137,16 @@ export default function SearchPage() {
                                 )}
                             </div>
                         ))
+                    ) : !query ? (
+                        <div className="flex flex-col items-center justify-center py-24 text-center">
+                            <div className="p-6 rounded-full bg-muted/50 mb-6">
+                                <Search className="h-12 w-12 text-muted-foreground opacity-50" />
+                            </div>
+                            <h2 className="text-base font-semibold text-foreground">Search your workspace</h2>
+                            <p className="mt-2 text-muted-foreground max-w-xs mx-auto">
+                                Find chats, posts, docs, and people across everything you have access to.
+                            </p>
+                        </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-24 text-center">
                             <div className="p-6 rounded-full bg-muted/50 mb-6 transition-transform duration-500 hover:scale-110">

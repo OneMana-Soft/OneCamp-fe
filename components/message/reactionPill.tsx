@@ -39,12 +39,20 @@ export const ReactionPill =  ({ emojiId, reactionUserNames, onClickEmoji, isSele
 
             <Tooltip>
                 <TooltipTrigger asChild>
-                        <Button variant="outline" onClick={onClickEmojiHandle}  className={`bg-ascent px-1 h-6 rounded-full items-center text-sm ${isSelected?'bg-blue-200 border border-blue-500 dark:border-0 dark:bg-blue-700/80 hover:bg-blue-700/80':''}`}>
+                        <Button
+                            variant="outline"
+                            onClick={onClickEmojiHandle}
+                            className={`px-1.5 h-6 rounded-full items-center gap-1 transition-colors ${
+                                isSelected
+                                    ? "bg-blue-100 border-blue-400 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/20 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-500/20"
+                                    : ""
+                            }`}
+                        >
                             <div className='flex justify-center items-center gap-1'>
-                                <span className="text-base">{emojiString}</span>
-                                <div >
+                                <span className="text-base leading-none">{emojiString}</span>
+                                <span className="text-xs font-medium tabular-nums">
                                     {reactionUserNames.length || 0}
-                                </div>
+                                </span>
                             </div>
                         </Button>
                 </TooltipTrigger>

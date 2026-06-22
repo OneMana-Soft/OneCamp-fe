@@ -1,10 +1,13 @@
 "use client"
 
-import { Github, GitBranch, Link2, RefreshCw, Download, Copy, AlertCircle, CheckCircle2 } from "@/lib/icons";
+import { useState } from "react"
+import { Github, GitBranch, Link2, RefreshCw, Download, Copy, AlertCircle, CheckCircle2, Sparkles, Loader2 } from "@/lib/icons";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button"
 import type { TaskInfoInterface } from "@/types/task"
 import PRStatusBadge from "@/components/task/PRStatusBadge"
+import MarkdownMessage from "@/components/ai/MarkdownMessage"
+import { analyzeCodeIssue, type CodeAnalysisResult } from "@/services/aiModelService"
 import { useToast } from "@/hooks/use-toast"
 
 interface TaskGitHubSectionProps {
@@ -175,6 +178,10 @@ export function TaskGitHubSection({
         </div>
       )}
 
+      {task.task_github_issue_url && githubConnected && (
+        <CodeAnalysisPanel issueUrl={task.task_github_issue_url} title={task.task_name} body={task.task_description} />
+      )}
+
       {canCreatePR && (
         <div
           className="p-3 border border-dashed border-border/60 rounded-lg bg-card/20 hover:bg-card/40 transition-colors cursor-pointer"
@@ -195,6 +202,108 @@ export function TaskGitHubSection({
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Github className="h-4 w-4" />
             <span>Link to GitHub issue or PR</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// CodeAnalysisPanel lets a member run the code-aware bug agent on the linked
+// GitHub issue: it retrieves the relevant repo files and shows a proposed
+// root-cause + fix (a diff) for review. Read-only against GitHub. When the
+// repo was too large to see fully, it offers a one-click "Analyze deeper".
+function parseOwnerRepo(issueUrl: string): { owner: string; repo: string } | null {
+  const m = issueUrl.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/issues\/\d+/)
+  if (!m) return null
+  return { owner: m[1], repo: m[2] }
+}
+
+const CodeAnalysisPanel: React.FC<{ issueUrl: string; title: string; body: string }> = ({
+  issueUrl,
+  title,
+  body,
+}) => {
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<CodeAnalysisResult | null>(null)
+
+  const run = async (deep: boolean) => {
+    const or = parseOwnerRepo(issueUrl)
+    if (!or) {
+      toast({ title: "Could not read the repo from this issue link", variant: "destructive" })
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await analyzeCodeIssue({ owner: or.owner, repo: or.repo, title, body, deep })
+      setResult(res)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Analysis failed"
+      toast({ title: "Couldn't analyze", description: msg, variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-card/30 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Sparkles className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-sm font-medium truncate">AI bug analysis</span>
+        </div>
+        {!result && (
+          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 shrink-0" disabled={loading} onClick={() => run(false)}>
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            {loading ? "Analyzing…" : "Analyze with AI"}
+          </Button>
+        )}
+      </div>
+
+      {!result && !loading && (
+        <p className="text-xs text-muted-foreground">
+          Review the linked issue against the repo code and propose a root cause and a fix to review. Read-only:
+          nothing is pushed to GitHub.
+        </p>
+      )}
+
+      {result && (
+        <div className="space-y-2 min-w-0">
+          <div className="rounded-md bg-background/60 p-2 max-h-[28rem] overflow-y-auto overflow-x-hidden custom-scrollbar min-w-0">
+            <MarkdownMessage content={result.answer} />
+          </div>
+
+          {result.files_considered?.length > 0 && (
+            <p className="text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
+              Looked at: {result.files_considered.join(", ")}
+            </p>
+          )}
+
+          {result.partial && (
+            <div className="flex flex-col gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                This is a large repo, so the agent could only see part of it. The fix may be incomplete.
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs self-start"
+                disabled={loading}
+                onClick={() => run(true)}
+              >
+                {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                Analyze deeper
+              </Button>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={loading} onClick={() => run(false)}>
+              {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              Re-run
+            </Button>
           </div>
         </div>
       )}
