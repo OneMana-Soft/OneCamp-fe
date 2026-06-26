@@ -27,6 +27,7 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
+import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
@@ -95,6 +96,7 @@ function isLive(s: ImportJob["status"]) {
 
 const ImportCard: React.FC = () => {
   const { toast } = useToast()
+  const confirm = useConfirm()
   const { connectionState: mqttState } = useMqtt()
   const isMqttHealthy = mqttState.isConnected
 
@@ -264,14 +266,20 @@ const ImportCard: React.FC = () => {
     }
   }
   const onRollback = async (jobId: string) => {
-    if (!confirm("Roll back will soft-delete every entity this import created. Continue?")) return
-    try {
-      await rollbackImportJob(jobId)
-      toast({ title: "Rolled back" })
-      refetchJobs()
-    } catch (err: any) {
-      toast({ title: "Rollback failed", description: err?.response?.data?.error, variant: "destructive" })
-    }
+    confirm({
+      title: "Roll back import",
+      description: "Roll back will soft-delete every entity this import created. Continue?",
+      confirmText: "Roll back",
+      onConfirm: async () => {
+        try {
+          await rollbackImportJob(jobId)
+          toast({ title: "Rolled back" })
+          refetchJobs()
+        } catch (err: any) {
+          toast({ title: "Rollback failed", description: err?.response?.data?.error, variant: "destructive" })
+        }
+      },
+    })
   }
   const onRetryFailed = async (jobId: string) => {
     try {
@@ -291,14 +299,20 @@ const ImportCard: React.FC = () => {
   }
   const onDisconnect = async () => {
     if (!selectedProvider) return
-    if (!confirm(`Disconnect ${selectedProvider}?`)) return
-    try {
-      await disconnectImport(selectedProvider)
-      toast({ title: "Disconnected" })
-      refetchConn()
-    } catch (err: any) {
-      toast({ title: "Disconnect failed", description: err?.response?.data?.error, variant: "destructive" })
-    }
+    confirm({
+      title: "Disconnect provider",
+      description: `Disconnect ${selectedProvider}?`,
+      confirmText: "Disconnect",
+      onConfirm: async () => {
+        try {
+          await disconnectImport(selectedProvider)
+          toast({ title: "Disconnected" })
+          refetchConn()
+        } catch (err: any) {
+          toast({ title: "Disconnect failed", description: err?.response?.data?.error, variant: "destructive" })
+        }
+      },
+    })
   }
 
   return (

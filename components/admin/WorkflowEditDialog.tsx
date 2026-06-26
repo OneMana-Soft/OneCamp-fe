@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
     Dialog,
@@ -230,6 +231,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                 </DialogHeader>
 
                 <div className="space-y-5 py-2">
+
+
                     {/* Name */}
                     <div className="space-y-1.5">
                         <Label>Name</Label>

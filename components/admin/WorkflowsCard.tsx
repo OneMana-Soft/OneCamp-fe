@@ -8,7 +8,8 @@ import { Switch } from "@/components/ui/switch";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Zap, MessageSquare, ListTodo, Loader2, EyeOff, Shield, Flag } from "@/lib/icons";
+import { useConfirm } from "@/hooks/useConfirm";
+import { Plus, Trash2, Pencil, Zap, MessageSquare, ListTodo, Loader2, EyeOff, Shield, Flag, Rocket } from "@/lib/icons";
 import {
     Workflow,
     WorkflowActionType,
@@ -17,6 +18,7 @@ import {
     deleteWorkflow,
 } from "@/services/workflowService";
 import { WorkflowEditDialog } from "./WorkflowEditDialog";
+import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog";
 
 // actionLabel renders a compact badge body for an action type.
 function actionLabel(type: WorkflowActionType): React.ReactNode {
@@ -41,8 +43,10 @@ function actionLabel(type: WorkflowActionType): React.ReactNode {
 const WorkflowsCard = () => {
     const { data, isLoading, mutate } = useFetch<{ data: Workflow[] }>(GetEndpointUrl.GetAllWorkflows);
     const { toast } = useToast();
+    const confirm = useConfirm();
     const [editing, setEditing] = useState<Workflow | null>(null);
     const [creating, setCreating] = useState(false);
+    const [publishing, setPublishing] = useState<Workflow | null>(null);
     const [busyId, setBusyId] = useState<string | null>(null);
 
     const workflows = data?.data || [];
@@ -61,17 +65,48 @@ const WorkflowsCard = () => {
     };
 
     const handleDelete = async (wf: Workflow) => {
-        if (!window.confirm(`Delete workflow "${wf.name}"? This can't be undone.`)) return;
-        setBusyId(wf.id);
+        confirm({
+            title: "Delete workflow",
+            description: `Delete workflow "${wf.name}"? This can't be undone.`,
+            confirmText: "Delete",
+            onConfirm: async () => {
+                setBusyId(wf.id);
+                try {
+                    await deleteWorkflow(wf.id);
+                    toast({ title: "Workflow deleted" });
+                    mutate();
+                } catch {
+                    // handled by interceptor
+                } finally {
+                    setBusyId(null);
+                }
+            },
+        });
+    };
+
+    // Build the portable template payload (the workflow's create body) the
+    // templates gallery replays on install. Workspace-specific ids (the bound channel
+    // and any per-action targets) are stripped so the template installs cleanly
+    // anywhere; the installer rebinds them.
+    const workflowTemplatePayload = (wf: Workflow) => {
+        const { keywords, actions } = parseWorkflow(wf);
+        let triggerConfig: Record<string, unknown> = {};
         try {
-            await deleteWorkflow(wf.id);
-            toast({ title: "Workflow deleted" });
-            mutate();
+            triggerConfig = wf.trigger_config ? JSON.parse(wf.trigger_config) : {};
         } catch {
-            // handled by interceptor
-        } finally {
-            setBusyId(null);
+            triggerConfig = {};
         }
+        return {
+            name: wf.name,
+            is_active: false,
+            trigger_type: wf.trigger_type,
+            trigger_config: triggerConfig,
+            bot_name: wf.bot_name || "",
+            channel_id: "",
+            keywords,
+            match_type: wf.match_type,
+            actions: actions.map((a) => ({ ...a, target_channel_id: "", project_id: "" })),
+        };
     };
 
     return (
@@ -180,6 +215,15 @@ const WorkflowsCard = () => {
                                         <Button
                                             variant="ghost"
                                             size="icon"
+                                            className="h-8 w-8"
+                                            onClick={() => setPublishing(wf)}
+                                            title="Save as template"
+                                        >
+                                            <Rocket className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
                                             className="h-8 w-8 text-destructive hover:text-destructive"
                                             disabled={busyId === wf.id}
                                             onClick={() => handleDelete(wf)}
@@ -208,6 +252,16 @@ const WorkflowsCard = () => {
                         setEditing(null);
                         mutate();
                     }}
+                />
+            )}
+
+            {publishing && (
+                <PublishTemplateDialog
+                    open={!!publishing}
+                    onOpenChange={(o) => !o && setPublishing(null)}
+                    kind="workflow"
+                    payload={workflowTemplatePayload(publishing)}
+                    defaultName={publishing.name}
                 />
             )}
         </Card>

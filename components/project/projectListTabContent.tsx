@@ -3,6 +3,7 @@ import { SearchField } from "@/components/search/searchField";
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import { ProjectAttachmentList } from "@/components/project/projectAttachmentList";
 import { ProjectTaskList } from "@/components/project/projectTaskList";
+import { LinkedItemsSection } from "@/components/entityLink/LinkedItemsSection";
 
 /**
  * Tab body for `/app/project/[id]` mobile. One instance per tab so each
@@ -44,7 +45,12 @@ export const ProjectListTabContent = ({
                     <ProjectTaskList searchQuery={searchQuery} projectId={projectId} />
                 )}
                 {selectedTab === "attachment" && (
-                    <ProjectAttachmentList searchQuery={searchQuery} projectId={projectId} />
+                    <div className="flex flex-col">
+                        <div className="px-3 pt-3">
+                            <LinkedItemsSection sourceType="project" sourceUUID={projectId} canEdit={true} />
+                        </div>
+                        <ProjectAttachmentList searchQuery={searchQuery} projectId={projectId} />
+                    </div>
                 )}
             </div>
         </div>

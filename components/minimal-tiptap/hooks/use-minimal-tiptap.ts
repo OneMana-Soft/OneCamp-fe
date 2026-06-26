@@ -37,6 +37,14 @@ import { UploadFileInterfaceRes } from "@/types/file";
 
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import MentionNodeView from '../extensions/mention-list/MentionNodeView'
+import { PluginKey } from '@tiptap/pm/state'
+import ReferenceMentionNodeView from '../extensions/reference-mention/ReferenceMentionNodeView'
+import { makeReferenceSuggestion } from '../extensions/reference-mention/referenceMentionList'
+
+// Distinct plugin keys so the #-channel and +-work-item suggestion plugins
+// don't collide with each other or with the @-user mention plugin.
+const ChannelMentionPluginKey = new PluginKey('channelMention')
+const EntityMentionPluginKey = new PluginKey('entityMention')
 
 export interface ThrottleControls {
   flush: () => void
@@ -120,6 +128,43 @@ const createExtensions = (
       },
       renderHTML: (prop): DOMOutputSpec => {
         return['span', mergeAttributes({ class: 'mention hover:cursor-pointer' , 'data-id': prop.node.attrs.id, 'data-label': prop.node.attrs.label, 'data-type': "mention"}), `@${prop.node.attrs.label}`]
+      },
+    }),
+    // #-trigger: reference a channel. Renders a clickable chip in the composer
+    // and in displayed messages (read-only editor uses the same config).
+    Mention.extend({
+      name: 'channelMention',
+      addNodeView() {
+        return ReactNodeViewRenderer(ReferenceMentionNodeView)
+      },
+    }).configure({
+      suggestion: makeReferenceSuggestion({
+        char: '#',
+        types: ['channel'],
+        pluginKey: ChannelMentionPluginKey,
+        emptyHint: 'Type to search channels',
+      }),
+      HTMLAttributes: { class: 'channel-mention' },
+      renderHTML: (prop): DOMOutputSpec => {
+        return ['span', mergeAttributes({ class: 'channel-mention hover:cursor-pointer', 'data-id': prop.node.attrs.id, 'data-label': prop.node.attrs.label, 'data-type': 'channelMention' }), `#${prop.node.attrs.label}`]
+      },
+    }),
+    // +-trigger: reference a work item (doc / board / task / project).
+    Mention.extend({
+      name: 'entityMention',
+      addNodeView() {
+        return ReactNodeViewRenderer(ReferenceMentionNodeView)
+      },
+    }).configure({
+      suggestion: makeReferenceSuggestion({
+        char: '+',
+        types: ['doc', 'board', 'task', 'project'],
+        pluginKey: EntityMentionPluginKey,
+        emptyHint: 'Type to search docs, boards, tasks, projects',
+      }),
+      HTMLAttributes: { class: 'entity-mention' },
+      renderHTML: (prop): DOMOutputSpec => {
+        return ['span', mergeAttributes({ class: 'entity-mention hover:cursor-pointer', 'data-id': prop.node.attrs.id, 'data-label': prop.node.attrs.label, 'data-type': 'entityMention' }), `${prop.node.attrs.label}`]
       },
     }),
     Underline,

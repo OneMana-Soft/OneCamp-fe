@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
+import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
@@ -98,6 +99,7 @@ const STAGE_LABELS: Record<string, string> = {
 
 const SlackImportCard: React.FC = () => {
   const { toast } = useToast()
+  const confirm = useConfirm()
   const { connectionState: mqttState } = useMqtt()
   const isMqttHealthy = mqttState.isConnected
 
@@ -157,17 +159,23 @@ const SlackImportCard: React.FC = () => {
   }
 
   const handleCancel = async (job: SlackImportJob) => {
-    if (!confirm(`Cancel import for ${job.slack_workspace_name}? In-flight chunks finish, then the job stops.`)) return
-    try {
-      setBusyJobId(job.id)
-      await cancelSlackImport(job.id)
-      toast({ title: "Cancellation sent" })
-      swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
-    } catch (err) {
-      toast({ title: "Cancel failed", description: errorMessage(err), variant: "destructive" })
-    } finally {
-      setBusyJobId(null)
-    }
+    confirm({
+      title: "Cancel import",
+      description: `Cancel import for ${job.slack_workspace_name}? In-flight chunks finish, then the job stops.`,
+      confirmText: "Cancel import",
+      onConfirm: async () => {
+        try {
+          setBusyJobId(job.id)
+          await cancelSlackImport(job.id)
+          toast({ title: "Cancellation sent" })
+          swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
+        } catch (err) {
+          toast({ title: "Cancel failed", description: errorMessage(err), variant: "destructive" })
+        } finally {
+          setBusyJobId(null)
+        }
+      },
+    })
   }
 
   const handleRollback = async (job: SlackImportJob) => {
@@ -188,21 +196,27 @@ const SlackImportCard: React.FC = () => {
   }
 
   const handleDeleteStagedZip = async (job: SlackImportJob) => {
-    if (!confirm(`Delete the staged Slack ZIP for ${job.slack_workspace_name} from storage?\n\nThe import is preserved; only the source file is removed. You won't be able to retry without re-uploading.`)) return
-    try {
-      setBusyJobId(job.id)
-      await deleteStagedZip(job.id)
-      toast({ title: "Staged file deleted" })
-      swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
-    } catch (err) {
-      toast({
-        title: "Could not delete staged file",
-        description: errorMessage(err),
-        variant: "destructive",
-      })
-    } finally {
-      setBusyJobId(null)
-    }
+    confirm({
+      title: "Delete staged file",
+      description: `Delete the staged Slack ZIP for ${job.slack_workspace_name} from storage? The import is preserved; only the source file is removed. You won't be able to retry without re-uploading.`,
+      confirmText: "Delete file",
+      onConfirm: async () => {
+        try {
+          setBusyJobId(job.id)
+          await deleteStagedZip(job.id)
+          toast({ title: "Staged file deleted" })
+          swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
+        } catch (err) {
+          toast({
+            title: "Could not delete staged file",
+            description: errorMessage(err),
+            variant: "destructive",
+          })
+        } finally {
+          setBusyJobId(null)
+        }
+      },
+    })
   }
 
   return (

@@ -36,6 +36,7 @@ import { MessageSquare, Trash2, X, Github } from "@/lib/icons";
 import { Activity } from "@/lib/icons";
 import {TaskGitHubSection} from "@/components/task/taskGitHubSection"
 import {TaskAttachmentsSection} from "@/components/task/taskAttachmentsSection"
+import {LinkedItemsSection} from "@/components/entityLink/LinkedItemsSection"
 import {usePost} from "@/hooks/usePost"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch"
@@ -1131,6 +1132,10 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         onAttachmentClick={handleAttachmentIconClick}
                         onRemovePreview={removeTaskPreviewFile}
                     />
+
+                    {taskUUID && (
+                        <LinkedItemsSection sourceType="task" sourceUUID={taskUUID} canEdit={isAdmin} />
+                    )}
 
                     <SubtasksSection
                         isAdmin={isAdmin}

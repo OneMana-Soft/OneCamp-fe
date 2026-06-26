@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
+import { useConfirm } from "@/hooks/useConfirm";
 import { openUI } from "@/store/slice/uiSlice";
 import { updateUserInfoStatus } from "@/store/slice/userSlice";
 
@@ -69,6 +70,7 @@ export type ProfileFormValues = z.infer<typeof profileFormSchema>;
 export function MobileSelfProfile() {
     const router = useRouter();
     const dispatch = useDispatch();
+    const confirm = useConfirm();
 
     const profileInfo = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
     const {src: imageSrc} = useUserAvatar(profileInfo?.data?.data?.user_profile_object_key);
@@ -226,13 +228,19 @@ export function MobileSelfProfile() {
 
     const handleUnlinkGoogleCalendar = async (e: React.MouseEvent) => {
         e.preventDefault();
-        if (!confirm("Are you sure you want to unlink Google Calendar?")) return;
-        try {
-            await axiosInstance.post(PostEndpointUrl.GoogleCalendarUnlink);
-            setGcalStatus({ isConnected: false, taskSyncEnabled: false });
-        } catch (e) {
-            console.error("Failed to unlink Google Calendar", e);
-        }
+        confirm({
+            title: "Unlink Google Calendar",
+            description: "Are you sure you want to unlink Google Calendar?",
+            confirmText: "Unlink",
+            onConfirm: async () => {
+                try {
+                    await axiosInstance.post(PostEndpointUrl.GoogleCalendarUnlink);
+                    setGcalStatus({ isConnected: false, taskSyncEnabled: false });
+                } catch (e) {
+                    console.error("Failed to unlink Google Calendar", e);
+                }
+            },
+        });
     };
 
     const userSeed = profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "User";

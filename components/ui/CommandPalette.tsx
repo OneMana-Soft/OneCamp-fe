@@ -31,6 +31,7 @@ import {
   app_calendar_path,
   app_doc_activity,
   app_doc_path,
+  app_board_path,
   app_chat_path,
   app_project_path,
   app_team_path,
@@ -217,6 +218,14 @@ export function CommandPalette() {
         action: () => router.push(app_doc_path),
       },
       {
+        id: "nav-boards",
+        label: "Go to Boards",
+        keywords: ["boards", "canvas", "whiteboard", "diagram", "miro"],
+        icon: <FileText className="mr-2 h-4 w-4" />,
+        group: "Navigate",
+        action: () => router.push(app_board_path),
+      },
+      {
         id: "nav-dms",
         label: "Go to DMs",
         keywords: ["dm", "chat", "messages", "direct message"],
@@ -255,6 +264,14 @@ export function CommandPalette() {
         icon: <Search className="mr-2 h-4 w-4" />,
         group: "Navigate",
         action: () => router.push("/app/search"),
+      },
+      {
+        id: "nav-templates",
+        label: "Go to Templates",
+        keywords: ["templates", "gallery", "agent", "automation", "table", "install", "reuse"],
+        icon: <Sparkles className="mr-2 h-4 w-4" />,
+        group: "Navigate",
+        action: () => router.push("/app/templates"),
       },
 
       // Create
@@ -325,23 +342,7 @@ export function CommandPalette() {
         action: () => router.push("/app/admin?tab=integrations"),
       },
 
-      // AI
-      {
-        id: "ai-ask",
-        label: "Ask AI Second Brain",
-        keywords: ["ai", "ask", "second brain", "gpt"],
-        icon: <Sparkles className="mr-2 h-4 w-4" />,
-        group: "AI",
-        action: () => router.push("/app/ai"),
-      },
-      {
-        id: "ai-memory",
-        label: "Workspace Memory",
-        keywords: ["ai", "memory", "decisions", "commitments", "open questions", "knowledge"],
-        icon: <Sparkles className="mr-2 h-4 w-4" />,
-        group: "AI",
-        action: () => router.push("/app/ai/memory"),
-      },
+
 
       // Settings & Account
       {
@@ -385,6 +386,7 @@ export function CommandPalette() {
         capabilityKey: CAP_WORKFLOW_MANAGE,
         action: () => router.push("/app/settings/workflows"),
       },
+
       {
         id: "invite-people",
         label: "Invite people",

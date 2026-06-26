@@ -24,6 +24,7 @@ import {usePost} from "@/hooks/usePost";
 import {useTranslation} from "react-i18next";
 import {Switch} from "@/components/ui/switch";
 import {useDispatch} from "react-redux";
+import { useConfirm } from "@/hooks/useConfirm";
 import { useTheme } from "next-themes";
 import { ColorThemePicker } from "@/components/activeTheme/ColorThemePicker";
 import { Moon, Sun } from "@/lib/icons";
@@ -82,6 +83,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     const {t} = useTranslation()
 
     const dispatch = useDispatch()
+    const confirm = useConfirm()
     const { theme, setTheme } = useTheme();
 
     const handleThemeToggle = () => {
@@ -157,13 +159,19 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
 
     const handleUnlinkGoogleCalendar = async (e: React.MouseEvent) => {
         e.preventDefault();
-        if (!confirm("Are you sure you want to unlink Google Calendar?")) return;
-        try {
-            await axiosInstance.post(PostEndpointUrl.GoogleCalendarUnlink);
-            setGcalStatus({ isConnected: false, taskSyncEnabled: false });
-        } catch (e) {
-            console.error("Failed to unlink Google Calendar", e);
-        }
+        confirm({
+            title: "Unlink Google Calendar",
+            description: "Are you sure you want to unlink Google Calendar?",
+            confirmText: "Unlink",
+            onConfirm: async () => {
+                try {
+                    await axiosInstance.post(PostEndpointUrl.GoogleCalendarUnlink);
+                    setGcalStatus({ isConnected: false, taskSyncEnabled: false });
+                } catch (e) {
+                    console.error("Failed to unlink Google Calendar", e);
+                }
+            },
+        });
     };
 
     const onSubmit = async (data: ProfileFormValues) => {

@@ -102,3 +102,5 @@ export async function setWorkflowActive(id: string, isActive: boolean): Promise<
 export async function deleteWorkflow(id: string): Promise<void> {
     await axiosInstance.delete(`${PostEndpointUrl.DeleteWorkflow}/${id}`);
 }
+
+

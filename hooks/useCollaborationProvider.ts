@@ -7,6 +7,7 @@
 
 import * as React from 'react'
 import { HocuspocusProvider } from '@hocuspocus/provider'
+import { IndexeddbPersistence } from 'y-indexeddb'
 import axiosInstance from '@/lib/axiosInstance'
 
 interface TokenResponse {
@@ -153,7 +154,23 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
     providerRef.current = provider
     setProvider(provider)
 
+    // Local-first cache: persist this document to IndexedDB so a refresh
+    // hydrates the canvas/editor instantly from disk and the websocket only
+    // syncs the delta, instead of transferring the whole document every load.
+    // Load time stops scaling with document size for returning users. Yjs CRDT
+    // merge reconciles the cached copy with the server on connect. Best-effort:
+    // private mode / disabled IndexedDB simply falls back to network-only.
+    let idbProvider: IndexeddbPersistence | null = null
+    try {
+      idbProvider = new IndexeddbPersistence(config.documentId, provider.document)
+    } catch (err) {
+      console.error('[Collab] IndexedDB persistence unavailable:', err)
+    }
+
     return () => {
+      if (idbProvider) {
+        idbProvider.destroy().catch(() => {})
+      }
       provider.destroy()
       providerRef.current = null
       setProvider(null)

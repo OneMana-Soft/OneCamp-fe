@@ -20,6 +20,7 @@ export interface CommentInfoInterface {
     comment_chat?: ChatInfo
     comment_task?: TaskInfoInterface
     comment_doc?: DocInfoInterface
+    comment_board?: { board_uuid: string; board_title?: string }
 }
 
 export interface CreateUpdateCommentReqInterface {

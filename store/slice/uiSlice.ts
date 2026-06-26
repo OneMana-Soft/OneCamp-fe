@@ -53,6 +53,11 @@ export interface RootUIState {
   teamMembers: SingleUIState;
   addInvitation: SingleUIState;
   createCalendarEvent: SingleUIState;
+  boardVersionHistory: SingleUIState<{ boardId: string }>;
+  boardShare: SingleUIState<{ boardId: string }>;
+  boardViewers: SingleUIState<{ boardId: string }>;
+  docVersionHistory: SingleUIState<{ docId: string }>;
+  docViewers: SingleUIState<{ docId: string }>;
   
   // Admin card dialogs
   webhookCreate: SingleUIState;
@@ -139,6 +144,11 @@ const initialState: RootUIState = {
   teamMembers: { isOpen: false, data: { teamUUID: "", teamName: "" } },
   addInvitation: { isOpen: false, data: null },
   createCalendarEvent: { isOpen: false, data: null },
+  boardVersionHistory: { isOpen: false, data: { boardId: "" } },
+  boardShare: { isOpen: false, data: { boardId: "" } },
+  boardViewers: { isOpen: false, data: { boardId: "" } },
+  docVersionHistory: { isOpen: false, data: { docId: "" } },
+  docViewers: { isOpen: false, data: { docId: "" } },
 
   // Admin card dialogs
   webhookCreate: { isOpen: false, data: null },

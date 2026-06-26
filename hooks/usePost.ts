@@ -376,9 +376,17 @@ const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error
         success: "Document deleted.",
         error: "Failed to delete document.",
     },
+    [PostEndpointUrl.DeleteBoard]: {
+        success: "Board deleted.",
+        error: "Failed to delete board.",
+    },
     [PostEndpointUrl.UpdateDocPermissions]: {
         success: "Permissions updated.",
         error: "Failed to update permissions.",
+    },
+    [PostEndpointUrl.UpdateBoardPermissions]: {
+        success: "Board sharing updated.",
+        error: "Failed to update board sharing.",
     },
     [PostEndpointUrl.SearchUserForDoc]: {
         success: "Search completed.",

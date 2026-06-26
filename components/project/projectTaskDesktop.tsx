@@ -9,6 +9,7 @@ import { ClipboardList, Kanban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectTaskTable } from "@/components/project/projectTaskTable"
 import { ProjectAttachments } from "@/components/project/ProjectAttachments"
+import { LinkedItemsSection } from "@/components/entityLink/LinkedItemsSection"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import { ColorIcon } from "@/components/colorIcon/colorIcon"
@@ -146,6 +147,13 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                 <ProjectTaskKanban projectId={projectId} />
                             </TabsContent>
                             <TabsContent value="attachments" className="h-full mt-0 outline-none">
+                                <div className="p-4">
+                                    <LinkedItemsSection
+                                        sourceType="project"
+                                        sourceUUID={projectId}
+                                        canEdit={projectInfo.data?.data.project_is_member || false}
+                                    />
+                                </div>
                                 <ProjectAttachments projectId={projectId} />
                             </TabsContent>
                         </div>

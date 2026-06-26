@@ -14,14 +14,12 @@ import {clickedMobileFwdMsgSend} from "@/store/slice/fwdMessageSlice";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import React, {useEffect} from "react";
-import {updateUserEmojiStatus} from "@/store/slice/userSlice";
 import {app_channel_call, app_channel_path, app_chat_call, app_grp_call} from "@/types/paths";
 import {
     MobileTopNavigationBarSecondGroupChat
 } from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondGroupChat";
 import {MobileTopNavigationBarThirdDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarThirdDoc";
-
+import {MobileBoardCreateButton} from "@/components/navigationBar/mobile/mobileBoardCreateButton";
 
 export function MobileTopNavigationBarThird() {
 
@@ -107,6 +105,10 @@ export function MobileTopNavigationBarThird() {
                     return <div className='flex space-x-1'>
                         <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
                         </div>
+                break
+            case "board":
+                if(path.length < 4)
+                    return <MobileBoardCreateButton />
                 break
             case "doc":
                 if(path.length < 4)

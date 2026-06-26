@@ -3,8 +3,10 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { X, Share, MoreVertical } from "@/lib/icons";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 
 export function PwaInstallPrompt() {
+  const { toast } = useToast();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isPromptVisible, setIsPromptVisible] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -87,7 +89,10 @@ export function PwaInstallPrompt() {
   const handleInstallClick = async () => {
     if (isInstalled) {
       if (isIOS) {
-        alert("Please tap the OneCamp icon on your home screen to open the app.");
+        toast({
+          title: "Open OneCamp from your home screen",
+          description: "Tap the OneCamp icon on your home screen to open the app.",
+        });
         return;
       }
 

@@ -60,6 +60,7 @@ export function MobileTopNavigationBarFirst() {
                     return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
                 break;
             case "doc":
+            case "board":
             case "task":
             case "calls":
             case "posts":

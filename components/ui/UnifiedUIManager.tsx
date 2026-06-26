@@ -33,6 +33,11 @@ const UpdateDocTitleDialog =  dynamic(() => import("@/components/dialog/updateDo
 const AdminTeamMembersDialog = dynamic(() => import("@/components/dialog/adminTeamMembersDialog"), { ssr: false });
 const AddInvitationDialog = dynamic(() => import("@/components/admin/AddInvitationDialog").then(mod => mod.AddInvitationDialog), { ssr: false });
 const CreateCalendarEventDialog = dynamic(() => import("@/components/calendar/createCalendarEventDialog").then(mod => mod.CreateCalendarEventDialog), { ssr: false });
+const BoardVersionHistoryDialog = dynamic(() => import("@/components/dialog/boardVersionHistoryDialog"), { ssr: false });
+const BoardShareDialog = dynamic(() => import("@/components/dialog/boardShareDialog").then(mod => mod.BoardShareDialog), { ssr: false });
+const BoardViewersDialog = dynamic(() => import("@/components/dialog/boardViewersDialog"), { ssr: false });
+const DocVersionHistoryDialog = dynamic(() => import("@/components/dialog/docVersionHistoryDialog"), { ssr: false });
+const DocViewersDialog = dynamic(() => import("@/components/dialog/docViewersDialog"), { ssr: false });
 
 // Admin card dialogs
 const WebhookCreateDialog = dynamic(() => import("@/components/admin/WebhookCreateDialog"), { ssr: false });
@@ -286,6 +291,46 @@ export function UnifiedUIManager() {
         <CreateCalendarEventDialog
           open={ui.createCalendarEvent.isOpen}
           onOpenChange={() => dispatch(closeUI('createCalendarEvent'))}
+        />
+      )}
+
+      {ui.boardVersionHistory.isOpen && (
+        <BoardVersionHistoryDialog
+          open={ui.boardVersionHistory.isOpen}
+          onOpenChange={() => dispatch(closeUI('boardVersionHistory'))}
+          boardId={ui.boardVersionHistory.data.boardId}
+        />
+      )}
+
+      {ui.boardShare.isOpen && (
+        <BoardShareDialog
+          dialogOpenState={ui.boardShare.isOpen}
+          setOpenState={() => dispatch(closeUI('boardShare'))}
+          boardId={ui.boardShare.data.boardId}
+        />
+      )}
+
+      {ui.boardViewers.isOpen && (
+        <BoardViewersDialog
+          open={ui.boardViewers.isOpen}
+          onOpenChange={() => dispatch(closeUI('boardViewers'))}
+          boardId={ui.boardViewers.data.boardId}
+        />
+      )}
+
+      {ui.docVersionHistory.isOpen && (
+        <DocVersionHistoryDialog
+          open={ui.docVersionHistory.isOpen}
+          onOpenChange={() => dispatch(closeUI('docVersionHistory'))}
+          docId={ui.docVersionHistory.data.docId}
+        />
+      )}
+
+      {ui.docViewers.isOpen && (
+        <DocViewersDialog
+          open={ui.docViewers.isOpen}
+          onOpenChange={() => dispatch(closeUI('docViewers'))}
+          docId={ui.docViewers.data.docId}
         />
       )}
 

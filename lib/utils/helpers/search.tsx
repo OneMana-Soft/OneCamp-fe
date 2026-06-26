@@ -1,7 +1,7 @@
 "use client"
 
 import React, { memo } from "react"
-import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, User, FolderKanban, Hash } from "lucide-react"
+import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, User, FolderKanban, Hash, LayoutDashboard } from "lucide-react"
 import { SearchResult } from "@/services/searchService"
 import { ChatUserAvatar } from "@/components/chat/chatUserAvatar"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -30,6 +30,7 @@ export const getTitle = (result: SearchResult): string => {
         case "chat": return result.chat?.chat_body || ""
         case "post": return result.post?.post_body || ""
         case "doc": return result.doc?.doc_title || ""
+        case "board": return result.board?.board_title || ""
         case "task": return result.task?.task_name || ""
         case "comment": return result.comment?.comment_body || ""
         case "attachment": return result.attachment?.attachment_file_name || ""
@@ -46,6 +47,7 @@ export const getContext = (result: SearchResult): string => {
         case "chat": return `Chat message`
         case "post": return `Post in ${result.post?.post_ch_name}`
         case "doc": return `Document by ${result.doc?.doc_created_by_user_full_name}`
+        case "board": return `Board by ${result.board?.board_created_by_user_full_name}`
         case "task": return `Task assigned to ${result.task?.task_assignee_user_full_name}`
         case "comment":
             if (result.comment?.comment_doc_id) return `Comment on doc ${result.comment?.comment_doc_title}`
@@ -75,6 +77,7 @@ export const getIcon = (result: SearchResult, iconClassName = "h-4 w-4") => {
         case "chat": return <MessageCircle className={iconClassName} />
         case "post": return <MessageSquare className={iconClassName} />
         case "doc": return <FileText className={iconClassName} />
+        case "board": return <LayoutDashboard className={iconClassName} />
         case "task": return <CheckSquare className={iconClassName} />
         case "comment": return <MessageCircle className={cn(iconClassName, "opacity-70")} />
         case "attachment": return <Paperclip className={iconClassName} />
@@ -95,6 +98,7 @@ export const getHighlightedTitle = (result: SearchResult) => {
         comment: 'comment_body',
         attachment: 'attachment_file_name',
         doc: 'doc_title',
+        board: 'board_title',
         task: 'task_name',
         user: 'user_name',
         project: 'project_name',

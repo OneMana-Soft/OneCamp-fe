@@ -13,6 +13,7 @@ import {
     MobileTopNavigationBarSecondGroupChat
 } from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondGroupChat";
 import {MobileTopNavigationBarSecondDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondDoc";
+import {MobileTopNavigationBarSecondBoard} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondBoard";
 
 export function MobileTopNavigationBarSecond() {
     const path = usePathname().split('/');
@@ -107,6 +108,12 @@ export function MobileTopNavigationBarSecond() {
                     return <MobileTopNavigationBarSecondDoc docId={path[3]}/>;
                 if (path.length < 6)
                     return "Comment";
+                break;
+            case "board":
+                if (path.length < 4)
+                    return "Boards";
+                if (path.length < 5)
+                    return <MobileTopNavigationBarSecondBoard boardId={path[3]}/>;
                 break;
             case "calls":
                 return "Calls"
