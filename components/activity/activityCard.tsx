@@ -62,7 +62,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                 content = activity.mention.mention_post.post_text;
                 user = activity.mention.mention_post.post_by;
             } else if (activity.mention.mention_comment) {
-                title = "mentioned you in a comment";
+                title = activity.mention.mention_comment.comment_board
+                    ? "mentioned you in a board"
+                    : "mentioned you in a comment";
                 content = activity.mention.mention_comment.comment_text;
                 user = activity.mention.mention_comment.comment_by;
             } else if (activity.mention.mention_task) {
@@ -79,7 +81,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
             badgeClass =
                 "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20";
             time = activity.comment.comment_created_at;
-            title = "commented on your content";
+            title = activity.comment.comment_board
+                ? "commented on your board"
+                : "commented on your content";
             content = activity.comment.comment_text;
             user = activity.comment.comment_by;
         } else if (activity.activity_type === "REACTION" && activity.reaction) {

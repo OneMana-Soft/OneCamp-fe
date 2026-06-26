@@ -80,6 +80,9 @@ export const useSearch = ({
             case "doc":
                 router.push(`/app/doc/${result.doc?.doc_uuid}`)
                 break
+            case "board":
+                router.push(`/app/board/${result.board?.board_uuid}`)
+                break
             case "task":
                 router.push(`/app/task/${result.task?.task_id}`)
                 break

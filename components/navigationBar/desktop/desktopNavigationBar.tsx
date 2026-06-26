@@ -5,8 +5,8 @@ import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from "@/components
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import {cn} from "@/lib/utils/helpers/cn";
 import {DesktopChildrenNavType, DesktopNavType} from "@/types/nav";
-import { Home, Users, Hash, Shield, MessageCircle, Calendar, Clock, Star } from "@/lib/icons";
-import { CircleCheck, ClipboardList, Dot, File as FileIcon, Bell as BellIcon, PanelLeftClose, PanelLeftOpen } from "@/lib/icons";
+import { Home, Users, Hash, Shield, MessageCircle, Calendar, Clock, Star, Table as TableIcon, Sparkles } from "@/lib/icons";
+import { CircleCheck, ClipboardList, Dot, File as FileIcon, LayoutDashboard, Bell as BellIcon, PanelLeftClose, PanelLeftOpen } from "@/lib/icons";
 import {DesktopSideNavigationBar} from "@/components/navigationBar/desktop/desktopSideNavigationBar";
 import DesktopNavigationTopBar from "@/components/navigationBar/desktop/desktopNavigationTopBar";
 import {useFetch} from "@/hooks/useFetch";
@@ -19,7 +19,7 @@ import {
     app_project_team,
     app_my_task_path,
     app_calendar_path,
-    app_grp_chat_path, app_team_path, app_doc_path, app_doc_activity, app_admin
+    app_grp_chat_path, app_team_path, app_doc_path, app_board_path, app_doc_activity, app_admin, app_tables_path, app_templates_path
 } from "@/types/paths";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
@@ -33,10 +33,12 @@ import {
     createUserProjectList,
     setTotalUnreadActivityCount,
     createUserTeamList, updateUsersStatusFromList,
-    createUserDocList
+    createUserDocList,
+    createUserBoardList
 } from "@/store/slice/userSlice";
 import {sortChannelList} from "@/lib/utils/sortChannelList";
 import {InlineDocCreator} from "@/components/doc/inlineDocCreator";
+import {InlineBoardCreator} from "@/components/board/inlineBoardCreator";
 import {sortChatList} from "@/lib/utils/sortChatList";
 import {isExternalUser} from "@/lib/utils/isExternalUser";
 import {formatCount} from "@/lib/utils/helpers/formatCount";
@@ -64,6 +66,8 @@ export function DesktopNavigationBar({
     const [isFavOpen, setIsFavOpen] = useState(true);
     const [isDocsOpen, setIsDocsOpen] = useState(false);
     const [isDocCreatorOpen, setIsDocCreatorOpen] = useState(false);
+    const [isBoardsOpen, setIsBoardsOpen] = useState(false);
+    const [isBoardCreatorOpen, setIsBoardCreatorOpen] = useState(false);
 
     const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
 
@@ -144,6 +148,10 @@ export function DesktopNavigationBar({
             dispatch(createUserDocList({docUsers: userSideNav.data.data.user_docs}))
         }
 
+        if(userSideNav.data?.data?.user_boards) {
+            dispatch(createUserBoardList({boardUsers: userSideNav.data.data.user_boards}))
+        }
+
     }, [userSideNav.data?.data]);
 
     const navCollapsedSize = 4;
@@ -196,6 +204,20 @@ export function DesktopNavigationBar({
                 icon: Calendar,
                 variant: (path.length > 2 && path[2] == 'calendar') ? "sidebarActive" : "ghost",
                 path: app_calendar_path,
+            },
+            {
+                title: 'Tables',
+                label: "",
+                icon: TableIcon,
+                variant: (path.length > 2 && path[2] == 'tables') ? "sidebarActive" : "ghost",
+                path: app_tables_path,
+            },
+            {
+                title: 'Templates',
+                label: "",
+                icon: Sparkles,
+                variant: (path.length > 2 && path[2] == 'templates') ? "sidebarActive" : "ghost",
+                path: app_templates_path,
             },
             {
                 title: 'Activity',
@@ -402,7 +424,7 @@ export function DesktopNavigationBar({
                 {
                     title: "All docs",
                     path: app_doc_path,
-                    variant: (path.length > 2 && path[2] == 'doc') ? "sidebarActive" : "ghost",
+                    variant: (path.length === 3 && path[2] == 'doc') ? "sidebarActive" : "ghost",
                     icon: FileIcon,
                 } as DesktopChildrenNavType,
                 ...(userSidebarState.userDocs || []).map((d): DesktopChildrenNavType => ({
@@ -413,6 +435,31 @@ export function DesktopNavigationBar({
                 })),
             ],
             inlineCreator: <InlineDocCreator isOpen={isDocCreatorOpen} onOpenChange={setIsDocCreatorOpen} />,
+        },
+        {
+            title: 'Boards',
+            label: "",
+            icon: LayoutDashboard,
+            variant: "ghost",
+            path: "#",
+            isOpen: isBoardsOpen,
+            setIsOpen: setIsBoardsOpen,
+            action: () => setIsBoardCreatorOpen((prev) => !prev),
+            children: [
+                {
+                    title: "All boards",
+                    path: app_board_path,
+                    variant: (path.length === 3 && path[2] == 'board') ? "sidebarActive" : "ghost",
+                    icon: LayoutDashboard,
+                } as DesktopChildrenNavType,
+                ...(userSidebarState.userBoards || []).map((b): DesktopChildrenNavType => ({
+                    title: b.board_title,
+                    path: `${app_board_path}/${b.board_uuid}`,
+                    variant: (path.length > 3 && path[3] == b.board_uuid) ? "sidebarActive" : "ghost",
+                    icon: LayoutDashboard,
+                })),
+            ],
+            inlineCreator: <InlineBoardCreator isOpen={isBoardCreatorOpen} onOpenChange={setIsBoardCreatorOpen} />,
         },
     ];
 

@@ -3,7 +3,8 @@ import { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion"
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import tippy, { Instance as TippyInstance } from "tippy.js"
 import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Minus, CheckSquare, Image, Sparkles, MessageSquare, ChevronRight, Bold, Italic, Strikethrough, Zap } from "@/lib/icons";
-import { Lightbulb, Command, Underline as UnderlineIcon, Eraser } from "@/lib/icons";
+import { Lightbulb, Command, Underline as UnderlineIcon, Eraser, Table as TableIcon } from "@/lib/icons";
+import { createTable } from "@/services/tableService";
 
 export interface SlashCommandItem {
   id: string
@@ -223,6 +224,25 @@ const DOC_BLOCK_COMMANDS: SlashCommandItem[] = [
     section: "Advanced blocks",
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).toggleImage().run()
+    },
+  },
+  {
+    id: "table",
+    title: "Table",
+    description: "Insert a live database table",
+    icon: TableIcon,
+    section: "Advanced blocks",
+    command: ({ editor, range }) => {
+      // Create a new first-class table, then embed a live reference to it.
+      // The doc stores only { tableId }, never the rows (Notion's model).
+      editor.chain().focus().deleteRange(range).run()
+      createTable({ name: "Untitled table", visibility: "workspace" })
+        .then((t) => {
+          editor.chain().focus().setTableEmbed({ tableId: t.id }).run()
+        })
+        .catch(() => {
+          /* axios interceptor surfaces the error */
+        })
     },
   },
 ]

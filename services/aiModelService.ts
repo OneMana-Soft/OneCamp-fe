@@ -72,6 +72,8 @@ export interface AIConfig {
   vision_model: string
   context_window_tokens: number
   effective_context_window: number
+  workspace_daily_token_budget: number
+  user_daily_token_budget: number
   reasoning_enabled: boolean
   meeting_recap_enabled: boolean
   memory_layer_enabled: boolean
@@ -160,6 +162,22 @@ export async function getAISystemStats(): Promise<SystemStats> {
 
 export async function getReindexStatus(): Promise<ReindexStatus> {
   const res = await axiosInstance.get(GetEndpointUrl.GetAIReindexStatus)
+  return res.data?.data
+}
+
+// AI token usage for the current UTC day. `limit` of 0 means unlimited.
+export interface AIUsageMeter {
+  used: number
+  limit: number
+}
+export interface AIUsage {
+  day: string
+  workspace: AIUsageMeter
+  user: AIUsageMeter
+}
+
+export async function getAIUsage(): Promise<AIUsage> {
+  const res = await axiosInstance.get(GetEndpointUrl.GetAIUsage)
   return res.data?.data
 }
 
@@ -273,6 +291,16 @@ export async function setAIRateLimit(rateLimitPerMin: number): Promise<void> {
 // Set the model context window (tokens). 0 = use the server env/default.
 export async function setAIContextWindow(contextWindowTokens: number): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAIContextWindow, { context_window_tokens: contextWindowTokens })
+}
+
+// Set the workspace-wide daily AI token cap (0 = unlimited).
+export async function setAIWorkspaceTokenBudget(tokens: number): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIWorkspaceTokenBudget, { tokens })
+}
+
+// Set the per-user daily AI token cap (0 = unlimited).
+export async function setAIUserTokenBudget(tokens: number): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIUserTokenBudget, { tokens })
 }
 
 // Set the code-agent per-analysis file budget. 0 = use the built-in default.

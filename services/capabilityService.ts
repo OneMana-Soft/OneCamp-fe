@@ -10,6 +10,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 // Stable capability keys (mirror the backend constants).
 export const CAP_WORKFLOW_MANAGE = "workflow.manage";
 export const CAP_INVITATION_CREATE = "invitation.create";
+export const CAP_AGENT_MANAGE = "agent.manage";
 
 export type CapabilityPolicyValue = "admins_only" | "all_members";
 
@@ -31,6 +32,10 @@ export const CAPABILITY_META: Record<string, { label: string; description: strin
     [CAP_INVITATION_CREATE]: {
         label: "Invite people",
         description: "Let members invite new people to the workspace by email.",
+    },
+    [CAP_AGENT_MANAGE]: {
+        label: "Build AI agents",
+        description: "Let members create AI agents that use tools to do work in the workspace.",
     },
 };
 

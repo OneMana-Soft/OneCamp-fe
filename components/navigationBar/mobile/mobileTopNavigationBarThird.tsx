@@ -21,6 +21,7 @@ import {
     MobileTopNavigationBarSecondGroupChat
 } from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondGroupChat";
 import {MobileTopNavigationBarThirdDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarThirdDoc";
+import {MobileBoardCreateButton} from "@/components/navigationBar/mobile/mobileBoardCreateButton";
 import NudgeBell from "@/components/ai/NudgeBell";
 
 export function MobileTopNavigationBarThird() {
@@ -107,6 +108,10 @@ export function MobileTopNavigationBarThird() {
                     return <div className='flex space-x-1'>
                         <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
                         </div>
+                break
+            case "board":
+                if(path.length < 4)
+                    return <MobileBoardCreateButton />
                 break
             case "doc":
                 if(path.length < 4)

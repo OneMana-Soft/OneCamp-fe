@@ -21,7 +21,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { useSearch } from "@/hooks/useSearch"
 import { useTrackPageVisit } from "@/hooks/useTrackPageVisit"
 import { useCapabilities } from "@/hooks/useCapabilities"
-import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
+import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE, CAP_AGENT_MANAGE } from "@/services/capabilityService"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { UserProfileInterface } from "@/types/user"
 import type { RootState } from "@/store/store"
@@ -31,6 +31,7 @@ import {
   app_calendar_path,
   app_doc_activity,
   app_doc_path,
+  app_board_path,
   app_chat_path,
   app_project_path,
   app_team_path,
@@ -217,6 +218,14 @@ export function CommandPalette() {
         action: () => router.push(app_doc_path),
       },
       {
+        id: "nav-boards",
+        label: "Go to Boards",
+        keywords: ["boards", "canvas", "whiteboard", "diagram", "miro"],
+        icon: <FileText className="mr-2 h-4 w-4" />,
+        group: "Navigate",
+        action: () => router.push(app_board_path),
+      },
+      {
         id: "nav-dms",
         label: "Go to DMs",
         keywords: ["dm", "chat", "messages", "direct message"],
@@ -255,6 +264,14 @@ export function CommandPalette() {
         icon: <Search className="mr-2 h-4 w-4" />,
         group: "Navigate",
         action: () => router.push("/app/search"),
+      },
+      {
+        id: "nav-templates",
+        label: "Go to Templates",
+        keywords: ["templates", "gallery", "agent", "automation", "table", "install", "reuse"],
+        icon: <Sparkles className="mr-2 h-4 w-4" />,
+        group: "Navigate",
+        action: () => router.push("/app/templates"),
       },
 
       // Create
@@ -384,6 +401,15 @@ export function CommandPalette() {
         group: "Settings",
         capabilityKey: CAP_WORKFLOW_MANAGE,
         action: () => router.push("/app/settings/workflows"),
+      },
+      {
+        id: "agents",
+        label: "AI Agents",
+        keywords: ["agents", "ai agent", "automation", "bot", "assistant", "build agent"],
+        icon: <Sparkles className="mr-2 h-4 w-4" />,
+        group: "Settings",
+        capabilityKey: CAP_AGENT_MANAGE,
+        action: () => router.push("/app/settings/agents"),
       },
       {
         id: "invite-people",

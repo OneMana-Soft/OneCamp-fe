@@ -55,6 +55,12 @@ export const useActivityNavigation = () => {
                          if (docId) {
                             router.push(`app/doc/${docId}/comment`);
                         }
+                    } else if (activity.mention.mention_comment?.comment_board) {
+                        // Board: /app/board/{boardID}
+                        const boardId = activity.mention.mention_comment.comment_board.board_uuid;
+                        if (boardId) {
+                            router.push(`/app/board/${boardId}`);
+                        }
                     }
                 }
                 break;
@@ -87,6 +93,11 @@ export const useActivityNavigation = () => {
                         const docId = activity.comment.comment_doc.doc_uuid;
                         if (docId) {
                            router.push(`/app/doc/${docId}/comment`);
+                       }
+                    } else if (activity.comment.comment_board) {
+                        const boardId = activity.comment.comment_board.board_uuid;
+                        if (boardId) {
+                           router.push(`/app/board/${boardId}`);
                        }
                     }
                 }

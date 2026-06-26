@@ -1,4 +1,4 @@
-import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 
 interface CapabilitiesResponse {
@@ -7,14 +7,20 @@ interface CapabilitiesResponse {
 
 /**
  * useCapabilities exposes the current user's resolved capability set and a
- * `can(capability)` helper for gating UI. Fetched once per session (policies
- * change rarely; the backend caches them too). Fails closed: while loading or
- * on error, `can` returns false so a gated entry is hidden rather than flashing
- * in and then 403-ing.
+ * `can(capability)` helper for gating UI.
+ *
+ * It revalidates (on mount + throttled focus) rather than fetching once per
+ * session: an admin can flip a capability policy at any time, and a deploy can
+ * add a new capability, so a session-frozen snapshot would leave the UI showing
+ * a stale gate until a hard reload. The backend caches policies (short TTL) so
+ * the extra revalidation is cheap; dedupingInterval keeps repeated mounts off
+ * the network. Fails closed: while loading or on error, `can` returns false.
  */
 export function useCapabilities() {
-    const { data, isLoading, isError, mutate } = useFetchOnlyOnce<CapabilitiesResponse>(
+    const { data, isLoading, isError, mutate } = useFetch<CapabilitiesResponse>(
         GetEndpointUrl.MyCapabilities,
+        undefined,
+        { dedupingInterval: 15_000 },
     );
 
     const caps = data?.data || {};

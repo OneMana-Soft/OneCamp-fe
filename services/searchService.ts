@@ -3,12 +3,13 @@ import { usePost } from "@/hooks/usePost";
 import { useCallback } from "react";
 
 export interface SearchResult {
-    type: "chat" | "post" | "comment" | "attachment" | "doc" | "task" | "user" | "project" | "channel" | "team";
+    type: "chat" | "post" | "comment" | "attachment" | "doc" | "board" | "task" | "user" | "project" | "channel" | "team";
     chat?: any;
     post?: any;
     comment?: any;
     attachment?: any;
     doc?: any;
+    board?: any;
     task?: any;
     user?: any;
     project?: any;

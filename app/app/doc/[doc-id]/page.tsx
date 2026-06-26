@@ -4,6 +4,7 @@ import {useMedia} from "@/context/MediaQueryContext";
 import {DocTopBarBreadcrumb} from "@/components/doc/docTopBarBreadcrumb";
 import MinimalTiptapDocInput from "@/components/docEditor/docInput";
 import {ActiveUsersBar} from "@/components/docEditor/ActiveUsersBar";
+import {LinkedFromSection} from "@/components/entityLink/LinkedFromSection";
 import {cn} from "@/lib/utils/helpers/cn";
 import { useParams } from "next/navigation";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -12,15 +13,23 @@ import { UserProfileInterface } from "@/types/user";
 import * as React from 'react';
 import {generateColorFromUUID} from "@/lib/utils/generateColorFromUUID";
 import {DocInfoResponse} from "@/types/doc";
-import { MessageCircle, Loader2, Download, Keyboard, Maximize, Minimize } from "@/lib/icons";
+import { MessageCircle, Loader2, Download, Keyboard, Maximize, Minimize, Ellipsis, History, Eye } from "@/lib/icons";
 import { WifiOff } from "lucide-react";
 import {Button} from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {useDispatch, useSelector} from "react-redux";
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
+import {openUI} from "@/store/slice/uiSlice";
 import type {RootState} from "@/store/store";
 import {useEffect} from "react";
 import {updateDocCommentCount} from "@/store/slice/createDocCommentSlice";
+import {updateUserDocTitle} from "@/store/slice/userSlice";
 import {useMqttTopic} from "@/hooks/useMqttTopic";
 import { DocPageSkeleton } from "@/components/doc/DocPageSkeleton";
 import { useDocMessageHandlers } from "@/hooks/useDocMessageHandlers";
@@ -108,6 +117,24 @@ export default function Page() {
 
     const { isMobile, isDesktop } = useMedia();
     const { makeRequest: updateDoc } = usePost();
+    const { makeRequest: recordDocView } = usePost();
+
+    // Record a view once per doc open, after access is confirmed (docInfo only
+    // loads if the caller can access it). Backend dedupes/throttles; the ref
+    // guards against double-firing within a single mount.
+    const viewRecordedRef = React.useRef<string | null>(null);
+    useEffect(() => {
+        if (!docId || !docInfo) return;
+        if (viewRecordedRef.current === docId) return;
+        viewRecordedRef.current = docId;
+        recordDocView({
+            apiEndpoint: PostEndpointUrl.RecordDocView,
+            payload: { doc_uuid: docId },
+            showErrorToast: false,
+        }).catch(() => {
+            // View tracking is best-effort; never surface an error.
+        });
+    }, [docId, docInfo, recordDocView]);
 
     useEffect(() => {
         if(docInfo) {
@@ -246,14 +273,17 @@ export default function Page() {
 
     const saveTitle = React.useCallback((newTitle: string) => {
         if (!docId || !docInfo || newTitle.trim() === docInfo.doc_title) return;
+        const finalTitle = newTitle.trim() || "Untitled";
         updateDoc({
             apiEndpoint: PostEndpointUrl.UpdateDoc,
             payload: {
                 doc_uuid: docId,
-                doc_title: newTitle.trim() || "Untitled",
+                doc_title: finalTitle,
             }
         });
-    }, [docId, docInfo, updateDoc]);
+        // Keep the sidebar recent-docs label in sync with the rename.
+        dispatch(updateUserDocTitle({ doc_uuid: docId, doc_title: finalTitle }));
+    }, [docId, docInfo, updateDoc, dispatch]);
 
     const handleTitleChange = React.useCallback((val: string) => {
         setDocTitle(val);
@@ -368,6 +398,26 @@ export default function Page() {
                             <MessageCircle className='h-4 w-4'/>
                             <span className="text-sm">{docCommentCount || 0}</span>
                         </Button>
+
+                        {hasEditAccess && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" title="More">
+                                        <Ellipsis className='h-4 w-4'/>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docViewers", data: { docId } }))}>
+                                        <Eye className="mr-2 h-4 w-4" />
+                                        Viewed by
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docVersionHistory", data: { docId } }))}>
+                                        <History className="mr-2 h-4 w-4" />
+                                        Version history
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                     </div>
                 </div>
             )}
@@ -382,6 +432,25 @@ export default function Page() {
                             <MessageCircle className='h-4 w-4'/>
                             <span className="text-sm">{docCommentCount || 0}</span>
                         </Button>
+                        {hasEditAccess && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="px-2 text-muted-foreground hover:text-foreground" title="More">
+                                        <Ellipsis className='h-4 w-4'/>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docViewers", data: { docId } }))}>
+                                        <Eye className="mr-2 h-4 w-4" />
+                                        Viewed by
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docVersionHistory", data: { docId } }))}>
+                                        <History className="mr-2 h-4 w-4" />
+                                        Version history
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                     </div>
                 </div>
             )}
@@ -426,6 +495,9 @@ export default function Page() {
 
             {/* Document content area */}
             <div className="flex-1 w-full flex flex-col overflow-hidden relative">
+                {!focusMode && (
+                    <LinkedFromSection refType="doc" refUUID={docId} className="shrink-0 border-b bg-background/40 px-4 py-2.5" />
+                )}
                 {editorReady ? (
                     <MinimalTiptapDocInput
                         throttleDelay={3000}

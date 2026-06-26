@@ -8,6 +8,8 @@ import { PostEndpointUrl } from "@/services/endPoints"
 import { DocInfoInterface } from "@/types/doc"
 import { app_doc_path } from "@/types/paths"
 import { useRouter } from "next/navigation"
+import { useDispatch } from "react-redux"
+import { addUserDoc } from "@/store/slice/userSlice"
 import { X } from "@/lib/icons";
 import { File as FileIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
@@ -33,6 +35,7 @@ export function InlineDocCreator({ className, isOpen: controlledIsOpen, onOpenCh
   const inputRef = useRef<HTMLInputElement>(null)
   const { makeRequest, isSubmitting } = usePost()
   const router = useRouter()
+  const dispatch = useDispatch()
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -62,6 +65,9 @@ export function InlineDocCreator({ className, isOpen: controlledIsOpen, onOpenCh
       apiEndpoint: PostEndpointUrl.CreateDoc,
     }).then((res) => {
       if (res?.doc_uuid) {
+        // Show it in the sidebar immediately (prepended, capped) instead of
+        // waiting for the next sidebar refetch on reload.
+        dispatch(addUserDoc({ doc: { doc_uuid: res.doc_uuid, doc_title: res.doc_title || title.trim() } }))
         router.push(`${app_doc_path}/${res.doc_uuid}`)
         setTitle("")
         setIsOpen(false)

@@ -19,6 +19,7 @@ import { SelectionAiBubbleMenu } from '@/components/minimal-tiptap/components/bu
 import { useMinimalTiptapEditor } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
 import { Callout } from '@/components/minimal-tiptap/extensions/callout/callout'
 import { Collapsible } from '@/components/minimal-tiptap/extensions/collapsible/collapsible'
+import { TableEmbed } from '@/components/minimal-tiptap/extensions/table-embed/table-embed'
 import { BlockHandle } from '@/components/minimal-tiptap/extensions/block-handle'
 import { ClickToCreateBlock } from '@/components/minimal-tiptap/extensions/click-to-create-block'
 import { TaskList } from '@tiptap/extension-task-list'
@@ -224,6 +225,7 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
         const extraExtensions = React.useMemo(() => [
             Callout, 
             Collapsible, 
+            TableEmbed,
             BlockHandle,
             ClickToCreateBlock,
             TaskList.configure({

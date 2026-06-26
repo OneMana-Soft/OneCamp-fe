@@ -11,6 +11,8 @@ import {
     Sun,
     Zap,
     MailPlus,
+    LayoutDashboard,
+    File as FileIcon,
 } from "@/lib/icons"
 import { Plug } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -118,6 +120,16 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         icon={Calendar}
                         label="Calendar"
                         onClick={() => handleNavigate("/app/calendar")}
+                    />
+                    <DrawerItem
+                        icon={FileIcon}
+                        label="Docs"
+                        onClick={() => handleNavigate("/app/doc")}
+                    />
+                    <DrawerItem
+                        icon={LayoutDashboard}
+                        label="Boards"
+                        onClick={() => handleNavigate("/app/board")}
                     />
 
                     <div className="my-2 border-t border-border/60" />

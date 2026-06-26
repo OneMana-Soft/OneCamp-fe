@@ -87,6 +87,32 @@ export enum GetEndpointUrl {
     GetDmGroupParticipants = "/groupChat/getDmParticipants",
     GetDocInfo = "/doc/getDocInfo",
     GetDocPermissions = "/doc/getDocPermissions",
+    GetBoardInfo = "/board/getBoardInfo",
+    GetBoardList = "/board/getBoardList",
+    GetBoardPermissions = "/board/getBoardPermissions",
+    GetBoardAttachment = "/board/getBoardAttachment",
+    GetBoardSnapshots = "/board/getBoardSnapshots",
+    GetBoardViewers = "/board/getViewers",
+    GetSourceLinks = "/link/source", // append /{source_type}/{source_uuid}
+    GetRefLinks = "/link/ref",       // append /{ref_type}/{ref_uuid}
+    // AI Agent Builder
+    GetAgents = "/agents",
+    GetAgent = "/agents",       // append /{id}
+    GetAgentRuns = "/agents",   // append /{id}/runs
+    // MCP servers (external tool providers)
+    GetMcpServers = "/mcp/servers",
+    GetMcpServer = "/mcp/servers", // append /{id}
+    // Tables (first-class structured-data entity)
+    GetTables = "/tables",
+    GetTable = "/tables",       // append /{id} (bundle)
+    GetTableRows = "/tables",   // append /{id}/rows
+    // API tokens (public API)
+    GetApiTokens = "/api-tokens",
+    GetApiTokenScopes = "/api-tokens/scopes",
+    // Templates (shareable templates)
+    GetMarketplaceTemplates = "/marketplace/templates", // append ?kind= or /{id}
+    GetDocSnapshots = "/doc/getDocSnapshots",
+    GetDocViewers = "/doc/getViewers",
     GlobalSearch = "/search/unifiedSearch/",
     GetMentionActivity= "/activity/mentions",
     GetCommentActivity= "/activity/comments",
@@ -138,6 +164,7 @@ export enum GetEndpointUrl {
     GetAIAuthorizedModels = "/admin/ai/authorized-models",
     GetAISelfTestStatus = "/admin/ai/self-test/status",
     GetAIBriefing = "/ai/briefing",
+    GetAIUsage = "/ai/usage",
     GetChannelMemoryExclusion = "/ai/memory/channel-exclusion",
     GetAIProviderModels = "/admin/ai/providers", // append /{providerId}/models
     GetAIOllamaCatalog = "/admin/ai/providers", // append /{providerId}/catalog
@@ -207,6 +234,56 @@ export enum PostEndpointUrl {
     CreateChannel = "/ch/create",
     CreateDoc = "/doc/createDoc",
     UpdateDoc = "/doc/updateDoc",
+    CreateBoard = "/board/createBoard",
+    UpdateBoard = "/board/updateBoard",
+    DeleteBoard = "/board/deleteBoard",
+    GenerateBoardDiagram = "/board/aiGenerate",
+    GenerateBoardDiagramStream = "/board/aiGenerateStream",
+    RefineBoardDiagram = "/board/aiRefineDiagram",
+    GenerateBoardUI = "/board/aiGenerateUI",
+    RefineBoardUI = "/board/aiRefineUI",
+    AddEntityLink = "/link/add",
+    RemoveEntityLink = "/link/remove",
+    // AI Agent Builder
+    CreateAgent = "/agents",
+    UpdateAgent = "/agents",     // append /{id}/update
+    DeleteAgent = "/agents",     // append /{id}/delete
+    SetAgentActive = "/agents",  // append /{id}/active
+    RunAgent = "/agents",        // append /{id}/run
+    // MCP servers (external tool providers)
+    CreateMcpServer = "/mcp/servers",
+    UpdateMcpServer = "/mcp/servers",   // append /{id}/update
+    DeleteMcpServer = "/mcp/servers",   // append /{id}/delete
+    SetMcpServerEnabled = "/mcp/servers", // append /{id}/enabled
+    TestMcpServer = "/mcp/servers",     // append /{id}/test
+    // Tables (first-class structured-data entity). All writes are POST.
+    CreateTable = "/tables",                 // POST /tables
+    GenerateTable = "/tables/generate",      // POST /tables/generate (AI)
+    UpdateTable = "/tables",                 // append /{id}/update
+    DeleteTable = "/tables",                 // append /{id}/delete
+    CreateTableRow = "/tables",              // append /{id}/rows
+    UpdateTableRow = "/tables",              // append /{id}/rows/{rowId}/update
+    DeleteTableRow = "/tables",              // append /{id}/rows/{rowId}/delete
+    CreateTableField = "/tables",            // append /{id}/fields
+    UpdateTableField = "/tables",            // append /{id}/fields/{fieldId}/update
+    DeleteTableField = "/tables",            // append /{id}/fields/{fieldId}/delete
+    CreateTableView = "/tables",             // append /{id}/views
+    UpdateTableView = "/tables",             // append /{id}/views/{viewId}/update
+    DeleteTableView = "/tables",             // append /{id}/views/{viewId}/delete
+    // API tokens (public API)
+    CreateApiToken = "/api-tokens",          // POST /api-tokens
+    RevokeApiToken = "/api-tokens",          // append /{id}/revoke
+    // Templates (shareable templates)
+    CreateMarketplaceTemplate = "/marketplace/templates",  // POST
+    DeleteMarketplaceTemplate = "/marketplace/templates",  // append /{id}/delete
+    InstallMarketplaceTemplate = "/marketplace/templates", // append /{id}/install
+    UpdateBoardPermissions = "/board/updateBoardPermissions",
+    SearchUserForBoard = "/board/searchUsers",
+    BoardCommentMention = "/board/commentMention",
+    RestoreBoardSnapshot = "/board/restoreBoardSnapshot",
+    RecordBoardView = "/board/recordView",
+    RestoreDocSnapshot = "/doc/restoreDocSnapshot",
+    RecordDocView = "/doc/recordView",
     JoinChannel = "/ch/joinChannel",
     UpdateChannel = "/ch/updateInfo",
     SetChannelPostPolicy = "/ch/postPolicy",
@@ -331,6 +408,8 @@ export enum PostEndpointUrl {
     SetAIEnabled = "/admin/ai/enabled",
     SetAIRateLimit = "/admin/ai/rate-limit",
     SetAIContextWindow = "/admin/ai/context-window",
+    SetAIWorkspaceTokenBudget = "/admin/ai/workspace-token-budget",
+    SetAIUserTokenBudget = "/admin/ai/user-token-budget",
     SetAICodeAnalysisMaxFiles = "/admin/ai/code-analysis-max-files",
     SetAIReasoning = "/admin/ai/reasoning",
     SetAIMeetingRecap = "/admin/ai/meeting-recap",
@@ -420,6 +499,7 @@ export enum PostEndpointUrl {
 
     // Workflows (capability-gated: admins always, members when allowed)
     CreateWorkflow = "/workflows",
+    DraftWorkflow = "/workflows/draft",
     UpdateWorkflow = "/workflows", // append /{id} — use PUT
     DeleteWorkflow = "/workflows", // append /{id} — use DELETE
     SetWorkflowActive = "/workflows", // append /{id}/active

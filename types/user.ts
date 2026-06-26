@@ -6,6 +6,7 @@ import {AttachmentMediaReq} from "@/types/attachment";
 import {ChatInfo} from "@/types/chat";
 import {RecordingInfoInterface} from "@/types/recording";
 import {DocSidebarInfo} from "@/types/doc";
+import {BoardSidebarInfo} from "@/types/board";
 
 export interface UserProfileDataInterface {
     uid?: string;
@@ -29,6 +30,7 @@ export interface UserProfileDataInterface {
     user_teams?: TeamInfoInterface[];
     user_projects?: ProjectInfoInterface[];
     user_docs?: DocSidebarInfo[];
+    user_boards?: BoardSidebarInfo[];
     user_app_lang?: string;
     user_hobbies?: string
     user_profile_object_key: string;

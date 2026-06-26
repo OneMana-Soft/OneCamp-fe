@@ -4,6 +4,7 @@ import {ChannelInfoInterface} from "@/types/channel";
 import {TeamInfoInterface} from "@/types/team";
 import {ProjectInfoInterface} from "@/types/project";
 import {DocSidebarInfo} from "@/types/doc";
+import {BoardSidebarInfo} from "@/types/board";
 
 interface UpdateUserEmojiStatusInterface {
   status: UserEmojiStatus;
@@ -90,6 +91,18 @@ interface CreateUserDocsInterface {
   docUsers: DocSidebarInfo[]
 }
 
+interface CreateUserBoardsInterface {
+  boardUsers: BoardSidebarInfo[]
+}
+
+// Max recent docs shown in the sidebar — matches the backend sidebar query
+// (~doc_created_by orderdesc doc_updated_at, first: 8). Keep in sync.
+const SIDEBAR_DOC_LIMIT = 8;
+
+// Max recent boards shown in the sidebar — matches the backend sidebar query
+// (~board_created_by orderdesc board_updated_at, first: 8). Keep in sync.
+const SIDEBAR_BOARD_LIMIT = 8;
+
 export interface UserEmojiInterface{
   emojiStatus: UserEmojiStatus;
   status: string;
@@ -106,6 +119,7 @@ interface UserSidebarInterface {
   userTeams: TeamInfoInterface[],
   userProjects:  ProjectInfoInterface[],
   userDocs: DocSidebarInfo[],
+  userBoards: BoardSidebarInfo[],
   totalUnreadActivityCount: number
 }
 
@@ -122,6 +136,7 @@ const initialState = {
     userTeams: [],
     userProjects: [],
     userDocs: [],
+    userBoards: [],
     totalUnreadActivityCount: 0
   } as UserSidebarInterface
 };
@@ -424,6 +439,96 @@ export const userSlice = createSlice({
       state.userSidebar.userDocs = docUsers;
     },
 
+    // addUserDoc prepends a newly created doc so it appears in the sidebar
+    // immediately (without a reload), deduped by uuid and capped to the same
+    // count the backend returns (8 most-recent private docs).
+    addUserDoc: (state, action: {payload: {doc: DocSidebarInfo}}) => {
+      const {doc} = action.payload;
+      if (!doc || !doc.doc_uuid) {
+        return;
+      }
+      if (!state.userSidebar.userDocs) {
+        state.userSidebar.userDocs = [] as DocSidebarInfo[];
+      }
+      const rest = state.userSidebar.userDocs.filter((d) => d.doc_uuid !== doc.doc_uuid);
+      state.userSidebar.userDocs = [doc, ...rest].slice(0, SIDEBAR_DOC_LIMIT);
+    },
+
+    // updateUserDocTitle keeps the sidebar label in sync when a doc is renamed,
+    // and moves it to the top — the sidebar is ordered by most-recently edited
+    // (doc_updated_at), and a rename is an edit. No-op if the doc isn't listed
+    // (don't surprise the user by injecting an off-list doc).
+    updateUserDocTitle: (state, action: {payload: {doc_uuid: string; doc_title: string}}) => {
+      const {doc_uuid, doc_title} = action.payload;
+      const list = state.userSidebar.userDocs;
+      if (!list) {
+        return;
+      }
+      const existing = list.find((d) => d.doc_uuid === doc_uuid);
+      if (!existing) {
+        return;
+      }
+      const rest = list.filter((d) => d.doc_uuid !== doc_uuid);
+      state.userSidebar.userDocs = [{...existing, doc_title}, ...rest];
+    },
+
+    // removeUserDoc drops a doc from the sidebar (e.g. on delete).
+    removeUserDoc: (state, action: {payload: {doc_uuid: string}}) => {
+      if (!state.userSidebar.userDocs) {
+        return;
+      }
+      state.userSidebar.userDocs = state.userSidebar.userDocs.filter(
+        (d) => d.doc_uuid !== action.payload.doc_uuid,
+      );
+    },
+
+    createUserBoardList: (state, action: {payload: CreateUserBoardsInterface}) => {
+      const {boardUsers} = action.payload;
+      state.userSidebar.userBoards = boardUsers;
+    },
+
+    // addUserBoard prepends a newly created board so it appears in the sidebar
+    // immediately (without a reload), deduped by uuid and capped to the same
+    // count the backend returns (8 most-recent boards).
+    addUserBoard: (state, action: {payload: {board: BoardSidebarInfo}}) => {
+      const {board} = action.payload;
+      if (!board || !board.board_uuid) {
+        return;
+      }
+      if (!state.userSidebar.userBoards) {
+        state.userSidebar.userBoards = [] as BoardSidebarInfo[];
+      }
+      const rest = state.userSidebar.userBoards.filter((b) => b.board_uuid !== board.board_uuid);
+      state.userSidebar.userBoards = [board, ...rest].slice(0, SIDEBAR_BOARD_LIMIT);
+    },
+
+    // updateUserBoardTitle keeps the sidebar label in sync on rename and moves
+    // the board to the top (sidebar is ordered by most-recently edited). No-op
+    // if the board isn't currently listed.
+    updateUserBoardTitle: (state, action: {payload: {board_uuid: string; board_title: string}}) => {
+      const {board_uuid, board_title} = action.payload;
+      const list = state.userSidebar.userBoards;
+      if (!list) {
+        return;
+      }
+      const existing = list.find((b) => b.board_uuid === board_uuid);
+      if (!existing) {
+        return;
+      }
+      const rest = list.filter((b) => b.board_uuid !== board_uuid);
+      state.userSidebar.userBoards = [{...existing, board_title}, ...rest];
+    },
+
+    // removeUserBoard drops a board from the sidebar (e.g. on delete).
+    removeUserBoard: (state, action: {payload: {board_uuid: string}}) => {
+      if (!state.userSidebar.userBoards) {
+        return;
+      }
+      state.userSidebar.userBoards = state.userSidebar.userBoards.filter(
+        (b) => b.board_uuid !== action.payload.board_uuid,
+      );
+    },
+
     addUserProjectList: (state, action: {payload: CrateUserProjectInterface}) => {
       const {projectUser} = action.payload;
 
@@ -537,6 +642,13 @@ export const {
   updateUserProjectList,
   addUserProjectList,
   createUserDocList,
+  addUserDoc,
+  updateUserDocTitle,
+  removeUserDoc,
+  createUserBoardList,
+  addUserBoard,
+  updateUserBoardTitle,
+  removeUserBoard,
   updateUsersStatusFromList,
   updateUserInfoStatus,
   setTotalUnreadActivityCount,

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
     Dialog,
@@ -35,6 +36,7 @@ import {
     Flag,
     UserPlus,
     MessageCircle,
+    Sparkles,
 } from "@/lib/icons";
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel";
 import { ProjectInfoInterface } from "@/types/project";
@@ -48,6 +50,7 @@ import {
     parseWorkflow,
     createWorkflow,
     updateWorkflow,
+    draftWorkflow,
 } from "@/services/workflowService";
 
 interface Props {
@@ -101,6 +104,11 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
     const [actions, setActions] = useState<WorkflowAction[]>([]);
     const [saving, setSaving] = useState(false);
 
+    // Natural-language draft (create mode only).
+    const [draftPrompt, setDraftPrompt] = useState("");
+    const [drafting, setDrafting] = useState(false);
+    const [draftNote, setDraftNote] = useState<string | null>(null);
+
     const { data: channelsData } = useFetch<ChannelInfoListInterfaceResp>(GetEndpointUrl.GetAllActiveChannelList);
     const channels: ChannelInfoInterface[] = channelsData?.channels_list || [];
 
@@ -135,6 +143,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             setActions([{ type: "reply", text: "" }]);
         }
         setKeywordInput("");
+        setDraftPrompt("");
+        setDraftNote(null);
     }, [open, workflow]);
 
     // When switching to a non-message trigger, drop message-only actions +
@@ -165,6 +175,32 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
     };
 
     const removeAction = (idx: number) => setActions((p) => p.filter((_, i) => i !== idx));
+
+    // handleDraft asks the AI to scaffold the form from a plain-English prompt.
+    const handleDraft = async () => {
+        const p = draftPrompt.trim();
+        if (!p) return;
+        setDrafting(true);
+        setDraftNote(null);
+        try {
+            const d = await draftWorkflow(p);
+            const trig: WorkflowTriggerType =
+                d.trigger_type === "user_joined_channel" ? "user_joined_channel" : "message_posted";
+            const msgTrigger = trig === "message_posted";
+            if (!name.trim() && d.name) setName(d.name);
+            setTriggerType(trig);
+            setKeywords(msgTrigger ? (d.keywords || []).filter(Boolean) : []);
+            setMatchType(d.match_type === "all" ? "all" : "any");
+            const acts = (d.actions || []).filter((a) => msgTrigger || !ACTION_META[a.type]?.messageOnly);
+            if (acts.length) setActions(acts);
+            setDraftNote(d.notes || "Draft ready. Review the fields and pick any channels or projects before saving.");
+            toast({ title: "Draft ready", description: "Review and adjust before saving." });
+        } catch {
+            // interceptor surfaces the error
+        } finally {
+            setDrafting(false);
+        }
+    };
 
     // Available action types for the current trigger.
     const availableActions = (Object.keys(ACTION_META) as WorkflowActionType[]).filter(
@@ -230,6 +266,32 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                 </DialogHeader>
 
                 <div className="space-y-5 py-2">
+                    {/* AI draft (create mode only) */}
+                    {!isEdit && (
+                        <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
+                            <Label className="flex items-center gap-1.5 text-sm">
+                                <Sparkles className="h-4 w-4 text-primary" /> Describe it in plain English
+                            </Label>
+                            <Textarea
+                                value={draftPrompt}
+                                onChange={(e) => setDraftPrompt(e.target.value)}
+                                placeholder="e.g. When someone posts 'help' in a channel, reply that support will follow up and create a high-priority task."
+                                className="min-h-[64px] resize-none bg-background text-sm"
+                                maxLength={2000}
+                            />
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] text-muted-foreground">
+                                    The AI fills the form below. You review and pick channels/projects before saving.
+                                </p>
+                                <Button type="button" size="sm" variant="outline" onClick={handleDraft} disabled={drafting || !draftPrompt.trim()} className="shrink-0 gap-1.5">
+                                    {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                                    Generate
+                                </Button>
+                            </div>
+                            {draftNote && <p className="text-[11px] text-primary">{draftNote}</p>}
+                        </div>
+                    )}
+
                     {/* Name */}
                     <div className="space-y-1.5">
                         <Label>Name</Label>

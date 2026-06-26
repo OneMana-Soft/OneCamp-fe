@@ -5,11 +5,13 @@
 // kept admins-only or opened to all members. Mirrors Slack's Permissions page.
 
 import React, { useEffect, useState } from "react"
+import { mutate } from "swr"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { ShieldCheck, Loader2 } from "@/lib/icons"
+import { GetEndpointUrl } from "@/services/endPoints"
 import {
     listCapabilityPolicies,
     setCapabilityPolicy,
@@ -46,6 +48,10 @@ export default function PermissionsCard() {
         try {
             await setCapabilityPolicy(capability, next)
             toast({ title: "Permission updated" })
+            // Refresh the current user's resolved capability set so any gated UI
+            // (e.g. the Agents page) reflects the change immediately, not after a
+            // focus/reload.
+            mutate(GetEndpointUrl.MyCapabilities)
         } catch {
             // Roll back on failure; interceptor shows the error.
             setPolicies((prev) =>

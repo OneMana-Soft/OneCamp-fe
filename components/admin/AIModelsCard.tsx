@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { useConfirm } from "@/hooks/useConfirm"
 import { Sparkles, RefreshCw, Save, Plus, Lightbulb } from "@/lib/icons"
 import {
   AIConfig,
@@ -35,10 +36,14 @@ import {
   getAIConfig,
   getAISystemStats,
   getReindexStatus,
+  getAIUsage,
+  AIUsage,
   listProviderModels,
   setAIEnabled,
   setAIRateLimit,
   setAIContextWindow,
+  setAIWorkspaceTokenBudget,
+  setAIUserTokenBudget,
   setAICodeAnalysisMaxFiles,
   setAIReasoning,
   setMeetingRecapEnabled,
@@ -68,6 +73,7 @@ const AIModelsCard = () => {
   const [config, setConfig] = useState<AIConfig | null>(null)
   const [stats, setStats] = useState<SystemStats | null>(null)
   const [reindex, setReindex] = useState<ReindexStatus | null>(null)
+  const [usage, setUsage] = useState<AIUsage | null>(null)
   const [backfill, setBackfill] = useState<MemoryBackfillStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -164,6 +170,11 @@ const AIModelsCard = () => {
       await refreshStats()
       await pollReindex()
       await pollBackfill()
+      try {
+        setUsage(await getAIUsage())
+      } catch {
+        // Non-fatal; the usage row simply won't render.
+      }
       setLoading(false)
       // Eagerly load catalogs for the active chat + embedding providers.
       if (cfg?.chat_provider_id) loadModels(cfg.chat_provider_id)
@@ -388,6 +399,42 @@ const AIModelsCard = () => {
               await setAIRateLimit(n)
               setConfig((c) => (c ? { ...c, rate_limit_per_min: n } : c))
               toast({ title: "Rate limit updated" })
+            }}
+          />
+
+          {usage && <UsageRow usage={usage} />}
+
+          <TokenBudgetRow
+            id="ai-ws-budget"
+            label="Workspace daily token budget"
+            hint="Caps total AI tokens spent across the workspace per day. 0 = unlimited."
+            initial={config.workspace_daily_token_budget}
+            onSave={async (n) => {
+              await setAIWorkspaceTokenBudget(n)
+              setConfig((c) => (c ? { ...c, workspace_daily_token_budget: n } : c))
+              try {
+                setUsage(await getAIUsage())
+              } catch {
+                /* non-fatal */
+              }
+              toast({ title: "Workspace token budget updated" })
+            }}
+          />
+
+          <TokenBudgetRow
+            id="ai-user-budget"
+            label="Per-user daily token budget"
+            hint="Caps AI tokens spent by each individual user per day, so one person can't drain the workspace budget. 0 = unlimited."
+            initial={config.user_daily_token_budget}
+            onSave={async (n) => {
+              await setAIUserTokenBudget(n)
+              setConfig((c) => (c ? { ...c, user_daily_token_budget: n } : c))
+              try {
+                setUsage(await getAIUsage())
+              } catch {
+                /* non-fatal */
+              }
+              toast({ title: "Per-user token budget updated" })
             }}
           />
 
@@ -674,6 +721,62 @@ const ReindexBanner: React.FC<{ status: ReindexStatus }> = ({ status }) => {
   )
 }
 
+// ─── AI token usage (read-only) ───────────────────────────────────────
+// Shows today's token spend for the workspace and the current admin against
+// their daily caps. Caps are configured via env (AI_WORKSPACE_DAILY_TOKEN_BUDGET
+// / AI_USER_DAILY_TOKEN_BUDGET); 0 means unlimited.
+const UsageMeterBar: React.FC<{ label: string; used: number; limit: number }> = ({ label, used, limit }) => {
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0
+  const near = limit > 0 && pct >= 80
+  const fmt = (n: number) => n.toLocaleString()
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium tabular-nums">
+          {fmt(used)}
+          {limit > 0 ? ` / ${fmt(limit)}` : " tokens"}
+        </span>
+      </div>
+      {limit > 0 && (
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={`h-full rounded-full transition-all ${near ? "bg-amber-500" : "bg-primary"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+const UsageRow: React.FC<{ usage: AIUsage }> = ({ usage }) => {
+  const noCaps = usage.workspace.limit === 0 && usage.user.limit === 0
+  return (
+    <div className="rounded-lg border bg-card/50 p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold">AI usage today</h3>
+          <p className="text-xs text-muted-foreground">Tokens consumed across all AI features. Resets at 00:00 UTC.</p>
+        </div>
+      </div>
+      <UsageMeterBar label="Workspace" used={usage.workspace.used} limit={usage.workspace.limit} />
+      <UsageMeterBar label="You" used={usage.user.used} limit={usage.user.limit} />
+      {noCaps && (
+        <p className="text-xs text-muted-foreground">
+          No daily caps set. Set AI_WORKSPACE_DAILY_TOKEN_BUDGET and/or AI_USER_DAILY_TOKEN_BUDGET to limit spend.
+        </p>
+      )}
+      <p className="border-t border-border/50 pt-2 text-[11px] leading-relaxed text-muted-foreground">
+        Counts are close but approximate. They use each provider&apos;s reported token
+        usage where available and a calibrated estimate otherwise, are best-effort
+        (a brief metering outage isn&apos;t counted), and can lag a little under heavy
+        concurrent use. Treat this as a spend guardrail, not a billing-grade meter.
+      </p>
+    </div>
+  )
+}
+
 // ─── Rate limit inline editor ─────────────────────────────────────────
 const RateLimitRow: React.FC<{ initial: number; onSave: (n: number) => Promise<void> }> = ({ initial, onSave }) => {
   const [value, setValue] = useState(initial)
@@ -697,6 +800,54 @@ const RateLimitRow: React.FC<{ initial: number; onSave: (n: number) => Promise<v
       <Button
         size="sm"
         disabled={!dirty || busy || value < 1}
+        onClick={async () => {
+          setBusy(true)
+          try {
+            await onSave(value)
+          } finally {
+            setBusy(false)
+          }
+        }}
+      >
+        <Save className="h-4 w-4 mr-1" /> Save
+      </Button>
+    </div>
+  )
+}
+
+// ─── Daily token budget inline editor ─────────────────────────────────
+// Edits one daily AI token cap (0 = unlimited). Mirrors RateLimitRow but
+// allows 0 and uses a wider input for large token values.
+const TokenBudgetRow: React.FC<{
+  id: string
+  label: string
+  hint: string
+  initial: number
+  onSave: (n: number) => Promise<void>
+}> = ({ id, label, hint, initial, onSave }) => {
+  const [value, setValue] = useState(initial)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => setValue(initial), [initial])
+  const dirty = value !== initial
+  return (
+    <div className="flex items-end gap-3 rounded-lg border border-border bg-card/50 p-4">
+      <div className="flex-1">
+        <Label htmlFor={id} className="text-sm font-semibold">{label}</Label>
+        <p className="text-xs text-muted-foreground mb-2">{hint}</p>
+        <Input
+          id={id}
+          type="number"
+          min={0}
+          step={1000}
+          value={value}
+          onChange={(e) => setValue(Math.max(0, parseInt(e.target.value || "0", 10)))}
+          className="w-40"
+        />
+        <p className="text-[11px] text-muted-foreground mt-1">{value === 0 ? "Unlimited" : `${value.toLocaleString()} tokens/day`}</p>
+      </div>
+      <Button
+        size="sm"
+        disabled={!dirty || busy || value < 0}
         onClick={async () => {
           setBusy(true)
           try {
@@ -856,6 +1007,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
   onChanged,
 }) => {
   const { toast } = useToast()
+  const confirm = useConfirm()
   const enabledProviders = config.providers.filter((p) => p.enabled)
 
   // Chat selection state.
@@ -945,14 +1097,16 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       const status = e?.response?.status
       if (status === 409) {
         // Dimension change requires reindex confirmation.
-        const ok = window.confirm(
-          `Changing the embedding dimension to ${embDim} will rebuild the entire AI search index ` +
+        confirm({
+          title: "Rebuild AI search index?",
+          description:
+            `Changing the embedding dimension to ${embDim} will rebuild the entire AI search index ` +
             `and re-embed all content. AI search results will be partial until it completes. Continue?`,
-        )
-        if (ok) {
-          await saveEmbedding(true)
-          return
-        }
+          confirmText: "Rebuild index",
+          onConfirm: () => {
+            void saveEmbedding(true)
+          },
+        })
       } else {
         toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
       }

@@ -102,3 +102,19 @@ export async function setWorkflowActive(id: string, isActive: boolean): Promise<
 export async function deleteWorkflow(id: string): Promise<void> {
     await axiosInstance.delete(`${PostEndpointUrl.DeleteWorkflow}/${id}`);
 }
+
+// A draft workflow generated from a natural-language prompt. Ids are
+// intentionally absent (the user selects channels/projects in the form).
+export interface WorkflowDraft {
+    name: string;
+    trigger_type: WorkflowTriggerType;
+    keywords: string[];
+    match_type: "any" | "all";
+    actions: WorkflowAction[];
+    notes?: string;
+}
+
+export async function draftWorkflow(prompt: string): Promise<WorkflowDraft> {
+    const res = await axiosInstance.post(PostEndpointUrl.DraftWorkflow, { prompt });
+    return res.data?.data as WorkflowDraft;
+}
