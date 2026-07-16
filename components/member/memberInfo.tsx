@@ -105,6 +105,11 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                             <span className="truncate text-sm font-medium text-foreground">
                                 {userInfo.user_name}
                             </span>
+                            {userInfo.is_bot && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary">
+                                    AI
+                                </span>
+                            )}
                             {isSelf && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
                                     You
@@ -112,12 +117,18 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                             )}
                         </div>
                         <span className="truncate text-xs text-muted-foreground">
-                            {userInfo.user_email_id}
+                            {userInfo.is_bot ? "AI teammate" : userInfo.user_email_id}
                         </span>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-0.5 shrink-0">
+                    {userInfo.is_bot ? (
+                        // AI teammates are managed from the "AI teammates" control,
+                        // not the human admin/remove actions — keep the row clean.
+                        <div className="w-8" />
+                    ) : (
+                    <>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
@@ -165,6 +176,8 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 Remove member
                             </TooltipContent>
                         </Tooltip>
+                    )}
+                    </>
                     )}
                 </div>
             </div>

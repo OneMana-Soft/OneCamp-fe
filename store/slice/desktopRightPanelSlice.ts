@@ -11,6 +11,9 @@ interface rightPanelProps {
     eventUUID: string;
     aiChatOpen: boolean;
     docAiOpen: boolean;
+    // Optional surface hint set by the quick-invoke shortcut so the assistant
+    // can open with context-aware starter prompts (e.g. "Summarize this doc").
+    aiContextType?: string;
     docAiData?: {
         selectedText: string;
         docId: string;

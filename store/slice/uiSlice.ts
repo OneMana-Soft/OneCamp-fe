@@ -58,6 +58,7 @@ export interface RootUIState {
   boardViewers: SingleUIState<{ boardId: string }>;
   docVersionHistory: SingleUIState<{ docId: string }>;
   docViewers: SingleUIState<{ docId: string }>;
+  extractTasks: SingleUIState<{ sourceType: "channel" | "dm" | "group" | "meeting" | "text"; sourceId?: string }>;
   
   // Admin card dialogs
   webhookCreate: SingleUIState;
@@ -149,6 +150,7 @@ const initialState: RootUIState = {
   boardViewers: { isOpen: false, data: { boardId: "" } },
   docVersionHistory: { isOpen: false, data: { docId: "" } },
   docViewers: { isOpen: false, data: { docId: "" } },
+  extractTasks: { isOpen: false, data: { sourceType: "text" as const, sourceId: "" } },
 
   // Admin card dialogs
   webhookCreate: { isOpen: false, data: null },

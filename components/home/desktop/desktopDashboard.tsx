@@ -27,6 +27,7 @@ import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
 import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
 import BriefingCard from "@/components/ai/BriefingCard"
+import AttentionCard from "@/components/ai/AttentionCard"
 
 function StatCard({
     icon: Icon,
@@ -148,9 +149,7 @@ export function DesktopDashboard() {
         (c) => (c.unread_post_count || 0) > 0,
     ).length
     const incompleteTasks =
-        selfProfile.data?.data?.user_incomplete_task_count ??
-        selfProfile.data?.data?.user_task_count ??
-        0
+        selfProfile.data?.data?.user_incomplete_task_count ?? 0
     const overdueTasks = selfProfile.data?.data?.user_overdue_task_count || 0
 
     const greeting = (() => {
@@ -177,6 +176,9 @@ export function DesktopDashboard() {
                         Here&apos;s what&apos;s happening in your workspace
                     </p>
                 </div>
+
+                {/* What needs me now — cross-surface action queue; self-hides when empty */}
+                <AttentionCard />
 
                 {/* AI briefing — self-hides when AI/memory is off or empty */}
                 <BriefingCard />

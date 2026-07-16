@@ -7,11 +7,16 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { cn } from "@/lib/utils/helpers/cn"
+import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCount"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Pencil, Sparkles, Loader2, Rocket } from "@/lib/icons"
+import { Plus, Trash2, Pencil, Sparkles, Loader2, Rocket, History } from "@/lib/icons"
 import {
   Agent,
+  WorkspaceAgentStats,
+  AgentHealth,
+  AgentEvalSummary,
   parseEnabledTools,
   parseScope,
   parseTriggerConfig,
@@ -20,6 +25,9 @@ import {
   deleteAgent,
 } from "@/services/agentService"
 import { AgentEditDialog } from "./AgentEditDialog"
+import { AgentRunsDialog } from "./AgentRunsDialog"
+import AgentActivityFeed from "./AgentActivityFeed"
+import AgentActiveWorkPanel from "./AgentActiveWorkPanel"
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -29,13 +37,102 @@ const TRIGGER_LABEL: Record<string, string> = {
   event: "On event",
 }
 
+function fmtTokens(n: number): string {
+  if (!n) return "0"
+  if (n < 1000) return `${n}`
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`
+  return `${(n / 1_000_000).toFixed(1)}M`
+}
+
+// AgentOverviewStrip is the fleet-level summary above the agent list: how many
+// agents are active, aggregate run health (success rate over completed runs),
+// total AI spend, and recent activity. The admin's "is the fleet healthy and
+// worth the cost" glance.
+const AgentOverviewStrip: React.FC<{ stats: WorkspaceAgentStats }> = ({ stats }) => {
+  const completed = stats.succeeded + stats.failed + stats.stopped
+  const successRate = completed > 0 ? Math.round((stats.succeeded / completed) * 100) : null
+  const tiles = [
+    { label: "Active agents", value: `${stats.active_agents}/${stats.total_agents}` },
+    { label: "Total runs", value: stats.total_runs.toLocaleString() },
+    { label: "Success rate", value: successRate === null ? "—" : `${successRate}%` },
+    { label: "AI spend (7d)", value: `${fmtTokens(stats.last_7d_tokens)} tok` },
+    { label: "Runs (7d)", value: stats.last_7d_runs.toLocaleString() },
+  ]
+  return (
+    <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+      {tiles.map((t) => (
+        <div key={t.label} className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t.label}</div>
+          <div className="mt-0.5 text-base font-semibold text-foreground">{t.value}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// AgentHealthDot is the at-a-glance per-row reliability signal: a colored dot
+// (green/amber/red by success rate over completed runs, grey when there are no
+// runs yet) with a tooltip, so an admin scanning the list sees which agents are
+// healthy without opening each one. Complements the aggregate overview strip.
+const AgentHealthDot: React.FC<{ health?: AgentHealth }> = ({ health }) => {
+  if (!health || health.total_runs === 0) {
+    return (
+      <span
+        className="inline-block h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30"
+        title="No runs yet"
+        aria-label="Agent health: no runs yet"
+      />
+    )
+  }
+  const completed = health.succeeded + health.failed + health.stopped
+  const rate = completed > 0 ? Math.round((health.succeeded / completed) * 100) : null
+  let color = "bg-muted-foreground/30"
+  let label = `${health.total_runs} run${health.total_runs === 1 ? "" : "s"}, none completed yet`
+  if (rate !== null) {
+    color = rate >= 90 ? "bg-emerald-500" : rate >= 70 ? "bg-amber-500" : "bg-red-500"
+    label = `${rate}% success over ${completed} completed run${completed === 1 ? "" : "s"}`
+  }
+  return (
+    <span
+      className={cn("inline-block h-2 w-2 shrink-0 rounded-full", color)}
+      title={label}
+      aria-label={`Agent health: ${label}`}
+    />
+  )
+}
+
+// AgentEvalBadge shows the agent's latest test-suite pass-rate at a glance
+// (green/amber/red), so an owner sees which agents are proven vs untested while
+// scanning the list. Absent when the agent has no active tests.
+const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) => {
+  if (!summary || summary.scenario_count === 0) return null
+  if (summary.scored === 0) {
+    return (
+      <Badge variant="secondary" className="text-[10px]" title={`${summary.scenario_count} test(s), not run yet`}>
+        {summary.scenario_count} test{summary.scenario_count === 1 ? "" : "s"}
+      </Badge>
+    )
+  }
+  const rate = Math.round((summary.passed / summary.scored) * 100)
+  const tone = rate >= 90 ? "text-emerald-600" : rate >= 70 ? "text-amber-600" : "text-red-600"
+  return (
+    <Badge variant="secondary" className={cn("text-[10px]", tone)} title={`${summary.passed}/${summary.scored} tests passing`}>
+      {rate}% tests
+    </Badge>
+  )
+}
+
 const AgentsCard = () => {
   const { data, isLoading, mutate } = useFetch<{ data: Agent[] }>(GetEndpointUrl.GetAgents)
+  const { data: overview } = useFetch<{ data: WorkspaceAgentStats }>(`${GetEndpointUrl.GetAgents}/overview`)
+  const { data: health } = useFetch<{ data: Record<string, AgentHealth> }>(`${GetEndpointUrl.GetAgents}/health`)
+  const { data: evalSummary } = useFetch<{ data: Record<string, AgentEvalSummary> }>(`${GetEndpointUrl.GetAgents}/eval/summary`)
   const { toast } = useToast()
   const confirm = useConfirm()
   const [editing, setEditing] = useState<Agent | null>(null)
   const [creating, setCreating] = useState(false)
   const [publishing, setPublishing] = useState<Agent | null>(null)
+  const [viewingRuns, setViewingRuns] = useState<Agent | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const agents = data?.data || []
@@ -132,6 +229,9 @@ const AgentsCard = () => {
           </div>
         ) : (
           <div className="space-y-3">
+            {overview?.data && overview.data.total_runs > 0 && <AgentOverviewStrip stats={overview.data} />}
+            <AgentActiveWorkPanel />
+            <AgentActivityFeed />
             {agents.map((a) => {
               const tools = parseEnabledTools(a)
               return (
@@ -141,9 +241,18 @@ const AgentsCard = () => {
                 >
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
+                      <AgentHealthDot health={health?.data?.[a.id]} />
                       <span className="truncate font-medium">{a.name}</span>
                       <Badge variant="outline" className="text-[10px]">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</Badge>
                       {!a.is_active && <Badge variant="secondary" className="text-[10px]">Paused</Badge>}
+                      {a.dm_able && <Badge variant="secondary" className="text-[10px] text-primary">DM</Badge>}
+                      {a.run_in_background && <Badge variant="secondary" className="text-[10px]" title="Answers mentions & DMs as durable background runs with live status">Background</Badge>}
+                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-[10px] text-amber-600">Approval</Badge>}
+                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-[10px] text-amber-600">Plan-approve</Badge>}
+                      {(a.max_daily_tokens ?? 0) > 0 && (
+                        <Badge variant="secondary" className="text-[10px]">{fmtTokens(a.max_daily_tokens as number)}/day</Badge>
+                      )}
+                      <AgentEvalBadge summary={evalSummary?.data?.[a.id]} />
                       {a.last_error && <Badge variant="destructive" className="text-[10px]">Last run failed</Badge>}
                     </div>
                     {a.description && <p className="text-xs text-muted-foreground">{a.description}</p>}
@@ -165,6 +274,15 @@ const AgentsCard = () => {
                     />
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(a)} title="Edit">
                       <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setViewingRuns(a)}
+                      title="Run history"
+                    >
+                      <History className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -216,6 +334,15 @@ const AgentsCard = () => {
           kind="agent"
           payload={agentTemplatePayload(publishing)}
           defaultName={publishing.name}
+        />
+      )}
+
+      {viewingRuns && (
+        <AgentRunsDialog
+          agentId={viewingRuns.id}
+          agentName={viewingRuns.name}
+          open={!!viewingRuns}
+          onClose={() => setViewingRuns(null)}
         />
       )}
     </Card>

@@ -27,9 +27,15 @@ import type { UserProfileDataInterface } from "@/types/user"
  * fallback isn't needed.
  */
 export function isExternalUser(
-    user?: Pick<UserProfileDataInterface, "is_external" | "user_email_id"> | null,
+    user?: Pick<UserProfileDataInterface, "is_external" | "user_email_id" | "is_bot"> | null,
 ): boolean {
     if (!user) return false
+    // Bots (the shared AI coworker and per-agent DM-able teammates) are
+    // external by class but ARE messageable — a DM to a bot is answered by the
+    // AI, and the server explicitly exempts is_bot from the external-DM block.
+    // So a bot must never be treated as a blocked external contact: this lets a
+    // bot DM render and surface in the DM sidebar like any conversation.
+    if (user.is_bot === true) return false
     if (user.is_external === true) return true
     const email = (user.user_email_id || "").toLowerCase()
     if (email.includes("@external.onecamp.")) return true

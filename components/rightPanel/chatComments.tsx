@@ -3,7 +3,7 @@ import type { RootState } from "@/store/store"
 
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {getForwardedMessageData, getMainMessageData} from "@/lib/utils/rightPanelHelper";
+import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 import {MessageContent} from "@/components/rightPanel/messageContent";
@@ -102,6 +102,7 @@ export const ChatComments = () => {
 
     const mainMessageData = getMainMessageData(chatInfoState)
     const forwardedMessageData = getForwardedMessageData(chatInfoState)
+    const replyMessageData = getReplyMessageData(chatInfoState)
 
 
     const handleDeletePost = (postId: string) => {
@@ -427,6 +428,7 @@ export const ChatComments = () => {
                 createdAt={mainMessageData.createdAt}
                 content={mainMessageData.content}
                 forwardedMessage={forwardedMessageData}
+                replyMessage={replyMessageData}
                 channelUUID={mainMessageData.channelUUID}
                 chatUUID={mainMessageData.chatUUID}
                 removeReaction={removeReaction}
@@ -494,7 +496,7 @@ export const ChatComments = () => {
                     placeholder={"Add a message, if you'd like..."}
                     editable={true}
                     toggleToolbar={true}
-                    editorClassName="focus:outline-none px-2 py-2"
+                    editorClassName="focus:outline-none"
                     onChange={(content ) => {
                         dispatch(createOrUpdateChatCommentBody({chatUUID:rightPanelState.data.chatUUID, body: content as string}))
                     }}

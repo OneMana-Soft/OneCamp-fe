@@ -8,7 +8,7 @@ export function MobileTopNavigationBarSecondBoard({ boardId }: { boardId: string
     const boardInfo = useFetch<BoardInfoResponse>(boardId ? `${GetEndpointUrl.GetBoardInfo}/${boardId}` : '');
 
     return (
-        <div className="font-medium text-base text-center truncate">
+        <div className="text-base font-semibold text-foreground text-center truncate">
             {boardInfo.data?.data?.board_title || "Board"}
         </div>
     );

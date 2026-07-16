@@ -19,6 +19,7 @@ import { useFetchOnlyOnce} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {MessageAttachments} from "@/components/message/MessageAttachments";
+import {AgentResultCards} from "@/components/message/AgentResultCards";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
@@ -29,6 +30,7 @@ interface MessageContentProps {
     createdAt?: string
     content: string
     forwardedMessage?: ForwardedMessageData
+    replyMessage?: ForwardedMessageData
     channelUUID?: string
     commentUUID?: string
     postUUID?: string
@@ -48,6 +50,7 @@ export const MessageContent = ({
                                    createdAt,
                                    content,
                                    forwardedMessage,
+    replyMessage,
     getMediaUrl,
     attachments,
     commentUUID,
@@ -76,6 +79,15 @@ export const MessageContent = ({
     const userStatusState = useUserInfoState(userInfo?.user_uuid)
 
     const dispatch = useDispatch()
+
+    // Guest-authored comments carry a reserved "guest-" uuid (never a member).
+    // They are read-only for members: the member comment mutation endpoints
+    // (edit / delete / react) target the core comment store, not the isolated
+    // guest_comments table, so we suppress those affordances and the profile
+    // open, and badge the author instead of exposing a member profile surface.
+    const isGuest = !!userInfo?.user_uuid?.startsWith("guest-")
+    const guestDisplayName =
+        (userInfo?.user_name || "").replace(/^Guest:\s*/i, "").trim() || "Guest"
 
     const handleEmojiClick = (emojiId: string) => {
         if(userSelectedOption.emojiId == emojiId) {
@@ -130,7 +142,7 @@ export const MessageContent = ({
     return (
         <div className={`pl-2 flex relative space-x-4 pt-4 hover:bg-primary/5 transition-colors duration-150 group ${isDropdownOpen || isEmojiPickerOpen? 'bg-primary/5':''}`}>
 
-            {!isMessageEditEnabled && <div
+            {!isMessageEditEnabled && !isGuest && <div
                 className={cn(
                     "absolute -top-0.5 right-2 transition-opacity duration-150 z-[var(--z-dropdown)]",
                     (isDropdownOpen || isEmojiPickerOpen) || "opacity-0 group-hover:opacity-100",
@@ -158,26 +170,56 @@ export const MessageContent = ({
                     }
                 />
             </div>}
-            <div className="h-12 w-12 flex-shrink-0" onClick={handleUserClick}>
+            <div className="h-12 w-12 flex-shrink-0" onClick={isGuest ? undefined : handleUserClick}>
                 <ChannelMessageAvatar
-                    userName={userStatusState?.userName || userInfo?.user_name || ''}
-                    userProfileKey={userStatusState?.userName ? userStatusState?.profileKey : userInfo?.user_profile_object_key}
+                    userName={isGuest ? guestDisplayName : (userStatusState?.userName || userInfo?.user_name || '')}
+                    userProfileKey={isGuest ? undefined : (userStatusState?.userName ? userStatusState?.profileKey : userInfo?.user_profile_object_key)}
                 />
             </div>
             <div className="flex-1 mb-4">
                 <div className="flex items-baseline space-x-2 mb-1">
-                    <div className="font-medium text-sm" onClick={handleUserClick}>{userInfo?.user_name}</div>
+                    <div
+                        className="font-medium text-sm"
+                        onClick={isGuest ? undefined : handleUserClick}
+                    >
+                        {isGuest ? guestDisplayName : userInfo?.user_name}
+                    </div>
+                    {isGuest && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Guest
+                        </span>
+                    )}
+                    {!isGuest && userInfo?.is_bot && (
+                        <span
+                            className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary"
+                            title="AI agent"
+                        >
+                            AI
+                        </span>
+                    )}
                      <div className="text-xs text-muted-foreground">{formatTimeForPostOrComment(createdAt || '')}</div>
                 </div>
 
-                <div className="break-all">
+                {replyMessage && !isMessageEditEnabled && (
+                    <div className="mb-1 border-l-2 border-primary/40 pl-2">
+                        <MessagePreview
+                            msgBy={replyMessage.msgBy}
+                            msgText={replyMessage.msgText}
+                            msgUUID={replyMessage.msgUUID}
+                            msgCreatedAt={replyMessage.msgCreatedAt}
+                            vewFooter={false}
+                        />
+                    </div>
+                )}
+
+                <div className="break-words">
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         isOutputText={true}
                         className={cn("max-w-full rounded-xl h-auto",
                             isMessageEditEnabled ? "p-2" : "border-none"
                         )}
-                        editorContentClassName="overflow-auto mb-2"
+                        editorContentClassName="overflow-auto mb-2 text-sm"
                         output="html"
                         content={content}
                         placeholder="Edit message..."
@@ -206,6 +248,13 @@ export const MessageContent = ({
                     />
                 </div>
 
+                {/* Additive GitHub result cards for AI-teammate messages (a PR,
+                    an open-PR link, or a pushed branch) — rendered below the
+                    body, never replacing it. No-op for humans / non-GitHub text. */}
+                {userInfo?.is_bot && !isMessageEditEnabled && (
+                    <AgentResultCards text={content} />
+                )}
+
                 {forwardedMessage && !isMessageEditEnabled && (
                     <MessagePreview
                         msgBy={forwardedMessage.msgBy}
@@ -224,7 +273,7 @@ export const MessageContent = ({
                 }
 
 
-                {!isMessageEditEnabled && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
+                {!isMessageEditEnabled && !isGuest && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
 
             </div>
         </div>

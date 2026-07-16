@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Bell, Bookmark, CircleUser, Forward, Link, MessageSquareText, Pencil, Trash2, Type, Users } from "@/lib/icons";
+import { Bell, Bookmark, CircleUser, Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type, Users } from "@/lib/icons";
+import { useTranslateText } from "@/services/aiService";
 
 import {
     Drawer,
@@ -33,17 +34,34 @@ interface channelOptionsDrawerProps {
     editMessage: () => void
     deleteMessage: () => void
     handleEmojiClick: (emojiId: string) => void
+    // onReply arms the composer for a Discord-style inline reply (distinct from
+    // "Reply in thread", which opens the thread view).
+    onReply?: () => void
     isOwner: boolean
     isAdmin?: boolean
+    // Plain-text message body, used for the in-drawer "Translate" action.
+    messageText?: string
 }
 
 
 
-export function ChannelMessageLongPressDrawer({ drawerOpenState, copyTextToClipboard, setOpenState, onAddEmoji, postUUID, channelUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick }: channelOptionsDrawerProps) {
+export function ChannelMessageLongPressDrawer({ drawerOpenState, copyTextToClipboard, setOpenState, onAddEmoji, postUUID, channelUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText }: channelOptionsDrawerProps) {
 
     const router = useRouter();
 
     const copyToClipboard = useCopyToClipboard()
+
+    // In-drawer AI translation (mirrors the desktop hover "Translate"). The
+    // result renders in place; the drawer stays open so the user can read it.
+    const { translateText, isSubmitting: translating } = useTranslateText()
+    const [translation, setTranslation] = React.useState<string | null>(null)
+    const handleTranslate = async () => {
+        const t = (messageText || "").trim()
+        if (!t) return
+        const target = typeof navigator !== "undefined" ? navigator.language : "English"
+        const res = await translateText(t, target)
+        if (res?.translation) setTranslation(res.translation)
+    }
 
     function closeDrawer() {
 
@@ -57,9 +75,14 @@ export function ChannelMessageLongPressDrawer({ drawerOpenState, copyTextToClipb
     }
 
     // Handlers for card clicks
-    const handleReplyClick = () => {
+    const handleThreadClick = () => {
 
         router.push(`${app_channel_path}/${channelUUID}/${postUUID}`);
+        closeDrawer()
+    }
+
+    const handleInlineReplyClick = () => {
+        onReply?.()
         closeDrawer()
     }
 
@@ -146,10 +169,18 @@ export function ChannelMessageLongPressDrawer({ drawerOpenState, copyTextToClipb
                         {/* Cards Section */}
                         <div className="flex justify-center gap-4">
 
+                            {onReply && (
+                                <DrawerActionCard
+                                    onCardClick={handleInlineReplyClick}
+                                    Icon={Reply}
+                                    cardText={'Reply'}
+                                />
+                            )}
+
                             <DrawerActionCard
-                                onCardClick={handleReplyClick}
+                                onCardClick={handleThreadClick}
                                 Icon={MessageSquareText}
-                                cardText={'Reply'}
+                                cardText={'Thread'}
                             />
 
                             <DrawerActionCard
@@ -182,9 +213,25 @@ export function ChannelMessageLongPressDrawer({ drawerOpenState, copyTextToClipb
                                 Icon={Type}
                             />
 
-
+                            {!!(messageText || "").trim() && (
+                                <DrawerActionLink
+                                    onLinkClick={handleTranslate}
+                                    linkText={translating ? 'Translating…' : (translation ? 'Re-translate' : 'Translate')}
+                                    Icon={translating ? Loader2 : Languages}
+                                />
+                            )}
 
                         </div>
+
+                        {translation && (
+                            <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                                <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                                    <Languages className="h-3 w-3" />
+                                    Translated
+                                </div>
+                                <p className="whitespace-pre-line text-sm text-foreground">{translation}</p>
+                            </div>
+                        )}
 
                         { (isOwner || isAdmin) &&
                             <>

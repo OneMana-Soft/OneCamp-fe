@@ -5,16 +5,29 @@ import { useAskAIStream } from "@/services/aiService";
 import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import ActionConfirmation from "@/components/ai/ActionConfirmation";
 import AiModelPicker from "@/components/ai/AiModelPicker";
+import AiUsageIndicator from "@/components/ai/AiUsageIndicator";
 import ReleaseNotesDialog from "@/components/ai/ReleaseNotesDialog";
+import AiInstructionsDialog from "@/components/ai/AiInstructionsDialog";
+import MyAgentWorkDialog from "@/components/ai/MyAgentWorkDialog";
 import SocialComposeDialog from "@/components/ai/SocialComposeDialog";
+import AiScheduleDialog from "@/components/ai/AiScheduleDialog";
 import { ProposedAction } from "@/services/aiService";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import type { RootState } from "@/store/store";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
-import { X, Send, Sparkles, Loader2, MessageSquarePlus, Lightbulb, FileText, ArrowUpRight, Megaphone } from "@/lib/icons";
+import { X, Send, Sparkles, Loader2, MessageSquarePlus, Lightbulb, FileText, ArrowUpRight, Megaphone, CalendarClock, MoreHorizontal, SlidersHorizontal, Users, Mic } from "@/lib/icons";
+import { useVoiceDictation } from "@/hooks/useVoiceDictation";
+import { useToast } from "@/hooks/use-toast";
 import { StopCircle } from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useRouter } from "next/navigation";
 import { getOtherUserId } from "@/lib/utils/getOtherUserId";
@@ -133,6 +146,53 @@ const SOURCE_LABEL: Record<string, string> = {
     memory: "Memory",
 };
 
+// Context-aware starter prompts for the empty state. When the assistant is
+// opened via the quick-invoke shortcut from a specific surface, we offer
+// prompts about THAT surface (the AskAI backend already grounds answers in the
+// user's accessible content, so these read naturally). Falls back to the
+// generic workspace prompts on home / unrecognized surfaces.
+const CONTEXT_SUGGESTIONS: Record<string, string[]> = {
+    channel: [
+        "Summarize recent activity in this channel",
+        "What decisions were made in this channel?",
+        "Are there open questions here I should answer?",
+    ],
+    doc: [
+        "Summarize this doc",
+        "What are the action items in this doc?",
+        "Suggest improvements to this doc",
+    ],
+    task: [
+        "Summarize this task and its discussion",
+        "What's blocking this task?",
+        "Draft a status update for this task",
+    ],
+    board: [
+        "Summarize what's on this board",
+        "What are the next steps from this board?",
+    ],
+    table: [
+        "Summarize what's in this table",
+        "What patterns stand out in this data?",
+    ],
+    chat: [
+        "Summarize this conversation",
+        "What did I miss in this conversation?",
+        "Draft a reply",
+    ],
+    project: [
+        "Summarize this project's status",
+        "What tasks are overdue in this project?",
+        "What decisions were made in this project?",
+    ],
+};
+
+const DEFAULT_SUGGESTIONS = [
+    "What are the recent updates in my channels?",
+    "Summarize my pending tasks",
+    "What did the team discuss today?",
+];
+
 // cleanSnippet strips HTML markup and collapses whitespace so source previews
 // read as plain text. Backend snippets sometimes carry raw doc markup (e.g.
 // "<p xmlns=...>") — without this they leak tags into the citation strip.
@@ -215,21 +275,49 @@ const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; o
 const AiChatPanel: React.FC = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
+    const { toast } = useToast();
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
     const [socialOpen, setSocialOpen] = useState(false);
+    const [scheduleOpen, setScheduleOpen] = useState(false);
+    const [instructionsOpen, setInstructionsOpen] = useState(false);
+    const [agentWorkOpen, setAgentWorkOpen] = useState(false);
     const [socialTopic, setSocialTopic] = useState("");
     const { askStream, cancelStream, isStreaming, streamText, streamActions, error } = useAskAIStream();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const dispatch = useDispatch();
     const { isMobile } = useMedia();
+    // Voice dictation into the assistant input (reuses the model-agnostic STT).
+    const {
+        available: micAvailable,
+        recording: micRecording,
+        transcribing: micTranscribing,
+        toggle: toggleDictation,
+    } = useVoiceDictation({
+        onText: (t) => {
+            setInput((prev) => (prev.trim() ? prev.trimEnd() + " " + t : t));
+            inputRef.current?.focus();
+        },
+        onError: (m) => toast({ title: m, variant: "destructive" }),
+    });
     const router = useRouter();
 
     // Current user id — needed to resolve DM source links to the OTHER
     // participant (a DM grouping id contains both user uuids).
     const { data: selfProfile } = useFetchOnlyOnce<{ data?: { user_uuid?: string } }>(GetEndpointUrl.SelfProfile);
     const currentUserId = selfProfile?.data?.user_uuid;
+
+    // Surface hint set by the quick-invoke shortcut (Ctrl/Cmd+J). Picks the
+    // context-aware starter prompts; empty/unknown falls back to the generic
+    // workspace prompts.
+    const aiContextType = useSelector(
+        (s: RootState) => s.rightPanel.rightPanelState.data.aiContextType,
+    );
+    const suggestions = useMemo(
+        () => (aiContextType && CONTEXT_SUGGESTIONS[aiContextType]) || DEFAULT_SUGGESTIONS,
+        [aiContextType],
+    );
 
     // Sanitize streaming text in real-time so <tool_call> blocks never render
     const sanitizedStreamText = useMemo(() => sanitizeAIText(streamText), [streamText]);
@@ -349,39 +437,10 @@ const AiChatPanel: React.FC = () => {
                         <Sparkles className="h-3.5 w-3.5" />
                     </span>
                     <span className="text-sm font-semibold text-foreground">AI Assistant</span>
+                    <AiUsageIndicator refreshSignal={messages.length} />
                 </div>
                 <div className="flex items-center gap-0.5">
                     <AiModelPicker />
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => setReleaseNotesOpen(true)}
-                        title="Draft release notes"
-                        aria-label="Draft release notes from merged PRs"
-                    >
-                        <FileText className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => { setSocialTopic(""); setSocialOpen(true); }}
-                        title="Draft social posts"
-                        aria-label="Draft social posts for X, Reddit and more"
-                    >
-                        <Megaphone className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => router.push("/app/ai/memory")}
-                        title="Workspace Memory"
-                        aria-label="Open Workspace Memory"
-                    >
-                        <Lightbulb className="h-4 w-4" />
-                    </Button>
                     <Button
                         variant="ghost"
                         size="icon"
@@ -392,6 +451,47 @@ const AiChatPanel: React.FC = () => {
                     >
                         <MessageSquarePlus className="h-4 w-4" />
                     </Button>
+                    {/* Secondary tools tucked into an overflow menu to keep the
+                        top bar clean (Notion-style). */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                title="More tools"
+                                aria-label="More AI tools"
+                            >
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem onClick={() => setAgentWorkOpen(true)}>
+                                <Users className="h-4 w-4 mr-2" />
+                                AI teammates
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setInstructionsOpen(true)}>
+                                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                                Custom instructions
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push("/app/ai/memory")}>
+                                <Lightbulb className="h-4 w-4 mr-2" />
+                                Workspace Memory
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setScheduleOpen(true)}>
+                                <CalendarClock className="h-4 w-4 mr-2" />
+                                Find a meeting time
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setReleaseNotesOpen(true)}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Draft release notes
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setSocialTopic(""); setSocialOpen(true); }}>
+                                <Megaphone className="h-4 w-4 mr-2" />
+                                Draft social posts
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                         variant="ghost"
                         size="icon"
@@ -420,12 +520,15 @@ const AiChatPanel: React.FC = () => {
                         <p className="text-[13px] text-muted-foreground max-w-[280px] leading-normal m-0">
                             Ask anything about your workspace — channels, tasks, docs, and more.
                         </p>
+                        <p className="text-[11px] text-muted-foreground/60 m-0 inline-flex items-center gap-1">
+                            Tip: press
+                            <kbd className="inline-flex items-center rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                                Ctrl J
+                            </kbd>
+                            anywhere to open this
+                        </p>
                         <div className="flex flex-col gap-2 mt-2 w-full max-w-[320px]">
-                            {[
-                                "What are the recent updates in my channels?",
-                                "Summarize my pending tasks",
-                                "What did the team discuss today?",
-                            ].map((suggestion) => (
+                            {suggestions.map((suggestion) => (
                                 <Button
                                     key={suggestion}
                                     variant="outline"
@@ -571,6 +674,28 @@ const AiChatPanel: React.FC = () => {
                         rows={1}
                         aria-label="Message AI assistant"
                     />
+                    {micAvailable && !isStreaming && (
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className={cn(
+                                "h-8 w-8 rounded-lg shrink-0 self-end mb-0.5",
+                                micRecording
+                                    ? "text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    : "text-muted-foreground hover:text-primary",
+                            )}
+                            onClick={toggleDictation}
+                            disabled={micTranscribing}
+                            title={micRecording ? "Stop & insert" : "Dictate"}
+                            aria-label={micRecording ? "Stop dictation" : "Dictate"}
+                        >
+                            {micTranscribing ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Mic className={cn("h-4 w-4", micRecording && "animate-pulse")} />
+                            )}
+                        </Button>
+                    )}
                     {isStreaming ? (
                         <Button
                             size="icon"
@@ -618,6 +743,9 @@ const AiChatPanel: React.FC = () => {
                 }}
             />
             <SocialComposeDialog open={socialOpen} onOpenChange={setSocialOpen} initialTopic={socialTopic} />
+            <AiScheduleDialog open={scheduleOpen} onOpenChange={setScheduleOpen} />
+            <AiInstructionsDialog open={instructionsOpen} onOpenChange={setInstructionsOpen} />
+            <MyAgentWorkDialog open={agentWorkOpen} onOpenChange={setAgentWorkOpen} />
         </div>
     );
 };

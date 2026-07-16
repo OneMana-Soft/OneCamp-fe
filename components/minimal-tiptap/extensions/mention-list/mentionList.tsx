@@ -31,20 +31,62 @@ const DOM_RECT_FALLBACK: DOMRect = {
   };
 
 
+// currentChannelIdFromPath extracts the channel id from the active URL when the
+// composer is inside a channel (/app/channel/<id>...). Returns "" elsewhere
+// (DMs, group chats, docs, comments), where no channel-scoped agents apply.
+function currentChannelIdFromPath(): string {
+  if (typeof window === "undefined") return ""
+  const m = window.location.pathname.match(/\/channel\/([^/?#]+)/)
+  return m?.[1] ?? ""
+}
+
+// channelAgentCache memoizes a channel's mention agents briefly so the
+// per-keystroke `items` fetch doesn't refetch them on every character.
+const channelAgentCache: Record<string, { at: number; agents: UserProfileDataInterface[] }> = {}
+const CHANNEL_AGENT_TTL_MS = 20_000
+
+async function fetchChannelMentionAgents(channelId: string): Promise<UserProfileDataInterface[]> {
+  const cached = channelAgentCache[channelId]
+  if (cached && Date.now() - cached.at < CHANNEL_AGENT_TTL_MS) return cached.agents
+  try {
+    const res = await axiosInstance.get<UserListInterfaceResp>(`/ch/${channelId}/mention-agents`)
+    const agents = res.status === 200 && res.data?.users ? res.data.users : []
+    channelAgentCache[channelId] = { at: Date.now(), agents }
+    return agents
+  } catch {
+    return []
+  }
+}
+
 export const mentionSuggestionOptions: MentionOptions["suggestion"] = {
 
   items: async ({ query }): Promise<UserProfileDataInterface[]> => {
 
     try {
-        const usersListRes = await axiosInstance.get<UserListInterfaceResp>(GetEndpointUrl.GetAllUser);
-      
+        const channelId = currentChannelIdFromPath()
+        const [usersListRes, channelAgents] = await Promise.all([
+            axiosInstance.get<UserListInterfaceResp>(GetEndpointUrl.GetAllUser),
+            channelId ? fetchChannelMentionAgents(channelId) : Promise.resolve([] as UserProfileDataInterface[]),
+        ])
+
         if(usersListRes.status !== 200 || !usersListRes.data) {
             return []
         }
-        
+
         const users = usersListRes.data.users || [];
-        
-        return users.filter((user) =>
+
+        // Channel-scoped AI agents (chip-mentionable only where they're added)
+        // are surfaced ahead of the global list; dedupe by user_uuid so an agent
+        // that also appears globally isn't listed twice.
+        const seen = new Set<string>()
+        const merged: UserProfileDataInterface[] = []
+        for (const u of [...channelAgents, ...users]) {
+            if (!u || seen.has(u.user_uuid)) continue
+            seen.add(u.user_uuid)
+            merged.push(u)
+        }
+
+        return merged.filter((user) =>
             user.user_name.toLowerCase().startsWith(query.toLowerCase())
         ).slice(0, 5);
     } catch (e) {

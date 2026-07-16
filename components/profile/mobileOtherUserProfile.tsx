@@ -39,6 +39,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
 
     const isOnline = currentStatus === USER_STATUS_ONLINE && currentDeviceCount > 0;
     const isExternal = isExternalUser(profileInfo.data?.data);
+    const isBot = profileInfo.data?.data?.is_bot === true;
 
     return (
         <div className="flex flex-col h-full bg-background w-full">
@@ -91,14 +92,14 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                             <h2 className="text-xl font-semibold text-foreground text-center truncate max-w-[60vw]">
                                 {profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "Loading..."}
                             </h2>
-                            {isExternal && (
-                                <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
-                                    External
-                                </Badge>
-                            )}
+                            {isBot ? (
+                                <Badge variant="secondary" className="text-[10px] h-5 shrink-0">AI</Badge>
+                            ) : isExternal ? (
+                                <Badge variant="secondary" className="text-[10px] h-5 shrink-0">External</Badge>
+                            ) : null}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[80vw]">
-                            {profileInfo.data?.data?.user_email_id || "\u00A0"}
+                            {isBot ? "Automated assistant" : (profileInfo.data?.data?.user_email_id || "\u00A0")}
                         </p>
                         {/*
                           External users are read-only contacts. OneCamp users
@@ -110,17 +111,17 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                           still loading so the Message button does not
                           flash on first paint for an external contact.
                         */}
-                        {profileInfo.data?.data && !isExternal && (
+                        {profileInfo.data?.data && (isBot || !isExternal) && (
                             <Button
                                 variant="secondary"
                                 className="mt-6 w-full max-w-[200px] gap-2 font-medium"
                                 onClick={() => router.push(`/app/chat/${userUUID}`)}
                             >
                                 <MessageSquare className="h-4 w-4" />
-                                Message
+                                {isBot ? "Chat with AI" : "Message"}
                             </Button>
                         )}
-                        {profileInfo.data?.data && isExternal && (
+                        {profileInfo.data?.data && isExternal && !isBot && (
                             <p className="mt-6 text-xs text-muted-foreground text-center max-w-[260px] leading-relaxed">
                                 External contacts can&apos;t be messaged directly. Mention them in a task or comment to collaborate.
                             </p>
@@ -128,6 +129,16 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                     </div>
 
                     {/* Details Section */}
+                    {isBot ? (
+                        <div className="bg-muted/10 p-5 rounded-2xl border space-y-2 shadow-sm">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">About</p>
+                            <p className="text-base text-foreground leading-relaxed">
+                                {profileInfo.data?.data?.user_name || "OneCamp AI"} is your workspace assistant. It posts meeting
+                                recaps, answers questions in a DM or when you @mention it in a channel, and runs your agents and
+                                automations.
+                            </p>
+                        </div>
+                    ) : (
                     <div className="bg-muted/10 p-5 rounded-2xl border space-y-5 shadow-sm">
                         <div className="space-y-1">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Full Name</p>
@@ -149,6 +160,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_hobbies || "—"}</p>
                         </div>
                     </div>
+                    )}
 
                 </div>
             </div>

@@ -19,6 +19,9 @@ export interface PostsRes {
     post_channel?:  ChannelInfoInterface
     post_fwd_msg_post?: PostsRes
     post_fwd_msg_chat?: ChatInfo
+    // Discord-style inline reply: the post this post replies to (same channel).
+    // One level deep — the parent's own reply reference is not expanded.
+    post_reply_to?: PostsRes
 }
 
 export interface CreateOrUpdatePostsReq {
@@ -26,6 +29,8 @@ export interface CreateOrUpdatePostsReq {
     post_attachments?: AttachmentMediaReq[]
     channel_id?: string
     post_id?: string
+    // When set, makes this post an inline reply to another post in the channel.
+    reply_to_uuid?: string
 }
 
 export interface CreatePostsRes {

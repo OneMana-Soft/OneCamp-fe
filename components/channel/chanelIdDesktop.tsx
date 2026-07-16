@@ -10,7 +10,7 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { ChevronLeft, ChevronRight, Hash, LoaderCircle, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone } from "@/lib/icons";
+import { ChevronLeft, ChevronRight, Hash, LoaderCircle, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -24,7 +24,7 @@ import {ChannelFileUpload} from "@/components/fileUpload/channelFileUpload";
 import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {
     addUUIDToLocallyCreatedPost, clearChannelInputState,
-    createPostLocally, updateChannelInputText, MessageInputState, updateChannelCallStatus
+    createPostLocally, updateChannelInputText, MessageInputState, updateChannelCallStatus, clearChannelReplyTarget
 } from "@/store/slice/channelSlice";
 
 import {GenericResponse} from "@/types/genericRes";
@@ -183,6 +183,23 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                 dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))
             }
         />
+        {channelState.replyToUuid && (
+            <div className="mx-2 mb-1 flex items-center gap-2 rounded-md border-l-2 border-primary/50 bg-muted/40 px-2 py-1 text-xs">
+                <span className="text-muted-foreground">Replying to</span>
+                <span className="font-medium text-foreground">{channelState.replyToAuthorName || "message"}</span>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                    {channelState.replyToText || ""}
+                </span>
+                <button
+                    type="button"
+                    onClick={() => dispatch(clearChannelReplyTarget({ channelId }))}
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
+                    aria-label="Cancel reply"
+                >
+                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+            </div>
+        )}
         <MinimalTiptapTextInput
             throttleDelay={300}
             attachmentOnclick = {()=>{dispatch(openUI({ key: 'channelFileUpload' }))}}
@@ -264,6 +281,15 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                             <Lightbulb className="text-muted-foreground" />
                         </Button>
                     </Link>
+                    <Button
+                        size='icon'
+                        variant='ghost'
+                        aria-label="Create tasks from this conversation"
+                        title="Create tasks from this conversation"
+                        onClick={() => dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'channel', sourceId: channelId } }))}
+                    >
+                        <CheckSquare className="text-muted-foreground" />
+                    </Button>
 
 
 

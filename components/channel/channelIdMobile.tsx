@@ -7,17 +7,21 @@ import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {Button} from "@/components/ui/button";
 import { LoaderCircle, Megaphone } from "@/lib/icons";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
-import {useSelector} from "react-redux";
+import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {UserProfileInterface} from "@/types/user";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
+import { clearChannelReplyTarget } from "@/store/slice/channelSlice";
+import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 
 export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number }) => {
 
+    const dispatch = useDispatch();
     const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
     const channelInSidebar = userChannels.find(ch => ch.ch_uuid === channelId);
+    const replyState = useSelector((state: RootState) => state.channel.channelInputState[channelId]);
 
     const postJoinChannel = usePost()
 
@@ -74,7 +78,20 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId
             )
         }
 
-        return (<MobileChannelTextInput channelId={channelId} handleSend={handleSend}/>)
+        return (
+            <>
+                {replyState?.replyToUuid && (
+                    <div className="px-3">
+                        <ComposerReplyPill
+                            authorName={replyState.replyToAuthorName}
+                            text={replyState.replyToText}
+                            onCancel={() => dispatch(clearChannelReplyTarget({ channelId }))}
+                        />
+                    </div>
+                )}
+                <MobileChannelTextInput channelId={channelId} handleSend={handleSend}/>
+            </>
+        )
     }
     return (
         <div className='flex flex-col h-full'>

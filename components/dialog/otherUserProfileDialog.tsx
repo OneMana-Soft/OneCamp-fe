@@ -79,6 +79,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
     const isOnline = currentStatus === USER_STATUS_ONLINE && currentDeviceCount > 0;
 
     const isExternal = isExternalUser(profileInfo.data?.data);
+    const isBot = profileInfo.data?.data?.is_bot === true;
 
     function closeModal() {
         setOpenState(false);
@@ -91,7 +92,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle className="text-base font-semibold">Member profile</DialogTitle>
+                    <DialogTitle className="text-base font-semibold">{isBot ? "Assistant" : "Member profile"}</DialogTitle>
                 </DialogHeader>
 
                 <div className="flex flex-col gap-8 md:flex-row md:gap-12 py-4">
@@ -145,14 +146,14 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                 <h2 className="text-lg font-semibold text-foreground truncate max-w-[220px]">
                                     {profileInfo.data?.data?.user_name || "—"}
                                 </h2>
-                                {isExternal && (
-                                    <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
-                                        External
-                                    </Badge>
-                                )}
+                                {isBot ? (
+                                    <Badge variant="secondary" className="text-[10px] h-5 shrink-0">AI</Badge>
+                                ) : isExternal ? (
+                                    <Badge variant="secondary" className="text-[10px] h-5 shrink-0">External</Badge>
+                                ) : null}
                             </div>
                             <p className="text-sm text-muted-foreground truncate max-w-[260px]">
-                                {profileInfo.data?.data?.user_email_id || "\u00A0"}
+                                {isBot ? "Automated assistant" : (profileInfo.data?.data?.user_email_id || "\u00A0")}
                             </p>
                         </div>
                         {/*
@@ -172,7 +173,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                           fetch resolves, which is the flash you would
                           see for an external contact.
                         */}
-                        {profileInfo.data?.data && !isExternal && (
+                        {profileInfo.data?.data && (isBot || !isExternal) && (
                             <Button
                                 variant="secondary"
                                 className="w-full mt-2 gap-2 font-medium"
@@ -182,10 +183,10 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                 }}
                             >
                                 <MessageSquare className="h-4 w-4" />
-                                Message
+                                {isBot ? "Chat with AI" : "Message"}
                             </Button>
                         )}
-                        {profileInfo.data?.data && isExternal && (
+                        {profileInfo.data?.data && isExternal && !isBot && (
                             <p className="text-xs text-muted-foreground text-center max-w-[220px] leading-relaxed">
                                 External contacts can&apos;t be messaged directly. Mention them in a task or comment to collaborate.
                             </p>
@@ -194,25 +195,38 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
 
                     {/* Right: Details Section */}
                     <div className="flex-1 flex flex-col gap-5">
-                        <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Full Name</p>
-                            <p className="text-sm text-foreground">{profileInfo.data?.data?.user_full_name || "—"}</p>
-                        </div>
+                        {isBot ? (
+                            <div className="space-y-1">
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">About</p>
+                                <p className="text-sm text-foreground leading-relaxed">
+                                    {profileInfo.data?.data?.user_name || "OneCamp AI"} is your workspace assistant. It posts
+                                    meeting recaps, answers questions in a DM or when you @mention it in a channel, and runs your
+                                    agents and automations. Message it anytime to ask about your workspace.
+                                </p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="space-y-1">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Full Name</p>
+                                    <p className="text-sm text-foreground">{profileInfo.data?.data?.user_full_name || "—"}</p>
+                                </div>
 
-                        <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Display Name</p>
-                            <p className="text-sm text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
-                        </div>
+                                <div className="space-y-1">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Display Name</p>
+                                    <p className="text-sm text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
+                                </div>
 
-                        <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Job Title</p>
-                            <p className="text-sm text-foreground">{profileInfo.data?.data?.user_job_title || "—"}</p>
-                        </div>
+                                <div className="space-y-1">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Job Title</p>
+                                    <p className="text-sm text-foreground">{profileInfo.data?.data?.user_job_title || "—"}</p>
+                                </div>
 
-                        <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hobbies</p>
-                            <p className="text-sm text-foreground">{profileInfo.data?.data?.user_hobbies || "—"}</p>
-                        </div>
+                                <div className="space-y-1">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hobbies</p>
+                                    <p className="text-sm text-foreground">{profileInfo.data?.data?.user_hobbies || "—"}</p>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             </DialogContent>

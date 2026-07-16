@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
-import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus } from "@/lib/icons";
+import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink } from "@/lib/icons";
 import { Plug } from "lucide-react";
 
 import {
@@ -19,6 +20,8 @@ import { openUI } from "@/store/slice/uiSlice"
 import { addRecentItem, type RecentItem } from "@/store/slice/recentItemsSlice"
 import { useFetch } from "@/hooks/useFetch"
 import { useSearch } from "@/hooks/useSearch"
+import { useDebounce } from "@/hooks/useDebounce"
+import { unifiedSearch, type UnifiedSearchGroup, type UnifiedSource, type UnifiedHit } from "@/services/aiSearchService"
 import { useTrackPageVisit } from "@/hooks/useTrackPageVisit"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE, CAP_AGENT_MANAGE } from "@/services/capabilityService"
@@ -93,6 +96,15 @@ function recentItemIcon(type: RecentItem["type"]) {
   }
 }
 
+function aiSourceIcon(source: UnifiedSource) {
+  switch (source) {
+    case "memory": return <Brain className="mr-2 h-4 w-4 text-primary" />
+    case "gmail": return <Mail className="mr-2 h-4 w-4 text-red-500" />
+    case "github": return <Github className="mr-2 h-4 w-4 text-foreground" />
+    default: return <Sparkles className="mr-2 h-4 w-4 text-primary" />
+  }
+}
+
 function searchResultIcon(type: string) {
   switch (type) {
     case "task": return <CheckSquare className="mr-2 h-4 w-4 text-blue-500" />
@@ -116,6 +128,7 @@ function searchResultIcon(type: string) {
 export function CommandPalette() {
   const [open, setOpen] = React.useState(false)
   const router = useRouter()
+  const pathname = usePathname()
   const dispatch = useDispatch()
   const recentItems = useSelector((state: RootState) => state.recentItems?.items || [])
 
@@ -140,6 +153,36 @@ export function CommandPalette() {
   React.useEffect(() => {
     setSearchValue(inputValue)
   }, [inputValue, setSearchValue])
+
+  // Unified AI search: fold Memory facts + connected-app (Gmail/GitHub) results
+  // into the same palette so Cmd+K spans everything. The keyword "Search
+  // Results" above already covers raw workspace content, so we drop the
+  // unified "workspace" group here to avoid duplication.
+  const debouncedAiQuery = useDebounce(inputValue, 350)
+  const [aiGroups, setAiGroups] = React.useState<UnifiedSearchGroup[]>([])
+  React.useEffect(() => {
+    const q = debouncedAiQuery.trim()
+    if (!open || q.length < 2) {
+      setAiGroups([])
+      return
+    }
+    let cancelled = false
+    unifiedSearch(q)
+      .then((res) => {
+        if (cancelled) return
+        if (!res.enabled) {
+          setAiGroups([])
+          return
+        }
+        setAiGroups((res.groups || []).filter((g) => g.source !== "workspace" && g.hits.length > 0))
+      })
+      .catch(() => {
+        if (!cancelled) setAiGroups([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedAiQuery, open])
 
   // Keyboard shortcut: Cmd+K or Ctrl+K (unified global entry point)
   React.useEffect(() => {
@@ -169,6 +212,32 @@ export function CommandPalette() {
   const handleRecentSelect = React.useCallback((item: RecentItem) => {
     runCommand(() => router.push(item.path))
   }, [runCommand, router])
+
+  // Selecting a unified-AI hit: external sources open in a new tab; Memory
+  // facts jump to their source (channel / project / group) when known, else
+  // to the Workspace Memory surface.
+  const handleAiHitSelect = React.useCallback(
+    (hit: UnifiedHit) => {
+      runCommand(() => {
+        if ((hit.source === "gmail" || hit.source === "github") && hit.url) {
+          window.open(hit.url, "_blank", "noopener,noreferrer")
+          return
+        }
+        if (hit.source === "memory") {
+          if (hit.channel_uuid) {
+            router.push(`/app/channel/${hit.channel_uuid}`)
+          } else if (hit.project_uuid) {
+            router.push(`/app/project/${hit.project_uuid}`)
+          } else if (hit.chat_grp_id && !hit.chat_grp_id.includes(" ") && hit.chat_grp_id.length === 32) {
+            router.push(`/app/chat/group/${hit.chat_grp_id}`)
+          } else {
+            router.push("/app/ai/memory")
+          }
+        }
+      })
+    },
+    [runCommand, router],
+  )
 
   /* ---------------------------------------------------------------- */
   /*  Command definitions                                              */
@@ -331,6 +400,14 @@ export function CommandPalette() {
         group: "Create",
         action: () => dispatch(openUI({ key: "createChatMessage" })),
       },
+      {
+        id: "start-instant-meeting",
+        label: "Start instant meeting",
+        keywords: ["meeting", "meet", "call", "video", "guest", "instant", "invite"],
+        icon: <Plus className="mr-2 h-4 w-4" />,
+        group: "Create",
+        action: () => router.push("/app/meet/instant"),
+      },
 
       // GitHub
       {
@@ -358,6 +435,24 @@ export function CommandPalette() {
         icon: <Sparkles className="mr-2 h-4 w-4" />,
         group: "AI",
         action: () => router.push("/app/ai/memory"),
+      },
+      {
+        id: "ai-extract-tasks",
+        label: "Create tasks from a conversation",
+        keywords: ["tasks", "action items", "extract", "todo", "follow up", "ai", "convert", "meeting notes"],
+        icon: <Sparkles className="mr-2 h-4 w-4" />,
+        group: "AI",
+        action: () => {
+          // Seed from the current route: a channel/DM/group becomes the source,
+          // otherwise open in paste-text mode.
+          const p = pathname || ""
+          let data: { sourceType: "channel" | "dm" | "group" | "text"; sourceId?: string } = { sourceType: "text" }
+          const ch = p.match(/^\/app\/channel\/([^/]+)/)
+          const grp = p.match(/^\/app\/chat\/group\/([^/]+)/)
+          if (ch) data = { sourceType: "channel", sourceId: ch[1] }
+          else if (grp) data = { sourceType: "group", sourceId: grp[1] }
+          dispatch(openUI({ key: "extractTasks", data }))
+        },
       },
 
       // Settings & Account
@@ -392,6 +487,14 @@ export function CommandPalette() {
         icon: <Plug className="mr-2 h-4 w-4" />,
         group: "Settings",
         action: () => router.push("/app/settings/connectors"),
+      },
+      {
+        id: "api-tokens",
+        label: "API Tokens",
+        keywords: ["api", "token", "tokens", "developer", "sdk", "personal access token", "pat", "integration", "mcp", "programmatic", "rest"],
+        icon: <Key className="mr-2 h-4 w-4" />,
+        group: "Settings",
+        action: () => router.push("/app/settings/api-tokens"),
       },
       {
         id: "workflows",
@@ -490,7 +593,7 @@ export function CommandPalette() {
       if (cmd.capabilityKey && !can(cmd.capabilityKey)) return false
       return true
     })
-  }, [router, dispatch, isAdmin, can])
+  }, [router, dispatch, isAdmin, can, pathname])
 
   const hasSearchQuery = inputValue.trim().length > 0
   const hasSearchResults = searchResults.length > 0
@@ -540,6 +643,30 @@ export function CommandPalette() {
         )}
 
         {hasSearchQuery && hasSearchResults && <CommandSeparator />}
+
+        {/* Unified AI results — Memory facts + connected apps (Gmail/GitHub). */}
+        {hasSearchQuery &&
+          aiGroups.map((g) => (
+            <React.Fragment key={`ai-${g.source}`}>
+              <CommandGroup heading={g.source === "memory" ? "Memory" : g.label}>
+                {g.hits.map((h, idx) => (
+                  <CommandItem
+                    key={`ai-${g.source}-${idx}`}
+                    onSelect={() => handleAiHitSelect(h)}
+                    value={`ai ${g.source} ${inputValue} ${h.title}`}
+                  >
+                    {aiSourceIcon(g.source)}
+                    <span className="truncate">{h.title}</span>
+                    {h.meta && <span className="ml-auto truncate pl-2 text-xs text-muted-foreground">{h.meta}</span>}
+                    {(g.source === "gmail" || g.source === "github") && (
+                      <ExternalLink className="ml-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <CommandSeparator />
+            </React.Fragment>
+          ))}
 
         {/* Recent Items */}
         {showRecent && (

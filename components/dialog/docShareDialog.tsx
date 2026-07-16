@@ -17,6 +17,7 @@ import { UserProfileDataInterface } from "@/types/user";
 import { DocInfoInterface, DocInfoResponse } from "@/types/doc";
 import AddDocMemberCombobox from "@/components/combobox/addDocMemberCombobox";
 import { useUserAvatar } from "@/hooks/useUserAvatar";
+import { GuestLinkSection } from "@/components/guest/GuestLinkSection";
 
 type Role = "editor" | "viewer" | "commenter";
 
@@ -59,6 +60,10 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
     const selfProfile = useFetchOnlyOnce<any>(GetEndpointUrl.SelfProfile);
     const currentUser = selfProfile?.data?.data;
     const isOwner = permissions?.doc_created_by?.user_uuid === currentUser?.user_uuid;
+    // Sharing externally is a privileged action: owners or editors only. The
+    // backend enforces the same, so this just keeps the control from showing to
+    // viewers who can't use it.
+    const canShareExternally = isOwner || !!permissions?.doc_editing_users?.some(u => u.user_uuid === currentUser?.user_uuid);
 
     // Actions
     const handleInvite = async (user: UserProfileDataInterface, role: Role) => {
@@ -248,6 +253,11 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                             </div>
                         </div>
                     </div>
+
+                    {/* Share to web — scoped, expiring external guest link */}
+                    {docId && (
+                        <GuestLinkSection resourceType="doc" resourceId={docId} canShare={canShareExternally} />
+                    )}
 
                     {/* Footer Actions */}
                     <div className="flex justify-between items-center pt-2">

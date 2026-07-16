@@ -2,6 +2,7 @@
 
 import AgentsCard from "@/components/admin/AgentsCard"
 import McpServersCard from "@/components/admin/McpServersCard"
+import DataSourcesCard from "@/components/admin/DataSourcesCard"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_AGENT_MANAGE } from "@/services/capabilityService"
 import { Loader2, Sparkles } from "@/lib/icons"
@@ -39,6 +40,7 @@ export default function AgentsSettingsPage() {
     <div className="container mx-auto max-w-3xl space-y-6 px-4 py-8">
       <AgentsCard />
       <McpServersCard />
+      <DataSourcesCard />
     </div>
   )
 }

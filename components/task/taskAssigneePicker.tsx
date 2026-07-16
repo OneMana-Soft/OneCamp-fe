@@ -8,6 +8,8 @@ import { ChevronsUpDown, Check } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
 import {UserProfileDataInterface} from "@/types/user";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
+import {useFetch} from "@/hooks/useFetch";
+import {GetEndpointUrl} from "@/services/endPoints";
 
 
 type AssigneePickerProps = {
@@ -16,10 +18,32 @@ type AssigneePickerProps = {
     members: UserProfileDataInterface[]
     assignee?: UserProfileDataInterface
     onChange: (userInfo: UserProfileDataInterface | undefined) => void
+    // includeAITeammates surfaces the workspace's DM-able AI teammates as an
+    // assignable group. Assigning a task to one hands the work to that agent
+    // (the durable agent-task engine runs it and posts status as comments).
+    // Opt-in so only the primary task assignee picker offers it.
+    includeAITeammates?: boolean
 }
 
-export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange }: AssigneePickerProps) {
+export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange, includeAITeammates }: AssigneePickerProps) {
     const [open, setOpen] = React.useState(false)
+
+    // DM-able AI teammates (per-agent bot principals), badged AI. Empty when AI
+    // is off or none are DM-able, so there is no dangling affordance. Fetched
+    // only when opted in.
+    const aiTargets = useFetch<{ data: UserProfileDataInterface[] }>(
+        includeAITeammates ? GetEndpointUrl.GetDMableAITargets : ''
+    )
+    const aiTeammates = (includeAITeammates && aiTargets.data?.data) || []
+
+    const resolve = (uuid: string): UserProfileDataInterface | undefined =>
+        members.find((m) => m.user_uuid === uuid) || aiTeammates.find((m) => m.user_uuid === uuid)
+
+    const handleSelect = (currentValue: string) => {
+        const selected = currentValue === assignee?.user_uuid ? undefined : resolve(currentValue)
+        onChange(selected)
+        setOpen(false)
+    }
 
     return (
         <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-2">
@@ -54,12 +78,7 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                             key={member.user_uuid}
                                             value={member.user_uuid}
                                             keywords={member.user_name ? [member.user_name] : undefined}
-                                            onSelect={(currentValue) => {
-                                                const t = members.find((m) => m.user_uuid === currentValue)
-                                                const selected = currentValue === assignee?.user_uuid ? undefined : t
-                                                onChange(selected)
-                                                setOpen(false)
-                                            }}
+                                            onSelect={handleSelect}
                                             className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
                                         >
                                             <span className="flex-1 font-medium text-sm">{member.user_name}</span>
@@ -72,6 +91,28 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                         </CommandItem>
                                     ))}
                                 </CommandGroup>
+                                {aiTeammates.length > 0 && (
+                                    <CommandGroup heading="AI teammates">
+                                        {aiTeammates.map((member) => (
+                                            <CommandItem
+                                                key={member.user_uuid}
+                                                value={member.user_uuid}
+                                                keywords={member.user_name ? [member.user_name, "ai"] : ["ai"]}
+                                                onSelect={handleSelect}
+                                                className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
+                                            >
+                                                <span className="flex-1 font-medium text-sm">{member.user_name}</span>
+                                                <span className="text-[10px] uppercase tracking-wide text-primary/70 border border-primary/30 rounded px-1 py-0.5">AI</span>
+                                                <Check
+                                                    className={cn(
+                                                        "ml-1 h-4 w-4 text-primary",
+                                                        assignee?.user_uuid === member.user_uuid ? "opacity-100" : "opacity-0",
+                                                    )}
+                                                />
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                )}
                             </CommandList>
                         </Command>
                     </PopoverContent>

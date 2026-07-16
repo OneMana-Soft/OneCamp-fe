@@ -10,6 +10,7 @@ export interface WorkspaceSettings {
     allowed_users_source: "db" | "env" | "default"
     has_resend_api_key: boolean
     resend_source: "db" | "env" | "none"
+    guest_access_enabled: boolean
 }
 
 export interface UpdateSettingsRequest {
@@ -47,6 +48,41 @@ export async function getAdminAuditLog(category?: string, limit = 50, offset = 0
     params.set("offset", String(offset))
     const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}?${params.toString()}`)
     return (res.data as { data?: { entries?: AuditEntry[] } })?.data?.entries ?? []
+}
+
+export interface AuditVerifyResult {
+    ok: boolean
+    checked: number
+    first_bad_seq?: number
+    first_bad_id?: string
+    message: string
+}
+
+// verifyAuditLog recomputes the server-side hash chain and reports whether the
+// log is provably unaltered (the tamper-evidence an auditor relies on).
+export async function verifyAuditLog(): Promise<AuditVerifyResult | null> {
+    const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}/verify`)
+    return (res.data as { data?: AuditVerifyResult })?.data ?? null
+}
+
+// exportAuditLog downloads the audit entries (chain order, with per-row hashes
+// so the file is independently verifiable) as CSV or JSON.
+export async function exportAuditLog(format: "csv" | "json", category?: string): Promise<void> {
+    const params = new URLSearchParams()
+    params.set("format", format)
+    if (category) params.set("category", category)
+    const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}/export?${params.toString()}`, {
+        responseType: "blob",
+    })
+    const blob = new Blob([res.data as BlobPart], { type: format === "json" ? "application/json" : "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `audit-log.${format}`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
 }
 
 // ─── Call transcription config (admin) ───────────────────────────────────

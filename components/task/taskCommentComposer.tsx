@@ -40,7 +40,7 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
                 placeholder="Add a message, if you'd like..."
                 editable={true}
                 toggleToolbar={true}
-                editorClassName="focus:outline-none px-2 py-2"
+                editorClassName="focus:outline-none"
                 onChange={onChange}
                 content={commentBody}
             >

@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Search, User, X } from "@/lib/icons";
+import { Check, Search, Sparkles, User, X } from "@/lib/icons";
 import {GetEndpointUrl} from "@/services/endPoints"
 import {
     UserListInterfaceResp,
@@ -36,6 +36,23 @@ export function SelectUserToMessageDropdown({
 
     const usersList = useFetch<UserListInterfaceResp>(GetEndpointUrl.GetAllUser)
 
+    // DM-able AI agent teammates (Req 10.1) — surfaced alongside people so a
+    // member can start a 1:1 DM with a specialist agent the same way they DM a
+    // colleague. The shared "OneCamp AI" coworker already comes through the
+    // user list; these are the per-agent DM-able principals. Empty when AI is
+    // off (no dangling affordance).
+    const aiTargets = useFetch<{ data: UserProfileDataInterface[] }>(GetEndpointUrl.GetDMableAITargets)
+
+    // People + DM-able AI teammates, AI first, de-duped by uuid (in case the
+    // shared coworker is also present in the user list).
+    const baseUsers = useMemo(() => {
+        const humans = usersList.data?.users || []
+        const ai = aiTargets.data?.data || []
+        const seen = new Set(humans.map((u) => u.user_uuid))
+        const extraAI = ai.filter((a) => a.user_uuid && !seen.has(a.user_uuid))
+        return [...extraAI, ...humans]
+    }, [usersList.data?.users, aiTargets.data?.data])
+
     // Memoize selected user UUIDs as Set for O(1) lookups
     const selectedUserUuids = useMemo(() => {
         return new Set(selectedUsers.map((u) => u.user_uuid))
@@ -47,17 +64,15 @@ export function SelectUserToMessageDropdown({
     }, [searchQuery])
 
     const filteredUsers = useMemo(() => {
-        if (!usersList.data?.users) return []
+        if (!normalizedSearchQuery) return baseUsers
 
-        if (!normalizedSearchQuery) return usersList.data.users
-
-        return usersList.data.users.filter(
+        return baseUsers.filter(
             (user) =>
                 user.user_name.toLowerCase().includes(normalizedSearchQuery) ||
                 user.user_email_id?.toLowerCase().includes(normalizedSearchQuery) ||
                 user.user_job_title?.toLowerCase().includes(normalizedSearchQuery)
         )
-    }, [normalizedSearchQuery, usersList.data?.users])
+    }, [normalizedSearchQuery, baseUsers])
 
     const handleSelect = useCallback((user: UserProfileDataInterface) => {
         setSelectedUsers((prev) => {
@@ -152,6 +167,11 @@ export function SelectUserToMessageDropdown({
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
                                         <p className="font-medium text-sm text-foreground truncate">{user.user_name}</p>
+                                        {user.is_bot && (
+                                            <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px] font-semibold text-primary">
+                                                <Sparkles className="h-2.5 w-2.5" /> AI
+                                            </Badge>
+                                        )}
                                         {isSelected &&
                                             <Check className="h-4 w-4 text-primary flex-shrink-0"/>}
                                     </div>

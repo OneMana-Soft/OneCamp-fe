@@ -5,12 +5,15 @@ import { useParams, useRouter } from "next/navigation"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Button } from "@/components/ui/button"
-import { Loader2, ArrowLeft, Globe, Lock, LayoutGrid, Kanban, CalendarDays, Sparkles } from "@/lib/icons"
+import { Loader2, ArrowLeft, Globe, Lock, LayoutGrid, Kanban, CalendarDays, BarChart3, Sparkles, Share2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { GuestLinkSection } from "@/components/guest/GuestLinkSection"
 import { useMqttTopic } from "@/hooks/useMqttTopic"
 import { DataTableGrid } from "@/components/table/DataTableGrid"
 import { DataTableBoard } from "@/components/table/DataTableBoard"
 import { DataTableCalendar } from "@/components/table/DataTableCalendar"
+import { DataTableChart } from "@/components/table/DataTableChart"
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
 import {
   TableBundle,
@@ -28,12 +31,20 @@ export default function TableDetailPage() {
 
   const { data, isLoading, mutate } = useFetch<{ data: TableBundle }>(
     tableId ? `${GetEndpointUrl.GetTable}/${tableId}` : "",
+    undefined,
+    undefined,
+    // A deleted/inaccessible table 404s/403s; show the friendly "doesn't exist"
+    // state below instead of firing the global error toast.
+    { suppressErrorToast: true } as never,
   )
   const bundle = data?.data
 
   const [name, setName] = React.useState("")
-  const [activeView, setActiveView] = React.useState<ViewType>("grid")
+  // "chart" is a client-only analytics view (not a persisted server view type),
+  // so it needs no migration and is always available on any table.
+  const [activeView, setActiveView] = React.useState<ViewType | "chart">("grid")
   const [publishing, setPublishing] = React.useState(false)
+  const [sharing, setSharing] = React.useState(false)
   React.useEffect(() => {
     if (bundle?.table) setName(bundle.table.name)
   }, [bundle?.table?.name])
@@ -52,6 +63,19 @@ export default function TableDetailPage() {
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
     }
   }, [])
+
+  // A cheap signature of the row set (count + latest edit) so the Chart view
+  // re-aggregates whenever rows are added, edited, or removed — including via
+  // the MQTT live-refresh above. Best-effort for very large tables (the bundle
+  // carries the first page). MUST stay above the early returns below so the
+  // hook order is stable across the loading/loaded transitions (a hook after a
+  // conditional return trips React's "rendered more hooks than last render").
+  const chartDataVersion = React.useMemo(() => {
+    const rs = bundle?.rows || []
+    let latest = ""
+    for (const r of rs) if (r.updated_at > latest) latest = r.updated_at
+    return `${rs.length}:${latest}`
+  }, [bundle?.rows])
 
   const commitName = async () => {
     if (!bundle?.table || !bundle.can_manage) return
@@ -133,10 +157,11 @@ export default function TableDetailPage() {
     })),
   }
 
-  const VIEW_TABS: { type: ViewType; label: string; icon: typeof LayoutGrid }[] = [
+  const VIEW_TABS: { type: ViewType | "chart"; label: string; icon: typeof LayoutGrid }[] = [
     { type: "grid", label: "Grid", icon: LayoutGrid },
     { type: "board", label: "Board", icon: Kanban },
     { type: "calendar", label: "Calendar", icon: CalendarDays },
+    { type: "chart", label: "Chart", icon: BarChart3 },
   ]
 
   return (
@@ -162,6 +187,11 @@ export default function TableDetailPage() {
           <Button variant="outline" size="sm" onClick={toggleVisibility} className="gap-1.5">
             {t.visibility === "workspace" ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
             {t.visibility === "workspace" ? "Workspace" : "Private"}
+          </Button>
+        )}
+        {bundle.can_manage && (
+          <Button variant="outline" size="sm" onClick={() => setSharing(true)} className="gap-1.5" title="Share externally">
+            <Share2 className="h-3.5 w-3.5" /> Share
           </Button>
         )}
         {bundle.can_manage && (
@@ -219,6 +249,9 @@ export default function TableDetailPage() {
             onChange={mutate}
           />
         )}
+        {activeView === "chart" && (
+          <DataTableChart tableId={tableId} fields={fields} dataVersion={chartDataVersion} />
+        )}
       </div>
 
       <PublishTemplateDialog
@@ -229,6 +262,18 @@ export default function TableDetailPage() {
         defaultName={t.name}
         defaultIcon={t.icon || undefined}
       />
+
+      <Dialog open={sharing} onOpenChange={setSharing}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Share table</DialogTitle>
+            <DialogDescription>
+              Give people outside your workspace a read-only link to this table.
+            </DialogDescription>
+          </DialogHeader>
+          <GuestLinkSection resourceType="table" resourceId={tableId} canShare={bundle.can_manage} />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

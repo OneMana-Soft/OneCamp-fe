@@ -8,7 +8,7 @@ import {
 
 } from "@/types/reaction";
 import {MobileMessage} from "@/components/mobileMessage/mobileMessage";
-import {getForwardedMessageData, getMainMessageData} from "@/lib/utils/rightPanelHelper";
+import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
@@ -297,6 +297,7 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
 
     const mainMessageData = getMainMessageData(chatState)
     const forwardedMessageData = getForwardedMessageData(chatState)
+    const replyMessageData = getReplyMessageData(chatState)
 
 
 
@@ -310,6 +311,7 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
                     createdAt={mainMessageData.createdAt}
                     content={mainMessageData.content}
                     forwardedMessage={forwardedMessageData}
+                    replyMessage={replyMessageData}
                     grpId={grpId}
                     chatMessageUUID={chatMessageUUID}
                     getMediaUrl={GetEndpointUrl.GetGroupChatMedia + '/' + grpId}

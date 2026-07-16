@@ -8,8 +8,15 @@ import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { FileText, RefreshCw } from "@/lib/icons"
-import { getAdminAuditLog, type AuditEntry } from "@/services/settingsService"
+import { FileText, RefreshCw, ShieldCheck, Download } from "@/lib/icons"
+import { useToast } from "@/hooks/use-toast"
+import {
+    getAdminAuditLog,
+    verifyAuditLog,
+    exportAuditLog,
+    type AuditEntry,
+    type AuditVerifyResult,
+} from "@/services/settingsService"
 
 const CATEGORY_STYLES: Record<string, string> = {
     settings: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
@@ -35,6 +42,10 @@ export default function AdminAuditLog() {
     const [entries, setEntries] = useState<AuditEntry[]>([])
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all")
+    const { toast } = useToast()
+    const [verifying, setVerifying] = useState(false)
+    const [verifyResult, setVerifyResult] = useState<AuditVerifyResult | null>(null)
+    const [exporting, setExporting] = useState(false)
 
     const load = (cat: string) => {
         setLoading(true)
@@ -48,6 +59,36 @@ export default function AdminAuditLog() {
         load(filter)
     }, [filter])
 
+    const handleVerify = async () => {
+        setVerifying(true)
+        try {
+            const res = await verifyAuditLog()
+            setVerifyResult(res)
+            if (res) {
+                toast({
+                    title: res.ok ? "Audit log verified" : "Integrity check failed",
+                    description: res.ok ? `${res.checked} entries, chain intact` : res.message,
+                    variant: res.ok ? undefined : "destructive",
+                })
+            }
+        } catch {
+            toast({ title: "Verification failed", variant: "destructive" })
+        } finally {
+            setVerifying(false)
+        }
+    }
+
+    const handleExport = async (format: "csv" | "json") => {
+        setExporting(true)
+        try {
+            await exportAuditLog(format, filter === "all" ? undefined : filter)
+        } catch {
+            toast({ title: "Export failed", variant: "destructive" })
+        } finally {
+            setExporting(false)
+        }
+    }
+
     return (
         <Card className="border-border/60">
             <CardHeader>
@@ -55,13 +96,36 @@ export default function AdminAuditLog() {
                     <div className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-primary" />
                         <CardTitle className="text-lg font-semibold">Audit log</CardTitle>
+                        {verifyResult && (
+                            <Badge
+                                variant="outline"
+                                className={`text-[10px] ${verifyResult.ok ? "text-emerald-600 border-emerald-500/30" : "text-red-600 border-red-500/30"}`}
+                                title={verifyResult.message}
+                            >
+                                {verifyResult.ok ? `Verified · ${verifyResult.checked}` : "Tampering detected"}
+                            </Badge>
+                        )}
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => load(filter)} aria-label="Refresh">
-                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleVerify} disabled={verifying}>
+                            <ShieldCheck className={`h-3.5 w-3.5 ${verifying ? "animate-pulse" : ""}`} />
+                            Verify
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => handleExport("csv")} disabled={exporting}>
+                            <Download className="h-3.5 w-3.5" />
+                            CSV
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => handleExport("json")} disabled={exporting}>
+                            <Download className="h-3.5 w-3.5" />
+                            JSON
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => load(filter)} aria-label="Refresh">
+                            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                        </Button>
+                    </div>
                 </div>
                 <CardDescription>
-                    Configuration changes by admins. Secret values are never recorded — only that a change occurred.
+                    Configuration changes by admins, tamper-evident (hash-chained). Secret values are never recorded — only that a change occurred. Verify the chain or export it for an auditor.
                 </CardDescription>
             </CardHeader>
             <CardContent>

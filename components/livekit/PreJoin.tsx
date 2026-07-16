@@ -7,13 +7,19 @@ import { Mic, MicOff, Video, VideoOff, Settings } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 
 interface PreJoinProps {
-  onJoin: (values: { audioEnabled: boolean; videoEnabled: boolean }) => void;
+  onJoin: (values: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => void;
   username: string;
+  // When true, the user can type their display name (used by the guest join
+  // flow, where there is no account). Join stays disabled until non-empty.
+  nameEditable?: boolean;
+  // Optional override for the primary button label.
+  joinLabel?: string;
 }
 
-export function PreJoin({ onJoin, username }: PreJoinProps) {
+export function PreJoin({ onJoin, username, nameEditable = false, joinLabel = "Join Meeting" }: PreJoinProps) {
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [name, setName] = useState(username);
   const [videoTrack, setVideoTrack] = useState<LocalTrack | undefined>(undefined);
   
   const trackRef = useRef<LocalTrack | undefined>(undefined);
@@ -63,7 +69,7 @@ export function PreJoin({ onJoin, username }: PreJoinProps) {
         ) : (
           <div className="flex flex-col items-center text-muted-foreground">
              <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-                 <span className="text-2xl font-bold">{username.charAt(0).toUpperCase()}</span>
+                 <span className="text-2xl font-bold">{(name || "?").charAt(0).toUpperCase()}</span>
              </div>
              <p>Camera is off</p>
           </div>
@@ -89,9 +95,25 @@ export function PreJoin({ onJoin, username }: PreJoinProps) {
         </div>
       </div>
 
-      <div className="w-full flex justify-center">
-          <Button size="lg" className="w-full" onClick={() => onJoin({ audioEnabled, videoEnabled })}>
-            Join Meeting
+      <div className="w-full flex flex-col gap-3">
+          {nameEditable && (
+              <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={40}
+                  placeholder="Your name"
+                  aria-label="Your name"
+                  className="w-full rounded-md border border-border bg-background px-3 h-10 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              />
+          )}
+          <Button
+              size="lg"
+              className="w-full"
+              disabled={nameEditable && name.trim() === ""}
+              onClick={() => onJoin({ audioEnabled, videoEnabled, displayName: name.trim() })}
+          >
+            {joinLabel}
           </Button>
       </div>
     </div>

@@ -66,6 +66,7 @@ const AddDmMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({hand
                                         userEmail={user.user_email_id}
                                         userProfileObjectKey={user.user_profile_object_key}
                                         isSelected={value === user.user_uuid}
+                                        isBot={user.is_bot}
                                         onSelect={(currentValue) => {
                                             setValue(currentValue === value ? "" : currentValue)
                                             setOpen(false)

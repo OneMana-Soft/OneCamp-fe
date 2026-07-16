@@ -25,9 +25,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useToast } from "@/hooks/use-toast"
-import { useDocAI, DocAIAction } from "@/services/aiService"
+import { useDocAI, DocAIAction, getVoiceInputAvailable, transcribeAudio } from "@/services/aiService"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
-import { Sparkles, Loader2, Maximize, Minimize, Lightbulb, CheckCircle2 } from "@/lib/icons"
+import { Sparkles, Loader2, Maximize, Minimize, Lightbulb, CheckCircle2, Mic, X } from "@/lib/icons"
 
 interface ComposerAIButtonProps {
   /** Returns the current composer text (plain or HTML). */
@@ -71,6 +71,25 @@ export const ComposerAIButton: React.FC<ComposerAIButtonProps> = ({
   const [prompt, setPrompt] = useState("")
   const [busy, setBusy] = useState<string | null>(null)
 
+  // Voice dictation (reuses the workspace's model-agnostic STT). Available only
+  // when the admin has configured a REST-capable STT; probed once on mount so
+  // the mic never dangles.
+  const [micAvailable, setMicAvailable] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const recorderRef = React.useRef<MediaRecorder | null>(null)
+  const chunksRef = React.useRef<Blob[]>([])
+
+  React.useEffect(() => {
+    let cancelled = false
+    getVoiceInputAvailable().then((ok) => {
+      if (!cancelled) setMicAvailable(ok)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const run = useCallback(
     async (action: DocAIAction, text: string, customPrompt?: string) => {
       setBusy(action)
@@ -99,9 +118,54 @@ export const ComposerAIButton: React.FC<ComposerAIButtonProps> = ({
     run("write", p, p)
   }, [prompt, run])
 
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const rec = new MediaRecorder(stream)
+      chunksRef.current = []
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" })
+        chunksRef.current = []
+        if (blob.size === 0) return
+        setTranscribing(true)
+        try {
+          const text = (await transcribeAudio(blob, "clip.webm")).trim()
+          if (!text) {
+            toast({ title: "Didn't catch that — try again", variant: "destructive" })
+            return
+          }
+          // Append to whatever is already in the composer, so dictation adds to
+          // a draft rather than replacing it.
+          const existing = removeHtmlTags(getText() || "").trim()
+          onResult(toComposerHTML(existing ? existing + "\n" + text : text))
+          setOpen(false)
+        } catch {
+          toast({ title: "Transcription failed", variant: "destructive" })
+        } finally {
+          setTranscribing(false)
+        }
+      }
+      recorderRef.current = rec
+      rec.start()
+      setRecording(true)
+    } catch {
+      toast({ title: "Microphone unavailable", description: "Allow mic access to dictate.", variant: "destructive" })
+    }
+  }, [getText, onResult, toast])
+
+  const stopRecording = useCallback(() => {
+    const rec = recorderRef.current
+    if (rec && rec.state !== "inactive") rec.stop()
+    setRecording(false)
+  }, [])
+
   const draft = removeHtmlTags(getText() || "").trim()
   const hasDraft = draft.length > 0
-  const anyBusy = busy !== null
+  const anyBusy = busy !== null || transcribing
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -123,6 +187,32 @@ export const ComposerAIButton: React.FC<ComposerAIButtonProps> = ({
         <TooltipContent>Write with AI</TooltipContent>
       </Tooltip>
       <PopoverContent align="start" side="top" className="w-72 p-2">
+        {micAvailable && (
+          <>
+            <button
+              type="button"
+              disabled={anyBusy && !recording}
+              onClick={() => (recording ? stopRecording() : startRecording())}
+              className={
+                "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors disabled:opacity-60 " +
+                (recording ? "bg-destructive/10 text-destructive hover:bg-destructive/15" : "hover:bg-accent")
+              }
+            >
+              {transcribing ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : recording ? (
+                <X className="h-4 w-4" />
+              ) : (
+                <Mic className="h-4 w-4 text-primary/70" />
+              )}
+              {transcribing ? "Transcribing…" : recording ? "Stop & insert" : "Dictate"}
+              {recording && (
+                <span className="ml-auto inline-block h-2 w-2 animate-pulse rounded-full bg-destructive" />
+              )}
+            </button>
+            <div className="my-1.5 h-px bg-border" />
+          </>
+        )}
         {hasDraft ? (
           <>
             <p className="px-1 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">

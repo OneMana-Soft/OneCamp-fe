@@ -7,12 +7,18 @@ import {GroupedReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {PostsRes} from "@/types/post";
 import { ExtendedChats, chatContentDiffers } from "./chatSlice";
+import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
 
 
 export interface ChatInputState {
     chatBody: string,
     filesUploaded: AttachmentMediaReq[],
     filesPreview: FilePreview[]
+    // Discord-style reply target: when set, the next message sent in this group
+    // is an inline reply to this message (rendered as a composer pill).
+    replyToUuid?: string
+    replyToAuthorName?: string
+    replyToText?: string
 }
 
 interface CreateChat {
@@ -23,7 +29,16 @@ interface CreateChat {
     grpId: string
     fwdPost?: PostsRes
     fwdChat?: ChatInfo
+    replyTo?: ChatInfo
     attachments: AttachmentMediaReq[]
+    addedLocally?: boolean
+}
+
+interface SetGroupChatReplyTarget {
+    grpId: string
+    uuid: string
+    authorName: string
+    text: string
 }
 
 
@@ -122,7 +137,7 @@ interface UpdateChat {
     htmlText: string
 }
 
-interface UpdateChats {
+interface UpdateChats extends LatestWindowAuthority {
     grpId: string,
     chats: ChatInfo[]
 }
@@ -163,6 +178,9 @@ const initialState = {
     chatMessages: {} as ExtendedChats,
     chatScrollToBottom: {} as ExtendedScrollToBottom,
     locallyCreatedGrpInfo: {} as ExtendedLocallyCreatedChats,
+    // grpId -> chat_uuid -> deleted-at ms. Keeps a just-deleted group message
+    // from being resurrected by a merge whose window predates the delete.
+    deletedChats: {} as TombstoneMap,
 }
 
 export const groupChatSlice = createSlice({
@@ -270,8 +288,33 @@ export const groupChatSlice = createSlice({
 
         },
 
+        // setGroupChatReplyTarget arms the composer to reply to a message.
+        setGroupChatReplyTarget: (state, action: {payload: SetGroupChatReplyTarget}) => {
+            const { grpId, uuid, authorName, text } = action.payload;
+            if (!state.chatInputState[grpId]) {
+                state.chatInputState[grpId] = { chatBody: '', filesUploaded: [], filesPreview: [] };
+            }
+            state.chatInputState[grpId].replyToUuid = uuid;
+            state.chatInputState[grpId].replyToAuthorName = authorName;
+            state.chatInputState[grpId].replyToText = text;
+        },
+
+        // clearGroupChatReplyTarget dismisses the reply pill without clearing the draft.
+        clearGroupChatReplyTarget: (state, action: {payload: { grpId: string }}) => {
+            const { grpId } = action.payload;
+            const s = state.chatInputState[grpId];
+            if (s) {
+                s.replyToUuid = undefined;
+                s.replyToAuthorName = undefined;
+                s.replyToText = undefined;
+            }
+        },
+
         createGroupChat: (state, action: {payload: CreateChat}) => {
-            const {chatId, chatText, chatCreatedAt, grpId, chatBy, attachments, fwdChat, fwdPost} = action.payload;
+            const {chatId, chatText, chatCreatedAt, grpId, chatBy, attachments, fwdChat, fwdPost, replyTo, addedLocally = false} = action.payload;
+            // Ignore an out-of-order create delivered after this message's
+            // delete. A later authoritative restore is allowed after TTL.
+            if (chatId && isTombstoned(state.deletedChats, grpId, chatId)) return;
             if(!state.chatMessages[grpId]) {
                 state.chatMessages[grpId] = [] as ChatInfo[]
             }
@@ -282,10 +325,12 @@ export const groupChatSlice = createSlice({
                 chat_created_at: chatCreatedAt,
                 chat_body_text: chatText,
                 chat_uuid: chatId,
+                chat_added_locally: addedLocally,
                 chat_attachments: attachments,
                 chat_comment_count: 0,
                 chat_fwd_msg_chat: fwdChat,
                 chat_fwd_msg_post: fwdPost,
+                chat_reply_to: replyTo,
             })
         },
 
@@ -312,6 +357,8 @@ export const groupChatSlice = createSlice({
 
         removeGroupChatByChatId: (state, action: {payload: RemoveChatByChatId}) => {
             const { messageId, grpId } = action.payload;
+            // Tombstone first so a merge from a pre-delete window can't re-add it.
+            markTombstone(state.deletedChats, grpId, messageId);
             if (!state.chatMessages[grpId]) return
             state.chatMessages[grpId] = state.chatMessages[grpId].filter((chat) => {
                 return chat.chat_uuid !== messageId
@@ -369,59 +416,25 @@ export const groupChatSlice = createSlice({
         // sends) and older paginated history are preserved. Reference-stable
         // when nothing changed. (Mirrors chatSlice.mergeChats.)
         mergeGroupChats: (state, action: {payload: UpdateChats}) => {
-            const { grpId, chats } = action.payload;
-            if (!chats || chats.length === 0) return;
+            const { grpId, chats, authoritativeThrough } = action.payload;
+            if (!chats) return;
 
+            pruneTombstones(state.deletedChats, grpId);
             const existing = state.chatMessages[grpId] || [];
-            if (existing.length === 0) {
-                state.chatMessages[grpId] = [...chats].sort(
-                    (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at)
-                );
-                return;
-            }
+            const next = reconcileLatestWindow({
+                existing,
+                incoming: chats,
+                authoritativeThrough,
+                getId: (chat) => chat.chat_uuid,
+                getCreatedAt: (chat) => chat.chat_created_at,
+                contentDiffers: chatContentDiffers,
+                isOptimistic: (chat) => !!chat.chat_added_locally,
+                shouldAcceptIncoming: (chat) => !chat.chat_uuid || !isTombstoned(state.deletedChats, grpId, chat.chat_uuid),
+                mergeMatched: (current, server) => ({ ...current, ...server, chat_added_locally: false }),
+                sort: (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at),
+            });
 
-            const times = chats.map((c) => Date.parse(c.chat_created_at));
-            const windowMin = Math.min(...times);
-            const windowMax = Math.max(...times);
-
-            const serverById = new Map<string, ChatInfo>();
-            for (const c of chats) if (c.chat_uuid) serverById.set(c.chat_uuid, c);
-
-            let changed = false;
-            const next: ChatInfo[] = [];
-
-            for (const cur of existing) {
-                const t = Date.parse(cur.chat_created_at);
-                const inWindow = t >= windowMin && t <= windowMax;
-                const server = cur.chat_uuid ? serverById.get(cur.chat_uuid) : undefined;
-
-                if (server) {
-                    if (chatContentDiffers(cur, server)) {
-                        next.push({ ...cur, ...server });
-                        changed = true;
-                    } else {
-                        next.push(cur);
-                    }
-                    serverById.delete(cur.chat_uuid);
-                } else if (inWindow && cur.chat_uuid) {
-                    changed = true; // deleted while idle (uuid-less rows kept)
-                } else {
-                    next.push(cur);
-                }
-            }
-
-            for (const c of chats) {
-                if (c.chat_uuid && serverById.has(c.chat_uuid)) {
-                    next.push(c);
-                    changed = true;
-                }
-            }
-
-            if (!changed) return;
-
-            state.chatMessages[grpId] = next.sort(
-                (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at)
-            );
+            if (next !== existing) state.chatMessages[grpId] = next;
         },
 
 
@@ -583,6 +596,8 @@ export const {
     updateGroupChats,
     removeGroupChatByChatId,
     createGroupChat,
+    setGroupChatReplyTarget,
+    clearGroupChatReplyTarget,
     updateGroupChatPreviewFilesUUID,
     removeGroupChatReactionByChatId,
     decrementGroupChatCommentCountByChatID,

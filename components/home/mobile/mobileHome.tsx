@@ -20,6 +20,7 @@ import {
 } from "@/lib/icons"
 import { MobileHomeSearchBar } from "@/components/home/mobile/mobileHomeSearchBar"
 import BriefingCard from "@/components/ai/BriefingCard"
+import AttentionCard from "@/components/ai/AttentionCard"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatDistanceToNow } from "date-fns"
 import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
@@ -211,9 +212,7 @@ export function MobileHome() {
         (c) => (c.unread_post_count || 0) > 0,
     ).length
     const incompleteTasks =
-        selfProfile.data?.data?.user_incomplete_task_count ??
-        selfProfile.data?.data?.user_task_count ??
-        0
+        selfProfile.data?.data?.user_incomplete_task_count ?? 0
     const overdueTasks = selfProfile.data?.data?.user_overdue_task_count || 0
 
     const greeting = (() => {
@@ -237,6 +236,9 @@ export function MobileHome() {
 
             {/* Search */}
             <MobileHomeSearchBar />
+
+            {/* What needs me now — cross-surface action queue; self-hides when empty */}
+            <AttentionCard />
 
             {/* AI briefing — self-hides when AI/memory is off or empty */}
             <BriefingCard />

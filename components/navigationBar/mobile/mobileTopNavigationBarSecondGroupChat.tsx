@@ -26,12 +26,12 @@ export function MobileTopNavigationBarSecondGroupChat({grpId}:{grpId: string}) {
     return (
         <div className='flex justify-center px-2 relative items-center w-full h-full'>
             <div 
-                className='font-medium flex justify-center items-center space-x-3 text-lg text-center truncate overflow-auto overflow-ellipsis cursor-pointer max-w-[80%]' 
+                className='font-semibold flex justify-center items-center space-x-3 text-base text-center truncate overflow-auto overflow-ellipsis cursor-pointer max-w-[80%]' 
                 onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId} }))}}
             >
                 <GroupedAvatar users={ participants || []} max={2} overlap={15} size={30} className={'text-sm !pr-0'}/>
 
-                <div className="text-ellipsis truncate max-w-40">
+                <div className="text-ellipsis truncate max-w-40 text-foreground">
                     {participants.map((item, index) => (
                         <span key={index}>
                                 {item.user_name}

@@ -1,4 +1,5 @@
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
+import axiosInstance from "@/lib/axiosInstance";
 import { usePost } from "@/hooks/usePost";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { authedStreamFetch } from "@/lib/utils/streamFetch";
@@ -583,4 +584,88 @@ export const useAnalyzeImage = () => {
     );
 
     return { analyzeImage, isSubmitting };
+};
+
+/**
+ * Hook for reading a document attachment with AI (DOCX / text-family): returns
+ * a summary, or an answer to an optional prompt. Same identifier + access model
+ * as useAnalyzeImage; the server sniffs the format and enforces access. The
+ * `description` field carries the answer (shared response shape with images).
+ */
+export const useAnalyzeDocument = () => {
+    const { makeRequest, isSubmitting } = usePost();
+
+    const analyzeDocument = useCallback(
+        async (
+            objUuid: string,
+            srcKey: string,
+            srcRef: string,
+            prompt?: string,
+        ): Promise<AnalyzeImageResponse | undefined> => {
+            return makeRequest<
+                { obj_uuid: string; src_key: string; src_ref: string; prompt?: string },
+                AnalyzeImageResponse
+            >({
+                apiEndpoint: PostEndpointUrl.AIAnalyzeDocument,
+                payload: { obj_uuid: objUuid, src_key: srcKey, src_ref: srcRef, prompt },
+                showToast: true,
+            });
+        },
+        [makeRequest],
+    );
+
+    return { analyzeDocument, isSubmitting };
+};
+
+export interface TranslateResponse {
+    translation: string;
+}
+
+/**
+ * Hook for translating text into a target language (name or BCP-47 code; blank
+ * = English) with the member's model. Stateless + generic; the server enforces
+ * limits and hardens against prompt injection. Surfaces a toast on failure.
+ */
+// getVoiceInputAvailable reports whether server-side voice dictation is
+// configured (an OpenAI-compatible or Deepgram STT). Lets the composer only
+// show the mic when it will work. Best-effort: false on any error.
+export async function getVoiceInputAvailable(): Promise<boolean> {
+    try {
+        const res = await axiosInstance.get(GetEndpointUrl.AIVoiceInput, {
+            // @ts-expect-error — background probe, no global loading bar
+            silent: true,
+        })
+        return Boolean(res.data?.data?.available)
+    } catch {
+        return false
+    }
+}
+
+// transcribeAudio uploads a short recorded clip and returns its transcript via
+// the model-agnostic STT (the same engine used for call transcription).
+export async function transcribeAudio(blob: Blob, filename = "audio.webm"): Promise<string> {
+    const form = new FormData()
+    form.append("audio", blob, filename)
+    const res = await axiosInstance.post(PostEndpointUrl.AITranscribe, form)
+    return (res.data?.data?.text as string) || ""
+}
+
+export const useTranslateText = () => {
+    const { makeRequest, isSubmitting } = usePost();
+
+    const translateText = useCallback(
+        async (text: string, targetLanguage?: string): Promise<TranslateResponse | undefined> => {
+            return makeRequest<
+                { text: string; target_language?: string },
+                TranslateResponse
+            >({
+                apiEndpoint: PostEndpointUrl.AITranslate,
+                payload: { text, target_language: targetLanguage },
+                showToast: true,
+            });
+        },
+        [makeRequest],
+    );
+
+    return { translateText, isSubmitting };
 };

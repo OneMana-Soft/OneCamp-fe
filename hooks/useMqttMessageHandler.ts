@@ -24,6 +24,8 @@ import {
 } from "@/store/slice/taskInfoSlice";
 import { upsertNudge, setOpenCount } from "@/store/slice/nudgeSlice";
 import type { Nudge } from "@/services/nudgeService";
+import { upsertPendingAction, removePendingAction } from "@/store/slice/pendingActionSlice";
+import type { PendingAction } from "@/services/pendingActionService";
 
 interface UseMqttMessageHandlerProps {
     connectionConfig: ConnectionConfig
@@ -283,6 +285,37 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                             }
                         } catch (e) {
                             console.warn("[MQTT] Failed to parse AI nudge message", e)
+                        }
+                        break
+
+                    case MqttMessageType.AI_Pending_Action:
+                        // Durable AI write approval. "created" surfaces the
+                        // in-thread Approve/Deny card live; "resolved" removes
+                        // it (its terminal outcome shows via the posted bot
+                        // message / toast). Idempotent under QoS-1 redelivery.
+                        try {
+                            const parsed = JSON.parse(messageStr)
+                            const data = parsed.data ?? {}
+                            if (data.action === "created" && data.id) {
+                                const a: PendingAction = {
+                                    id: data.id,
+                                    requested_by: "",
+                                    surface_type: data.surface_type ?? "",
+                                    surface_id: data.surface_id ?? "",
+                                    tool_name: data.tool_name ?? "",
+                                    params: {},
+                                    description: data.description ?? "",
+                                    destructive: !!data.destructive,
+                                    status: "pending",
+                                    expires_at: "",
+                                    created_at: data.created_at ?? new Date().toISOString(),
+                                }
+                                dispatch(upsertPendingAction(a))
+                            } else if (data.action === "resolved" && data.id) {
+                                dispatch(removePendingAction(data.id))
+                            }
+                        } catch (e) {
+                            console.warn("[MQTT] Failed to parse AI pending action message", e)
                         }
                         break
 

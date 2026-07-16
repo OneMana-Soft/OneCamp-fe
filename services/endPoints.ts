@@ -65,6 +65,8 @@ export enum GetEndpointUrl {
     GetUserLatestChatList = "/dm/getLatestChatList",
     GetUserTeamList = "/team/teamListByUserUID",
     GetAllUser = "/user/allUsers",
+    GetDMableAITargets = "/user/dm-ai-targets",
+    GetDMAISuggestions = "/user/dm-ai-suggestions",
     GetUserPrivateDocList = "/doc/getPrivateDoc",
     GetUserPublicDocList = "/doc/getPublicDoc",
     GetUserActiveChannelList = "/ch/userActiveChannelsWithLatestPost",
@@ -97,15 +99,23 @@ export enum GetEndpointUrl {
     GetRefLinks = "/link/ref",       // append /{ref_type}/{ref_uuid}
     // AI Agent Builder
     GetAgents = "/agents",
+    MyAgentWork = "/ai/agent-work",
     GetAgent = "/agents",       // append /{id}
     GetAgentRuns = "/agents",   // append /{id}/runs
+    GetAgentActivity = "/agents/activity",
     // MCP servers (external tool providers)
     GetMcpServers = "/mcp/servers",
+    GetMcpCatalog = "/mcp/catalog",
     GetMcpServer = "/mcp/servers", // append /{id}
     // Tables (first-class structured-data entity)
     GetTables = "/tables",
     GetTable = "/tables",       // append /{id} (bundle)
     GetTableRows = "/tables",   // append /{id}/rows
+    // External data sources (read-only connectors)
+    GetDataSources = "/data-sources",              // management list (agent.manage)
+    GetDataSource = "/data-sources",               // append /{id}
+    GetQueryableDataSources = "/data-sources/queryable", // sources the user may query
+    GetDataSourceSchema = "/data-sources",         // append /{id}/schema
     // API tokens (public API)
     GetApiTokens = "/api-tokens",
     GetApiTokenScopes = "/api-tokens/scopes",
@@ -138,6 +148,8 @@ export enum GetEndpointUrl {
     // AI Second Brain
     AIStatus = "/ai/status",
     GetAIMyModels = "/ai/models",
+    MyAIInstructions = "/ai/instructions",
+    AIVoiceInput = "/ai/voice-input",
 
     // Slash command framework (user-facing)
     GetCommandCatalog = "/command/catalog",
@@ -155,16 +167,23 @@ export enum GetEndpointUrl {
     GetWorkspaceSettings = "/admin/settings",
     GetAdminAuditLog = "/admin/audit-log",
     GetTranscriptionConfig = "/admin/transcription/config",
+    GetGuestGrants = "/admin/guest-grants",
 
     // AI model management (Admin)
     GetAIConfig = "/admin/ai/config",
     GetAISystemStats = "/admin/ai/system",
+    GetAIActivity = "/admin/ai/activity",
+    GetAICodePRScorecard = "/admin/ai/code-pr/scorecard",
+    GetAICodePRRuns = "/admin/ai/code-pr/runs",
     GetAIReindexStatus = "/admin/ai/reindex/status",
     GetAIMemoryRebuildStatus = "/admin/ai/memory/rebuild/status",
     GetAIAuthorizedModels = "/admin/ai/authorized-models",
     GetAISelfTestStatus = "/admin/ai/self-test/status",
     GetAIBriefing = "/ai/briefing",
+    GetAIAttention = "/ai/attention",
     GetAIUsage = "/ai/usage",
+    GetAIUserUsage = "/admin/ai/usage/users",
+    GetAIChannelUsage = "/admin/ai/usage/channels",
     GetChannelMemoryExclusion = "/ai/memory/channel-exclusion",
     GetAIProviderModels = "/admin/ai/providers", // append /{providerId}/models
     GetAIOllamaCatalog = "/admin/ai/providers", // append /{providerId}/catalog
@@ -239,13 +258,16 @@ export enum PostEndpointUrl {
     DeleteBoard = "/board/deleteBoard",
     GenerateBoardDiagram = "/board/aiGenerate",
     GenerateBoardDiagramStream = "/board/aiGenerateStream",
+    PlanBoardDiagram = "/board/aiPlan",
     RefineBoardDiagram = "/board/aiRefineDiagram",
+    ClusterBoardContent = "/board/aiCluster",
     GenerateBoardUI = "/board/aiGenerateUI",
     RefineBoardUI = "/board/aiRefineUI",
     AddEntityLink = "/link/add",
     RemoveEntityLink = "/link/remove",
     // AI Agent Builder
     CreateAgent = "/agents",
+    DraftAgent = "/agents/draft",
     UpdateAgent = "/agents",     // append /{id}/update
     DeleteAgent = "/agents",     // append /{id}/delete
     SetAgentActive = "/agents",  // append /{id}/active
@@ -264,12 +286,24 @@ export enum PostEndpointUrl {
     CreateTableRow = "/tables",              // append /{id}/rows
     UpdateTableRow = "/tables",              // append /{id}/rows/{rowId}/update
     DeleteTableRow = "/tables",              // append /{id}/rows/{rowId}/delete
+    AggregateTable = "/tables",              // append /{id}/aggregate (read-only)
+    RunTableQueryPlan = "/tables",           // append /{id}/query-plan (read-only, multi-step)
     CreateTableField = "/tables",            // append /{id}/fields
     UpdateTableField = "/tables",            // append /{id}/fields/{fieldId}/update
     DeleteTableField = "/tables",            // append /{id}/fields/{fieldId}/delete
+    FillTableAIColumn = "/tables",           // append /{id}/fields/{fieldId}/ai-fill
     CreateTableView = "/tables",             // append /{id}/views
     UpdateTableView = "/tables",             // append /{id}/views/{viewId}/update
     DeleteTableView = "/tables",             // append /{id}/views/{viewId}/delete
+    // External data sources (read-only connectors). All writes are POST.
+    CreateDataSource = "/data-sources",             // POST /data-sources
+    UpdateDataSource = "/data-sources",             // append /{id}/update
+    DeleteDataSource = "/data-sources",             // append /{id}/delete
+    SetDataSourceEnabled = "/data-sources",         // append /{id}/enabled
+    TestDataSource = "/data-sources",               // append /{id}/test
+    TestDataSourceConfig = "/data-sources/test-connection", // POST (unsaved config)
+    AggregateDataSource = "/data-sources",          // append /{id}/aggregate (read-only)
+    QueryPlanDataSource = "/data-sources",          // append /{id}/query-plan (read-only, multi-step)
     // API tokens (public API)
     CreateApiToken = "/api-tokens",          // POST /api-tokens
     RevokeApiToken = "/api-tokens",          // append /{id}/revoke
@@ -280,11 +314,13 @@ export enum PostEndpointUrl {
     UpdateBoardPermissions = "/board/updateBoardPermissions",
     SearchUserForBoard = "/board/searchUsers",
     BoardCommentMention = "/board/commentMention",
+    BoardCommentDelete = "/board/commentDelete",
     RestoreBoardSnapshot = "/board/restoreBoardSnapshot",
     RecordBoardView = "/board/recordView",
     RestoreDocSnapshot = "/doc/restoreDocSnapshot",
     RecordDocView = "/doc/recordView",
     JoinChannel = "/ch/joinChannel",
+    MarkChannelSeen = "/ch/markSeen", // append /{channel_uuid}
     UpdateChannel = "/ch/updateInfo",
     SetChannelPostPolicy = "/ch/postPolicy",
     RemoveProjectModerator = "/project/removeAdminRole",
@@ -325,6 +361,9 @@ export enum PostEndpointUrl {
     CreateChannelVideoCallToken = "/ch/getCallToken",
     CreateChatVideoCallToken = "/dm/getCallToken",
     CreateGroupChatVideoCallToken = "/groupChat/getCallToken",
+    CreateInstantMeeting = "/meet/instant",
+    CreateGuestLink = "/guest/links",
+    SetGuestAccess = "/admin/guest-access",
     StartChannelCallRecording = "/ch/startCallRecording",
     StopChannelCallRecording = "/ch/stopCallRecording",
     StartDmCallRecording = "/dm/startCallRecording",
@@ -412,7 +451,19 @@ export enum PostEndpointUrl {
     SetAIUserTokenBudget = "/admin/ai/user-token-budget",
     SetAICodeAnalysisMaxFiles = "/admin/ai/code-analysis-max-files",
     SetAIReasoning = "/admin/ai/reasoning",
+    SetAILocalOnly = "/admin/ai/local-only",
+    SetAIPIIRedaction = "/admin/ai/pii-redaction",
+    SetAIPIIPatterns = "/admin/ai/pii-patterns",
     SetAIMeetingRecap = "/admin/ai/meeting-recap",
+    SetAIMeetingRecapInstructions = "/admin/ai/meeting-recap/instructions",
+    SetAIWebSearch = "/admin/ai/web-search",
+    SetAISandbox = "/admin/ai/sandbox",
+    SetAISandboxEnabled = "/admin/ai/sandbox/enabled",
+    TestAISandbox = "/admin/ai/sandbox/test",
+    SetAICodePR = "/admin/ai/code-pr",
+    SetAICodePREnabled = "/admin/ai/code-pr/enabled",
+    SetAICodePRModel = "/admin/ai/code-pr/model",
+    TestAICodePR = "/admin/ai/code-pr/test",
     CreateAIProvider = "/admin/ai/providers",
     TestAIProvider = "/admin/ai/providers/test",
     UpdateAIProvider = "/admin/ai/providers", // append /{providerId} (PATCH)
@@ -434,6 +485,7 @@ export enum PostEndpointUrl {
     RevokeAIAuthorizedModel = "/admin/ai/authorized-models", // append /{id} (DELETE)
     RunAISelfTest = "/admin/ai/self-test",
     SetAIModelPreference = "/ai/model-preference",
+    SetMyAIInstructions = "/ai/instructions",
     RebuildAIMemory = "/admin/ai/memory/rebuild",
     UpdateMemoryStatus = "/ai/memory", // append /{id}/status
     DeleteMemoryItem = "/ai/memory", // append /{id}
@@ -457,6 +509,8 @@ export enum PostEndpointUrl {
     AISummarizeGroup = "/ai/summarize/group",
     AIAsk = "/ai/ask",
     AIAnalyzeImage = "/ai/analyze-image",
+    AIAnalyzeDocument = "/ai/analyze-document",
+    AITranslate = "/ai/translate",
     AIAskStream = "/ai/ask/stream",
     AICatchUp = "/ai/catch-up",
     AIDocComplete = "/ai/doc/complete",
@@ -465,6 +519,16 @@ export enum PostEndpointUrl {
     AnalyzeCode = "/ai/code/analyze",
     DraftReleaseNotes = "/ai/release-notes",
     DraftSocialPosts = "/ai/social-posts",
+    AISchedulePropose = "/ai/schedule/propose",
+    AIScheduleConfirm = "/ai/schedule/confirm",
+    AIScheduleReschedule = "/ai/schedule/reschedule",
+    AIScheduleRescheduleConfirm = "/ai/schedule/reschedule/confirm",
+    AISchedulePrep = "/ai/schedule/prep",
+    AIUnifiedSearch = "/ai/search",
+    AIUnifiedSearchAnswer = "/ai/search/answer",
+    AITranscribe = "/ai/transcribe",
+    AIExtractTasks = "/ai/extract-tasks",
+    AIExtractTasksCreate = "/ai/extract-tasks/create",
     AIInCallAskStream = "/ai/in-call/ask/stream",
 
     // Slash command framework (user-facing)

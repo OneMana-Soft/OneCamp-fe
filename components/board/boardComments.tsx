@@ -77,23 +77,47 @@ export function BoardComments({ provider, api, user, boardId, editable, commentM
 
   const { makeRequest } = usePost()
 
-  // Mirror a posted comment/reply that @mentions users into the activity
-  // subsystem (persisted mention + realtime notification). The canvas thread
-  // itself stays in Yjs; this is best-effort and never blocks the UI.
-  const notifyMentions = React.useCallback(
-    (body: string, mentioned: MentionedUser[]) => {
-      const uuids = Array.from(new Set(mentioned.map((m) => m.uuid))).filter(Boolean)
-      if (uuids.length === 0 || !boardId) return
+  // Mirror a board comment to the server-side stores (activity, global search,
+  // AI assistant), keyed by the stable Yjs comment id so an edit upserts the
+  // same record instead of duplicating it. The canvas thread itself stays in
+  // Yjs; this is best-effort and never blocks the UI. Mentioned users (if any)
+  // additionally get a notification.
+  const syncComment = React.useCallback(
+    (c: BoardComment, mentioned: MentionedUser[]) => {
+      if (!boardId) return
+      const text = (c.messages || [])
+        .map((m) => m.body)
+        .join("\n")
+        .trim()
+      if (!text) return
+      const uuids = Array.from(new Set((mentioned || []).map((m) => m.uuid))).filter(Boolean)
       makeRequest({
         apiEndpoint: PostEndpointUrl.BoardCommentMention,
         payload: {
           board_uuid: boardId,
-          comment_text: body,
+          board_comment_id: c.id,
+          comment_text: text,
           mentioned_user_uuids: uuids,
         },
         showErrorToast: false,
       }).catch(() => {
-        // Notifications are best-effort; the comment is already in the thread.
+        // Best-effort; the comment is already in the thread.
+      })
+    },
+    [boardId, makeRequest],
+  )
+
+  // Remove a board comment's server-side mirror when it is deleted on canvas, so
+  // it stops surfacing in activity, global search, and the AI assistant.
+  const deleteCommentMirror = React.useCallback(
+    (commentId: string) => {
+      if (!boardId) return
+      makeRequest({
+        apiEndpoint: PostEndpointUrl.BoardCommentDelete,
+        payload: { board_uuid: boardId, board_comment_id: commentId },
+        showErrorToast: false,
+      }).catch(() => {
+        // Best-effort; the comment is already removed from the thread.
       })
     },
     [boardId, makeRequest],
@@ -183,9 +207,9 @@ export function BoardComments({ provider, api, user, boardId, editable, commentM
       }
       writeComment(c)
       setOpenId(id)
-      notifyMentions(body, mentioned)
+      syncComment(c, mentioned)
     },
-    [user.id, user.name, writeComment, notifyMentions],
+    [user.id, user.name, writeComment, syncComment],
   )
 
   const addReply = React.useCallback(
@@ -197,9 +221,9 @@ export function BoardComments({ provider, api, user, boardId, editable, commentM
         messages: [...(cur.messages || []), { id: uid(), authorId: user.id, authorName: user.name, body, createdAt: Date.now() }],
       }
       writeComment(next)
-      notifyMentions(body, mentioned)
+      syncComment(next, mentioned)
     },
-    [yComments, user.id, user.name, writeComment, notifyMentions],
+    [yComments, user.id, user.name, writeComment, syncComment],
   )
 
   const toggleResolved = React.useCallback(
@@ -216,9 +240,10 @@ export function BoardComments({ provider, api, user, boardId, editable, commentM
       yDoc.transact(() => {
         yComments.delete(commentId)
       })
+      deleteCommentMirror(commentId)
       setOpenId((cur) => (cur === commentId ? null : cur))
     },
-    [yDoc, yComments],
+    [yDoc, yComments, deleteCommentMirror],
   )
 
   const toggleReaction = React.useCallback(

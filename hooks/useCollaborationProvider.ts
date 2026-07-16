@@ -23,6 +23,13 @@ export interface CollaborationConfig {
    * HttpOnly and invisible to JS), so callers do not need to supply one.
    */
   token?: string
+  /**
+   * Optional. When provided, the provider uses this to fetch its auth token on
+   * every (re)connect instead of the default authenticated `/auth/token`
+   * endpoint. Used by the public guest viewer, which has no member session and
+   * exchanges a share-link token for a short-lived, read-only collab JWT.
+   */
+  tokenFetcher?: () => Promise<string>
   username: string
   userId: string
   color?: string
@@ -82,6 +89,16 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
   //     We let Hocuspocus own reconnection/backoff (its built-in exponential
   //     backoff) instead of hand-rolling setTimeout(connect).
   const fetchCollabToken = React.useCallback(async (): Promise<string> => {
+    // Guest viewer: exchange the share-link token for a short-lived read-only
+    // collab JWT via the caller-supplied fetcher (no member session involved).
+    if (config?.tokenFetcher) {
+      try {
+        return await config.tokenFetcher()
+      } catch (err) {
+        console.error('[Collab] Guest token fetch failed:', err)
+        return ''
+      }
+    }
     const url = `${(process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/+$/, '')}/auth/token`
     try {
       const res = await axiosInstance.get<TokenResponse>(url)
@@ -91,7 +108,7 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
       console.error('[Collab] Failed to fetch collab token:', err)
       return ''
     }
-  }, [])
+  }, [config?.tokenFetcher])
 
   React.useEffect(() => {
     if (!config?.enabled || !config.documentId) {

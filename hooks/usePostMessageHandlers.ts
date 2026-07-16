@@ -58,9 +58,11 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                                     user_uuid: mqttPostInfo.data.user_uuid,
                                     user_name: mqttPostInfo.data.user_full_name,
                                     user_profile_object_key: mqttPostInfo.data.user_profile_object_key,
+                                    is_bot: mqttPostInfo.data.is_bot,
                                 },
                                 fwdChat: mqttPostInfo.data.post_fwd_msg_chat,
                                 fwdPost: mqttPostInfo.data.post_fwd_msg_post,
+                                replyTo: mqttPostInfo.data.post_reply_to,
                                 attachments: mqttPostInfo.data.post_attachments,
                             }),
                         )
@@ -281,6 +283,7 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                                     user_uuid: mqttPostCommentCount.data.user_uuid,
                                     user_name: mqttPostCommentCount.data.user_name,
                                     user_profile_object_key: mqttPostCommentCount.data.user_profile_object_key,
+                                    is_bot: mqttPostCommentCount.data.is_bot,
                                 },
                                 postId: mqttPostCommentCount.data.post_id,
                                 attachments: mqttPostCommentCount.data.comment_attachments

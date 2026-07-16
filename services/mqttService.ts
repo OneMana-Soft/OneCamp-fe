@@ -30,9 +30,15 @@ export enum MqttMessageType {
     Slack_Import_Progress,
     Command_Ephemeral,
     AI_Nudge,
-    // Channel_Update mirrors the backend MESSAGE_CHANNEL_UPDATE code. MUST
-    // stay last to keep the numeric values aligned with the Go iota enum.
+    // Channel_Update mirrors the backend MESSAGE_CHANNEL_UPDATE code.
     Channel_Update,
+    // Table_Row mirrors backend MESSAGE_TABLE_ROW. Not handled on the FE yet,
+    // kept here only to keep the numeric values aligned with the Go iota enum.
+    Table_Row,
+    // AI_Pending_Action mirrors backend MESSAGE_AI_PENDING_ACTION: a durable
+    // in-thread write approval was created or resolved. MUST stay last to keep
+    // the numeric values aligned with the Go iota enum.
+    AI_Pending_Action,
 }
 
 export enum MqttActionType {
@@ -73,8 +79,10 @@ export interface msgChatInterface {
     chat_updated_at: string
     user_profile_object_key: string
     user_full_name: string
+    is_bot?: boolean
     chat_fwd_msg_post?: PostsRes
     chat_fwd_msg_chat?: ChatInfo
+    chat_reply_to?: ChatInfo
     chat_attachments: AttachmentMediaReq[]
 }
 export interface msgPostInterface {
@@ -87,8 +95,10 @@ export interface msgPostInterface {
     post_updated_at: string
     user_profile_object_key: string
     user_full_name: string
+    is_bot?: boolean
     post_fwd_msg_post?: PostsRes
     post_fwd_msg_chat?: ChatInfo
+    post_reply_to?: PostsRes
     post_attachments: AttachmentMediaReq[]
 }
 
@@ -215,6 +225,7 @@ export interface msgChatComment {
     user_name: string
     user_profile_object_key: string
     comment_attachments: AttachmentMediaReq[]
+    is_bot?: boolean
 }
 
 export interface msgPostCommentInterface {
@@ -228,7 +239,7 @@ export interface msgPostCommentInterface {
     user_name: string
     user_profile_object_key: string
     comment_attachments: AttachmentMediaReq[]
-
+    is_bot?: boolean
 }
 export interface msgDmTypingInterface {
     user_uuid: string

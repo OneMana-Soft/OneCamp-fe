@@ -17,8 +17,10 @@ import ExternalUsersCard from "@/components/admin/ExternalUsersCard"
 import SlackImportCard from "@/components/admin/SlackImportCard"
 import ImportCard from "@/components/admin/ImportCard"
 import AIModelsCard from "@/components/admin/AIModelsCard"
+import AIActivityCard from "@/components/admin/AIActivityCard"
 import AppsCard from "@/components/admin/AppsCard"
 import WorkspaceSettingsCard from "@/components/admin/WorkspaceSettingsCard"
+import GuestAccessCard from "@/components/admin/GuestAccessCard"
 import PermissionsCard from "@/components/admin/PermissionsCard"
 import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsCard"
 import WorkflowsCard from "@/components/admin/WorkflowsCard"
@@ -237,6 +239,7 @@ const AdminPage = () => {
               <TabsContent value="settings" className="mt-0 h-full outline-none">
                 <div className="space-y-6">
                   <WorkspaceSettingsCard />
+                  <GuestAccessCard />
                   <AdminAuditLog />
                 </div>
               </TabsContent>
@@ -248,6 +251,7 @@ const AdminPage = () => {
               </TabsContent>
               <TabsContent value="ai-models" className="mt-0 h-full outline-none">
                 <AIModelsCard />
+                <AIActivityCard />
               </TabsContent>
               <TabsContent value="webhooks" className="mt-0 h-full outline-none">
                 <WebhooksCard />

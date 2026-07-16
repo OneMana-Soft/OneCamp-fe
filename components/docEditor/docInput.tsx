@@ -20,6 +20,8 @@ import { useMinimalTiptapEditor } from '@/components/minimal-tiptap/hooks/use-mi
 import { Callout } from '@/components/minimal-tiptap/extensions/callout/callout'
 import { Collapsible } from '@/components/minimal-tiptap/extensions/collapsible/collapsible'
 import { TableEmbed } from '@/components/minimal-tiptap/extensions/table-embed/table-embed'
+import { TableEmbedPickerDialog } from '@/components/docEditor/TableEmbedPickerDialog'
+import { createTable } from '@/services/tableService'
 import { BlockHandle } from '@/components/minimal-tiptap/extensions/block-handle'
 import { ClickToCreateBlock } from '@/components/minimal-tiptap/extensions/click-to-create-block'
 import { TaskList } from '@tiptap/extension-task-list'
@@ -446,6 +448,43 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
             }
         }, [editor, isDesktop, dispatch, docId])
 
+        // Table embed picker — opened by the "/table" slash command. Only doc
+        // editors can insert (the slash menu only shows in an editable editor,
+        // and we gate again here). Embedding stores only a { tableId } reference;
+        // when another reader opens the doc, the embed fetches the table AS THAT
+        // USER, so the table's own permissions are enforced server-side (a private
+        // table simply shows an "unavailable" placeholder to others, never leaks).
+        const [embedTableOpen, setEmbedTableOpen] = React.useState(false)
+        const [creatingTable, setCreatingTable] = React.useState(false)
+        React.useEffect(() => {
+            const onEmbedTable = () => {
+                if (!editor || !editor.isEditable) return
+                setEmbedTableOpen(true)
+            }
+            window.addEventListener('doc-embed-table', onEmbedTable)
+            return () => window.removeEventListener('doc-embed-table', onEmbedTable)
+        }, [editor])
+
+        const handleEmbedExistingTable = React.useCallback((tableId: string) => {
+            if (!editor || !editor.isEditable || !tableId) return
+            editor.chain().focus().setTableEmbed({ tableId }).run()
+            setEmbedTableOpen(false)
+        }, [editor])
+
+        const handleCreateAndEmbedTable = React.useCallback(async () => {
+            if (!editor || !editor.isEditable || creatingTable) return
+            setCreatingTable(true)
+            try {
+                const t = await createTable({ name: "Untitled table", visibility: "workspace" })
+                editor.chain().focus().setTableEmbed({ tableId: t.id }).run()
+                setEmbedTableOpen(false)
+            } catch {
+                /* axios interceptor surfaces the error */
+            } finally {
+                setCreatingTable(false)
+            }
+        }, [editor, creatingTable])
+
         const [collabStatus, setCollabStatus] = React.useState<'connecting' | 'connected' | 'disconnected' | 'synced' | 'offline'>('connecting')
 
         React.useEffect(() => {
@@ -529,14 +568,14 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                 {/* Footer — fixed at bottom */}
                 <div className="shrink-0 z-10 bg-background/95 backdrop-blur-sm border-t border-border w-full">
                     <div className="max-w-3xl mx-auto px-3 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground select-none">
-                        <div className="flex items-center gap-3">
+                        <div className="hidden sm:flex items-center gap-3">
                             <span>{wordCount} word{wordCount !== 1 ? 's' : ''}</span>
                             <span>{charCount} character{charCount !== 1 ? 's' : ''}</span>
                             {readingTime > 0 && (
                                 <span>{readingTime} min read</span>
                             )}
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="hidden sm:flex items-center gap-3">
                             {editor.isActive('heading') && (
                                 <span className="capitalize">{editor.getAttributes('heading').level ? `Heading ${editor.getAttributes('heading').level}` : 'Heading'}</span>
                             )}
@@ -544,10 +583,10 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                                 <span>Paragraph</span>
                             )}
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 ml-auto sm:ml-0">
                             {/* Last edited time */}
                             {lastEditedRelative && (
-                                <span className="text-[10px] opacity-60">Edited {lastEditedRelative}</span>
+                                <span className="hidden sm:inline text-[10px] opacity-60">Edited {lastEditedRelative}</span>
                             )}
 
                             {/* Notion-like save status */}
@@ -578,7 +617,7 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                             )}
                             <button
                                 onClick={() => setIsFullWidth(!isFullWidth)}
-                                className="hover:text-foreground transition-colors"
+                                className="hidden sm:block hover:text-foreground transition-colors"
                                 title={isFullWidth ? 'Narrow width' : 'Full width'}
                                 type="button"
                             >
@@ -608,6 +647,14 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                         </Drawer.Content>
                     </Drawer.Portal>
                 </Drawer.Root>
+
+                <TableEmbedPickerDialog
+                    open={embedTableOpen}
+                    onOpenChange={setEmbedTableOpen}
+                    onSelectExisting={handleEmbedExistingTable}
+                    onCreateNew={handleCreateAndEmbedTable}
+                    creating={creatingTable}
+                />
             </MeasuredContainer>
         )
     }

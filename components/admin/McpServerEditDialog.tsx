@@ -14,6 +14,7 @@ import {
   McpServerInput,
   McpAuthType,
   McpTool,
+  McpCatalogEntry,
   createMcpServer,
   updateMcpServer,
   testMcpServer,
@@ -24,6 +25,9 @@ interface McpServerEditDialogProps {
   open: boolean
   onClose: () => void
   onSaved: () => void
+  // prefill seeds a fresh (create) dialog from a catalog connector, so the admin
+  // only fills the deployed URL + secret. Ignored when editing an existing server.
+  prefill?: McpCatalogEntry | null
 }
 
 const AUTH_TYPES: { value: McpAuthType; label: string }[] = [
@@ -32,7 +36,7 @@ const AUTH_TYPES: { value: McpAuthType; label: string }[] = [
   { value: "header", label: "Custom header" },
 ]
 
-export function McpServerEditDialog({ server, open, onClose, onSaved }: McpServerEditDialogProps) {
+export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }: McpServerEditDialogProps) {
   const { toast } = useToast()
   const editing = !!server
 
@@ -61,6 +65,15 @@ export function McpServerEditDialog({ server, open, onClose, onSaved }: McpServe
       setAuthType(server.auth_type)
       setAuthHeaderName(server.auth_header_name || "")
       setEnabled(server.enabled)
+    } else if (prefill) {
+      // Catalog install: seed everything the connector specifies; the admin
+      // still supplies the deployed URL and (if needed) the secret.
+      setName(prefill.name)
+      setDescription(prefill.description || "")
+      setUrl("")
+      setAuthType(prefill.auth_type)
+      setAuthHeaderName(prefill.auth_header_name || "")
+      setEnabled(true)
     } else {
       setName("")
       setDescription("")
@@ -74,7 +87,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved }: McpServe
     setError(null)
     setTools(null)
     setTestError(null)
-  }, [open, server])
+  }, [open, server, prefill])
 
   const buildInput = (): McpServerInput => ({
     name: name.trim(),
@@ -160,9 +173,24 @@ export function McpServerEditDialog({ server, open, onClose, onSaved }: McpServe
             <Input id="mcp-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What this server provides (optional)" maxLength={500} />
           </div>
 
+          {!editing && prefill && (
+            <p className="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
+              Deploy the {prefill.name} MCP server, then paste its URL below.{" "}
+              <a href={prefill.docs_url} target="_blank" rel="noreferrer" className="text-primary underline">
+                Setup guide
+              </a>
+              .
+            </p>
+          )}
+
           <div className="grid gap-2">
             <Label htmlFor="mcp-url">Server URL</Label>
-            <Input id="mcp-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://mcp.example.com/sse" />
+            <Input
+              id="mcp-url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder={(!editing && prefill?.url_placeholder) || "https://mcp.example.com/sse"}
+            />
           </div>
 
           <div className="grid gap-2">
@@ -205,6 +233,9 @@ export function McpServerEditDialog({ server, open, onClose, onSaved }: McpServe
                 placeholder={editing && server?.has_auth_secret ? "•••••••• (leave blank to keep)" : "Secret value"}
                 autoComplete="new-password"
               />
+              {!editing && prefill?.secret_hint && (
+                <p className="text-[11px] text-muted-foreground">{prefill.secret_hint}</p>
+              )}
             </div>
           )}
 

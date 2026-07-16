@@ -22,12 +22,14 @@ import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
 import { useCallback, useEffect, useRef, useState, memo } from "react";
 import {app_user} from "@/types/paths";
 import {useRouter} from "next/navigation";
+import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 
 interface mobileMessageProps {
     userInfo: UserProfileDataInterface
     createdAt: string
     content: string
     forwardedMessage?: ForwardedMessageData
+    replyMessage?: ForwardedMessageData
     channelUUID?: string
     commentUUID?: string
     postUUID?: string
@@ -45,12 +47,15 @@ interface mobileMessageProps {
     getMediaUrl: string
 }
 
-export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMessage, chatMessageUUID, content, rawReactions, addReaction, removeReaction, updateMessage, chatUUID, channelUUID, postUUID, commentUUID, attachments, getMediaUrl, forwardedMessage, createdAt}: mobileMessageProps) => {
+export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMessage, chatMessageUUID, content, rawReactions, addReaction, removeReaction, updateMessage, chatUUID, channelUUID, postUUID, commentUUID, attachments, getMediaUrl, forwardedMessage, replyMessage, createdAt}: mobileMessageProps) => {
 
 
     const dispatch = useDispatch();
 
     const[isMessageEditEnabled, setIsMessageEditEnabled] = useState(false);
+
+    // Route internal /app deep links through client navigation; off while editing.
+    const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
 
     const [userSelectedOption, setUserSelectedOption] = useState<UserSelectedOptionInterface>({} as UserSelectedOptionInterface)
     const [reactions, setReactions] = useState<{ [key: string]: string[] }>({});
@@ -295,7 +300,18 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
                         </div>
                     </div>
-                    <div className='break-all'>
+                    {replyMessage && (
+                        <div className="mb-1 border-l-2 border-primary/40 pl-2">
+                            <MessagePreview
+                                msgBy={replyMessage.msgBy}
+                                msgText={replyMessage.msgText}
+                                msgUUID={replyMessage.msgUUID}
+                                msgCreatedAt={replyMessage.msgCreatedAt}
+                                vewFooter={false}
+                            />
+                        </div>
+                    )}
+                    <div className='break-all' onClickCapture={handleInternalLinkClick}>
 
 
                         <MinimalTiptapTextInput

@@ -25,6 +25,7 @@ import { recentItemsSlice } from "./slice/recentItemsSlice";
 import messageResyncSlice from "@/store/slice/messageResyncSlice";
 import { commandSlice } from "@/store/slice/commandSlice";
 import nudgeSlice from "@/store/slice/nudgeSlice";
+import pendingActionSlice from "@/store/slice/pendingActionSlice";
 
 
 const rootPersistConfig = {
@@ -80,6 +81,7 @@ const rootReducer = (
             [messageResyncSlice.name]: messageResyncSlice.reducer(undefined, action),
             [commandSlice.name]: commandSlice.reducer(undefined, action),
             [nudgeSlice.name]: nudgeSlice.reducer(undefined, action),
+            [pendingActionSlice.name]: pendingActionSlice.reducer(undefined, action),
         } as RootState
     }
 
@@ -108,6 +110,7 @@ const rootReducer = (
         [messageResyncSlice.name]: messageResyncSlice.reducer(state[messageResyncSlice.name], action),
         [commandSlice.name]: commandSlice.reducer(state[commandSlice.name], action),
         [nudgeSlice.name]: nudgeSlice.reducer(state[nudgeSlice.name], action),
+        [pendingActionSlice.name]: pendingActionSlice.reducer(state[pendingActionSlice.name], action),
     } as RootState
 }
 
@@ -136,6 +139,7 @@ export type RootState = {
     [messageResyncSlice.name]: ReturnType<typeof messageResyncSlice.reducer>
     [commandSlice.name]: ReturnType<typeof commandSlice.reducer>
     [nudgeSlice.name]: ReturnType<typeof nudgeSlice.reducer>
+    [pendingActionSlice.name]: ReturnType<typeof pendingActionSlice.reducer>
 }
 
 const persistedReducer = persistReducer(rootPersistConfig, rootReducer);

@@ -88,7 +88,11 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
             // Already-loaded group revisited: merge the fresh latest window so
             // a message that arrived while away appears without a hard refresh.
             const latest = [...latestMsg.data.data.chats].reverse();
-            dispatch(mergeGroupChats({ grpId, chats: latest }))
+            dispatch(mergeGroupChats({
+                grpId,
+                chats: latest,
+                authoritativeThrough: latestMsg.lastRequestStartedAt,
+            }))
         }
 
     }, [getNewChatsWithCurrentChat, latestMsg, chatMessageState, messageId, grpId, dispatch]);
@@ -166,7 +170,7 @@ export const GroupChatMessageList = ({grpId, messageId: propMessageId}: ChatMess
             const chats = payload?.data?.chats as ChatInfo[] | undefined
             return chats ? [...chats].reverse() : undefined
         },
-        onMerge: (chats) => dispatch(mergeGroupChats({ grpId, chats })),
+        onMerge: (chats, authority) => dispatch(mergeGroupChats({ grpId, chats, ...authority })),
     })
 
     useEffect(() => {

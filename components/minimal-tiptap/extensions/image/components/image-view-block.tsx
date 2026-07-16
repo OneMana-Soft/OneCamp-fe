@@ -15,6 +15,7 @@ import { Cross2Icon, InfoCircledIcon, TrashIcon } from '@radix-ui/react-icons'
 import { ImageOverlay } from './image-overlay'
 import type { UploadReturnType } from '../image'
 import { LoaderCircle } from "@/lib/icons";
+
 import { useMediaFetch } from '@/hooks/useFetch';
 import { GetMediaURLRes } from '@/types/file';
 
@@ -149,6 +150,24 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
   })
 
   const shouldMerge = React.useMemo(() => currentWidth <= 180, [currentWidth])
+
+  // Whether we have real, positive pixel dimensions for this image yet.
+  // Fresh /giphy inserts and legacy posts whose stored HTML has no width/height
+  // attrs start with undefined dimensions (currentWidth/currentHeight are NaN
+  // until the image's onLoad computes them). Reserving layout height up front
+  // for those cases is what prevents the virtualized message list from
+  // overlapping rows: without it the row paints at ~0px, then jumps to full
+  // height when the bytes arrive, landing on top of the next message.
+  const hasPixelDims =
+    Number.isFinite(currentWidth) &&
+    Number.isFinite(currentHeight) &&
+    currentWidth > 0 &&
+    currentHeight > 0
+
+  // Placeholder height reserved while dimensions are unknown (pre-load). Kept
+  // modest so the one-time settle to the real size is a small, bounded shift
+  // the virtualizer absorbs cleanly, instead of an unbounded 0 -> full grow.
+  const UNKNOWN_DIMS_MIN_HEIGHT = 160
 
   React.useEffect(() => {
     setImageState(prev => {
@@ -300,7 +319,7 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
         className="group/node-image relative rounded-md"
         style={{
           maxWidth: `min(${maxWidth}px, 100%)`,
-          width: currentWidth,
+          width: hasPixelDims ? currentWidth : '100%',
         }}
       >
         <div
@@ -332,8 +351,19 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
                       'cursor-zoom-in': !editor.isEditable && imageState.imageLoaded
                     })}
                     style={{
-                      width: `${currentWidth}px`,
-                      height: `${currentHeight}px`,
+                      // Reserve layout height immediately. When we know the
+                      // pixel dimensions, drive height off aspect-ratio with
+                      // height:auto so the box reserves its height the instant
+                      // it paints (before the image bytes load) AND scales
+                      // correctly when max-width clamps the width on mobile —
+                      // no late growth, no letterbox whitespace. When the
+                      // dimensions are still unknown, hold a bounded
+                      // placeholder height so the row never collapses to ~0 and
+                      // overlaps the next message in the virtualized list.
+                      width: hasPixelDims ? `${currentWidth}px` : '100%',
+                      aspectRatio: hasPixelDims ? `${currentWidth} / ${currentHeight}` : undefined,
+                      height: hasPixelDims ? 'auto' : undefined,
+                      minHeight: hasPixelDims ? undefined : `${UNKNOWN_DIMS_MIN_HEIGHT}px`,
                       maxWidth: '100%',
                       maxHeight: `${MAX_HEIGHT}px`,
                     }}

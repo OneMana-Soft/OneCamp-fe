@@ -45,6 +45,7 @@ export const SCOPE_LABELS: Record<string, string> = {
   "calendar:write": "Create calendar events",
   "tables:read": "Read tables",
   "tables:write": "Write table rows",
+  "search:read": "Search workspace & apps",
 }
 
 export function scopeLabel(scope: string): string {

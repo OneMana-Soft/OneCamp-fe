@@ -75,7 +75,12 @@ export interface AIConfig {
   workspace_daily_token_budget: number
   user_daily_token_budget: number
   reasoning_enabled: boolean
+  local_only_mode: boolean
+  local_only_pinned_by_env: boolean
+  pii_redaction_enabled: boolean
+  pii_custom_patterns: string
   meeting_recap_enabled: boolean
+  meeting_recap_instructions: string
   memory_layer_enabled: boolean
   team_report_enabled: boolean
   nudges_enabled: boolean
@@ -83,6 +88,35 @@ export interface AIConfig {
   issue_triage_enabled: boolean
   code_analysis_max_files: number
   effective_code_analysis_max_files: number
+  web_search_provider: string
+  web_search_base_url: string
+  web_search_enabled: boolean
+  has_web_search_key: boolean
+  sandbox_enabled: boolean
+  sandbox_runner_url: string
+  has_sandbox_runner_token: boolean
+  sandbox_image_digest: string
+  sandbox_workspace_daily_seconds: number
+  sandbox_workspace_daily_runs: number
+  sandbox_channel_daily_seconds: number
+  sandbox_channel_daily_runs: number
+  sandbox_used_today_seconds: number
+  sandbox_used_today_runs: number
+  code_pr_enabled: boolean
+  code_pr_runner_url: string
+  has_code_pr_runner_token: boolean
+  code_pr_egress_allowlist: string[]
+  code_pr_out_of_scope_policy: string
+  code_pr_draft_on_red: boolean
+  code_pr_workspace_daily_minutes: number
+  code_pr_workspace_daily_runs: number
+  code_pr_channel_daily_minutes: number
+  code_pr_channel_daily_runs: number
+  code_pr_allow_unlinked: boolean
+  code_pr_chat_provider_id: string
+  code_pr_chat_model: string
+  code_pr_used_today_minutes: number
+  code_pr_used_today_runs: number
   circuit_state: string
 }
 
@@ -181,6 +215,41 @@ export async function getAIUsage(): Promise<AIUsage> {
   return res.data?.data
 }
 
+// Per-user AI token spend for today (admin-only). Powers the "top consumers"
+// breakdown so an admin can see who is using the workspace budget.
+export interface AIUserUsageRow {
+  user_id: string
+  full_name: string
+  name: string
+  used: number
+}
+export interface AIUserUsage {
+  day: string
+  users: AIUserUsageRow[]
+}
+
+export async function getAIUserUsage(limit = 25): Promise<AIUserUsage> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetAIUserUsage}?limit=${limit}`)
+  return res.data?.data
+}
+
+// Per-channel AI token spend for today (admin-only). Powers the "top
+// AI-spending channels" breakdown (Claude-Tag's per-channel usage view).
+export interface AIChannelUsageRow {
+  channel_id: string
+  name: string
+  used: number
+}
+export interface AIChannelUsage {
+  day: string
+  channels: AIChannelUsageRow[]
+}
+
+export async function getAIChannelUsage(limit = 25): Promise<AIChannelUsage> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetAIChannelUsage}?limit=${limit}`)
+  return res.data?.data
+}
+
 export async function listProviderModels(providerId: string, refresh = false): Promise<ModelView[]> {
   const url = `${GetEndpointUrl.GetAIProviderModels}/${encodeURIComponent(providerId)}/models${refresh ? "?refresh=true" : ""}`
   const res = await axiosInstance.get(url)
@@ -260,6 +329,12 @@ export async function setVisionModel(providerId: string, model: string): Promise
   await axiosInstance.post(PostEndpointUrl.SetAIVisionModel, { provider_id: providerId, model })
 }
 
+// Sets or clears the optional dedicated model the code-PR coding runner uses.
+// Passing empty strings clears it (code runs then fall back to the chat model).
+export async function setCodePRModel(providerId: string, model: string): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAICodePRModel, { provider_id: providerId, model })
+}
+
 /**
  * Set the active embedding model. If `dimension` differs from the current
  * index dimension, the backend rejects with HTTP 409 unless `reindex` is
@@ -313,8 +388,202 @@ export async function setAIReasoning(enabled: boolean): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAIReasoning, { enabled })
 }
 
+// Toggle local-only AI mode (data-residency guarantee: no content to a cloud
+// model). The backend refuses to enable it while an active endpoint is cloud.
+export async function setAILocalOnly(enabled: boolean): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAILocalOnly, { enabled })
+}
+
+// Toggle PII redaction before cloud egress. When on, detected PII is scrubbed
+// from prompts before they reach a non-local model.
+export async function setAIPIIRedaction(enabled: boolean): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIPIIRedaction, { enabled })
+}
+
+// Set the admin-defined PII redaction regexes (one per line). The backend
+// rejects the request if any line is an invalid regex.
+export async function setAIPIIPatterns(patterns: string): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIPIIPatterns, { patterns })
+}
+
 export async function setMeetingRecapEnabled(enabled: boolean): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAIMeetingRecap, { enabled })
+}
+
+export async function setMeetingRecapInstructions(instructions: string): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIMeetingRecapInstructions, { instructions })
+}
+
+// Per-user personal AI custom instructions (ChatGPT/Notion-style). Shape how the
+// assistant answers YOU (tone, role, defaults, language); applied on top of the
+// workspace prompt for your requests only.
+export async function getMyAIInstructions(): Promise<string> {
+  const res = await axiosInstance.get(GetEndpointUrl.MyAIInstructions)
+  return res.data?.data?.instructions || ""
+}
+
+export async function setMyAIInstructions(instructions: string): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetMyAIInstructions, { instructions })
+}
+
+export interface WebSearchInput {
+  provider: string // "" | searxng | tavily | brave
+  base_url: string
+  api_key?: string
+  enabled: boolean
+  clear_key?: boolean
+}
+
+// setWebSearch configures the provider-agnostic web search. api_key is sent
+// only when (re)entered; clear_key removes a stored key.
+export async function setWebSearch(input: WebSearchInput): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIWebSearch, input)
+}
+
+export interface SandboxConfigInput {
+  enabled: boolean
+  runner_url: string
+  runner_token?: string
+  clear_token?: boolean
+  image_digest: string
+  workspace_daily_seconds: number
+  workspace_daily_runs: number
+  channel_daily_seconds: number
+  channel_daily_runs: number
+}
+
+// setSandboxConfig configures the agent execution sandbox (runner URL, token,
+// image digest, daily budgets, on/off). runner_token is sent only when
+// (re)entered; clear_token removes a stored token.
+export async function setSandboxConfig(input: SandboxConfigInput): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAISandbox, input)
+}
+
+// setSandboxEnabled is the instant kill switch: toggles only the sandbox
+// master flag without touching runner config or budgets.
+export async function setSandboxEnabled(enabled: boolean): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAISandboxEnabled, { enabled })
+}
+
+export interface SandboxTestResult {
+  ok: boolean
+  status: string
+  message: string
+  wall_ms: number
+}
+
+// testSandbox runs a trivial probe against the configured code-runner sidecar
+// to validate the deployment (reachability, auth, execution) before enabling.
+export async function testSandbox(): Promise<SandboxTestResult> {
+  const res = await axiosInstance.post(PostEndpointUrl.TestAISandbox, {})
+  return res.data.result as SandboxTestResult
+}
+
+export interface CodePRConfigInput {
+  enabled: boolean
+  runner_url: string
+  runner_token?: string
+  clear_token?: boolean
+  egress_allowlist: string[]
+  out_of_scope_policy: string
+  draft_on_red: boolean
+  allow_unlinked: boolean
+  workspace_daily_minutes: number
+  workspace_daily_runs: number
+  channel_daily_minutes: number
+  channel_daily_runs: number
+}
+
+// setCodePRConfig configures the agent code-PR feature (coding-capable runner
+// URL, token, egress allowlist, out-of-scope policy, draft-on-red, daily
+// minute/run budgets, on/off). runner_token is sent only when (re)entered;
+// clear_token removes a stored token.
+export async function setCodePRConfig(input: CodePRConfigInput): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAICodePR, input)
+}
+
+// setCodePREnabled is the instant kill switch: toggles only the code-PR master
+// flag without touching runner config or budgets.
+export async function setCodePREnabled(enabled: boolean): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAICodePREnabled, { enabled })
+}
+
+// CodePRScorecard is the honest reliability view of the coding agent: counts,
+// rates (in [0,1]), ground-truth merge rate, and a min-sample-guarded grade.
+// All fields are zero on an empty ledger and the grade reads "unproven" until
+// there is enough signal, so the UI never over-claims.
+export interface CodePRScorecard {
+  total: number
+  opened: number
+  verified: number
+  with_tests: number
+  in_scope: number
+  draft: number
+  no_green: number
+  blocked: number
+  failed: number
+  merged: number
+  merged_with_edits: number
+  closed: number
+  outcome_known: number
+  open_rate: number
+  verify_rate: number
+  in_scope_rate: number
+  draft_rate: number
+  merge_rate: number
+  grade: "healthy" | "needs_attention" | "unproven"
+  min_sample: number
+  window_days: number
+}
+
+// getCodePRScorecard fetches the coding agent's reliability scorecard. days<=0
+// (omitted) covers all time; a positive value scopes to a trailing window.
+export async function getCodePRScorecard(days?: number): Promise<CodePRScorecard> {
+  const url =
+    days && days > 0
+      ? `${GetEndpointUrl.GetAICodePRScorecard}?days=${days}`
+      : GetEndpointUrl.GetAICodePRScorecard
+  const res = await axiosInstance.get(url)
+  return res.data.data as CodePRScorecard
+}
+
+// CodePRTestResult is the coding-runner deployment self-test: reachability of
+// the configured runner endpoint + whether an auth token is set.
+export interface CodePRTestResult {
+  ok: boolean
+  status: string
+  message: string
+  latency_ms: number
+  token_set: boolean
+  endpoint_ok: boolean
+}
+
+// testCodePRRunner probes the configured coding runner (reachability + token)
+// without triggering a real coding run — the "is my runner wired?" check.
+export async function testCodePRRunner(): Promise<CodePRTestResult> {
+  const res = await axiosInstance.post(PostEndpointUrl.TestAICodePR, {})
+  return res.data.result as CodePRTestResult
+}
+
+// CodePRRunView is one row of the coding-run ledger for the admin runs list.
+export interface CodePRRunView {
+  id: string
+  repo: string
+  status: string
+  outcome?: string
+  pr_url?: string
+  draft: boolean
+  all_passed: boolean
+  diff_files: number
+  message?: string
+  created_at: string
+}
+
+// getCodePRRuns fetches the most recent coding runs (newest first) for the admin
+// runs view.
+export async function getCodePRRuns(limit = 50): Promise<CodePRRunView[]> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetAICodePRRuns}?limit=${limit}`)
+  return (res.data.data as CodePRRunView[]) || []
 }
 
 export async function setMemoryLayerEnabled(enabled: boolean): Promise<void> {

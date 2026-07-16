@@ -269,7 +269,7 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                         placeholder="Add a message, if you'd like..."
                         editable={true}
                         toggleToolbar={true}
-                        editorClassName="focus:outline-none px-2 py-2"
+                        editorClassName="focus:outline-none"
                         onChange={handleCommentBodyChange}
                         content={commentState?.commentBody}
                     >

@@ -6,8 +6,12 @@ import type { PostsRes } from "@/types/post"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Check, X } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
+import { AgentResultCards } from "@/components/message/AgentResultCards"
 import { useLongPress } from "@/hooks/useLongPress"
 import { useDispatch } from "react-redux"
+import { setChannelReplyTarget } from "@/store/slice/channelSlice"
+import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
+import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
 import type { StandardReaction, SyncCustomReaction } from "@/types/reaction"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import {app_channel_path, app_chat_path, app_user} from "@/types/paths"
@@ -27,6 +31,7 @@ import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
+import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 
 interface ChannelMessageProps {
     postInfo: PostsRes
@@ -58,6 +63,9 @@ const ChannelMessageMobileComponent = ({
     const [isMessageEditEnabled, setIsMessageEditEnabled] = useState(false)
 
     const userInfoState = useUserInfoState(postInfo.post_by.user_uuid)
+
+    // Route internal /app deep links through client navigation; off while editing.
+    const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
 
 
     const [userSelectedOption, setUserSelectedOption] = useState<UserSelectedOptionInterface>(
@@ -130,6 +138,18 @@ const ChannelMessageMobileComponent = ({
         copyToClipboard.copy(t, "copied post text")
     }, [postInfo.post_text, copyToClipboard])
 
+    const handleReply = useCallback(() => {
+        if (!postInfo.post_uuid) return
+        dispatch(
+            setChannelReplyTarget({
+                channelId,
+                uuid: postInfo.post_uuid,
+                authorName: postInfo.post_by.user_name,
+                text: htmlToPreviewText(postInfo.post_text),
+            }),
+        )
+    }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by.user_name, postInfo.post_text])
+
     const onLongPress = useCallback(() => {
         // The instruction implies removing the old drawer slice calls and replacing with openUI.
         // The instruction's snippet had a nested `dispatch(dispatch(openUI(...)))` and orphaned lines.
@@ -151,12 +171,14 @@ const ChannelMessageMobileComponent = ({
                 handleEmojiClick: (emoji: string) => {
                     handleEmojiClick(emoji) // Reverted to original logic for `handleEmojiClick`
                 },
+                onReply: handleReply,
                 copyTextToClipboard: () => { // Changed to match original `copyPostText` behavior
                     copyPostText()
-                }
+                },
+                messageText: removeHtmlTags(postInfo.post_text || ""),
             }
         }))
-    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, copyPostText])
+    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postInfo.post_text])
 
     const longPressEvent = useLongPress(onLongPress, {
         threshold: 500,
@@ -192,7 +214,7 @@ const ChannelMessageMobileComponent = ({
 
     return (
         <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
-            <div className="flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100" {...longPressEvent}>
+            <div id={messageDomId(postInfo.post_uuid)} className="flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100" {...longPressEvent}>
                 <div className="h-9 w-9 mt-0.5 flex-shrink-0" onClick={handleUserClick}>
                     <ChannelMessageAvatar
                         userName={userInfoState.userName || postInfo.post_by.user_name}
@@ -206,7 +228,21 @@ const ChannelMessageMobileComponent = ({
                             {formatTimeForPostOrComment(postInfo.post_created_at, true)}
                         </div>
                     </div>
-                    <div className="break-words">
+                    {postInfo.post_reply_to && !isMessageEditEnabled && (
+                        <div
+                            className="interactive mb-1 border-l-2 border-primary/40 pl-2"
+                            onClick={(e) => { e.stopPropagation(); scrollToMessage(postInfo.post_reply_to?.post_uuid) }}
+                        >
+                            <MessagePreview
+                                msgBy={postInfo.post_reply_to.post_by}
+                                msgText={postInfo.post_reply_to.post_text}
+                                msgUUID={postInfo.post_reply_to.post_uuid}
+                                msgCreatedAt={postInfo.post_reply_to.post_created_at}
+                                vewFooter={false}
+                            />
+                        </div>
+                    )}
+                    <div className="break-words" onClickCapture={handleInternalLinkClick}>
                         <MinimalTiptapTextInput
                             throttleDelay={300}
                             isOutputText={!isMessageEditEnabled}
@@ -232,6 +268,10 @@ const ChannelMessageMobileComponent = ({
                                 setUpdatedText(s)
                             }}
                         />
+
+                        {postInfo.post_by.is_bot && !isMessageEditEnabled && (
+                            <AgentResultCards text={postInfo.post_text} />
+                        )}
 
                         {(postInfo.post_fwd_msg_chat || postInfo.post_fwd_msg_post) && (
                             <MessagePreview

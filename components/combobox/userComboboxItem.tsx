@@ -13,6 +13,7 @@ interface UserComboboxItemProps {
     userEmail?: string
     userProfileObjectKey?: string
     isSelected: boolean
+    isBot?: boolean
     onSelect: (value: string) => void
 }
 
@@ -22,6 +23,7 @@ export function UserComboboxItem({
     userEmail,
     userProfileObjectKey,
     isSelected,
+    isBot,
     onSelect,
 }: UserComboboxItemProps) {
     const {src: imageSrc} = useUserAvatar(userProfileObjectKey)
@@ -42,8 +44,15 @@ export function UserComboboxItem({
                 </AvatarFallback>
             </Avatar>
             <div className="flex flex-col min-w-0 flex-1">
-                <span className="font-medium text-sm truncate">{userName}</span>
-                <span className="text-[10px] text-muted-foreground truncate font-medium">{userEmail}</span>
+                <span className="font-medium text-sm truncate flex items-center gap-1.5">
+                    {userName}
+                    {isBot && (
+                        <span className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-semibold uppercase tracking-wider bg-primary/10 text-primary">
+                            AI
+                        </span>
+                    )}
+                </span>
+                <span className="text-[10px] text-muted-foreground truncate font-medium">{isBot ? "AI teammate" : userEmail}</span>
             </div>
             <Check
                 className={cn(

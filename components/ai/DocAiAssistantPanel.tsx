@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-
+import { useDispatch } from "react-redux";
+import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
 // Types and Config
 const ACTION_DETAILS: Record<DocAIAction, { label: string; icon: any; description: string; color: string }> = {
   write: {
@@ -81,6 +82,16 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
   onClose,
   initialAction,
 }) => {
+  const dispatch = useDispatch();
+
+  const handleClosePanel = useCallback(() => {
+    if (onClose) {
+      onClose();
+    } else if (isSidebar) {
+      dispatch(closeRightPanel());
+    }
+  }, [onClose, isSidebar, dispatch]);
+
   const [state, setState] = useState<DocAIState>({
     action: null,
     history: [],
@@ -206,19 +217,17 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
 
   return (
     <div className={cn("h-full flex flex-col ", isSidebar && "border-l ")}>
-      {!isSidebar && (
-        <div className="flex justify-between items-center px-5 py-4 border-b ">
-           <div className="flex items-center gap-2 text-primary font-semibold">
-             <Sparkles className="h-4 w-4" />
-             <span>AI Assistant</span>
-           </div>
-           {onClose && (
-             <Button onClick={onClose} size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground">
-               <X className="h-5 w-5" />
-             </Button>
-           )}
-        </div>
-      )}
+      <div className="flex justify-between items-center px-5 py-4 border-b ">
+         <div className="flex items-center gap-2 font-medium">
+           <Sparkles className="h-4 w-4 text-primary " />
+           <span>AI Assistant</span>
+         </div>
+         {(isSidebar || onClose) && (
+            <Button onClick={handleClosePanel} size="icon" variant="ghost" aria-label={isSidebar && !onClose ? "Collapse panel" : "Close panel"} className={cn("h-8 w-8 text-muted-foreground hover:text-foreground", isSidebar && !onClose && "hidden md:flex")}>
+              {isSidebar && !onClose ? <ArrowRightToLine className="h-5 w-5" /> : <X className="h-5 w-5" />}
+            </Button>
+         )}
+      </div>
 
       <ScrollArea className="flex-1">
         <div className="p-5">

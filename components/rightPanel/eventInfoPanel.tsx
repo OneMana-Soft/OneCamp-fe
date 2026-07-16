@@ -6,8 +6,10 @@ import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { GetEventsResponse, CreateEventPayload } from "@/types/calendar";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
-import { Calendar, Clock, AlignLeft, User, X, Check, Users, Plus, Trash2 } from "@/lib/icons";
+import { Calendar, Clock, AlignLeft, User, X, Check, Users, Plus, Trash2, CalendarClock, Sparkles } from "@/lib/icons";
 import { Edit2, ArrowRightToLine } from "@/lib/icons";
+import RescheduleDialog from "@/components/ai/RescheduleDialog";
+import MeetingPrepDialog from "@/components/ai/MeetingPrepDialog";
 import { statusColors } from "@/lib/colors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +49,8 @@ interface EventInfoPanelProps {
 export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelProps) {
     const post = usePost();
     const [isEditing, setIsEditing] = useState(false);
+    const [rescheduleOpen, setRescheduleOpen] = useState(false);
+    const [prepOpen, setPrepOpen] = useState(false);
     const rightPanelData = useSelector((state: any) => state.rightPanel.rightPanelState?.data);
     const viewStartDate = rightPanelData?.viewStartDate;
     const viewEndDate = rightPanelData?.viewEndDate;
@@ -165,6 +169,17 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         }
     }
 
+    // refreshEvents re-pulls the calendar after a mutation (reschedule, etc.),
+    // mirroring handleSave's revalidation of every cached events query.
+    const refreshEvents = async () => {
+        await mutate();
+        globalMutate(
+            (key) => typeof key === 'string' && key.startsWith(GetEndpointUrl.GoogleCalendarEvents),
+            undefined,
+            { revalidate: true }
+        );
+    };
+
     const executeLeave = async () => {
         try {
             await post.makeRequest({
@@ -232,8 +247,16 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                     <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-medium text-primary border-primary/20">Personal Event</Badge>
                     {!isEditing ? (
                         <div className="flex items-center gap-2">
+                            {(isCreator || isParticipant) && (
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" title="Prep brief" onClick={() => setPrepOpen(true)}>
+                                    <Sparkles className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                                </Button>
+                            )}
                             {isCreator ? (
                                 <>
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" title="Find a better time" onClick={() => setRescheduleOpen(true)}>
+                                        <CalendarClock className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                                    </Button>
                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-destructive hover:bg-destructive/10" onClick={handleDelete}>
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -473,6 +496,17 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                     </Form>
                 )}
             </div>
+            <RescheduleDialog
+                open={rescheduleOpen}
+                onOpenChange={setRescheduleOpen}
+                eventUUID={event.event_uuid}
+                onRescheduled={refreshEvents}
+            />
+            <MeetingPrepDialog
+                open={prepOpen}
+                onOpenChange={setPrepOpen}
+                eventUUID={event.event_uuid}
+            />
         </ScrollArea>
     );
 }

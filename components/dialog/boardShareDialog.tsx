@@ -17,6 +17,7 @@ import { UserProfileDataInterface, UserProfileInterface } from "@/types/user";
 import { BoardInfoInterface, BoardInfoResponse } from "@/types/board";
 import AddBoardMemberCombobox from "@/components/combobox/addBoardMemberCombobox";
 import { useUserAvatar } from "@/hooks/useUserAvatar";
+import { GuestLinkSection } from "@/components/guest/GuestLinkSection";
 
 type Role = "editor" | "viewer";
 
@@ -45,6 +46,8 @@ export function BoardShareDialog({ dialogOpenState, setOpenState, boardId }: Boa
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
   const currentUser = selfProfile?.data?.data;
   const isOwner = permissions?.board_created_by?.user_uuid === currentUser?.user_uuid;
+  // External sharing is owner/editor-only (backend enforces the same).
+  const canShareExternally = isOwner || !!permissions?.board_editing_users?.some(u => u.user_uuid === currentUser?.user_uuid);
 
   const handleInvite = async (user: UserProfileDataInterface, role: Role) => {
     if (!isOwner || !boardId) return;
@@ -171,6 +174,11 @@ export function BoardShareDialog({ dialogOpenState, setOpenState, boardId }: Boa
               </div>
             </div>
           </div>
+
+          {/* Share to web — scoped, expiring external guest link */}
+          {boardId && (
+            <GuestLinkSection resourceType="board" resourceId={boardId} canShare={canShareExternally} />
+          )}
 
           <div className="flex justify-between items-center pt-2">
             <Button

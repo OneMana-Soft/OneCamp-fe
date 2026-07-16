@@ -204,8 +204,11 @@ axiosInstance.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        // Standardized Error Toasting (excluding 401 refresh attempts)
-        if (error.response && error.response.status !== 401) {
+        // Standardized Error Toasting (excluding 401 refresh attempts).
+        // A request may opt out via `suppressErrorToast` (e.g. an embedded
+        // table whose target was deleted renders its own friendly fallback).
+        // @ts-ignore
+        if (error.response && error.response.status !== 401 && !error.config?.suppressErrorToast) {
             toast({
                 variant: "destructive",
                 title: "In-App Error",

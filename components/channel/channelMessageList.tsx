@@ -78,7 +78,11 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
             // while away appears without a hard refresh. Preserves optimistic
             // sends + paginated history; no-op when nothing changed.
             const latest = [...latestMsg.data.data.posts].reverse();
-            dispatch(mergeChannelPosts({ channelId, posts: latest }))
+            dispatch(mergeChannelPosts({
+                channelId,
+                posts: latest,
+                authoritativeThrough: latestMsg.lastRequestStartedAt,
+            }))
         }
 
     }, [getNewPostsWithCurrentPost, latestMsg, channelPostState, postId, channelId, dispatch]);
@@ -153,7 +157,7 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
             const posts = payload?.data?.posts as PostsRes[] | undefined
             return posts ? [...posts].reverse() : undefined
         },
-        onMerge: (posts) => dispatch(mergeChannelPosts({ channelId, posts })),
+        onMerge: (posts, authority) => dispatch(mergeChannelPosts({ channelId, posts, ...authority })),
     })
 
     useEffect(() => {

@@ -1,4 +1,5 @@
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
+import { decodeHtmlEntities } from "@/lib/utils/decodeHtmlEntities";
 import { AttachmentMediaReq, AttachmentType } from "@/types/attachment";
 
 /**
@@ -87,10 +88,11 @@ export function getLastMessagePreview(
     attachments?: AttachmentMediaReq[] | null,
 ): string {
     const html = htmlBody || "";
-    const text = removeHtmlTags(html).trim();
+    const text = decodeHtmlEntities(removeHtmlTags(html)).trim();
 
-    // 1. Real text wins (decode is left to the caller's renderer; we only need
-    //    the plain text for a one-line preview).
+    // 1. Real text wins (it is rendered as plain text in the preview, so HTML
+    //    entities like &#39; are decoded here — JSX would otherwise show them
+    //    literally).
     if (text !== "") {
         return text;
     }

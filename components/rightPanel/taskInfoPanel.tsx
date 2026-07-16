@@ -114,6 +114,13 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const [taskLabel, setTaskLabel] = useState<string>("")
     const [taskName, setTaskName] = useState<UpdateTaskName>({} as UpdateTaskName)
     const [taskDescription, setTaskDescription] = useState<string>("")
+    // True only when the description was changed by USER input (handleDescriptionChange),
+    // false when it was programmatically re-hydrated from server data. The
+    // debounced autosave fires only for user edits, so a transient empty
+    // re-hydration during a partial task refresh (e.g. an agent's status change
+    // or another member's update right after assignment) can never overwrite the
+    // saved description with "".
+    const descUserEditedRef = useRef(false)
     const [selectedStatus, setSelectedStatus] = useState<prioritiesInterface | undefined>(undefined)
     const [selectedPriority, setSelectedPriority] = useState<prioritiesInterface | undefined>(undefined)
     const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
@@ -663,6 +670,9 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         setTaskSubTasks(data.task_sub_tasks||[])
         setTaskLabel(data.task_label || "")
         setTaskDescription(data.task_description || "")
+        // Re-hydration from server is not a user edit — clear the flag so the
+        // debounced autosave below does not fire for this programmatic change.
+        descUserEditedRef.current = false
         setTaskIsDeleted(!isZeroEpoch(data.task_deleted_at || ''))
         setTaskAttachments(data.task_attachments || [])
     }, [taskInfo.data?.data, taskUUID, dispatch])
@@ -678,6 +688,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     }, [taskInputState, taskUUID])
 
     useEffect(() => {
+        // Persist only genuine user edits. A re-hydration from server data
+        // (descUserEditedRef === false) must never trigger a save, otherwise a
+        // transient empty value during a partial task refresh would clobber the
+        // saved description with "".
+        if (!descUserEditedRef.current) return
         updateTaskDesc(taskDescriptionDebounce)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [taskDescriptionDebounce])
@@ -721,6 +736,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const handleDescriptionChange = useCallback(
         (content: Content) => {
             if (!isAdmin) return
+            descUserEditedRef.current = true
             setTaskDescription(content?.toString() || "")
         },
         [isAdmin],
@@ -966,6 +982,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         members={projectMembers}
                         assignee={taskInfo.data?.data.task_assignee}
                         onChange={(uid) => updateTaskAssignee(uid, taskUUID)}
+                        includeAITeammates
                     />
 
                     <DateField
@@ -1029,14 +1046,14 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         <Label>Description</Label>
                         <MinimalTiptapTextInput
                             throttleDelay={CONSTANTS.THROTTLE_DELAY}
-                            className={cn("rounded-lg min-h-[18vh] h-auto border p-3 bg-muted/30")}
-                            editorContentClassName="overflow-auto h-full"
+                            className={cn("rounded-lg h-auto border bg-muted/30")}
+                            editorContentClassName="overflow-auto min-h-[7rem]"
                             output="html"
                             content={taskInfo.data?.data.task_description || ""}
                             value={taskInfo.data?.data.task_description || ""}
                             placeholder="Add a description..."
                             editable={isAdmin}
-                            editorClassName="focus:outline-none px-2 py-2"
+                            editorClassName="focus:outline-none"
                             onChange={handleDescriptionChange}
                         />
                     </div>

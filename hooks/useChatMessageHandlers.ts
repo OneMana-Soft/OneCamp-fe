@@ -83,10 +83,12 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                                             user_uuid: mqttChatInfo.data.user_uuid,
                                             user_name: mqttChatInfo.data.user_full_name,
                                             user_profile_object_key: mqttChatInfo.data.user_profile_object_key,
+                                            is_bot: mqttChatInfo.data.is_bot,
                                         },
                                         attachments: mqttChatInfo.data.chat_attachments,
                                         fwdChat: mqttChatInfo.data.chat_fwd_msg_chat,
-                                        fwdPost: mqttChatInfo.data.chat_fwd_msg_post
+                                        fwdPost: mqttChatInfo.data.chat_fwd_msg_post,
+                                        replyTo: mqttChatInfo.data.chat_reply_to,
                                     })
                                 )
                             } else {
@@ -100,11 +102,13 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                                             user_uuid: mqttChatInfo.data.user_uuid,
                                             user_name: mqttChatInfo.data.user_full_name,
                                             user_profile_object_key: mqttChatInfo.data.user_profile_object_key,
+                                            is_bot: mqttChatInfo.data.is_bot,
                                         },
                                         attachments: mqttChatInfo.data.chat_attachments,
                                         chatTo: selfProfile.data?.data || {} as UserProfileDataInterface,
                                         fwdChat: mqttChatInfo.data.chat_fwd_msg_chat,
-                                        fwdPost: mqttChatInfo.data.chat_fwd_msg_post
+                                        fwdPost: mqttChatInfo.data.chat_fwd_msg_post,
+                                        replyTo: mqttChatInfo.data.chat_reply_to,
                                     })
                                 )
                             }
@@ -442,6 +446,7 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                                     user_uuid: mqttChatComment.data.user_uuid,
                                     user_name: mqttChatComment.data.user_name,
                                     user_profile_object_key: mqttChatComment.data.user_profile_object_key,
+                                    is_bot: mqttChatComment.data.is_bot,
                                 },
                                 chatId: mqttChatComment.data.message_id,
                                 attachments: mqttChatComment.data.comment_attachments

@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Bell, Bookmark, CircleUser, Forward, Link, MessageSquareText, Pencil, Trash2, Type, Users } from "@/lib/icons";
+import { Bell, Bookmark, CircleUser, Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type, Users } from "@/lib/icons";
+import { useTranslateText } from "@/services/aiService";
 
 import {
     Drawer,
@@ -35,16 +36,30 @@ interface chatOptionsDrawerProps {
     deleteMessage: () => void
     copyTextToClipboard: () => void
     handleEmojiClick: (emojiId: string) => void
+    // onReply arms the composer for a Discord-style inline reply (distinct from
+    // "Thread", which opens the message's thread view).
+    onReply?: () => void
     isOwner?: boolean
     isAdmin?: boolean
+    messageText?: string
 }
 
 
 
-export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, onAddEmoji, copyTextToClipboard,  otherUserUUID, chatUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick }: chatOptionsDrawerProps) {
+export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, onAddEmoji, copyTextToClipboard,  otherUserUUID, chatUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText }: chatOptionsDrawerProps) {
 
     const router = useRouter();
     const copyToClipboard = useCopyToClipboard()
+
+    const { translateText, isSubmitting: translating } = useTranslateText()
+    const [translation, setTranslation] = React.useState<string | null>(null)
+    const handleTranslate = async () => {
+        const t = (messageText || "").trim()
+        if (!t) return
+        const target = typeof navigator !== "undefined" ? navigator.language : "English"
+        const res = await translateText(t, target)
+        if (res?.translation) setTranslation(res.translation)
+    }
 
 
     function closeDrawer() {
@@ -59,11 +74,16 @@ export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, onAd
     }
 
     // Handlers for card clicks
-    const handleReplyClick = () => {
+    const handleThreadClick = () => {
 
         router.push(`${app_chat_path}/${otherUserUUID}/${chatUUID}`);
         closeDrawer()
 
+    }
+
+    const handleInlineReplyClick = () => {
+        onReply?.()
+        closeDrawer()
     }
 
 
@@ -149,10 +169,18 @@ export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, onAd
                         {/* Cards Section */}
                         <div className="flex justify-center gap-4">
 
+                            {onReply && (
+                                <DrawerActionCard
+                                    onCardClick={handleInlineReplyClick}
+                                    Icon={Reply}
+                                    cardText={'Reply'}
+                                />
+                            )}
+
                             <DrawerActionCard
-                                onCardClick={handleReplyClick}
+                                onCardClick={handleThreadClick}
                                 Icon={MessageSquareText}
-                                cardText={'Reply'}
+                                cardText={'Thread'}
                             />
 
                             <DrawerActionCard
@@ -184,9 +212,25 @@ export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, onAd
                                 Icon={Type}
                             />
 
-
+                            {!!(messageText || "").trim() && (
+                                <DrawerActionLink
+                                    onLinkClick={handleTranslate}
+                                    linkText={translating ? 'Translating…' : (translation ? 'Re-translate' : 'Translate')}
+                                    Icon={translating ? Loader2 : Languages}
+                                />
+                            )}
 
                         </div>
+
+                        {translation && (
+                            <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
+                                <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                                    <Languages className="h-3 w-3" />
+                                    Translated
+                                </div>
+                                <p className="whitespace-pre-line text-sm text-foreground">{translation}</p>
+                            </div>
+                        )}
 
                         { (isOwner || isAdmin) &&
                             <>

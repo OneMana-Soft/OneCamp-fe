@@ -50,6 +50,7 @@ export interface UserProfileDataInterface {
     user_theme_color?: string
     user_theme_mode?: string
     is_external?: boolean
+    is_bot?: boolean
 }
 
 export interface UserDMSearchTextInterface {

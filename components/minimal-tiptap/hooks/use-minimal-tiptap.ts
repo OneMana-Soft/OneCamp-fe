@@ -40,6 +40,8 @@ import MentionNodeView from '../extensions/mention-list/MentionNodeView'
 import { PluginKey } from '@tiptap/pm/state'
 import ReferenceMentionNodeView from '../extensions/reference-mention/ReferenceMentionNodeView'
 import { makeReferenceSuggestion } from '../extensions/reference-mention/referenceMentionList'
+import { RecordingEmbed } from '../extensions/recording-embed/recording-embed'
+import { ChartEmbed } from '../extensions/chart-embed/chart-embed'
 
 // Distinct plugin keys so the #-channel and +-work-item suggestion plugins
 // don't collide with each other or with the @-user mention plugin.
@@ -304,6 +306,12 @@ const createExtensions = (
     HorizontalRule,
     ResetMarksOnEnter,
     CodeBlockLowlight,
+    // Read-only interactive block emitted by the meeting-recap agent; renders a
+    // "Play recording" button inside the recap message (channel/DM/group).
+    RecordingEmbed,
+    // Read-only block emitted by an AI agent's reply (```chart → chart div);
+    // renders a data chart inline in a channel/DM message or doc.
+    ChartEmbed,
     Placeholder.configure({
       placeholder: ({ node }) => {
         if (placeholder?.trim()) {

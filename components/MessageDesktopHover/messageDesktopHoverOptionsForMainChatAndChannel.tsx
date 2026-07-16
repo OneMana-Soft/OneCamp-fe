@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Forward, MessageSquareText } from "@/lib/icons";
+import { Forward, Languages, MessageSquareText, Reply } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
 
 import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
@@ -25,6 +25,13 @@ interface MessageDesktopHoverOptionProps {
     channelUUID?: string;
     postUUID?: string;
     messageText?: string;
+    // onReply, when provided, arms the composer to inline-reply to this message
+    // (Discord-style). Distinct from "Reply in thread" (which opens the thread
+    // panel). Rendered only when the surface supplies it.
+    onReply?: () => void;
+    // onTranslate, when provided, translates this message in place (the surface
+    // owns the translation state + inline render). Rendered as a hover action.
+    onTranslate?: () => void;
     getReplyNotification?: () => void;
     setEmojiPopupState?: (open: boolean) => void;
     editMessage: () => void;
@@ -87,6 +94,8 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     deleteMessage,
     editMessage,
     getReplyNotification,
+    onReply,
+    onTranslate,
     onReactionSelect,
     chatMessageID,
 }: MessageDesktopHoverOptionProps) => {
@@ -165,6 +174,12 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
 
             <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-border/70" />
 
+            {onReply && (
+                <HoverIconButton label="Reply" onClick={onReply}>
+                    <Reply className="h-4 w-4" />
+                </HoverIconButton>
+            )}
+
             <HoverIconButton label="Reply in thread" onClick={handleOpenThread}>
                 <MessageSquareText className="h-4 w-4" />
             </HoverIconButton>
@@ -172,6 +187,12 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
             <HoverIconButton label="Forward" onClick={handleForward}>
                 <Forward className="h-4 w-4" />
             </HoverIconButton>
+
+            {onTranslate && (
+                <HoverIconButton label="Translate" onClick={onTranslate}>
+                    <Languages className="h-4 w-4" />
+                </HoverIconButton>
+            )}
 
             {/* Save to memory — channel posts, group chats, and DMs (every
                 scope the memory layer understands). Renders only when the

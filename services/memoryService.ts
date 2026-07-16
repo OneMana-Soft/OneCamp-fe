@@ -153,7 +153,54 @@ export interface BriefingResult {
 
 export async function getBriefing(): Promise<BriefingResult> {
   const res = await axiosInstance.get(GetEndpointUrl.GetAIBriefing)
-  return res.data?.data ?? { enabled: false, open_items: [], highlights: [], day_items: [] }
+  const d = res.data?.data
+  // Normalize every collection to an array regardless of the payload shape.
+  // A Go nil slice marshals to JSON `null`, and an older/cached backend or a
+  // proxy may omit a field entirely; the card reads .length/.map on these, so
+  // guaranteeing arrays here means the UI can never crash on a malformed or
+  // partial response (it just shows less).
+  return {
+    enabled: !!d?.enabled,
+    open_items: Array.isArray(d?.open_items) ? d.open_items : [],
+    highlights: Array.isArray(d?.highlights) ? d.highlights : [],
+    day_items: Array.isArray(d?.day_items) ? d.day_items : [],
+  }
+}
+
+// ─── Cross-surface "what needs me now" attention queue ────────────────────
+
+export type AttentionSource = "approval" | "task" | "commitment" | "question" | "calendar"
+
+export interface AttentionItem {
+  source: AttentionSource
+  kind: string // short row label, e.g. "Overdue task"
+  title: string
+  subtitle?: string
+  url?: string
+  due_at?: string
+  priority: number // lower = more urgent
+  ref_id?: string // source entity id (e.g. a pending-action id)
+}
+
+export interface AttentionResult {
+  enabled: boolean
+  items: AttentionItem[]
+  counts: Record<string, number> // per-source counts
+}
+
+// getAttention loads the single prioritized list of everything that needs the
+// member across surfaces (approvals, overdue tasks/commitments, open
+// questions, upcoming calendar). Read-only; self-hides when AI is off.
+export async function getAttention(): Promise<AttentionResult> {
+  const res = await axiosInstance.get(GetEndpointUrl.GetAIAttention)
+  const d = res.data?.data
+  // Normalize the shape so the card never crashes on a null/omitted slice
+  // (Go nil slice → JSON null) or a partial response — see getBriefing.
+  return {
+    enabled: !!d?.enabled,
+    items: Array.isArray(d?.items) ? d.items : [],
+    counts: d?.counts && typeof d.counts === "object" ? (d.counts as Record<string, number>) : {},
+  }
 }
 
 // ─── Channel memory exclusion (trust control) ─────────────────────────────

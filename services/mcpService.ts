@@ -1,5 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints"
 
 // MCP (Model Context Protocol) server admin client. An MCP server is an
 // external endpoint exposing tools; once registered and introspected, its tools
@@ -55,6 +55,28 @@ export function parseMcpTools(s: McpServer): McpTool[] {
 // The full (namespaced) tool name an agent enables for an MCP tool.
 export function mcpToolFullName(s: McpServer, t: McpTool): string {
   return `${s.tool_prefix}${t.name}`
+}
+
+// McpCatalogEntry is one vetted connector from the curated catalog. Its fields
+// prefill the add-server dialog; the admin supplies the deployed URL + secret.
+export interface McpCatalogEntry {
+  slug: string
+  name: string
+  description: string
+  category: string
+  docs_url: string
+  transport: string
+  auth_type: McpAuthType
+  auth_header_name?: string
+  secret_required: boolean
+  secret_hint?: string
+  url_placeholder?: string
+  installed: boolean
+}
+
+export async function getMcpCatalog(): Promise<McpCatalogEntry[]> {
+  const res = await axiosInstance.get(GetEndpointUrl.GetMcpCatalog)
+  return (res.data?.data as McpCatalogEntry[]) || []
 }
 
 export async function createMcpServer(input: McpServerInput): Promise<McpServer> {

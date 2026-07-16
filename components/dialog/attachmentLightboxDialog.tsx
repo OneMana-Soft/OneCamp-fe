@@ -21,7 +21,7 @@ import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon"
 import { truncateFileName } from "@/lib/utils/format/truncateFileName"
 import { downloadFile } from "@/lib/utils/file/downloadFile"
 import { isImageByExtension } from "@/lib/utils/file/getAttachmentType"
-import { useAnalyzeImage } from "@/services/aiService"
+import { useAnalyzeImage, useAnalyzeDocument } from "@/services/aiService"
 
 /**
  * Attachment lightbox.
@@ -81,6 +81,18 @@ function resolveEffectiveType(media: AttachmentMediaReq): AttachmentType {
         return "image"
     }
     return persisted
+}
+
+// AI_READABLE_DOC_EXTS are the document types the backend can extract text from
+// (PDF + DOCX + text-family). Legacy .doc and spreadsheets are excluded so we
+// never offer an action that would fail; a scanned/encrypted PDF still returns
+// a friendly server-side message.
+const AI_READABLE_DOC_EXTS = ["pdf", "txt", "md", "markdown", "csv", "json", "xml", "log", "docx"]
+
+// isAiReadableDoc reports whether a filename is a document AI can summarize.
+function isAiReadableDoc(fileName: string): boolean {
+    const ext = (fileName.split(".").pop() || "").toLowerCase()
+    return AI_READABLE_DOC_EXTS.includes(ext)
 }
 
 function MediaPrefetcher({
@@ -345,6 +357,19 @@ export function MediaLightboxDialog({
         )
         if (res?.description) setAiResult(res.description)
     }, [analyzeContext, currentMedia?.attachment_uuid, analyzeImage])
+
+    // AI document reading (DOCX / text-family): same source-context gate as
+    // images; the answer is shown in the shared result panel.
+    const { analyzeDocument, isSubmitting: analyzingDoc } = useAnalyzeDocument()
+    const runAnalyzeDoc = useCallback(async () => {
+        if (!analyzeContext || !currentMedia?.attachment_uuid) return
+        const res = await analyzeDocument(
+            currentMedia.attachment_uuid,
+            analyzeContext.srcKey,
+            analyzeContext.srcRef,
+        )
+        if (res?.description) setAiResult(res.description)
+    }, [analyzeContext, currentMedia?.attachment_uuid, analyzeDocument])
 
     if (!currentMedia || allMedia?.length == 0) {
         return null
@@ -674,6 +699,20 @@ export function MediaLightboxDialog({
                                         {analyzing ? "Analyzing…" : aiResult ? "Re-analyze" : "Analyze with AI"}
                                     </Button>
                                 )}
+                                {analyzeContext &&
+                                    resolveEffectiveType(currentMedia) !== "image" &&
+                                    isAiReadableDoc(currentMedia?.attachment_file_name || "") && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={runAnalyzeDoc}
+                                            disabled={analyzingDoc}
+                                            className="gap-1.5 shrink-0"
+                                        >
+                                            <span aria-hidden>✨</span>
+                                            {analyzingDoc ? "Reading…" : aiResult ? "Re-summarize" : "Summarize with AI"}
+                                        </Button>
+                                    )}
                             </div>
                             <Button
                                 variant="outline"

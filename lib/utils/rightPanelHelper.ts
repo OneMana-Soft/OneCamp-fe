@@ -47,6 +47,36 @@ export const getForwardedMessageData = (data: PostsRes | ChatInfo | undefined): 
     return undefined
 }
 
+// getReplyMessageData extracts the Discord-style inline reply parent from a
+// post or chat, normalized to the same shape as a forward preview so the
+// right-panel / thread renderers can show the quoted parent. Mirrors
+// getForwardedMessageData; returns undefined when the message isn't a reply.
+export const getReplyMessageData = (data: PostsRes | ChatInfo | undefined): ForwardedMessageData | undefined => {
+    if (isPostData(data)) {
+        const replyPost = data.post_reply_to
+        if (replyPost) {
+            return {
+                msgBy: replyPost.post_by,
+                msgText: replyPost.post_text || "",
+                msgUUID: replyPost.post_uuid,
+                msgCreatedAt: replyPost.post_created_at,
+            }
+        }
+    } else if (isChatData(data)) {
+        const replyChat = data.chat_reply_to
+        if (replyChat) {
+            return {
+                msgBy: replyChat.chat_from,
+                msgText: replyChat.chat_body_text || "",
+                msgUUID: replyChat.chat_uuid,
+                msgCreatedAt: replyChat.chat_created_at,
+            }
+        }
+    }
+
+    return undefined
+}
+
 export const getMainMessageData = (data: PostsRes | ChatInfo | undefined): MainMessageData => {
 
     if (isPostData(data)) {

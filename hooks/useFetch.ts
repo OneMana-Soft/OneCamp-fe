@@ -1,10 +1,11 @@
 import useSWR, { SWRConfiguration } from 'swr';
 import axiosInstance from "@/lib/axiosInstance";
+import type { AxiosRequestConfig } from "axios";
 import { z } from 'zod';
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
-const fetcher = async <T>(url: string, schema?: z.ZodSchema<T>): Promise<T> => {
-    const response = await axiosInstance.get(url);
+const fetcher = async <T>(url: string, schema?: z.ZodSchema<T>, requestConfig?: AxiosRequestConfig): Promise<T> => {
+    const response = await axiosInstance.get(url, requestConfig);
     const data = response.data;
 
     if (schema) {
@@ -19,10 +20,22 @@ const fetcher = async <T>(url: string, schema?: z.ZodSchema<T>): Promise<T> => {
     return data;
 };
 
-export const useFetch = <T>(url: string, schema?: z.ZodSchema<T>, config?: SWRConfiguration) => {
-    const { data, error, isLoading, isValidating, mutate } = useSWR<T>(
-        url == '' ? null : url, 
-        () => fetcher<T>(url, schema),
+export const useFetch = <T>(url: string, schema?: z.ZodSchema<T>, config?: SWRConfiguration, requestConfig?: AxiosRequestConfig) => {
+    const requestSequenceRef = useRef(0);
+    const [lastRequestStartedAt, setLastRequestStartedAt] = useState<number>();
+    const { data, error, isLoading, mutate } = useSWR<T>(
+        url == '' ? null : url,
+        async () => {
+            const sequence = ++requestSequenceRef.current;
+            const requestStartedAt = Date.now();
+            const result = await fetcher<T>(url, schema, requestConfig);
+            // Only pair Redux authority with the newest completed request.
+            // A slower superseded response must not advance the watermark.
+            if (sequence === requestSequenceRef.current) {
+                setLastRequestStartedAt(requestStartedAt);
+            }
+            return result;
+        },
         {
             // MQTT pushes real-time updates for messages, channels, tasks,
             // docs, activity, calls, and admin events. Tab-focus refetches
@@ -48,8 +61,9 @@ export const useFetch = <T>(url: string, schema?: z.ZodSchema<T>, config?: SWRCo
         data,
         isLoading: isLoading,
         isError: error,
-        mutate
-    }), [data, isLoading, error, mutate]);
+        mutate,
+        lastRequestStartedAt,
+    }), [data, isLoading, error, mutate, lastRequestStartedAt]);
 };
 
 

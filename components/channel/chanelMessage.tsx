@@ -6,6 +6,8 @@ import { useDispatch } from "react-redux"
 import { BaseMessageCard, mapPostsResToBaseMessage } from "@/components/message/baseMessageCard"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { openUI } from "@/store/slice/uiSlice"
+import { setChannelReplyTarget } from "@/store/slice/channelSlice"
+import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import type { PostsRes } from "@/types/post"
 
 interface ChannelMessageProps {
@@ -26,6 +28,18 @@ export const ChannelMessage = ({ updatePost, postInfo, addReaction, removeReacti
     dispatch(openUI({ key: "otherUserProfile", data: { userUUID: postInfo.post_by.user_uuid } }))
   }, [dispatch, postInfo.post_by.user_uuid])
 
+  const handleReply = useCallback(() => {
+    if (!postInfo.post_uuid) return
+    dispatch(
+      setChannelReplyTarget({
+        channelId,
+        uuid: postInfo.post_uuid,
+        authorName: postInfo.post_by.user_name,
+        text: htmlToPreviewText(postInfo.post_text),
+      }),
+    )
+  }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by.user_name, postInfo.post_text])
+
   return (
     <BaseMessageCard
       message={mapPostsResToBaseMessage(postInfo)}
@@ -40,6 +54,7 @@ export const ChannelMessage = ({ updatePost, postInfo, addReaction, removeReacti
       updatePost={updatePost}
       priority={priority}
       onAvatarClick={handleUserClick}
+      onReply={handleReply}
     />
   )
 }

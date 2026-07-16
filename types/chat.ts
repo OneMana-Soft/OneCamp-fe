@@ -16,10 +16,14 @@ export interface ChatInfo {
     chat_attachments: AttachmentMediaReq[],
     chat_fwd_msg_post?: PostsRes
     chat_fwd_msg_chat?: ChatInfo
+    // Discord-style inline reply: the chat this chat replies to (same grouping).
+    chat_reply_to?: ChatInfo
     chat_comment_count: number
     chat_comments?: CommentInfoInterface[]
     chat_uuid: string
     chat_dm?: UserDMInterface
+    /** Client-created row awaiting confirmation from an authoritative latest page. */
+    chat_added_locally?: boolean
 }
 
 export interface CreateOrUpdateChatsReq {
@@ -29,6 +33,8 @@ export interface CreateOrUpdateChatsReq {
     to_uuid?: string
     grp_id?: string
     participants?: string[]
+    // When set, makes this chat an inline reply to another chat in the grouping.
+    reply_to_uuid?: string
 }
 
 export interface ChatInfoRes {

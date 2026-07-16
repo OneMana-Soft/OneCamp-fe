@@ -25,7 +25,7 @@ import {
   UpdateMessageInChatList,
   UpdateUnreadCountToZero,
 } from "@/store/slice/chatSlice";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { addUserToUserChatList, resetUserChatUnread } from "@/store/slice/userSlice";
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
 import { getGroupingId } from "@/lib/utils/getGroupingId";
@@ -39,6 +39,16 @@ export default function Page() {
   const chatId = params?.["chat-id"] as string;
 
   const post = usePost();
+  const dispatch = useDispatch();
+
+  const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
+    GetEndpointUrl.SelfProfile
+  );
+
+  const userChats = useSelector((state: RootState) => state.users.userSidebar.userChats);
+  const grpId = selfProfile.data?.data.user_uuid ? getGroupingId(chatId, selfProfile.data.data.user_uuid) : '';
+  const chatInSidebar = userChats.find(chat => chat.dm_grouping_id === grpId);
+  const unreadCountRef = useRef(chatInSidebar?.dm_unread || 0);
 
   const EMPTY_CHATS: ChatInfo[] = [];
   const EMPTY_INPUT_STATE = {};
@@ -51,12 +61,6 @@ export default function Page() {
 
   const chatState = useSelector(
     (state: RootState) => state.chat.chatInputState[chatId] || EMPTY_INPUT_STATE
-  );
-
-  const dispatch = useDispatch();
-
-  const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
-    GetEndpointUrl.SelfProfile
   );
 
   const otherUserInfo = useFetchOnlyOnce<UserProfileInterface>(
@@ -110,6 +114,21 @@ export default function Page() {
     // this; we just save a round-trip and a confusing toast.
     if (isExternalUser(otherUserInfo.data?.data)) return;
 
+    // Discord-style inline reply: carry the armed reply target (if any) so the
+    // backend sets the reply edge, and build an optimistic parent preview.
+    const replyToUuid = chatState.replyToUuid;
+    const optimisticReplyTo: ChatInfo | undefined = replyToUuid
+      ? {
+          chat_uuid: replyToUuid,
+          chat_body_text: chatState.replyToText || "",
+          chat_from: { user_name: chatState.replyToAuthorName || "" } as UserProfileDataInterface,
+          chat_to: {} as UserProfileDataInterface,
+          chat_created_at: "",
+          chat_attachments: [],
+          chat_comment_count: 0,
+        }
+      : undefined;
+
     post
       .makeRequest<CreateOrUpdateChatsReq, CreateChatRes>({
         apiEndpoint: PostEndpointUrl.CreateChatMessage,
@@ -117,6 +136,7 @@ export default function Page() {
           media_attachments: chatState.filesUploaded,
           to_uuid: chatId,
           text_html: body,
+          ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
         },
       })
       .then((res) => {
@@ -137,6 +157,8 @@ export default function Page() {
               chatId: res?.uuid,
               chatTo:
                 otherUserInfo.data?.data || ({} as UserProfileDataInterface),
+              replyTo: optimisticReplyTo,
+              addedLocally: true,
             })
           );
 
@@ -165,13 +187,13 @@ export default function Page() {
 
   useEffect(() => {
     if(!chatId || !selfProfile.data?.data.user_uuid) return;
-    const grpId = getGroupingId(chatId, selfProfile.data?.data.user_uuid);
+    const grplclId = getGroupingId(chatId, selfProfile.data?.data.user_uuid);
     dispatch(
       UpdateUnreadCountToZero({
-        grpId,
+        grpId: grplclId,
       })
     );
-    dispatch(resetUserChatUnread({ dm_grouping_id: grpId }));
+    dispatch(resetUserChatUnread({ dm_grouping_id: grplclId }));
   }, [chatId, selfProfile.data?.data.user_uuid]);
 
   if(!chatId) return
@@ -194,9 +216,9 @@ export default function Page() {
 
   return (
     <>
-      {isMobile && <ChatIdMobile chatId={chatId} handleSend={handleSend} />}
+      {isMobile && <ChatIdMobile chatId={chatId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
 
-      {isDesktop && <ChatIdDesktop chatId={chatId} handleSend={handleSend} />}
+      {isDesktop && <ChatIdDesktop chatId={chatId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
     </>
   );
 }

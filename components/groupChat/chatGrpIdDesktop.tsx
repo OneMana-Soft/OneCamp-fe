@@ -5,7 +5,7 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { SendHorizontal, Users, Video, Clapperboard } from "@/lib/icons";
+import { SendHorizontal, Users, Video, Clapperboard, X } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
@@ -21,7 +21,7 @@ import {
 } from "@/types/user";
 import { GrpChatNotificationInterface} from "@/types/chat";
 import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
-import {createOrUpdateGroupChatBody, LocallyCreatedGrpInfoInterface, ChatInputState} from "@/store/slice/groupChatSlice";
+import {createOrUpdateGroupChatBody, clearGroupChatReplyTarget, LocallyCreatedGrpInfoInterface, ChatInputState} from "@/store/slice/groupChatSlice";
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
 import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
@@ -197,6 +197,23 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                             dispatch(createOrUpdateGroupChatBody({ grpID: grpId, body: html }))
                         }
                     />
+                    {chatState.replyToUuid && (
+                        <div className="mx-2 mb-1 flex items-center gap-2 rounded-md border-l-2 border-primary/50 bg-muted/40 px-2 py-1 text-xs">
+                            <span className="text-muted-foreground">Replying to</span>
+                            <span className="font-medium text-foreground">{chatState.replyToAuthorName || "message"}</span>
+                            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                                {chatState.replyToText || ""}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => dispatch(clearGroupChatReplyTarget({ grpId }))}
+                                className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
+                                aria-label="Cancel reply"
+                            >
+                                <X className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
+                        </div>
+                    )}
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'groupChatFileUpload' }))}}

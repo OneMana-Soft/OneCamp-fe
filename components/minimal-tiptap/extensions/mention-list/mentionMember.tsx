@@ -38,10 +38,22 @@ const MentionMember: React.FC<ComboboxChannelMemberList> = ({ person, selectItem
             </Avatar>
 
             <div className='flex flex-col min-w-0'>
-                <div className="font-medium truncate leading-none">{person.user_name}</div>
-                {person.user_email_id && (
+                <div className="flex items-center gap-1.5 leading-none">
+                    <span className="font-medium truncate">{person.user_name}</span>
+                    {person.is_bot && (
+                        <span className="rounded bg-primary/10 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-primary">
+                            AI
+                        </span>
+                    )}
+                </div>
+                {person.user_email_id && !person.is_bot && (
                     <div className='text-xs text-muted-foreground truncate max-w-[150px] mt-0.5 leading-none'>
                         {person.user_email_id}
+                    </div>
+                )}
+                {person.is_bot && (
+                    <div className='text-xs text-muted-foreground truncate max-w-[150px] mt-0.5 leading-none'>
+                        AI teammate
                     </div>
                 )}
             </div>

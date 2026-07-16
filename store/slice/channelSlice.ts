@@ -1,5 +1,6 @@
 import { createSlice } from "@reduxjs/toolkit";
 import {CancelTokenSource} from "axios";
+import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
 import {PostsRes} from "@/types/post";
 import {UserProfileDataInterface} from "@/types/user";
 import {AttachmentMediaReq, AttachmentType} from "@/types/attachment";
@@ -36,6 +37,11 @@ export interface MessageInputState {
     inputTextHTML: string,
     filesUploaded: AttachmentMediaReq[]
     filePreview: FilePreview[]
+    // Discord-style reply target: when set, the next message sent in this
+    // channel is an inline reply to this message (rendered as a composer pill).
+    replyToUuid?: string
+    replyToAuthorName?: string
+    replyToText?: string
 }
 
 export interface ChannelScrollPosition {
@@ -116,7 +122,7 @@ interface UpdatePreviewFilesUUID {
     uuid: string
 }
 
-interface UpdateChannelPosts {
+interface UpdateChannelPosts extends LatestWindowAuthority {
     channelId: string,
     posts: PostsRes[]
 }
@@ -188,6 +194,7 @@ interface CreatePost {
     channelId: string
     fwdPost?: PostsRes
     fwdChat?: ChatInfo
+    replyTo?: PostsRes
     attachments: AttachmentMediaReq[]
 }
 
@@ -199,6 +206,14 @@ interface CreatePostLocally {
     postBy: UserProfileDataInterface
     channelId: string
     attachments: AttachmentMediaReq[]
+    replyTo?: PostsRes
+}
+
+interface SetChannelReplyTarget {
+    channelId: string
+    uuid: string
+    authorName: string
+    text: string
 }
 interface UpdateCreatedPostLocally {
     postId: string
@@ -237,7 +252,10 @@ const initialState = {
     channelPosts: {} as ExtendedPosts,
     channelScrollPosition: {} as ChannelScrollPosition,
     channelScrollToBottom: {} as ExtendedScrollToBottom,
-    channelCallStatus: {} as ExtendedCallStatus
+    channelCallStatus: {} as ExtendedCallStatus,
+    // channelId -> post_uuid -> deleted-at ms. Keeps a just-deleted post from
+    // being resurrected by a merge whose window was fetched before the delete.
+    deletedPosts: {} as TombstoneMap,
 }
 
 export const channelSlice = createSlice({
@@ -250,6 +268,28 @@ export const channelSlice = createSlice({
                 state.channelInputState[channelId] = { inputTextHTML: '', filesUploaded: [], filePreview: [] };
             }
             state.channelInputState[channelId].inputTextHTML = inputTextHTML;
+        },
+
+        // setChannelReplyTarget arms the composer to reply to a specific post.
+        setChannelReplyTarget: (state, action: {payload: SetChannelReplyTarget}) => {
+            const { channelId, uuid, authorName, text } = action.payload;
+            if (!state.channelInputState[channelId]) {
+                state.channelInputState[channelId] = { inputTextHTML: '', filesUploaded: [], filePreview: [] };
+            }
+            state.channelInputState[channelId].replyToUuid = uuid;
+            state.channelInputState[channelId].replyToAuthorName = authorName;
+            state.channelInputState[channelId].replyToText = text;
+        },
+
+        // clearChannelReplyTarget dismisses the reply pill without clearing the draft.
+        clearChannelReplyTarget: (state, action: {payload: { channelId: string }}) => {
+            const { channelId } = action.payload;
+            const s = state.channelInputState[channelId];
+            if (s) {
+                s.replyToUuid = undefined;
+                s.replyToAuthorName = undefined;
+                s.replyToText = undefined;
+            }
         },
 
         addChannelPreviewFiles: (state, action: {payload: AddPreviewFiles}) => {
@@ -336,72 +376,26 @@ export const channelSlice = createSlice({
         // flash and no lost unconfirmed sends. Reference-stable: an idle
         // reconnect with nothing changed is a no-op.
         mergeChannelPosts: (state, action: {payload: UpdateChannelPosts}) => {
-            const { channelId, posts } = action.payload;
-            if (!posts || posts.length === 0) return;
+            const { channelId, posts, authoritativeThrough } = action.payload;
+            if (!posts) return;
 
+            pruneTombstones(state.deletedPosts, channelId);
             const existing = state.channelPosts[channelId] || [];
-            if (existing.length === 0) {
-                // Nothing loaded yet → adopt the window wholesale (self-heal).
-                state.channelPosts[channelId] = [...posts].sort(
-                    (a, b) => new Date(a.post_created_at).getTime() - new Date(b.post_created_at).getTime()
-                );
-                return;
-            }
+            const next = reconcileLatestWindow({
+                existing,
+                incoming: posts,
+                authoritativeThrough,
+                getId: (post) => post.post_uuid,
+                getCreatedAt: (post) => post.post_created_at,
+                contentDiffers: postContentDiffers,
+                isOptimistic: (post) => !!post.post_added_locally,
+                shouldAcceptIncoming: (post) => !post.post_uuid || !isTombstoned(state.deletedPosts, channelId, post.post_uuid),
+                // A server copy with the same UUID confirms the local send.
+                mergeMatched: (current, server) => ({ ...current, ...server, post_added_locally: false }),
+                sort: (a, b) => new Date(a.post_created_at).getTime() - new Date(b.post_created_at).getTime(),
+            });
 
-            // Time-range the window authoritatively covers.
-            const times = posts.map((p) => new Date(p.post_created_at).getTime());
-            const windowMin = Math.min(...times);
-            const windowMax = Math.max(...times);
-
-            const serverById = new Map<string, PostsRes>();
-            for (const p of posts) if (p.post_uuid) serverById.set(p.post_uuid, p);
-
-            let changed = false;
-            const next: PostsRes[] = [];
-
-            for (const cur of existing) {
-                const t = new Date(cur.post_created_at).getTime();
-                const inWindow = t >= windowMin && t <= windowMax;
-                const server = cur.post_uuid ? serverById.get(cur.post_uuid) : undefined;
-
-                if (server) {
-                    // Present on the server. Preserve optimistic local objects
-                    // as-is; otherwise refresh if the server copy differs (edit
-                    // / reaction / comment-count change while idle).
-                    if (cur.post_added_locally) {
-                        next.push(cur);
-                    } else if (postContentDiffers(cur, server)) {
-                        next.push({ ...cur, ...server });
-                        changed = true;
-                    } else {
-                        next.push(cur);
-                    }
-                    serverById.delete(cur.post_uuid);
-                } else if (inWindow && !cur.post_added_locally && cur.post_uuid) {
-                    // Inside the authoritative window but gone from the server →
-                    // it was deleted while we were idle. Drop it. (A row without
-                    // a uuid can't be matched, so we never drop it.)
-                    changed = true;
-                } else {
-                    // Older than the window, an optimistic local post, or a
-                    // uuid-less row → keep.
-                    next.push(cur);
-                }
-            }
-
-            // Whatever remains in serverById are brand-new posts.
-            for (const p of posts) {
-                if (p.post_uuid && serverById.has(p.post_uuid)) {
-                    next.push(p);
-                    changed = true;
-                }
-            }
-
-            if (!changed) return; // stable reference: no needless re-render
-
-            state.channelPosts[channelId] = next.sort(
-                (a, b) => new Date(a.post_created_at).getTime() - new Date(b.post_created_at).getTime()
-            );
+            if (next !== existing) state.channelPosts[channelId] = next;
         },
 
         updatePostReaction: (state, action: {payload: UpdatePostReaction}) => {
@@ -598,6 +592,9 @@ export const channelSlice = createSlice({
 
         removePostByPostId: (state, action: {payload: RemovePostPostId}) => {
             const { channelId, postId } = action.payload;
+            // Tombstone first so a merge from a pre-delete window can't re-add
+            // it, even if the conversation isn't currently loaded.
+            markTombstone(state.deletedPosts, channelId, postId);
             if (!state.channelPosts[channelId]) return
             state.channelPosts[channelId] = state.channelPosts[channelId].filter((post) => {
                 return post.post_uuid !== postId
@@ -605,7 +602,7 @@ export const channelSlice = createSlice({
         },
 
         createPostLocally: (state, action: {payload: CreatePostLocally}) => {
-            const { postText, postCreatedAt, channelId, postBy, attachments, postUUID} = action.payload;
+            const { postText, postCreatedAt, channelId, postBy, attachments, postUUID, replyTo} = action.payload;
             if(!state.channelPosts[channelId]) {
                 state.channelPosts[channelId] = [] as PostsRes[]
             }
@@ -619,12 +616,16 @@ export const channelSlice = createSlice({
                 post_text: postText,
                 post_added_locally: true, // not seen by user yet
                 post_attachments: attachments,
+                post_reply_to: replyTo,
                 post_comment_count: 0
             })
         },
 
         createPost: (state, action: {payload: CreatePost}) => {
-            const {postId, postText, postCreatedAt, channelId, postBy, fwdPost, fwdChat, attachments} = action.payload;
+            const {postId, postText, postCreatedAt, channelId, postBy, fwdPost, fwdChat, replyTo, attachments} = action.payload;
+            // MQTT delivery is not guaranteed to be ordered. A create that
+            // arrives after its delete must not resurrect the soft-deleted row.
+            if (postId && isTombstoned(state.deletedPosts, channelId, postId)) return;
             if(!state.channelPosts[channelId]) {
                 state.channelPosts[channelId] = [] as PostsRes[]
             }
@@ -636,10 +637,11 @@ export const channelSlice = createSlice({
                 post_by: postBy,
                 post_created_at: postCreatedAt,
                 post_text: postText,
-                post_added_locally: true, // not seen by user yet
+                post_added_locally: false,
                 post_attachments: attachments,
                 post_fwd_msg_post: fwdPost,
                 post_fwd_msg_chat: fwdChat,
+                post_reply_to: replyTo,
                 post_comment_count: 0,
             })
 
@@ -763,6 +765,8 @@ export const {
     deleteChannelPreviewFiles,
     updateChannelPreviewFilesUUID,
     updateChannelInputText,
+    setChannelReplyTarget,
+    clearChannelReplyTarget,
     addChannelUploadedFiles,
     removeChannelUploadedFiles,
     clearChannelInputState,

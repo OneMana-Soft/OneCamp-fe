@@ -22,7 +22,7 @@ export default function AppLayout({
   
   return (
     <ClientProviders>
-      {/*<GlobalErrorBoundary>*/}
+      <GlobalErrorBoundary>
         <AppProtectedRoute>
           <LayoutContent>
               {children}
@@ -31,7 +31,7 @@ export default function AppLayout({
           <CommandPaletteLoader />
           <FCMHandler />
         </AppProtectedRoute>
-      {/*</GlobalErrorBoundary>*/}
+      </GlobalErrorBoundary>
     </ClientProviders>
   );
 }

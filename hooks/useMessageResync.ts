@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { useSelector } from "react-redux"
 import axiosInstance from "@/lib/axiosInstance"
+import type { LatestWindowAuthority } from "@/lib/utils/deletionTombstone"
 import type { RootState } from "@/store/store"
 
 interface UseMessageResyncOptions<T> {
@@ -30,7 +31,7 @@ interface UseMessageResyncOptions<T> {
      * optimistic local messages, and stays reference-stable when nothing
      * changed (so an idle reconnect with no changes is a no-op).
      */
-    onMerge: (items: T[]) => void
+    onMerge: (items: T[], authority: LatestWindowAuthority) => void
 }
 
 /**
@@ -88,6 +89,11 @@ export const useMessageResync = <T>({
 
         inFlightRef.current = true
         let cancelled = false
+        // The request-start watermark ensures a response can only remove rows
+        // that existed before this authoritative snapshot began. Sends created
+        // while the request is in flight remain protected even if the page is
+        // empty or has not caught up to the write yet.
+        const authoritativeThrough = Date.now()
 
         axiosInstance
             // `silent` keeps the global loading bar quiet for this
@@ -97,8 +103,8 @@ export const useMessageResync = <T>({
             .then((res) => {
                 if (cancelled) return
                 const items = extractRef.current(res.data)
-                if (items && items.length > 0) {
-                    onMergeRef.current(items)
+                if (items) {
+                    onMergeRef.current(items, { authoritativeThrough })
                 }
             })
             .catch(() => {

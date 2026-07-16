@@ -229,20 +229,15 @@ const DOC_BLOCK_COMMANDS: SlashCommandItem[] = [
   {
     id: "table",
     title: "Table",
-    description: "Insert a live database table",
+    description: "Embed an existing table or create a new one",
     icon: TableIcon,
     section: "Advanced blocks",
     command: ({ editor, range }) => {
-      // Create a new first-class table, then embed a live reference to it.
-      // The doc stores only { tableId }, never the rows (Notion's model).
+      // Open the table picker (handled in docInput.tsx): the author can embed
+      // a live view of an existing table or create a new one. The doc stores
+      // only { tableId }, never the rows (Notion's model).
       editor.chain().focus().deleteRange(range).run()
-      createTable({ name: "Untitled table", visibility: "workspace" })
-        .then((t) => {
-          editor.chain().focus().setTableEmbed({ tableId: t.id }).run()
-        })
-        .catch(() => {
-          /* axios interceptor surfaces the error */
-        })
+      window.dispatchEvent(new CustomEvent("doc-embed-table"))
     },
   },
 ]

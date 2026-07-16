@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Check, ChevronDown } from "@/lib/icons"
+import { Plus, Trash2, Check, ChevronDown, Sparkles, Loader2 } from "@/lib/icons"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +27,7 @@ import {
   createField,
   updateField,
   deleteField,
+  fillTableAIColumn,
 } from "@/services/tableService"
 import { RelationCell } from "@/components/table/RelationCell"
 
@@ -62,6 +63,21 @@ const RELATION_TARGETS: { value: string; label: string }[] = [
 
 // Local working copy of a row's values for snappy inline editing.
 type RowValues = Record<string, unknown>
+
+// aiPromptOf reads an AI column's prompt from a parsed field config
+// ({"ai":{"prompt":"..."}}); returns "" when the column is not AI-driven.
+function aiPromptOf(config: { [k: string]: unknown }): string {
+  const ai = config?.ai as { prompt?: string } | undefined
+  return (ai?.prompt || "").trim()
+}
+
+// aiAutoOf reads an AI column's continuous-autofill flag
+// ({"ai":{"auto":true}}); when true the cell recomputes automatically as the
+// row is created or edited, instead of only on a manual "Fill column" run.
+function aiAutoOf(config: { [k: string]: unknown }): boolean {
+  const ai = config?.ai as { auto?: boolean } | undefined
+  return Boolean(ai?.auto)
+}
 
 export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: DataTableGridProps) {
   const { toast } = useToast()
@@ -179,9 +195,11 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: Da
               <ColumnHeader
                 key={f.id}
                 field={f}
+                tableId={tableId}
                 canManage={canManage}
                 onSave={(input) => saveColumn(f, input)}
                 onDelete={() => deleteColumn(f)}
+                onFilled={onChange}
               />
             ))}
             {canManage && (
@@ -277,15 +295,20 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: Da
 // rename, change type, manage select options, and delete the column.
 function ColumnHeader({
   field,
+  tableId,
   canManage,
   onSave,
   onDelete,
+  onFilled,
 }: {
   field: TableField
+  tableId: string
   canManage: boolean
   onSave: (input: { name: string; type: FieldType; config?: Record<string, unknown> }) => void
   onDelete: () => void
+  onFilled: () => void
 }) {
+  const { toast } = useToast()
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState(field.name)
   const [type, setType] = React.useState<FieldType>(field.type)
@@ -296,6 +319,9 @@ function ColumnHeader({
   const [relationTarget, setRelationTarget] = React.useState<string>(
     () => (parseFieldConfig(field).relation_target as string) || "any",
   )
+  const [aiPrompt, setAiPrompt] = React.useState<string>(() => aiPromptOf(parseFieldConfig(field)))
+  const [aiAuto, setAiAuto] = React.useState<boolean>(() => aiAutoOf(parseFieldConfig(field)))
+  const [filling, setFilling] = React.useState(false)
 
   React.useEffect(() => {
     if (open) {
@@ -303,19 +329,50 @@ function ColumnHeader({
       setType(field.type)
       setOptions(parseFieldConfig(field).options || [])
       setRelationTarget((parseFieldConfig(field).relation_target as string) || "any")
+      setAiPrompt(aiPromptOf(parseFieldConfig(field)))
+      setAiAuto(aiAutoOf(parseFieldConfig(field)))
       setNewOption("")
     }
   }, [open, field])
 
   const isSelect = type === "select" || type === "multi_select"
   const isRelation = type === "relation"
+  // AI columns are plain content columns (text/number/url/email) driven by a
+  // prompt. Select/relation columns have their own structured config instead.
+  const aiEligible = !isSelect && !isRelation
+  const savedAiPrompt = aiPromptOf(parseFieldConfig(field))
 
   const save = () => {
     const trimmed = name.trim()
     if (!trimmed) return
-    const config = isSelect ? { options } : isRelation ? { relation_target: relationTarget } : {}
+    const config: Record<string, unknown> = isSelect
+      ? { options }
+      : isRelation
+        ? { relation_target: relationTarget }
+        : {}
+    if (aiEligible && aiPrompt.trim()) {
+      config.ai = { prompt: aiPrompt.trim(), auto: aiAuto }
+    }
     onSave({ name: trimmed, type, config })
     setOpen(false)
+  }
+
+  const handleFill = async () => {
+    setFilling(true)
+    try {
+      const res = await fillTableAIColumn(tableId, field.id)
+      toast({
+        title: "AI fill complete",
+        description: `Filled ${res.filled} ${res.filled === 1 ? "row" : "rows"}${
+          res.skipped ? `, skipped ${res.skipped}` : ""
+        }.`,
+      })
+      onFilled()
+    } catch {
+      // surfaced by interceptor
+    } finally {
+      setFilling(false)
+    }
   }
 
   const addOption = () => {
@@ -329,6 +386,7 @@ function ColumnHeader({
     return (
       <th className="min-w-[160px] border-r border-border/40 px-3 py-2 text-left font-medium text-muted-foreground">
         {field.name}
+        {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-violet-500" />}
         <span className="ml-1 text-[10px] uppercase opacity-50">{field.type}</span>
       </th>
     )
@@ -341,6 +399,7 @@ function ColumnHeader({
           <button className="flex w-full items-center justify-between gap-1 rounded-md px-2 py-1 hover:bg-muted/50">
             <span className="truncate">
               {field.name}
+              {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-violet-500" />}
               <span className="ml-1 text-[10px] uppercase opacity-50">{field.type}</span>
             </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
@@ -423,6 +482,53 @@ function ColumnHeader({
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {aiEligible && (
+              <div className="space-y-1 rounded-md border border-violet-500/30 bg-violet-500/5 p-2">
+                <label className="flex items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400">
+                  <Sparkles className="h-3 w-3" /> AI autofill
+                </label>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="Describe what to put in this cell, e.g. 'Summarize the row in one line'"
+                  rows={3}
+                  className="w-full resize-none rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
+                />
+                <p className="text-[11px] leading-tight text-muted-foreground">
+                  Each cell is generated from this column&apos;s prompt and the row&apos;s other
+                  values. Save first, then fill.
+                </p>
+                <label className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-[11px] leading-tight text-muted-foreground hover:bg-violet-500/5">
+                  <input
+                    type="checkbox"
+                    checked={aiAuto}
+                    onChange={(e) => setAiAuto(e.target.checked)}
+                    className="mt-0.5 h-3.5 w-3.5 accent-violet-500"
+                  />
+                  <span>
+                    <span className="font-medium text-violet-600 dark:text-violet-400">Autofill on change</span>
+                    {" — recompute each cell automatically when a row is added or edited."}
+                  </span>
+                </label>
+                {savedAiPrompt && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full gap-1.5 border-violet-500/40 text-violet-600 hover:bg-violet-500/10 dark:text-violet-400"
+                    disabled={filling}
+                    onClick={handleFill}
+                  >
+                    {filling ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    {filling ? "Filling..." : "Fill column with AI"}
+                  </Button>
+                )}
               </div>
             )}
 

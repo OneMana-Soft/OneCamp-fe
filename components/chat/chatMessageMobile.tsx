@@ -3,6 +3,7 @@ import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrCo
 import {cn} from "@/lib/utils/helpers/cn";
 import { Check, X } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
+import { AgentResultCards } from "@/components/message/AgentResultCards";
 import {useLongPress} from "@/hooks/useLongPress";
 import {useDispatch} from "react-redux";
 import {openUI, closeUI} from "@/store/slice/uiSlice";
@@ -23,7 +24,11 @@ import {ChatInfo} from "@/types/chat";
 import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
 import {removeHtmlTags} from "@/lib/utils/removeHtmlTags";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
+import {setChatReplyTarget} from "@/store/slice/chatSlice";
+import {htmlToPreviewText} from "@/lib/utils/htmlToPreviewText";
+import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
+import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 
 interface ChatMessageProps {
     chatInfo: ChatInfo
@@ -57,6 +62,10 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     const userInfoState = useUserInfoState(chatInfo.chat_from.user_uuid)
+
+    // Route internal /app deep links (e.g. AI citation footers) through client
+    // navigation; disabled while editing.
+    const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
 
     const handleUserClick = useCallback((e: React.MouseEvent)=>{
         e.preventDefault()
@@ -109,6 +118,18 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
     }
 
+    const handleReply = () => {
+        if (!chatInfo.chat_uuid) return
+        dispatch(
+            setChatReplyTarget({
+                chatUUID: otherUserUUID,
+                uuid: chatInfo.chat_uuid,
+                authorName: chatInfo.chat_from?.user_name || "",
+                text: htmlToPreviewText(chatInfo.chat_body_text),
+            }),
+        )
+    }
+
     const onLongPress = () => {
         dispatch(openUI({
             key: 'chatMessageLongPress',
@@ -121,7 +142,9 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                 isAdmin: isAdmin,
                 isOwner: chatInfo.chat_from.user_uuid == selfProfile.data?.data.user_uuid,
                 handleEmojiClick: handleEmojiClick,
-                copyTextToClipboard: copyPostText
+                onReply: handleReply,
+                copyTextToClipboard: copyPostText,
+                messageText: removeHtmlTags(chatInfo.chat_body_text || "")
             }
         }))
     }
@@ -171,7 +194,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
             wrap={(c) => (
                 <div onClick={handleOnCLick}>{c}</div>
             )}>
-        <div  className='flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100' {...longPressEvent} >
+        <div id={messageDomId(chatInfo.chat_uuid)} className='flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100' {...longPressEvent} >
 
             <div className='h-9 w-9 mt-0.5 flex-shrink-0' onClick={handleUserClick}>
                 <ChannelMessageAvatar
@@ -190,7 +213,21 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
                     </div>
                 </div>
-                    <div className='break-words' >
+                    {chatInfo.chat_reply_to && !isMessageEditEnabled && (
+                        <div
+                            className="interactive mb-1 border-l-2 border-primary/40 pl-2"
+                            onClick={(e) => { e.stopPropagation(); scrollToMessage(chatInfo.chat_reply_to?.chat_uuid) }}
+                        >
+                            <MessagePreview
+                                msgBy={chatInfo.chat_reply_to.chat_from}
+                                msgText={chatInfo.chat_reply_to.chat_body_text}
+                                msgUUID={chatInfo.chat_reply_to.chat_uuid}
+                                msgCreatedAt={chatInfo.chat_reply_to.chat_created_at}
+                                vewFooter={false}
+                            />
+                        </div>
+                    )}
+                    <div className='break-words' onClickCapture={handleInternalLinkClick} >
 
 
                         <MinimalTiptapTextInput
@@ -221,6 +258,9 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                             }}
                         />
 
+                        {chatInfo.chat_from?.is_bot && !isMessageEditEnabled && (
+                            <AgentResultCards text={chatInfo.chat_body_text} />
+                        )}
 
                         {
                             (chatInfo.chat_fwd_msg_chat || chatInfo.chat_fwd_msg_post) &&

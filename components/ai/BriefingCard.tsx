@@ -88,16 +88,28 @@ export default function BriefingCard() {
 
   useEffect(() => {
     let alive = true
-    getBriefing()
-      .then((res) => {
-        if (alive) setData(res)
-      })
-      .catch(() => {
-        if (alive) setData({ enabled: false, open_items: [], highlights: [] })
-      })
-      .finally(() => {
-        if (alive) setLoading(false)
-      })
+    // One retry before giving up, so a transient first-load failure (a request
+    // racing the auth token, a cold backend) doesn't hide the card for the
+    // whole session with no way to recover.
+    const load = (attempt: number) => {
+      getBriefing()
+        .then((res) => {
+          if (alive) {
+            setData(res)
+            setLoading(false)
+          }
+        })
+        .catch(() => {
+          if (!alive) return
+          if (attempt < 1) {
+            setTimeout(() => alive && load(attempt + 1), 1200)
+            return
+          }
+          setData({ enabled: false, open_items: [], highlights: [], day_items: [] })
+          setLoading(false)
+        })
+    }
+    load(0)
     return () => {
       alive = false
     }
@@ -113,9 +125,13 @@ export default function BriefingCard() {
   // skeleton flash on the dashboard for a non-critical card.
   if (loading) return null
   if (!data || !data.enabled) return null
-  const dayItems = data.day_items || []
-  const hasOpenItems = data.open_items.length > 0
-  const hasHighlights = data.highlights.length > 0
+  // Guard every collection defensively: the service normalizes these to
+  // arrays, but a null/omitted slice must hide the section, never throw.
+  const openItems = Array.isArray(data.open_items) ? data.open_items : []
+  const highlights = Array.isArray(data.highlights) ? data.highlights : []
+  const dayItems = Array.isArray(data.day_items) ? data.day_items : []
+  const hasOpenItems = openItems.length > 0
+  const hasHighlights = highlights.length > 0
   const bothColumns = hasOpenItems && hasHighlights
   if (!hasOpenItems && !hasHighlights && dayItems.length === 0) return null
 
@@ -237,7 +253,7 @@ export default function BriefingCard() {
               Your open items
             </p>
             <ul className="space-y-1">
-              {data.open_items.map((it) => {
+              {openItems.map((it) => {
                 const Icon = KIND_ICON[it.kind] || HelpCircle
                 const overdue = it.kind === "commitment" && isOverdue(it.due_at)
                 return (
@@ -284,7 +300,7 @@ export default function BriefingCard() {
               Recent highlights
             </p>
             <ul className="space-y-1">
-              {data.highlights.map((h, i) => {
+              {highlights.map((h, i) => {
                 const HighlightIcon = HIGHLIGHT_ICON[h.content_type] || FileText
                 return (
                   <li key={`${h.content_uuid}-${i}`}>

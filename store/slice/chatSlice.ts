@@ -1,5 +1,6 @@
 import {createSlice} from "@reduxjs/toolkit";
 import {ExtendedCallStatus, ExtendedScrollToBottom, FilePreview, ScrollToBottom} from "@/store/slice/channelSlice";
+import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {ChatInfo} from "@/types/chat";
 import {UserDMInterface, UserProfileDataInterface} from "@/types/user";
@@ -27,6 +28,11 @@ export interface ChatInputState {
     chatBody: string,
     filesUploaded: AttachmentMediaReq[],
     filesPreview: FilePreview[]
+    // Discord-style reply target: when set, the next message sent in this DM
+    // is an inline reply to this message (rendered as a composer pill).
+    replyToUuid?: string
+    replyToAuthorName?: string
+    replyToText?: string
 }
 
 
@@ -41,7 +47,16 @@ interface CreateChat {
     dmId: string
     fwdPost?: PostsRes
     fwdChat?: ChatInfo
+    replyTo?: ChatInfo
     attachments: AttachmentMediaReq[]
+    addedLocally?: boolean
+}
+
+interface SetChatReplyTarget {
+    chatUUID: string
+    uuid: string
+    authorName: string
+    text: string
 }
 
 
@@ -145,7 +160,7 @@ interface UpdateChat {
     htmlText: string
 }
 
-interface UpdateChats {
+interface UpdateChats extends LatestWindowAuthority {
     chatId: string,
     chats: ChatInfo[]
 }
@@ -214,7 +229,10 @@ const initialState = {
     chatScrollToBottom: {} as ExtendedScrollToBottom,
     chatScrollPositions: {} as ChatScrollPosition, // Stores the UUID and relative offset of the top visible message
     latestChatList: [] as UserDMInterface[],
-    chatCallStatus: {} as ExtendedCallStatus
+    chatCallStatus: {} as ExtendedCallStatus,
+    // dmId -> chat_uuid -> deleted-at ms. Keeps a just-deleted DM message from
+    // being resurrected by a merge whose window was fetched before the delete.
+    deletedChats: {} as TombstoneMap,
 
 }
 
@@ -315,11 +333,37 @@ export const chatSlice = createSlice({
 
         },
 
+        // setChatReplyTarget arms the composer to reply to a specific message.
+        setChatReplyTarget: (state, action: {payload: SetChatReplyTarget}) => {
+            const { chatUUID, uuid, authorName, text } = action.payload;
+            if (!state.chatInputState[chatUUID]) {
+                state.chatInputState[chatUUID] = { chatBody: '', filesUploaded: [], filesPreview: [] };
+            }
+            state.chatInputState[chatUUID].replyToUuid = uuid;
+            state.chatInputState[chatUUID].replyToAuthorName = authorName;
+            state.chatInputState[chatUUID].replyToText = text;
+        },
+
+        // clearChatReplyTarget dismisses the reply pill without clearing the draft.
+        clearChatReplyTarget: (state, action: {payload: { chatUUID: string }}) => {
+            const { chatUUID } = action.payload;
+            const s = state.chatInputState[chatUUID];
+            if (s) {
+                s.replyToUuid = undefined;
+                s.replyToAuthorName = undefined;
+                s.replyToText = undefined;
+            }
+        },
+
         createChat: (state, action: {payload: CreateChat}) => {
-            const {chatId, chatText, chatCreatedAt, dmId, chatBy, chatTo, attachments, fwdChat, fwdPost} = action.payload;
+            const {chatId, chatText, chatCreatedAt, dmId, chatBy, chatTo, attachments, fwdChat, fwdPost, replyTo, addedLocally = false} = action.payload;
+            // Ignore an out-of-order create delivered after this message's
+            // delete. A later authoritative restore is allowed after TTL.
+            if (chatId && isTombstoned(state.deletedChats, dmId, chatId)) return;
             if(!state.chatMessages[dmId]) {
                 state.chatMessages[dmId] = [] as ChatInfo[]
             }
+
             if (state.chatMessages[dmId].some(c => c.chat_uuid === chatId)) return;
             state.chatMessages[dmId].push({
                 chat_to: chatTo,
@@ -327,10 +371,12 @@ export const chatSlice = createSlice({
                 chat_created_at: chatCreatedAt,
                 chat_body_text: chatText,
                 chat_uuid: chatId,
+                chat_added_locally: addedLocally,
                 chat_attachments: attachments,
                 chat_comment_count: 0,
                 chat_fwd_msg_chat: fwdChat,
                 chat_fwd_msg_post: fwdPost,
+                chat_reply_to: replyTo,
             })
         },
 
@@ -357,6 +403,8 @@ export const chatSlice = createSlice({
 
         removeChatByChatId: (state, action: {payload: RemoveChatByChatId}) => {
             const { messageId, chatId } = action.payload;
+            // Tombstone first so a merge from a pre-delete window can't re-add it.
+            markTombstone(state.deletedChats, chatId, messageId);
             if (!state.chatMessages[chatId]) return
             state.chatMessages[chatId] = state.chatMessages[chatId].filter((chat) => {
                 return chat.chat_uuid !== messageId
@@ -417,63 +465,25 @@ export const chatSlice = createSlice({
         // untouched, so nothing unconfirmed is dropped and there's no empty
         // flash. Reference-stable when nothing changed.
         mergeChats: (state, action: {payload: UpdateChats}) => {
-            const { chatId, chats } = action.payload;
-            if (!chats || chats.length === 0) return;
+            const { chatId, chats, authoritativeThrough } = action.payload;
+            if (!chats) return;
 
+            pruneTombstones(state.deletedChats, chatId);
             const existing = state.chatMessages[chatId] || [];
-            if (existing.length === 0) {
-                state.chatMessages[chatId] = [...chats].sort(
-                    (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at)
-                );
-                return;
-            }
+            const next = reconcileLatestWindow({
+                existing,
+                incoming: chats,
+                authoritativeThrough,
+                getId: (chat) => chat.chat_uuid,
+                getCreatedAt: (chat) => chat.chat_created_at,
+                contentDiffers: chatContentDiffers,
+                isOptimistic: (chat) => !!chat.chat_added_locally,
+                shouldAcceptIncoming: (chat) => !chat.chat_uuid || !isTombstoned(state.deletedChats, chatId, chat.chat_uuid),
+                mergeMatched: (current, server) => ({ ...current, ...server, chat_added_locally: false }),
+                sort: (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at),
+            });
 
-            const times = chats.map((c) => Date.parse(c.chat_created_at));
-            const windowMin = Math.min(...times);
-            const windowMax = Math.max(...times);
-
-            const serverById = new Map<string, ChatInfo>();
-            for (const c of chats) if (c.chat_uuid) serverById.set(c.chat_uuid, c);
-
-            let changed = false;
-            const next: ChatInfo[] = [];
-
-            for (const cur of existing) {
-                const t = Date.parse(cur.chat_created_at);
-                const inWindow = t >= windowMin && t <= windowMax;
-                const server = cur.chat_uuid ? serverById.get(cur.chat_uuid) : undefined;
-
-                if (server) {
-                    if (chatContentDiffers(cur, server)) {
-                        next.push({ ...cur, ...server });
-                        changed = true;
-                    } else {
-                        next.push(cur);
-                    }
-                    serverById.delete(cur.chat_uuid);
-                } else if (inWindow && cur.chat_uuid) {
-                    // Inside the authoritative window but gone → deleted while
-                    // idle. (Optimistic sends are newer than windowMax, so
-                    // they're outside the window and safe. A uuid-less row is
-                    // never dropped.)
-                    changed = true;
-                } else {
-                    next.push(cur);
-                }
-            }
-
-            for (const c of chats) {
-                if (c.chat_uuid && serverById.has(c.chat_uuid)) {
-                    next.push(c);
-                    changed = true;
-                }
-            }
-
-            if (!changed) return;
-
-            state.chatMessages[chatId] = next.sort(
-                (a, b) => Date.parse(a.chat_created_at) - Date.parse(b.chat_created_at)
-            );
+            if (next !== existing) state.chatMessages[chatId] = next;
         },
 
 
@@ -793,6 +803,8 @@ export const {
     updateChats,
     removeChatByChatId,
     createChat,
+    setChatReplyTarget,
+    clearChatReplyTarget,
     removeChatReactionByChatId,
     updateChatPreviewFilesUUID,
     UpdateMessageInChatList,

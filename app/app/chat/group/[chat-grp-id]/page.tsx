@@ -63,10 +63,26 @@ export default function Page() {
 
         if(body.length==0) return
 
+        // Discord-style inline reply: carry the armed reply target (if any) so
+        // the backend sets the reply edge, and build an optimistic preview.
+        const replyToUuid = chatState.replyToUuid
+        const optimisticReplyTo: ChatInfo | undefined = replyToUuid
+            ? {
+                  chat_uuid: replyToUuid,
+                  chat_body_text: chatState.replyToText || '',
+                  chat_from: { user_name: chatState.replyToAuthorName || '' } as UserProfileDataInterface,
+                  chat_to: {} as UserProfileDataInterface,
+                  chat_created_at: '',
+                  chat_attachments: [],
+                  chat_comment_count: 0,
+              }
+            : undefined
+
         const payloadForReq: CreateOrUpdateChatsReq = {
             media_attachments: chatState.filesUploaded,
             text_html: body,
-            grp_id: grpId
+            grp_id: grpId,
+            ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
         }
 
         const isLocallyCreated = grpChatCreatedLocally && grpChatCreatedLocally.grpId && !grpChatCreatedLocally.haveSentFirstChat
@@ -97,6 +113,8 @@ export default function Page() {
                         chatText: body,
                         attachments: chatState.filesUploaded,
                         chatId: res?.uuid,
+                        replyTo: optimisticReplyTo,
+                        addedLocally: true,
                     }))
 
                     dispatch(UpdateMessageInChatList({

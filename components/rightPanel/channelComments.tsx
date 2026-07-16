@@ -4,7 +4,7 @@ import type { RootState } from "@/store/store"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {CreateOrUpdatePostsReq, CreatePostsRes, PostsResRaw} from "@/types/post";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {getForwardedMessageData, getMainMessageData} from "@/lib/utils/rightPanelHelper";
+import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 import {MessageContent} from "@/components/rightPanel/messageContent";
@@ -111,6 +111,7 @@ export const ChannelComments = () => {
 
     const mainMessageData = getMainMessageData(postState)
     const forwardedMessageData = getForwardedMessageData(postState)
+    const replyMessageData = getReplyMessageData(postState)
 
 
     const handleDeletePost = (postId: string) => {
@@ -426,6 +427,7 @@ export const ChannelComments = () => {
                     createdAt={mainMessageData.createdAt}
                     content={mainMessageData.content}
                     forwardedMessage={forwardedMessageData}
+                    replyMessage={replyMessageData}
                     channelUUID={mainMessageData.channelUUID}
                     chatUUID={mainMessageData.chatUUID}
                     removeReaction={removeReaction}
@@ -496,7 +498,7 @@ export const ChannelComments = () => {
                     placeholder={"Add a message, if you'd like..."}
                     editable={true}
                     toggleToolbar={ true}
-                    editorClassName="focus:outline-none px-2 py-2"
+                    editorClassName="focus:outline-none"
                     onChange={(content ) => {
                         dispatch(createOrUpdateChannelCommentMsg({channelId:rightPanelState.data.channelUUID, body: content as string}))
                     }}

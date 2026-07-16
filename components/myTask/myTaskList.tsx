@@ -21,6 +21,8 @@ import {UserInfoRawInterface} from "@/types/user";
 import {mutate} from "swr";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
+import { Button } from "@/components/ui/button"
+import { openUI } from "@/store/slice/uiSlice"
 
 interface getURLPramInput {
     sortQuery?: sortInterface[]
@@ -219,12 +221,30 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
     }
 
     if (!userInfo.isLoading && (!taskListState || taskListState.length === 0)) {
+        const isFiltered =
+            searchQuery.trim().length > 0 ||
+            taskFiltersAndSorts.filters.length > 0
         return (
             <div className="flex flex-col items-center justify-center py-20 px-4 w-full h-full min-h-[50vh]">
                 <StatePlaceholder
-                    type="empty"
-                    title="No tasks found"
-                    description="You're all caught up! Enjoy your free time or create a new task to get started."
+                    type={isFiltered ? "search" : "empty"}
+                    title={isFiltered ? "No tasks found" : "No tasks yet"}
+                    description={
+                        isFiltered
+                            ? "No tasks match your current search or filters."
+                            : "You're all caught up. Create a task to get started."
+                    }
+                    action={
+                        !isFiltered && (
+                            <Button
+                                onClick={() => dispatch(openUI({ key: "createTask" }))}
+                                variant="outline"
+                                size="sm"
+                            >
+                                Create a task
+                            </Button>
+                        )
+                    }
                 />
             </div>
         );

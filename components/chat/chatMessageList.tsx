@@ -124,7 +124,11 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
             // optimistic/unconfirmed sends or paginated history, and is
             // reference-stable (no-op) when nothing changed.
             const latest = [...latestMsg.data.data.chats].reverse();
-            dispatch(mergeChats({ chatId, chats: latest }))
+            dispatch(mergeChats({
+                chatId,
+                chats: latest,
+                authoritativeThrough: latestMsg.lastRequestStartedAt,
+            }))
         }
 
     }, [getNewChatsWithCurrentChat, latestMsg, safeChatMessageState, messageId, chatId, dispatch]);
@@ -200,7 +204,7 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
             // before reversing so we never touch the response object twice.
             return chats ? [...chats].reverse() : undefined
         },
-        onMerge: (chats) => dispatch(mergeChats({ chatId, chats })),
+        onMerge: (chats, authority) => dispatch(mergeChats({ chatId, chats, ...authority })),
     })
 
     useEffect(() => {

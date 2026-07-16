@@ -22,6 +22,7 @@ import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {ChannelInfoInterface, ChannelInfoInterfaceResp} from "@/types/channel";
 import {addUserChannelList, resetUserChannelUnread} from "@/store/slice/userSlice";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
+import {markChannelSeen} from "@/services/channelService";
 import {MessageInputState} from "@/store/slice/channelSlice";
 
 
@@ -67,6 +68,18 @@ export default function Page() {
         if(channelId) {
             dispatch(resetUserChannelUnread({ch_uuid: channelId}))
         }
+
+        // On leave (channel switch / page unmount), durably advance the
+        // server-side last-seen marker so messages that arrived while the user
+        // was actively viewing don't resurrect the unread badge on the next
+        // channel-list refetch. The local reset above handles the immediate
+        // UX; this makes it stick. Fire-and-forget + silent by design.
+        return () => {
+            if (channelId) {
+                markChannelSeen(channelId)
+                dispatch(resetUserChannelUnread({ch_uuid: channelId}))
+            }
+        }
     }, [channelId]);
 
     if(!channelId) return
@@ -84,12 +97,27 @@ export default function Page() {
         if(body.length==0) return
 
 
+        // Discord-style inline reply: carry the armed reply target (if any) so
+        // the backend sets the reply edge, and build an optimistic parent
+        // preview for the local render.
+        const replyToUuid = channelState.replyToUuid
+        const optimisticReplyTo: PostsRes | undefined = replyToUuid
+            ? {
+                  post_uuid: replyToUuid,
+                  post_text: channelState.replyToText || '',
+                  post_by: { user_name: channelState.replyToAuthorName || '' } as UserProfileDataInterface,
+                  post_created_at: '',
+                  post_comment_count: 0,
+              }
+            : undefined
+
         post.makeRequest<CreateOrUpdatePostsReq, CreatePostsRes>({
             apiEndpoint: PostEndpointUrl.CreateChannelPost,
             payload: {
                 post_attachments: channelState.filesUploaded,
                 channel_id: channelId,
-                post_text_html: body
+                post_text_html: body,
+                ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
             }
         })
             .then((res)=>{
@@ -110,6 +138,7 @@ export default function Page() {
                         postText: body,
                         attachments: channelState.filesUploaded,
                         postUUID: res?.uuid || '',
+                        replyTo: optimisticReplyTo,
                     }))
 
                     latestMsg.mutate()

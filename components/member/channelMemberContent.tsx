@@ -5,6 +5,8 @@ import {ChannelInfoInterfaceResp, ChannelMemberUpdateInterface} from "@/types/ch
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
 import AddChannelMemberCombobox from "@/components/combobox/addChannelMemberCombobox";
+import ChannelAITeammates from "@/components/member/channelAITeammates";
+import ChannelAIBudget from "@/components/member/channelAIBudget";
 import {UserListInterfaceResp} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
@@ -169,8 +171,10 @@ const ChannelMemberContent: React.FC<memberContentProp> = ({channelId}) => {
     return (
         <div className='flex-1 min-h-0 flex flex-col gap-y-6 w-full'>
             {(channelInfo.data?.channel_info.ch_is_admin || (channelInfo.data?.channel_info.ch_is_member && !channelInfo.data?.channel_info.ch_private)) && (
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 flex flex-col gap-4">
                     <AddChannelMemberCombobox handleAddMember={handleAddMember} channelId={channelId} />
+                    <ChannelAITeammates channelId={channelId} />
+                    <ChannelAIBudget channelId={channelId} />
                 </div>
             )}
             <div className="flex-1 min-h-0 flex flex-col">

@@ -36,13 +36,19 @@ interface VideoConferenceProps {
   onDisconnect?: () => void;
   toggleRecording: (isRecording: boolean) => void;
   isAdmin: boolean;
+  // Guest mode (unauthenticated external participant). When true we skip every
+  // feature that calls an authed backend endpoint — the frontend transcriber
+  // (reads /config/client) and the in-call AI assistant (streams from an authed
+  // route) — so a guest never triggers a 401 → refresh → logout redirect. Guests
+  // still see remote captions relayed over the LiveKit data channel.
+  guest?: boolean;
 }
 
 export function VideoConference({
   token,
   serverUrl,
   onDisconnect,
-                                    toggleRecording, isAdmin
+                                    toggleRecording, isAdmin, guest = false
 }: VideoConferenceProps) {
   const [shouldConnect, setShouldConnect] = useState(false);
 
@@ -83,7 +89,7 @@ export function VideoConference({
         className="h-full w-full"
       >
         <LayoutContextProvider>
-            <MyVideoConference onDisconnect={onDisconnect} parentToggleRecording={toggleRecording} isAdmin={isAdmin} />
+            <MyVideoConference onDisconnect={onDisconnect} parentToggleRecording={toggleRecording} isAdmin={isAdmin} guest={guest} />
             <RoomAudioRenderer />
         </LayoutContextProvider>
       </LiveKitRoom>
@@ -91,7 +97,7 @@ export function VideoConference({
   );
 }
 
-function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { onDisconnect?: () => void , parentToggleRecording: (isRecording: boolean) => void, isAdmin: boolean }) {
+function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest = false }: { onDisconnect?: () => void , parentToggleRecording: (isRecording: boolean) => void, isAdmin: boolean, guest?: boolean }) {
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
@@ -559,7 +565,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { on
             {/* In-Call AI Assistant side panel. On desktop it docks to the
                 right as a flex sibling (shrinking the video area); on mobile it
                 overlays full-screen. */}
-            {aiPanelOpen && (
+            {aiPanelOpen && !guest && (
                 <div className="absolute inset-0 z-30 md:static md:inset-auto md:z-auto md:h-full shrink-0">
                     <InCallAIPanel
                         items={inCallAgent.items}
@@ -582,11 +588,11 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin }: { on
             isRecordingLoading={isRecordingActionLoading}
             onToggleCaptions={toggleCaptions}
             showCaptions={showCaptions}
-            onToggleAI={() => setAiPanelOpen((v) => !v)}
+            onToggleAI={guest ? undefined : () => setAiPanelOpen((v) => !v)}
             isAIOpen={aiPanelOpen}
             aiUnreadCount={aiUnread}
         />
-        <FrontendTranscriber onTranscript={handleTranscript} />
+        {!guest && <FrontendTranscriber onTranscript={handleTranscript} />}
     </div>
   );
 }

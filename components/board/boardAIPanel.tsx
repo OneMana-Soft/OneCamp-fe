@@ -27,6 +27,31 @@ interface BoardAIPanelProps {
   disabled?: boolean
 }
 
+// SidekickPlan is the /board/aiPlan response: either clarifying questions
+// (ready=false) or an ordered build plan (ready=true) with a suggested type.
+interface SidekickPlan {
+  title: string
+  ready: boolean
+  questions: string[]
+  steps: string[]
+  suggested_type: string
+}
+
+// BoardClusterView / BoardClusterResult mirror the /board/aiCluster response:
+// the AI groups the board's existing notes into themes (+ a synthesis) and
+// returns a laid-out summary mind map the client inserts.
+interface BoardClusterView {
+  theme: string
+  summary: string
+  item_ids: string[]
+}
+interface BoardClusterResult {
+  title: string
+  synthesis: string
+  clusters: BoardClusterView[]
+  graph: BoardGenerateResult | null
+}
+
 const DIAGRAM_TYPES: { value: BoardDiagramType; label: string; Icon: React.ComponentType<{ className?: string }> }[] = [
   { value: "auto", label: "Auto", Icon: Sparkles },
   { value: "flow", label: "Flowchart", Icon: Workflow },
@@ -150,6 +175,14 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
   const [error, setError] = React.useState<string | null>(null)
   const [refinePrompt, setRefinePrompt] = React.useState("")
   const [refineError, setRefineError] = React.useState<string | null>(null)
+  // Sidekick clarify/plan preamble: before building, the user can ask the
+  // Sidekick to either clarify an underspecified goal or propose an ordered
+  // plan; building happens only when they approve the plan.
+  const [plan, setPlan] = React.useState<SidekickPlan | null>(null)
+  const [planLoading, setPlanLoading] = React.useState(false)
+  // Cluster/synthesize existing canvas notes (acts on the board, not a prompt).
+  const [clustering, setClustering] = React.useState(false)
+  const [synthesis, setSynthesis] = React.useState<BoardClusterResult | null>(null)
   const [isStreaming, setIsStreaming] = React.useState(false)
   const [stage, setStage] = React.useState<string | null>(null)
   const streamAbortRef = React.useRef<AbortController | null>(null)
@@ -340,8 +373,8 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
     [api, toast],
   )
 
-  const handleGenerate = React.useCallback(() => {
-    const trimmed = prompt.trim()
+  const handleGenerate = React.useCallback((promptOverride?: string) => {
+    const trimmed = (typeof promptOverride === "string" ? promptOverride : prompt).trim()
     if (!trimmed) {
       setError("Describe what you want to draw.")
       return
@@ -426,6 +459,90 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
     return () => streamAbortRef.current?.abort()
   }, [])
 
+  // Ask the Sidekick to clarify or plan before building. Non-destructive: it
+  // never touches the canvas — the user approves the plan to build.
+  const handlePlan = React.useCallback(() => {
+    const trimmed = prompt.trim()
+    if (!trimmed) {
+      setError("Describe what you want to build first.")
+      return
+    }
+    if (planLoading || isStreaming || isSubmitting) return
+    setError(null)
+    setPlan(null)
+    setPlanLoading(true)
+    makeRequest<{ board_uuid: string; prompt: string; type: string }, SidekickPlan>({
+      apiEndpoint: PostEndpointUrl.PlanBoardDiagram,
+      payload: { board_uuid: boardId, prompt: trimmed, type },
+    })
+      .then((res) => {
+        if (res) setPlan(res)
+        else setError("The Sidekick couldn't plan that. Try rephrasing.")
+      })
+      .catch(() => setError("Planning failed. Please try again in a moment."))
+      .finally(() => setPlanLoading(false))
+  }, [prompt, type, planLoading, isStreaming, isSubmitting, boardId, makeRequest])
+
+  // Approve the proposed plan and build it. The approved steps are appended to
+  // the prompt so the generated diagram follows the outline the user OK'd.
+  const approvePlan = React.useCallback(() => {
+    if (!plan || !plan.ready) return
+    const augmented =
+      plan.steps.length > 0
+        ? `${prompt.trim()}\n\nFollow this approved outline:\n${plan.steps.map((s) => `- ${s}`).join("\n")}`
+        : prompt.trim()
+    setPlan(null)
+    handleGenerate(augmented)
+  }, [plan, prompt, handleGenerate])
+
+  // Cluster & synthesize the notes already on the board. Reads the text from
+  // canvas elements, asks the server to group them into themes, then inserts
+  // the returned summary mind map via the same render path as a generation
+  // (non-destructive: the original notes are untouched).
+  const handleCluster = React.useCallback(() => {
+    if (!api || clustering || isStreaming || isSubmitting) return
+
+    // Collect text from the live scene: standalone text and container-bound
+    // text (sticky notes) are both "text" elements in Excalidraw. Use each
+    // element's id so a theme can reference exactly what we sent.
+    const items: { id: string; text: string }[] = []
+    const seen = new Set<string>()
+    for (const el of api.getSceneElements()) {
+      const e = el as unknown as { id: string; type: string; text?: string; isDeleted?: boolean }
+      if (e.isDeleted || e.type !== "text") continue
+      const text = (e.text || "").trim()
+      if (!text || seen.has(e.id)) continue
+      seen.add(e.id)
+      items.push({ id: e.id, text })
+      if (items.length >= 120) break
+    }
+    if (items.length < 3) {
+      setError("Add a few notes or text to the board first, then cluster them.")
+      return
+    }
+
+    setError(null)
+    setSynthesis(null)
+    setClustering(true)
+    makeRequest<{ board_uuid: string; items: { id: string; text: string }[] }, BoardClusterResult>({
+      apiEndpoint: PostEndpointUrl.ClusterBoardContent,
+      payload: { board_uuid: boardId, items },
+    })
+      .then((res) => {
+        if (!res) {
+          setError("Couldn't cluster the board. Try again in a moment.")
+          return
+        }
+        setSynthesis(res)
+        if (res.graph && Array.isArray(res.graph.nodes) && res.graph.nodes.length > 0) {
+          void renderGraph(res.graph)
+        }
+        toast({ title: "Clustered the board", description: `${res.clusters?.length || 0} themes.` })
+      })
+      .catch(() => setError("Clustering failed. Please try again in a moment."))
+      .finally(() => setClustering(false))
+  }, [api, clustering, isStreaming, isSubmitting, boardId, makeRequest, renderGraph, toast])
+
   // Apply a natural-language change to the last generated diagram, replacing it
   // in place. The current graph is sent so the model edits rather than starts
   // over; the response replaces the previous AI elements on the canvas.
@@ -492,6 +609,8 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
     setRefineError(null)
     setPrompt("")
     setError(null)
+    setPlan(null)
+    setSynthesis(null)
   }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -599,12 +718,56 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
             </span>
           </div>
 
+          {/* Cluster existing notes: acts on the canvas, not the prompt. Turns a
+              divergent brainstorm into themes + a synthesis mind map. */}
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/30 px-2.5 py-1.5">
+            <Network className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+              Notes on the board already? Group them into themes.
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCluster}
+              disabled={clustering || isStreaming || isSubmitting || !api}
+              className="h-7 shrink-0 gap-1.5 text-xs"
+              title="Cluster and summarize the notes already on this board"
+            >
+              {clustering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {clustering ? "Clustering…" : "Cluster"}
+            </Button>
+          </div>
+
+          {synthesis && (
+            <div className="mb-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                <Network className="h-3.5 w-3.5" />
+                {synthesis.clusters.length} themes
+              </div>
+              {synthesis.synthesis && (
+                <p className="mb-1.5 text-[12px] leading-relaxed text-foreground/80">{synthesis.synthesis}</p>
+              )}
+              <ul className="ml-4 list-disc space-y-0.5 text-[12px] text-foreground/80">
+                {synthesis.clusters.map((c, i) => (
+                  <li key={i}>
+                    <span className="font-medium">{c.theme}</span>
+                    {c.summary ? <span className="text-muted-foreground"> — {c.summary}</span> : null}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                A summary mind map was added to the board.
+              </p>
+            </div>
+          )}
+
           <Textarea
             ref={textareaRef}
             value={prompt}
             onChange={(e) => {
               setPrompt(e.target.value)
               if (error) setError(null)
+              if (plan) setPlan(null)
             }}
             onKeyDown={handleKeyDown}
             placeholder={PROMPT_PLACEHOLDERS[type] || "Describe what you want to draw..."}
@@ -617,6 +780,54 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
             <p className="mt-1.5 text-xs text-destructive" role="alert">
               {error}
             </p>
+          )}
+
+          {/* Sidekick plan card: clarifying questions to refine the goal, or an
+              ordered build plan to approve. Building happens only on approval. */}
+          {plan && (
+            <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+              {plan.ready ? (
+                <>
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                    <Milestone className="h-3.5 w-3.5" />
+                    Here&apos;s my plan{plan.title ? `: ${plan.title}` : ""}
+                  </div>
+                  <ol className="mb-2 ml-4 list-decimal space-y-0.5 text-[12px] text-foreground/80">
+                    {plan.steps.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ol>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-muted-foreground">
+                      Type: {DIAGRAM_TYPES.find((t) => t.value === plan.suggested_type)?.label || "Auto"}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Button size="sm" variant="ghost" onClick={() => setPlan(null)} className="h-7 text-xs">
+                        Dismiss
+                      </Button>
+                      <Button size="sm" onClick={approvePlan} disabled={isStreaming || !api} className="h-7 gap-1.5 text-xs">
+                        <Sparkles className="h-3.5 w-3.5" /> Approve &amp; build
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    A few details first
+                  </div>
+                  <ul className="mb-1 ml-4 list-disc space-y-0.5 text-[12px] text-foreground/80">
+                    {plan.questions.map((q, i) => (
+                      <li key={i}>{q}</li>
+                    ))}
+                  </ul>
+                  <p className="text-[11px] text-muted-foreground">
+                    Add these to your description above, then Plan or Generate again.
+                  </p>
+                </>
+              )}
+            </div>
           )}
 
           <div className="mt-2 flex items-center justify-between gap-2">
@@ -632,19 +843,32 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                     : "Connecting..."}
               </span>
             </div>
-            <Button size="sm" onClick={handleGenerate} disabled={isStreaming || !api} className="shrink-0 gap-1.5">
-              {isStreaming ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {STAGE_LABELS[stage || ""] || "Generating"}
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Generate
-                </>
-              )}
-            </Button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handlePlan}
+                disabled={planLoading || isStreaming || !api}
+                className="gap-1.5"
+                title="Ask the Sidekick to clarify or plan before building"
+              >
+                {planLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Milestone className="h-3.5 w-3.5" />}
+                Plan first
+              </Button>
+              <Button size="sm" onClick={() => handleGenerate()} disabled={isStreaming || !api} className="gap-1.5">
+                {isStreaming ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {STAGE_LABELS[stage || ""] || "Generating"}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Generate
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
             </>
           )}

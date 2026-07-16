@@ -1,7 +1,13 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils/helpers/cn";
+import { normalizeChartSpec } from "@/lib/utils/chartSpec";
+import AgentChart from "@/components/ai/AgentChart";
+import AgentHtmlArtifact from "@/components/ai/AgentHtmlArtifact";
+import { normalizeQueryPlan } from "@/lib/utils/queryPlanSpec";
+import AgentQueryPlan from "@/components/ai/AgentQueryPlan";
 
 /**
  * MarkdownMessage — a tiny, dependency-free, safe markdown renderer tuned for
@@ -56,17 +62,32 @@ function parseInline(text: string, keyPrefix: string): React.ReactNode[] {
             const link = token.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
             const href = link ? sanitizeHref(link[2]) : null;
             if (link && href) {
-                const external = /^https?:/i.test(href);
-                out.push(
-                    <a
-                        key={key}
-                        href={href}
-                        {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                        className="text-primary underline underline-offset-2 hover:opacity-80 [overflow-wrap:anywhere]"
-                    >
-                        {link[1]}
-                    </a>
-                );
+                if (href.startsWith("/")) {
+                    // Internal app link — navigate client-side (no full reload),
+                    // matching how citations and message links behave elsewhere.
+                    out.push(
+                        <Link
+                            key={key}
+                            href={href}
+                            prefetch={false}
+                            className="text-primary underline underline-offset-2 hover:opacity-80 [overflow-wrap:anywhere]"
+                        >
+                            {link[1]}
+                        </Link>
+                    );
+                } else {
+                    const external = /^https?:/i.test(href);
+                    out.push(
+                        <a
+                            key={key}
+                            href={href}
+                            {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                            className="text-primary underline underline-offset-2 hover:opacity-80 [overflow-wrap:anywhere]"
+                        >
+                            {link[1]}
+                        </a>
+                    );
+                }
             } else {
                 out.push(link ? link[1] : token);
             }
@@ -137,7 +158,43 @@ function parseBlocks(src: string): React.ReactNode[] {
                 code.push(lines[i]);
                 i++;
             }
-            if (i < lines.length) i++; // consume closing fence
+            const closed = i < lines.length;
+            if (closed) i++; // consume closing fence
+
+            // ```chart blocks carry a small JSON spec that renders as an inline
+            // SVG chart. We only attempt this once the fence is CLOSED (so a
+            // still-streaming, half-written spec doesn't flash a broken chart)
+            // and the JSON normalizes to a safe, bounded chart. Anything else
+            // falls through to the plain code block below — no error, no flicker.
+            if (fence[1] === "chart" && closed) {
+                const chart = normalizeChartSpec(code.join("\n"));
+                if (chart) {
+                    blocks.push(<AgentChart key={key++} chart={chart} />);
+                    continue;
+                }
+            }
+
+            // ```queryplan blocks carry the { table, plan } an agent ran to
+            // answer a data question; render the deterministic plan as an
+            // inspectable card (same closed-fence + safe-normalize discipline as
+            // charts). Anything malformed falls through to a plain code block.
+            if (fence[1] === "queryplan" && closed) {
+                const plan = normalizeQueryPlan(code.join("\n"));
+                if (plan) {
+                    blocks.push(<AgentQueryPlan key={key++} plan={plan} />);
+                    continue;
+                }
+            }
+
+            // ```html blocks render as an interactive artifact: the code is
+            // shown first and only runs in a strictly sandboxed (null-origin)
+            // iframe on an explicit user click — never automatically. Only once
+            // the fence is CLOSED so a still-streaming snippet doesn't flash.
+            if (fence[1] === "html" && closed && code.length > 0) {
+                blocks.push(<AgentHtmlArtifact key={key++} html={code.join("\n")} />);
+                continue;
+            }
+
             blocks.push(
                 <pre
                     key={key++}

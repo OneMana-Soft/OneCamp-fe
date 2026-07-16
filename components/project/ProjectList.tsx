@@ -5,9 +5,13 @@ import {TeamProjectListResult} from "@/components/team/TeamProjectListResult";
 import {ProjectInfoInterface} from "@/types/project";
 import {UserInfoRawInterface} from "@/types/user";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
+import { Button } from "@/components/ui/button";
+import { openUI } from "@/store/slice/uiSlice";
+import { useDispatch } from "react-redux";
 
 export const ProjectList = ({searchQuery}:{searchQuery: string}) => {
 
+    const dispatch = useDispatch()
     const userInfo = useFetch<UserInfoRawInterface>(GetEndpointUrl.GetUserProjectList )
 
     const [searchProjectList, setSearchProjectList] = useState<ProjectInfoInterface[]>([])
@@ -53,7 +57,20 @@ export const ProjectList = ({searchQuery}:{searchQuery: string}) => {
 
                 !searchQuery && !userInfo.isLoading && (
                     <div className="flex flex-col items-center justify-center py-10 px-4 w-full h-full min-h-[40vh]">
-                        <StatePlaceholder type="empty" title="No projects yet" description="This team doesn't have any projects. Create a project to get started." />
+                        <StatePlaceholder
+                            type="empty"
+                            title="No projects yet"
+                            description="Create a project to organize tasks and collaborate with your team."
+                            action={
+                                <Button
+                                    onClick={() => dispatch(openUI({ key: "createProject" }))}
+                                    variant="outline"
+                                    size="sm"
+                                >
+                                    Create a project
+                                </Button>
+                            }
+                        />
                     </div>
                 )
             }

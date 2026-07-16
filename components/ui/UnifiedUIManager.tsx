@@ -38,6 +38,7 @@ const BoardShareDialog = dynamic(() => import("@/components/dialog/boardShareDia
 const BoardViewersDialog = dynamic(() => import("@/components/dialog/boardViewersDialog"), { ssr: false });
 const DocVersionHistoryDialog = dynamic(() => import("@/components/dialog/docVersionHistoryDialog"), { ssr: false });
 const DocViewersDialog = dynamic(() => import("@/components/dialog/docViewersDialog"), { ssr: false });
+const ExtractTasksDialog = dynamic(() => import("@/components/ai/ExtractTasksDialog"), { ssr: false });
 
 // Admin card dialogs
 const WebhookCreateDialog = dynamic(() => import("@/components/admin/WebhookCreateDialog"), { ssr: false });
@@ -332,6 +333,15 @@ export function UnifiedUIManager() {
           open={ui.docViewers.isOpen}
           onOpenChange={() => dispatch(closeUI('docViewers'))}
           docId={ui.docViewers.data.docId}
+        />
+      )}
+
+      {ui.extractTasks.isOpen && (
+        <ExtractTasksDialog
+          open={ui.extractTasks.isOpen}
+          onOpenChange={() => dispatch(closeUI('extractTasks'))}
+          sourceType={ui.extractTasks.data.sourceType}
+          sourceId={ui.extractTasks.data.sourceId}
         />
       )}
 
@@ -646,7 +656,9 @@ export function UnifiedUIManager() {
           isAdmin={ui.channelMessageLongPress.data.isAdmin}
           isOwner={ui.channelMessageLongPress.data.isOwner}
           handleEmojiClick={ui.channelMessageLongPress.data.handleEmojiClick}
+          onReply={ui.channelMessageLongPress.data.onReply}
           copyTextToClipboard={ui.channelMessageLongPress.data.copyTextToClipboard}
+          messageText={ui.channelMessageLongPress.data.messageText}
         />
       )}
 
@@ -662,7 +674,9 @@ export function UnifiedUIManager() {
           isAdmin={ui.chatMessageLongPress.data.isAdmin}
           isOwner={ui.chatMessageLongPress.data.isOwner}
           handleEmojiClick={ui.chatMessageLongPress.data.handleEmojiClick}
+          onReply={ui.chatMessageLongPress.data.onReply}
           copyTextToClipboard={ui.chatMessageLongPress.data.copyTextToClipboard}
+          messageText={ui.chatMessageLongPress.data.messageText}
         />
       )}
 
@@ -678,7 +692,9 @@ export function UnifiedUIManager() {
           isAdmin={ui.groupChatMessageLongPress.data.isAdmin}
           isOwner={ui.groupChatMessageLongPress.data.isOwner}
           handleEmojiClick={ui.groupChatMessageLongPress.data.handleEmojiClick}
+          onReply={ui.groupChatMessageLongPress.data.onReply}
           copyTextToClipboard={ui.groupChatMessageLongPress.data.copyTextToClipboard}
+          messageText={ui.groupChatMessageLongPress.data.messageText}
         />
       )}
 

@@ -3,8 +3,9 @@
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Check, X } from "@/lib/icons";
+import { Check, X, Languages, Loader2 } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
+import { useTranslateText } from "@/services/aiService"
 import React, { useCallback, useMemo, useRef, useState } from "react"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
@@ -17,8 +18,11 @@ import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import type { AttachmentMediaReq } from "@/types/attachment"
 import { MessageReplyCount } from "@/components/message/messageReplyCount"
+import { AgentResultCards } from "@/components/message/AgentResultCards"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
+import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter"
+import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
 
 interface RightPanelConfig {
   chatUUID?: string
@@ -66,6 +70,9 @@ export interface BaseMessage {
   commentCount?: number
   fwdMsgPost?: NormalizedForwardMessage
   fwdMsgChat?: NormalizedForwardMessage
+  // replyTo is the Discord-style inline reply parent (same shape as a forward
+  // preview, reused). One level deep.
+  replyTo?: NormalizedForwardMessage
 }
 
 export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
@@ -94,6 +101,14 @@ export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
           text: chatInfo.chat_fwd_msg_chat.chat_body_text,
           uuid: chatInfo.chat_fwd_msg_chat.chat_uuid,
           createdAt: chatInfo.chat_fwd_msg_chat.chat_created_at,
+        }
+      : undefined,
+    replyTo: chatInfo.chat_reply_to
+      ? {
+          from: chatInfo.chat_reply_to.chat_from,
+          text: chatInfo.chat_reply_to.chat_body_text,
+          uuid: chatInfo.chat_reply_to.chat_uuid,
+          createdAt: chatInfo.chat_reply_to.chat_created_at,
         }
       : undefined,
   }
@@ -127,6 +142,14 @@ export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
           createdAt: postInfo.post_fwd_msg_chat.chat_created_at,
         }
       : undefined,
+    replyTo: postInfo.post_reply_to
+      ? {
+          from: postInfo.post_reply_to.post_by,
+          text: postInfo.post_reply_to.post_text,
+          uuid: postInfo.post_reply_to.post_uuid,
+          createdAt: postInfo.post_reply_to.post_created_at,
+        }
+      : undefined,
   }
 }
 
@@ -156,6 +179,10 @@ export interface BaseMessageCardProps {
   priority?: boolean
   showErrorBoundary?: boolean
   onAvatarClick?: () => void
+  // Discord-style inline reply: when provided, a "Reply" action appears in the
+  // hover menu and arms the composer to reply to this message. Omitted on
+  // surfaces without a composer (e.g. thread/right-panel previews).
+  onReply?: () => void
 }
 
 export const BaseMessageCard = React.memo(({
@@ -172,6 +199,7 @@ export const BaseMessageCard = React.memo(({
   priority,
   showErrorBoundary = false,
   onAvatarClick,
+  onReply,
 }: BaseMessageCardProps) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
@@ -187,7 +215,34 @@ export const BaseMessageCard = React.memo(({
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const dispatch = useDispatch()
 
+  // Route internal /app deep links (e.g. AI citation footers) through client
+  // navigation. Disabled while editing so link clicks edit text as usual.
+  const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
+
   const userInfoState = useUserInfoState(message.from.user_uuid)
+
+  // Inline AI translation (Notion/Slack-style). One click translates the
+  // message into the viewer's browser language and shows it beneath the
+  // original, with a toggle back to the source text. State is per-card; the
+  // translate call is governed server-side (member's model, limits, residency).
+  const { translateText, isSubmitting: translating } = useTranslateText()
+  const [translation, setTranslation] = useState<string | null>(null)
+  const [showTranslation, setShowTranslation] = useState(false)
+  const handleTranslate = useCallback(async () => {
+    // Toggle if we already have a translation for this message.
+    if (translation) {
+      setShowTranslation((v) => !v)
+      return
+    }
+    const text = (message.bodyText || "").trim()
+    if (!text) return
+    const target = typeof navigator !== "undefined" ? navigator.language : "English"
+    const res = await translateText(text, target)
+    if (res?.translation) {
+      setTranslation(res.translation)
+      setShowTranslation(true)
+    }
+  }, [translation, message.bodyText, translateText])
 
   const reactions = useMemo(() => {
     const r: { [key: string]: string[] } = {}
@@ -291,6 +346,7 @@ export const BaseMessageCard = React.memo(({
 
   return (
     <div
+      id={messageDomId(message.uuid)}
       className={cn(
         "group relative flex gap-3 px-4 py-2.5",
         "transition-colors duration-100",
@@ -316,6 +372,8 @@ export const BaseMessageCard = React.memo(({
               onReactionSelect={handleEmojiClick}
               setIsDropdownOpen={setIsDropdownOpen}
               messageText={message.bodyText}
+              onReply={onReply}
+              onTranslate={message.bodyText ? handleTranslate : undefined}
               {...hoverOptionsConfig}
             />
           </div>
@@ -336,12 +394,36 @@ export const BaseMessageCard = React.memo(({
               >
                 {userInfoState?.userName || message.from.user_name}
               </button>
+              {message.from.is_bot && (
+                <span
+                  className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary"
+                  title="AI agent"
+                >
+                  AI
+                </span>
+              )}
               <span className="text-[11px] tabular-nums text-muted-foreground">
                 {formatTimeForPostOrComment(message.createdAt, true)}
               </span>
             </div>
           )}
-          <div className="break-words w-full">
+          {message.replyTo && !isMessageEditEnabled && (
+            <button
+              type="button"
+              onClick={() => scrollToMessage(message.replyTo?.uuid)}
+              className="mb-1 block w-full border-l-2 border-primary/40 pl-2 text-left transition-colors hover:border-primary rounded-sm"
+              aria-label="Jump to replied message"
+            >
+              <MessagePreview
+                msgBy={message.replyTo.from}
+                msgText={message.replyTo.text}
+                msgUUID={message.replyTo.uuid}
+                msgCreatedAt={message.replyTo.createdAt}
+                vewFooter={false}
+              />
+            </button>
+          )}
+          <div className="break-words w-full" onClickCapture={handleInternalLinkClick}>
             {showErrorBoundary ? (
               <LocalizedErrorBoundary
                 fallbackTitle="Editor Error"
@@ -353,6 +435,48 @@ export const BaseMessageCard = React.memo(({
               editor
             )}
           </div>
+
+          {/* Inline AI translation: shown beneath the original, with a toggle
+              back to the source text. Plain text (the model returns prose). */}
+          {!isMessageEditEnabled && (translating || (translation && showTranslation)) && (
+            <div className="mt-1.5 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
+              <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                <Languages className="h-3 w-3" />
+                {translating ? "Translating…" : "Translated"}
+                {translation && !translating && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTranslation(false)}
+                    className="ml-1 text-muted-foreground underline-offset-2 hover:underline"
+                  >
+                    Show original
+                  </button>
+                )}
+              </div>
+              {translating && !translation ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              ) : (
+                <p className="whitespace-pre-line text-sm text-foreground">{translation}</p>
+              )}
+            </div>
+          )}
+          {!isMessageEditEnabled && translation && !showTranslation && (
+            <button
+              type="button"
+              onClick={() => setShowTranslation(true)}
+              className="mt-1 text-[11px] font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Show translation
+            </button>
+          )}
+
+          {/* Additive PR/branch result cards for AI-teammate messages — turns a
+              raw GitHub link (a code-PR result) into a clean, clickable card
+              without touching the rich-text render. No-op for humans and for
+              messages with no GitHub result link. */}
+          {message.from.is_bot && !isMessageEditEnabled && (
+            <AgentResultCards text={message.bodyText} />
+          )}
 
           {(message.fwdMsgPost || message.fwdMsgChat) && !isMessageEditEnabled && (
             <MessagePreview
