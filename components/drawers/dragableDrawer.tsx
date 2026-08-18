@@ -23,7 +23,10 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
 
     // Handle height changes based on expanded state and initialHeight updates
     useEffect(() => {
-        const targetHeight = isExpanded ? "100vh" : Math.min(initialHeight, window.innerHeight);
+        // 100dvh, not 100vh: on mobile Safari 100vh is the LARGEST viewport (URL
+        // bar hidden), so expanding overshot the visible area and pushed the
+        // toolbar off-screen. dvh tracks the viewport as it actually is.
+        const targetHeight = isExpanded ? "100dvh" : Math.min(initialHeight, window.innerHeight);
         
         // We use a quick animation when adjusting for text (initialHeight), 
         // and standard animation for expanding.
@@ -110,7 +113,10 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
             onDragEnd={handleDragEnd}
             animate={controls}
             initial={{ height: initialHeight }}
-            className="fixed bottom-0 left-0 border-t right-0 rounded-t-3xl opacity-100 bg-background top-shadow"
+            // Same home-indicator reservation as ui/drawer.tsx. This is the
+            // composer on every channel, DM, group chat and thread, so the send
+            // button and toolbar sat in the OS gesture strip on every message.
+            className="fixed bottom-0 left-0 border-t right-0 rounded-t-3xl opacity-100 bg-background top-shadow pb-[env(safe-area-inset-bottom)]"
         >
             <div 
                 className="w-full py-3 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none"

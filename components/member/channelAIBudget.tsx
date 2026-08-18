@@ -96,14 +96,18 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="flex items-center gap-1.5 px-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
         <Zap className="h-3 w-3" /> AI settings
       </div>
       <div className="flex flex-col gap-3 rounded-xl border border-border/60 px-3 py-2.5">
-        {/* Per-channel default model (0 = workspace default). An agent that pins
-            its own model still overrides this; otherwise runs here use it. */}
+        {/* Per-channel default model (empty = workspace default).
+            Applies to ALL AI work in this channel — agent runs, channel summaries, and
+            @mention answers. It used to reach only agent runs, which made the setting
+            unreliable for the two highest-volume calls a busy channel makes; the copy
+            below always claimed the broader scope and the backend now matches it.
+            Precedence: an agent that pins its own model > this > workspace default. */}
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-muted-foreground">Default model</span>
+          <span className="text-2xs font-medium text-muted-foreground">Default model</span>
           <div className="flex items-center gap-2">
             <Select
               value={modelId}
@@ -127,14 +131,15 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
               </SelectContent>
             </Select>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Which model AI uses in this channel. An agent that pins its own model overrides this.
+          <p className="text-2xs text-muted-foreground">
+            Which model AI uses in this channel — summaries, @mention answers, and agent
+            runs. An agent that pins its own model overrides this.
           </p>
         </div>
 
         {/* Per-channel daily token cap. */}
         <div className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-muted-foreground">Daily token cap</span>
+          <span className="text-2xs font-medium text-muted-foreground">Daily token cap</span>
           <div className="flex items-center gap-2">
             <Input
               type="number"
@@ -154,7 +159,7 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {cap > 0
               ? `Used today: ${fmtTokens(usedToday)} / ${fmtTokens(cap)} (${pct}%). Caps all AI in this channel; resets 00:00 UTC.`
               : `Used today: ${fmtTokens(usedToday)}. No channel cap set — the workspace limit still applies. Resets 00:00 UTC.`}

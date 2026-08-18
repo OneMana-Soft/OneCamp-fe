@@ -167,7 +167,7 @@ export default function TableDetailPage() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-6">
       <div className="mb-4 flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.push("/app/tables")}>
+        <Button variant="ghost" size="icon" aria-label="Back to tables" className="h-8 w-8" onClick={() => router.push("/app/tables")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <span className="text-2xl">{t.icon || "📊"}</span>

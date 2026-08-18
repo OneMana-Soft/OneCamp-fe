@@ -3,10 +3,13 @@
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useRef, memo, useCallback } from "react"
-import { X, Search, Loader2, Eye } from "@/lib/icons";
+import { X, Search, Eye } from "@/lib/icons";
 import { SearchResult } from "@/services/searchService"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { Badge } from "@/components/ui/badge"
+import { EmptyState } from "@/components/ui/empty-state"
 import { useSearch } from "@/hooks/useSearch"
 import { getIcon, getHighlightedTitle, getContext, isResultPreviewable } from "@/lib/utils/helpers/search"
 
@@ -26,9 +29,9 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                    <span className="px-1.5 py-0.5 rounded bg-muted text-[9px] font-medium uppercase tracking-wider text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                    <Badge variant="secondary" size="sm" caps className="rounded group-hover:bg-primary/10 group-hover:text-primary">
                         {result.type}
-                    </span>
+                    </Badge>
                 </div>
                 <div className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
                     {getHighlightedTitle(result)}
@@ -133,9 +136,8 @@ export default function DesktopNavigationSearch() {
                         {inputValue && (
                             <div className="p-2">
                                 {isLoading ? (
-                                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-                                        <Loader2 className="h-6 w-6 animate-spin mb-2" />
-                                        <p className="text-xs">Searching records...</p>
+                                    <div role="status" aria-label="Searching records">
+                                        <SkeletonRows rows={4} lines={1} />
                                     </div>
                                 ) : results.length > 0 ? (
                                     <div className="space-y-1">
@@ -155,11 +157,11 @@ export default function DesktopNavigationSearch() {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <Search className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                                        <p className="text-sm font-medium text-foreground">No matches found</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Try a different search term</p>
-                                    </div>
+                                    <EmptyState
+                                        icon={Search}
+                                        title="No matches found"
+                                        description="Try a different search term"
+                                    />
                                 )}
                             </div>
                         )}

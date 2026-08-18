@@ -135,42 +135,58 @@ export function getCategoryColor(type: string): CategoryColorSet {
 
 // ─── Status Colors ──────────────────────────────────────────
 
+/**
+ * Status colours, built from the four semantic tokens in app/globals.css rather
+ * than raw Tailwind hues.
+ *
+ * This map already named the right four meanings, but spelled each one as a hue
+ * plus a hand-written dark: variant — so it was a second source of truth alongside
+ * every component that reached for `text-green-600` directly, and the two drifted
+ * (this said emerald, half the components said green). Pointing it at the tokens
+ * means the CSS variable is the only place a status colour is decided: retune
+ * --success once and this map, every component using it, and every component using
+ * the utility class all move together.
+ *
+ * The tokens are mode-aware, which is why the `dark:` halves are gone rather than
+ * translated: --success is the 600 shade in light and the 400 in dark, exactly what
+ * these pairs hand-wrote.
+ */
 export const statusColors = {
+  /** Presence. The same positive green as success — it always was emerald. */
   online: {
-    solid: "bg-emerald-500",
-    text: "text-emerald-500",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/20",
-    ring: "ring-emerald-500/20",
-    ping: "bg-emerald-400",
+    solid: "bg-success",
+    text: "text-success",
+    bg: "bg-success/10",
+    border: "border-success/20",
+    ring: "ring-success/20",
+    ping: "bg-success/60",
   },
   success: {
-    solid: "bg-emerald-500",
-    // Lighter shade in dark mode so the text reads against bg-emerald-500/10
-    text: "text-emerald-600 dark:text-emerald-400",
-    bg: "bg-emerald-500/10",
-    bgLight: "bg-emerald-500/5",
-    border: "border-emerald-500/20",
-    borderLight: "border-emerald-500/30",
-    ring: "ring-emerald-500/20",
+    solid: "bg-success",
+    text: "text-success",
+    bg: "bg-success/10",
+    bgLight: "bg-success/5",
+    border: "border-success/20",
+    borderLight: "border-success/30",
+    ring: "ring-success/20",
   },
   error: {
-    solid: "bg-red-500",
-    text: "text-red-600 dark:text-red-400",
-    bg: "bg-red-500/10",
-    border: "border-red-500/20",
+    solid: "bg-destructive",
+    text: "text-destructive",
+    bg: "bg-destructive/10",
+    border: "border-destructive/20",
   },
   warning: {
-    solid: "bg-amber-500",
-    text: "text-amber-600 dark:text-amber-400",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/20",
+    solid: "bg-warning",
+    text: "text-warning",
+    bg: "bg-warning/10",
+    border: "border-warning/20",
   },
   info: {
-    solid: "bg-blue-500",
-    text: "text-blue-600 dark:text-blue-400",
-    bg: "bg-blue-500/10",
-    border: "border-blue-500/20",
+    solid: "bg-info",
+    text: "text-info",
+    bg: "bg-info/10",
+    border: "border-info/20",
   },
 } as const;
 

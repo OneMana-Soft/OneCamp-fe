@@ -82,6 +82,7 @@ import {
 import { ToastAction } from "@/components/ui/toast"
 import { cn } from "@/lib/utils/helpers/cn"
 import axios from "axios"
+import { withAI } from "@/components/common/withFeature"
 
 // Backlink is a resolved "where this came from" target for a memory item.
 interface Backlink {
@@ -145,7 +146,7 @@ const KIND_META: Record<
 > = {
   decision: { label: "Decision", Icon: Zap, dot: "bg-violet-500", tint: "text-violet-600 dark:text-violet-400" },
   commitment: { label: "Commitment", Icon: CheckCircle2, dot: "bg-blue-500", tint: "text-blue-600 dark:text-blue-400" },
-  question: { label: "Open question", Icon: HelpCircle, dot: "bg-amber-500", tint: "text-amber-600 dark:text-amber-400" },
+  question: { label: "Open question", Icon: HelpCircle, dot: "bg-amber-500", tint: "text-warning" },
   glossary: { label: "Glossary", Icon: Sparkles, dot: "bg-slate-400", tint: "text-slate-500" },
 }
 
@@ -195,13 +196,18 @@ function toDateInputValue(due?: string): string {
   return `${y}-${m}-${day}`
 }
 
-export default function WorkspaceMemoryPanel({
-  channelUUID,
-  channelName,
-}: {
+// Named rather than inline because the props flow through withAI(), and a default
+// parameter (`= {}`) on an inline object type makes TypeScript infer the wrapper's
+// props as `object` — which then rejects every caller that passes a channel.
+export type WorkspaceMemoryPanelProps = {
   channelUUID?: string
   channelName?: string
-} = {}) {
+}
+
+function WorkspaceMemoryPanel({
+  channelUUID,
+  channelName,
+}: WorkspaceMemoryPanelProps = {}) {
   const { toast } = useToast()
   const router = useRouter()
   const channels = useSelector((s: RootState) => s.users.userSidebar.userChannels)
@@ -570,7 +576,7 @@ export default function WorkspaceMemoryPanel({
             disabled={excludeBusy}
             className={`mt-2 inline-flex items-center gap-1.5 text-xs rounded-md px-2 py-1 border transition-colors ${
               excluded
-                ? "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/5"
+                ? "border-amber-500/40 text-warning bg-amber-500/5"
                 : "border-border text-muted-foreground hover:text-foreground"
             }`}
             title={excluded ? "AI memory is paused for this channel" : "Pause AI memory capture for this channel"}
@@ -770,7 +776,7 @@ function MemoryRow({
           {due && (
             <span
               className={`inline-flex items-center gap-1 ${
-                due.overdue ? "text-red-600 dark:text-red-400 font-medium" : ""
+                due.overdue ? "text-destructive font-medium" : ""
               }`}
             >
               <Clock className="h-3 w-3" />
@@ -834,7 +840,7 @@ function MemoryRow({
             onSelect={handlePickDue}
             onClear={() => onSetDue("")}
             onOpenChange={setActionsPinned}
-            className={cn(due?.overdue && "border-red-500/40 text-red-600 dark:text-red-400")}
+            className={cn(due?.overdue && "border-red-500/40 text-destructive")}
           />
         )}
         {isClosed ? (
@@ -856,7 +862,7 @@ function MemoryRow({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+            className="h-7 gap-1 px-2 text-success hover:text-emerald-700 hover:bg-success/10"
             disabled={busy}
             onClick={onResolve}
             title="Resolve"
@@ -1014,3 +1020,8 @@ function EmptyState({
     </div>
   )
 }
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI<WorkspaceMemoryPanelProps>(WorkspaceMemoryPanel)

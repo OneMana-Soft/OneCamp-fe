@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useDispatch } from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
+import { withAI } from "@/components/common/withFeature"
 // Types and Config
 const ACTION_DETAILS: Record<DocAIAction, { label: string; icon: any; description: string; color: string }> = {
   write: {
@@ -74,7 +75,7 @@ interface DocAiAssistantPanelProps {
   initialAction?: DocAIAction;
 }
 
-export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
+const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
   selectedText,
   docId,
   surroundingContext,
@@ -99,7 +100,7 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
     hasJustReplaced: false,
   });
 
-  const { completeStream, isStreaming: hookIsStreaming, streamText, error: hookError, cancelStream, resetResult } = useDocAI();
+  const { completeStream, isStreaming: hookIsStreaming, streamText, streamNotice, error: hookError, cancelStream, resetResult } = useDocAI();
   const [customPrompt, setCustomPrompt] = useState('');
   const [refinePrompt, setRefinePrompt] = useState('');
   const [showPromptInput, setShowPromptInput] = useState(false);
@@ -256,7 +257,7 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
                       key={actionId}
                       variant="ghost"
                       onClick={() => executeAction(actionId)}
-                      className="group relative h-auto p-4 bg-muted/30 border border-border rounded-2xl text-left transition-all duration-300 ease-in-out hover:bg-muted/50 hover:border-primary/40 hover:-translate-y-0.5 hover:shadow-md dark:hover:shadow-primary/30 overflow-hidden flex flex-row items-center gap-4 justify-start"
+                      className="group relative h-auto p-4 bg-muted/30 border border-border rounded-2xl text-left transition-colors duration-150 hover:bg-muted/50 hover:border-primary/40 overflow-hidden flex flex-row items-center gap-4 justify-start"
                     >
                       <div className={cn("p-3 rounded-xl bg-muted group-hover:bg-accent/10 transition-colors shrink-0", details.color)}>
                         <Icon className="h-5 w-5" />
@@ -335,7 +336,7 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground transition-all duration-200 hover:bg-accent/10 hover:text-foreground" title="Copy to clipboard">
-                        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                        {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
                       </button>
                       <button onClick={resetState} className="p-1.5 rounded-lg text-muted-foreground transition-all duration-200 hover:bg-accent/10 hover:text-foreground" title="Reset All">
                         <RotateCcw className="h-3 w-3" />
@@ -358,6 +359,17 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
                         </motion.div>
                     </div>
                   </div>
+
+                  {/* The result came from part of the selection. Shown after streaming
+                      finishes, muted, and never styled like hookError above: the action
+                      succeeded, and someone about to insert this into their document is
+                      entitled to know it did not read all of the input. */}
+                  {!hookIsStreaming && streamNotice && (
+                    <div className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground" role="note">
+                      <Scissors size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+                      <span>{streamNotice}</span>
+                    </div>
+                  )}
 
                   {!hookIsStreaming && (
                     <motion.div
@@ -383,7 +395,7 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
                             className="w-full bg-transparent border-none px-3.5 py-2.5 text-foreground text-[13px] outline-none shadow-none ring-0 focus-visible:ring-0"
                           />
                           <Button
-                            variant="ghost"
+ aria-label="Refine"                            variant="ghost"
                             size="icon"
                             disabled={!refinePrompt.trim()}
                             onClick={handleRefine}
@@ -421,7 +433,7 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
         </AnimatePresence>
 
          {hookError && (
-          <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex justify-between items-center text-red-600 dark:text-red-400">
+          <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex justify-between items-center text-destructive">
             <span className="text-xs">⚠️ {hookError}</span>
             <Button variant="ghost" onClick={resetState} className="h-auto p-0 text-[10px] underline hover:bg-transparent">Dismiss</Button>
           </div>
@@ -431,3 +443,9 @@ export const DocAiAssistantPanel: React.FC<DocAiAssistantPanelProps> = ({
     </div>
   );
 };
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export const DocAiAssistantPanel = withAI(DocAiAssistantPanelUngated)
+export default DocAiAssistantPanel

@@ -232,7 +232,7 @@ export function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
                 <Database className="h-3.5 w-3.5 text-primary" />
                 <span className="text-[12px] font-semibold text-foreground">Query plan</span>
                 {plan.table ? <span className="truncate font-mono text-[11px] text-muted-foreground">{plan.table}</span> : null}
-                <span className="ml-auto rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-px text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="ml-auto rounded-full border border-success/30 bg-success/10 px-1.5 py-px text-3xs font-medium text-success">
                     deterministic
                 </span>
             </div>

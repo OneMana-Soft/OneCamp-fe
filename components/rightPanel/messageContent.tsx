@@ -5,6 +5,7 @@ import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOr
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { cn } from "@/lib/utils/helpers/cn"
+import { PrincipalTag } from "@/components/ui/principalTag"
 import { Check, X } from "@/lib/icons";
 import {UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
 import {ForwardedMessageData} from "@/types/rightPanel";
@@ -185,17 +186,10 @@ export const MessageContent = ({
                         {isGuest ? guestDisplayName : userInfo?.user_name}
                     </div>
                     {isGuest && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            Guest
-                        </span>
+                        <PrincipalTag kind="guest" />
                     )}
                     {!isGuest && userInfo?.is_bot && (
-                        <span
-                            className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary"
-                            title="AI agent"
-                        >
-                            AI
-                        </span>
+                        <PrincipalTag kind="ai" />
                     )}
                      <div className="text-xs text-muted-foreground">{formatTimeForPostOrComment(createdAt || '')}</div>
                 </div>

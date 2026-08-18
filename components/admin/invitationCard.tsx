@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { Invitation, InvitationListResponseInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
+import { useConfirm } from "@/hooks/useConfirm"
 import { Mail, Plus, Search } from "@/lib/icons"
 import { AdminInvitationList } from "./AdminInvitationList"
 import { useFetch } from "@/hooks/useFetch"
@@ -24,10 +25,25 @@ const InvitationCard = () => {
 
   const invitations = response?.data || []
   const post = usePost()
+  const confirm = useConfirm()
 
-  const handleDeleteInvitation = async (email: string) => {
+  // Confirmed: revoking invalidates the link already sitting in someone's inbox, so
+  // the consequence lands on a person outside this screen who will just find a dead
+  // link. The prompt names the address so the admin can see they picked the right row.
+  const handleDeleteInvitation = (email: string) => {
     if (!email || post.isSubmitting) return
+    confirm({
+      title: `Revoke the invitation to ${email}?`,
+      description:
+        "Their invite link stops working. You can invite them again, which sends a new email.",
+      confirmText: "Revoke invitation",
+      onConfirm: () => {
+        void revokeInvitation(email)
+      },
+    })
+  }
 
+  const revokeInvitation = async (email: string) => {
     await mutate(
       async () => {
         await post.makeRequest({

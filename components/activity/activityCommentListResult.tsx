@@ -8,6 +8,7 @@ import { CommentInfoInterface } from "@/types/comment"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useFetch } from "@/hooks/useFetch"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { MessageSquare } from "@/lib/icons"
@@ -19,7 +20,7 @@ export const ActivityCommentListResult = () => {
     const pageSize = 20
     const endpoint = `${GetEndpointUrl.GetCommentActivity}?pageIndex=${pageIndex}&pageSize=${pageSize}`
 
-    const { data: pageData, isLoading } = useFetch<CommentActivityPaginationRes>(endpoint)
+    const { data: pageData, isLoading, isError, mutate } = useFetch<CommentActivityPaginationRes>(endpoint)
 
     useEffect(() => {
         if (pageData?.data) {
@@ -59,6 +60,16 @@ export const ActivityCommentListResult = () => {
         )
     }
 
+    // Before the empty guard. A failed fetch also leaves the list empty, and
+    // this surface's empty copy tells the user nothing needs them — the one
+    // conclusion they must not reach from a request that simply failed.
+    if (isError) {
+        return (
+            <PageContainer className="flex items-center justify-center">
+                <ErrorState subject="your comments" onRetry={() => void mutate()} />
+            </PageContainer>
+        )
+    }
     if (!isLoading && allComments.length === 0) {
         return (
             <PageContainer className="flex items-center justify-center">

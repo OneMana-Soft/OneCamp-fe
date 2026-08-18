@@ -25,6 +25,7 @@ import {
   type ExtractSourceType,
   type ProposedTask,
 } from "@/services/taskExtractService"
+import { withAI } from "@/components/common/withFeature"
 
 interface ProjectOption {
   project_uuid: string
@@ -277,4 +278,4 @@ const ExtractTasksDialog: React.FC<{
   )
 }
 
-export default ExtractTasksDialog
+export default withAI(ExtractTasksDialog)

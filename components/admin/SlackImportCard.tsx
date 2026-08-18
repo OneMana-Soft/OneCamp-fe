@@ -41,6 +41,9 @@ import {
   RotateCcw,
 } from "@/lib/icons"
 import { PlayCircle, Database } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 import {
   cancelSlackImport,
   deleteStagedZip,
@@ -70,12 +73,12 @@ const POLL_INTERVAL_MS = 6000
 const POLL_CAP_MS = 10 * 60 * 1000
 
 const STATUS_BADGE: Record<string, { className: string; icon: React.ReactNode }> = {
-  pending: { className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20", icon: <Clock className="h-3.5 w-3.5" /> },
+  pending: { className: "bg-warning/10 text-warning border-warning/20", icon: <Clock className="h-3.5 w-3.5" /> },
   validating: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" /> },
   planned: { className: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   running: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" /> },
-  paused: { className: "bg-amber-500/10 text-amber-600 border-amber-500/20", icon: <Clock className="h-3.5 w-3.5" /> },
-  completed: { className: "bg-green-500/10 text-green-600 border-green-500/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  paused: { className: "bg-warning/10 text-warning border-warning/20", icon: <Clock className="h-3.5 w-3.5" /> },
+  completed: { className: "bg-success/10 text-success border-success/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   failed: { className: "bg-red-500/10 text-red-600 border-red-500/20", icon: <XCircle className="h-3.5 w-3.5" /> },
   cancelled: { className: "bg-gray-500/10 text-gray-600 border-gray-500/20", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   rolled_back: { className: "bg-purple-500/10 text-purple-600 border-purple-500/20", icon: <RotateCcw className="h-3.5 w-3.5" /> },
@@ -103,7 +106,7 @@ const SlackImportCard: React.FC = () => {
   const { connectionState: mqttState } = useMqtt()
   const isMqttHealthy = mqttState.isConnected
 
-  const { data, isLoading, mutate: refetch } = useFetch<{ jobs: SlackImportJob[] }>(
+  const { data, isLoading, isError, mutate: refetch } = useFetch<{ jobs: SlackImportJob[] }>(
     GetEndpointUrl.GetSlackImportJobs,
   )
 
@@ -246,18 +249,26 @@ const SlackImportCard: React.FC = () => {
 
         <CardContent className="flex-1 overflow-auto py-4 space-y-3">
           {isLoading && (
-            <div className="text-muted-foreground text-sm py-8 text-center">Loading jobs…</div>
-          )}
-          {!isLoading && jobs.length === 0 && (
-            <div className="text-center py-12">
-              <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground text-sm">
-                No imports yet. Click <strong>New import</strong> to upload a Slack export.
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Get your export from <em>Slack → Settings → Workspace settings → Import/Export Data</em>.
-              </p>
+            <div role="status" aria-label="Loading imports">
+              <SkeletonRows rows={3} />
             </div>
+          )}
+          {isError && (
+            <ErrorState subject="the import history" onRetry={() => void refetch()} />
+          )}
+          {!isError && !isLoading && jobs.length === 0 && (
+            <EmptyState
+              tone="accent"
+              icon={Upload}
+              title="No imports yet"
+              description={
+                <>
+                  Click <strong className="font-medium text-foreground">New import</strong> to upload a
+                  Slack export. Get yours from{" "}
+                  <em>Slack → Settings → Workspace settings → Import/Export Data</em>.
+                </>
+              }
+            />
           )}
 
           {jobs.map((job) => (

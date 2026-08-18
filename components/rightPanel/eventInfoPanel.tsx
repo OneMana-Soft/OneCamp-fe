@@ -257,10 +257,10 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" title="Find a better time" onClick={() => setRescheduleOpen(true)}>
                                         <CalendarClock className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-destructive hover:bg-destructive/10" onClick={handleDelete}>
+                                    <Button aria-label="Delete event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-destructive hover:bg-destructive/10" onClick={handleDelete}>
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(true)}>
+                                    <Button aria-label="Edit event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(true)}>
                                         <Edit2 className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
                                     </Button>
                                 </>
@@ -275,11 +275,16 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                         </div>
                     ) : (
                         <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(false)}>
+                            <Button aria-label="Cancel editing" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(false)}>
                                 <X className="h-4 w-4 text-destructive" />
                             </Button>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={form.handleSubmit(handleSave)}>
-                                <Check className="h-4 w-4 statusColors.success.text" />
+                                {/* Was `className="h-4 w-4 statusColors.success.text"` — a member
+                                    expression never wrapped in ${…}, so "statusColors.success.text"
+                                    was emitted as a literal class name and the save tick rendered
+                                    with no colour at all, indistinguishable from the cancel X
+                                    beside it. The token class is what that was reaching for. */}
+                                <Check className="h-4 w-4 text-success" />
                             </Button>
                         </div>
                     )}

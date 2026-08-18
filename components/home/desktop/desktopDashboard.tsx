@@ -28,6 +28,7 @@ import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
 import BriefingCard from "@/components/ai/BriefingCard"
 import AttentionCard from "@/components/ai/AttentionCard"
+import WhileYouWereAwayCard from "@/components/ai/WhileYouWereAwayCard"
 
 function StatCard({
     icon: Icon,
@@ -180,6 +181,10 @@ export function DesktopDashboard() {
                 {/* What needs me now — cross-surface action queue; self-hides when empty */}
                 <AttentionCard />
 
+                {/* "What did I miss" — free at rest (counts come from the sidebar
+                    already in the store); spends one LLM call only when asked. */}
+                <WhileYouWereAwayCard />
+
                 {/* AI briefing — self-hides when AI/memory is off or empty */}
                 <BriefingCard />
 
@@ -326,7 +331,7 @@ export function DesktopDashboard() {
                                                         {channel.ch_name}
                                                     </span>
                                                     {channel.ch_call_active && (
-                                                        <span className="ml-auto shrink-0 flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-500">
+                                                        <span className="ml-auto shrink-0 flex items-center gap-1 text-[10px] font-medium text-success dark:text-emerald-500">
                                                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                                             Live
                                                         </span>

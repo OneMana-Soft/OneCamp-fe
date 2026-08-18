@@ -29,7 +29,7 @@ export const TeamDesktop = ({teamId}:{teamId: string})=> {
                                 {teamInfo.data?.data.team_name}
                             </h1>
                             {teamInfo.data?.data.team_is_admin && (
-                                <Button 
+                                <Button aria-label="Rename team" 
                                     size='icon' 
                                     variant='ghost' 
                                     className="h-8 w-8 text-muted-foreground hover:text-primary"

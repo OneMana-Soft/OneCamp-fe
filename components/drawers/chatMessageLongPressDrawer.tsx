@@ -224,7 +224,7 @@ export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, onAd
 
                         {translation && (
                             <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2">
-                                <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                                <div className="mb-0.5 flex items-center gap-1.5 text-2xs font-medium text-primary">
                                     <Languages className="h-3 w-3" />
                                     Translated
                                 </div>

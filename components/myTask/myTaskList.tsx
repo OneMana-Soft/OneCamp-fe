@@ -21,6 +21,7 @@ import {UserInfoRawInterface} from "@/types/user";
 import {mutate} from "swr";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
+import { ErrorState } from "@/components/ui/error-state"
 import { Button } from "@/components/ui/button"
 import { openUI } from "@/store/slice/uiSlice"
 
@@ -218,6 +219,17 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
 
     const handleItemKey = (taskInfo: TaskInfoInterface) => {
         return taskInfo.task_uuid
+    }
+
+    // Before the empty guard. A failed fetch also leaves taskListState empty, and
+    // the empty copy here says "You're all caught up" — which to someone with
+    // forty open tasks is the most misleading sentence the app could produce.
+    if (userInfo.isError) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 px-4 w-full h-full min-h-[50vh]">
+                <ErrorState subject="your tasks" onRetry={() => void userInfo.mutate()} />
+            </div>
+        )
     }
 
     if (!userInfo.isLoading && (!taskListState || taskListState.length === 0)) {

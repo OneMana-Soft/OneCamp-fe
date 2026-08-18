@@ -3,6 +3,7 @@
 import React from "react"
 import { Crown, LogOut } from "@/lib/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { PrincipalTag } from "@/components/ui/principalTag"
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
@@ -106,9 +107,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 {userInfo.user_name}
                             </span>
                             {userInfo.is_bot && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary">
-                                    AI
-                                </span>
+                                <PrincipalTag kind="ai" />
                             )}
                             {isSelf && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">

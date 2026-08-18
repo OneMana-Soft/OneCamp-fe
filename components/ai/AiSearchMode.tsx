@@ -111,7 +111,7 @@ const AiSearchMode: React.FC<AiSearchModeProps> = ({
                         ) : (
                             <Button
                                 type="submit"
-                                className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-[13px] font-semibold transition-all hover:shadow-primary/30 disabled:opacity-40"
+                                className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-[13px] font-semibold transition-colors disabled:opacity-40"
                                 disabled={!question.trim()}
                             >
                                 Ask AI

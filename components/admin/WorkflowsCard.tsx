@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -9,7 +10,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
-import { Plus, Trash2, Pencil, Zap, MessageSquare, ListTodo, Loader2, EyeOff, Shield, Flag, Rocket } from "@/lib/icons";
+import { Plus, Trash2, Pencil, Zap, MessageSquare, ListTodo, EyeOff, Shield, Flag, Rocket } from "@/lib/icons";
 import {
     Workflow,
     WorkflowActionType,
@@ -130,8 +131,8 @@ const WorkflowsCard = () => {
 
             <CardContent>
                 {isLoading ? (
-                    <div className="flex items-center justify-center py-12 text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
+                    <div role="status" aria-label="Loading automations" className="py-1">
+                        <SkeletonRows rows={3} />
                     </div>
                 ) : workflows.length === 0 ? (
                     <div className="flex flex-col items-center justify-center text-center py-12 px-4 gap-3">

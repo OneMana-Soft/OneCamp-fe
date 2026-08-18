@@ -9,6 +9,7 @@ import type { UserProfileInterface } from "@/types/user"
 import type { RootState } from "@/store/store"
 import type { CommentInfoInterface, CreateCommentResInterface } from "@/types/comment"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { MessageSquare } from "@/lib/icons";
 import {
     addDocComments,
@@ -231,7 +232,13 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
         <div className="flex flex-col h-full ">
 
             <div className="flex-1 overflow-y-auto">
-                {docCommentState.length === 0 ? (
+                {docCommentList.isError ? (
+                    <ErrorState
+                        subject="the comments"
+                        onRetry={() => void docCommentList.mutate()}
+                        className="h-full"
+                    />
+                ) : docCommentState.length === 0 ? (
                     <EmptyState
                         icon={MessageSquare}
                         title="No comments yet"

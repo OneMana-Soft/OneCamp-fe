@@ -15,6 +15,7 @@
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
+import { PrincipalTag } from "@/components/ui/principalTag"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, MessageSquare, Eye } from "@/lib/icons"
@@ -124,9 +125,7 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
                   {(c.guest_name || "G").charAt(0)}
                 </span>
                 <span className="text-xs font-medium text-foreground">{c.guest_name}</span>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Guest
-                </span>
+                <PrincipalTag kind="guest" />
                 <span className="text-[11px] text-muted-foreground">
                   {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
                 </span>

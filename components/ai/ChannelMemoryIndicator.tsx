@@ -25,12 +25,13 @@ import React from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Sparkles } from "@/lib/icons"
+import { withAI } from "@/components/common/withFeature"
 
 interface ExclusionResponse {
   data?: { excluded?: boolean }
 }
 
-export const ChannelMemoryIndicator: React.FC<{ channelUUID: string; isMember?: boolean }> = ({
+const ChannelMemoryIndicatorUngated: React.FC<{ channelUUID: string; isMember?: boolean }> = ({
   channelUUID,
   isMember,
 }) => {
@@ -52,7 +53,7 @@ export const ChannelMemoryIndicator: React.FC<{ channelUUID: string; isMember?: 
 
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/5 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400"
+      className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/5 px-2 py-0.5 text-[11px] font-medium text-warning"
       title="An admin has paused AI memory capture for this channel — nothing here is added to workspace memory."
     >
       <Sparkles className="h-3 w-3" />
@@ -60,3 +61,9 @@ export const ChannelMemoryIndicator: React.FC<{ channelUUID: string; isMember?: 
     </span>
   )
 }
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export const ChannelMemoryIndicator = withAI(ChannelMemoryIndicatorUngated)
+export default ChannelMemoryIndicator

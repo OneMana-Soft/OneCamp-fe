@@ -62,7 +62,7 @@ export function MobileTopNavigationBarThird() {
                     </div>
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
-                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'teamOptionDrawer', data: {teamId: path[3]} }))}}><Ellipsis className='h-5'/></Button>
+                        <Button aria-label='Team options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'teamOptionDrawer', data: {teamId: path[3]} }))}}><Ellipsis className='h-5'/></Button>
 
                     </div>
                 break
@@ -76,28 +76,28 @@ export function MobileTopNavigationBarThird() {
                     </div>
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
-                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'projectTaskFilterDrawer', data: { projectUUID: path[3] } }))}}><Filter className='h-5'/></Button>
-                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'projectOptionsDrawer', data: { projectUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
+                        <Button aria-label='Filter tasks' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'projectTaskFilterDrawer', data: { projectUUID: path[3] } }))}}><Filter className='h-5'/></Button>
+                        <Button aria-label='Project options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'projectOptionsDrawer', data: { projectUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
 
                     </div>
                 break
 
             case "calendar":
                 return <div className='flex space-x-1'>
-                    <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'calendarOptionsDrawer' }))}}><Ellipsis className='h-5'/></Button>
+                    <Button aria-label='Calendar options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'calendarOptionsDrawer' }))}}><Ellipsis className='h-5'/></Button>
                 </div>
 
             case "myTask":
 
                 if(path.length < 4)
                     return <div className='flex space-x-1'>
-                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'taskFilterDrawer' }))}}><Filter className='h-5'/></Button>
-                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'myTaskOptionsDrawer' }))}}><Ellipsis className='h-5'/></Button>
+                        <Button aria-label='Filter tasks' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'taskFilterDrawer' }))}}><Filter className='h-5'/></Button>
+                        <Button aria-label='Task list options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'myTaskOptionsDrawer' }))}}><Ellipsis className='h-5'/></Button>
                     </div>
 
                 break
             case "task":
-                return <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'taskOptionDrawer', data: { taskId: path[3] } }))}}><Ellipsis className='h-5'/></Button>
+                return <Button aria-label='Task options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'taskOptionDrawer', data: { taskId: path[3] } }))}}><Ellipsis className='h-5'/></Button>
             break
 
             case "channel":
@@ -106,7 +106,7 @@ export function MobileTopNavigationBarThird() {
                     return <Button className={'!no-underline'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createChannel' }))}} >New</Button>
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
-                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
+                        <Button aria-label='Channel options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
                         </div>
                 break
             case "board":
@@ -115,7 +115,7 @@ export function MobileTopNavigationBarThird() {
                 break
             case "doc":
                 if(path.length < 4)
-                    return <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'createDoc' }))}}><Plus className='h-5'/></Button>
+                    return <Button aria-label='New doc' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'createDoc' }))}}><Plus className='h-5'/></Button>
                 if(path.length < 5)
                     return <MobileTopNavigationBarThirdDoc docId={path[3]} />
 
@@ -123,12 +123,12 @@ export function MobileTopNavigationBarThird() {
 
                 
                 if(path.length < 4)
-                return  <Button size='icon' variant='ghost' onClick={()=>(dispatch(openUI({ key: 'createChatMessage' })))}><Plus className='h-5'/></Button>
+                return  <Button aria-label='New chat' size='icon' className="h-11 w-11" variant='ghost' onClick={()=>(dispatch(openUI({ key: 'createChatMessage' })))}><Plus className='h-5'/></Button>
 
                 if(path.length < 5) {
 
                     return (
-                        <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'chatOptionsDrawer', data: {chatUUID: path[3]} }))}}><Ellipsis className='h-5'/></Button>
+                        <Button aria-label='Chat options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'chatOptionsDrawer', data: {chatUUID: path[3]} }))}}><Ellipsis className='h-5'/></Button>
                     )
 
                 }
@@ -137,7 +137,7 @@ export function MobileTopNavigationBarThird() {
 
                     if (path.length < 6)
                         return (
-                            <Button variant='ghost' size='icon' onClick={()=>{dispatch(openUI({ key: 'groupChatOptionsDrawer', data: {grpId: path[4]} }))}}><Ellipsis className='h-5'/></Button>
+                            <Button aria-label='Group chat options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'groupChatOptionsDrawer', data: {grpId: path[4]} }))}}><Ellipsis className='h-5'/></Button>
 
                         )
 
@@ -147,7 +147,7 @@ export function MobileTopNavigationBarThird() {
 
             case "forward":
 
-                return  <Button disabled={fwdMsgSendClicked} size='icon' variant='ghost' onClick={()=>(dispatch(clickedMobileFwdMsgSend()))}><SendHorizontal  className='h-5'/></Button>
+                return  <Button aria-label='Send' disabled={fwdMsgSendClicked} size='icon' className="h-11 w-11" variant='ghost' onClick={()=>(dispatch(clickedMobileFwdMsgSend()))}><SendHorizontal  className='h-5'/></Button>
 
 
             default:

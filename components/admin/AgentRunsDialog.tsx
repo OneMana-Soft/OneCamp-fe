@@ -17,14 +17,19 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { EmptyState } from "@/components/ui/empty-state"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, ChevronDown, ChevronRight, History, Activity, Clock, Zap, CheckCircle, Terminal, RefreshCw, Trash2, AlertTriangle, ShieldAlert } from "@/lib/icons"
+import { useConfirm } from "@/hooks/useConfirm"
+import { ChevronDown, ChevronRight, History, Activity, Clock, Zap, CheckCircle, RefreshCw, Trash2, AlertTriangle, ShieldAlert, Layers, MessageSquare } from "@/lib/icons"
 import {
   AgentRun,
   AgentRunStep,
+  AgentRunCompaction,
   AgentRunStats,
   AgentRoutine,
   GOVERNANCE_BADGE,
+  compactionSummary,
   listAgentRuns,
   getAgentStats,
   listAgentRoutines,
@@ -87,14 +92,47 @@ const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: string; 
   hint,
 }) => (
   <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-    <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
       {icon}
       {label}
     </div>
     <div className="mt-1 text-lg font-semibold text-foreground">{value}</div>
-    {hint && <div className="text-[11px] text-muted-foreground">{hint}</div>}
+    {hint && <div className="text-2xs text-muted-foreground">{hint}</div>}
   </div>
 )
+
+// todayUsageParts renders today's consumption as short phrases — AI tokens
+// against the agent's cap, and sandbox runs/seconds against theirs — including
+// only the parts that actually apply to this agent. Pure and additive: a new
+// daily meter is one more entry, not another tile competing with the headline
+// numbers above.
+function todayUsageParts(stats: AgentRunStats): string[] {
+  const parts: string[] = []
+  const tokensToday = stats.tokens_today ?? 0
+  const tokenCap = stats.max_daily_tokens ?? 0
+  if (tokenCap > 0) {
+    parts.push(`${formatTokens(tokensToday)} / ${formatTokens(tokenCap)} tokens (resets 00:00 UTC)`)
+  } else if (tokensToday > 0) {
+    parts.push(`${formatTokens(tokensToday)} tokens`)
+  }
+
+  const sandboxRuns = stats.sandbox_runs_today ?? 0
+  const sandboxRunCap = stats.sandbox_daily_runs ?? 0
+  if (sandboxRunCap > 0) {
+    parts.push(`${sandboxRuns} / ${sandboxRunCap} sandbox runs`)
+  } else if (sandboxRuns > 0) {
+    parts.push(`${sandboxRuns} sandbox run${sandboxRuns === 1 ? "" : "s"}`)
+  }
+
+  const sandboxSeconds = stats.sandbox_seconds_today ?? 0
+  const sandboxSecondCap = stats.sandbox_daily_seconds ?? 0
+  if (sandboxSecondCap > 0) {
+    parts.push(`${sandboxSeconds}s / ${sandboxSecondCap}s runner time`)
+  } else if (sandboxSeconds > 0) {
+    parts.push(`${sandboxSeconds}s runner time`)
+  }
+  return parts
+}
 
 // ReliabilityPanel renders the agent's at-a-glance reliability + activity:
 // success rate (with an outcome-distribution bar), spend, latency, and recent
@@ -132,44 +170,21 @@ const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
           value={formatMs(stats.avg_duration_ms)}
           hint={`${stats.last_7d_runs} run${stats.last_7d_runs === 1 ? "" : "s"} in 7d`}
         />
-        {(stats.max_daily_tokens ? stats.max_daily_tokens > 0 : false) || (stats.tokens_today ?? 0) > 0 ? (
-          <StatTile
-            icon={<Zap className="h-3 w-3" />}
-            label="AI today"
-            value={
-              stats.max_daily_tokens && stats.max_daily_tokens > 0
-                ? `${formatTokens(stats.tokens_today ?? 0)} / ${formatTokens(stats.max_daily_tokens)}`
-                : `${formatTokens(stats.tokens_today ?? 0)} tok`
-            }
-            hint={
-              stats.max_daily_tokens && stats.max_daily_tokens > 0
-                ? "daily cap (resets 00:00 UTC)"
-                : "no daily cap"
-            }
-          />
-        ) : null}
-        {/* Sandbox today — shown only when the agent has used the execution
-            sandbox today or has a per-agent cap set (the backend populates
-            these only while the sandbox feature is enabled). */}
-        {(stats.sandbox_daily_runs ?? 0) > 0 ||
-        (stats.sandbox_daily_seconds ?? 0) > 0 ||
-        (stats.sandbox_runs_today ?? 0) > 0 ? (
-          <StatTile
-            icon={<Terminal className="h-3 w-3" />}
-            label="Sandbox today"
-            value={
-              stats.sandbox_daily_runs && stats.sandbox_daily_runs > 0
-                ? `${stats.sandbox_runs_today ?? 0} / ${stats.sandbox_daily_runs} runs`
-                : `${stats.sandbox_runs_today ?? 0} run${(stats.sandbox_runs_today ?? 0) === 1 ? "" : "s"}`
-            }
-            hint={
-              stats.sandbox_daily_seconds && stats.sandbox_daily_seconds > 0
-                ? `${stats.sandbox_seconds_today ?? 0}s / ${stats.sandbox_daily_seconds}s runner time`
-                : `${stats.sandbox_seconds_today ?? 0}s runner time`
-            }
-          />
-        ) : null}
       </div>
+
+      {/* Today's usage reads as ONE line, not two more tiles. Four tiles fill the
+          grid exactly; a fifth and sixth wrapped onto a ragged second row and gave
+          equal visual weight to numbers an operator glances at rather than reads.
+          Each part appears only when it applies, so a workspace with no caps and
+          no sandbox sees nothing here at all. */}
+      {(todayUsageParts(stats).length > 0) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
+          <span className="font-medium uppercase tracking-wide text-muted-foreground/80">Today</span>
+          {todayUsageParts(stats).map((part) => (
+            <span key={part}>{part}</span>
+          ))}
+        </div>
+      )}
 
       {/* Outcome distribution bar — green succeeded / red failed / amber stopped. */}
       {done > 0 && (
@@ -179,7 +194,7 @@ const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
             <div className="bg-destructive" style={{ width: `${pct(stats.failed)}%` }} title={`${stats.failed} failed`} />
             <div className="bg-amber-500" style={{ width: `${pct(stats.stopped)}%` }} title={`${stats.stopped} stopped`} />
           </div>
-          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted-foreground">
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> {stats.succeeded} succeeded</span>
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> {stats.failed} failed</span>
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> {stats.stopped} stopped</span>
@@ -191,7 +206,7 @@ const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
           surfaced for transparency into what long-running work it's advancing. */}
       {stats.working_notes && stats.working_notes.trim() !== "" && (
         <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-          <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Working notes</div>
+          <div className="mb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">Working notes</div>
           <p className="whitespace-pre-wrap break-words text-xs text-foreground/80">{stats.working_notes}</p>
         </div>
       )}
@@ -212,16 +227,16 @@ const ToolParamsView: React.FC<{ params?: Record<string, string> }> = ({ params 
     <>
       {typeof code === "string" && code.trim() !== "" && (
         <details className="mt-1">
-          <summary className="cursor-pointer select-none text-[11px] text-muted-foreground hover:text-foreground">
+          <summary className="cursor-pointer select-none text-2xs text-muted-foreground hover:text-foreground">
             Code ({code.split("\n").length} line{code.split("\n").length === 1 ? "" : "s"})
           </summary>
-          <pre className="mt-1 max-h-64 overflow-auto whitespace-pre rounded bg-muted/50 p-2 font-mono text-[11px] text-foreground">
+          <pre className="mt-1 max-h-64 overflow-auto whitespace-pre rounded bg-muted/50 p-2 font-mono text-2xs text-foreground">
             {code}
           </pre>
         </details>
       )}
       {restKeys.length > 0 && (
-        <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-[11px] text-muted-foreground">
+        <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words text-2xs text-muted-foreground">
           {JSON.stringify(rest, null, 0)}
         </pre>
       )}
@@ -258,6 +273,7 @@ const RoutinesPanel: React.FC<{
   onChanged: () => Promise<void> | void
 }> = ({ agentId, routines, onChanged }) => {
   const { toast } = useToast()
+  const confirm = useConfirm()
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const toggle = async (r: AgentRoutine) => {
@@ -274,6 +290,22 @@ const RoutinesPanel: React.FC<{
     } finally {
       setBusyId(null)
     }
+  }
+
+  // Confirmed: cancelling a routine stops recurring work permanently, and the only
+  // way back is recreating the schedule from memory. The toggle beside this button
+  // already offers the reversible option (pause), so the destructive one should be
+  // the deliberate choice of the two.
+  const confirmRemove = (r: AgentRoutine) => {
+    confirm({
+      title: r.name ? `Cancel "${r.name}"?` : "Cancel this routine?",
+      description:
+        "It stops running for good. To pause it temporarily instead, use the toggle next to it.",
+      confirmText: "Cancel routine",
+      onConfirm: () => {
+        void remove(r)
+      },
+    })
   }
 
   const remove = async (r: AgentRoutine) => {
@@ -295,7 +327,7 @@ const RoutinesPanel: React.FC<{
 
   return (
     <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="mb-2 flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
         <RefreshCw className="h-3 w-3" /> Routines
       </div>
       <div className="space-y-1.5">
@@ -303,7 +335,7 @@ const RoutinesPanel: React.FC<{
           <div key={r.id} className="flex items-center gap-2 rounded-md border border-border/60 bg-card/50 p-2">
             <div className="min-w-0 flex-1">
               <div className="truncate text-xs font-medium text-foreground">{r.name || "Routine"}</div>
-              <div className="truncate text-[11px] text-muted-foreground">
+              <div className="truncate text-2xs text-muted-foreground">
                 {cadenceLabel(r.recurrence, r.at_minute_utc)}
                 {!r.enabled && " · paused"}
               </div>
@@ -319,7 +351,7 @@ const RoutinesPanel: React.FC<{
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-destructive"
               disabled={busyId === r.id}
-              onClick={() => remove(r)}
+              onClick={() => confirmRemove(r)}
               aria-label="Cancel routine"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -331,9 +363,67 @@ const RoutinesPanel: React.FC<{
   )
 }
 
+// CompactionDivider marks the point where the agent's conversation was folded
+// into a summary so the run could continue inside the model's context window.
+// A quiet rule-with-a-label (Notion-style) rather than an alert: it explains a
+// gap the reader would otherwise notice in the transcript, and it is not a
+// problem — unless it was a rescue after the provider refused the prompt, which
+// reads in amber so an operator can spot a chronically oversized agent.
+const CompactionDivider: React.FC<{ compaction: AgentRunCompaction }> = ({ compaction }) => {
+  const rule = "h-px flex-1 " + (compaction.rescue ? "bg-amber-500/40" : "bg-border/60")
+  return (
+    // The detail is a tooltip on a pointer device and a tap-to-open line on
+    // touch: a title attribute alone is unreadable on a phone, and this
+    // transcript gets read on one as often as not. The expanded text drops BELOW
+    // the rule so opening it doesn't stretch the divider.
+    <details className="py-0.5" role="note">
+      <summary
+        className="flex cursor-pointer select-none list-none items-center gap-2 [&::-webkit-details-marker]:hidden"
+        title={compactionSummary(compaction)}
+      >
+        <span className={rule} />
+        <span
+          className={
+            "inline-flex items-center gap-1 text-3xs uppercase tracking-wide " +
+            (compaction.rescue ? "text-warning" : "text-muted-foreground")
+          }
+        >
+          <Layers className="h-3 w-3" />
+          Context compacted
+        </span>
+        <span className={rule} />
+      </summary>
+      <p className="mt-1 text-center text-2xs text-muted-foreground">{compactionSummary(compaction)}</p>
+    </details>
+  )
+}
+
+// SteeringNote shows the instructions a person sent while the run was working,
+// at the point they were folded in. Without it the transcript reads as the agent
+// inexplicably changing plan mid-run; with it, the human's words are right where
+// they took effect. Rendered in the accent colour a human turn deserves — this is
+// the one thing in a transcript that isn't the agent's own doing.
+const SteeringNote: React.FC<{ steering: string[] }> = ({ steering }) => (
+  <div className="rounded-md border-l-2 border-primary/50 bg-primary/5 px-2 py-1.5">
+    <div className="flex items-center gap-1 text-3xs font-medium uppercase tracking-wide text-primary/80">
+      <MessageSquare className="h-3 w-3" />
+      New instruction while working
+    </div>
+    <ul className="mt-1 space-y-0.5">
+      {steering.map((s, i) => (
+        <li key={i} className="whitespace-pre-wrap break-words text-2xs text-foreground/90">
+          {s}
+        </li>
+      ))}
+    </ul>
+  </div>
+)
+
 const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
   <div className="space-y-1.5 border-l-2 border-border/60 pl-3">
-    <div className="text-[11px] font-medium text-muted-foreground">Step {step.iteration}</div>
+    {step.compaction && <CompactionDivider compaction={step.compaction} />}
+    {step.steering && step.steering.length > 0 && <SteeringNote steering={step.steering} />}
+    <div className="text-2xs font-medium text-muted-foreground">Step {step.iteration}</div>
     {step.assistant && (
       <p className="whitespace-pre-wrap text-xs text-foreground">{step.assistant}</p>
     )}
@@ -346,27 +436,27 @@ const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
       return (
         <div key={i} className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" className="text-[10px]">{toolLabel(tc.tool)}</Badge>
+            <Badge variant="outline" className="text-3xs">{toolLabel(tc.tool)}</Badge>
             {gov ? (
               <Badge
                 variant="outline"
-                className="gap-1 border-amber-500/40 bg-amber-500/10 text-[10px] text-amber-600 dark:text-amber-400"
+                className="gap-1 border-amber-500/40 bg-amber-500/10 text-3xs text-warning"
               >
                 {gov.tone === "approval" ? <AlertTriangle size={10} /> : <ShieldAlert size={10} />}
                 {gov.label}
               </Badge>
             ) : (
               <>
-                {tc.skipped && <Badge variant="secondary" className="text-[10px]">skipped</Badge>}
-                {tc.error && <Badge variant="destructive" className="text-[10px]">error</Badge>}
+                {tc.skipped && <Badge variant="secondary" className="text-3xs">skipped</Badge>}
+                {tc.error && <Badge variant="destructive" className="text-3xs">error</Badge>}
               </>
             )}
           </div>
           <ToolParamsView params={tc.params} />
-          {tc.result && <p className="mt-1 whitespace-pre-wrap break-words text-[11px] text-foreground">{tc.result}</p>}
-          {tc.error && !gov && <p className="mt-1 whitespace-pre-wrap break-words text-[11px] text-destructive">{tc.error}</p>}
+          {tc.result && <p className="mt-1 whitespace-pre-wrap break-words text-2xs text-foreground">{tc.result}</p>}
+          {tc.error && !gov && <p className="mt-1 whitespace-pre-wrap break-words text-2xs text-destructive">{tc.error}</p>}
           {tc.skipped && (
-            <p className={"mt-1 text-[11px] " + (gov ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+            <p className={"mt-1 text-2xs " + (gov ? "text-warning" : "text-muted-foreground")}>
               {gov ? gov.label + ": " : "Skipped: "}{tc.skipped}
             </p>
           )}
@@ -388,12 +478,12 @@ const RunRow: React.FC<{ run: AgentRun }> = ({ run }) => {
       >
         <span className="flex min-w-0 items-center gap-2">
           {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-          <Badge variant={STATUS_VARIANT[run.status]} className="text-[10px] capitalize">{run.status}</Badge>
+          <Badge variant={STATUS_VARIANT[run.status]} className="text-3xs capitalize">{run.status}</Badge>
           <span className="truncate text-xs text-muted-foreground">
             {run.trigger_source} · {formatWhen(run.started_at)}
           </span>
         </span>
-        <span className="shrink-0 text-[11px] text-muted-foreground">
+        <span className="shrink-0 text-2xs text-muted-foreground">
           {run.step_count} step{run.step_count === 1 ? "" : "s"}
           {run.tokens > 0 && ` · ${run.tokens.toLocaleString()} tok`}
           {formatDuration(run.started_at, run.ended_at) && ` · ${formatDuration(run.started_at, run.ended_at)}`}
@@ -411,7 +501,7 @@ const RunRow: React.FC<{ run: AgentRun }> = ({ run }) => {
           )}
           {run.result && (
             <div className="rounded-md border border-border/60 bg-muted/30 p-2">
-              <div className="mb-1 text-[11px] font-medium text-muted-foreground">Final result</div>
+              <div className="mb-1 text-2xs font-medium text-muted-foreground">Final result</div>
               <p className="whitespace-pre-wrap text-xs text-foreground">{run.result}</p>
             </div>
           )}
@@ -481,15 +571,19 @@ export const AgentRunsDialog: React.FC<{
 
         <div className="max-h-[60vh] space-y-2 overflow-y-auto">
           {loading && !runs ? (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
+            // Run rows are collapsed headers, so one line each is the honest
+            // shape — and the panel keeps its height while they load.
+            <div role="status" aria-label="Loading run history">
+              <SkeletonRows rows={4} lines={1} avatar={false} />
             </div>
           ) : runs && runs.length > 0 ? (
             runs.map((r) => <RunRow key={r.id} run={r} />)
           ) : (
-            <p className="px-1 py-8 text-center text-sm text-muted-foreground">
-              This agent hasn&apos;t run yet. Trigger it or run it manually to see its activity here.
-            </p>
+            <EmptyState
+              icon={History}
+              title="No runs yet"
+              description="Trigger this agent or run it manually to see its activity here."
+            />
           )}
         </div>
       </DialogContent>

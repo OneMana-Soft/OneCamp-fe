@@ -30,7 +30,7 @@ function optionColorClass(color?: string): string {
     case "red":
       return "bg-red-500/10 text-red-700 dark:text-red-300"
     case "green":
-      return "bg-green-500/10 text-green-700 dark:text-green-300"
+      return "bg-success/10 text-green-700 dark:text-green-300"
     case "blue":
       return "bg-blue-500/10 text-blue-700 dark:text-blue-300"
     case "yellow":

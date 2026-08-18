@@ -35,6 +35,7 @@ import {openUI} from "@/store/slice/uiSlice";
 import {CreateUpdateCommentReqInterface} from "@/types/comment";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 
 export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMessageUUID: string }) => {
 
@@ -68,7 +69,7 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
     }, [chatInfo.data?.data, chatCommentState.length, chatMessageUUID, dispatch]);
 
     if (chatInfo.isLoading|| !chatState ) {
-        return <LoadingStateCircle />
+        return <div role="status" aria-label="Loading comments"><SkeletonRows rows={4} lines={2} /></div>
     }
 
     if (chatInfo.isError ) {

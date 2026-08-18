@@ -55,8 +55,11 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId
         }
 
         if(!isZeroEpoch(channelInfo.data?.channel_info.ch_deleted_at || '')) {
+            // Had no background, so messages scrolled visibly through the text, and
+            // no `flex`, so the centring classes were inert. Its sibling (the
+            // moderators-only notice below) already gets both right.
             return (
-                <div className='border-t fixed py-8 bottom-0 flex-col justify-center items-center w-full text-center space-y-2'>
+                <div className='border-t fixed bottom-0 flex flex-col justify-center items-center w-full py-8 pb-[calc(2rem+env(safe-area-inset-bottom))] text-center space-y-2 bg-background'>
                     <div>Channel is archived 📦</div>
                     {/*{channelInfo.data?.channel_info.ch_is_admin &&*/}
                     {/*    <Button onClick={joinChannel}>*/}
@@ -71,7 +74,7 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId
             !channelInfo.data?.channel_info.ch_is_admin
         ) {
             return (
-                <div className='border-t fixed bottom-0 flex items-center justify-center gap-2 w-full py-5 text-center text-sm text-muted-foreground bg-background'>
+                <div className='border-t fixed bottom-0 flex items-center justify-center gap-2 w-full py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-center text-sm text-muted-foreground bg-background'>
                     <Megaphone className="h-4 w-4" />
                     <span>Only moderators can post here.</span>
                 </div>

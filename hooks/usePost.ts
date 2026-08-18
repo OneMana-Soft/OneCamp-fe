@@ -25,7 +25,6 @@ interface UsePostOptions<T> {
 
 interface ErrorResponse {
     msg?: string
-    mag?: string
     message?: string
 }
 
@@ -654,7 +653,7 @@ export const usePost = () => {
             // Show toast if general showToast is true OR specific showErrorToast is true
             if (showToast || options.showErrorToast) {
                 // Safely extract error message from response, handling undefined cases
-                const serverMessage = error.response?.data?.msg || error.response?.data?.mag || error.response?.data?.message || ""
+                const serverMessage = error.response?.data?.msg || error.response?.data?.message || ""
                 const fullMessage = serverMessage ? `${errorMessage}: ${serverMessage}` : errorMessage
 
                 toast({

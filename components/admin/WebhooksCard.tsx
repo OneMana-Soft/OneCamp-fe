@@ -3,6 +3,9 @@
 import React, { useState } from "react"
 import { useDispatch } from "react-redux"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -53,7 +56,7 @@ const LOG_PAGE_SIZE = 20
 
 const WebhooksCard = () => {
   const dispatch = useDispatch()
-  const { data: webhookData, isLoading, mutate } = useFetch<{ webhooks: WebhookItem[] }>(GetEndpointUrl.GetAllWebhooks)
+  const { data: webhookData, isLoading, isError, mutate } = useFetch<{ webhooks: WebhookItem[] }>(GetEndpointUrl.GetAllWebhooks)
   const post = usePost()
   const { toast } = useToast()
 
@@ -175,13 +178,18 @@ const WebhooksCard = () => {
 
       <CardContent className="px-0 flex-1 overflow-y-auto pr-4 custom-scrollbar pb-10 min-h-0">
         {isLoading ? (
-          <div className="text-sm text-muted-foreground animate-pulse">Loading webhooks...</div>
-        ) : webhooks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Webhook className="h-12 w-12 text-muted-foreground/30 mb-4" />
-            <p className="text-muted-foreground font-medium">No webhooks configured</p>
-            <p className="text-sm text-muted-foreground/70 mt-1">Create an incoming webhook to let bots post messages, or an outgoing webhook to notify external services.</p>
+          <div role="status" aria-label="Loading webhooks">
+            <SkeletonRows rows={3} />
           </div>
+        ) : isError ? (
+          <ErrorState subject="the webhooks" onRetry={() => void mutate()} />
+        ) : webhooks.length === 0 ? (
+          <EmptyState
+            tone="accent"
+            icon={Webhook}
+            title="No webhooks configured"
+            description="Create an incoming webhook to let bots post messages, or an outgoing webhook to notify external services."
+          />
         ) : (
           <div className="space-y-4">
             {webhooks.map(webhook => (
@@ -239,7 +247,7 @@ const WebhooksCard = () => {
                       <code className="text-xs bg-muted/50 px-2 py-1 rounded flex-1 truncate font-mono">
                         {tokenVisible[webhook.id] ? getWebhookUrl(webhook.token) : `${getWebhookUrl("")}••••••••`}
                       </code>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
+                      <Button aria-label="Copy webhook URL" variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
                         if (tokenVisible[webhook.id]) {
                           copyToClipboard(getWebhookUrl(webhook.token))
                         }
@@ -254,7 +262,7 @@ const WebhooksCard = () => {
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setTokenVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
                       {tokenVisible[webhook.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(webhook.token)}><Copy className="h-3 w-3" /></Button>
+                    <Button aria-label="Copy token" variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(webhook.token)}><Copy className="h-3 w-3" /></Button>
                     <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRegenerateToken(webhook.id)} title="Regenerate token"><RefreshCw className="h-3 w-3" /></Button>
                   </div>
                   {webhook.type === "outgoing" && webhook.secret && (
@@ -266,7 +274,7 @@ const WebhooksCard = () => {
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSecretVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
                         {secretVisible[webhook.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(webhook.secret!)}><Copy className="h-3 w-3" /></Button>
+                      <Button aria-label="Copy signing secret" variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(webhook.secret!)}><Copy className="h-3 w-3" /></Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRegenerateSecret(webhook.id)} title="Regenerate secret"><RefreshCw className="h-3 w-3" /></Button>
                     </div>
                   )}
@@ -274,7 +282,7 @@ const WebhooksCard = () => {
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Target</span>
                       <code className="text-xs bg-muted/50 px-2 py-1 rounded flex-1 truncate font-mono">{webhook.target_url}</code>
-                      <a href={webhook.target_url} target="_blank" rel="noopener noreferrer"><Button variant="ghost" size="icon" className="h-6 w-6"><ExternalLink className="h-3 w-3" /></Button></a>
+                      <a href={webhook.target_url} target="_blank" rel="noopener noreferrer"><Button aria-label="Open target URL in a new tab" variant="ghost" size="icon" className="h-6 w-6"><ExternalLink className="h-3 w-3" /></Button></a>
                     </div>
                   )}
                 </div>
@@ -296,7 +304,7 @@ const WebhooksCard = () => {
                           >
                             {log.success ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />}
                             <Badge variant="outline" className="text-[10px] px-1.5">{log.event_type}</Badge>
-                            {log.response_status && <span className={`font-mono ${log.response_status >= 200 && log.response_status < 300 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>{log.response_status}</span>}
+                            {log.response_status && <span className={`font-mono ${log.response_status >= 200 && log.response_status < 300 ? "text-success" : "text-destructive"}`}>{log.response_status}</span>}
                             {log.duration_ms !== undefined && <span className="text-muted-foreground">{log.duration_ms}ms</span>}
                             {log.error_message && <span className="text-red-500 truncate flex-1">{log.error_message}</span>}
                             <span className="text-muted-foreground ml-auto flex-shrink-0">{new Date(log.created_at).toLocaleTimeString()}</span>
@@ -351,7 +359,7 @@ const WebhooksCard = () => {
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="bg-muted/40 p-2.5 rounded-md">
                     <span className="text-muted-foreground block mb-0.5">Status</span>
-                    <span className={`font-mono font-medium ${selectedLog.response_status && selectedLog.response_status >= 200 && selectedLog.response_status < 300 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                    <span className={`font-mono font-medium ${selectedLog.response_status && selectedLog.response_status >= 200 && selectedLog.response_status < 300 ? "text-success" : "text-destructive"}`}>
                       {selectedLog.response_status ?? "—"}
                     </span>
                   </div>

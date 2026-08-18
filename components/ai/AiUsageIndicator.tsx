@@ -60,7 +60,7 @@ const AiUsageIndicator: React.FC<{ refreshSignal?: number }> = ({ refreshSignal 
   return (
     <span
       className={`hidden sm:inline-flex items-center px-1.5 text-[11px] tabular-nums ${
-        near ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+        near ? "text-warning" : "text-muted-foreground"
       }`}
       title={title}
       aria-label={title}

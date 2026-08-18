@@ -228,7 +228,7 @@ export const RecordingPlayerDialog = () => {
                                 {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                             </Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={handleClose} className="h-8 w-8">
+                        <Button aria-label="Close" variant="ghost" size="icon" onClick={handleClose} className="h-8 w-8">
                             <X className="h-5 w-5" />
                         </Button>
                     </div>
@@ -269,7 +269,7 @@ export const RecordingPlayerDialog = () => {
                             <span>Transcript</span>
                             {/* Mobile download button since header one is hidden */}
                              {mediaUrl && isMobile && (
-                                <Button variant="ghost" size="sm" onClick={() => downloadFile(mediaUrl, data.fileName)} className="h-7 w-7 p-0">
+                                <Button aria-label="Download recording" variant="ghost" size="sm" onClick={() => downloadFile(mediaUrl, data.fileName)} className="h-7 w-7 p-0">
                                     <Download className="h-4 w-4" />
                                 </Button>
                             )}

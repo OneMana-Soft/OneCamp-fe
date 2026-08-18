@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Check, RefreshCw, Terminal, Sparkles, AlertCircle, Trash2, Search } from "@/lib/icons"
+import { SkeletonCards } from "@/components/ui/skeletonCards"
 import { listMarketplace, installTemplate, uninstallTemplate } from "@/services/appService"
 import AppIcon from "@/components/admin/AppIcon"
 import type { MarketplaceItem } from "@/types/app"
@@ -151,8 +152,9 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             </div>
 
             {isLoading && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
-                    <RefreshCw className="h-4 w-4 animate-spin" /> Loading apps…
+                // Same two-column grid the categories render into.
+                <div role="status" aria-label="Loading apps">
+                    <SkeletonCards cards={4} gridClassName="grid grid-cols-1 sm:grid-cols-2 gap-2.5" />
                 </div>
             )}
 
@@ -252,13 +254,13 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="flex-1 h-8 gap-1 border-amber-400/60 text-amber-600 dark:text-amber-400"
+                                className="flex-1 h-8 gap-1 border-amber-400/60 text-warning"
                                 onClick={onConfigure}
                             >
                                 <AlertCircle className="h-3.5 w-3.5" /> Finish setup
                             </Button>
                         ) : (
-                            <span className="flex-1 inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            <span className="flex-1 inline-flex items-center gap-1 text-xs text-success font-medium">
                                 <Check className="h-3.5 w-3.5" /> Installed
                             </span>
                         )}

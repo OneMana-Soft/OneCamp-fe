@@ -25,6 +25,7 @@ import { isExternalUser } from "@/lib/utils/isExternalUser"
 import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
 import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { Search } from "@/lib/icons"
 
 export const ChatUserList = ({ chatId }: { chatId: string }) => {
@@ -120,6 +121,15 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                     fallbackDescription="We couldn't load your recent chats."
                 >
                     {latestChats.isLoading && !sortedDmList && <ListSkeleton rows={10} />}
+                    {/* LocalizedErrorBoundary above catches render errors, not fetch
+                        failures — so without this a failed request left this panel
+                        silently blank, with no message and no way to retry. */}
+                    {latestChats.isError && (
+                        <ErrorState
+                            subject="your conversations"
+                            onRetry={() => void latestChats.mutate()}
+                        />
+                    )}
 
                     {sortedDmList?.map((dmData, index) => {
                         const filteredUser = dmData.dm_participants.filter(

@@ -8,6 +8,7 @@ import { MentionInfoInterface } from "@/types/mention"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useFetch } from "@/hooks/useFetch"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { AtSign } from "@/lib/icons"
@@ -19,7 +20,7 @@ export const ActivityMentionListResult = () => {
     const pageSize = 20
     const endpoint = `${GetEndpointUrl.GetMentionActivity}?pageIndex=${pageIndex}&pageSize=${pageSize}`
 
-    const { data: pageData, isLoading } = useFetch<MentionActivityPagination>(endpoint)
+    const { data: pageData, isLoading, isError, mutate } = useFetch<MentionActivityPagination>(endpoint)
 
     useEffect(() => {
         if (pageData) {
@@ -56,6 +57,16 @@ export const ActivityMentionListResult = () => {
         )
     }
 
+    // Before the empty guard. A failed fetch also leaves the list empty, and
+    // this surface's empty copy tells the user nothing needs them — the one
+    // conclusion they must not reach from a request that simply failed.
+    if (isError) {
+        return (
+            <PageContainer className="flex items-center justify-center">
+                <ErrorState subject="your mentions" onRetry={() => void mutate()} />
+            </PageContainer>
+        )
+    }
     if (!isLoading && allMentions.length === 0) {
         return (
             <PageContainer className="flex items-center justify-center">

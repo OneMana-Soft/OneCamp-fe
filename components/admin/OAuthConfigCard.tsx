@@ -102,7 +102,7 @@ export default function OAuthConfigCard() {
     const StatusBadge = ({ configured, source }: { configured: boolean; source: string }) => (
         <div className="flex items-center gap-2 text-xs">
             {configured ? (
-                <Badge className="gap-1 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
+                <Badge className="gap-1 bg-success/10 text-success border-success/20">
                     <CheckCircle2 className="h-3 w-3" /> Configured
                 </Badge>
             ) : (

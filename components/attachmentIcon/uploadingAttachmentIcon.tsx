@@ -41,11 +41,11 @@ const UploadingAttachmentIcon = ({
 
     return (
         <div
-            className="flex relative justify-center items-center m-1 mt-2 p-1 border rounded-xl border-gray-700"
+            className="flex relative justify-center items-center m-1 mt-2 p-1 border rounded-xl border-border"
 
         >
             <button
-                className="absolute top-0 right-0 p-1 -mt-2 -mr-2 bg-background rounded-full border-gray-700 border"
+ aria-label="Cancel upload"                className="absolute top-0 right-0 p-1 -mt-2 -mr-2 bg-background rounded-full border-border border"
                 onClick={(e) => {
                     e.stopPropagation();
                     removeFile();

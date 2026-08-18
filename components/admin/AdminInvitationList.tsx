@@ -28,7 +28,7 @@ function getStatusBadge(status: string) {
       )
     case "joined":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-500/10 text-green-600 dark:text-green-400">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-success/10 text-success">
           <CheckCircle className="h-3 w-3" />
           Joined
         </span>

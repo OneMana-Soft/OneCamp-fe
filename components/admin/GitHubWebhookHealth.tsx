@@ -81,7 +81,7 @@ const GitHubWebhookHealth: React.FC = () => {
       </Badge>
     )
     if (isHealthy) return (
-      <Badge className="bg-green-500/10 text-green-700 border-green-200 dark:text-green-400">
+      <Badge className="bg-success/10 text-green-700 border-green-200 dark:text-green-400">
         <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
         Healthy
       </Badge>
@@ -112,7 +112,7 @@ const GitHubWebhookHealth: React.FC = () => {
           <div className="rounded-md border bg-card px-3 py-2">
             <div className="text-2xl font-semibold">
               {h && h.failed_24h > 0 ? (
-                <span className="text-red-600 dark:text-red-400">{h.failed_24h}</span>
+                <span className="text-destructive">{h.failed_24h}</span>
               ) : (
                 h?.failed_24h ?? "—"
               )}

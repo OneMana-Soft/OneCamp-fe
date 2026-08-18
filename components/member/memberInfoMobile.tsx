@@ -53,7 +53,7 @@ const MemberInfoMobile: React.FC<MemberPropInfoInterface> = ({
                         {userInfo.user_name}
                     </span>
                     {isSelf && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground shrink-0">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-3xs font-medium bg-muted text-muted-foreground shrink-0">
                             You
                         </span>
                     )}

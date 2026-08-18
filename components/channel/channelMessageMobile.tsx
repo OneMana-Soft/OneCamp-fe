@@ -224,7 +224,7 @@ const ChannelMessageMobileComponent = ({
                 <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
                         <div className="text-sm font-semibold text-foreground truncate" onClick={handleUserClick}>{userInfoState.userName || postInfo.post_by.user_name}</div>
-                        <div className="text-[11px] tabular-nums text-muted-foreground shrink-0">
+                        <div className="text-2xs tabular-nums text-muted-foreground shrink-0">
                             {formatTimeForPostOrComment(postInfo.post_created_at, true)}
                         </div>
                     </div>

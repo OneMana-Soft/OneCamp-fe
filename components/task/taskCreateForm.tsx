@@ -509,8 +509,8 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
             />
             <div className="flex flex-wrap">
               {dialogInputState.filePreview[selectedProject.project_uuid]?.map((file, index) => (
-                <div key={index} className="flex relative justify-center items-center m-1 mt-2 p-1 border rounded-xl border-gray-700">
-                  <button type="button" className="absolute top-0 right-0 p-1 -mt-2 -mr-2 bg-background rounded-full border-gray-700 border" onClick={() => removePreviewFile(file.key)}>
+                <div key={index} className="flex relative justify-center items-center m-1 mt-2 p-1 border rounded-xl border-border">
+                  <button aria-label={`Remove ${file.fileName}`} type="button" className="absolute top-0 right-0 p-1 -mt-2 -mr-2 bg-background rounded-full border-border border" onClick={() => removePreviewFile(file.key)}>
                     <X height="1rem" width="1rem" />
                   </button>
                   <div>
@@ -558,7 +558,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                     )}
                 />
                 {startDateWatch && (
-                  <Button variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_start_date", undefined)}>
+                  <Button aria-label="Clear start date" variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_start_date", undefined)}>
                     <X className="h-3 w-3" />
                   </Button>
                 )}
@@ -578,7 +578,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                     )}
                 />
                 {dueDateWatch && (
-                  <Button variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_due_date", undefined)}>
+                  <Button aria-label="Clear due date" variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_due_date", undefined)}>
                     <X className="h-3 w-3" />
                   </Button>
                 )}

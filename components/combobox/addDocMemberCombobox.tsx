@@ -76,7 +76,7 @@ const AddDocMemberCombobox: React.FC<AddDocMemberComboboxProps> = ({ docId, hand
                             variant="outline"
                             role="combobox"
                             aria-expanded={open}
-                            className="w-[180px] justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 hover:shadow-sm transition-all duration-300 rounded-xl"
+                            className="w-[180px] justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150"
                             size="sm"
                         >
                             <span className="truncate text-sm font-medium">
@@ -124,7 +124,7 @@ const AddDocMemberCombobox: React.FC<AddDocMemberComboboxProps> = ({ docId, hand
                 </Popover>
 
                 <Select value={selectedRole} onValueChange={(v: Role) => setSelectedRole(v)}>
-                    <SelectTrigger className="w-[110px] bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 hover:shadow-sm transition-all duration-300 rounded-xl h-10">
+                    <SelectTrigger className="w-[110px] bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150 h-10">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -137,7 +137,7 @@ const AddDocMemberCombobox: React.FC<AddDocMemberComboboxProps> = ({ docId, hand
                 <Button
                     onClick={onInviteClick}
                     size="sm"
-                    className="h-10 px-5 font-medium shadow-sm hover:shadow-md transition-all duration-300 rounded-xl bg-primary hover:bg-primary/90 shrink-0"
+                    className="h-10 px-5 font-medium transition-colors duration-150 bg-primary hover:bg-primary/90 shrink-0"
                     disabled={!selectedUser || isInviting}
                 >
                     Invite

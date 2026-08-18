@@ -75,7 +75,7 @@ export const TeamProjectInfoMobile = ({
                 <Badge
                     variant="outline"
                     className={cn(
-                        "text-[10px] px-1.5 py-0 h-4 font-medium",
+                        "text-3xs px-1.5 py-0 h-4 font-medium",
                         statusColors.success.borderLight,
                         statusColors.success.bgLight,
                         statusColors.success.text,
@@ -85,7 +85,7 @@ export const TeamProjectInfoMobile = ({
                 </Badge>
             )}
             {isArchived && (
-                <Badge variant="secondary" className="text-[10px] h-5">
+                <Badge variant="secondary" className="text-3xs h-5">
                     Archived
                 </Badge>
             )}

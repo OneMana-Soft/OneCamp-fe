@@ -19,17 +19,41 @@ export interface McpServer {
   has_auth_secret: boolean
   enabled: boolean
   tool_prefix: string
-  tools_cache: string // raw JSON array string
+  tools_cache: string // raw JSON array string, exactly as the server reported it
+  // tools is the API-enriched tool list: the same tools, each carrying the risk
+  // OneCamp enforces (read_only / destructive). Derived server-side from
+  // tools_cache on every read, so a classifier change relabels tools with no
+  // re-introspection. Prefer this over parsing tools_cache yourself.
+  tools?: McpTool[]
   last_introspected_at?: string | null
   last_error?: string | null
   created_at: string
   updated_at: string
 }
 
+// McpTool is one tool an MCP server exposes. read_only/destructive are
+// OneCamp's OWN enforced classification, resolved host-side — not the external
+// server's self-reported annotations (those are never sent to the client).
 export interface McpTool {
   name: string
   description?: string
   inputSchema?: unknown
+  // read_only: the agent may run this tool automatically, no approval needed.
+  read_only?: boolean
+  // destructive: irreversible change; never auto-run, always warned about.
+  destructive?: boolean
+}
+
+// McpToolRisk is what actually happens when an agent calls the tool.
+export type McpToolRisk = "auto" | "approval" | "destructive"
+
+// mcpToolRisk maps a tool's enforced flags to its risk state. Fails closed: a
+// tool with no classification (an older payload) is treated as needing
+// approval, exactly like the backend's own default.
+export function mcpToolRisk(t: McpTool): McpToolRisk {
+  if (t.destructive) return "destructive"
+  if (t.read_only) return "auto"
+  return "approval"
 }
 
 export interface McpServerInput {
@@ -43,7 +67,12 @@ export interface McpServerInput {
   enabled: boolean
 }
 
+// parseMcpTools returns a server's tools. It uses the API-enriched list (which
+// carries the enforced risk flags) when present, and falls back to the raw
+// tools_cache blob otherwise — those tools then read as "needs approval", the
+// safe default.
 export function parseMcpTools(s: McpServer): McpTool[] {
+  if (Array.isArray(s.tools)) return s.tools
   try {
     const v = JSON.parse(s.tools_cache || "[]")
     return Array.isArray(v) ? v : []

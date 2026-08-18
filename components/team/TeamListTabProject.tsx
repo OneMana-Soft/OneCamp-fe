@@ -5,7 +5,8 @@ import {TeamProjectListResult} from "@/components/team/TeamProjectListResult";
 import {TeamInfoRawInterface} from "@/types/team";
 import {ProjectInfoInterface} from "@/types/project";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
+import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
+import { ErrorState } from "@/components/ui/error-state";
 
 export const TeamListTabProject = ({searchQuery,teamId}:{searchQuery: string, teamId:string}) => {
 
@@ -55,6 +56,11 @@ export const TeamListTabProject = ({searchQuery,teamId}:{searchQuery: string, te
             { sortedProjectList.length > 0 ?
                 <TeamProjectListResult projectList={sortedProjectList} isAdmin={teamProjectList.data?.data.team_is_admin || false} teamId={teamId} isUsersProject={false}/>:
 
+                teamProjectList.isError ? (
+                    <div className="flex flex-col items-center justify-center py-10 px-4 w-full h-full min-h-[40vh]">
+                        <ErrorState subject="this team's projects" onRetry={() => void teamProjectList.mutate()} />
+                    </div>
+                ) :
                 !searchQuery && (
                     <div className="flex flex-col items-center justify-center py-10 px-4 w-full h-full min-h-[40vh]">
                         <StatePlaceholder

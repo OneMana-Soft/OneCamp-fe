@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 export function DocPageSkeleton() {
   return (
-    <div className="flex flex-col h-full bg-background animate-in fade-in duration-500">
+    <div className="flex flex-col h-full bg-background animate-in fade-in duration-150">
       {/* Top Bar Skeleton */}
       <div className="h-14 border-b flex items-center px-4 justify-between bg-card/50">
         <div className="flex items-center gap-4">

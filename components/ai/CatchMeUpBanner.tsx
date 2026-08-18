@@ -9,6 +9,7 @@ import { Sparkles, X } from "@/lib/icons"
 import { useCatchUp } from "@/services/aiService"
 import { CatchUpRequest } from "@/services/catchUpService"
 import { isTTLActive, setTTL } from "@/lib/utils/helpers/ttlStorage"
+import { withAI } from "@/components/common/withFeature"
 
 const DISMISS_PREFIX = "catchmeup_dismissed_"
 const DISMISS_TTL_MS = 60 * 60 * 1000 // 1 hour
@@ -215,4 +216,9 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
     )
 }
 
-export default CatchMeUpBanner
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI(CatchMeUpBanner)

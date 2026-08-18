@@ -67,13 +67,13 @@ export function TaskGitHubSection({
                 </div>
               )}
               {syncStatus?.status === "pending" && (
-                <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                <div className="flex items-center gap-1 text-warning">
                   <div className="h-2 w-2 animate-pulse rounded-full bg-amber-600" />
                   <span className="text-[10px] font-medium">Syncing...</span>
                 </div>
               )}
               {syncStatus?.status === "synced" && (
-                <div className="flex items-center gap-1 text-green-600 dark:text-green-400" title="Synced with GitHub">
+                <div className="flex items-center gap-1 text-success" title="Synced with GitHub">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   <span className="text-[10px] font-medium">Synced</span>
                 </div>

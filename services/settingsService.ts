@@ -41,13 +41,34 @@ export interface AuditEntry {
     created_at: string
 }
 
-export async function getAdminAuditLog(category?: string, limit = 50, offset = 0): Promise<AuditEntry[]> {
+/**
+ * One page of the audit log, plus the categories the server actually records.
+ *
+ * The category list comes from the server rather than being hardcoded here. It was
+ * hardcoded, and it drifted: the `agent` category was added on the backend and this
+ * list never learned about it, so every agent and MCP entry — including refusals —
+ * could only be seen under "all". Taking the list from the response means a new
+ * category shows up in the UI with nothing to remember.
+ */
+export interface AuditLogPage {
+    entries: AuditEntry[]
+    categories: string[]
+}
+
+export async function getAdminAuditLog(category?: string, limit = 50, offset = 0): Promise<AuditLogPage> {
     const params = new URLSearchParams()
     if (category) params.set("category", category)
     params.set("limit", String(limit))
     params.set("offset", String(offset))
     const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}?${params.toString()}`)
-    return (res.data as { data?: { entries?: AuditEntry[] } })?.data?.entries ?? []
+    const data = (res.data as { data?: { entries?: AuditEntry[]; categories?: string[] } })?.data
+    return {
+        entries: data?.entries ?? [],
+        // Empty rather than a guessed default: the component keeps whatever list it
+        // already has, so a partial response cannot silently remove a filter an
+        // admin was using.
+        categories: data?.categories ?? [],
+    }
 }
 
 export interface AuditVerifyResult {

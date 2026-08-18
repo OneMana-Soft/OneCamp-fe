@@ -13,7 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { Sparkles, Shield, Loader2 } from "@/lib/icons"
+import { Sparkles, Shield } from "@/lib/icons"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 import type { AIActivityItem } from "@/services/aiActivityService"
 
 function relativeTime(iso: string): string {
@@ -33,11 +34,11 @@ function relativeTime(iso: string): string {
 function statusTone(status?: string): string {
   switch (status) {
     case "succeeded":
-      return "text-emerald-600 dark:text-emerald-400"
+      return "text-success"
     case "failed":
       return "text-destructive"
     case "running":
-      return "text-amber-600 dark:text-amber-400"
+      return "text-warning"
     default:
       return "text-muted-foreground"
   }
@@ -60,8 +61,8 @@ const AIActivityCard = () => {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading activity…
+          <div role="status" aria-label="Loading activity" className="py-1">
+            <SkeletonRows rows={4} />
           </div>
         ) : items.length === 0 ? (
           <p className="py-6 text-sm text-muted-foreground">No AI activity yet.</p>

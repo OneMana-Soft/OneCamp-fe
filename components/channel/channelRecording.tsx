@@ -4,6 +4,7 @@ import { DateRange } from "react-day-picker";
 import { useMedia } from "@/context/MediaQueryContext";
 import { Video, Loader2 } from "@/lib/icons";
 import { statusColors } from "@/lib/colors";
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { subDays } from "date-fns";
 import {RecordingListResult} from "@/components/recording/recordingListResult";
 import {useFetch} from "@/hooks/useFetch";
@@ -18,6 +19,7 @@ import {openUI} from "@/store/slice/uiSlice";
 import {ConditionalWrap} from "@/components/conditionalWrap/conditionalWrap";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import { ErrorState } from "@/components/ui/error-state"
 import {usePost} from "@/hooks/usePost";
 
 export const ChannelRecording = ({ channelId }: { channelId: string }) => {
@@ -44,7 +46,7 @@ export const ChannelRecording = ({ channelId }: { channelId: string }) => {
   const { data: channelInfoData } = useFetch<ChannelInfoInterfaceResp>(channelInfoEndpoint);
   const isAdmin = channelInfoData?.channel_info?.ch_is_admin || false;
 
-  const { data: pageData, isLoading } = useFetch<RecordingPaginationResRaw>(endpoint);
+  const { data: pageData, isLoading, isError, mutate } = useFetch<RecordingPaginationResRaw>(endpoint);
 
   const handleDelete = async (egressId: string) => {
     try {
@@ -124,7 +126,7 @@ export const ChannelRecording = ({ channelId }: { channelId: string }) => {
               className='flex  px-3 font-semibold text-lg p-2 truncate overflow-x-hidden overflow-ellipsis justify-between border-b'>
 
               <div className="flex justify-center items-center space-x-2">
-                  <div className={`${statusColors.online.solid} flex justify-center items-center rounded-md w-8 h-8 p-1.5 shadow-sm`}>
+                  <div className={`${statusColors.online.solid} flex justify-center items-center rounded-md w-8 h-8 p-1.5`}>
                     <Video className="text-white" size={18} />
                   </div>
                   <div>{"Recordings"}</div>
@@ -165,6 +167,10 @@ export const ChannelRecording = ({ channelId }: { channelId: string }) => {
                       />
                   </div>
               </div>
+          ) : isError ? (
+              <div className="flex h-full items-center justify-center p-8">
+                  <ErrorState subject="the recordings" onRetry={() => void mutate()} />
+              </div>
           ) : !isLoading ? (
               <div className="flex h-full items-center justify-center p-8">
                   <StatePlaceholder
@@ -174,8 +180,8 @@ export const ChannelRecording = ({ channelId }: { channelId: string }) => {
                   />
               </div>
           ) : (
-              <div className="flex h-full items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
+              <div role="status" aria-label="Loading recordings" className="p-2">
+                  <SkeletonRows rows={4} />
               </div>
           )}
       </div>

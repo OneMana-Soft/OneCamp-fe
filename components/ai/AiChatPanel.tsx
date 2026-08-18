@@ -9,6 +9,7 @@ import AiUsageIndicator from "@/components/ai/AiUsageIndicator";
 import ReleaseNotesDialog from "@/components/ai/ReleaseNotesDialog";
 import AiInstructionsDialog from "@/components/ai/AiInstructionsDialog";
 import MyAgentWorkDialog from "@/components/ai/MyAgentWorkDialog";
+import { AgentTeammatesMenuItem } from "@/components/ai/AgentTeammatesMenuItem";
 import SocialComposeDialog from "@/components/ai/SocialComposeDialog";
 import AiScheduleDialog from "@/components/ai/AiScheduleDialog";
 import { ProposedAction } from "@/services/aiService";
@@ -18,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "@/store/store";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
-import { X, Send, Sparkles, Loader2, MessageSquarePlus, Lightbulb, FileText, ArrowUpRight, Megaphone, CalendarClock, MoreHorizontal, SlidersHorizontal, Users, Mic } from "@/lib/icons";
+import { X, Send, Sparkles, Scissors, Loader2, MessageSquarePlus, Lightbulb, FileText, ArrowUpRight, Megaphone, CalendarClock, MoreHorizontal, SlidersHorizontal, Mic } from "@/lib/icons";
 import { useVoiceDictation } from "@/hooks/useVoiceDictation";
 import { useToast } from "@/hooks/use-toast";
 import { StopCircle } from "lucide-react";
@@ -33,6 +34,7 @@ import { useRouter } from "next/navigation";
 import { getOtherUserId } from "@/lib/utils/getOtherUserId";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
+import { withAI } from "@/components/common/withFeature"
 
 // --- Client-side AI text sanitization ---
 // Defense-in-depth: strip tool_call XML, UUIDs, and command syntax before display.
@@ -69,6 +71,13 @@ interface ChatMessage {
     content: string;
     sources?: SourceDisplay[];
     actions?: ProposedAction[];
+    /**
+     * Set when the backend shortened the prompt to fit the model's context window.
+     * Stored on the message rather than in panel state so it stays attached to the
+     * answer it describes as the conversation scrolls on — a banner that moves to the
+     * newest reply would be describing the wrong one.
+     */
+    notice?: string;
     timestamp: Date;
 }
 
@@ -378,6 +387,7 @@ const AiChatPanel: React.FC = () => {
                 content: finalText,
                 actions: finalActions && finalActions.length > 0 ? finalActions : undefined,
                 sources: result.sources && result.sources.length > 0 ? result.sources : undefined,
+                notice: result.notice || undefined,
                 timestamp: new Date(),
             };
             setMessages((prev) => [...prev, assistantMsg]);
@@ -466,10 +476,10 @@ const AiChatPanel: React.FC = () => {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-52">
-                            <DropdownMenuItem onClick={() => setAgentWorkOpen(true)}>
-                                <Users className="h-4 w-4 mr-2" />
-                                AI teammates
-                            </DropdownMenuItem>
+                            {/* Carries a count when teammates are actually working,
+                                so live work is discoverable without adding a badge
+                                or chip to the top bar. */}
+                            <AgentTeammatesMenuItem onSelect={() => setAgentWorkOpen(true)} />
                             <DropdownMenuItem onClick={() => setInstructionsOpen(true)}>
                                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                                 Custom instructions
@@ -566,6 +576,22 @@ const AiChatPanel: React.FC = () => {
                             ) : (
                                 <div className="whitespace-pre-wrap [overflow-wrap:anywhere]">
                                     {msg.content}
+                                </div>
+                            )}
+                            {/* A footnote, not a warning. The answer succeeded; it just
+                                used less of the thread than the person may assume, and
+                                the quiet failure mode here is saying nothing at all —
+                                someone who cannot see that context was dropped concludes
+                                the assistant is unreliable rather than that the window
+                                was full. Muted and inline so it informs without
+                                competing with the answer. */}
+                            {msg.notice && (
+                                <div
+                                    className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground"
+                                    role="note"
+                                >
+                                    <Scissors size={12} className="mt-0.5 shrink-0" aria-hidden="true" />
+                                    <span>{msg.notice}</span>
                                 </div>
                             )}
                             {msg.sources && msg.sources.length > 0 && (
@@ -728,9 +754,14 @@ const AiChatPanel: React.FC = () => {
                         </Button>
                     )}
                 </div>
-                <p className="mt-1.5 px-1 text-[10px] text-muted-foreground/70 leading-tight">
-                    Enter to send, Shift+Enter for a new line.
-                </p>
+                {/* The keyboard hint is for someone who hasn't typed yet. Once they
+                    have, it is a permanent line of chrome telling them something
+                    they just did — so it disappears. */}
+                {!input.trim() && (
+                    <p className="mt-1.5 px-1 text-[10px] leading-tight text-muted-foreground/70">
+                        Enter to send, Shift+Enter for a new line.
+                    </p>
+                )}
             </div>
 
             <ReleaseNotesDialog
@@ -750,4 +781,9 @@ const AiChatPanel: React.FC = () => {
     );
 };
 
-export default AiChatPanel;
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI(AiChatPanel);

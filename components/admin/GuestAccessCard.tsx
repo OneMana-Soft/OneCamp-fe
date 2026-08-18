@@ -11,6 +11,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { UserPlus, Loader2, Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink } from "@/lib/icons"
@@ -155,9 +156,9 @@ export default function GuestAccessCard() {
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2 text-sm">
                                                     <span className="font-medium">{meta.label}</span>
-                                                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                                                    <Badge variant="secondary" size="sm" caps className="rounded">
                                                         {g.capability}
-                                                    </span>
+                                                    </Badge>
                                                 </div>
                                                 <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
                                                     <Clock className="h-3 w-3" />

@@ -203,7 +203,7 @@ export function BoardMentionInput({
               )}
             >
               <Avatar className="h-5 w-5 shrink-0">
-                <AvatarFallback className="text-[9px]">
+                <AvatarFallback className="text-3xs">
                   {displayName(u).charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>

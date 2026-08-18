@@ -19,8 +19,11 @@ import {
     Users,
 } from "@/lib/icons"
 import { MobileHomeSearchBar } from "@/components/home/mobile/mobileHomeSearchBar"
+import { FeatureGate } from "@/components/common/withFeature"
+import { FEATURE_AI } from "@/hooks/useClientConfig"
 import BriefingCard from "@/components/ai/BriefingCard"
 import AttentionCard from "@/components/ai/AttentionCard"
+import WhileYouWereAwayCard from "@/components/ai/WhileYouWereAwayCard"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatDistanceToNow } from "date-fns"
 import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
@@ -137,7 +140,7 @@ function StatTile({
                     {badge && (
                         <span
                             className={cn(
-                                "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                                "inline-flex items-center rounded-full px-1.5 py-0.5 text-3xs font-medium",
                                 badge.tone === "destructive"
                                     ? "bg-destructive/10 text-destructive"
                                     : "bg-muted text-muted-foreground",
@@ -147,7 +150,7 @@ function StatTile({
                         </span>
                     )}
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                <div className="text-2xs text-muted-foreground mt-1 truncate">
                     {label}
                 </div>
             </div>
@@ -166,7 +169,7 @@ function SectionHeader({
 }) {
     return (
         <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {title}
             </h2>
             {actionLabel && onAction && (
@@ -239,6 +242,10 @@ export function MobileHome() {
 
             {/* What needs me now — cross-surface action queue; self-hides when empty */}
             <AttentionCard />
+
+            {/* "What did I miss" — free at rest (counts come from the sidebar
+                already in the store); spends one LLM call only when asked. */}
+            <WhileYouWereAwayCard />
 
             {/* AI briefing — self-hides when AI/memory is off or empty */}
             <BriefingCard />
@@ -374,7 +381,10 @@ export function MobileHome() {
                 </div>
             )}
 
-            {/* AI CTA */}
+            {/* AI CTA. The cards above already hide themselves via withAI;
+                this row is inline, so it needs the same gate or a v1 home
+                still advertises an assistant the server cannot serve. */}
+            <FeatureGate feature={FEATURE_AI}>
             <TapSurface
                 ariaLabel="Open AI Assistant"
                 onClick={() => router.push("/app/ai")}
@@ -401,6 +411,7 @@ export function MobileHome() {
                 </div>
                 <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </TapSurface>
+            </FeatureGate>
         </div>
     )
 }

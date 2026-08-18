@@ -16,8 +16,15 @@
  */
 
 import * as React from "react"
+import { Badge } from "@/components/ui/badge"
 import { Loader2, Mail, Github, ExternalLink, Sparkles, Plug, Brain } from "@/lib/icons"
-import { unifiedSearch, type UnifiedSearchGroup, type UnifiedSource } from "@/services/aiSearchService"
+import {
+  unifiedSearch,
+  isAbortedRequest,
+  type UnifiedSearchGroup,
+  type UnifiedSource,
+} from "@/services/aiSearchService"
+import { withAI } from "@/components/common/withFeature"
 
 const SOURCE_ICON: Partial<Record<UnifiedSource, React.ComponentType<{ className?: string }>>> = {
   memory: Brain,
@@ -55,9 +62,13 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
     }
     let cancelled = false
     setLoading(true)
+    // Abandon a superseded search on the server too, not just its result: the
+    // handler fans out across the workspace and connected accounts, so a
+    // keystroke-per-request page would otherwise keep that work running.
+    const controller = new AbortController()
     const t = setTimeout(async () => {
       try {
-        const res = await unifiedSearch(q)
+        const res = await unifiedSearch(q, controller.signal)
         if (cancelled) return
         setEnabled(res.enabled)
         // Normalize hits to an array up front: the backend may send `null` for
@@ -69,8 +80,9 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
             .filter((g) => EXTRA_SOURCES.includes(g.source))
             .map((g) => ({ ...g, hits: Array.isArray(g.hits) ? g.hits : [] })),
         )
-      } catch {
-        if (!cancelled) setGroups([])
+      } catch (e) {
+        // A search the user moved on from is not a failure to report.
+        if (!cancelled && !isAbortedRequest(e)) setGroups([])
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -78,6 +90,7 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
     return () => {
       cancelled = true
       clearTimeout(t)
+      controller.abort()
     }
   }, [query])
 
@@ -126,9 +139,9 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="mb-0.5 flex items-center gap-2">
-                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            <Badge variant="secondary" size="sm" caps className="rounded">
                               {memoryKindLabel(h.kind)}
-                            </span>
+                            </Badge>
                             {h.meta && <span className="truncate text-[11px] text-muted-foreground">{h.meta}</span>}
                           </div>
                           <p className="text-sm leading-relaxed text-foreground">{h.title}</p>
@@ -140,7 +153,7 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
                         href={h.url || "#"}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="group flex items-start gap-3 rounded-xl border border-transparent bg-card p-3 transition-all duration-200 hover:border-border hover:bg-accent/40 hover:shadow-md"
+                        className="group flex items-start gap-3 rounded-xl border border-transparent bg-card p-3 transition-all duration-200 hover:border-border hover:bg-accent/40"
                       >
                         <div className="mt-0.5 shrink-0 rounded-lg bg-muted p-2 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary">
                           <Icon className="h-4 w-4" />
@@ -170,4 +183,9 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
   )
 }
 
-export default ConnectorSearchResults
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI(ConnectorSearchResults)

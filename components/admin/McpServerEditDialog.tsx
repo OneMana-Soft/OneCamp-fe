@@ -19,6 +19,7 @@ import {
   updateMcpServer,
   testMcpServer,
 } from "@/services/mcpService"
+import { McpToolRiskBadge, McpToolRiskLegend } from "./McpToolRisk"
 
 interface McpServerEditDialogProps {
   server: McpServer | null
@@ -264,15 +265,22 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
                 </p>
               )}
               {tools && (
-                <div className="text-sm">
-                  <p className="mb-1 text-xs font-medium text-foreground">
+                <div className="space-y-1.5 text-sm">
+                  <p className="text-xs font-medium text-foreground">
                     Connected · {tools.length} tool{tools.length === 1 ? "" : "s"}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {tools.map((t) => (
-                      <span key={t.name} className="rounded-full border bg-background px-2 py-0.5 text-[11px]">{t.name}</span>
+                      <span
+                        key={t.name}
+                        className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px]"
+                      >
+                        {t.name}
+                        <McpToolRiskBadge tool={t} compact />
+                      </span>
                     ))}
                   </div>
+                  {tools.length > 0 && <McpToolRiskLegend />}
                 </div>
               )}
             </div>

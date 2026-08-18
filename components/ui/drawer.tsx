@@ -44,6 +44,13 @@ const DrawerContent = React.forwardRef<
       ref={ref}
       className={cn(
         "fixed inset-x-0 bottom-0 z-[var(--z-modal)] mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+        // Reserve the home-indicator strip. layout.tsx sets viewportFit:"cover",
+        // so a `bottom-0` sheet genuinely extends under it — and the OS owns the
+        // bottom ~34px for its swipe gesture. Without this the last row of every
+        // drawer (Apply/Clear in the filter drawers, the last option in every
+        // options drawer) sits where the system swipe wins and the tap opens the
+        // app switcher instead. One line here covers all 26 drawers.
+        "pb-[env(safe-area-inset-bottom)]",
         className
       )}
       {...props}

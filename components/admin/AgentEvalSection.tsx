@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Plus, Trash2, Check, X } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
+import { useConfirm } from "@/hooks/useConfirm"
 import { cn } from "@/lib/utils/helpers/cn"
 import {
   EvalScenario,
@@ -36,7 +37,7 @@ const ScoreBadge: React.FC<{ score?: EvalScore }> = ({ score }) => {
       </Badge>
     )
   }
-  const cls = score.passed ? "text-emerald-600" : "text-red-600"
+  const cls = score.passed ? "text-success" : "text-red-600"
   return (
     <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium", cls)} title={`${score.score}% of checks met`}>
       {score.passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
@@ -50,6 +51,7 @@ const ScoreBadge: React.FC<{ score?: EvalScore }> = ({ score }) => {
 // per scenario — so they can prove the agent behaves before shipping a change.
 export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => {
   const { toast } = useToast()
+  const confirm = useConfirm()
   const [scenarios, setScenarios] = React.useState<EvalScenario[]>([])
   const [loading, setLoading] = React.useState(true)
   const [results, setResults] = React.useState<Record<string, EvalScore>>({})
@@ -107,7 +109,22 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
     }
   }
 
-  const handleDelete = async (id: string) => {
+  // Confirmed: the delete is optimistic, so the row vanishes on the click and an
+  // accidental one looks identical to a deliberate one. A scenario is hand-written
+  // test data, which nothing else in the product can regenerate.
+  const handleDelete = (id: string) => {
+    const scenario = scenarios.find((s) => s.id === id)
+    confirm({
+      title: scenario?.name ? `Delete "${scenario.name}"?` : "Delete this scenario?",
+      description: "The scenario and its expectations are removed. This cannot be undone.",
+      confirmText: "Delete scenario",
+      onConfirm: () => {
+        void deleteScenario(id)
+      },
+    })
+  }
+
+  const deleteScenario = async (id: string) => {
     const prev = scenarios
     setScenarios((s) => s.filter((x) => x.id !== id))
     try {

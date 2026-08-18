@@ -32,7 +32,7 @@ export default function MessageDesktopDropdown({ isOwner, isAdmin, setIsDropdown
             <Tooltip>
                 <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 ">
+                        <Button aria-label="More actions" variant="ghost" size="icon" className="h-8 w-8 ">
                             <MoreVertical className="h-4 w-4" stroke='#616060'/>
                         </Button>
                     </DropdownMenuTrigger>

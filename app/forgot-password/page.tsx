@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { useState } from "react"
 import authService from "@/services/auth/AuthService"
 import Link from "next/link"
+import { Input } from "@/components/ui/input"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -71,7 +72,7 @@ export default function ForgotPasswordPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input
+                <Input
                   type="email"
                   placeholder="Email address"
                   value={email}
@@ -82,7 +83,7 @@ export default function ForgotPasswordPage() {
                   autoCorrect="off"
                   spellCheck={false}
                   aria-label="Email address"
-                  className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+                  className="pl-10"
                 />
               </div>
 
@@ -90,7 +91,7 @@ export default function ForgotPasswordPage() {
                 <p className="text-sm text-destructive">{error}</p>
               )}
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
                 {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Send Reset Link
               </Button>

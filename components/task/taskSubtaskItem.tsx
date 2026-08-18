@@ -96,7 +96,7 @@ export function TaskSubtaskItem({
                         </Popover>
                         {startDate && (
                             <Button
-                                variant="ghost"
+ aria-label="Clear start date"                                variant="ghost"
                                 size="icon"
                                 className="absolute -right-4 -top-4 transform rounded-full decoration-0 p-0 hover:bg-transparent"
                                 onClick={() => onUpdateStart(subTask.task_uuid, undefined)}
@@ -132,7 +132,7 @@ export function TaskSubtaskItem({
                         </Popover>
                         {dueDate && (
                             <Button
-                                variant="ghost"
+ aria-label="Clear due date"                                variant="ghost"
                                 size="icon"
                                 className="absolute -right-4 -top-4 transform rounded-full decoration-0 p-0 hover:bg-transparent"
                                 onClick={() => onUpdateDue(subTask.task_uuid, undefined)}
@@ -144,7 +144,7 @@ export function TaskSubtaskItem({
                     </div>
 
                     {AssigneeControl}
-                    <Button variant="ghost" size="icon" onClick={() => onOpen(subTask.task_uuid)}>
+                    <Button aria-label="Open subtask" variant="ghost" size="icon" onClick={() => onOpen(subTask.task_uuid)}>
                         <ChevronRight className="w-5 h-5" />
                     </Button>
                 </div>

@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { ShieldCheck, Loader2 } from "@/lib/icons"
+import { ShieldCheck } from "@/lib/icons"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { GetEndpointUrl } from "@/services/endPoints"
 import {
     listCapabilityPolicies,
@@ -82,8 +83,8 @@ export default function PermissionsCard() {
 
             <CardContent>
                 {loading ? (
-                    <div className="flex items-center justify-center py-10 text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
+                    <div role="status" aria-label="Loading permissions" className="py-1">
+                        <SkeletonRows rows={5} avatar={false} lines={1} />
                     </div>
                 ) : (
                     <div className="divide-y divide-border/60">

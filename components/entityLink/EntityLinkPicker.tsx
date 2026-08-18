@@ -127,7 +127,7 @@ export function EntityLinkPicker({ onPick, isLinked, disabled }: EntityLinkPicke
                   <span
                     className={cn(
                       "grid h-7 w-7 shrink-0 place-items-center rounded-md",
-                      item.refType === "doc" ? "bg-emerald-500/10 text-emerald-600" : "bg-sky-500/10 text-sky-600",
+                      item.refType === "doc" ? "bg-success/10 text-success" : "bg-sky-500/10 text-sky-600",
                     )}
                   >
                     <Icon className="h-4 w-4" />

@@ -19,8 +19,12 @@ export const MobileReactionPickerCategory = React.memo(function MobileReactionPi
         <div
             className={cn(
                 'h-[240px]',
-                '[&:first-child>div]:pl-safe-offset-3 [&:last-child>div]:pr-safe-offset-3',
-                '[&:first-child>h2]:pl-safe-offset-5 [&:last-child>h2]:pr-safe-offset-3'
+                // These were *-safe-offset-* utilities from tailwind.config.ts,
+                // which Tailwind v4 never loads without an `@config` directive —
+                // so all four compiled to nothing and the first/last emoji column
+                // sat flush against the screen edge in landscape.
+                '[&:first-child>div]:pl-[calc(0.75rem+env(safe-area-inset-left))] [&:last-child>div]:pr-[calc(0.75rem+env(safe-area-inset-right))]',
+                '[&:first-child>h2]:pl-[calc(1.25rem+env(safe-area-inset-left))] [&:last-child>h2]:pr-[calc(0.75rem+env(safe-area-inset-right))]'
             )}
         >
             <h2 className='sticky left-0 w-fit whitespace-nowrap px-5 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>

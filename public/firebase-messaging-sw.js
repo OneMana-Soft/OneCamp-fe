@@ -42,13 +42,65 @@ self.addEventListener('activate', (event) => {
     event.waitUntil(clients.claim());
 });
 
-function getOtherUserId(chatGrpId, userid) {
-    const uuidArr = chatGrpId.split(" ")
+// --- BEGIN notification route (mirror of lib/utils/notificationRoute.ts) ---
+// A service worker in public/ is not part of the webpack graph, so it cannot
+// import the app's modules. This is therefore a hand-maintained mirror, and
+// lib/utils/notificationRoute.test.ts evaluates the code between these markers
+// and asserts it agrees with the TypeScript original for every notification type
+// the backend sends. Edit one, the test fails until you edit the other.
+//
+// The payload contract (which ids arrive under which key, and it is NOT uniform)
+// is documented in the TypeScript file.
+var ONECAMP_NOTIFICATION_FALLBACK_ROUTE = '/app';
 
-    if (uuidArr[0] == userid) return uuidArr[1]
-
-    return uuidArr[0]
+function oneCampChatRouteSegment(groupingId, selfUUID) {
+    var id = (groupingId || '').trim();
+    if (!id) return null;
+    if (id.indexOf(' ') === -1) return 'group/' + id;
+    var participants = id.split(' ').filter(Boolean);
+    if (participants.length < 2) return participants[0] ? 'group/' + participants[0] : null;
+    if (!selfUUID) return null;
+    var other = null;
+    for (var i = 0; i < participants.length; i++) {
+        if (participants[i] !== selfUUID) { other = participants[i]; break; }
+    }
+    return other || participants[0];
 }
+
+function oneCampNotificationRoute(data, selfUUID) {
+    if (!data || !data.type) return ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
+    var typeId = (data.type_id || '').trim();
+    var threadId = (data.thread_id || '').trim();
+    var type = data.type;
+
+    if (type === 'chat' || type === 'chat_reaction' || type === 'chat_comment' || type === 'chat_comment_reaction') {
+        var segment = typeId ? oneCampChatRouteSegment(typeId, selfUUID) : null;
+        if (!segment) return ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
+        if (type !== 'chat' && threadId) return '/app/chat/' + segment + '/' + threadId;
+        return '/app/chat/' + segment;
+    }
+    if (type === 'channel' || type === 'post_comment') {
+        if (!typeId) return ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
+        return threadId ? '/app/channel/' + typeId + '/' + threadId : '/app/channel/' + typeId;
+    }
+    if (type === 'channel_call') {
+        return typeId ? '/app/channel/' + typeId : ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
+    }
+    // The task id is in type_id for 'task'…
+    if (type === 'task') {
+        return typeId ? '/app/task/' + typeId : ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
+    }
+    // …and in thread_id for 'task_comment', because type_id carries the project.
+    if (type === 'task_comment') {
+        return threadId ? '/app/task/' + threadId : ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
+    }
+    if (type === 'doc_comment') {
+        return typeId ? '/app/doc/' + typeId : ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
+    }
+    // 'reminder' carries no target: focus the app and let it surface the reminder.
+    return ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
+}
+// --- END notification route ---
 
 // Helper: Natively read userUUID stored from front-end to customize background behavior natively
 function getWorkerUserUUID() {
@@ -139,35 +191,7 @@ self.addEventListener('notificationclick', (event) => {
         const activeUserUUID = await getWorkerUserUUID();
 
         const data = event.notification.data;
-        let urlToOpen = '/app';
-
-        // Redirection logic based on notification type
-        if (data) {
-            if (data.type === 'chat') {
-                data.type_id = data.type_id.includes(" ") ? getOtherUserId(data.type_id, activeUserUUID) : ('group/' + data.type_id);
-                urlToOpen = `/app/chat/${data.type_id}`;
-            } else if (data.type === 'chat_reaction') {
-                data.type_id = data.type_id.includes(" ") ? getOtherUserId(data.type_id, activeUserUUID) : ('group/' + data.type_id);
-                urlToOpen = `/app/chat/${data.type_id}/${data.thread_id}`;
-            } else if (data.type === 'chat_comment_reaction') {
-                data.type_id = data.type_id.includes(" ") ? getOtherUserId(data.type_id, activeUserUUID) : ('group/' + data.type_id);
-                urlToOpen = `/app/chat/${data.type_id}/${data.thread_id}`;
-            } else if (data.type === 'chat_comment') {
-                data.type_id = data.type_id.includes(" ") ? getOtherUserId(data.type_id, activeUserUUID) : ('group/' + data.type_id);
-                urlToOpen = `/app/chat/${data.type_id}/${data.thread_id}`;
-            } else if (data.type === 'task' || data.type === 'task_comment' || data.type === 'task_reaction') {
-                urlToOpen = `/app/tasks/${data.thread_id}`;
-            } else if (data.type === 'channel') {
-                urlToOpen = `/app/channel/${data.type_id}`;
-            } else if (data.type === 'post_comment') {
-                urlToOpen = `/app/channel/${data.type_id}/${data.thread_id}`;
-            } else if (data.type === 'reminder') {
-                // A fired /remind. Just focus the app; the in-app
-                // GlobalCommandHost / toast surfaces the reminder content when
-                // the tab regains focus (and MQTT re-delivers if still pending).
-                urlToOpen = '/app';
-            }
-        }
+        const urlToOpen = oneCampNotificationRoute(data, activeUserUUID);
 
         const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
 

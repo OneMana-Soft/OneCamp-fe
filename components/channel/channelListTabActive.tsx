@@ -8,6 +8,7 @@ import {usePost} from "@/hooks/usePost";
 import {ChannelListResult} from "@/components/channel/chnnelListResult";
 import {sortChannelList} from "@/lib/utils/sortChannelList";
 import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import { ErrorState } from "@/components/ui/error-state"
 import {Button} from "@/components/ui/button";
 import {useDispatch} from "react-redux";
 import {openUI} from "@/store/slice/uiSlice";
@@ -30,7 +31,7 @@ export const ChannelListTabActive = ({searchQuery}:{searchQuery: string}) => {
 
     // Fetch data for the main list
     const endpoint = `${GetEndpointUrl.GetUserActiveChannelList}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
-    const { data: pageData, isLoading } = useFetch<ChannelInfoListInterfaceResp>(searchQuery.trim().length === 0 ? endpoint : "")
+    const { data: pageData, isLoading, isError, mutate } = useFetch<ChannelInfoListInterfaceResp>(searchQuery.trim().length === 0 ? endpoint : "")
 
     // Function to fetch search results
     const fetchSearchResults = async (query: string, page: number) => {
@@ -116,6 +117,14 @@ export const ChannelListTabActive = ({searchQuery}:{searchQuery: string}) => {
                     hasMore={currentHasMore}
                     isLoading={currentIsLoading}
                 /> :
+                isError ? (
+                    // Ahead of the empty branch: "You haven't joined any active
+                    // channels yet" would be the app telling a member of twelve
+                    // channels that they belong to none.
+                    <div className="p-4">
+                        <ErrorState subject="your channels" onRetry={() => void mutate()} />
+                    </div>
+                ) :
                 (!currentIsLoading && (
                     <div className="p-4">
                         <StatePlaceholder 

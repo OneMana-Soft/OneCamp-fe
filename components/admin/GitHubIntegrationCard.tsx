@@ -6,7 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -63,7 +66,7 @@ interface GitHubRepo {
 
 const GitHubIntegrationCard = () => {
   const dispatch = useDispatch()
-  const { data: statusData, isLoading, mutate } = useFetch<GitHubStatusResp>(GetEndpointUrl.GetGitHubStatus)
+  const { data: statusData, isLoading, isError, mutate } = useFetch<GitHubStatusResp>(GetEndpointUrl.GetGitHubStatus)
   const { data: rateLimitData } = useFetch<{ connected: boolean; remaining?: number; limit?: number; percent?: number }>(
     GetEndpointUrl.GetGitHubRateLimit
   )
@@ -283,7 +286,7 @@ const GitHubIntegrationCard = () => {
               <div className="flex items-center gap-2 flex-wrap shrink-0">
                 {isConnected ? (
                   <>
-                    <Badge className="gap-1 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20"><CheckCircle2 className="h-3 w-3" />Connected</Badge>
+                    <Badge className="gap-1 bg-success/10 text-success border-success/20"><CheckCircle2 className="h-3 w-3" />Connected</Badge>
                     <Button variant="outline" size="sm" className="gap-1.5" onClick={handleFetchRepos}><Link2 className="h-3.5 w-3.5" />Link Repo</Button>
                     <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowConfigDialog(true)}><Settings2 className="h-3.5 w-3.5" />Credentials</Button>
                     <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => dispatch(openUI({ key: "githubDisconnect", data: { repoCount: linkedRepos.length } }))}>
@@ -337,10 +340,10 @@ const GitHubIntegrationCard = () => {
                           <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7" onClick={() => handleImportPRs(link.id)} disabled={importingIssuesLink === link.id || importingPRsLink === link.id}>
                             {importingPRsLink === link.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <GitPullRequest className="h-3 w-3" />}Import PRs
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowSettingsLinkId(link.id)}>
+                          <Button aria-label="Link settings" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowSettingsLinkId(link.id)}>
                             <Settings2 className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                          <Button aria-label="Unlink repository" variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
                             onClick={() => dispatch(openUI({ key: "githubUnlink", data: { id: link.id, repo_owner: link.repo_owner, repo_name: link.repo_name } }))}>
                             <Unlink className="h-3.5 w-3.5" />
                           </Button>
@@ -362,25 +365,44 @@ const GitHubIntegrationCard = () => {
               </>
             )}
 
-            {isConnected && linkedRepos.length === 0 && (
+            {!isError && isConnected && linkedRepos.length === 0 && (
               <>
                 <Separator />
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <PlugZap className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground font-medium">No repositories linked yet</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1 mb-4">Link a GitHub repository to start syncing issues and PRs.</p>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={handleFetchRepos}><Link2 className="h-3.5 w-3.5" />Link Repository</Button>
-                </div>
+                <EmptyState
+                  tone="accent"
+                  icon={PlugZap}
+                  title="No repositories linked yet"
+                  description="Link a GitHub repository to start syncing issues and PRs."
+                  action={
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={handleFetchRepos}>
+                      <Link2 className="h-3.5 w-3.5" />Link Repository
+                    </Button>
+                  }
+                />
               </>
             )}
 
-            {!isConnected && (
-              <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-border/50 rounded-lg">
-                <Github className="h-12 w-12 text-muted-foreground/20 mb-4" />
-                <p className="text-muted-foreground font-medium">GitHub not connected</p>
-                <p className="text-sm text-muted-foreground/70 mt-1 mb-4 max-w-md">Connect your GitHub account to enable bidirectional sync between issues, pull requests, and OneCamp tasks.</p>
-                <Button className="gap-2" onClick={handleConnect}><Github className="h-4 w-4" />Connect GitHub</Button>
-              </div>
+            {isError && (
+              <ErrorState subject="the GitHub connection status" onRetry={() => void mutate()} />
+            )}
+            {/* !isError as well: isConnected is `status?.connected || false`, so a
+                failed fetch reads as disconnected. Without this the card would
+                claim GitHub is not connected — and offer a Connect button that
+                starts a redundant OAuth flow — when the status request merely
+                failed. Sequential blocks, so ordering alone is not enough. */}
+            {!isError && !isConnected && (
+              <EmptyState
+                tone="accent"
+                icon={Github}
+                title="GitHub not connected"
+                description="Connect your GitHub account to enable bidirectional sync between issues, pull requests, and OneCamp tasks."
+                className="rounded-lg border border-dashed border-border/50"
+                action={
+                  <Button className="gap-2" onClick={handleConnect}>
+                    <Github className="h-4 w-4" />Connect GitHub
+                  </Button>
+                }
+              />
             )}
           </div>
         )}
@@ -451,13 +473,17 @@ const GitHubIntegrationCard = () => {
               <div className="space-y-3 flex-1 min-h-0 flex flex-col">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <input
+                  {/* Was a raw <input> carrying a hand-copied replica of the Input
+                      primitive's class string — including the shadow the primitive
+                      no longer has, so it re-floated itself. Using the component
+                      means it tracks the design system instead of a stale copy. */}
+                  <Input
                     type="text"
                     placeholder="Search repositories..."
                     value={repoSearch}
                     onChange={(e) => setRepoSearch(e.target.value)}
                     disabled={!selectedProjectId || reposLoading || repos.length === 0}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 pl-9"
+                    className="pl-9"
                   />
                 </div>
                 <div className="space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-1">
@@ -598,10 +624,10 @@ const GitHubIntegrationCard = () => {
                       Default format for copying branch names. Variables: {"{taskId}"}, {"{slug}"}, {"{user}"}
                     </p>
                     <div className="flex gap-2">
-                      <input
+                      <Input
                         type="text"
                         defaultValue={link.branch_format || "feature/{taskId}-{slug}"}
-                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+
                         onBlur={async (e) => {
                           setSavingSettings(true)
                           try {

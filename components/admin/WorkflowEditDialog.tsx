@@ -367,7 +367,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                         placeholder="Type a word and press Enter"
                                         maxLength={80}
                                     />
-                                    <Button type="button" variant="outline" size="icon" onClick={addKeyword} className="shrink-0">
+                                    <Button aria-label="Add keyword" type="button" variant="outline" size="icon" onClick={addKeyword} className="shrink-0">
                                         <Plus className="h-4 w-4" />
                                     </Button>
                                 </div>
@@ -376,7 +376,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                         {keywords.map((kw) => (
                                             <span key={kw} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
                                                 {kw}
-                                                <button onClick={() => removeKeyword(kw)} className="text-muted-foreground hover:text-foreground">
+                                                <button aria-label={`Remove keyword ${kw}`} onClick={() => removeKeyword(kw)} className="text-muted-foreground hover:text-foreground">
                                                     <X className="h-3 w-3" />
                                                 </button>
                                             </span>
@@ -427,7 +427,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                         <span className="inline-flex items-center gap-1.5 text-sm font-medium">
                                             <Icon className="h-4 w-4 text-muted-foreground" /> {meta.label}
                                         </span>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeAction(idx)}>
+                                        <Button aria-label="Remove action" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeAction(idx)}>
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>

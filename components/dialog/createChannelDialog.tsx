@@ -90,6 +90,17 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
 
             }
             closeModal()
+        }).catch(() => {
+            // makeRequest re-throws so callers can roll back optimistic updates, so without this
+            // a failed create left an unhandled promise rejection AND never cleared the pending
+            // availability check — the field kept showing the verdict for a name the user was
+            // about to change.
+            //
+            // The dialog deliberately stays open. usePost has already shown why it failed, and
+            // for the common case — "A channel named general already exists" — the useful thing
+            // is to keep what they typed so they can adjust it, rather than reset the form and
+            // make them start over.
+            setChannelNameToCheck(null)
         });
 
     };
@@ -145,7 +156,7 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
                                                 <p className="text-xs md:text-sm text-destructive">{error.message}</p>
                                             )}
                                             {channelNameToCheck == field.value && !isChannelNameAvailable?.exists && (
-                                                <div className="flex items-center text-green-600 dark:text-green-400">
+                                                <div className="flex items-center text-success">
                                                     <CheckCircle className="w-4 h-4 mr-1"/>
                                                     <span
                                                         className="text-xs md:text-sm">Channel name is available</span>

@@ -21,6 +21,7 @@ import { captureMemory, CaptureMemoryInput, MemoryKind } from "@/services/memory
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { Lightbulb, Zap, CheckCircle2, HelpCircle, Loader2, Check } from "@/lib/icons"
 import axios from "axios"
+import { withAI } from "@/components/common/withFeature"
 
 const errMessage = (e: unknown): string => {
   if (axios.isAxiosError(e)) return e.response?.data?.msg || e.response?.data?.message || e.message
@@ -39,7 +40,7 @@ const KIND_OPTIONS: {
 }[] = [
   { kind: "decision", label: "Decision", hint: "A choice the team made", Icon: Zap, tint: "text-violet-600 dark:text-violet-400" },
   { kind: "commitment", label: "Commitment", hint: "Something someone will do", Icon: CheckCircle2, tint: "text-blue-600 dark:text-blue-400" },
-  { kind: "question", label: "Open question", hint: "Something still unresolved", Icon: HelpCircle, tint: "text-amber-600 dark:text-amber-400" },
+  { kind: "question", label: "Open question", hint: "Something still unresolved", Icon: HelpCircle, tint: "text-warning" },
 ]
 
 interface SaveToMemoryButtonProps {
@@ -60,7 +61,7 @@ interface SaveToMemoryButtonProps {
   onOpenChange?: (open: boolean) => void
 }
 
-export const SaveToMemoryButton: React.FC<SaveToMemoryButtonProps> = ({
+const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
   messageText,
   channelUUID,
   chatGrpID,
@@ -228,3 +229,9 @@ export const SaveToMemoryButton: React.FC<SaveToMemoryButtonProps> = ({
     </Popover>
   )
 }
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export const SaveToMemoryButton = withAI(SaveToMemoryButtonUngated)
+export default SaveToMemoryButton

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
 import { useRouter } from "next/navigation"
+import { Input } from "@/components/ui/input"
 
 export default function AdminSetupPage() {
   const [email, setEmail] = useState("")
@@ -105,7 +106,7 @@ export default function AdminSetupPage() {
             <label className="text-sm font-medium" htmlFor="email">Email</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
+              <Input
                 id="email"
                 type="email"
                 placeholder="Admin email address"
@@ -116,7 +117,7 @@ export default function AdminSetupPage() {
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
-                className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="pl-10"
               />
             </div>
           </div>
@@ -125,7 +126,7 @@ export default function AdminSetupPage() {
             <label className="text-sm font-medium" htmlFor="username">Username</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
+              <Input
                 id="username"
                 type="text"
                 placeholder="Choose a username"
@@ -136,7 +137,7 @@ export default function AdminSetupPage() {
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
-                className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="pl-10"
               />
             </div>
             <p className="text-xs text-muted-foreground">Optional — defaults to email prefix</p>
@@ -146,7 +147,7 @@ export default function AdminSetupPage() {
             <label className="text-sm font-medium" htmlFor="password">Password</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
+              <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Create a strong password (min 8)"
@@ -155,13 +156,13 @@ export default function AdminSetupPage() {
                 required
                 minLength={8}
                 autoComplete="new-password"
-                className="w-full pl-10 pr-10 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="pl-10 pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? "Hide password" : "Show password"}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors md:h-9 md:w-9"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -172,7 +173,7 @@ export default function AdminSetupPage() {
             <label className="text-sm font-medium" htmlFor="confirm-password">Confirm Password</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
+              <Input
                 id="confirm-password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Confirm your password"
@@ -181,7 +182,7 @@ export default function AdminSetupPage() {
                 required
                 minLength={8}
                 autoComplete="new-password"
-                className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+                className="pl-10"
               />
             </div>
           </div>
@@ -190,7 +191,7 @@ export default function AdminSetupPage() {
             <p className="text-sm text-destructive">{error}</p>
           )}
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
             {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4" />}
             Create Admin Account
           </Button>

@@ -12,9 +12,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { McpServer, parseMcpTools, mcpToolFullName } from "@/services/mcpService"
+import { McpToolRiskBadge, McpToolRiskLegend } from "@/components/admin/McpToolRisk"
 import { type AuthorizedModel } from "@/services/aiModelService"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, Clock } from "@/lib/icons"
+import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, ChevronRight } from "@/lib/icons"
 import {
   Agent,
   AgentInput,
@@ -169,6 +170,11 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   const [maxDailyTokens, setMaxDailyTokens] = React.useState(0)
   const [isActive, setIsActive] = React.useState(true)
   const [dmAble, setDmAble] = React.useState(false)
+  // run_in_background is no longer a choice a person has to make: a teammate with
+  // tools now runs its @mentions durably by default (live status in the thread,
+  // stoppable, steerable mid-run), which is what this switch used to opt into. The
+  // value is still carried so an agent saved with it stays exactly as configured —
+  // one fewer decision in the builder, no behaviour change to existing agents.
   const [runInBackground, setRunInBackground] = React.useState(false)
   const [ambient, setAmbient] = React.useState(false)
   const [ambientKeywords, setAmbientKeywords] = React.useState("")
@@ -564,31 +570,6 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="agent-model">Model</Label>
-            <Select
-              value={modelPref || "__default__"}
-              onValueChange={(v) => setModelPref(v === "__default__" ? "" : v)}
-            >
-              <SelectTrigger id="agent-model">
-                <SelectValue placeholder="Workspace default" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__default__">Workspace default</SelectItem>
-                {usableModels.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.label || m.model} · {m.provider_label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground -mt-1">
-              Pick the model this agent runs on. Each agent can use a different provider/model;
-              leave on the workspace default unless you want a specific one. Cloud models are
-              blocked while local-only AI mode is on.
-            </p>
-          </div>
-
-          <div className="grid gap-2">
             <Label>Tools the agent can use</Label>
             <p className="text-xs text-muted-foreground -mt-1">
               Pick only what it needs. Tools marked with a warning take actions in the workspace.
@@ -629,6 +610,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               <p className="text-xs text-muted-foreground -mt-1">
                 Tools from connected MCP servers. These call external systems.
               </p>
+              <McpToolRiskLegend className="-mt-0.5" />
               <div className="space-y-3 rounded-xl border p-3">
                 {mcpServers.map((s) => (
                   <div key={s.id}>
@@ -650,7 +632,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                           >
                             {on ? <Check className="h-3 w-3" /> : null}
                             {t.name}
-                            <AlertTriangle className="h-3 w-3 text-amber-500" />
+                            <McpToolRiskBadge tool={t} compact />
                           </button>
                         )
                       })}
@@ -854,51 +836,23 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                   The agent runs when this handle is @typed in a channel message. Leave blank to use the agent's name.
                 </p>
 
+                {/* This picker writes scope.channel_ids, which does TWO things: it gates
+                    where the agent answers a mention, and it confines where the agent may
+                    act with its tools — in the app and through any API token bound to it.
+                    The copy used to describe only the first, which understated it. */}
                 {renderChannelPicker(
                   "Limit to channels (optional)",
                   mentionChannelIds.size > 0
-                    ? "The agent only answers @mentions in the selected channels."
-                    : "Leave empty and the agent answers @mentions anywhere it's added. Pick channels to keep it from being pulled into others.",
+                    ? "The agent only answers @mentions in the selected channels, and can only act in them — including through an API token bound to it."
+                    : "Leave empty and the agent answers @mentions anywhere it's added, and can act wherever you can. Pick channels to keep it from being pulled into others.",
                 )}
               </div>
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-4">
-            <div className="grid gap-1">
-              <Label htmlFor="agent-steps">Max steps per run</Label>
-              <Input
-                id="agent-steps"
-                type="number"
-                min={1}
-                max={50}
-                value={maxSteps}
-                onChange={(e) => setMaxSteps(Math.max(1, Math.min(50, parseInt(e.target.value || "8", 10) || 8)))}
-                className="w-24"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={isActive} onCheckedChange={setIsActive} id="agent-active" />
-              <Label htmlFor="agent-active">Active</Label>
-            </div>
-          </div>
-
-          <div className="grid gap-1">
-            <Label htmlFor="agent-token-cap">Daily token limit</Label>
-            <Input
-              id="agent-token-cap"
-              type="number"
-              min={0}
-              step={1000}
-              value={maxDailyTokens}
-              onChange={(e) => setMaxDailyTokens(Math.max(0, parseInt(e.target.value || "0", 10) || 0))}
-              className="w-40"
-              placeholder="0"
-            />
-            <p className="text-xs text-muted-foreground">
-              Caps this teammate&apos;s own AI spend per day, billed to the agent (not its owner&apos;s
-              quota). 0 means no agent cap; the workspace limit still applies. Resets at 00:00 UTC.
-            </p>
+          <div className="flex items-center gap-2">
+            <Switch checked={isActive} onCheckedChange={setIsActive} id="agent-active" />
+            <Label htmlFor="agent-active">Active</Label>
           </div>
 
           <div className="flex items-start justify-between gap-4 rounded-xl border bg-muted/30 p-3">
@@ -913,54 +867,6 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               </p>
             </div>
             <Switch checked={dmAble} onCheckedChange={setDmAble} id="agent-dmable" />
-          </div>
-
-          <div className="rounded-xl border bg-muted/30 p-3">
-            <div className="flex items-start justify-between gap-4">
-              <div className="grid gap-1">
-                <Label htmlFor="agent-ambient" className="flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-primary" /> Ambient replies
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Let this teammate reply in its scoped channels without an @mention, when it
-                  judges it can add value. Rate-limited per channel, budget-metered, and it stays
-                  silent unless genuinely useful. Scope it to specific channels above.
-                </p>
-              </div>
-              <Switch checked={ambient} onCheckedChange={setAmbient} id="agent-ambient" />
-            </div>
-            {ambient && (
-              <div className="mt-3 grid gap-1.5">
-                <Label htmlFor="agent-ambient-kw" className="text-xs">
-                  Topic keywords (optional)
-                </Label>
-                <Input
-                  id="agent-ambient-kw"
-                  value={ambientKeywords}
-                  onChange={(e) => setAmbientKeywords(e.target.value)}
-                  placeholder="billing, refund, invoice"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Comma or newline separated. It considers messages that mention these topics (plus
-                  any question). Leave blank to only consider questions.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-start justify-between gap-4 rounded-xl border bg-muted/30 p-3">
-            <div className="grid gap-1">
-              <Label htmlFor="agent-run-bg" className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-primary" /> Run tasks in the background
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                For longer work, let this teammate reply asynchronously: it posts a live status you
-                can watch update in the thread (“On it… → working… → result”), and the run survives
-                restarts and pauses for your input instead of timing out. Best for multi-step tasks;
-                leave off for instant, single-shot replies.
-              </p>
-            </div>
-            <Switch checked={runInBackground} onCheckedChange={setRunInBackground} id="agent-run-bg" />
           </div>
 
           <div className="grid gap-2 rounded-xl border bg-muted/30 p-3">
@@ -1091,6 +997,108 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               })}
             </div>
           </div>
+
+          {/* Advanced — one collapsed section instead of five more fields in the
+              scroll. Creating a useful agent needs a name, instructions, tools, a
+              trigger and an autonomy level; everything here has a sensible default
+              and most agents never need it. Native <details> so it costs no state
+              and keeps its open/closed position while the dialog is open. */}
+          <details className="group rounded-xl border bg-muted/20">
+            <summary className="flex cursor-pointer select-none items-center gap-1.5 px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+              <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+              Advanced
+            </summary>
+            <div className="grid gap-4 border-t border-border/60 p-3">
+              <div className="grid gap-2">
+                <Label htmlFor="agent-model">Model</Label>
+                <Select
+                  value={modelPref || "__default__"}
+                  onValueChange={(v) => setModelPref(v === "__default__" ? "" : v)}
+                >
+                  <SelectTrigger id="agent-model">
+                    <SelectValue placeholder="Workspace default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">Workspace default</SelectItem>
+                    {usableModels.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label || m.model} · {m.provider_label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="-mt-1 text-xs text-muted-foreground">
+                  Leave on the workspace default unless this agent needs a specific provider/model.
+                  Cloud models are blocked while local-only AI mode is on.
+                </p>
+              </div>
+
+              <div className="grid gap-1">
+                <Label htmlFor="agent-steps">Max steps per run</Label>
+                <Input
+                  id="agent-steps"
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={maxSteps}
+                  onChange={(e) => setMaxSteps(Math.max(1, Math.min(50, parseInt(e.target.value || "8", 10) || 8)))}
+                  className="w-24"
+                />
+              </div>
+
+              <div className="grid gap-1">
+                <Label htmlFor="agent-token-cap">Daily token limit</Label>
+                <Input
+                  id="agent-token-cap"
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={maxDailyTokens}
+                  onChange={(e) => setMaxDailyTokens(Math.max(0, parseInt(e.target.value || "0", 10) || 0))}
+                  className="w-40"
+                  placeholder="0"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Caps this teammate&apos;s own AI spend per day, billed to the agent (not its
+                  owner&apos;s quota). 0 means no agent cap; the workspace limit still applies.
+                  Resets at 00:00 UTC.
+                </p>
+              </div>
+
+              <div className="rounded-xl border bg-background/60 p-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="grid gap-1">
+                    <Label htmlFor="agent-ambient" className="flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" /> Ambient replies
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Let this teammate reply in its scoped channels without an @mention, when it
+                      judges it can add value. Rate-limited per channel, budget-metered, and silent
+                      unless genuinely useful.
+                    </p>
+                  </div>
+                  <Switch checked={ambient} onCheckedChange={setAmbient} id="agent-ambient" />
+                </div>
+                {ambient && (
+                  <div className="mt-3 grid gap-1.5">
+                    <Label htmlFor="agent-ambient-kw" className="text-xs">
+                      Topic keywords (optional)
+                    </Label>
+                    <Input
+                      id="agent-ambient-kw"
+                      value={ambientKeywords}
+                      onChange={(e) => setAmbientKeywords(e.target.value)}
+                      placeholder="billing, refund, invoice"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Comma or newline separated. It considers messages that mention these topics
+                      (plus any question). Leave blank to only consider questions.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </details>
 
           {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
 

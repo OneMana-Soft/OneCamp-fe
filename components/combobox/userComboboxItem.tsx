@@ -3,6 +3,7 @@
 import { Check } from "@/lib/icons";
 import { CommandItem } from "@/components/ui/command"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { PrincipalTag } from "@/components/ui/principalTag"
 import { cn } from "@/lib/utils/helpers/cn"
 import { getNameInitials } from "@/lib/utils/format/getNameIntials"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
@@ -47,9 +48,7 @@ export function UserComboboxItem({
                 <span className="font-medium text-sm truncate flex items-center gap-1.5">
                     {userName}
                     {isBot && (
-                        <span className="inline-flex items-center px-1 py-0.5 rounded text-[8px] font-semibold uppercase tracking-wider bg-primary/10 text-primary">
-                            AI
-                        </span>
+                        <PrincipalTag kind="ai" />
                     )}
                 </span>
                 <span className="text-[10px] text-muted-foreground truncate font-medium">{isBot ? "AI teammate" : userEmail}</span>

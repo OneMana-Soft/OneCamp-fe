@@ -79,12 +79,12 @@ const POLL_INTERVAL_MS = 6000
 const POLL_CAP_MS = 10 * 60 * 1000
 
 const STATUS_BADGE: Record<string, { className: string; icon: React.ReactNode }> = {
-  pending: { className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20", icon: <Clock className="h-3.5 w-3.5" /> },
+  pending: { className: "bg-warning/10 text-warning border-warning/20", icon: <Clock className="h-3.5 w-3.5" /> },
   validating: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" /> },
   planned: { className: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   running: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" /> },
-  paused: { className: "bg-amber-500/10 text-amber-600 border-amber-500/20", icon: <Clock className="h-3.5 w-3.5" /> },
-  completed: { className: "bg-green-500/10 text-green-600 border-green-500/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  paused: { className: "bg-warning/10 text-warning border-warning/20", icon: <Clock className="h-3.5 w-3.5" /> },
+  completed: { className: "bg-success/10 text-success border-success/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   failed: { className: "bg-red-500/10 text-red-600 border-red-500/20", icon: <XCircle className="h-3.5 w-3.5" /> },
   cancelled: { className: "bg-gray-500/10 text-gray-600 border-gray-500/20", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
   rolled_back: { className: "bg-purple-500/10 text-purple-600 border-purple-500/20", icon: <RotateCcw className="h-3.5 w-3.5" /> },
@@ -368,7 +368,7 @@ const ImportCard: React.FC = () => {
               {connection ? (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded border bg-card px-3 py-2 text-sm">
                   <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
                     <span className="truncate">Connected{connection.source_account_name ? ` as ${connection.source_account_name}` : ""}</span>
                     {connection.expires_at && (
                       <span className="text-xs text-muted-foreground">

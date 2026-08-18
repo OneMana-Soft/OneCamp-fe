@@ -25,7 +25,8 @@ import UploadingAttachmentIcon from "@/components/attachmentIcon/uploadingAttach
 import {AttachmentMediaReq} from "@/types/attachment";
 import {openUI} from "@/store/slice/uiSlice";
 import ProjectAttachment from "@/components/project/projectAttachment";
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
+import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
+import { ErrorState } from "@/components/ui/error-state";
 
 
 interface ProjectAttachmentsProps {
@@ -227,7 +228,18 @@ export function ProjectAttachmentList({projectId, searchQuery}: ProjectAttachmen
                 )}
             </div>
 
-            {sortedProjectAttachmentList?.length === 0 && !searchQuery && (
+            {projectAttachmentList.isError && (
+                <div className="flex flex-col items-center justify-center py-10 px-4 w-full">
+                    <ErrorState
+                        subject="the attachments"
+                        onRetry={() => void projectAttachmentList.mutate()}
+                    />
+                </div>
+            )}
+
+            {/* Sequential blocks, so the empty condition must exclude the error too;
+                ordering alone would render both. */}
+            {!projectAttachmentList.isError && sortedProjectAttachmentList?.length === 0 && !searchQuery && (
                 <div className="flex flex-col items-center justify-center py-10 px-4 w-full min-h-[40vh]">
                     <StatePlaceholder
                         type="empty"

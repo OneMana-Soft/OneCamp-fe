@@ -32,7 +32,7 @@ function ParticipantAvatar({ p }: { p: ThreadParticipant }) {
     return (
         <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
-                <div className="relative flex items-center justify-center rounded-[5px] overflow-hidden size-5 border border-background bg-muted text-[9px] font-semibold text-muted-foreground">
+                <div className="relative flex items-center justify-center rounded-[5px] overflow-hidden size-5 border border-background bg-muted text-3xs font-semibold text-muted-foreground">
                     {src ? (
                         <img
                             src={src}
@@ -77,7 +77,7 @@ export function ThreadParticipants({ participants, maxShown = 3, className }: Pr
                 <ParticipantAvatar key={p.uuid} p={p} />
             ))}
             {remaining > 0 && (
-                <div className="flex items-center justify-center rounded-[5px] size-5 border border-background bg-muted text-[9px] font-medium text-muted-foreground">
+                <div className="flex items-center justify-center rounded-[5px] size-5 border border-background bg-muted text-3xs font-medium text-muted-foreground">
                     +{remaining}
                 </div>
             )}

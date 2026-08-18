@@ -236,7 +236,7 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
                                     Checking availability…
                                 </span>
                             ) : nameAvailable ? (
-                                <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                <span className="flex items-center gap-1 text-success">
                                     <CheckCircle className="h-3.5 w-3.5" />
                                     Name is available
                                 </span>

@@ -11,6 +11,7 @@
 // their permissions re-checked (the bot holds no standalone write privilege).
 
 import { useEffect, useMemo, useState } from "react"
+import { useStreamGapResync } from "@/hooks/useStreamGapResync"
 import { useDispatch, useSelector } from "react-redux"
 import { RootState } from "@/store/store"
 import { Sparkles, ShieldCheck, AlertTriangle, Check, X, Loader2 } from "@/lib/icons"
@@ -27,6 +28,7 @@ import {
     markPendingActionStatus,
     removePendingAction,
 } from "@/store/slice/pendingActionSlice"
+import { withAI } from "@/components/common/withFeature"
 
 interface PendingActionsTrayProps {
     // The conversation surface to render approvals for (e.g. the DM grouping id
@@ -34,7 +36,7 @@ interface PendingActionsTrayProps {
     surfaceId: string
 }
 
-export default function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
+function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
     const dispatch = useDispatch()
     const hydrated = useSelector((s: RootState) => s.pendingAction.hydrated)
     const allActions = useSelector((s: RootState) => s.pendingAction.actions)
@@ -56,6 +58,21 @@ export default function PendingActionsTray({ surfaceId }: PendingActionsTrayProp
             cancelled = true
         }
     }, [hydrated, dispatch])
+
+    // Reconcile again whenever the realtime stream had a gap it can't vouch for
+    // (a reconnect after a real outage, or a backgrounded PWA coming forward).
+    //
+    // This matters more here than almost anywhere else: an approval that arrives
+    // as a missed "created" event is an agent waiting on a human who never sees
+    // the card — the run sits blocked until someone reloads. Hydrating once per
+    // session was not enough. One request per gap, no timer.
+    useStreamGapResync(() => {
+        getOpenPendingActions()
+            .then((actions) => dispatch(setPendingActions(actions)))
+            .catch(() => {
+                /* keep current state on error */
+            })
+    })
 
     const actions = useMemo(
         () => allActions.filter((a) => a.surface_id === surfaceId && a.status === "pending"),
@@ -131,7 +148,7 @@ export default function PendingActionsTray({ surfaceId }: PendingActionsTrayProp
                                 className={
                                     "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full " +
                                     (destructive
-                                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                        ? "bg-amber-500/15 text-warning"
                                         : "bg-primary/10 text-primary")
                                 }
                             >
@@ -141,11 +158,17 @@ export default function PendingActionsTray({ surfaceId }: PendingActionsTrayProp
                                 <div
                                     className={
                                         "flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide " +
-                                        (destructive ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")
+                                        (destructive ? "text-warning" : "text-muted-foreground")
                                     }
                                 >
                                     {destructive ? <AlertTriangle size={12} /> : <ShieldCheck size={12} />}
-                                    {destructive ? "Destructive · approval needed" : "Approval needed"}
+                                    {/* Says what is actually true of the action rather than naming a
+                                        category. The flag covers two kinds now — destroying something
+                                        that exists, and an effect that has left the workspace (a sent
+                                        email, a delivered invitation) — and "Destructive" reads as
+                                        plainly wrong on "send an email", which teaches people to
+                                        distrust the warning on the cards where it matters most. */}
+                                    {destructive ? "Can't be undone · approval needed" : "Approval needed"}
                                 </div>
                                 <p className="mt-0.5 text-sm text-foreground break-words">
                                     {a.description || a.tool_name}
@@ -189,3 +212,8 @@ export default function PendingActionsTray({ surfaceId }: PendingActionsTrayProp
         </div>
     )
 }
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI(PendingActionsTray)

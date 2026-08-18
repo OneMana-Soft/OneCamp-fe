@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/dialog"
 import { Sparkles, Workflow, Table as TableIcon, Loader2, Download, Trash2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonCards } from "@/components/ui/skeletonCards"
 import {
   MarketplaceTemplate,
   TemplateKind,
@@ -45,7 +48,7 @@ export default function TemplatesPage() {
   const [selected, setSelected] = React.useState<MarketplaceTemplate | null>(null)
 
   const query = kind ? `${GetEndpointUrl.GetMarketplaceTemplates}?kind=${kind}` : GetEndpointUrl.GetMarketplaceTemplates
-  const { data, isLoading, mutate } = useFetch<{ data: MarketplaceTemplate[] }>(query)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: MarketplaceTemplate[] }>(query)
   const templates = data?.data || []
 
   const [busyId, setBusyId] = React.useState<string | null>(null)
@@ -113,21 +116,31 @@ export default function TemplatesPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        // Mirrors the real grid, including the badge line each card carries.
+        <div role="status" aria-label="Loading templates">
+          <SkeletonCards
+            cards={6}
+            gridClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            meta
+          />
         </div>
+      ) : isError ? (
+        // Ahead of the empty check: a failed fetch also yields an empty list, and
+        // "No templates yet" would be a claim about the workspace rather than
+        // about the request.
+        <ErrorState
+          subject="templates"
+          onRetry={() => void mutate()}
+          className="rounded-2xl border border-border/60 px-6 py-16"
+        />
       ) : templates.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 px-6 py-16 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-            <Sparkles className="h-6 w-6 text-primary" />
-          </div>
-          <div className="max-w-sm space-y-1">
-            <p className="text-sm font-medium">No templates yet</p>
-            <p className="text-sm text-muted-foreground">
-              Publish an agent, automation, or table you built so your team can install it in one click.
-            </p>
-          </div>
-        </div>
+        <EmptyState
+          tone="accent"
+          icon={Sparkles}
+          title="No templates yet"
+          description="Publish an agent, automation, or table you built so your team can install it in one click."
+          className="rounded-2xl border border-border/60 px-6 py-16"
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => {

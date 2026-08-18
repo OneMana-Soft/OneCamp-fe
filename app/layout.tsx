@@ -18,10 +18,18 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // No maximumScale/userScalable lock. Blocking pinch-zoom fails WCAG 1.4.4 and
+  // is miserable for anyone who needs to magnify a dense table or a diagram —
+  // and it is usually only added to stop iOS zooming when a small input takes
+  // focus. That is already handled properly: Input and Textarea are text-base
+  // (16px) on mobile with md:text-sm, and the tiptap composer inherits the 16px
+  // root, so nothing here trips iOS's <16px auto-zoom.
   viewportFit: "cover",
-  themeColor: "#000000",
+  // Light is the default mode, so this is the correct pre-hydration value; it
+  // matches the manifest's theme_color and background_color, so the install
+  // splash doesn't flash a different colour into the app shell. ThemeColorMeta
+  // then keeps the tag equal to the background the user actually chose.
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
@@ -41,7 +49,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="OneCamp" />
-        <link rel="apple-touch-icon" href="/logo.svg" />
+        {/* iOS does not accept SVG for apple-touch-icon — pointing it at logo.svg
+            meant the home-screen icon fell back to a screenshot of the page.
+            This is an opaque 180px PNG, the size iOS actually asks for. */}
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <link rel="icon" href="/logo.svg" type="image/svg+xml" sizes="any" />
       </head>
       <body

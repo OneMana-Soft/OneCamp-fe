@@ -82,6 +82,8 @@ import {
   setEmbeddingModel,
   deleteModel,
 } from "@/services/aiModelService"
+import { apiErrorCode, apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { RunnerTestStatus, type RunnerProbe } from "@/components/admin/ai/RunnerTestStatus"
 import { ProviderEditor } from "@/components/admin/ai/ProviderEditor"
 import { SystemStatsBar } from "@/components/admin/ai/SystemStatsBar"
 import { ModelCombobox } from "@/components/admin/ai/ModelCombobox"
@@ -172,10 +174,21 @@ const AIModelsCard = () => {
       try {
         const models = await listProviderModels(providerId, refresh)
         setModelsByProvider((m) => ({ ...m, [providerId]: models }))
-      } catch (e: any) {
+      } catch (e: unknown) {
+        // A TITLE THAT MATCHES THE CAUSE.
+        //
+        // "Could not list models — provider unreachable" was shown for every failure, including one
+        // where nothing was contacted at all: a stored API key the server can no longer decrypt.
+        // That sent the admin to check a provider that was fine. The server labels this condition
+        // (409 with code provider_key_unreadable) precisely so the UI can say what it is.
+        //
+        // Matched on the code, never on the message text, so a copy edit on the server cannot
+        // silently switch this back to the generic title. The message itself is already written for
+        // an admin and names the provider, so it is shown as-is.
+        const keyUnreadable = apiErrorCode(e) === "provider_key_unreadable"
         toast({
-          title: "Could not list models",
-          description: e?.response?.data?.msg || e?.message || "Provider unreachable",
+          title: keyUnreadable ? "This provider's API key needs re-entering" : "Could not list models",
+          description: apiErrorMessage(e, "Provider unreachable"),
           variant: "destructive",
         })
       } finally {
@@ -276,10 +289,10 @@ const AIModelsCard = () => {
           ? "No workspace content will leave this server. Cloud providers are blocked at the network layer."
           : "Cloud AI providers (OpenAI, Anthropic, …) can be used again.",
       })
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: "Error",
-        description: e?.response?.data?.msg || "Failed to update local-only mode",
+        description: apiErrorMessage(e, "Failed to update local-only mode"),
         variant: "destructive",
       })
     } finally {
@@ -299,10 +312,10 @@ const AIModelsCard = () => {
           ? "Detected PII is scrubbed from prompts before they reach any cloud model."
           : "Prompts are sent to cloud models without PII redaction.",
       })
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: "Error",
-        description: e?.response?.data?.msg || "Failed to update PII redaction",
+        description: apiErrorMessage(e, "Failed to update PII redaction"),
         variant: "destructive",
       })
     } finally {
@@ -345,8 +358,8 @@ const AIModelsCard = () => {
     try {
       const res = await runTeamReportNow()
       toast({ title: "Team report run", description: res.msg || `Posted ${res.posted} report(s).` })
-    } catch (e: any) {
-      toast({ title: "Could not run team report", description: e?.response?.data?.msg || e?.message || "failed", variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Could not run team report", description: apiErrorMessage(e, "failed"), variant: "destructive" })
     } finally {
       setRunningReport(false)
     }
@@ -359,8 +372,8 @@ const AIModelsCard = () => {
     try {
       const msg = await sendTestDigest()
       toast({ title: "Test digest sent", description: msg })
-    } catch (e: any) {
-      toast({ title: "Could not send test digest", description: e?.response?.data?.msg || e?.message || "failed", variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Could not send test digest", description: apiErrorMessage(e, "failed"), variant: "destructive" })
     } finally {
       setSendingDigest(false)
     }
@@ -415,15 +428,15 @@ const AIModelsCard = () => {
       // Optimistically reflect running state; the poller takes over.
       setBackfill({ state: "running", started_at: Math.floor(Date.now() / 1000) })
       pollBackfill()
-    } catch (e: any) {
-      const msg = e?.response?.data?.msg || e?.message || "Failed to start rebuild"
+    } catch (e: unknown) {
+      const msg = apiErrorMessage(e, "Failed to start rebuild")
       toast({ title: "Could not start rebuild", description: msg, variant: "destructive" })
     }
   }
 
   if (loading) {
     return (
-      <Card className="w-full h-full border-none shadow-none bg-transparent">
+      <Card className="w-full border-none shadow-none bg-transparent">
         <CardContent className="p-0 pt-10 text-sm text-muted-foreground animate-pulse">
           Loading AI configuration…
         </CardContent>
@@ -433,7 +446,7 @@ const AIModelsCard = () => {
 
   if (!config) {
     return (
-      <Card className="w-full h-full border-none shadow-none bg-transparent">
+      <Card className="w-full border-none shadow-none bg-transparent">
         <CardContent className="p-0 pt-10 text-sm text-muted-foreground">
           AI configuration unavailable.
           <Button variant="link" onClick={refreshConfig}>Retry</Button>
@@ -443,8 +456,8 @@ const AIModelsCard = () => {
   }
 
   return (
-    <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-6 flex-shrink-0">
+    <Card className="w-full border-none shadow-none bg-transparent">
+      <CardHeader className="px-0 pt-0 pb-6">
         <div className="flex items-center gap-2 mb-1">
           <div className="bg-primary/10 p-1.5 rounded-md">
             <Sparkles className="h-4 w-4 text-primary" />
@@ -463,7 +476,20 @@ const AIModelsCard = () => {
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="px-0 flex-1 overflow-y-auto pr-2 custom-scrollbar pb-10 min-h-0 space-y-8">
+      {/* NO INTERNAL SCROLLER, and no h-full on the Card above it either.
+          
+          app/app/admin/page.tsx owns the single scroll container for the whole admin page; the
+          comment above that region explains the reasoning. This CardContent was
+          `flex-1 overflow-y-auto pr-2 custom-scrollbar pb-10 min-h-0`, which combined with h-full on
+          the Card made this one card fill the entire visible region and scroll within itself. The
+          three sibling cards on this tab were then stranded below it, reachable only through the app
+          shell's outer scrollbar — two scrollbars, different meanings, and the page header scrolling
+          away when you used the outer one.
+          
+          pr-2 and pb-10 went with it: both existed to keep content clear of a scrollbar and give the
+          scrollport some bottom slack, and there is no scrollport here now. The region's py-6
+          provides the bottom breathing room. */}
+      <CardContent className="px-0 space-y-8">
         {/* Global config — grouped so an admin can scan: behavior, cost
             governance, and model tuning are separate clusters. */}
         <section className="space-y-6">
@@ -1121,10 +1147,10 @@ const PIIPatternsEditor: React.FC<{ initial: string; onSave: (patterns: string) 
             setBusy(true)
             try {
               await onSave(value)
-            } catch (e: any) {
+            } catch (e: unknown) {
               toast({
                 title: "Could not save patterns",
-                description: e?.response?.data?.msg || "One of the patterns is an invalid regex.",
+                description: apiErrorMessage(e, "One of the patterns is an invalid regex."),
                 variant: "destructive",
               })
             } finally {
@@ -1407,8 +1433,8 @@ const ActiveModelSection: React.FC<SectionProps> = ({
         description: visionProvider && visionModel ? `${visionModel} will analyze images.` : "Image analysis is disabled.",
       })
       await onChanged()
-    } catch (e: any) {
-      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setSavingVision(false)
     }
@@ -1422,8 +1448,8 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       await setVisionModel("", "")
       toast({ title: "Vision turned off", description: "Image analysis is disabled." })
       await onChanged()
-    } catch (e: any) {
-      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setSavingVision(false)
     }
@@ -1439,8 +1465,8 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       await setChatModel(chatProvider, chatModel)
       toast({ title: "Chat model updated", description: `${chatModel} is now active.` })
       await onChanged()
-    } catch (e: any) {
-      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setSavingChat(false)
     }
@@ -1456,8 +1482,8 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       await setEmbeddingModel(embProvider, embModel, embDim, reindex)
       toast({ title: "Embedding model updated", description: reindex ? "Reindex started in the background." : `${embModel} is now active.` })
       await onChanged()
-    } catch (e: any) {
-      const status = e?.response?.status
+    } catch (e: unknown) {
+      const status = apiErrorStatus(e)
       if (status === 409) {
         // Dimension change requires reindex confirmation.
         confirm({
@@ -1471,7 +1497,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
           },
         })
       } else {
-        toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+        toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
       }
     } finally {
       setSavingEmb(false)
@@ -1706,8 +1732,8 @@ const ProvidersSection: React.FC<SectionProps & { stats: SystemStats | null }> =
                 toast({ title: "Model deleted", description: model })
                 await onEnsureModels(p.id, true)
                 await onChanged()
-              } catch (e: any) {
-                toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+              } catch (e: unknown) {
+                toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
               }
             }}
           />
@@ -1914,6 +1940,7 @@ function SandboxSection({
   const [chRuns, setChRuns] = useState(String(config.sandbox_channel_daily_runs || 0))
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [probe, setProbe] = useState<RunnerProbe | null>(null)
   const [killing, setKilling] = useState(false)
 
   const num = (v: string) => {
@@ -1956,17 +1983,18 @@ function SandboxSection({
     setTesting(true)
     try {
       const res = await testSandbox()
+      // Kept on screen as well as toasted. Whether the runner is reachable is the one fact this
+      // section exists to establish, and a toast erases it after four seconds.
+      setProbe({ ok: res.ok, status: res.status, message: res.message, ms: res.wall_ms, at: new Date() })
       toast({
         title: res.ok ? "Sandbox reachable" : "Sandbox test failed",
         description: res.message,
         variant: res.ok ? "default" : "destructive",
       })
     } catch (e) {
-      toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to run sandbox self-test",
-        variant: "destructive",
-      })
+      const message = apiErrorMessage(e, "Failed to run sandbox self-test")
+      setProbe({ ok: false, message, at: new Date() })
+      toast({ title: "Error", description: message, variant: "destructive" })
     } finally {
       setTesting(false)
     }
@@ -2011,7 +2039,7 @@ function SandboxSection({
           <Input
             value={runnerURL}
             onChange={(e) => setRunnerURL(e.target.value)}
-            placeholder="http://code-runner:8080/run"
+            placeholder="http://code-runner:9099/run"
           />
         </div>
         <div className="space-y-1">
@@ -2064,6 +2092,8 @@ function SandboxSection({
         </div>
       </div>
 
+      <RunnerTestStatus probe={probe} />
+
       <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={runTest} disabled={testing || !config.sandbox_runner_url}>
@@ -2082,6 +2112,12 @@ function SandboxSection({
     </div>
   )
 }
+
+// Accepted bounds for the per-run coding time limit, mirroring what the server
+// enforces (0 = use the server default). Kept here so the control can state the
+// range up front instead of surfacing a rejection after a save.
+const CODE_PR_MIN_WALL_MINUTES = 2
+const CODE_PR_MAX_WALL_MINUTES = 60
 
 // CodePRSection configures the agent code-PR feature: an @mentionable / task-
 // assignable coding teammate that, given a task on a linked repo, produces a
@@ -2160,6 +2196,14 @@ function CodePRSection({
     }
   }
   const [allowUnlinked, setAllowUnlinked] = useState(config.code_pr_allow_unlinked)
+  // How long one coding run may work. 0 = use the server default; other values
+  // must be inside the range the server enforces.
+  const [wallMinutes, setWallMinutes] = useState(String(config.code_pr_wall_minutes || 0))
+  const wallValue = parseInt(wallMinutes || "0", 10)
+  const wallInvalid =
+    !Number.isFinite(wallValue) ||
+    wallValue < 0 ||
+    (wallValue > 0 && (wallValue < CODE_PR_MIN_WALL_MINUTES || wallValue > CODE_PR_MAX_WALL_MINUTES))
   const [wsMinutes, setWsMinutes] = useState(String(config.code_pr_workspace_daily_minutes || 0))
   const [wsRuns, setWsRuns] = useState(String(config.code_pr_workspace_daily_runs || 0))
   const [chMinutes, setChMinutes] = useState(String(config.code_pr_channel_daily_minutes || 0))
@@ -2167,22 +2211,22 @@ function CodePRSection({
   const [saving, setSaving] = useState(false)
   const [killing, setKilling] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [probe, setProbe] = useState<RunnerProbe | null>(null)
 
   const testRunner = async () => {
     setTesting(true)
     try {
       const res = await testCodePRRunner()
+      setProbe({ ok: res.ok, status: res.status, message: res.message, ms: res.latency_ms, at: new Date() })
       toast({
         title: res.ok ? "Coding runner reachable" : "Runner check failed",
         description: `${res.message}${res.latency_ms ? ` (${res.latency_ms}ms)` : ""}`,
         variant: res.ok ? "default" : "destructive",
       })
     } catch (e) {
-      toast({
-        title: "Error",
-        description: e instanceof Error ? e.message : "Failed to test the coding runner",
-        variant: "destructive",
-      })
+      const message = apiErrorMessage(e, "Failed to test the coding runner")
+      setProbe({ ok: false, message, at: new Date() })
+      toast({ title: "Error", description: message, variant: "destructive" })
     } finally {
       setTesting(false)
     }
@@ -2204,6 +2248,13 @@ function CodePRSection({
       toast({ title: "A runner URL is required to enable code PRs", variant: "destructive" })
       return
     }
+    if (wallInvalid) {
+      toast({
+        title: `Coding time limit must be 0 (default) or between ${CODE_PR_MIN_WALL_MINUTES} and ${CODE_PR_MAX_WALL_MINUTES} minutes`,
+        variant: "destructive",
+      })
+      return
+    }
     setSaving(true)
     try {
       await setCodePRConfig({
@@ -2214,6 +2265,7 @@ function CodePRSection({
         out_of_scope_policy: policy,
         draft_on_red: draftOnRed,
         allow_unlinked: allowUnlinked,
+        wall_minutes: num(wallMinutes),
         workspace_daily_minutes: num(wsMinutes),
         workspace_daily_runs: num(wsRuns),
         channel_daily_minutes: num(chMinutes),
@@ -2272,7 +2324,7 @@ function CodePRSection({
           <Input
             value={runnerURL}
             onChange={(e) => setRunnerURL(e.target.value)}
-            placeholder="http://code-runner:8080"
+            placeholder="http://code-runner-coding:9099"
           />
         </div>
         <div className="space-y-1">
@@ -2374,6 +2426,33 @@ function CodePRSection({
         </p>
       </div>
 
+      <div className="space-y-1">
+        <Label htmlFor="code-pr-wall" className="text-xs">
+          Coding time limit (minutes per run)
+        </Label>
+        <Input
+          id="code-pr-wall"
+          type="number"
+          min={0}
+          max={CODE_PR_MAX_WALL_MINUTES}
+          value={wallMinutes}
+          onChange={(e) => setWallMinutes(e.target.value)}
+          aria-describedby="code-pr-wall-hint"
+          aria-invalid={wallInvalid}
+          className="w-32"
+        />
+        <p id="code-pr-wall-hint" className="text-[11px] text-muted-foreground">
+          How long one coding run may work before it wraps up and hands back whatever it finished — partial work is
+          still pushed to a branch. Use 0 for the default, or {CODE_PR_MIN_WALL_MINUTES}–{CODE_PR_MAX_WALL_MINUTES}{" "}
+          minutes. In force now: {config.code_pr_effective_wall_minutes} min.
+        </p>
+        {wallInvalid && (
+          <p className="text-[11px] text-destructive">
+            Use 0 (default) or a value between {CODE_PR_MIN_WALL_MINUTES} and {CODE_PR_MAX_WALL_MINUTES}.
+          </p>
+        )}
+      </div>
+
       <div className="pt-1">
         <div className="flex items-center justify-between">
           <p className="text-xs font-medium text-muted-foreground">Daily budgets (0 = unlimited)</p>
@@ -2402,6 +2481,8 @@ function CodePRSection({
         </div>
       </div>
 
+      <RunnerTestStatus probe={probe} />
+
       <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-2">
           {config.code_pr_enabled && (
@@ -2420,7 +2501,7 @@ function CodePRSection({
             {testing ? "Testing…" : "Test runner"}
           </Button>
         </div>
-        <Button size="sm" onClick={save} disabled={saving} className="gap-1.5">
+        <Button size="sm" onClick={save} disabled={saving || wallInvalid} className="gap-1.5">
           <Save className="h-3.5 w-3.5" /> Save
         </Button>
       </div>
@@ -2463,9 +2544,9 @@ function CodePRReliabilityCard() {
   const gradeBadge = (grade: string) => {
     switch (grade) {
       case "healthy":
-        return { label: "Healthy", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" }
+        return { label: "Healthy", cls: "bg-emerald-500/15 text-success" }
       case "needs_attention":
-        return { label: "Needs attention", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" }
+        return { label: "Needs attention", cls: "bg-amber-500/15 text-warning" }
       default:
         return { label: "Unproven", cls: "bg-muted text-muted-foreground" }
     }
@@ -2571,10 +2652,10 @@ function CodePRReliabilityCard() {
 function CodePRRunRow({ run }: { run: CodePRRunView }) {
   const badge = (() => {
     if (run.outcome === "merged" || run.outcome === "merged_with_edits") {
-      return { label: "Merged", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" }
+      return { label: "Merged", cls: "bg-emerald-500/15 text-success" }
     }
     if (run.outcome === "closed_unmerged") {
-      return { label: "Closed", cls: "bg-red-500/15 text-red-600 dark:text-red-400" }
+      return { label: "Closed", cls: "bg-red-500/15 text-destructive" }
     }
     switch (run.status) {
       case "ok":
@@ -2583,9 +2664,9 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
           cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
         }
       case "blocked":
-        return { label: "Needs input", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" }
+        return { label: "Needs input", cls: "bg-amber-500/15 text-warning" }
       case "no_green":
-        return { label: "Unverified", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" }
+        return { label: "Unverified", cls: "bg-amber-500/15 text-warning" }
       default:
         return { label: run.status || "—", cls: "bg-muted text-muted-foreground" }
     }
@@ -2607,7 +2688,7 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
       </div>
       <div className="flex shrink-0 items-center gap-3 text-[11px] text-muted-foreground">
         {run.all_passed ? (
-          <span className="text-emerald-600 dark:text-emerald-400" title="Build & tests passed in the sandbox">
+          <span className="text-success" title="Build & tests passed in the sandbox">
             ✓ verified
           </span>
         ) : null}

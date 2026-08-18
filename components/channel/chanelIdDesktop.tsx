@@ -42,6 +42,8 @@ import {usePublishTyping} from "@/hooks/usePublishTyping";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import {ChannelMemoryIndicator} from "@/components/ai/ChannelMemoryIndicator";
 import {useUploadFile} from "@/hooks/useUploadFile";
+import { FeatureGate } from "@/components/common/withFeature"
+import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
 const EMPTY_TYPING_LIST: any[] = []
@@ -147,8 +149,10 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
         }
 
         if (!isZeroEpoch(channelInfo.data?.channel_info.ch_deleted_at || '')) {
+            // `flex` was missing, so flex-col/justify-center/items-center were all
+            // inert and the archived notice never centred as written.
             return (
-                <div className=' flex-col justify-center items-center w-full text-center space-y-2 text-muted-foreground'>
+                <div className='flex flex-col justify-center items-center w-full text-center space-y-2 text-muted-foreground'>
                     <div>Channel is archived 📦</div>
                     {/*{channelInfo.data?.channel_info.ch_is_admin &&*/}
                     {/*    <Button onClick={joinChannel}>*/}
@@ -251,16 +255,19 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
 
                     <NotificationBell notificationType={channelNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
                     {channelInfo.data?.channel_info.ch_is_admin && (
-                        <Button size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}}><Pencil /></Button>
+                        <Button aria-label="Edit channel" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}}><Pencil /></Button>
                     )}
-                    <Button size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannelMember', data: { channelUUID: channelId } }))}}> <Users /></Button>
+                    <Button aria-label="Manage channel members" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannelMember', data: { channelUUID: channelId } }))}}> <Users /></Button>
+                    {/* Calls need a LiveKit server, which the shipped stack does not include.
+                        Hidden rather than shown-and-failing when the operator has not run one. */}
+                    <FeatureGate feature={FEATURE_CALLS}>
                     <Link href={channelCallHref}>
                     <Button
                         size='icon'
                         variant={channelCallActive ? 'secondary' : 'ghost'}
                         className={cn(
                             "relative transition-all duration-300",
-                            channelCallActive && "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                            channelCallActive && "bg-success/10 text-success hover:bg-emerald-500/20"
                         )}
                     >
                         <Video size={18} />
@@ -272,7 +279,9 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                         )}
                     </Button>
                     </Link>
-                    <Link href={channelRecordingHref}><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
+                    </FeatureGate>
+                    <Link href={channelRecordingHref} aria-label="View recordings"><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
+                    <FeatureGate feature={FEATURE_AI}>
                     <Link
                         href={`/app/ai/memory?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channelDisplayName)}`}
                         title="Channel memory — decisions, commitments & open questions"
@@ -290,6 +299,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                     >
                         <CheckSquare className="text-muted-foreground" />
                     </Button>
+                    </FeatureGate>
 
 
 

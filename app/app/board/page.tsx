@@ -12,6 +12,8 @@ import { addUserBoard } from "@/store/slice/userSlice";
 import { app_board_path } from "@/types/paths";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SkeletonCards } from "@/components/ui/skeletonCards"
+import { ErrorState } from "@/components/ui/error-state"
 import { LayoutDashboard, Plus, Loader2, Lock, Users, Search } from "@/lib/icons";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 
@@ -26,7 +28,7 @@ function BoardsPage() {
   const listUrl = `${GetEndpointUrl.GetBoardList}?pageSize=60&pageIndex=0${
     debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : ""
   }`;
-  const { data, isLoading } = useFetch<BoardListResponse>(listUrl);
+  const { data, isLoading, isError, mutate } = useFetch<BoardListResponse>(listUrl);
   const boards = data?.data?.boards || [];
 
   const createBoard = React.useCallback(() => {
@@ -42,7 +44,7 @@ function BoardsPage() {
     });
   }, [makeRequest, isSubmitting, dispatch, router]);
 
-  const showEmpty = !isLoading && boards.length === 0;
+  const showEmpty = !isLoading && !isError && boards.length === 0;
 
   return (
     <div className="mx-auto h-full w-full max-w-5xl overflow-y-auto px-4 py-6 sm:px-6 sm:py-8">
@@ -72,9 +74,12 @@ function BoardsPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        // Same grid as the boards below, so the page does not reflow on arrival.
+        <div role="status" aria-label="Loading boards">
+          <SkeletonCards cards={8} gridClassName="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" />
         </div>
+      ) : isError ? (
+        <ErrorState subject="your boards" onRetry={() => void mutate()} />
       ) : showEmpty ? (
         debouncedSearch ? (
           <div className="py-16 text-center text-sm text-muted-foreground">

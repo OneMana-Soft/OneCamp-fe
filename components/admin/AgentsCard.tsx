@@ -11,7 +11,10 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCount"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Pencil, Sparkles, Loader2, Rocket, History } from "@/lib/icons"
+import { Plus, Trash2, Pencil, Sparkles, Rocket, History } from "@/lib/icons"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import {
   Agent,
   WorkspaceAgentStats,
@@ -114,7 +117,7 @@ const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) =
     )
   }
   const rate = Math.round((summary.passed / summary.scored) * 100)
-  const tone = rate >= 90 ? "text-emerald-600" : rate >= 70 ? "text-amber-600" : "text-red-600"
+  const tone = rate >= 90 ? "text-success" : rate >= 70 ? "text-amber-600" : "text-red-600"
   return (
     <Badge variant="secondary" className={cn("text-[10px]", tone)} title={`${summary.passed}/${summary.scored} tests passing`}>
       {rate}% tests
@@ -123,7 +126,7 @@ const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) =
 }
 
 const AgentsCard = () => {
-  const { data, isLoading, mutate } = useFetch<{ data: Agent[] }>(GetEndpointUrl.GetAgents)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: Agent[] }>(GetEndpointUrl.GetAgents)
   const { data: overview } = useFetch<{ data: WorkspaceAgentStats }>(`${GetEndpointUrl.GetAgents}/overview`)
   const { data: health } = useFetch<{ data: Record<string, AgentHealth> }>(`${GetEndpointUrl.GetAgents}/health`)
   const { data: evalSummary } = useFetch<{ data: Record<string, AgentEvalSummary> }>(`${GetEndpointUrl.GetAgents}/eval/summary`)
@@ -207,26 +210,25 @@ const AgentsCard = () => {
 
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center py-12 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
+          // Agent rows are avatar + name + description, so the placeholder is too.
+          <div role="status" aria-label="Loading agents">
+            <SkeletonRows rows={3} />
           </div>
+        ) : isError ? (
+          <ErrorState subject="the agents" onRetry={() => void mutate()} />
         ) : agents.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-              <Sparkles className="h-6 w-6 text-primary" />
-            </div>
-            <div className="max-w-sm space-y-1">
-              <p className="text-sm font-medium">No agents yet</p>
-              <p className="text-sm text-muted-foreground">
-                Try: a standup agent that summarizes #standup each morning and opens a task for any
-                blocker.
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              Create your first agent
-            </Button>
-          </div>
+          <EmptyState
+            tone="accent"
+            icon={Sparkles}
+            title="No agents yet"
+            description="Try: a standup agent that summarizes #standup each morning and opens a task for any blocker."
+            action={
+              <Button variant="outline" onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                Create your first agent
+              </Button>
+            }
+          />
         ) : (
           <div className="space-y-3">
             {overview?.data && overview.data.total_runs > 0 && <AgentOverviewStrip stats={overview.data} />}

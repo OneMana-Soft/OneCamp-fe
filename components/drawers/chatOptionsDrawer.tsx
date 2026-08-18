@@ -21,6 +21,8 @@ import { app_chat_call } from "@/types/paths"
 import { ChatNotificationInterface } from "@/types/chat"
 import { UserProfileInterface } from "@/types/user"
 import { DrawerItem } from "@/components/drawers/drawerItem"
+import { FeatureGate } from "@/components/common/withFeature"
+import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 interface ChatOptionsDrawerProps {
     drawerOpenState: boolean
@@ -93,6 +95,9 @@ export function ChatOptionsDrawer({
                         }
                     />
 
+                    {/* Calls need a LiveKit server, which the shipped stack does not include.
+                        Hidden rather than shown-and-failing when the operator has not run one. */}
+                    <FeatureGate feature={FEATURE_CALLS}>
                     <DrawerItem
                         icon={Video}
                         label="Join call"
@@ -101,6 +106,7 @@ export function ChatOptionsDrawer({
                             router.push(app_chat_call + "/" + chatId)
                         }}
                     />
+                    </FeatureGate>
 
                     <DrawerItem
                         icon={Clapperboard}

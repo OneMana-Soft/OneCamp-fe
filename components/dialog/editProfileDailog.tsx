@@ -31,6 +31,7 @@ import { Moon, Sun } from "@/lib/icons";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
+import { TwoFactorSection } from "@/components/profile/TwoFactorSection";
 
 const profileFormSchema = z.object({
     fullName: z
@@ -214,7 +215,6 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
 
                 }))
                 profileInfo.mutate({
-                    mag: profileInfo.data?.mag || '',
                     ...profileInfo.data,
                     data: {
                         ...profileInfo.data?.data,
@@ -296,7 +296,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                         </DialogHeader>
                         
                         <div className="relative group mb-6">
-                            <Avatar className="h-40 w-40 ring-4 ring-background shadow-xl transition-transform duration-300 group-hover:scale-[1.02]">
+                            <Avatar className="h-40 w-40 ring-4 ring-background shadow-xl transition-transform duration-150 group-hover:scale-[1.02]">
                                 <AvatarImage src={selectedImage || undefined} alt="Profile Image" className="object-cover" />
                                 <AvatarFallback className="text-4xl font-medium bg-primary/10">{nameIntial}</AvatarFallback>
                             </Avatar>
@@ -412,7 +412,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         render={({ field }) => (
                                             <FormItem className="flex flex-col">
                                                 <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('status')}</FormLabel>
-                                                <div className="flex items-center justify-between bg-muted/20 border border-transparent rounded-xl px-4 h-10">
+                                                <div className="flex items-center justify-between bg-muted/20 border border-transparent rounded-md px-4 h-10">
                                                     <span 
                                                         className="text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer leading-none"
                                                         onClick={() => field.onChange(!field.value)}
@@ -464,7 +464,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                 <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition-all hover:bg-muted/20">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center space-x-3">
-                                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 shadow-sm ring-1 ring-primary/20">
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
                                                 <Calendar className="h-5 w-5 text-primary" />
                                             </div>
                                             <div>
@@ -503,6 +503,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                             <div className="space-y-4">
                                 <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Security</h3>
                                 <ChangePasswordSection />
+                                <TwoFactorSection />
                             </div>
                         </div>
 

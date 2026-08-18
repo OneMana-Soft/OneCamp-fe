@@ -50,7 +50,8 @@ import {
     updateChannelCommentMsgPreviewFiles, updateChannelCommentMsgPreviewFilesUUID
 } from "@/store/slice/channelCommentSlice";
 import {getMediaDimensions} from "@/lib/utils/file/getMediaDimensions";
-import {useClientConfig, formatBytes} from "@/hooks/useClientConfig";
+import {useClientConfig} from "@/hooks/useClientConfig";
+import {exceedsUploadLimit, uploadLimitMessage} from "@/lib/utils/uploadLimit";
 import {
     addCreateTaskDialogPreviewFiles,
     addCreateTaskDialogUploadedFiles, deleteCreateTaskDialogPreviewFiles,
@@ -201,19 +202,21 @@ export const useUploadFile = () => {
     // request or progress bar.
     const validateFiles = React.useCallback(
         (files: FileList | File[]): File[] => {
-            const limitBytes = clientConfig.upload_limit_bytes
             const within: File[] = []
             const tooBig: File[] = []
             const arr = Array.from(files as ArrayLike<File>)
             for (const f of arr) {
-                if (f.size > limitBytes) tooBig.push(f)
+                // Shared rule (lib/utils/uploadLimit): the board canvas and the doc
+                // editor ask the same question, so all three refuse the same things.
+                if (exceedsUploadLimit(f.size, clientConfig.upload_limit_bytes)) tooBig.push(f)
                 else within.push(f)
             }
             if (tooBig.length > 0) {
-                const names = tooBig.map((f) => `${f.name} (${formatBytes(f.size)})`).join(", ")
                 toast({
                     title: tooBig.length === 1 ? "File too large" : "Some files too large",
-                    description: `${names} — the maximum upload size is ${clientConfig.upload_limit_mb} MB.`,
+                    description: tooBig
+                        .map((f) => uploadLimitMessage(f.size, clientConfig.upload_limit_mb, f.name))
+                        .join(" "),
                     variant: "destructive",
                 })
             }

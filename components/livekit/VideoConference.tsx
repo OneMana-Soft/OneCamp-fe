@@ -61,10 +61,14 @@ export function VideoConference({
 
   if (!token) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-zinc-950 text-white">
+      <div
+        role="status"
+        aria-label="Connecting to the call"
+        className="flex h-full w-full items-center justify-center bg-zinc-950 text-white"
+      >
         <div className="text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary" />
-            <p>Getting token...</p>
+            <p>Connecting…</p>
         </div>
       </div>
     );

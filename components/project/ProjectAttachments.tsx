@@ -175,7 +175,7 @@ export function ProjectAttachments({projectId}: ProjectAttachmentsProps) {
                 {projectAttachmentList.data?.data.project_is_admin && <div>
                     <Label htmlFor="project-file-upload" className="cursor-pointer">
                         <div
-                            className="p-7 h-8 w-8 border-dashed bg-background rounded-2xl border-2 text-muted-foreground flex justify-center items-center ">
+                            className="h-12 w-12 border-dashed bg-background rounded-2xl border-2 text-muted-foreground flex justify-center items-center">
                             <div>
                                 <Plus size='30'/>
 

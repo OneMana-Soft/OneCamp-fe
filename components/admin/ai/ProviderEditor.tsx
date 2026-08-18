@@ -12,6 +12,10 @@
  *
  * API keys are write-only from the FE's perspective: we only ever show
  * whether one is set (has_api_key), never the value.
+ *
+ * A third key state exists and is surfaced separately: key_unreadable, meaning one IS stored but the
+ * server can no longer decrypt it. See the badge and the field hint below for why it needs its own
+ * treatment rather than being folded into has_api_key.
  */
 
 import React, { useState } from "react"
@@ -31,6 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Plug, Save, Trash2, X, KeyRound, CheckCircle2, XCircle, Loader2, Settings2, ChevronDown } from "lucide-react"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
   ModelView,
   ProviderView,
@@ -44,6 +49,7 @@ import {
 import { ModelInstaller } from "@/components/admin/ai/ModelInstaller"
 import { ModelCatalog } from "@/components/admin/ai/ModelCatalog"
 import { useToast } from "@/hooks/use-toast"
+import { useConfirm } from "@/hooks/useConfirm"
 
 interface CommonProps {
   onChanged: () => Promise<unknown> | void
@@ -97,13 +103,28 @@ export const ProviderEditor: React.FC<Props> = (props) => {
 
 const EditProviderRow: React.FC<EditProps> = (props) => {
   const { toast } = useToast()
-  const { provider, models, modelsLoading, onEnsureModels, onDeleteModel, onChanged } = props
+  const confirm = useConfirm()
+  // `stats` was declared on EditProps and passed by AIModelsCard but never destructured here, so the
+  // server-resources payload arrived and was dropped. It carries the newest published engine version,
+  // which is exactly what the two install surfaces below need to name a target when a pull reports the
+  // engine is too old — they have no other source for it.
+  const { provider, models, modelsLoading, stats, onEnsureModels, onDeleteModel, onChanged } = props
   const isOllama = provider.kind === "ollama"
   const isCustom = provider.kind === "openai_compatible"
   // Only the hosted built-ins always need a key; custom OpenAI-compatible
   // endpoints (vLLM, LM Studio, ...) and local Ollama can run keyless.
   const requiresKey = provider.kind === "openai" || provider.kind === "anthropic"
-  const needsKey = requiresKey && !provider.has_api_key
+  // A stored key the server cannot decrypt. Its own state, not a flavour of "missing":
+  // has_api_key is false for both, but only this one has a cause and a specific remedy.
+  const keyUnreadable = provider.key_unreadable === true
+  // Generated, not a literal: several provider rows render on this page, and a repeated id would
+  // point every field's aria-describedby at the first row's hint.
+  const keyUnreadableHintId = `${React.useId()}-key-unreadable`
+  // "Needs a key" and "has an unreadable key" are mutually exclusive as far as the UI is concerned.
+  // Both would otherwise render, since an unreadable key reports has_api_key=false, and the pair
+  // reads as a contradiction: "key required" next to "key unreadable" invites the admin to wonder
+  // which is true. The unreadable badge is strictly more informative, so it wins.
+  const needsKey = requiresKey && !provider.has_api_key && !keyUnreadable
 
   const [baseURL, setBaseURL] = useState(provider.base_url)
   const [apiKey, setApiKey] = useState("") // empty = unchanged
@@ -112,7 +133,10 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
   const [busy, setBusy] = useState(false)
   const [testState, setTestState] = useState<null | { ok: boolean; msg: string }>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState(isOllama)
+  // Opens itself when the key is unreadable, so the field that fixes it is on screen with the
+  // message that reports it. The alternative is a badge that says something is wrong and a Configure
+  // button the admin has to think to press.
+  const [expanded, setExpanded] = useState(isOllama || keyUnreadable)
 
   const dirty =
     baseURL !== provider.base_url || apiKey !== "" || insecureTLS !== provider.insecure_tls
@@ -137,9 +161,9 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
       await updateProvider(provider.id, { enabled: next })
       toast({ title: next ? `${provider.label} enabled` : `${provider.label} disabled` })
       await onChanged()
-    } catch (e: any) {
+    } catch (e: unknown) {
       setEnabled(prev) // roll back on failure
-      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -157,8 +181,8 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
       toast({ title: "Provider updated", description: provider.label })
       setApiKey("")
       await onChanged()
-    } catch (e: any) {
-      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -168,11 +192,22 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
     setBusy(true)
     setTestState(null)
     try {
-      const res = await testConnection({ provider_id: provider.id })
+      // Sends the key currently in the box, not just the provider id.
+      //
+      // This used to send only the id, so Test connection checked whatever was already saved and
+      // ignored what the admin had typed. That is wrong at the one moment the button matters: you
+      // paste a new key and press Test to check it BEFORE saving. It was also actively misleading
+      // when the stored key could not be decrypted — the server sends no Authorization header at
+      // all in that state, the provider replies "Invalid API Key", and the message reads as a
+      // verdict on the key you just pasted rather than on the one that was never sent.
+      //
+      // `|| undefined` so an untouched field means "test what is stored" rather than "test with an
+      // empty key", which would clear the header and produce the same misleading 401.
+      const res = await testConnection({ provider_id: provider.id, api_key: apiKey || undefined })
       setTestState({ ok: res.ok, msg: res.message })
       if (res.ok) onEnsureModels(provider.id, true)
-    } catch (e: any) {
-      setTestState({ ok: false, msg: e?.response?.data?.msg || e?.message || "failed" })
+    } catch (e: unknown) {
+      setTestState({ ok: false, msg: apiErrorMessage(e, "failed") })
     } finally {
       setBusy(false)
     }
@@ -184,11 +219,27 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
       await updateProvider(provider.id, { api_key: "" })
       toast({ title: "API key cleared" })
       await onChanged()
-    } catch (e: any) {
-      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
+  }
+
+  // Confirmed, and the description says what is actually lost: removing a provider
+  // also discards its stored API key, so this is not just a list entry going away.
+  // Every model currently pointed at it stops working, which is the consequence an
+  // admin needs told BEFORE the click, not discovered afterwards.
+  const confirmRemoveProvider = () => {
+    confirm({
+      title: `Remove ${provider.label}?`,
+      description:
+        "Its stored API key is deleted and any model using it stops working until you point that model somewhere else.",
+      confirmText: "Remove provider",
+      onConfirm: () => {
+        void removeProvider()
+      },
+    })
   }
 
   const removeProvider = async () => {
@@ -197,8 +248,8 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
       await deleteProvider(provider.id)
       toast({ title: "Provider removed", description: provider.label })
       await onChanged()
-    } catch (e: any) {
-      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -214,8 +265,24 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
           {kindBadge(provider.kind)}
           {provider.has_api_key && <Badge variant="outline" className="gap-1"><KeyRound className="h-3 w-3" /> key set</Badge>}
           {needsKey && (
-            <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400">
+            <Badge variant="outline" className="gap-1 border-amber-500/40 text-warning">
               <KeyRound className="h-3 w-3" /> key required
+            </Badge>
+          )}
+          {/*
+            A PERSISTENT badge, not a toast, because the condition is persistent. It survives
+            restarts and every page load until a key is re-entered, so anything transient reports it
+            once and then leaves a broken provider looking healthy.
+
+            In the header rather than inside the collapsed section, because this is the state the
+            admin is scanning the list for. Before this existed a custom openai_compatible provider
+            with an undecryptable key rendered with no key badge of any kind — "key set" was false
+            and "key required" only applies to the hosted built-ins — so it looked identical to a
+            healthy keyless endpoint while every request through it failed.
+          */}
+          {keyUnreadable && (
+            <Badge variant="outline" className="gap-1 border-destructive/40 text-destructive">
+              <KeyRound className="h-3 w-3" /> key unreadable
             </Badge>
           )}
         </div>
@@ -269,16 +336,40 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
                   type="password"
                   value={apiKey}
                   disabled={busy}
-                  placeholder={provider.has_api_key ? "•••••••• (unchanged)" : "paste key to set"}
+                  placeholder={
+                    keyUnreadable
+                      ? "paste the key again to replace it"
+                      : provider.has_api_key
+                        ? "•••••••• (unchanged)"
+                        : "paste key to set"
+                  }
                   onChange={(e) => setApiKey(e.target.value)}
-                  className="h-9 font-mono text-xs"
+                  className={`h-9 font-mono text-xs ${keyUnreadable ? "border-destructive/50" : ""}`}
+                  aria-invalid={keyUnreadable || undefined}
+                  aria-describedby={keyUnreadable ? keyUnreadableHintId : undefined}
                 />
-                {provider.has_api_key && (
+                {(provider.has_api_key || keyUnreadable) && (
                   <Button size="sm" variant="ghost" disabled={busy} onClick={clearKey}>
                     clear
                   </Button>
                 )}
               </div>
+              {/*
+                The cause and the remedy, next to the field that applies the remedy.
+
+                Named as a cause the admin can act on: an AI_CONFIG_KEK change is an operator action,
+                so the sentence points at a decision someone made rather than implying the key was
+                mistyped. The server says the same thing in its own message; this exists because the
+                server only gets to say it when something asks it to use the provider, and the admin
+                arriving at this page to fix things deserves to see it first.
+              */}
+              {keyUnreadable && (
+                <p id={keyUnreadableHintId} className="text-2xs text-destructive">
+                  A key is stored but the server can no longer decrypt it, so this provider is
+                  unusable. This normally means AI_CONFIG_KEK changed since the key was saved. Paste
+                  the key again to fix it.
+                </p>
+              )}
             </div>
           )}
 
@@ -300,12 +391,12 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
               Test connection
             </Button>
             {!provider.is_builtin && (
-              <Button size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={removeProvider}>
+              <Button size="sm" variant="ghost" className="text-destructive" disabled={busy} onClick={confirmRemoveProvider}>
                 <Trash2 className="h-4 w-4 mr-1" /> Remove
               </Button>
             )}
             {testState && (
-              <span className={`text-xs flex items-center gap-1 ${testState.ok ? "text-emerald-600" : "text-destructive"}`}>
+              <span className={`text-xs flex items-center gap-1 ${testState.ok ? "text-success" : "text-destructive"}`}>
                 {testState.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
                 {testState.msg}
               </span>
@@ -351,7 +442,11 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
                 </div>
               )}
 
-              <ModelInstaller providerId={provider.id} onInstalled={() => onEnsureModels(provider.id, true)} />
+              <ModelInstaller
+                providerId={provider.id}
+                onInstalled={() => onEnsureModels(provider.id, true)}
+                ollamaLatestVersion={stats?.ollama_latest_version}
+              />
 
               {/* Browse & install from the curated, server-driven catalog. */}
               <div className="pt-1">
@@ -359,7 +454,11 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
                 <p className="text-[11px] text-muted-foreground mb-2">
                   Popular models, kept current. Anything not listed can still be installed by tag above.
                 </p>
-                <ModelCatalog providerId={provider.id} onInstalled={() => onEnsureModels(provider.id, true)} />
+                <ModelCatalog
+                  providerId={provider.id}
+                  onInstalled={() => onEnsureModels(provider.id, true)}
+                  ollamaLatestVersion={stats?.ollama_latest_version}
+                />
               </div>
             </div>
           )}
@@ -420,8 +519,8 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
         insecure_tls: insecureTLS,
       })
       setTestState({ ok: res.ok, msg: res.message })
-    } catch (e: any) {
-      setTestState({ ok: false, msg: e?.response?.data?.msg || e?.message || "failed" })
+    } catch (e: unknown) {
+      setTestState({ ok: false, msg: apiErrorMessage(e, "failed") })
     } finally {
       setBusy(false)
     }
@@ -438,8 +537,8 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
       toast({ title: "Endpoint added", description: label })
       await onChanged()
       onClose()
-    } catch (e: any) {
-      toast({ title: "Failed", description: e?.response?.data?.msg || e?.message, variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Failed", description: apiErrorMessage(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -449,7 +548,7 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
     <div className="rounded-lg border border-primary/40 bg-card/50 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold">Add OpenAI-compatible endpoint</h4>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button type="button" aria-label="Close" onClick={onClose} className="text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -498,7 +597,7 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
           Test
         </Button>
         {testState && (
-          <span className={`text-xs flex items-center gap-1 ${testState.ok ? "text-emerald-600" : "text-destructive"}`}>
+          <span className={`text-xs flex items-center gap-1 ${testState.ok ? "text-success" : "text-destructive"}`}>
             {testState.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
             {testState.msg}
           </span>

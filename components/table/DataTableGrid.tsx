@@ -440,7 +440,7 @@ function ColumnHeader({
                     <div key={o.label} className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-sm">
                       <span className="truncate">{o.label}</span>
                       <button
-                        className="text-destructive opacity-70 hover:opacity-100"
+ aria-label="Remove option"                        className="text-destructive opacity-70 hover:opacity-100"
                         onClick={() => setOptions((prev) => prev.filter((_, j) => j !== i))}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -461,7 +461,7 @@ function ColumnHeader({
                       }
                     }}
                   />
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={addOption}>
+                  <Button aria-label="Add option" size="icon" variant="ghost" className="h-7 w-7" onClick={addOption}>
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>

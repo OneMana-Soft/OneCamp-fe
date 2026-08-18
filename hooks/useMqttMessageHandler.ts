@@ -25,7 +25,7 @@ import {
 import { upsertNudge, setOpenCount } from "@/store/slice/nudgeSlice";
 import type { Nudge } from "@/services/nudgeService";
 import { upsertPendingAction, removePendingAction } from "@/store/slice/pendingActionSlice";
-import type { PendingAction } from "@/services/pendingActionService";
+import { toPendingActionSurface, type PendingAction } from "@/services/pendingActionService";
 
 interface UseMqttMessageHandlerProps {
     connectionConfig: ConnectionConfig
@@ -300,7 +300,11 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                                 const a: PendingAction = {
                                     id: data.id,
                                     requested_by: "",
-                                    surface_type: data.surface_type ?? "",
+                                    // Narrowed, not cast: this object comes from JSON.parse,
+                                    // so TypeScript would accept any string here — including
+                                    // the previous "" default, which is not a surface and
+                                    // matched neither an in-thread tray nor anything else.
+                                    surface_type: toPendingActionSurface(data.surface_type),
                                     surface_id: data.surface_id ?? "",
                                     tool_name: data.tool_name ?? "",
                                     params: {},
@@ -316,6 +320,24 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                             }
                         } catch (e) {
                             console.warn("[MQTT] Failed to parse AI pending action message", e)
+                        }
+                        break
+
+                    case MqttMessageType.AI_Agent_Work:
+                        // A durable agent job started / is stopping / finished.
+                        // Broadcast it as a DOM event rather than routing it
+                        // through the store: the only consumers are the live-work
+                        // surfaces, they are mounted only when relevant, and this
+                        // keeps the payload out of global state it would just be
+                        // read from once. Replaces per-client polling — see
+                        // useAgentWorkEvents.
+                        try {
+                            const parsed = JSON.parse(messageStr)
+                            window.dispatchEvent(
+                                new CustomEvent("agent-work-changed", { detail: parsed.data ?? {} }),
+                            )
+                        } catch (e) {
+                            console.warn("[MQTT] Failed to parse AI agent work message", e)
                         }
                         break
 

@@ -128,6 +128,7 @@ export function SelectUserToMessageDropdown({
                             </div>
                             <span className="text-xs">{user.user_name}</span>
                             <button
+                                aria-label={`Remove ${user.user_name}`}
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     handleRemoveUser(user.user_uuid)

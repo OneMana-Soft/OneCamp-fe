@@ -13,6 +13,7 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { authedStreamFetch } from "@/lib/utils/streamFetch"
+import { dedupeInFlight } from "@/lib/utils/inFlight"
 
 export type ProviderKind = "ollama" | "openai" | "anthropic" | "openai_compatible"
 
@@ -22,6 +23,16 @@ export interface ProviderView {
   label: string
   base_url: string
   has_api_key: boolean
+  /**
+   * A key IS stored but the server cannot decrypt it, so the provider is unusable until it is
+   * re-entered. Usually means AI_CONFIG_KEK was changed.
+   *
+   * Read together with has_api_key, never instead of it. The server reports has_api_key=false here,
+   * because a key it cannot decrypt is as useless as no key at all — so on its own has_api_key
+   * cannot distinguish "never configured" from "configured, now unreadable", and only the second
+   * has a cause worth telling the admin about. Absent on a healthy provider (omitempty).
+   */
+  key_unreadable?: boolean
   enabled: boolean
   is_builtin: boolean
   insecure_tls: boolean
@@ -77,6 +88,14 @@ export interface AIConfig {
   reasoning_enabled: boolean
   local_only_mode: boolean
   local_only_pinned_by_env: boolean
+  // Agent-to-agent delegation policy. agent_delegation_vetoed_by_env reports a
+  // DEPLOYMENT-LEVEL refusal (AI_AGENT_DELEGATION=false), in which case the toggle
+  // must be disabled and explained — a switch that saves and does nothing is worse
+  // than no switch.
+  agent_delegation_enabled: boolean
+  agent_delegation_max_hops: number
+  agent_delegation_surfaces: string
+  agent_delegation_vetoed_by_env: boolean
   pii_redaction_enabled: boolean
   pii_custom_patterns: string
   meeting_recap_enabled: boolean
@@ -113,6 +132,10 @@ export interface AIConfig {
   code_pr_channel_daily_minutes: number
   code_pr_channel_daily_runs: number
   code_pr_allow_unlinked: boolean
+  // How long one coding run may work (minutes). 0 = use the server default;
+  // code_pr_effective_wall_minutes is the limit actually in force.
+  code_pr_wall_minutes: number
+  code_pr_effective_wall_minutes: number
   code_pr_chat_provider_id: string
   code_pr_chat_model: string
   code_pr_used_today_minutes: number
@@ -250,10 +273,21 @@ export async function getAIChannelUsage(limit = 25): Promise<AIChannelUsage> {
   return res.data?.data
 }
 
+/**
+ * List a provider's models.
+ *
+ * De-duplicated while in flight because this reaches the PROVIDER's /models endpoint through the
+ * backend, so two concurrent identical calls are two real upstream requests — rate limit, and cost
+ * on a paid provider — for the same answer. The admin panel was issuing exactly that pair on every
+ * open. The URL is the key, so `refresh=true` is correctly treated as a different request and is
+ * never served from a shared non-refresh promise.
+ */
 export async function listProviderModels(providerId: string, refresh = false): Promise<ModelView[]> {
   const url = `${GetEndpointUrl.GetAIProviderModels}/${encodeURIComponent(providerId)}/models${refresh ? "?refresh=true" : ""}`
-  const res = await axiosInstance.get(url)
-  return res.data?.data?.models ?? []
+  return dedupeInFlight(url, async () => {
+    const res = await axiosInstance.get(url)
+    return res.data?.data?.models ?? []
+  })
 }
 
 /**
@@ -394,6 +428,24 @@ export async function setAILocalOnly(enabled: boolean): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAILocalOnly, { enabled })
 }
 
+// Set the agent-to-agent delegation policy: whether one AI teammate may hand work
+// to another, how deep a chain may go, and where it is permitted.
+//
+// All three go in one request because they are one policy — enabling delegation
+// while a stale surface list is stored would open places the admin did not just
+// choose. The backend refuses to enable it when the deployment has vetoed.
+export async function setAIAgentDelegation(
+  enabled: boolean,
+  maxHops: number,
+  surfaces: string,
+): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIAgentDelegation, {
+    enabled,
+    max_hops: maxHops,
+    surfaces,
+  })
+}
+
 // Toggle PII redaction before cloud egress. When on, detected PII is scrubbed
 // from prompts before they reach a non-local model.
 export async function setAIPIIRedaction(enabled: boolean): Promise<void> {
@@ -488,6 +540,8 @@ export interface CodePRConfigInput {
   out_of_scope_policy: string
   draft_on_red: boolean
   allow_unlinked: boolean
+  // 0 = use the server default; otherwise 2..60 minutes (validated server-side).
+  wall_minutes: number
   workspace_daily_minutes: number
   workspace_daily_runs: number
   channel_daily_minutes: number
@@ -495,9 +549,9 @@ export interface CodePRConfigInput {
 }
 
 // setCodePRConfig configures the agent code-PR feature (coding-capable runner
-// URL, token, egress allowlist, out-of-scope policy, draft-on-red, daily
-// minute/run budgets, on/off). runner_token is sent only when (re)entered;
-// clear_token removes a stored token.
+// URL, token, egress allowlist, out-of-scope policy, draft-on-red, per-run
+// coding time limit, daily minute/run budgets, on/off). runner_token is sent
+// only when (re)entered; clear_token removes a stored token.
 export async function setCodePRConfig(input: CodePRConfigInput): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAICodePR, input)
 }
@@ -634,8 +688,26 @@ export interface AuthorizedModel {
   label: string
   enabled: boolean
   provider_enabled: boolean
+  /**
+   * This model's own token limits. 0 means "inherit the workspace context window", which
+   * is the default — so a workspace that has never set them behaves exactly as before.
+   *
+   * Worth setting because OneCamp lets a member, a channel and an agent each pick a
+   * different model, and one workspace-wide window cannot be right for all of them: too
+   * small discards context that would have fitted (and on Ollama runs the model small),
+   * too large builds prompts the model refuses.
+   */
+  context_window_tokens: number
+  max_output_tokens: number
   updated_at?: string
 }
+
+/** Bounds mirrored from migration 140's CHECK constraints, so the form rejects a value
+ *  before a round trip rather than after. The database is still the real enforcement. */
+export const MODEL_LIMIT_BOUNDS = {
+  contextWindow: { min: 2048, max: 20_000_000 },
+  maxOutput: { min: 256, max: 1_000_000 },
+} as const
 
 export async function getAuthorizedModels(): Promise<AuthorizedModel[]> {
   const res = await axiosInstance.get(GetEndpointUrl.GetAIAuthorizedModels)
@@ -659,6 +731,47 @@ export async function setAuthorizedModelEnabled(id: string, enabled: boolean): P
 
 export async function revokeAuthorizedModel(id: string): Promise<void> {
   await axiosInstance.delete(`${PostEndpointUrl.RevokeAIAuthorizedModel}/${encodeURIComponent(id)}`)
+}
+
+/** What a provider says about a model's own limits. 0 means the provider did not report
+ *  it — which for OpenAI is always, since its API publishes no context windows. */
+export interface DiscoveredModelLimits {
+  context_window_tokens: number
+  max_output_tokens: number
+  /** The field the number came from (e.g. "context_length", "llama.context_length"), so
+   *  an admin being asked to accept a value can see where it came from. */
+  source?: string
+  /** Why a value is 0: not published by this provider, unreachable, or unknown model. */
+  note?: string
+}
+
+/**
+ * Ask a model's provider what its limits are. Returns a SUGGESTION — nothing is written,
+ * because a gateway's answer can be stale or describe a different model than it routes to,
+ * and re-sizing prompts is a decision a person should make.
+ */
+export async function discoverAuthorizedModelLimits(id: string): Promise<DiscoveredModelLimits> {
+  const res = await axiosInstance.get(
+    `${GetEndpointUrl.DiscoverAIModelLimits}/${encodeURIComponent(id)}/discover-limits`,
+  )
+  return res.data?.data ?? { context_window_tokens: 0, max_output_tokens: 0 }
+}
+
+/**
+ * Record what you know about a model's token limits. 0 clears a value back to inheriting
+ * the workspace context window.
+ *
+ * Omitting a field leaves it unchanged, which is why both are optional: 0 is a meaningful
+ * value here, so "clear it" and "don't touch it" have to be different requests.
+ */
+export async function setAuthorizedModelLimits(
+  id: string,
+  limits: { context_window_tokens?: number; max_output_tokens?: number },
+): Promise<void> {
+  await axiosInstance.post(
+    `${PostEndpointUrl.SetAIAuthorizedModelLimits}/${encodeURIComponent(id)}/limits`,
+    limits,
+  )
 }
 
 // ─── Per-user model choice ─────────────────────────────────────────────────
@@ -894,4 +1007,50 @@ export function formatBytes(bytes: number): string {
   const units = ["B", "KB", "MB", "GB", "TB"]
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
   return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
+
+/**
+ * The governed MCP surface's admission decision.
+ *
+ * `available_groups` comes from the server rather than being a constant here, for the
+ * same reason the audit log serves its own categories: the choices offered must be the
+ * groups that actually exist. A group a new tool introduces appears with nothing to
+ * remember, and a group with no tools in it can never be offered.
+ */
+export interface MCPServerSettings {
+    enabled: boolean
+    /** Comma-separated allowlist of scope prefixes, or "*" for all. Empty exposes nothing. */
+    tool_groups: string
+    available_groups: string[]
+}
+
+export async function getAIMCPServer(): Promise<MCPServerSettings> {
+    const res = await axiosInstance.get(GetEndpointUrl.GetAIMCPServer)
+    const data = (res.data as { data?: Partial<MCPServerSettings> })?.data
+    return {
+        // Defaults match the server's: off, exposing nothing. A malformed response must
+        // not render as "enabled" — an admin reading this screen has to be able to trust
+        // that a toggle shown as off means the surface is closed.
+        enabled: data?.enabled ?? false,
+        tool_groups: data?.tool_groups ?? "",
+        available_groups: data?.available_groups ?? [],
+    }
+}
+
+/**
+ * Set the MCP admission policy.
+ *
+ * Both values in one request because they are one decision: saving the flag without the
+ * groups enables a surface exposing nothing, and saving groups without the flag looks
+ * like it took effect when nothing changed.
+ *
+ * The backend refuses to enable the surface with no groups named, and names the valid
+ * groups when one is unrecognised — so its error text is worth showing verbatim rather
+ * than replacing with a generic failure.
+ */
+export async function setAIMCPServer(enabled: boolean, toolGroups: string): Promise<void> {
+    await axiosInstance.post(PostEndpointUrl.SetAIMCPServer, {
+        enabled,
+        tool_groups: toolGroups,
+    })
 }

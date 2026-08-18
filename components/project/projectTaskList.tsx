@@ -28,6 +28,7 @@ import { Separator } from "@/components/ui/separator"
 import { Github, Unlink, X } from "@/lib/icons";
 import { ListChecks } from "lucide-react";
 import { useToast } from "@/hooks/use-toast"
+import { useConfirm } from "@/hooks/useConfirm"
 import axiosInstance from "@/lib/axiosInstance"
 
 
@@ -74,6 +75,7 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
     })
     const dispatch = useDispatch()
     const post = usePost()
+    const confirm = useConfirm()
     const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate();
     const { animatingSubtasks, triggerAnimation } = useAnimationState()
     const { toast } = useToast()
@@ -241,7 +243,7 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
         prevBulkLinkOpen.current = githubBulkLinkOpen
     }, [githubBulkLinkOpen, handleExitSelectionMode, revalidateTaskKeys, projectId])
 
-    const handleBulkUnlink = useCallback(async () => {
+    const bulkUnlink = useCallback(async () => {
         if (selectedTaskUUIDs.size === 0) return
         setBulkUnlinking(true)
         try {
@@ -262,6 +264,25 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
             setBulkUnlinking(false)
         }
     }, [selectedTaskUUIDs, projectId, revalidateTaskKeys, handleExitSelectionMode, post])
+
+    // The worst of the unguarded destructive actions, so it is confirmed and the
+    // prompt states the COUNT. It strips GitHub links from an arbitrary selection in
+    // one click with no undo, and rebuilding them means finding each issue URL by
+    // hand. "Unlink 14 tasks?" is a question someone can actually answer; a bare
+    // "are you sure?" is not.
+    const handleBulkUnlink = useCallback(() => {
+        const count = selectedTaskUUIDs.size
+        if (count === 0) return
+        confirm({
+            title: count === 1 ? "Unlink 1 task from GitHub?" : `Unlink ${count} tasks from GitHub?`,
+            description:
+                "The tasks stay, but their GitHub links are removed. Relinking has to be done one task at a time.",
+            confirmText: count === 1 ? "Unlink task" : `Unlink ${count} tasks`,
+            onConfirm: () => {
+                void bulkUnlink()
+            },
+        })
+    }, [selectedTaskUUIDs, confirm, bulkUnlink])
 
     const isAdmin = projectInfo.data?.data.project_is_admin || false
 
@@ -363,7 +384,7 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
                             Unlink GitHub
                         </Button>
                         <Button
-                            variant="ghost"
+ aria-label="Exit selection mode"                            variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0 rounded-full"
                             onClick={handleExitSelectionMode}

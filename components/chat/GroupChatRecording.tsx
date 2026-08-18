@@ -16,6 +16,7 @@ import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import {VirtualInfiniteScroll} from "@/components/list/virtualInfiniteScroll";
 import {RecordingListRecording} from "@/components/recording/recordingListRecording";
 import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import { ErrorState } from "@/components/ui/error-state"
 import {usePost} from "@/hooks/usePost";
 
 export const GroupChatRecording = ({ grpId }: { grpId: string }) => {
@@ -38,7 +39,7 @@ export const GroupChatRecording = ({ grpId }: { grpId: string }) => {
       ? `${GetEndpointUrl.GroupChatRecordingList}/${grpId}?startDate=${startDate}&endDate=${endDate}&pageIndex=${pageIndex}&pageSize=${pageSize}`
       : "";
 
-  const { data: pageData, isLoading } = useFetch<RecordingPaginationResRaw>(endpoint);
+  const { data: pageData, isLoading, isError, mutate } = useFetch<RecordingPaginationResRaw>(endpoint);
 
   useEffect(() => {
     if (pageData?.data?.recordings) {
@@ -118,7 +119,7 @@ export const GroupChatRecording = ({ grpId }: { grpId: string }) => {
               className='flex  px-3 font-semibold text-lg p-2 truncate overflow-x-hidden overflow-ellipsis justify-between border-b'>
 
               <div className="flex justify-center items-center space-x-2">
-                  <div className={`${statusColors.online.solid} flex justify-center items-center rounded-md w-8 h-8 p-1.5 shadow-sm`}>
+                  <div className={`${statusColors.online.solid} flex justify-center items-center rounded-md w-8 h-8 p-1.5`}>
                     <Video className="text-white" size={18} />
                   </div>
                   <div>{"Recordings"}</div>
@@ -158,6 +159,10 @@ export const GroupChatRecording = ({ grpId }: { grpId: string }) => {
                           keyExtractor={(item: RecordingInfoInterface) => item.recording_egress_id}
                       />
                   </div>
+              </div>
+          ) : isError ? (
+              <div className="flex h-full items-center justify-center p-8">
+                  <ErrorState subject="the recordings" onRetry={() => void mutate()} />
               </div>
           ) : !isLoading ? (
               <div className="flex h-full items-center justify-center p-8">

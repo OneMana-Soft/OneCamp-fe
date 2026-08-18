@@ -124,7 +124,7 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10"
+                          className="h-8 w-8 text-success hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-success/10"
                           onClick={() => onUnDelete(team.team_uuid)}
                           disabled={isSubmitting}
                           aria-label={`Restore ${team.team_name}`}

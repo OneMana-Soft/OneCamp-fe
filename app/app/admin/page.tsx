@@ -17,10 +17,13 @@ import ExternalUsersCard from "@/components/admin/ExternalUsersCard"
 import SlackImportCard from "@/components/admin/SlackImportCard"
 import ImportCard from "@/components/admin/ImportCard"
 import AIModelsCard from "@/components/admin/AIModelsCard"
+import AgentDelegationCard from "@/components/admin/AgentDelegationCard"
+import MCPServerCard from "@/components/admin/MCPServerCard"
 import AIActivityCard from "@/components/admin/AIActivityCard"
 import AppsCard from "@/components/admin/AppsCard"
 import WorkspaceSettingsCard from "@/components/admin/WorkspaceSettingsCard"
 import GuestAccessCard from "@/components/admin/GuestAccessCard"
+import ScimProvisioningCard from "@/components/admin/ScimProvisioningCard"
 import PermissionsCard from "@/components/admin/PermissionsCard"
 import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsCard"
 import WorkflowsCard from "@/components/admin/WorkflowsCard"
@@ -29,6 +32,17 @@ import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic } from "@/li
 import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useMedia } from "@/context/MediaQueryContext"
+import { FEATURE_AI, FEATURE_CALLS, useFeature } from "@/hooks/useClientConfig"
+
+/**
+ * Vertical rhythm between top-level cards on a tab that holds more than one.
+ *
+ * A named constant rather than the literal repeated three times, so the tabs cannot drift apart and
+ * so adminLayout.test.ts can assert that every multi-card tab actually uses it. The AI Models tab
+ * previously had no wrapper at all and its cards rendered flush against each other; that is not
+ * detectable by reading one tab in isolation, which is why the rule is expressed once and checked.
+ */
+const ADMIN_SECTION_STACK = "space-y-8"
 
 type TabDef = {
   value: string
@@ -60,7 +74,17 @@ const AdminPage = () => {
   const searchParams = useSearchParams()
   const {isDesktop } = useMedia();
   const { toast } = useToast()
-  const defaultTab = searchParams.get("tab") || "teams"
+  const aiAvailable = useFeature(FEATURE_AI)
+  const callsAvailable = useFeature(FEATURE_CALLS)
+  const visibleTabs = TABS.filter((tab) => {
+    if (tab.value === "ai-models") return aiAvailable
+    if (tab.value === "transcription") return callsAvailable
+    return true
+  })
+  const requestedTab = searchParams.get("tab") || "teams"
+  const defaultTab = visibleTabs.some((tab) => tab.value === requestedTab)
+    ? requestedTab
+    : "teams"
   const processed = useRef(false)
 
   // Horizontal scroll affordance for the tab strip — show fade + arrow
@@ -177,7 +201,7 @@ const AdminPage = () => {
                   "rounded-none w-max"
                 )}
               >
-                {TABS.map(({ value, label, icon: Icon }) => (
+                {visibleTabs.map(({ value, label, icon: Icon }) => (
                   <TabsTrigger
                     key={value}
                     value={value}
@@ -217,67 +241,112 @@ const AdminPage = () => {
           </div>
         </div>
 
-        {/* Per-tab content. Each card owns its own internal scrolling. */}
-        <div className="flex-1 min-h-0">
-          <div className="h-full px-4 sm:px-6 lg:px-8 py-6">
-            <div className="h-full mx-auto w-full max-w-6xl">
-              <TabsContent value="teams" className="mt-0 h-full outline-none">
+        {/* Per-tab content. THIS IS THE ONLY SCROLL CONTAINER ON THE PAGE.
+            
+            It used to be "each card owns its own internal scrolling", which works for a tab holding
+            exactly one card and breaks silently the moment a second is added. That had already
+            happened twice. On the AI Models tab, AIModelsCard was h-full with its own
+            overflow-y-auto, so it occupied the entire visible region and scrolled inside itself,
+            while AgentDelegationCard, MCPServerCard and AIActivityCard were appended BELOW it —
+            reachable only by scrolling the app shell's scroller (app/app/LayoutContent.tsx). Two
+            scrollbars with different meanings on one screen: the inner one moved the AI settings, the
+            outer one moved the page and took the header and the tab strip off-screen with it. Scroll
+            far enough and the inner scrollport was itself partly off-screen, so content stayed
+            clipped with no reachable scrollbar. The integrations tab had the same latent fault, since
+            GitHubIntegrationCard is also a full-height internal scroller with a sibling beneath it.
+            
+            Scrolling here instead of inside the cards fixes all of it at once, and it is the reason
+            the header and tab strip now stay put — which is what "Sticky tab strip" above always
+            claimed. Cards must therefore NOT set h-full or their own overflow-y-auto; they size to
+            their content and this box scrolls. adminLayout.test.ts holds that line. */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
+          <div className="px-4 sm:px-6 lg:px-8 py-6">
+            <div className="mx-auto w-full max-w-6xl">
+              <TabsContent value="teams" className="mt-0 outline-none">
                 <TeamsCard />
               </TabsContent>
-              <TabsContent value="users" className="mt-0 h-full outline-none">
+              <TabsContent value="users" className="mt-0 outline-none">
                 <UserCard />
               </TabsContent>
-              <TabsContent value="admins" className="mt-0 h-full outline-none">
+              <TabsContent value="admins" className="mt-0 outline-none">
                 <AdminCard />
               </TabsContent>
-              <TabsContent value="invitations" className="mt-0 h-full outline-none">
+              <TabsContent value="invitations" className="mt-0 outline-none">
                 <InvitationCard />
               </TabsContent>
-              <TabsContent value="email-settings" className="mt-0 h-full outline-none">
+              <TabsContent value="email-settings" className="mt-0 outline-none">
                 <EmailSettingsCard />
               </TabsContent>
-              <TabsContent value="settings" className="mt-0 h-full outline-none">
-                <div className="space-y-6">
+              {/* A tab holding more than one card wraps them in ADMIN_SECTION_STACK.
+                  
+                  One shared value rather than a per-tab judgement, and space-y-8 rather than the
+                  space-y-6 this used to be, because 8 is what AIModelsCard already puts between its
+                  OWN sections. At 6 the gap between two top-level cards was tighter than the gap
+                  between subsections inside one of them, which reads as though the cards belong
+                  together. Separation has to grow with level, not shrink. */}
+              <TabsContent value="settings" className="mt-0 outline-none">
+                {/* SCIM sits between guest access and the audit log because the three are one
+                    progression: who may get in from outside, how members are provisioned, and what
+                    was done. The audit log stays last — it is a viewer over the others, not a
+                    setting alongside them. */}
+                <div className={ADMIN_SECTION_STACK}>
                   <WorkspaceSettingsCard />
                   <GuestAccessCard />
+                  <ScimProvisioningCard />
                   <AdminAuditLog />
                 </div>
               </TabsContent>
-              <TabsContent value="permissions" className="mt-0 h-full outline-none">
+              <TabsContent value="permissions" className="mt-0 outline-none">
                 <PermissionsCard />
               </TabsContent>
-              <TabsContent value="transcription" className="mt-0 h-full outline-none">
+              {callsAvailable && (
+              <TabsContent value="transcription" className="mt-0 outline-none">
                 <TranscriptionSettingsCard />
               </TabsContent>
-              <TabsContent value="ai-models" className="mt-0 h-full outline-none">
-                <AIModelsCard />
-                <AIActivityCard />
+              )}
+              {/* These four had NO wrapper at all, so they rendered flush: "Agent collaboration"
+                  ended and "External agent access" began against it with only a hairline between,
+                  and the eye read them as one section. The two tabs above were wrapped; this one was
+                  missed when cards were appended to it, which is exactly the kind of thing that
+                  survives review because nothing about it looks wrong in the diff. */}
+              {aiAvailable && (
+              <TabsContent value="ai-models" className="mt-0 outline-none">
+                <div className={ADMIN_SECTION_STACK}>
+                  <AIModelsCard />
+                  <AgentDelegationCard />
+                  {/* Beside agent collaboration because they are the same kind of decision:
+                      who may cause an agent to act here. Delegation governs agents inside
+                      the workspace; this governs clients outside it. */}
+                  <MCPServerCard />
+                  <AIActivityCard />
+                </div>
               </TabsContent>
-              <TabsContent value="webhooks" className="mt-0 h-full outline-none">
+              )}
+              <TabsContent value="webhooks" className="mt-0 outline-none">
                 <WebhooksCard />
               </TabsContent>
-              <TabsContent value="workflows" className="mt-0 h-full outline-none">
+              <TabsContent value="workflows" className="mt-0 outline-none">
                 <WorkflowsCard />
               </TabsContent>
-              <TabsContent value="apps" className="mt-0 h-full outline-none">
+              <TabsContent value="apps" className="mt-0 outline-none">
                 <AppsCard />
               </TabsContent>
-              <TabsContent value="integrations" className="mt-0 h-full outline-none">
-                <div className="space-y-6">
+              <TabsContent value="integrations" className="mt-0 outline-none">
+                <div className={ADMIN_SECTION_STACK}>
                   <GitHubIntegrationCard />
                   <OAuthConfigCard />
                 </div>
               </TabsContent>
-              <TabsContent value="external-users" className="mt-0 h-full outline-none">
+              <TabsContent value="external-users" className="mt-0 outline-none">
                 <ExternalUsersCard />
               </TabsContent>
-              <TabsContent value="archive" className="mt-0 h-full outline-none">
+              <TabsContent value="archive" className="mt-0 outline-none">
                 <ArchiveCard />
               </TabsContent>
-              <TabsContent value="slack-import" className="mt-0 h-full outline-none">
+              <TabsContent value="slack-import" className="mt-0 outline-none">
                 <SlackImportCard />
               </TabsContent>
-              <TabsContent value="import" className="mt-0 h-full outline-none">
+              <TabsContent value="import" className="mt-0 outline-none">
                 <ImportCard />
               </TabsContent>
             </div>

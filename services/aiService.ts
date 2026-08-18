@@ -210,6 +210,13 @@ export interface AskStreamResult {
     text: string;
     actions: ProposedAction[];
     sources: SourceRef[];
+    /**
+     * Set when the backend shortened the prompt to fit the model's context window,
+     * either by trimming before the request or by shrinking after the provider refused
+     * it. Empty when the whole thread fitted, so the absence of a notice is itself
+     * meaningful — a message that appears on every answer is one nobody reads.
+     */
+    notice: string;
 }
 
 /**
@@ -224,6 +231,11 @@ export const useAskAIStream = () => {
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamText, setStreamText] = useState("");
     const [streamActions, setStreamActions] = useState<ProposedAction[]>([]);
+    // Set when the backend had to shorten the prompt to fit the model's context
+    // window. Kept separate from `error` on purpose: this is a successful answer that
+    // used less input than the whole thread, so presenting it as a failure would be
+    // wrong, and hiding it would leave the answer quietly incomplete.
+    const [streamNotice, setStreamNotice] = useState("");
     const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
 
@@ -232,6 +244,7 @@ export const useAskAIStream = () => {
             setIsStreaming(true);
             setStreamText("");
             setStreamActions([]);
+            setStreamNotice("");
             setError(null);
 
             abortRef.current = new AbortController();
@@ -241,6 +254,7 @@ export const useAskAIStream = () => {
             let accumulated = "";
             let parsedActions: ProposedAction[] = [];
             let parsedSources: SourceRef[] = [];
+            let parsedNotice = "";
 
             try {
                 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -307,9 +321,16 @@ export const useAskAIStream = () => {
                                 if (data.sources) {
                                     parsedSources = data.sources;
                                 }
+                                // Server reports that the prompt was shortened to fit
+                                // the model's window (trimmed pre-emptively, or shrunk
+                                // after the provider refused it).
+                                if (data.notice) {
+                                    parsedNotice = data.notice;
+                                    setStreamNotice(data.notice);
+                                }
                                 if (data.done) {
                                     setIsStreaming(false);
-                                    return { text: accumulated, actions: parsedActions, sources: parsedSources };
+                                    return { text: accumulated, actions: parsedActions, sources: parsedSources, notice: parsedNotice };
                                 }
                             } catch {
                                 // Skip malformed JSON chunks
@@ -319,13 +340,13 @@ export const useAskAIStream = () => {
                 }
 
                 // Stream ended without explicit done event — return what we have
-                return { text: accumulated, actions: parsedActions, sources: parsedSources };
+                return { text: accumulated, actions: parsedActions, sources: parsedSources, notice: parsedNotice };
             } catch (err: any) {
                 if (err.name !== "AbortError") {
                     setError(err.message || "Streaming failed");
                 }
                 // Return accumulated text even on error so partial responses are usable
-                return accumulated ? { text: accumulated, actions: parsedActions, sources: parsedSources } : null;
+                return accumulated ? { text: accumulated, actions: parsedActions, sources: parsedSources, notice: parsedNotice } : null;
             } finally {
                 setIsStreaming(false);
             }
@@ -347,7 +368,7 @@ export const useAskAIStream = () => {
         abortRef.current?.abort();
     }, []);
 
-    return { askStream, cancelStream, isStreaming, streamText, streamActions, error };
+    return { askStream, cancelStream, isStreaming, streamText, streamActions, streamNotice, error };
 };
 
 /**
@@ -384,6 +405,12 @@ export interface DocAIResponse {
     result: string;
     action: string;
     provider: string;
+    /**
+     * Set when the input was shortened to fit the model's context window, so the editor
+     * can say the result came from part of the selection rather than all of it. Absent
+     * when everything fitted.
+     */
+    notice?: string;
 }
 
 /**
@@ -393,6 +420,9 @@ export interface DocAIResponse {
 export const useDocAI = () => {
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamText, setStreamText] = useState("");
+    // Set when the input was shortened to fit the model's context window. Separate from
+    // `error` deliberately: the action succeeded, it just saw part of the selection.
+    const [streamNotice, setStreamNotice] = useState("");
     const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
 
@@ -449,6 +479,11 @@ export const useDocAI = () => {
                                         .replace(/\\"/g, '"');
                                     accumulated += unescaped;
                                     setStreamText(accumulated);
+                                }
+                                // Sent just before "done" when the input was shortened
+                                // to fit the model's window.
+                                if (data.notice) {
+                                    setStreamNotice(data.notice);
                                 }
                                 if (data.done) {
                                     setIsStreaming(false);
@@ -507,10 +542,11 @@ export const useDocAI = () => {
 
     const resetResult = useCallback(() => {
         setStreamText("");
+        setStreamNotice("");
         setError(null);
     }, []);
 
-    return { completeStream, complete, cancelStream, resetResult, isStreaming, streamText, error };
+    return { completeStream, complete, cancelStream, resetResult, isStreaming, streamText, streamNotice, error };
 };
 
 // --- Agentic Action Types ---

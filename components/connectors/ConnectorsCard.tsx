@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { Github, Mail, Calendar, ShieldCheck, Check, Eye, Loader2, RefreshCw } from "@/lib/icons"
 import { Plug } from "lucide-react"
+import { EmptyState } from "@/components/ui/empty-state"
 import { listConnectors, startConnect, disconnectConnector } from "@/services/connectorService"
 import type { ConnectorStatus } from "@/types/connector"
 
@@ -97,11 +98,12 @@ export default function ConnectorsCard() {
                     </div>
                 )}
                 {!isLoading && (!connectors || connectors.length === 0) && (
-                    <div className="text-center py-12 text-muted-foreground">
-                        <Plug className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                        <p className="text-sm">No connectors are available yet.</p>
-                        <p className="text-xs mt-1">Ask your admin to configure Google or GitHub OAuth.</p>
-                    </div>
+                    <EmptyState
+                        tone="accent"
+                        icon={Plug}
+                        title="No connectors are available yet"
+                        description="Ask your admin to configure Google or GitHub OAuth."
+                    />
                 )}
                 {connectors?.map((c) => (
                     <div key={c.id} className="rounded-xl border border-border/70 bg-card p-4">

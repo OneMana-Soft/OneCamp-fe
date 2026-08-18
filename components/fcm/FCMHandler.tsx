@@ -14,6 +14,7 @@ import { UserProfileInterface } from "@/types/user"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { setWorkerUserUUID } from "@/lib/workerCommunication"
 import { isDndActive } from "@/components/command/CommandActionBridge"
+import { notificationRoute, NOTIFICATION_FALLBACK_ROUTE } from "@/lib/utils/notificationRoute"
 
 export function FCMHandler() {
   const { makeRequest } = usePost()
@@ -23,10 +24,16 @@ export function FCMHandler() {
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
+  // Held in a ref because the foreground listener below subscribes once and must
+  // not capture the profile before it loads. A DM's route is named after the OTHER
+  // participant, so resolving one needs to know who "I" am.
+  const selfUUIDRef = useRef<string>("")
+
   // Effect 1: Sync userUUID to IndexedDB for the service worker (re-runs when profile loads)
   useEffect(() => {
     const userUUID = selfProfile.data?.data?.user_uuid
     if (userUUID) {
+      selfUUIDRef.current = userUUID
       setWorkerUserUUID(userUUID)
     }
   }, [selfProfile.data])
@@ -103,20 +110,14 @@ export function FCMHandler() {
       const title = payload.notification?.title || payload.data?.title || "New Notification"
       const body = payload.notification?.body || payload.data?.body || ""
       const icon = payload.notification?.icon || payload.data?.icon
-      const type = payload.data?.type
-      const threadId = payload.data?.thread_id
-      const typeId = payload.data?.type_id
 
-      let redirectUrl = ""
-      if (type === 'chat' ) {
-        redirectUrl = `/app/chat/${threadId}`
-      } else if(type === 'chat_reaction' || type === 'chat_comment') {
-        redirectUrl = `/app/chat/${threadId}`
-      } else if (type === 'task' || type === 'task_comment') {
-        redirectUrl = `/app/tasks/${threadId}`
-      } else if (type === 'channel' || type === 'post_comment') {
-        redirectUrl = `/app/channel/${typeId}/${threadId}`
-      }
+
+      // One shared mapping with the service worker, so a foreground toast and a
+      // background tap on the same notification can never disagree about where
+      // it goes. The ref (not selfProfile directly) because this listener
+      // subscribes once and would otherwise close over an unloaded profile.
+      const route = notificationRoute(payload.data, selfUUIDRef.current)
+      const redirectUrl = route === NOTIFICATION_FALLBACK_ROUTE ? "" : route
 
       toast({
         variant: "notification" as any,

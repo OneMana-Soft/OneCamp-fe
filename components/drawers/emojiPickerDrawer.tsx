@@ -121,7 +121,12 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
 
                 </DrawerHeader>
                 <div className='relative flex w-full flex-col focus:outline-none'>
-                    <div className='px-safe-offset-3 pt-3'>
+                    {/* Was `px-safe-offset-3`, which emitted no CSS at all: that
+                        utility comes from tailwind.config.ts, and Tailwind v4 only
+                        loads that file given an explicit `@config` directive, which
+                        globals.css does not have. Verified against the built CSS —
+                        zero rules. Arbitrary values work without the config. */}
+                    <div className='pl-[calc(0.75rem+env(safe-area-inset-left))] pr-[calc(0.75rem+env(safe-area-inset-right))] pt-3'>
                         <Input
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
@@ -131,7 +136,7 @@ export function EmojiPickerDrawer({ showCustomReactions, onReactionSelect, react
                     </div>
                     <div
                         ref={scrollAreaRef}
-                        className='scrollbar-hide pb-safe-offset-2 flex flex-row overflow-y-hidden overflow-x-scroll'
+                        className='scrollbar-hide pb-[calc(0.5rem+env(safe-area-inset-bottom))] flex flex-row overflow-y-hidden overflow-x-scroll'
                     >
                         {query ? (
                             <MobileReactionPickerCategory

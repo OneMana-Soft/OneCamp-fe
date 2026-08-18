@@ -19,9 +19,12 @@ import {
   getDataSourceSchema,
 } from "@/services/dataSourceService"
 import { DataSourceEditDialog } from "./DataSourceEditDialog"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 
 const DataSourcesCard = () => {
-  const { data, isLoading, mutate } = useFetch<{ data: DataSource[] }>(GetEndpointUrl.GetDataSources)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: DataSource[] }>(GetEndpointUrl.GetDataSources)
   const { toast } = useToast()
   const confirm = useConfirm()
   const [editing, setEditing] = useState<DataSource | null>(null)
@@ -101,25 +104,24 @@ const DataSourcesCard = () => {
 
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center py-12 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
+          <div role="status" aria-label="Loading data sources">
+            <SkeletonRows rows={3} />
           </div>
+        ) : isError ? (
+          <ErrorState subject="the data sources" onRetry={() => void mutate()} />
         ) : sources.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-              <Database className="h-6 w-6 text-primary" />
-            </div>
-            <div className="max-w-sm space-y-1">
-              <p className="text-sm font-medium">No data sources connected</p>
-              <p className="text-sm text-muted-foreground">
-                Add a read-only PostgreSQL or MySQL connection to let agents query it.
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              Add your first source
-            </Button>
-          </div>
+          <EmptyState
+            tone="accent"
+            icon={Database}
+            title="No data sources connected"
+            description="Add a read-only PostgreSQL or MySQL connection to let agents query it."
+            action={
+              <Button variant="outline" onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                Add your first source
+              </Button>
+            }
+          />
         ) : (
           <div className="space-y-3">
             {sources.map((s) => (
@@ -141,7 +143,7 @@ const DataSourcesCard = () => {
                       </Badge>
                       {!s.enabled && <Badge variant="secondary" className="text-[10px]">Disabled</Badge>}
                       {!s.has_password && (
-                        <Badge variant="outline" className="gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+                        <Badge variant="outline" className="gap-1 text-[10px] text-warning">
                           <AlertTriangle className="h-2.5 w-2.5" /> no password
                         </Badge>
                       )}

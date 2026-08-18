@@ -36,9 +36,26 @@ export enum MqttMessageType {
     // kept here only to keep the numeric values aligned with the Go iota enum.
     Table_Row,
     // AI_Pending_Action mirrors backend MESSAGE_AI_PENDING_ACTION: a durable
-    // in-thread write approval was created or resolved. MUST stay last to keep
-    // the numeric values aligned with the Go iota enum.
+    // in-thread write approval was created or resolved.
     AI_Pending_Action,
+    // AI_Agent_Work mirrors backend MESSAGE_AI_AGENT_WORK: a durable agent job
+    // started, was asked to stop, or finished. It is what makes the in-thread
+    // "working… / Stop" strip live without a timer. MUST stay last to keep the
+    // numeric values aligned with the Go iota enum.
+    AI_Agent_Work,
+}
+
+// msgAgentWorkInterface mirrors the backend MqttAgentWork payload. It carries
+// only what the strip already shows to anyone who can see the surface — never
+// whether THIS person may stop the job, which stays a server-side check.
+export interface msgAgentWorkInterface {
+    entity_id?: string
+    task_id?: string
+    agent_id?: string
+    agent_name?: string
+    state?: string
+    open: boolean
+    updated_at?: string
 }
 
 export enum MqttActionType {

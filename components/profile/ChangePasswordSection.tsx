@@ -91,7 +91,7 @@ export function ChangePasswordSection() {
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                     <div className="bg-amber-500/10 p-2 rounded-full">
-                        <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                        <Shield className="h-5 w-5 text-warning" />
                     </div>
                     <div>
                         <h3 className="text-sm font-medium">{title}</h3>
@@ -171,7 +171,7 @@ export function ChangePasswordSection() {
                     )}
 
                     {success && (
-                        <div className="flex items-center space-x-2 text-sm text-green-600 dark:text-green-400 animate-in fade-in">
+                        <div className="flex items-center space-x-2 text-sm text-success animate-in fade-in">
                             <CheckCircle2 className="h-4 w-4" />
                             <span>{success}</span>
                         </div>

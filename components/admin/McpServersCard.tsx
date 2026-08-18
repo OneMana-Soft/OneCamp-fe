@@ -9,7 +9,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Pencil, Plug, Loader2, Check, ExternalLink } from "@/lib/icons"
+import { Plus, Trash2, Pencil, Plug, Check, ExternalLink } from "@/lib/icons"
 import {
   McpServer,
   McpCatalogEntry,
@@ -18,9 +18,13 @@ import {
   deleteMcpServer,
 } from "@/services/mcpService"
 import { McpServerEditDialog } from "./McpServerEditDialog"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { McpToolRiskBadge, McpToolRiskLegend } from "./McpToolRisk"
 
 const McpServersCard = () => {
-  const { data, isLoading, mutate } = useFetch<{ data: McpServer[] }>(GetEndpointUrl.GetMcpServers)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: McpServer[] }>(GetEndpointUrl.GetMcpServers)
   const { data: catalogData, mutate: mutateCatalog } = useFetch<{ data: McpCatalogEntry[] }>(
     GetEndpointUrl.GetMcpCatalog,
   )
@@ -94,27 +98,29 @@ const McpServersCard = () => {
 
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center py-12 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
+          <div role="status" aria-label="Loading MCP servers">
+            <SkeletonRows rows={3} />
           </div>
+        ) : isError ? (
+          <ErrorState subject="the MCP servers" onRetry={() => void mutate()} />
         ) : servers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-              <Plug className="h-6 w-6 text-primary" />
-            </div>
-            <div className="max-w-sm space-y-1">
-              <p className="text-sm font-medium">No MCP servers connected</p>
-              <p className="text-sm text-muted-foreground">
-                Add a server to bring its tools into your agents.
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              Add your first server
-            </Button>
-          </div>
+          <EmptyState
+            tone="accent"
+            icon={Plug}
+            title="No MCP servers connected"
+            description="Add a server to bring its tools into your agents."
+            action={
+              <Button variant="outline" onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                Add your first server
+              </Button>
+            }
+          />
         ) : (
           <div className="space-y-3">
+            {/* Read once for the whole list: every tool chip below is labelled
+                with the risk OneCamp enforces for it. */}
+            <McpToolRiskLegend />
             {servers.map((s) => {
               const tools = parseMcpTools(s)
               return (
@@ -136,7 +142,10 @@ const McpServersCard = () => {
                     {tools.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5">
                         {tools.slice(0, 6).map((t) => (
-                          <Badge key={t.name} variant="outline" className="text-[11px] font-normal">{t.name}</Badge>
+                          <Badge key={t.name} variant="outline" className="gap-1 text-[11px] font-normal">
+                            {t.name}
+                            <McpToolRiskBadge tool={t} compact />
+                          </Badge>
                         ))}
                         {tools.length > 6 && <span className="text-[11px] text-muted-foreground">+{tools.length - 6} more</span>}
                       </div>

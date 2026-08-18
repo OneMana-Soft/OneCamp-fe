@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useDocAI, DocAIAction, getVoiceInputAvailable, transcribeAudio } from "@/services/aiService"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { Sparkles, Loader2, Maximize, Minimize, Lightbulb, CheckCircle2, Mic, X } from "@/lib/icons"
+import { withAI } from "@/components/common/withFeature"
 
 interface ComposerAIButtonProps {
   /** Returns the current composer text (plain or HTML). */
@@ -59,7 +60,7 @@ function toComposerHTML(text: string): string {
     .join("")
 }
 
-export const ComposerAIButton: React.FC<ComposerAIButtonProps> = ({
+const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
   getText,
   onResult,
   className,
@@ -270,3 +271,8 @@ export const ComposerAIButton: React.FC<ComposerAIButtonProps> = ({
     </Popover>
   )
 }
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, and on v2
+// whenever an admin has switched AI off. Wrapping the export covers every place this
+// is rendered, desktop and mobile, instead of asking each of them to remember.
+export const ComposerAIButton = withAI(ComposerAIButtonUngated)
+export default ComposerAIButton

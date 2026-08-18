@@ -1,5 +1,28 @@
 import { withCsrfHeader } from "@/lib/utils/csrf";
 
+/**
+ * The three outcomes of a password submission.
+ *
+ * `totp_required` is the one worth naming: the password was CORRECT and the user is still not signed in.
+ * It arrives as HTTP 200 with no cookies, so any shape that reduces this to a boolean reports it as
+ * success — see loginWithEmail for what that cost.
+ */
+export type LoginOutcome =
+    | { status: 'success' }
+    | { status: 'totp_required'; challenge: string; msg: string }
+    | { status: 'failed'; msg: string; auth_method?: string };
+
+/** The outcome of answering a second-factor challenge. */
+export type TOTPLoginOutcome =
+    | { status: 'success' }
+    /**
+     * `reason` separates the two failures that need different things from the user. A wrong code means
+     * try again in the same screen; an expired challenge means the password step has to be repeated, and
+     * telling someone to "check your authenticator app" when the real problem is that they took five
+     * minutes is how a person ends up convinced their codes are broken.
+     */
+    | { status: 'failed'; msg: string; reason: 'code_invalid' | 'challenge_expired' };
+
 class AuthService {
     static async loginWithGoogle() {
         const oauthEndpoint = `${
@@ -54,7 +77,25 @@ class AuthService {
         }
     }
 
-    static async loginWithEmail(email: string, password: string): Promise<{ ok: boolean; msg: string; auth_method?: string }> {
+    /**
+     * Exchanges email and password for either a session or a second-factor challenge.
+     *
+     * A DISCRIMINATED UNION RATHER THAN `{ ok: boolean }`, and the boolean was the bug. It conflated
+     * two different facts — "the request succeeded" and "you are now signed in" — which were the same
+     * thing until two-factor authentication existed and are not any more. The server answers a correct
+     * password from an enrolled account with HTTP 200 and NO cookies, because the sign-in is not
+     * finished. Under the old shape that read as `ok: true`, and the caller routed into the app with no
+     * session: every request 401s and the user is bounced back to a login screen that just told them
+     * they were logged in.
+     *
+     * A boolean cannot express three outcomes, so it quietly picked the wrong one. The union can, and it
+     * breaks any caller still reading `.ok`.
+     *
+     * The union alone does NOT force a caller to handle every case, though — TypeScript allows a
+     * non-exhaustive switch, so omitting `totp_required` compiles and silently does nothing. Callers
+     * close that with assertUnreachable() in the default branch; see app/page.tsx.
+     */
+    static async loginWithEmail(email: string, password: string): Promise<LoginOutcome> {
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/login`,
@@ -66,10 +107,55 @@ class AuthService {
                 }
             );
             const data = await res.json();
-            return { ok: res.ok, msg: data.msg || '', auth_method: data.auth_method };
+
+            // Checked BEFORE res.ok, because this case IS a 200. Ordering it after would let the
+            // success branch claim it.
+            if (data?.status === 'totp_required' && typeof data?.challenge === 'string') {
+                return { status: 'totp_required', challenge: data.challenge, msg: data.msg || '' };
+            }
+            if (res.ok) {
+                return { status: 'success' };
+            }
+            return { status: 'failed', msg: data?.msg || '', auth_method: data?.auth_method };
         } catch (error) {
             console.error('Email login failed:', error);
-            return { ok: false, msg: 'Network error. Please try again.' };
+            return { status: 'failed', msg: 'Network error. Please try again.' };
+        }
+    }
+
+    /**
+     * Completes a two-factor sign-in by exchanging the challenge and a code for cookies.
+     *
+     * `code` accepts either a six-digit authenticator code or a recovery code — the server tries the
+     * authenticator first and falls back, so the UI does not have to ask the user which kind they are
+     * holding. One field, two answers.
+     */
+    static async completeTOTPLogin(challenge: string, code: string): Promise<TOTPLoginOutcome> {
+        try {
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/login/totp`,
+                {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ challenge, code }),
+                }
+            );
+            const data = await res.json();
+            if (res.ok) {
+                return { status: 'success' };
+            }
+            // The server's `code` field distinguishes an expired challenge from a wrong digit, which
+            // need different things from the user: start over versus try again. Passed through rather
+            // than flattened, so the screen can say which.
+            return {
+                status: 'failed',
+                msg: data?.msg || 'That did not work. Please try again.',
+                reason: data?.code === 'totp_challenge_invalid' ? 'challenge_expired' : 'code_invalid',
+            };
+        } catch (error) {
+            console.error('Two-factor login failed:', error);
+            return { status: 'failed', msg: 'Network error. Please try again.', reason: 'code_invalid' };
         }
     }
 

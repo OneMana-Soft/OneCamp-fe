@@ -7,29 +7,25 @@
  * every member the async-work observability loop that used to be admin-only —
  * a teammate blocked on your input is visible here, not just in the one thread
  * it posted in. Self-scoped server-side; polls gently while open.
+ *
+ * Each row is the shared AgentWorkRow, so this view and the builder's
+ * mission-control panel present (and stop) live work identically.
  */
 
 import React, { useCallback, useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Loader2, Clock, AlertTriangle, Sparkles } from "@/lib/icons"
-import { cn } from "@/lib/utils/helpers/cn"
-import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCount"
-import { listMyAgentWork, type ActiveWorkItem, type ActiveWorkState } from "@/services/agentService"
+import { Loader2, Sparkles } from "@/lib/icons"
+import { useToast } from "@/hooks/use-toast"
+import { useResilientPolling } from "@/hooks/useResilientPolling"
+import { useStreamGapResync } from "@/hooks/useStreamGapResync"
+import { useAgentWorkEvents } from "@/hooks/useAgentWorkEvents"
+import { useMqtt } from "@/components/mqtt/mqttProvider"
+import { AgentWorkRow, sortAgentWork } from "@/components/ai/AgentWorkRow"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { EmptyState } from "@/components/ui/empty-state"
+import { listMyAgentWork, type ActiveWorkItem } from "@/services/agentService"
 
 const POLL_MS = 15000
-
-const STATE_ORDER: Record<ActiveWorkState, number> = { blocked: 0, working: 1, queued: 2 }
-const STATE_LABEL: Record<ActiveWorkState, string> = {
-  blocked: "Waiting on you",
-  working: "Working",
-  queued: "Queued",
-}
-
-const StateIcon: React.FC<{ state: ActiveWorkState }> = ({ state }) => {
-  if (state === "working") return <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" />
-  if (state === "blocked") return <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-  return <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />
-}
 
 const MyAgentWorkDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) => void }> = ({
   open,
@@ -37,29 +33,43 @@ const MyAgentWorkDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =>
 }) => {
   const [items, setItems] = useState<ActiveWorkItem[] | null>(null)
   const [loading, setLoading] = useState(false)
+  const { toast } = useToast()
+  const { connectionState } = useMqtt()
 
   const load = useCallback(() => {
     setLoading(true)
-    listMyAgentWork(100)
+    return listMyAgentWork(100)
       .then(setItems)
       .catch(() => setItems([]))
       .finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
-    if (!open) return
-    load()
-    const id = setInterval(load, POLL_MS)
-    return () => clearInterval(id)
+    if (open) void load()
   }, [open, load])
 
-  const sorted = items
-    ? [...items].sort((a, b) => {
-        const d = (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9)
-        if (d !== 0) return d
-        return b.updated_at.localeCompare(a.updated_at)
-      })
-    : []
+  // Pushed: every durable-job transition reaches this client on its own activity
+  // topic, so the list follows the work without asking. The list is small and the
+  // per-person "may you stop it" answer is never broadcast, so a re-read is the
+  // honest way to apply an event.
+  useAgentWorkEvents({ onChange: () => { if (open) void load() } })
+
+  // Reconcile once after a stream gap (reconnect / PWA foreground).
+  useStreamGapResync(() => { if (open) void load() }, open)
+
+  // Fallback ONLY while MQTT is unhealthy: after ~17 minutes of failed retries
+  // the client stops trying, so a dead broker with live internet would otherwise
+  // leave this dialog frozen with no way to notice. Paused while hidden, backs
+  // off on error.
+  useResilientPolling({
+    enabled: open,
+    mqttHealthy: connectionState.isConnected,
+    interval: POLL_MS,
+    capMs: 30 * 60 * 1000,
+    onPoll: load,
+  })
+
+  const sorted = items ? sortAgentWork(items) : []
   const blockedCount = items?.filter((i) => i.state === "blocked").length ?? 0
 
   return (
@@ -78,44 +88,27 @@ const MyAgentWorkDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =>
         </DialogHeader>
 
         {items === null ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          // Content-shaped, not a spinner: the list keeps its size, so nothing
+          // jumps under a thumb when the data lands.
+          <div role="status" aria-label="Loading your AI teammates' work">
+            <SkeletonRows rows={3} />
           </div>
         ) : items.length === 0 ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            Nothing in progress. When you hand work to an AI teammate, it shows up here.
-          </div>
+          <EmptyState
+            icon={Sparkles}
+            title="Nothing in progress"
+            description="When you hand work to an AI teammate, it shows up here."
+          />
         ) : (
           <ul className="max-h-[24rem] divide-y divide-border/40 overflow-y-auto custom-scrollbar">
             {sorted.map((it) => (
-              <li
+              <AgentWorkRow
                 key={it.task_id}
-                className={cn("flex items-start gap-2.5 px-1 py-2.5", it.state === "blocked" && "bg-amber-500/5")}
-              >
-                <span className="mt-0.5 shrink-0">
-                  <StateIcon state={it.state} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-baseline gap-x-1.5">
-                    <span className="truncate text-sm font-medium">{it.agent_name}</span>
-                    <span
-                      className={cn(
-                        "text-[11px]",
-                        it.state === "blocked" ? "font-medium text-amber-600" : "text-muted-foreground",
-                      )}
-                    >
-                      · {STATE_LABEL[it.state]}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground/70">· {it.where}</span>
-                    <span className="text-[11px] text-muted-foreground/70">
-                      · {formatTimeForReplyCount(it.updated_at)}
-                    </span>
-                  </span>
-                  {it.state === "blocked" && it.note && (
-                    <span className="block text-[13px] leading-snug text-foreground/80">{it.note}</span>
-                  )}
-                </span>
-              </li>
+                item={it}
+                className="px-1"
+                onChanged={load}
+                onError={(msg) => toast({ title: "Couldn't stop it", description: msg, variant: "destructive" })}
+              />
             ))}
           </ul>
         )}

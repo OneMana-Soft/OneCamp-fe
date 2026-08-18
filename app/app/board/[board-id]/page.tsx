@@ -341,7 +341,7 @@ export default function BoardPage() {
                 variant={commentMode ? "default" : "secondary"}
                 size="icon"
                 onClick={() => setCommentMode((m) => !m)}
-                className="h-9 w-9 rounded-full border shadow-md"
+                className="h-9 w-9 rounded-full shadow-overlay"
                 aria-label="Add a comment"
               >
                 <MessageCircle className="h-4 w-4" />
@@ -352,7 +352,7 @@ export default function BoardPage() {
                 variant="secondary"
                 size="icon"
                 onClick={() => dispatch(openUI({ key: "boardShare", data: { boardId } }))}
-                className="h-9 w-9 rounded-full border shadow-md"
+                className="h-9 w-9 rounded-full shadow-overlay"
                 aria-label="Share board"
               >
                 <Share2 className="h-4 w-4" />
@@ -361,7 +361,7 @@ export default function BoardPage() {
             {(hasEditAccess || isOwner) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" className="h-9 w-9 rounded-full border shadow-md" aria-label="Board options">
+                  <Button variant="secondary" size="icon" className="h-9 w-9 rounded-full shadow-overlay" aria-label="Board options">
                     <Ellipsis className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>

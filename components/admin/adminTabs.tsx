@@ -51,15 +51,15 @@ export function AdminTabs() {
                     </div>}
 
                     <div onClick={() => handleTabChange('active' )}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center md:w-fit md:px-8 h-full w-full text-center rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'active' ? 'bg-primary font-medium text-foreground shadow-sm' : "text-muted-foreground"}`}>
+                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center md:w-fit md:px-8 h-full w-full text-center rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'active' ? 'bg-primary font-medium text-foreground' : "text-muted-foreground"}`}>
                         Active
                     </div>
                     <div onClick={() => handleTabChange('archived')}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center md:w-fit md:px-8 h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'archived' ? 'bg-primary font-medium text-foreground shadow-sm' : "text-muted-foreground"}`}>
+                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center md:w-fit md:px-8 h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'archived' ? 'bg-primary font-medium text-foreground' : "text-muted-foreground"}`}>
                         Archived
                     </div>
                     <div onClick={() => handleTabChange('join')}
-                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center md:w-fit md:px-8 h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'join' ? 'bg-primary font-medium text-foreground shadow-sm' : "text-muted-foreground"}`}>
+                         className={`hover:cursor-pointer md:h-8 flex justify-center items-center md:w-fit md:px-8 h-full w-full text-center  rounded-md transition-all duration-200 hover:bg-muted/50 ${selectedTab == 'join' ? 'bg-primary font-medium text-foreground' : "text-muted-foreground"}`}>
                         Join
                     </div>
                 </div>

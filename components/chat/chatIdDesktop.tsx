@@ -36,6 +36,8 @@ import {useUploadFile} from "@/hooks/useUploadFile";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 import CommandSurface from "@/components/command/CommandSurface";
 import PendingActionsTray from "@/components/ai/PendingActionsTray";
+import { FeatureGate } from "@/components/common/withFeature"
+import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 
 export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
@@ -152,13 +154,16 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                 <div className='flex items-center gap-0.5 shrink-0'>
                     <ChatUserEmojiStatus userUUID={chatId}/>
                     <NotificationBell notificationType={chatNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
+                    {/* Calls need a LiveKit server, which the shipped stack does not include.
+                        Hidden rather than shown-and-failing when the operator has not run one. */}
+                    <FeatureGate feature={FEATURE_CALLS}>
                     <Link href={chatCallHref} aria-label={chatCallStatusActive ? "Join active call" : "Start video call"}>
                     <Button
                         size='icon'
                         variant={chatCallStatusActive ? 'secondary' : 'ghost'}
                         className={cn(
                             "relative transition-all duration-300",
-                            chatCallStatusActive && "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-800/40"
+                            chatCallStatusActive && "bg-emerald-100 dark:bg-emerald-900/30 text-success hover:bg-emerald-200 dark:hover:bg-emerald-800/40"
                         )}
                     >
                         <Video size={18} />
@@ -170,7 +175,9 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                         )}
                     </Button>
                     </Link>
+                    </FeatureGate>
                     <Link href={chatRecordingHref} aria-label="View recordings"><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
+                    <FeatureGate feature={FEATURE_AI}>
                     <Button
                         size='icon'
                         variant='ghost'
@@ -184,6 +191,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                     >
                         <CheckSquare className="text-muted-foreground" />
                     </Button>
+                    </FeatureGate>
                 </div>
             </header>
             <div className="flex-1 overflow-y-auto">

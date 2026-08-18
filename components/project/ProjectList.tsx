@@ -4,7 +4,8 @@ import {useEffect, useState} from "react";
 import {TeamProjectListResult} from "@/components/team/TeamProjectListResult";
 import {ProjectInfoInterface} from "@/types/project";
 import {UserInfoRawInterface} from "@/types/user";
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
+import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
+import { ErrorState } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import { openUI } from "@/store/slice/uiSlice";
 import { useDispatch } from "react-redux";
@@ -55,6 +56,14 @@ export const ProjectList = ({searchQuery}:{searchQuery: string}) => {
             { sortedProjectList.length > 0 ?
                 <TeamProjectListResult projectList={sortedProjectList} isAdmin={false} teamId={''} isUsersProject={true}/> :
 
+                userInfo.isError ? (
+                    // Ahead of the empty branch: a failed fetch also yields an
+                    // empty list, and "No projects yet" is a claim about the
+                    // workspace rather than about the request.
+                    <div className="flex flex-col items-center justify-center py-10 px-4 w-full h-full min-h-[40vh]">
+                        <ErrorState subject="your projects" onRetry={() => void userInfo.mutate()} />
+                    </div>
+                ) :
                 !searchQuery && !userInfo.isLoading && (
                     <div className="flex flex-col items-center justify-center py-10 px-4 w-full h-full min-h-[40vh]">
                         <StatePlaceholder

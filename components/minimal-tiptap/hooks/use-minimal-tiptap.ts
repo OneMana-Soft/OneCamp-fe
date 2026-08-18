@@ -23,6 +23,7 @@ import {
   mentionSuggestionOptions
 } from '../extensions'
 import { SlashCommandItem } from '../extensions/slash-command/slashCommand'
+import { OffloadEmbeddedImages } from '../extensions/offload-embedded-images/offloadEmbeddedImages'
 import { cn } from '@/lib/utils/helpers/cn'
 import { getOutput, randomId } from '../utils'
 import { useThrottle } from '../hooks/use-throttle'
@@ -190,10 +191,26 @@ const createExtensions = (
           const src = `${baseUrl}${GetEndpointUrl.PublicAttachmentURL}/${objUuid}`
           return { id: objUuid, src }
         } catch (error) {
+          // NEVER fall back to embedding the image as a base64 data URI.
+          //
+          // This is the DEFAULT handler for every editor that does not pass its
+          // own — comments, chat composers, task descriptions — so the fallback
+          // that used to live here had a wider blast radius than the doc editor's.
+          // Embedding on failure inverts the control that refused the upload: the
+          // bytes end up inside the message or comment body, get stored, and are
+          // then indexed as analysed text. One such document exhausted the search
+          // node's heap and stopped the container.
+          //
+          // Reporting and rethrowing leaves the author with a failed image they
+          // can retry, which is a far better outcome than content that silently
+          // carries megabytes of binary.
           console.error('Default image upload failed', error)
-          const { fileToBase64 } = await import('../utils')
-          const src = await fileToBase64(file)
-          return { id: randomId(), src }
+          toast({
+            title: 'Couldn’t add the image',
+            description: 'The upload didn’t go through. Check your connection and try again.',
+            variant: 'destructive',
+          })
+          throw error instanceof Error ? error : new Error('image upload failed')
         }
       },
       onToggle(editor, files, pos) {
@@ -365,6 +382,33 @@ const createExtensions = (
           }
         };
       }
+    }),
+    // Move images that arrived INSIDE the content out to object storage. Pasting
+    // from another application brings <img src="data:…base64,…"> along with the
+    // HTML and never touches the upload path, so without this those bytes live in
+    // the document body — stored, and indexed as analysed text, which is how one
+    // document exhausted the search node's heap.
+    //
+    // Registered here so every editor gets it: docs, comments, chat composers and
+    // task descriptions alike, with nothing to remember at the call sites. It
+    // reuses whatever upload the editor is already configured with, so an image
+    // pasted into a doc lands where a dragged one would.
+    OffloadEmbeddedImages.configure({
+      upload: async (file: File) => {
+        if (customUploadFnRef?.current) {
+          const res = await customUploadFnRef.current(file)
+          return res.src
+        }
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('jsonData', JSON.stringify({ src_key: 'public' }))
+        const res = await axiosInstance.post<UploadFileInterfaceRes>(PostFileUploadURL.UploadFile, formData)
+        const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '') || ''
+        return `${baseUrl}${GetEndpointUrl.PublicAttachmentURL}/${res.data.object_uuid}`
+      },
+      onError: (message: string) => {
+        toast({ title: 'Image stayed embedded', description: message, variant: 'destructive' })
+      },
     })
   ]
 

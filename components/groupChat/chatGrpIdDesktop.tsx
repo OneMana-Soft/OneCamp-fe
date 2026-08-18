@@ -38,6 +38,8 @@ import {app_grp_call, app_grp_chat_path, app_home_path} from "@/types/paths";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import {useUploadFile} from "@/hooks/useUploadFile";
+import { FeatureGate } from "@/components/common/withFeature"
+import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
 const EMPTY_TYPING_LIST: any[] = []
@@ -149,13 +151,16 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         dmParticipantsInfo.data?.data &&
                         <NotificationBell notificationType={chatNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
                     }
-                    <Button size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId: grpId} }))}}> <Users /></Button>
+                    <Button aria-label="Manage members" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editDmMember', data: {grpId: grpId} }))}}> <Users /></Button>
+                    {/* Calls need a LiveKit server, which the shipped stack does not include.
+                        Hidden rather than shown-and-failing when the operator has not run one. */}
+                    <FeatureGate feature={FEATURE_CALLS}>
                     <Button
                         size='icon'
                         variant={chatCallActive ? 'secondary' : 'ghost'}
                         className={cn(
                             "relative transition-all duration-300",
-                            chatCallActive && "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                            chatCallActive && "bg-success/10 text-success hover:bg-emerald-500/20"
                         )}
                         onClick={clickVideoCall}
                     >
@@ -167,7 +172,8 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                             </span>
                         )}
                     </Button>
-                    <Button size='icon' variant='ghost' onClick={() => router.push(`/app/chat/group/${grpId}/recording`)}> <Clapperboard /></Button>
+                    </FeatureGate>
+                    <Button aria-label="View recordings" size='icon' variant='ghost' onClick={() => router.push(`/app/chat/group/${grpId}/recording`)}> <Clapperboard /></Button>
 
 
                 </div>

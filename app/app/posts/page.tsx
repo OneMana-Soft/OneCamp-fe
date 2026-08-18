@@ -7,7 +7,9 @@ import { PostsRes, CreatePostPaginationResRaw } from "@/types/post";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
+import { ErrorState } from "@/components/ui/error-state"
 import { Loader2 } from "@/lib/icons";
+import { SkeletonRows } from "@/components/ui/skeletonRows";
 import { ConditionalWrap } from "@/components/conditionalWrap/conditionalWrap";
 import { useMedia } from "@/context/MediaQueryContext";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
@@ -25,7 +27,7 @@ const PostsPage = () => {
 
 
     const endpoint = `${GetEndpointUrl.GetUserPosts}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
-    const { data: pageData, isLoading } = useFetch<CreatePostPaginationResRaw>(endpoint);
+    const { data: pageData, isLoading, isError, mutate } = useFetch<CreatePostPaginationResRaw>(endpoint);
 
     useEffect(() => {
         if (pageData?.data) {
@@ -98,6 +100,13 @@ const PostsPage = () => {
                             />
                         </div>
                     </div>
+                ) : isError ? (
+                    // Checked before the empty branch: a failed fetch leaves the
+                    // list empty too, and "You haven't created any posts yet" is
+                    // a distressing thing to tell someone whose posts exist.
+                    <div className="flex h-full items-center justify-center p-8">
+                        <ErrorState subject="your posts" onRetry={() => void mutate()} />
+                    </div>
                 ) : !isLoading ? (
                     <div className="flex h-full items-center justify-center p-8">
                         <StatePlaceholder
@@ -107,11 +116,10 @@ const PostsPage = () => {
                         />
                     </div>
                 ) : (
-                    <div className="flex h-full items-center justify-center">
-                        <div className="flex flex-col items-center gap-3 text-muted-foreground">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary/60" />
-                            <span className="text-sm font-medium">Loading your posts...</span>
-                        </div>
+                    /* role + aria-label is the whole announcement; the skeleton
+                       itself stays aria-hidden, so the text is not read twice. */
+                    <div role="status" aria-label="Loading your posts" className="p-2">
+                        <SkeletonRows rows={5} />
                     </div>
                 )}
             </div>

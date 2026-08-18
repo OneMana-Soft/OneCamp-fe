@@ -34,6 +34,7 @@ import {
   X,
   Loader2,
 } from "@/lib/icons"
+import { withAI } from "@/components/common/withFeature"
 
 // Per-source icon + tint so each row's origin is recognizable at a glance.
 const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -45,13 +46,13 @@ const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> =
 }
 const SOURCE_TINT: Record<string, string> = {
   approval: "text-violet-600 dark:text-violet-400",
-  task: "text-red-600 dark:text-red-400",
+  task: "text-destructive",
   commitment: "text-blue-600 dark:text-blue-400",
-  question: "text-amber-600 dark:text-amber-400",
-  calendar: "text-emerald-600 dark:text-emerald-400",
+  question: "text-warning",
+  calendar: "text-success",
 }
 
-export default function AttentionCard() {
+function AttentionCard() {
   const router = useRouter()
   const dispatch = useDispatch()
   const { toast } = useToast()
@@ -181,7 +182,7 @@ export default function AttentionCard() {
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                   <span
                     className={`inline-flex items-center gap-1 text-[11px] ${
-                      overdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground"
+                      overdue ? "text-destructive font-medium" : "text-muted-foreground"
                     }`}
                   >
                     {overdue && <Clock className="h-3 w-3" />}
@@ -249,3 +250,8 @@ export default function AttentionCard() {
     </div>
   )
 }
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, and on v2
+// whenever an admin has switched AI off. Wrapping the export covers every place this
+// is rendered, desktop and mobile, instead of asking each of them to remember.
+export default withAI(AttentionCard)

@@ -9,6 +9,7 @@ import type { UserProfileInterface } from "@/types/user"
 import type { RootState } from "@/store/store"
 import type { CommentInfoInterface, CreateCommentResInterface } from "@/types/comment"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { MessageSquare } from "@/lib/icons";
 import {
     addDocComments,
@@ -236,7 +237,16 @@ export const DocCommentList = ({ docId }: { docId: string }) => {
             }
 
             <div className="flex-1 p-4 overflow-y-auto">
-                {docCommentState.length === 0 ? (
+                {docCommentList.isError ? (
+                    // Ahead of the empty branch: "Be the first to add a comment"
+                    // would invite a reply to a thread that may already have a
+                    // discussion in it, which the user then talks over.
+                    <ErrorState
+                        subject="the comments"
+                        onRetry={() => void docCommentList.mutate()}
+                        className="h-full"
+                    />
+                ) : docCommentState.length === 0 ? (
                     <EmptyState
                         icon={MessageSquare}
                         title="No comments yet"

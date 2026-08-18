@@ -37,7 +37,7 @@ export const MessageDesktopHoverOptionsForRightPanelChatAndChannel = ({isOwner, 
 
             {postUUID && channelUUID && <Tooltip >
                 <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon"  >
+                    <Button aria-label="Show in channel" variant="ghost" size="icon"  >
 
                         <div className="relative flex">
                             <Hash className="h-4 w-4" stroke='#616060'/>
@@ -55,7 +55,7 @@ export const MessageDesktopHoverOptionsForRightPanelChatAndChannel = ({isOwner, 
             </Tooltip>}
             {postUUID && <Tooltip >
                 <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" >
+                    <Button aria-label="Forward" variant="ghost" size="icon" className="h-8 w-8" >
                         <Forward className="h-4 w-4" stroke='#616060'/>
                     </Button>
                 </TooltipTrigger>

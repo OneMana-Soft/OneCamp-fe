@@ -3,6 +3,7 @@
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { cn } from "@/lib/utils/helpers/cn"
+import { PrincipalTag } from "@/components/ui/principalTag"
 import { Check, X, Languages, Loader2 } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { useTranslateText } from "@/services/aiService"
@@ -395,12 +396,7 @@ export const BaseMessageCard = React.memo(({
                 {userInfoState?.userName || message.from.user_name}
               </button>
               {message.from.is_bot && (
-                <span
-                  className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary"
-                  title="AI agent"
-                >
-                  AI
-                </span>
+                <PrincipalTag kind="ai" />
               )}
               <span className="text-[11px] tabular-nums text-muted-foreground">
                 {formatTimeForPostOrComment(message.createdAt, true)}

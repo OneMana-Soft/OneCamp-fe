@@ -12,14 +12,17 @@
  *
  * If the running Ollama is too old for the model's architecture, the
  * stream reports update_required and we show the (operator-run) update
- * command rather than failing silently.
+ * steps rather than failing silently. Those steps are OllamaUpdateSteps,
+ * shared with the engine row and the catalogue tiles so one instruction
+ * cannot drift into three.
  */
 
 import React, { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Download, X, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { Download, X, CheckCircle2 } from "lucide-react"
+import { OllamaUpdateSteps } from "@/components/admin/ai/OllamaUpdateSteps"
 import { PullProgress, pullModel, formatBytes } from "@/services/aiModelService"
 import { useToast } from "@/hooks/use-toast"
 
@@ -41,7 +44,13 @@ const SUGGESTIONS = [
 export const ModelInstaller: React.FC<{
   providerId: string
   onInstalled: () => void
-}> = ({ providerId, onInstalled }) => {
+  /**
+   * Newest published engine version, when the page has it. Passed down rather than fetched here: the
+   * admin panel already loads it once for the server-resources row, and the pull stream that reports
+   * "too old" carries no version of its own, so this is the only way this surface can name a target.
+   */
+  ollamaLatestVersion?: string
+}> = ({ providerId, onInstalled, ollamaLatestVersion }) => {
   const { toast } = useToast()
   const [tag, setTag] = useState("")
   const [pulling, setPulling] = useState(false)
@@ -166,25 +175,13 @@ export const ModelInstaller: React.FC<{
       )}
 
       {progress?.done && progress.status === "success" && !pulling && (
-        <p className="text-xs text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
+        <p className="text-xs text-success dark:text-emerald-500 flex items-center gap-1">
           <CheckCircle2 className="h-3.5 w-3.5" /> Installed.
         </p>
       )}
 
       {/* Ollama-too-old: actionable, not a silent failure */}
-      {updateRequired && (
-        <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3 space-y-1">
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
-            <AlertTriangle className="h-3.5 w-3.5" /> Ollama update required
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            This model needs a newer Ollama than the one running. Update the container, then retry:
-          </p>
-          <code className="block rounded bg-muted px-2 py-1 text-[11px]">
-            docker compose pull ollama && docker compose up -d ollama
-          </code>
-        </div>
-      )}
+      {updateRequired && <OllamaUpdateSteps variant="blocked" targetVersion={ollamaLatestVersion} />}
     </div>
   )
 }

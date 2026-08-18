@@ -2,11 +2,13 @@
 
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Badge } from "@/components/ui/badge"
 import { X, Search, Eye } from "@/lib/icons";
 import { useRef, useCallback, useEffect } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSearch } from "@/hooks/useSearch"
 import { getIcon, getHighlightedTitle, getContext, isResultPreviewable } from "@/lib/utils/helpers/search"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 
 /**
  * Mobile home search bar.
@@ -103,7 +105,7 @@ export function MobileHomeSearchBar() {
                     onFocus={() => inputValue && setOpen(true)}
                     className={cn(
                         "h-10 w-full pl-9 pr-9",
-                        "rounded-full shadow-sm bg-secondary border-transparent",
+                        "rounded-full bg-secondary border-transparent",
                         "placeholder:text-muted-foreground",
                         "focus-visible:ring-1 focus-visible:ring-ring/40 focus-visible:bg-background focus-visible:border-border",
                         "transition-colors",
@@ -115,7 +117,11 @@ export function MobileHomeSearchBar() {
                         type="button"
                         onClick={onClear}
                         aria-label="Clear search"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        // 24px was the smallest tap target in the mobile app, and it
+                        // is the escape hatch from a bad query. The icon stays small;
+                        // the hit area grows to 36px with a -mr offset so the visual
+                        // alignment inside the field is unchanged.
+                        className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                     >
                         <X className="h-3.5 w-3.5" />
                     </button>
@@ -133,7 +139,7 @@ export function MobileHomeSearchBar() {
                         "absolute left-0 right-0 top-full mt-2",
                         "z-[var(--z-popover)]",
                         "rounded-xl border border-border/60 bg-popover text-popover-foreground",
-                        "shadow-lg",
+                        "shadow-overlay",
                         "max-h-[60vh] flex flex-col overflow-hidden",
                     )}
                     role="listbox"
@@ -145,19 +151,34 @@ export function MobileHomeSearchBar() {
                     <ScrollArea className="flex-1">
                         <div className="p-2">
                             {isLoading ? (
-                                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                                    <Search className="h-6 w-6 animate-pulse mb-2" />
-                                    <p className="text-xs">Searching&hellip;</p>
+                                // Skeleton rows in the shape of results, not a
+                                // centred pulse: the panel keeps its height so the
+                                // first result doesn't slide under a descending thumb.
+                                <div role="status" aria-label="Searching">
+                                    <SkeletonRows rows={3} lines={2} />
                                 </div>
                             ) : results.length > 0 ? (
                                 <div className="space-y-1.5">
                                     {results.map((result, idx) => (
-                                        <button
+                                        // A div with role="option", not a <button>. The row contains
+                                        // its own Preview button, and a <button> inside a <button> is
+                                        // invalid HTML with undefined behaviour — tapping preview
+                                        // could navigate instead, inconsistently across browsers.
+                                        // role="option" is also what the parent role="listbox" wants.
+                                        <div
                                             key={idx}
-                                            type="button"
+                                            role="option"
+                                            aria-selected={false}
+                                            tabIndex={0}
                                             onClick={() => handleResultTap(result)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault()
+                                                    handleResultTap(result)
+                                                }
+                                            }}
                                             className={cn(
-                                                "w-full flex items-center gap-3 p-2.5 rounded-lg text-left",
+                                                "w-full flex items-center gap-3 p-2.5 rounded-lg text-left cursor-pointer",
                                                 "transition-colors hover:bg-accent active:bg-accent",
                                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                                             )}
@@ -174,14 +195,14 @@ export function MobileHomeSearchBar() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-0.5">
-                                                    <span className="px-1.5 py-0.5 rounded bg-muted text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                    <Badge variant="secondary" size="sm" caps className="rounded">
                                                         {result.type}
-                                                    </span>
+                                                    </Badge>
                                                 </div>
                                                 <div className="text-sm font-medium text-foreground line-clamp-1">
                                                     {getHighlightedTitle(result)}
                                                 </div>
-                                                <div className="text-[11px] text-muted-foreground truncate">
+                                                <div className="text-2xs text-muted-foreground truncate">
                                                     {getContext(result)}
                                                 </div>
                                             </div>
@@ -193,12 +214,12 @@ export function MobileHomeSearchBar() {
                                                         handlePreview(result)
                                                     }}
                                                     aria-label="Preview"
-                                                    className="shrink-0 p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
+                                                    className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
                                                 >
                                                     <Eye className="h-4 w-4" />
                                                 </button>
                                             )}
-                                        </button>
+                                        </div>
                                     ))}
                                 </div>
                             ) : (

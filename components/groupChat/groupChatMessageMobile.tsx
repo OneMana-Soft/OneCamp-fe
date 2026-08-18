@@ -199,7 +199,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                     <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
                         {userInfoState?.userName || chatInfo.chat_from.user_name}
                     </div>
-                    <div className='text-[11px] tabular-nums text-muted-foreground shrink-0'>
+                    <div className='text-2xs tabular-nums text-muted-foreground shrink-0'>
                         {formatTimeForPostOrComment(chatInfo.chat_created_at, true)}
 
                     </div>

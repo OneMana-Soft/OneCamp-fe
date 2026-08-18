@@ -48,7 +48,6 @@ export const DocInfoSchema = z.object({
 
 export const GenericResponseSchema = z.object({
   msg: z.string().optional(),
-  mag: z.string().optional(), // Support common backend typo
   data: z.any(),
 }).passthrough();
 
@@ -72,5 +71,4 @@ export const ChannelInfoListSchema = z.object({
     z.array(ChannelInfoSchema),
   ),
   msg: z.string().optional(),
-  mag: z.string().optional(),
 }).passthrough();

@@ -37,6 +37,7 @@ import {RemoveMessageFromChatList, UpdateMessageTextInChatList} from "@/store/sl
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {app_chat_path, app_grp_chat_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 
 export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, chatMessageUUID: string }) => {
 
@@ -72,7 +73,7 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
     }, [chatInfo.data?.data, chatCommentState.length, chatMessageUUID, dispatch]);
 
     if (chatInfo.isLoading|| !chatState ) {
-        return <LoadingStateCircle />
+        return <div role="status" aria-label="Loading comments"><SkeletonRows rows={4} lines={2} /></div>
     }
 
     if (chatInfo.isError  || !chatInfo.data?.data) {

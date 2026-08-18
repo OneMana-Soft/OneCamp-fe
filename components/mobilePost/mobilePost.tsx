@@ -35,6 +35,8 @@ import {
 import {usePost} from "@/hooks/usePost";
 import {CreateUpdateCommentReqInterface} from "@/types/comment";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
+import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 
 export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUID: string }) => {
 
@@ -72,7 +74,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
 
 
     if (postInfo.isLoading || !postState) {
-        return <LoadingStateCircle />
+        return <div role="status" aria-label="Loading comments"><SkeletonRows rows={4} lines={2} /></div>
     }
 
     if (postInfo.isError  || !postInfo.data?.data) {
@@ -344,6 +346,20 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                         postUUID={postUUID}
                         isAdmin={postInfo.data.data.post_channel?.ch_is_admin}
 
+                    />
+
+                    {/* Same control as on desktop: an AI teammate working in this
+                        thread can be stopped from here. Sticky to the bottom of the
+                        scroll area on a phone — in a long thread the strip would
+                        otherwise sit far below the fold, which is no control at all
+                        — and it renders nothing when no agent is working, so it adds
+                        no chrome to an ordinary thread. */}
+                    <AgentWorkStrip
+                        entityId={postUUID}
+                        revalidateKey={postCommentState.length}
+                        // Sticky over scrolling comments, so it does float — which
+                        // means the sanctioned overlay token, not an ad-hoc shadow.
+                        className="sticky bottom-0 z-10 mx-3 mb-2 shadow-overlay"
                     />
 
             </div>

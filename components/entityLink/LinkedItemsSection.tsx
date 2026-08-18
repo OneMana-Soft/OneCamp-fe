@@ -104,7 +104,7 @@ interface LinkedChipProps {
 }
 
 function LinkedChip({ icon: Icon, accent, title, locked, canEdit, onOpen, onRemove }: LinkedChipProps) {
-  const accentClass = accent === "emerald" ? "bg-emerald-500/10 text-emerald-600" : "bg-sky-500/10 text-sky-600"
+  const accentClass = accent === "emerald" ? "bg-success/10 text-success" : "bg-sky-500/10 text-sky-600"
   return (
     <div
       className={cn(

@@ -9,12 +9,15 @@ import { useToast } from "@/hooks/use-toast"
 import { Plus, Loader2, Table as TableIcon, Trash2, Sparkles } from "@/lib/icons"
 import { DataTable, createTable, deleteTable, generateTable } from "@/services/tableService"
 import { useConfirm } from "@/hooks/useConfirm"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonCards } from "@/components/ui/skeletonCards"
 
 export default function TablesPage() {
   const router = useRouter()
   const { toast } = useToast()
   const confirm = useConfirm()
-  const { data, isLoading, mutate } = useFetch<{ data: DataTable[] }>(GetEndpointUrl.GetTables)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: DataTable[] }>(GetEndpointUrl.GetTables)
   const [creating, setCreating] = React.useState(false)
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [prompt, setPrompt] = React.useState("")
@@ -100,24 +103,33 @@ export default function TablesPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        // Same grid classes and card shell as the real list below, so the page
+        // does not reflow when the tables arrive.
+        <div role="status" aria-label="Loading tables">
+          <SkeletonCards cards={4} gridClassName="grid gap-2 sm:grid-cols-2" />
         </div>
+      ) : isError ? (
+        // Before the empty check, because a failed request also leaves the list
+        // empty — and "No tables yet" would be the app asserting the user's
+        // tables do not exist.
+        <ErrorState
+          subject="your tables"
+          onRetry={() => void mutate()}
+          className="rounded-2xl border border-border/60 px-6 py-16"
+        />
       ) : tables.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 px-6 py-16 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-            <TableIcon className="h-6 w-6 text-primary" />
-          </div>
-          <div className="max-w-sm space-y-1">
-            <p className="text-sm font-medium">No tables yet</p>
-            <p className="text-sm text-muted-foreground">
-              Create a table to track anything: tasks, CRM, inventory, roadmaps.
-            </p>
-          </div>
-          <Button variant="outline" onClick={handleCreate} disabled={creating}>
-            <Plus className="h-4 w-4 mr-1.5" /> Create your first table
-          </Button>
-        </div>
+        <EmptyState
+          tone="accent"
+          icon={TableIcon}
+          title="No tables yet"
+          description="Create a table to track anything: tasks, CRM, inventory, roadmaps."
+          className="rounded-2xl border border-border/60 px-6 py-16"
+          action={
+            <Button variant="outline" onClick={handleCreate} disabled={creating}>
+              <Plus className="h-4 w-4 mr-1.5" /> Create your first table
+            </Button>
+          }
+        />
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">
           {tables.map((t) => (

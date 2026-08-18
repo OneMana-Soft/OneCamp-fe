@@ -208,7 +208,7 @@ const AiScheduleDialog: React.FC<{
                             <span className="block text-sm font-medium truncate">{formatSlot(c.start, c.end)}</span>
                             <span
                               className={`text-[11px] ${
-                                c.all_free ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                                c.all_free ? "text-success" : "text-warning"
                               }`}
                             >
                               {c.all_free ? "All free" : `${c.free_count} of ${c.total} free`}

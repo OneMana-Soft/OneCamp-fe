@@ -33,7 +33,7 @@ export function AppLanguageCombobox({ userLang, onLangChange }: AppLanguageCombo
                         variant="outline"
                         role="combobox"
                         aria-expanded={open}
-                        className="w-full justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 hover:shadow-sm transition-all duration-300 rounded-xl px-4"
+                        className="w-full justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150 px-4"
                     >
                         <span className="truncate text-sm font-medium">
                             {userLang &&appLangList[userLang]

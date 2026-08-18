@@ -4,7 +4,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
-import { cn } from "@/lib/utils/helpers/cn";
+import { cn } from "@/lib/utils/helpers/cn"
+import { PrincipalTag } from "@/components/ui/principalTag";
 
 interface ComboboxChannelMemberList {
     person: UserProfileDataInterface
@@ -34,16 +35,14 @@ const MentionMember: React.FC<ComboboxChannelMemberList> = ({ person, selectItem
                     src={imageSrc}
                     alt={person.user_name}
                 />
-                <AvatarFallback className={cn("text-[9px] font-semibold", getAvatarFallbackClass(person.user_name))}>{nameInitials}</AvatarFallback>
+                <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(person.user_name))}>{nameInitials}</AvatarFallback>
             </Avatar>
 
             <div className='flex flex-col min-w-0'>
                 <div className="flex items-center gap-1.5 leading-none">
                     <span className="font-medium truncate">{person.user_name}</span>
                     {person.is_bot && (
-                        <span className="rounded bg-primary/10 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-primary">
-                            AI
-                        </span>
+                        <PrincipalTag kind="ai" />
                     )}
                 </div>
                 {person.user_email_id && !person.is_bot && (

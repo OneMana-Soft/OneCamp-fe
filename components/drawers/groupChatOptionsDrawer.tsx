@@ -24,6 +24,8 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { updateChatCallStatus } from "@/store/slice/chatSlice"
 import { GrpChatNotificationInterface } from "@/types/chat"
 import { DrawerItem } from "@/components/drawers/drawerItem"
+import { FeatureGate } from "@/components/common/withFeature"
+import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 interface GroupChatOptionsDrawerProps {
     drawerOpenState: boolean
@@ -113,6 +115,9 @@ export function GroupChatOptionsDrawer({
                         }}
                     />
 
+                    {/* Calls need a LiveKit server, which the shipped stack does not include.
+                        Hidden rather than shown-and-failing when the operator has not run one. */}
+                    <FeatureGate feature={FEATURE_CALLS}>
                     <DrawerItem
                         icon={Video}
                         label="Join call"
@@ -121,6 +126,7 @@ export function GroupChatOptionsDrawer({
                             router.push(app_grp_call + "/" + grpId)
                         }}
                     />
+                    </FeatureGate>
 
                     <DrawerItem
                         icon={Clapperboard}

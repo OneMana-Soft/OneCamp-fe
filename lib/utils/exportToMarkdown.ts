@@ -1,3 +1,5 @@
+import { downloadTextFile } from '@/lib/utils/file/downloadTextFile'
+
 /**
  * Convert HTML to Markdown for export
  * Lightweight converter for common Tiptap nodes
@@ -90,13 +92,12 @@ function nodeToMarkdown(node: Node): string {
 }
 
 export function downloadMarkdown(filename: string, markdown: string) {
-  const blob = new Blob([markdown], { type: 'text/markdown' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename.endsWith('.md') ? filename : `${filename}.md`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  // Delegates rather than repeating the anchor dance. This version revoked the object URL immediately
+  // after click(), which races the browser reading the blob — downloadFile() in lib/utils/file already
+  // waits 1000ms for that reason, and a large export is exactly where the race is losable.
+  downloadTextFile(
+    filename.endsWith('.md') ? filename : `${filename}.md`,
+    markdown,
+    'text/markdown',
+  )
 }

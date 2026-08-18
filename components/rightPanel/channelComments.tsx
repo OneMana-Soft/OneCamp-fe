@@ -11,6 +11,7 @@ import {MessageContent} from "@/components/rightPanel/messageContent";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
 import {CommentsList} from "@/components/rightPanel/commentsList";
+import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
 import {cn} from "@/lib/utils/helpers/cn";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
@@ -478,6 +479,16 @@ export const ChannelComments = () => {
                     updateComment={handleUpdatePostComment}
                     getMediaURL={GetEndpointUrl.GetChannelMedia + '/' + rightPanelState.data.channelUUID}
 
+                />
+
+                {/* An AI teammate working in THIS thread, with the control to
+                    stop it. Renders nothing when no agent is working here, so a
+                    normal thread is untouched; the count of comments is used as
+                    the revalidation signal, since a new reply is exactly when
+                    agent work tends to start, change, or be steered. */}
+                <AgentWorkStrip
+                    entityId={rightPanelState.data.postUUID}
+                    revalidateKey={postCommentState.length}
                 />
 
                 <MinimalTiptapTextInput

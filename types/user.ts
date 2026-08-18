@@ -82,12 +82,10 @@ export interface UserDMInterface {
 }
 export interface RawUserDMInterface {
     data: UserDMInterface;
-    mag: string;
 }
 
 export interface UserProfileInterface {
     data: UserProfileDataInterface;
-    mag: string;
 }
 
 export interface UserProfileUpdateInterface {
@@ -129,13 +127,11 @@ export interface UserListInterfaceRawResp {
 
 export interface UserListResponseInterface {
     data: UserProfileDataInterface[]
-    mag: string;
     has_more: boolean;
 }
 
 export interface AdminListResponseInterface {
     data: UserProfileDataInterface[]
-    mag: string;
     has_more: boolean;
 }
 

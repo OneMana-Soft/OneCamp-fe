@@ -272,7 +272,7 @@ export const MessageListVirtua = <T,>({
             </Virtualizer>
 
             {!isScrolledToBottom && (
-                <Button className="sticky bottom-2 md:bottom-8 float-right mr-4 md:mr-8 z-[var(--z-sticky)] rounded-full shadow-overlay" onClick={scrollToBottom} size="icon">
+                <Button aria-label="Jump to latest messages" className="sticky bottom-2 md:bottom-8 float-right mr-4 md:mr-8 z-[var(--z-sticky)] rounded-full shadow-overlay" onClick={scrollToBottom} size="icon">
                     <ChevronDown />
                 </Button>
             )}

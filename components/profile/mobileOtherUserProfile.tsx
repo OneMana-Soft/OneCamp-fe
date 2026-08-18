@@ -72,7 +72,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 }
                             }}
                         >
-                            <Avatar className="h-32 w-32 ring-2 ring-border/50 shadow-sm mb-3">
+                            <Avatar className="h-32 w-32 ring-2 ring-border/50  mb-3">
                                 <AvatarImage src={imageSrc} alt={`${profileInfo.data?.data?.user_name}'s profile`} />
                                 <AvatarFallback className={cn("text-3xl font-semibold", getAvatarFallbackClass(userSeed))}>
                                     {nameIntial}
@@ -93,9 +93,9 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 {profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "Loading..."}
                             </h2>
                             {isBot ? (
-                                <Badge variant="secondary" className="text-[10px] h-5 shrink-0">AI</Badge>
+                                <Badge variant="secondary" className="text-3xs h-5 shrink-0">AI</Badge>
                             ) : isExternal ? (
-                                <Badge variant="secondary" className="text-[10px] h-5 shrink-0">External</Badge>
+                                <Badge variant="secondary" className="text-3xs h-5 shrink-0">External</Badge>
                             ) : null}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[80vw]">
@@ -130,7 +130,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
 
                     {/* Details Section */}
                     {isBot ? (
-                        <div className="bg-muted/10 p-5 rounded-2xl border space-y-2 shadow-sm">
+                        <div className="bg-muted/10 p-5 rounded-2xl border space-y-2 ">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">About</p>
                             <p className="text-base text-foreground leading-relaxed">
                                 {profileInfo.data?.data?.user_name || "OneCamp AI"} is your workspace assistant. It posts meeting
@@ -139,7 +139,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                             </p>
                         </div>
                     ) : (
-                    <div className="bg-muted/10 p-5 rounded-2xl border space-y-5 shadow-sm">
+                    <div className="bg-muted/10 p-5 rounded-2xl border space-y-5 ">
                         <div className="space-y-1">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Full Name</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_full_name || "—"}</p>

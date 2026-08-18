@@ -176,7 +176,7 @@ export default function WorkspaceSettingsCard() {
                         <h3 className="text-sm font-medium">Transactional email (Resend)</h3>
                         <div className="flex items-center gap-2">
                             {settings?.has_resend_api_key ? (
-                                <Badge className="gap-1 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
+                                <Badge className="gap-1 bg-success/10 text-success border-success/20">
                                     <CheckCircle2 className="h-3 w-3" /> Configured
                                 </Badge>
                             ) : (

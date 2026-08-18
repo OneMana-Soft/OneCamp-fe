@@ -24,6 +24,7 @@ import {
     getNudges, dismissNudge, dismissAllNudges, type Nudge, type NudgeKind,
 } from "@/services/nudgeService"
 import { setNudges, removeNudge, clearAllNudges } from "@/store/slice/nudgeSlice"
+import { withAI } from "@/components/common/withFeature"
 
 const KIND_ICON: Record<NudgeKind, React.ComponentType<{ className?: string }>> = {
     overdue_commitment: CalendarClock,
@@ -34,7 +35,7 @@ const KIND_ICON: Record<NudgeKind, React.ComponentType<{ className?: string }>> 
     generic: Sparkles,
 }
 
-export default function NudgeBell() {
+function NudgeBell() {
     const dispatch = useDispatch()
     const router = useRouter()
     const [open, setOpen] = useState(false)
@@ -177,7 +178,7 @@ export default function NudgeBell() {
                                     >
                                         <div className={cn(
                                             "shrink-0 h-8 w-8 rounded-md flex items-center justify-center",
-                                            n.priority > 0 ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "bg-primary/10 text-primary",
+                                            n.priority > 0 ? "bg-amber-500/15 text-warning" : "bg-primary/10 text-primary",
                                         )}>
                                             <Icon className="h-4 w-4" />
                                         </div>
@@ -214,3 +215,8 @@ export default function NudgeBell() {
         </Popover>
     )
 }
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI(NudgeBell)

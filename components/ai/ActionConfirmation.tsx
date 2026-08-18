@@ -211,7 +211,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                 ) : (
                                     <div className={cn(
                                         "text-[13px] p-2.5 rounded-lg font-medium",
-                                        executed.success ? "text-green-600 dark:text-green-400 bg-green-500/10" : "text-red-600 dark:text-red-400 bg-red-500/10"
+                                        executed.success ? "text-success bg-success/10" : "text-destructive bg-red-500/10"
                                     )}>
                                         {executed.success ? '' : '❌'} {executed.message}
                                     </div>

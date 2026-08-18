@@ -3,11 +3,14 @@
 import { LoaderCircle, Rocket, AlertCircle, Mail, Lock, Eye, EyeOff } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
 import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
-import {useEffect, useState, Suspense} from "react";
+import {useEffect, useState, useCallback, Suspense} from "react";
 import authService from "@/services/auth/AuthService";
+import { assertUnreachable } from "@/lib/utils/assertUnreachable";
+import { TwoFactorPrompt } from "@/components/auth/TwoFactorPrompt";
 import {app_home_path} from "@/types/paths";
 import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
+import { Input } from "@/components/ui/input"
 
 // Build-time defaults. These are fallbacks ONLY — the runtime
 // /auth/providers endpoint is the source of truth, so admins can flip a
@@ -104,6 +107,11 @@ export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
 
+  // A pending second-factor challenge. Non-empty means the password step succeeded and the sign-in is
+  // NOT finished, so the code prompt replaces the credential form until it clears.
+  const [totpChallenge, setTotpChallenge] = useState("");
+  const [totpPrompt, setTotpPrompt] = useState("");
+
   // Enterprise LDAP States
   const [activeTab, setActiveTab] = useState<"standard" | "directory">("standard");
   const [ldapUser, setLdapUser] = useState("");
@@ -124,6 +132,32 @@ export default function SignUp() {
   const hasAnyAuthMethod = hasOAuthProviders || isEmailEnabled || isLdapEnabled || hasEnterpriseSSO;
 
   const router = useRouter();
+
+  // Returns to the password step. The password is cleared as well as the challenge: an expired challenge
+  // means re-authenticating, and leaving the field populated invites a click on "Sign in" that looks
+  // like a resume but is a fresh credential submission.
+  const cancelTwoFactor = useCallback(() => {
+    setTotpChallenge("");
+    setTotpPrompt("");
+    setPassword("");
+    setEmailError("");
+  }, []);
+
+  // Answers the challenge. Returns the failure for the prompt to render, or null on success.
+  // Declared below `router` rather than beside the state it reads, because it closes over it —
+  // `const` bindings are not hoisted, so placing it with the other 2FA state made this a
+  // use-before-declaration that tsc caught.
+  const submitTwoFactor = useCallback(
+    async (code: string) => {
+      const result = await authService.completeTOTPLogin(totpChallenge, code);
+      if (result.status === "success") {
+        router.push(app_home_path);
+        return null;
+      }
+      return { msg: result.msg, expired: result.reason === "challenge_expired" };
+    },
+    [router, totpChallenge],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -222,14 +256,34 @@ export default function SignUp() {
     setIsLoading(true);
     try {
       const result = await authService.loginWithEmail(email, password);
-      if (result.ok) {
-        router.push(app_home_path);
-      } else {
-        // When the backend reports the account uses a different auth method
-        // (Google, GitHub, OIDC, SAML, LDAP), surface a method-specific hint
-        // so the user knows where to click instead of just "invalid".
-        const methodHint = result.auth_method ? ssoMethodHint(result.auth_method) : "";
-        setEmailError(methodHint || result.msg);
+      switch (result.status) {
+        case "success":
+          router.push(app_home_path);
+          break;
+        case "totp_required":
+          // The password was correct and there is NO session yet. Routing here would land the user in
+          // an app that 401s every request and bounces them back to this screen — which is what the
+          // old `if (result.ok)` did, because the server answers this case with HTTP 200.
+          setTotpChallenge(result.challenge);
+          setTotpPrompt(result.msg);
+          break;
+        case "failed": {
+          // When the backend reports the account uses a different auth method
+          // (Google, GitHub, OIDC, SAML, LDAP), surface a method-specific hint
+          // so the user knows where to click instead of just "invalid".
+          const methodHint = result.auth_method ? ssoMethodHint(result.auth_method) : "";
+          setEmailError(methodHint || result.msg);
+          break;
+        }
+        // Makes the switch exhaustive as a BUILD constraint. Verified by deleting the totp_required
+        // case: without this line tsc passes and the prompt simply never appears, which is the original
+        // bug wearing a better type. With it, the build fails and names the missing case.
+        //
+        // Its runtime throw — reachable only if the server sends a status this build does not know —
+        // lands in the catch below, so the user gets an error and a working form rather than a dead
+        // button, and the console gets the unknown status.
+        default:
+          assertUnreachable(result, "login outcome");
       }
     } catch (error) {
       console.error('Email login error:', error);
@@ -316,8 +370,9 @@ export default function SignUp() {
             <AuthErrorMessage />
           </Suspense>
 
-          {/* Directory Switcher Tab */}
-          {isLdapEnabled && (
+          {/* Directory Switcher Tab. Hidden during a second-factor challenge: the password step is
+              already done, and offering another sign-in method here implies it can be restarted in place. */}
+          {!totpChallenge && isLdapEnabled && (
             <div className="flex p-1 bg-muted/80 backdrop-blur rounded-lg border border-border/40 select-none">
               <button
                 type="button"
@@ -344,7 +399,21 @@ export default function SignUp() {
             </div>
           )}
 
-          {activeTab === "standard" ? (
+          {totpChallenge ? (
+            /*
+              Replaces the credential form entirely rather than appearing beneath it. A screen showing
+              both an email field and a code field invites re-submitting the password, which mints a new
+              challenge and invalidates the one the user is holding -- so the obvious action would break
+              the flow it appears to belong to.
+            */
+            <div className="rounded-lg border border-border/50 bg-card/60 p-5 backdrop-blur">
+              <TwoFactorPrompt
+                onSubmit={submitTwoFactor}
+                onCancel={cancelTwoFactor}
+                prompt={totpPrompt}
+              />
+            </div>
+          ) : activeTab === "standard" ? (
             <>
               {/* OAuth Buttons */}
               {hasOAuthProviders && (
@@ -425,7 +494,7 @@ export default function SignUp() {
                       <div className="space-y-2">
                         <div className="relative">
                           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <input
+                          <Input
                             type="email"
                             placeholder="Email address"
                             value={email}
@@ -436,12 +505,12 @@ export default function SignUp() {
                             autoCorrect="off"
                             spellCheck={false}
                             aria-label="Email address"
-                            className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
+                            className="pl-10"
                           />
                         </div>
                         <div className="relative">
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <input
+                          <Input
                             type={showPassword ? "text" : "password"}
                             placeholder="Password"
                             value={password}
@@ -450,13 +519,13 @@ export default function SignUp() {
                             minLength={8}
                             autoComplete="current-password"
                             aria-label="Password"
-                            className="w-full pl-10 pr-10 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
+                            className="pl-10 pr-10"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
                             aria-label={showPassword ? "Hide password" : "Show password"}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors md:h-9 md:w-9"
                           >
                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
@@ -467,7 +536,7 @@ export default function SignUp() {
                         <p className="text-sm text-destructive font-medium">{emailError}</p>
                       )}
 
-                      <Button type="submit" className="w-full shadow-sm" disabled={isLoading}>
+                      <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
                         {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
                         Sign In
                       </Button>
@@ -488,7 +557,7 @@ export default function SignUp() {
               <div className="space-y-2">
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
+                  <Input
                     type="text"
                     placeholder="Directory Username or Email"
                     value={ldapUser}
@@ -498,25 +567,25 @@ export default function SignUp() {
                     autoCorrect="off"
                     spellCheck={false}
                     aria-label="Directory Username or Email"
-                    className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
+                    className="pl-10"
                   />
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
+                  <Input
                     type={showLdapPassword ? "text" : "password"}
                     placeholder="Directory Password"
                     value={ldapPass}
                     onChange={(e) => setLdapPass(e.target.value)}
                     required
                     aria-label="Directory Password"
-                    className="w-full pl-10 pr-10 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
+                    className="pl-10 pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowLdapPassword(!showLdapPassword)}
                     aria-label={showLdapPassword ? "Hide password" : "Show password"}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors md:h-9 md:w-9"
                   >
                     {showLdapPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -527,7 +596,7 @@ export default function SignUp() {
                 <p className="text-sm text-destructive font-medium">{ldapError}</p>
               )}
 
-              <Button type="submit" className="w-full shadow-sm" disabled={isLoading}>
+              <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
                 {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/> : null}
                 Sign in via Directory
               </Button>

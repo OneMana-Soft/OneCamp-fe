@@ -32,7 +32,7 @@ export const DocCard: React.FC<DocCardProps> = ({ doc, onClick, className }) => 
     return (
         <TouchableDiv 
             className={cn(
-                "group relative flex flex-col border rounded-lg overflow-hidden bg-background border-border hover:border-primary/40 transition-all duration-150 cursor-pointer h-64 md:h-72 shadow-sm hover:shadow-md", 
+                "group relative flex flex-col border rounded-lg overflow-hidden bg-background border-border hover:border-primary/40 transition-all duration-150 cursor-pointer h-64 md:h-72", 
                 className
             )}
             onClick={() => onClick(doc.doc_uuid)}

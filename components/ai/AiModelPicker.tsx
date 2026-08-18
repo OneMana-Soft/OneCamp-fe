@@ -14,6 +14,7 @@ import React, { useEffect, useState } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { getMyModels, setMyModel, type UserModelOption } from "@/services/aiModelService"
+import { withAI } from "@/components/common/withFeature"
 
 const DEFAULT_VALUE = "__default__"
 
@@ -78,4 +79,9 @@ const AiModelPicker: React.FC = () => {
   )
 }
 
-export default AiModelPicker
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI(AiModelPicker)

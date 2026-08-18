@@ -7,6 +7,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { TeamDeleteOrUndeleteInterface, TeamListResponseInterface, TeamInfoInterface } from "@/types/team"
 import { usePost } from "@/hooks/usePost"
+import { useConfirm } from "@/hooks/useConfirm"
 import { AdminTeamList } from "./AdminTeamList"
 import { Users, Search } from "@/lib/icons"
 
@@ -43,8 +44,25 @@ const TeamsCard = () => {
         }
     }
 
+    // Confirmed, because this is a one-click, optimistic delete of a whole team: the
+    // row disappears the instant the cursor lands, so an accidental click looks
+    // exactly like an intentional one and there is no undo in the UI. Naming the
+    // team in the prompt is the point — "are you sure?" is not a question anyone
+    // can answer, "Delete Design?" is.
+    const confirm = useConfirm()
     const handleDelete = (uuid: string) => {
         if (!uuid || post.isSubmitting) return
+        const team = allTeams.find((t) => t.team_uuid === uuid)
+        confirm({
+            title: team?.team_name ? `Delete ${team.team_name}?` : "Delete this team?",
+            description:
+                "Its channels and projects stay, but the team is removed from the workspace. You can restore it from this list afterwards.",
+            confirmText: "Delete team",
+            onConfirm: () => deleteTeam(uuid),
+        })
+    }
+
+    const deleteTeam = (uuid: string) => {
         const previous = allTeams
         setAllTeams((prev) =>
             prev.map((t) =>

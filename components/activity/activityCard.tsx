@@ -79,7 +79,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
         } else if (activity.activity_type === "COMMENT" && activity.comment) {
             badgeIcon = <MessageSquare className="h-3 w-3" strokeWidth={2.25} />;
             badgeClass =
-                "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20";
+                "bg-success/10 text-success border border-success/20";
             time = activity.comment.comment_created_at;
             title = activity.comment.comment_board
                 ? "commented on your board"

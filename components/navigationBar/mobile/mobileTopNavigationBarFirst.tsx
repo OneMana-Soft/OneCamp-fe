@@ -35,29 +35,29 @@ export function MobileTopNavigationBarFirst() {
                 if(path.length < 4)
                 return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
                 if(path.length < 6)
-                    return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                    return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
                 break;
             case "channel":
                 if(path.length < 4)
                     return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
                 if(path.length < 5) {
-                    return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={() => router.push(app_channel_path)}><ArrowLeft className='h-5' /></Button>
+                    return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={() => router.push(app_channel_path)}><ArrowLeft className='h-5' /></Button>
                 }
                 if(path.length < 6) {
-                    return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={() => router.push(`${app_channel_path}/${path[3]}`)}><ArrowLeft className='h-5' /></Button>
+                    return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={() => router.push(`${app_channel_path}/${path[3]}`)}><ArrowLeft className='h-5' /></Button>
                 }
             case "chat":
 
                 if(path.length > 3 && path[3] == 'group') {
 
                     if(path.length < 7)
-                        return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                        return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
                 }
 
                 if(path.length < 4)
                     return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
                 if(path.length < 6)
-                    return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                    return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
                 break;
             case "doc":
             case "board":
@@ -67,7 +67,7 @@ export function MobileTopNavigationBarFirst() {
             case "recordings":
 
 
-                return <Button variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
 
             default:
                 return <></>;

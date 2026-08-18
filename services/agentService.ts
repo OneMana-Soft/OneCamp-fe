@@ -50,6 +50,46 @@ export interface AgentRunStep {
     // calls; unknown values render as no special badge.
     governance?: string
   }>
+  // Instructions a person sent WHILE the run was in progress, folded in before
+  // this step. Recorded so the transcript explains why the agent changed course
+  // instead of it looking like the model abandoned its own plan.
+  steering?: string[]
+  // Present when the run's conversation was compacted right before this step:
+  // older turns were folded into a summary so the agent could keep working
+  // inside the model's context window. Purely informational — the transcript
+  // itself is never compacted, only what gets re-sent to the model.
+  compaction?: AgentRunCompaction
+}
+
+// AgentRunCompaction is the transcript marker for one context compaction.
+export interface AgentRunCompaction {
+  // Cumulative number of conversation messages folded into the summary.
+  folded: number
+  // Which compaction this was within the run (1-based).
+  round: number
+  // Estimated prompt size either side of the fold, in tokens.
+  tokens_before: number
+  tokens_after: number
+  // False when the summarizer was unavailable and only mechanically extracted
+  // working state was carried forward.
+  summarized: boolean
+  // True when a provider had already rejected the prompt as too large and this
+  // fold recovered the run instead of failing it.
+  rescue?: boolean
+}
+
+// compactionSummary renders a compaction marker as one plain sentence for the
+// transcript. Generic over the shape so a partial/legacy payload still reads
+// sensibly rather than printing "undefined".
+export function compactionSummary(c: AgentRunCompaction): string {
+  const saved =
+    c.tokens_before > 0 && c.tokens_after > 0 && c.tokens_before > c.tokens_after
+      ? ` (${c.tokens_before.toLocaleString()} → ${c.tokens_after.toLocaleString()} tokens)`
+      : ""
+  const how = c.summarized ? "summarised" : "trimmed (no summary available)"
+  const why = c.rescue ? "after the model refused an oversized prompt" : "to stay inside the context window"
+  const folded = c.folded > 0 ? `${c.folded} earlier message${c.folded === 1 ? "" : "s"}` : "earlier messages"
+  return `Context compacted ${why}: ${folded} ${how}${saved}.`
 }
 
 // GOVERNANCE_BADGE maps a tool call's governance category to its transcript
@@ -415,7 +455,11 @@ export async function listAgentActivity(limit = 50): Promise<AgentActivityItem[]
 // lined up (queued), actively working, or blocked waiting on a human. Powers
 // the "what are my teammates doing right now, and where are they stuck" view —
 // the observability loop for background/async runs.
-export type ActiveWorkState = "queued" | "working" | "blocked"
+// "stopping" is a real, brief state: cancellation is cooperative, so the worker
+// running the job wraps up (and posts what it managed to do) before the job goes
+// terminal. "stopped" is that terminal state — open feeds never list it, but the
+// stop call reports it back when a job was ended before it ever started.
+export type ActiveWorkState = "queued" | "working" | "blocked" | "stopping" | "stopped"
 
 export interface ActiveWorkItem {
   task_id: string
@@ -425,14 +469,63 @@ export interface ActiveWorkItem {
   state: ActiveWorkState
   where: string // generic, e.g. "in a channel thread", "in a direct message"
   note?: string // blocker/pause reason for a blocked job ("waiting on you for …")
+  // Display name of the PERSON the work is attributed to — who asked. Absent for
+  // a scheduled routine (nobody asked) or an unresolvable user.
+  //
+  // Useful even without agent-to-agent delegation: in a shared channel where
+  // several people ping the same teammate, "working…" alone doesn't say whose
+  // request is in flight. With delegation it is what makes a chain accountable,
+  // because the backend attributes a delegated run to the originating human
+  // rather than to the agent that relayed it.
+  requested_by?: string
   started_at: string
   updated_at: string
+  // Whether THIS caller may stop the job. Decided server-side (agent owner, the
+  // person who asked, the user it runs as, or an admin) — never inferred from
+  // being able to see the row.
+  can_stop?: boolean
+  // The surface entity the work is attached to (channel post, chat message, or
+  // task uuid) and its kind — what lets a thread or task find its own work.
+  entity_id?: string
+  surface?: string
+}
+
+// StopAgentWorkResult reports what a stop actually did, so the UI can say
+// something true: "stopped" (it hadn't started), "requested" (its worker is
+// wrapping up), or "noop" (it had already finished).
+export interface StopAgentWorkResult {
+  outcome: "stopped" | "requested" | "noop"
+  state: ActiveWorkState
+  message: string
+}
+
+// stopAgentWork stops an AI teammate's in-flight work. Idempotent server-side:
+// stopping something already stopping or finished reports what is true instead of
+// failing, so a double click is harmless.
+export async function stopAgentWork(taskId: string): Promise<StopAgentWorkResult> {
+  const res = await axiosInstance.post(`${PostEndpointUrl.StopAgentWork}/${taskId}/stop`, {})
+  return res.data?.data as StopAgentWorkResult
 }
 
 // listActiveAgentWork loads the open durable jobs (queued/working/blocked)
 // across the agents the caller may see. Background fetch (no global loading bar).
 export async function listActiveAgentWork(limit = 100): Promise<ActiveWorkItem[]> {
   const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/work?limit=${limit}`, {
+    // @ts-expect-error — suppress the global loading bar for this background fetch
+    silent: true,
+  })
+  return (res.data?.data as ActiveWorkItem[]) || []
+}
+
+// listAgentWorkForEntity loads the live agent work happening on ONE thing — a
+// channel post/thread, a chat message, or a task — so the surface a person is
+// already looking at can show it and offer to stop it, instead of sending them to
+// a separate panel. Filtered server-side: a caller sees a job only if they are
+// party to it or can see the surface it runs on, and each item reports whether
+// THEY may stop it. An empty list is the normal case.
+export async function listAgentWorkForEntity(entityId: string): Promise<ActiveWorkItem[]> {
+  if (!entityId) return []
+  const res = await axiosInstance.get(`${GetEndpointUrl.AgentWorkForEntity}/${entityId}`, {
     // @ts-expect-error — suppress the global loading bar for this background fetch
     silent: true,
   })

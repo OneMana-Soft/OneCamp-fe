@@ -145,7 +145,7 @@ export function NonRenderableAttachment({ attachment, attachmentLength, mediaGet
             data-no-ripple="true"
             className={cn(
                 'group flex items-center gap-2.5 rounded-lg border border-border/40 bg-card/50 px-3 py-2 transition-all duration-150',
-                'hover:bg-accent/40 hover:border-border/80 hover:shadow-sm cursor-pointer relative overflow-hidden w-full'
+                'hover:bg-accent/40 hover:border-border/80 cursor-pointer relative overflow-hidden w-full'
             )}
         >
             <div className="shrink-0 p-2 bg-background rounded-md border border-border/50 shadow-sm group-hover:scale-105 transition-transform duration-150">

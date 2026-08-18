@@ -7,6 +7,7 @@ import { useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { Input } from "@/components/ui/input"
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
@@ -97,7 +98,7 @@ function ResetPasswordForm() {
           <label className="text-sm font-medium" htmlFor="password">New Password</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
+            <Input
               id="password"
               type={showPassword ? "text" : "password"}
               placeholder="New password (min 8 chars)"
@@ -106,13 +107,13 @@ function ResetPasswordForm() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full pl-10 pr-10 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="pl-10 pr-10"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? "Hide password" : "Show password"}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors md:h-9 md:w-9"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -123,7 +124,7 @@ function ResetPasswordForm() {
           <label className="text-sm font-medium" htmlFor="confirm-password">Confirm Password</label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
+            <Input
               id="confirm-password"
               type={showPassword ? "text" : "password"}
               placeholder="Confirm new password"
@@ -132,11 +133,11 @@ function ResetPasswordForm() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full pl-10 pr-4 py-2 rounded-md border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+              className="pl-10"
             />
           </div>
           {password && confirmPassword && password === confirmPassword && (
-            <p className="text-xs text-green-600 flex items-center gap-1">
+            <p className="text-xs text-success flex items-center gap-1">
               <CheckCircle className="h-3 w-3" /> Passwords match
             </p>
           )}
@@ -146,7 +147,7 @@ function ResetPasswordForm() {
           <p className="text-sm text-destructive">{error}</p>
         )}
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
           {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
           Reset Password
         </Button>

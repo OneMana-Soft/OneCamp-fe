@@ -57,7 +57,7 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                             variant="ghost"
                             role="combobox"
                             aria-expanded={open}
-                            className="w-full max-w-[220px] justify-between font-normal h-10 bg-transparent group hover:bg-muted/40 transition-all duration-300 rounded-xl px-4"
+                            className="w-full max-w-[220px] justify-between font-normal h-10 bg-transparent group hover:bg-muted/40 transition-colors duration-150 px-4"
                             disabled={!isAdmin}
                         >
                             <div className='flex text-sm font-medium gap-x-2 items-center truncate'>

@@ -35,6 +35,19 @@ export interface MinimalTiptapProps
   className?: string;
   editorContentClassName?: string;
   attachmentOnclick?: ()=>void
+  /**
+   * Accessible names for the composer's icon-only action buttons. The icons
+   * arrive as props, so only the caller knows what its button does; these
+   * default to what every current caller actually means: ButtonIcon is
+   * SendHorizontal in all 17 uses ("Send"), and PrimaryButtonIcon is Check
+   * paired with an X in all 6 ("Save changes" / "Cancel"), which is the
+   * edit-a-message flow rather than sending. So every existing caller gains a
+   * correct name without being touched, and an odd one out can override.
+   */
+  attachmentLabel?: string
+  primaryButtonLabel?: string
+  buttonLabel?: string
+  secondaryButtonLabel?: string
   /** Optional inline AI affordance rendered in the composer action row. */
   aiSlot?: React.ReactNode
   PrimaryButtonIcon?: LucideIcon
@@ -155,6 +168,10 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
           editable,
           children,
             attachmentOnclick,
+            attachmentLabel = "Attach file",
+            primaryButtonLabel = "Save changes",
+            buttonLabel = "Send",
+            secondaryButtonLabel = "Cancel",
             aiSlot,
             editorContentClassName,
           content,
@@ -406,19 +423,19 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
                         {aiSlot}
                         {
                             attachmentOnclick && !(isMobile && toggledTextEditor) &&
-                            <Button size={"icon"} variant={'ghost'} className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4"/> </Button>
+                            <Button size={"icon"} variant={'ghost'} aria-label={attachmentLabel} className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4"/> </Button>
 
                         }
                       {SecondaryButtonIcon && wrappedSecondaryButtonOnclick && (
-                          <Button onClick={wrappedSecondaryButtonOnclick} variant="ghost" size={"icon"} className="h-8 w-8 rounded-full text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Button aria-label={secondaryButtonLabel} onClick={wrappedSecondaryButtonOnclick} variant="ghost" size={"icon"} className="h-8 w-8 rounded-full text-destructive hover:text-destructive hover:bg-destructive/10">
                             <SecondaryButtonIcon className="h-4 w-4" />
                           </Button>
                       )}
                       {PrimaryButtonIcon && wrappedButtonOnclick && (
-                          <Button onClick={wrappedButtonOnclick} size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"><PrimaryButtonIcon className="h-4 w-4"/></Button>
+                          <Button aria-label={primaryButtonLabel} onClick={wrappedButtonOnclick} size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"><PrimaryButtonIcon className="h-4 w-4"/></Button>
                       )}
                       {ButtonIcon && wrappedButtonOnclick && (
-                          <Button size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm" onClick={wrappedButtonOnclick}><ButtonIcon className="h-4 w-4" /></Button>
+                          <Button aria-label={buttonLabel} size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90" onClick={wrappedButtonOnclick}><ButtonIcon className="h-4 w-4" /></Button>
                       )}
                     </div>
                   </div>

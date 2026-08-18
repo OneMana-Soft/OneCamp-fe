@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Plus, Trash2, Check, X, RefreshCw, Terminal, Upload, Loader2, ImageIcon } from "@/lib/icons"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Plug } from "lucide-react"
 import {
     listApps, createApp, updateApp, deleteApp, setAppEnabled, disconnectApp, startOAuthInstall, getApp, testApp,
@@ -118,16 +120,17 @@ export default function AppsCard() {
                 </div>
 
                 {isLoading && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
-                        <RefreshCw className="h-4 w-4 animate-spin" /> Loading apps…
+                    <div role="status" aria-label="Loading apps" className="py-1">
+                        <SkeletonRows rows={3} />
                     </div>
                 )}
                 {!isLoading && (!apps || apps.length === 0) && (
-                    <div className="text-center py-8 text-muted-foreground">
-                        <Plug className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                        <p className="text-sm">No apps installed yet.</p>
-                        <p className="text-xs mt-1">Install one above, or add a custom integration.</p>
-                    </div>
+                    <EmptyState
+                        tone="accent"
+                        icon={Plug}
+                        title="No apps installed yet"
+                        description="Install one above, or add a custom integration."
+                    />
                 )}
                 {apps?.map((app) => (
                     <AppRow
@@ -421,7 +424,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                                             <Input value={c.description} onChange={(e) => updateCommand(i, { description: e.target.value })} placeholder="Description" className="h-8" />
                                             <Input value={c.usage_hint ?? ""} onChange={(e) => updateCommand(i, { usage_hint: e.target.value })} placeholder="Usage hint (optional)" className="h-8" />
                                         </div>
-                                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeCommand(i)}>
+                                        <Button aria-label="Remove command" type="button" size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeCommand(i)}>
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>

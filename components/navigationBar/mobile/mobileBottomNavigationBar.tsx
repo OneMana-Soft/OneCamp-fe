@@ -22,6 +22,14 @@ const NAV_ITEMS: NavItem[] = [
     { icon: Home, label: "Home", page: "app/home" },
     { icon: Hash, label: "Channels", page: "app/channel", unreadKey: "channel" },
     { icon: MessageCircle, label: "Chats", page: "app/chat", unreadKey: "dm" },
+    // Deliberately NO Search tab. Search already has a first-class entry point on
+    // mobile: MobileHomeSearchBar sits above the fold on the Home tab, runs the
+    // same unified GlobalSearchGet as desktop, and submitting hands off to
+    // /app/search where the AI answer and connector results live. A sixth cell
+    // would buy one tap from the other tabs and cost ~60px per cell at 360px,
+    // past the 5-destination ceiling every mobile convention lands on. If search
+    // needs to be closer from Channels/Chats/Activity, the cheaper move is a
+    // search icon in those screens' top bar, not another primary destination.
     { icon: Bell, label: "Activity", page: "app/activity", unreadKey: "activity" },
 ]
 
@@ -112,7 +120,7 @@ export function MobileBottomNavigationBar() {
                                                 className={cn(
                                                     "absolute -top-1.5 -right-2 inline-flex h-4 min-w-4 px-1",
                                                     "items-center justify-center rounded-full",
-                                                    "bg-primary text-[9px] font-semibold text-primary-foreground",
+                                                    "bg-primary text-3xs font-semibold text-primary-foreground",
                                                     "ring-2 ring-background",
                                                 )}
                                             >
@@ -122,7 +130,7 @@ export function MobileBottomNavigationBar() {
                                     </span>
                                     <span
                                         className={cn(
-                                            "text-[10.5px] leading-none",
+                                            "text-3xs leading-none",
                                             isActive ? "font-semibold" : "font-medium",
                                         )}
                                     >
@@ -144,7 +152,7 @@ export function MobileBottomNavigationBar() {
                             )}
                         >
                             <MoreHorizontal className="h-[22px] w-[22px]" strokeWidth={1.75} />
-                            <span className="text-[10.5px] font-medium leading-none">More</span>
+                            <span className="text-3xs font-medium leading-none">More</span>
                         </button>
                     </li>
                 </ul>

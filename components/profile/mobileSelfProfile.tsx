@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react";
+import { Eyebrow, eyebrowClass } from "@/components/ui/eyebrow"
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -30,6 +31,7 @@ import { ArrowLeft, Trash, Calendar, Moon, Sun } from "@/lib/icons";
 import { Camera } from "@/lib/icons";
 import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
+import { TwoFactorSection } from "@/components/profile/TwoFactorSection";
 import { useTheme } from "next-themes";
 import { ColorThemePicker } from "@/components/activeTheme/ColorThemePicker";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
@@ -166,7 +168,6 @@ export function MobileSelfProfile() {
             }));
             
             profileInfo.mutate({
-                mag: profileInfo.data?.mag || '',
                 ...profileInfo.data,
                 data: {
                     ...profileInfo.data?.data,
@@ -264,7 +265,7 @@ export function MobileSelfProfile() {
                             </Avatar>
                             <label
                                 htmlFor="imageUploadMobile"
-                                className="absolute bottom-1 right-1 p-2.5 bg-primary text-primary-foreground rounded-full shadow-md cursor-pointer hover:bg-primary/90 transition-colors"
+                                className="absolute bottom-1 right-1 p-2.5 bg-primary text-primary-foreground rounded-full shadow-overlay cursor-pointer hover:bg-primary/90 transition-colors"
                                 aria-label="Upload profile photo"
                             >
                                 <Camera className="h-4 w-4" />
@@ -299,13 +300,13 @@ export function MobileSelfProfile() {
                     {/* Form Section */}
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm">
+                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4">
                                 <FormField
                                     control={form.control}
                                     name="fullName"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-muted-foreground font-semibold uppercase tracking-wider text-xs">Full Name</FormLabel>
+                                            <FormLabel className={eyebrowClass}>Full Name</FormLabel>
                                             <FormControl>
                                                 <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="Enter your full name" />
                                             </FormControl>
@@ -318,7 +319,7 @@ export function MobileSelfProfile() {
                                     name="displayName"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-muted-foreground font-semibold uppercase tracking-wider text-xs">Display Name</FormLabel>
+                                            <FormLabel className={eyebrowClass}>Display Name</FormLabel>
                                             <FormControl>
                                                 <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="Enter a display name" />
                                             </FormControl>
@@ -331,7 +332,7 @@ export function MobileSelfProfile() {
                                     name="jobTitle"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-muted-foreground font-semibold uppercase tracking-wider text-xs">Job Title</FormLabel>
+                                            <FormLabel className={eyebrowClass}>Job Title</FormLabel>
                                             <FormControl>
                                                 <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="e.g. Software Engineer" />
                                             </FormControl>
@@ -344,7 +345,7 @@ export function MobileSelfProfile() {
                                     name="hobbies"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className="text-muted-foreground font-semibold uppercase tracking-wider text-xs">Hobbies</FormLabel>
+                                            <FormLabel className={eyebrowClass}>Hobbies</FormLabel>
                                             <FormControl>
                                                 <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="What do you like to do?" />
                                             </FormControl>
@@ -359,7 +360,7 @@ export function MobileSelfProfile() {
                                         name="language"
                                         render={({ field }) => (
                                             <FormItem className="flex flex-col col-span-1">
-                                                <FormLabel className="text-muted-foreground font-semibold uppercase tracking-wider text-xs">{t('language')}</FormLabel>
+                                                <FormLabel className={eyebrowClass}>{t('language')}</FormLabel>
                                                 <div className="mt-1">
                                                     <AppLanguageCombobox
                                                         onLangChange={field.onChange}
@@ -376,10 +377,10 @@ export function MobileSelfProfile() {
                                         name="status"
                                         render={({ field }) => (
                                             <FormItem className="flex flex-col col-span-1">
-                                                <FormLabel className="text-muted-foreground font-semibold uppercase tracking-wider text-xs">{t('status')}</FormLabel>
+                                                <FormLabel className={eyebrowClass}>{t('status')}</FormLabel>
                                                 <div className="mt-1 flex items-center justify-between border rounded-xl px-3 h-12 bg-background/50">
                                                     <span 
-                                                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer leading-none"
+                                                        className={cn(eyebrowClass, "cursor-pointer leading-none")}
                                                         onClick={() => field.onChange(!field.value)}
                                                     >
                                                         Appear online
@@ -398,8 +399,8 @@ export function MobileSelfProfile() {
                                 </div>
                             </div>
 
-                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm">
-                                <h3 className="text-muted-foreground font-medium uppercase tracking-wider text-xs">Appearance</h3>
+                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4">
+                                <Eyebrow as="h3">Appearance</Eyebrow>
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border">
                                         <div className="flex items-center gap-3">
@@ -419,9 +420,13 @@ export function MobileSelfProfile() {
                             </div>
 
                             <ChangePasswordSection />
-                            
-                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm mt-4">
-                                <h3 className="text-muted-foreground font-medium uppercase tracking-wider text-xs mb-3">Integrations</h3>
+
+                            <div className="mt-4">
+                                <TwoFactorSection />
+                            </div>
+
+                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 mt-4">
+                                <Eyebrow as="h3" className="mb-3">Integrations</Eyebrow>
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border">
                                         <div className="flex items-center space-x-3">
@@ -462,7 +467,7 @@ export function MobileSelfProfile() {
                             
                             <div className="pt-4">
                                 <Button 
-                                    className="w-full h-12 text-base font-medium rounded-xl shadow-lg" 
+                                    className="w-full h-12 text-base font-medium rounded-xl" 
                                     disabled={uploadFile.isSubmitting || post.isSubmitting} 
                                     type="submit"
                                 >

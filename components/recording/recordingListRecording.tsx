@@ -36,7 +36,7 @@ export const RecordingListRecording = ({
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
             
             <div className="relative">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-sm ring-1 ring-emerald-500/20 group-hover:scale-105 transition-transform duration-150">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success shadow-sm ring-1 ring-emerald-500/20 group-hover:scale-105 transition-transform duration-150">
                     <Video size={24} />
                 </div>
             </div>

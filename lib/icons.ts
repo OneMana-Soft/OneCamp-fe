@@ -77,6 +77,7 @@ export {
   Undo2,
   Redo2,
   ClipboardCheck,
+  CircleStop,
 } from "lucide-react";
 
 // ─── Status ─────────────────────────────────────────────────
@@ -151,6 +152,8 @@ export {
   Table,
   Minus,
   Sparkles,
+  // Marks an answer whose prompt was shortened to fit the model's context window.
+  Scissors,
   Zap,
   Plug,
   Lightbulb,

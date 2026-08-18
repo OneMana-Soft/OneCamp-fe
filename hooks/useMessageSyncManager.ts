@@ -13,6 +13,55 @@ import { GetEndpointUrl } from "@/services/endPoints"
 // could be lost.
 const STALE_THRESHOLD_MS = 30_000
 
+/**
+ * STREAM_BACKED_KEY_PREFIXES — the SWR caches whose freshness depends on the
+ * realtime stream, and which therefore need exactly one revalidate after a gap
+ * the stream can't vouch for.
+ *
+ * This list is the alternative to polling. Each of these is kept current by an
+ * MQTT message in normal operation (a channel update, a table row, a doc comment,
+ * an archive job transition, a chat-list preview), so a timer would be pure waste
+ * — but a MISSED message leaves the UI quietly wrong until the user acts. Naming
+ * them in one place means adding a streamed feature is a one-line entry here
+ * instead of another private interval somewhere in the tree.
+ *
+ * Deliberately prefixes, not exact keys: these endpoints are all
+ * `<prefix>/<id>`, and a gap invalidates every id, not just the one on screen.
+ */
+export const STREAM_BACKED_KEY_PREFIXES: readonly string[] = [
+    // Conversations: previews + unread counts (bodies are reconciled by the
+    // resync nonce, which preserves local/optimistic state).
+    GetEndpointUrl.GetUserLatestChatList,
+    // Channel metadata: post policy, archive state, name, privacy, membership.
+    // Missing a Channel_Update leaves a composer enabled on an archived channel.
+    GetEndpointUrl.ChannelBasicInfo,
+    GetEndpointUrl.GetUserActiveChannelList,
+    GetEndpointUrl.GetUserArchiveChannelList,
+    GetEndpointUrl.GetAllActiveChannelList,
+    // Tables: rows arrive as MESSAGE_TABLE_ROW on the table's own topic, so a
+    // missed message shows a stale grid to someone who thinks it's live.
+    GetEndpointUrl.GetTable,
+    // Docs: comment threads arrive on the doc topic.
+    GetEndpointUrl.GetDocInfo,
+    // Admin archive panel: published over MQTT, so a long gap can hide a
+    // "completed" transition behind a permanent "running".
+    GetEndpointUrl.GetArchiveJobs,
+    GetEndpointUrl.GetArchiveStats,
+]
+
+/**
+ * revalidateStreamBackedKeys asks SWR to refetch every stream-backed cache once.
+ * Pure fan-out over the list above — no component needs to know it exists.
+ */
+export function revalidateStreamBackedKeys(): void {
+    void mutate(
+        (key: unknown) =>
+            typeof key === "string" && STREAM_BACKED_KEY_PREFIXES.some((prefix) => key.includes(prefix)),
+        undefined,
+        { revalidate: true },
+    )
+}
+
 export const useMessageSyncManager = () => {
     const dispatch = useDispatch()
 
@@ -60,24 +109,15 @@ export const useMessageSyncManager = () => {
         if (gap >= STALE_THRESHOLD_MS) {
             // 1. Tell every mounted conversation to reconcile against the
             //    server (window-reconcile — applies adds/edits/deletes within
-            //    the latest window, no wipe, no empty flash).
+            //    the latest window, no wipe, no empty flash). Non-conversation
+            //    surfaces observe the same nonce via useStreamGapResync.
             dispatch(triggerMessageResync())
 
-            // 2. Refresh the chat list so unread counts / previews update.
-            //    This is a list (not the message body) so a background
-            //    revalidate is the right tool — no flash risk here.
-            mutate(
-                (key: string) =>
-                    typeof key === "string" &&
-                    (key.startsWith(GetEndpointUrl.GetUserLatestChatList) ||
-                        // Admin archive panel: published over MQTT, so a long
-                        // gap could mean we missed a "completed" event. Cheap
-                        // to revalidate (admin-only, two endpoints).
-                        key.startsWith(GetEndpointUrl.GetArchiveJobs) ||
-                        key.startsWith(GetEndpointUrl.GetArchiveStats)),
-                undefined,
-                { revalidate: true }
-            )
+            // 2. Revalidate every cache the stream keeps fresh (lists, channel
+            //    metadata, tables, docs, admin jobs). Background revalidate, so
+            //    no flash risk — and one declared list instead of a timer per
+            //    feature.
+            revalidateStreamBackedKeys()
         }
 
         // Reset the healthy timestamp
@@ -116,15 +156,7 @@ export const useMessageSyncManager = () => {
         if (gap < STALE_THRESHOLD_MS) return
 
         dispatch(triggerMessageResync())
-        mutate(
-            (key: string) =>
-                typeof key === "string" &&
-                (key.startsWith(GetEndpointUrl.GetUserLatestChatList) ||
-                    key.startsWith(GetEndpointUrl.GetArchiveJobs) ||
-                    key.startsWith(GetEndpointUrl.GetArchiveStats)),
-            undefined,
-            { revalidate: true }
-        )
+        revalidateStreamBackedKeys()
         // Treat the foreground reconcile as a fresh healthy baseline so we
         // don't immediately re-fire on a subsequent MQTT reconnect event.
         lastHealthyTimestampRef.current = Date.now()

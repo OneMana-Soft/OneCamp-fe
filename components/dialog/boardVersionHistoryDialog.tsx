@@ -154,7 +154,7 @@ function SnapshotRow({
             <div className="flex -space-x-1.5">
               {contributors.slice(0, 3).map((c) => (
                 <Avatar key={c.user_uuid} className="h-4 w-4 ring-2 ring-background" title={contributorName(c)}>
-                  <AvatarFallback className="text-[8px]">
+                  <AvatarFallback className="text-3xs">
                     {contributorName(c).charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>

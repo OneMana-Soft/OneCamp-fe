@@ -9,6 +9,8 @@ import { EditorContent } from '@tiptap/react'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils/helpers/cn'
 import { statusColors } from "@/lib/colors"
+import { useClientConfig } from '@/hooks/useClientConfig'
+import { exceedsUploadLimit, uploadLimitMessage } from '@/lib/utils/uploadLimit'
 import { SectionOne } from '@/components/minimal-tiptap/components/section/one'
 import { SectionTwo } from '@/components/minimal-tiptap/components/section/two'
 import { SectionThree } from '@/components/minimal-tiptap/components/section/three'
@@ -131,7 +133,7 @@ const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClic
                     "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     "bg-primary/10 border border-primary/20 hover:border-primary/40",
                     "text-primary hover:text-primary/80",
-                    "hover:bg-primary/20 hover:shadow-sm hover:shadow-primary/10"
+                    "hover:bg-primary/20"
                 )}
                 title={hasSelection ? "AI: Transform selected text" : "AI: Write with AI"}
             >
@@ -157,7 +159,7 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
             )
         case 'saved':
             return (
-                <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                <span className="flex items-center gap-1 text-success">
                     <Check className="size-3" />
                     <span className="text-[10px] font-medium">
                         {lastSavedAt ? `Saved at ${formatTime(lastSavedAt)}` : 'Saved'}
@@ -187,16 +189,42 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
     ({ value, onChange, className, editorContentClassName, docId, provider, providerSynced, title, onTitleChange, onTitleBlur, editableTitle = true, collaboration, saveStatus, lastSavedAt, lastEditedAt, lastEditedRelative, focusMode, ...props }, ref) => {
         const { toast } = useToast()
         const uploadFile = useUploadFile()
+        const clientConfig = useClientConfig()
         const titleRef = React.useRef<HTMLTextAreaElement>(null)
 
+        // uploadFn puts a doc image in object storage and returns its URL. An image
+        // is NEVER inlined into the document as a base64 data URI, no matter what
+        // goes wrong.
+        //
+        // It used to fall back to exactly that on any failure, which quietly turned
+        // every refusal into a much worse outcome: the backend rejects an oversized
+        // upload with a 413, the fallback then embedded the whole image in the
+        // document body, and those bytes were stored and sent on to OpenSearch as
+        // analysed text — where parsing a single such document exhausted the search
+        // node's heap and stopped the container. The error path inverted the control
+        // that had just refused the file.
+        //
+        // So: check the size before spending a request, and on failure tell the
+        // person and rethrow. A failed image the author can retry is a far better
+        // outcome than a document that silently carries megabytes of binary.
         const uploadFn = React.useCallback(async (file: File) => {
             if (!docId) {
                 toast({
-                    title: 'Error',
-                    description: 'Document ID is required to upload images.',
+                    title: 'Couldn’t add the image',
+                    description: 'This document isn’t ready yet. Try again in a moment.',
                     variant: 'destructive'
                 });
                 throw new Error('docId required for image upload')
+            }
+            // Refuse an oversized image up front: same cap the server enforces, but
+            // with instant feedback and no wasted request or progress bar.
+            if (exceedsUploadLimit(file.size, clientConfig.upload_limit_bytes)) {
+                toast({
+                    title: 'Image too large',
+                    description: uploadLimitMessage(file.size, clientConfig.upload_limit_mb, file.name),
+                    variant: 'destructive'
+                });
+                throw new Error('image exceeds the workspace upload limit')
             }
             try {
                 const res = await uploadFile.makeRequestToUploadToDoc([file], docId);
@@ -210,11 +238,16 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                 return { id: objUuid, src }
             } catch (error) {
                 console.error('Doc image upload failed', error);
-                const { fileToBase64 } = await import('@/components/minimal-tiptap/utils');
-                const src = await fileToBase64(file);
-                return { id: 'error', src };
+                toast({
+                    title: 'Couldn’t add the image',
+                    description: 'The upload didn’t go through. Check your connection and try again.',
+                    variant: 'destructive'
+                });
+                // Rethrow so the editor shows the image as failed. Returning a
+                // data URI here is what broke search.
+                throw error instanceof Error ? error : new Error('doc image upload failed')
             }
-        }, [docId, toast, uploadFile]);
+        }, [docId, toast, uploadFile, clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb]);
 
         // Auto-resize title textarea
         React.useEffect(() => {
@@ -600,9 +633,9 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                                             collabStatus === 'connected' || collabStatus === 'synced'
                                                 ? `${statusColors.success.solid} shadow-[0_0_8px_rgba(16,185,129,0.4)]`
                                                 : collabStatus === 'connecting'
-                                                ? "bg-yellow-500 animate-pulse"
+                                                ? "bg-warning animate-pulse"
                                                 : collabStatus === 'offline'
-                                                ? "bg-amber-500"
+                                                ? "bg-warning"
                                                 : "bg-red-500"
                                         )} />
                                         <span className="capitalize opacity-80 text-[10px] font-medium tracking-tight">

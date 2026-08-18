@@ -5,7 +5,7 @@ import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, RotateCcw } from "@/lib/icons"
+import { Trash2, RotateCcw, ShieldAlert } from "@/lib/icons"
 import { Users2 } from "lucide-react"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
@@ -20,6 +20,17 @@ interface AdminUserListProps {
   users: UserProfileDataInterface[]
   onDeactivate: (email: string, userId: string) => void
   onActivate: (email: string, userId: string) => void
+  /**
+   * Clears a member's second factor, for a lost device.
+   *
+   * OFFERED FOR EVERY ACTIVE MEMBER, not only enrolled ones, because this list does not know who is
+   * enrolled — the admin user endpoint does not return it, and adding it would mean a per-row lookup to
+   * decide whether to draw a button. The server answers honestly either way: it reports whether a
+   * factor was actually removed and says "that account did not have two-factor authentication
+   * enabled" when there was nothing to clear, so the alternative to a slightly over-offered action is
+   * an admin guessing from a support ticket.
+   */
+  onResetTwoFactor: (email: string, userId: string) => void
   isSubmitting: boolean
   onLoadMore: () => void
   hasMore: boolean
@@ -32,6 +43,7 @@ export const AdminUserList: React.FC<AdminUserListProps> = ({
   users,
   onDeactivate,
   onActivate,
+  onResetTwoFactor,
   isSubmitting,
   onLoadMore,
   hasMore,
@@ -120,6 +132,7 @@ export const AdminUserList: React.FC<AdminUserListProps> = ({
               onOpenProfile={handleOpenProfile}
               onActivate={onActivate}
               onDeactivate={onDeactivate}
+              onResetTwoFactor={onResetTwoFactor}
             />
           ))}
         </ul>
@@ -149,9 +162,17 @@ interface AdminUserRowProps {
   onOpenProfile: (userUUID: string) => void
   onActivate: (email: string, userId: string) => void
   onDeactivate: (email: string, userId: string) => void
+  onResetTwoFactor: (email: string, userId: string) => void
 }
 
-function AdminUserRow({ user, isSubmitting, onOpenProfile, onActivate, onDeactivate }: AdminUserRowProps) {
+function AdminUserRow({
+  user,
+  isSubmitting,
+  onOpenProfile,
+  onActivate,
+  onDeactivate,
+  onResetTwoFactor,
+}: AdminUserRowProps) {
   const { src: imageSrc } = useUserAvatar(user.user_profile_object_key)
   const seed = user.user_full_name || user.user_name || user.user_email_id || ""
   const isDeactivated = !isZeroEpoch(user.user_deleted_at || "")
@@ -190,10 +211,31 @@ function AdminUserRow({ user, isSubmitting, onOpenProfile, onActivate, onDeactiv
         ) : (
           <Badge
             variant="outline"
-            className="text-[10px] h-5 hidden xs:inline-flex sm:inline-flex border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5"
+            className="text-[10px] h-5 hidden xs:inline-flex sm:inline-flex border-success/30 text-success bg-emerald-500/5"
           >
             Active
           </Badge>
+        )}
+
+        {/* Only for an ACTIVE member. Resetting the second factor of somebody who cannot sign in
+            achieves nothing, and offering it there would suggest reactivation was not the thing
+            actually needed. */}
+        {!isDeactivated && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                onClick={() => onResetTwoFactor(user.user_email_id!, user.user_uuid)}
+                disabled={isSubmitting}
+                aria-label={`Reset two-factor authentication for ${seed}`}
+              >
+                <ShieldAlert className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Reset two-factor authentication</TooltipContent>
+          </Tooltip>
         )}
 
         {isDeactivated ? (
@@ -202,7 +244,7 @@ function AdminUserRow({ user, isSubmitting, onOpenProfile, onActivate, onDeactiv
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 dark:text-emerald-400"
+                className="h-8 w-8 text-success hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-success/10 dark:text-emerald-400"
                 onClick={() => onActivate(user.user_email_id!, user.user_uuid)}
                 disabled={isSubmitting}
                 aria-label={`Reactivate ${seed}`}

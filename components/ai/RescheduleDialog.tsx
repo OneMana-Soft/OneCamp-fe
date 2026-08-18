@@ -25,6 +25,7 @@ import {
   type RescheduleResult,
   type ScheduleCandidate,
 } from "@/services/scheduleService"
+import { withAI } from "@/components/common/withFeature"
 
 // formatSlot renders a UTC RFC3339 start/end pair in the viewer's local time.
 function formatSlot(startISO: string, endISO: string): string {
@@ -119,7 +120,7 @@ const RescheduleDialog: React.FC<{
                 {formatSlot(result.current_start, result.current_end)}
               </div>
               {result.conflict_count > 0 ? (
-                <div className="flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                <div className="flex items-start gap-1.5 text-[11px] text-warning">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                   <span>
                     {result.conflict_count} {result.conflict_count === 1 ? "person has" : "people have"} a
@@ -127,7 +128,7 @@ const RescheduleDialog: React.FC<{
                   </span>
                 </div>
               ) : (
-                <div className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                <div className="text-[11px] text-success">
                   No conflicts right now — but you can still move it.
                 </div>
               )}
@@ -160,7 +161,7 @@ const RescheduleDialog: React.FC<{
                           <span className="block text-sm font-medium truncate">{formatSlot(c.start, c.end)}</span>
                           <span
                             className={`text-[11px] ${
-                              c.all_free ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+                              c.all_free ? "text-success" : "text-warning"
                             }`}
                           >
                             {c.all_free ? "All free" : `${c.free_count} of ${c.total} free`}
@@ -186,4 +187,9 @@ const RescheduleDialog: React.FC<{
   )
 }
 
-export default RescheduleDialog
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI(RescheduleDialog)

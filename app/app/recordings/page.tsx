@@ -11,6 +11,7 @@ import { useMedia } from "@/context/MediaQueryContext";
 import { Loader2, Video } from "@/lib/icons";
 import { statusColors } from "@/lib/colors";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
+import { ErrorState } from "@/components/ui/error-state"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll";
 import { Separator } from "@/components/ui/separator";
 import { RecordingListRecording } from "@/components/recording/recordingListRecording";
@@ -41,7 +42,7 @@ const RecordingsPage = () => {
         ? `${GetEndpointUrl.UserRecordingList}?startDate=${startDate}&endDate=${endDate}&pageIndex=${pageIndex}&pageSize=${pageSize}`
         : "";
 
-    const { data: pageData, isLoading } = useFetch<RecordingPaginationResRaw>(endpoint);
+    const { data: pageData, isLoading, isError, mutate } = useFetch<RecordingPaginationResRaw>(endpoint);
 
     useEffect(() => {
         if (pageData?.data.recordings) {
@@ -121,7 +122,7 @@ const RecordingsPage = () => {
             {isDesktop && (
                 <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3 p-2 backdrop-blur-md">
                     <div className="flex items-center gap-3">
-                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${statusColors.online.solid} text-white shadow-sm`}>
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${statusColors.online.solid} text-white`}>
                             <Video size={18} />
                         </div>
                         <div>
@@ -169,6 +170,13 @@ const RecordingsPage = () => {
                                 keyExtractor={(item: RecordingInfoInterface) => item.recording_egress_id}
                             />
                         </div>
+                    </div>
+                ) : isError ? (
+                    // Ahead of the empty branch. "No recordings for the selected
+                    // date range" would send the user off changing dates to fix a
+                    // request that failed.
+                    <div className="flex h-full items-center justify-center p-8">
+                        <ErrorState subject="your recordings" onRetry={() => void mutate()} />
                     </div>
                 ) : !isLoading ? (
                     <div className="flex h-full items-center justify-center p-8">

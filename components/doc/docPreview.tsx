@@ -35,7 +35,7 @@ export const DocPreview: React.FC<DocPreviewProps> = ({ content, className }) =>
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-[9px] text-[#dadce0] font-medium">Blank</span>
+                        <span className="text-3xs text-muted-foreground font-medium">Blank</span>
                     </div>
                 )}
             </div>

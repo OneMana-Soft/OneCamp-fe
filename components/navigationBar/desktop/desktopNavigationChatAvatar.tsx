@@ -29,7 +29,7 @@ export const DesktopNavigationChatAvatar = ({userInfo}: {userInfo?: UserProfileD
         <div className='relative'>
             <Avatar className='h-7 w-7 md:h-5 md:w-5 hover:cursor-pointer' >
                 <AvatarImage src={imageSrc}/>
-                <AvatarFallback className={cn("text-[9px] md:text-[8px] font-semibold", getAvatarFallbackClass(userInfo?.user_name))}>{nameInitial[0]}</AvatarFallback>
+                <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(userInfo?.user_name))}>{nameInitial[0]}</AvatarFallback>
             </Avatar>
             {isOnline && <div className={`h-2.5 w-2.5 md:h-2 md:w-2 ring-[1px] ring-background rounded-full ${statusColors.online.solid} absolute bottom-0 right-0`}></div>}
 

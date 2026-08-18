@@ -27,7 +27,7 @@ export function ImageAttachmentCard({ url, attachment, selfSize, cover = false, 
     const height = Math.min(attachment.attachment_height ?? fallbackHeight, fallbackHeight)
 
     return (
-        <div className={cn('flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-border/50 shadow-sm transition-all hover:shadow-md', className)}>
+        <div className={cn('flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-border/50', className)}>
             <Image
                 alt={attachment.attachment_file_name ?? 'Image attachment'}
                 src={url || "/placeholder.svg"}
@@ -35,7 +35,7 @@ export function ImageAttachmentCard({ url, attachment, selfSize, cover = false, 
                 height={height}
                 draggable={false}
                 priority={priority}
-                className={cn('max-w-full transition-all duration-300 hover:brightness-95', {
+                className={cn('max-w-full transition-[filter] duration-150 hover:brightness-95', {
                     'max-h-[44rem]': selfSize && !maxHeight,
                     'max-h-full': !selfSize && !maxHeight,
                     'h-full object-cover': cover,

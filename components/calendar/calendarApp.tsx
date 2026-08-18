@@ -365,7 +365,7 @@ export function CalendarApp() {
                                                                     <div className="text-[11px] font-semibold truncate text-foreground group-hover:text-primary transition-colors">
                                                                         {event.event_title}
                                                                     </div>
-                                                                    <div className="text-[9px] text-muted-foreground">
+                                                                    <div className="text-3xs text-muted-foreground truncate">
                                                                         {format(parseISO(event.event_start_time), "h:mm a")} - {format(parseISO(event.event_end_time), "h:mm a")}
                                                                     </div>
                                                                 </div>

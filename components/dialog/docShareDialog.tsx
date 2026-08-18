@@ -264,7 +264,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                          <Button 
                             variant="outline" 
                             size="sm"
-                            className={cn("rounded-full gap-2 transition-all", copied ? "border-green-500 text-green-600 dark:text-green-400 bg-green-500/10" : "text-primary border-primary/20 hover:bg-primary/5")}
+                            className={cn("rounded-full gap-2 transition-all", copied ? "border-green-500 text-success bg-success/10" : "text-primary border-primary/20 hover:bg-primary/5")}
                             onClick={() => {
                                 navigator.clipboard.writeText(window.location.href);
                                 setCopied(true);
@@ -299,7 +299,7 @@ function UserRow({ user, role, onRemove, isOwner }: { user: UserProfileDataInter
             <div className="flex items-center gap-4">
                 <span className="text-xs text-muted-foreground capitalize">{role}</span>
                  {(isOwner && role !== 'owner') && (
-                    <Button variant="ghost" size="icon" className="h-6 w-6 md:opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive" onClick={onRemove}>
+                    <Button aria-label="Remove access" variant="ghost" size="icon" className="h-6 w-6 md:opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive" onClick={onRemove}>
                         <X className="w-4 h-4" />
                     </Button>
                  )}

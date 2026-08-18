@@ -38,7 +38,7 @@ const AddTeamMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({ha
                         variant="outline"
                         role="combobox"
                         aria-expanded={open}
-                        className="w-[220px] justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 hover:shadow-sm transition-all duration-300 rounded-xl"
+                        className="w-[220px] justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150"
                         size="sm"
                     >
                         <span className="truncate text-sm font-medium">
@@ -79,7 +79,7 @@ const AddTeamMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({ha
             <Button 
                 variant="default" 
                 size="sm" 
-                className="h-10 px-5 font-medium shadow-sm hover:shadow-md transition-all duration-300 rounded-xl bg-primary hover:bg-primary/90" 
+                className="h-10 px-5 font-medium transition-colors duration-150 bg-primary hover:bg-primary/90" 
                 onClick={() => handleOnClick(value)}
                 disabled={!value}
             >

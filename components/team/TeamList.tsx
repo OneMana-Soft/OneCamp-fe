@@ -7,6 +7,7 @@ import Link from "next/link";
 import { TeamInfoInterface, TeamListResponseInterface } from "@/types/team";
 import { TeamInfo } from "@/components/team/TeamInfo";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
+import { ErrorState } from "@/components/ui/error-state"
 import { LoadingStateCircle } from "@/components/loading/loadingStateCircle";
 import { ListSkeleton } from "@/components/ui/ListSkeleton";
 
@@ -65,7 +66,16 @@ export const TeamList = () => {
                     </Link>
                 ))}
 
-                {!teamList.isLoading && !teamSearchText && sortedTeamList && sortedTeamList.length === 0 && (
+                {teamList.isError && (
+                    <div className="flex flex-col items-center justify-center py-10 px-4 w-full h-full min-h-[40vh]">
+                        <ErrorState subject="your teams" onRetry={() => void teamList.mutate()} />
+                    </div>
+                )}
+
+                {/* !isError as well as ordering: these are sequential blocks, not a
+                    ternary chain, so without it BOTH the failure and "No teams yet"
+                    would render on a failed fetch. */}
+                {!teamList.isError && !teamList.isLoading && !teamSearchText && sortedTeamList && sortedTeamList.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 px-4 w-full h-full min-h-[40vh]">
                         <StatePlaceholder
                             type="empty"

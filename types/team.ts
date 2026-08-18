@@ -24,13 +24,11 @@ export interface TeamNameExistsInterface {
 
 export interface TeamListResponseInterface {
     data: TeamInfoInterface[]
-    mag: string;
     has_more: boolean;
 }
 
 export interface TeamInfoRawInterface {
     data: TeamInfoInterface;
-    mag: string;
 }
 
 export interface TeamMemberAddOrRemoveInterface {

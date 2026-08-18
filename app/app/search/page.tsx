@@ -2,7 +2,8 @@
 
 import { useSearchParams } from "next/navigation"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2, Search, ArrowLeft, X, Eye } from "@/lib/icons";
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { Search, ArrowLeft, X, Eye } from "@/lib/icons";
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useEffect } from "react"
@@ -68,12 +69,13 @@ export default function SearchPage() {
                         <Input
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
-                            className="pl-9 pr-10 h-10 md:h-11 w-full bg-background border-muted shadow-sm rounded-xl focus-visible:ring-primary focus-visible:ring-offset-0 transition-all font-medium"
+                            className="pl-9 pr-10 h-10 md:h-11 w-full bg-background border-muted focus-visible:ring-primary focus-visible:ring-offset-0 transition-all font-medium"
                             placeholder="Search for chats, posts, docs, or people..."
                         />
                         {inputValue && (
                             <button
                                 type="button"
+                                aria-label="Clear search"
                                 onClick={() => setInputValue("")}
                                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted text-muted-foreground transition-colors"
                             >
@@ -94,19 +96,18 @@ export default function SearchPage() {
                 <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-3">
                     <SearchAnswer query={inputValue} selfUUID={selfUUID} />
                     {isLoading ? (
-                        <div className="flex flex-col items-center justify-center py-24 text-center">
-                            <div className="relative">
-                                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                                <Search className="absolute inset-0 m-auto h-4 w-4 text-primary/50" />
-                            </div>
-                            <p className="mt-4 text-muted-foreground font-medium">Searching across all records...</p>
+                        /* Shaped like the result rows below, so the list does not
+                           jump when matches arrive. The announcement carries the
+                           wording the spinner used to show. */
+                        <div role="status" aria-label="Searching across all records">
+                            <SkeletonRows rows={5} />
                         </div>
                     ) : results.length > 0 ? (
                         results.map((result, idx) => (
                             <div
                                 key={idx}
                                 onClick={() => handleResultClick(result)}
-                                className="group flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl border bg-card hover:bg-accent/40 cursor-pointer transition-all duration-200 hover:shadow-md border-transparent hover:border-border"
+                                className="group flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl border bg-card hover:bg-accent/40 cursor-pointer transition-colors duration-150 border-transparent hover:border-border"
                             >
                                 <div className={cn(
                                     "shrink-0 transition-all duration-200",
@@ -158,7 +159,7 @@ export default function SearchPage() {
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-24 text-center">
-                            <div className="p-6 rounded-full bg-muted/50 mb-6 transition-transform duration-500 hover:scale-110">
+                            <div className="p-6 rounded-full bg-muted/50 mb-6">
                                 <Search className="h-12 w-12 text-muted-foreground opacity-50" />
                             </div>
                             <h2 className="text-base font-semibold text-foreground">No matches found</h2>

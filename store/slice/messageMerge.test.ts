@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest"
-import chatSlice, { mergeChats, updateChats, invalidateAllChatMessages } from "@/store/slice/chatSlice"
-import channelSlice, { mergeChannelPosts, updateChannelPosts, invalidateChannelPosts } from "@/store/slice/channelSlice"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import chatSlice, { mergeChats, updateChats, invalidateAllChatMessages, createChat, removeChatByChatId } from "@/store/slice/chatSlice"
+import channelSlice, { mergeChannelPosts, updateChannelPosts, invalidateChannelPosts, createPost, removePostByPostId } from "@/store/slice/channelSlice"
+import { TOMBSTONE_TTL_MS } from "@/lib/utils/deletionTombstone"
 import groupChatSlice, { mergeGroupChats, updateGroupChats } from "@/store/slice/groupChatSlice"
 import messageResyncSlice, { triggerMessageResync } from "@/store/slice/messageResyncSlice"
 import type { ChatInfo } from "@/types/chat"
@@ -129,6 +130,44 @@ describe("chatSlice.mergeChats", () => {
         state = reducer(state, mergeChats({ chatId, chats: [] }))
         expect(state.chatMessages[chatId]).toBe(before)
     })
+
+    it("clears messages deleted while idle when an EMPTY window is authoritative", () => {
+        // Every message was deleted server-side. Without an explicit watermark
+        // an empty page can't be told apart from a legacy/paginated response,
+        // so the authority flag is what makes the removal safe.
+        let state = reducer(
+            undefined,
+            updateChats({ chatId, chats: [chat("a", "2024-01-01T00:00:00Z"), chat("b", "2024-01-01T00:01:00Z")] })
+        )
+        state = reducer(
+            state,
+            mergeChats({ chatId, chats: [], authoritativeThrough: Date.parse("2024-01-01T00:10:00Z") })
+        )
+        expect(state.chatMessages[chatId]).toEqual([])
+    })
+
+    it("keeps optimistic sends and post-watermark messages when an empty window is authoritative", () => {
+        let state = reducer(
+            undefined,
+            updateChats({
+                chatId,
+                chats: [
+                    chat("deleted", "2024-01-01T00:00:00Z"),
+                    // Sent while the request was in flight -> after the watermark.
+                    chat("after-watermark", "2024-01-01T00:20:00Z"),
+                ],
+            })
+        )
+        // An unconfirmed local send that predates the watermark must survive too.
+        const optimistic = { ...chat("optimistic", "2024-01-01T00:05:00Z"), chat_added_locally: true }
+        state = { ...state, chatMessages: { [chatId]: [...state.chatMessages[chatId], optimistic] } } as any
+
+        state = reducer(
+            state,
+            mergeChats({ chatId, chats: [], authoritativeThrough: Date.parse("2024-01-01T00:10:00Z") })
+        )
+        expect(state.chatMessages[chatId].map((c) => c.chat_uuid)).toEqual(["optimistic", "after-watermark"])
+    })
 })
 
 describe("channelSlice.mergeChannelPosts", () => {
@@ -187,6 +226,22 @@ describe("channelSlice.mergeChannelPosts", () => {
         expect(state.channelPosts[channelId].map((p) => p.post_uuid)).toContain("local")
     })
 
+    it("clears the last remaining post when an EMPTY window is authoritative", () => {
+        let state = reducer(undefined, updateChannelPosts({ channelId, posts: [post("only", "2024-01-01T00:00:00Z")] }))
+        state = reducer(
+            state,
+            mergeChannelPosts({ channelId, posts: [], authoritativeThrough: Date.parse("2024-01-01T00:10:00Z") })
+        )
+        expect(state.channelPosts[channelId]).toEqual([])
+    })
+
+    it("stays a no-op for an empty window with no authority (pagination / legacy dispatch)", () => {
+        let state = reducer(undefined, updateChannelPosts({ channelId, posts: [post("a", "2024-01-01T00:00:00Z")] }))
+        const before = state.channelPosts[channelId]
+        state = reducer(state, mergeChannelPosts({ channelId, posts: [] }))
+        expect(state.channelPosts[channelId]).toBe(before)
+    })
+
     it("self-heals after invalidateChannelPosts wipes state", () => {
         let state = reducer(undefined, invalidateChannelPosts())
         state = reducer(state, mergeChannelPosts({ channelId, posts: [post("a", "2024-01-01T00:00:00Z")] }))
@@ -216,6 +271,115 @@ describe("groupChatSlice.mergeGroupChats", () => {
         )
         expect(state.chatMessages[grpId].map((c) => c.chat_uuid)).toEqual(["a", "c"])
         expect(state.chatMessages[grpId].find((c) => c.chat_uuid === "a")?.chat_body_text).toBe("new")
+    })
+})
+
+// Deletion tombstones exist because MQTT delivery is not ordered and a "latest
+// window" can predate a delete: without them a delete looks like it did nothing
+// even though the server accepted it. They are also deliberately short-lived so
+// a soft delete an admin later restores is never hidden for long — both halves
+// of that contract are locked here.
+describe("deletion tombstones", () => {
+    // Pin the clock so TTL expiry is exercised deterministically rather than by
+    // waiting. markTombstone/isTombstoned both read Date.now() by default.
+    const clockAt = (ms: number) => vi.spyOn(Date, "now").mockReturnValue(ms)
+    afterEach(() => vi.restoreAllMocks())
+
+    it("channel: a create event delivered after the delete cannot resurrect a post", () => {
+        const reducer = channelSlice.reducer
+        const channelId = "ch1"
+        clockAt(1_000)
+        let state = reducer(
+            undefined,
+            updateChannelPosts({ channelId, posts: [post("a", "2024-01-01T00:00:00Z"), post("gone", "2024-01-01T00:01:00Z")] })
+        )
+        state = reducer(state, removePostByPostId({ channelId, postId: "gone" }))
+        expect(state.channelPosts[channelId].map((p) => p.post_uuid)).toEqual(["a"])
+
+        // The out-of-order create for the same id arrives moments later.
+        state = reducer(
+            state,
+            createPost({
+                postId: "gone",
+                postText: "back?",
+                postCreatedAt: "2024-01-01T00:01:00Z",
+                postBy: {} as any,
+                channelId,
+                attachments: [],
+            })
+        )
+        expect(state.channelPosts[channelId].map((p) => p.post_uuid)).toEqual(["a"])
+    })
+
+    it("channel: a window fetched before the delete cannot re-add the post", () => {
+        const reducer = channelSlice.reducer
+        const channelId = "ch1"
+        clockAt(1_000)
+        let state = reducer(
+            undefined,
+            updateChannelPosts({ channelId, posts: [post("a", "2024-01-01T00:00:00Z"), post("gone", "2024-01-01T00:01:00Z")] })
+        )
+        state = reducer(state, removePostByPostId({ channelId, postId: "gone" }))
+
+        // The reconcile still carries the deleted post: its page predates the delete.
+        state = reducer(
+            state,
+            mergeChannelPosts({
+                channelId,
+                posts: [post("a", "2024-01-01T00:00:00Z"), post("gone", "2024-01-01T00:01:00Z")],
+            })
+        )
+        expect(state.channelPosts[channelId].map((p) => p.post_uuid)).toEqual(["a"])
+    })
+
+    it("channel: honours a restore once the tombstone has expired", () => {
+        const reducer = channelSlice.reducer
+        const channelId = "ch1"
+        clockAt(1_000)
+        let state = reducer(undefined, updateChannelPosts({ channelId, posts: [post("a", "2024-01-01T00:00:00Z")] }))
+        state = reducer(state, removePostByPostId({ channelId, postId: "restored" }))
+
+        // An admin restore surfaces on a later fetch, past the TTL. The tombstone
+        // must not suppress it — it only guards the immediate delete/merge race.
+        clockAt(1_000 + TOMBSTONE_TTL_MS + 1)
+        state = reducer(
+            state,
+            createPost({
+                postId: "restored",
+                postText: "restored by an admin",
+                postCreatedAt: "2024-01-01T00:02:00Z",
+                postBy: {} as any,
+                channelId,
+                attachments: [],
+            })
+        )
+        expect(state.channelPosts[channelId].map((p) => p.post_uuid)).toContain("restored")
+    })
+
+    it("chat: a create event delivered after the delete cannot resurrect a message", () => {
+        const reducer = chatSlice.reducer
+        const dmId = "dm1"
+        clockAt(1_000)
+        let state = reducer(
+            undefined,
+            updateChats({ chatId: dmId, chats: [chat("a", "2024-01-01T00:00:00Z"), chat("gone", "2024-01-01T00:01:00Z")] })
+        )
+        state = reducer(state, removeChatByChatId({ chatId: dmId, messageId: "gone" }))
+        expect(state.chatMessages[dmId].map((c) => c.chat_uuid)).toEqual(["a"])
+
+        state = reducer(
+            state,
+            createChat({
+                chatId: "gone",
+                chatText: "back?",
+                chatCreatedAt: "2024-01-01T00:01:00Z",
+                chatBy: {} as any,
+                chatTo: {} as any,
+                dmId,
+                attachments: [],
+            })
+        )
+        expect(state.chatMessages[dmId].map((c) => c.chat_uuid)).toEqual(["a"])
     })
 })
 

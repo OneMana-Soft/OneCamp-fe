@@ -21,7 +21,13 @@ import { addRecentItem, type RecentItem } from "@/store/slice/recentItemsSlice"
 import { useFetch } from "@/hooks/useFetch"
 import { useSearch } from "@/hooks/useSearch"
 import { useDebounce } from "@/hooks/useDebounce"
-import { unifiedSearch, type UnifiedSearchGroup, type UnifiedSource, type UnifiedHit } from "@/services/aiSearchService"
+import {
+  unifiedSearch,
+  isAbortedRequest,
+  type UnifiedSearchGroup,
+  type UnifiedSource,
+  type UnifiedHit,
+} from "@/services/aiSearchService"
 import { useTrackPageVisit } from "@/hooks/useTrackPageVisit"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE, CAP_AGENT_MANAGE } from "@/services/capabilityService"
@@ -42,6 +48,7 @@ import {
   app_recording_activity,
 } from "@/types/paths"
 import { SearchResult } from "@/services/searchService"
+import { FEATURE_AI, FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -58,6 +65,13 @@ interface PaletteCommand {
   // capabilityKey gates the command behind a delegatable capability — shown
   // only when the current user may exercise it (admins always can).
   capabilityKey?: string
+  // featureKey gates the command behind an OPTIONAL SUBSYSTEM being present on this
+  // server. A different question from capabilityKey: that asks whether this USER is
+  // allowed to do it, this asks whether the server can do it AT ALL. The AI-free v1
+  // edition serves no AI routes, and calls need a LiveKit server that the shipped
+  // stack does not include — in both cases the command would open a page that cannot
+  // work, so it should not be offered.
+  featureKey?: string
 }
 
 /* ------------------------------------------------------------------ */
@@ -135,6 +149,9 @@ export function CommandPalette() {
   const { data: selfProfile } = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const isAdmin = selfProfile?.data?.user_is_admin || false
   const { can } = useCapabilities()
+  // Which optional subsystems this server actually has, so commands that need one
+  // are not offered when it is absent.
+  const { features } = useClientConfig()
 
   // Track page visits with real names from Redux
   useTrackPageVisit()
@@ -167,7 +184,11 @@ export function CommandPalette() {
       return
     }
     let cancelled = false
-    unifiedSearch(q)
+    // The palette re-queries as you type; abort the superseded request so the
+    // server stops fanning out across connected accounts for a query nobody is
+    // waiting on any more.
+    const controller = new AbortController()
+    unifiedSearch(q, controller.signal)
       .then((res) => {
         if (cancelled) return
         if (!res.enabled) {
@@ -176,11 +197,12 @@ export function CommandPalette() {
         }
         setAiGroups((res.groups || []).filter((g) => g.source !== "workspace" && g.hits.length > 0))
       })
-      .catch(() => {
-        if (!cancelled) setAiGroups([])
+      .catch((e) => {
+        if (!cancelled && !isAbortedRequest(e)) setAiGroups([])
       })
     return () => {
       cancelled = true
+      controller.abort()
     }
   }, [debouncedAiQuery, open])
 
@@ -402,6 +424,7 @@ export function CommandPalette() {
       },
       {
         id: "start-instant-meeting",
+        featureKey: FEATURE_CALLS,
         label: "Start instant meeting",
         keywords: ["meeting", "meet", "call", "video", "guest", "instant", "invite"],
         icon: <Plus className="mr-2 h-4 w-4" />,
@@ -422,6 +445,7 @@ export function CommandPalette() {
       // AI
       {
         id: "ai-ask",
+        featureKey: FEATURE_AI,
         label: "Ask AI Second Brain",
         keywords: ["ai", "ask", "second brain", "gpt"],
         icon: <Sparkles className="mr-2 h-4 w-4" />,
@@ -430,6 +454,7 @@ export function CommandPalette() {
       },
       {
         id: "ai-memory",
+        featureKey: FEATURE_AI,
         label: "Workspace Memory",
         keywords: ["ai", "memory", "decisions", "commitments", "open questions", "knowledge"],
         icon: <Sparkles className="mr-2 h-4 w-4" />,
@@ -438,6 +463,7 @@ export function CommandPalette() {
       },
       {
         id: "ai-extract-tasks",
+        featureKey: FEATURE_AI,
         label: "Create tasks from a conversation",
         keywords: ["tasks", "action items", "extract", "todo", "follow up", "ai", "convert", "meeting notes"],
         icon: <Sparkles className="mr-2 h-4 w-4" />,
@@ -507,6 +533,7 @@ export function CommandPalette() {
       },
       {
         id: "agents",
+        featureKey: FEATURE_AI,
         label: "AI Agents",
         keywords: ["agents", "ai agent", "automation", "bot", "assistant", "build agent"],
         icon: <Sparkles className="mr-2 h-4 w-4" />,
@@ -591,9 +618,12 @@ export function CommandPalette() {
     return base.filter((cmd) => {
       if (cmd.adminOnly && !isAdmin) return false
       if (cmd.capabilityKey && !can(cmd.capabilityKey)) return false
+      // Fails closed, like every other feature gate: an absent key, an explicit false
+      // and a config request still in flight all mean "do not offer it".
+      if (cmd.featureKey && features?.[cmd.featureKey] !== true) return false
       return true
     })
-  }, [router, dispatch, isAdmin, can, pathname])
+  }, [router, dispatch, isAdmin, can, features, pathname])
 
   const hasSearchQuery = inputValue.trim().length > 0
   const hasSearchResults = searchResults.length > 0

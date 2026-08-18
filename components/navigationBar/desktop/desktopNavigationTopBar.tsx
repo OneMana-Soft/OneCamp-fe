@@ -16,6 +16,8 @@ import { openRightPanel, closeRightPanel } from "@/store/slice/desktopRightPanel
 import { RootState } from "@/store/store";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import NudgeBell from "@/components/ai/NudgeBell";
+import { FeatureGate } from "@/components/common/withFeature"
+import { FEATURE_AI } from "@/hooks/useClientConfig"
 
 export default function DesktopNavigationTopBar() {
 
@@ -37,6 +39,7 @@ export default function DesktopNavigationTopBar() {
             <DesktopNavigationOrgProfile/>
             <DesktopNavigationSearch/>
             <div className="flex items-center gap-3">
+                <FeatureGate feature={FEATURE_AI}>
                 <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>
                         <button
@@ -56,6 +59,7 @@ export default function DesktopNavigationTopBar() {
                         AI Assistant
                     </TooltipContent>
                 </Tooltip>
+                </FeatureGate>
 
                 <NudgeBell />
 

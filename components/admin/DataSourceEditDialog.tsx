@@ -332,7 +332,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
             className={
               "flex items-start gap-2 rounded-lg border p-2 text-xs " +
               (testResult.ok
-                ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+                ? "border-success/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
                 : "border-destructive/30 bg-destructive/5 text-destructive")
             }
           >

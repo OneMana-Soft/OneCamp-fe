@@ -7,6 +7,7 @@ import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activ
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useFetch } from "@/hooks/useFetch"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { Button } from "@/components/ui/button"
@@ -37,7 +38,7 @@ export const ActivityAllListResult = ({
         cursor ? `&beforeTime=${encodeURIComponent(cursor)}` : ""
     }`
 
-    const { data: pageData, isLoading } = useFetch<UnifiedActivityPaginationRes>(endpoint)
+    const { data: pageData, isLoading, isError, mutate } = useFetch<UnifiedActivityPaginationRes>(endpoint)
 
     useEffect(() => {
         if (!pageData?.data) return
@@ -122,6 +123,16 @@ export const ActivityAllListResult = ({
         )
     }
 
+    // Before the empty guard. A failed fetch also leaves the list empty, and
+    // this surface's empty copy tells the user nothing needs them — the one
+    // conclusion they must not reach from a request that simply failed.
+    if (isError) {
+        return (
+            <PageContainer className="flex items-center justify-center">
+                <ErrorState subject="your activity" onRetry={() => void mutate()} />
+            </PageContainer>
+        )
+    }
     if (!isLoading && visibleActivities.length === 0) {
         return (
             <PageContainer className="flex items-center justify-center">

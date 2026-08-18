@@ -25,7 +25,7 @@ const stateConfig: Record<string, { label: string; icon: React.ReactNode; classN
   open: {
     label: "Open",
     icon: <GitPullRequest className="h-3 w-3" />,
-    className: "bg-green-500/10 text-green-700 border-green-500/20 dark:bg-green-500/10 dark:text-green-400",
+    className: "bg-success/10 text-green-700 border-success/20 dark:bg-success/10 dark:text-green-400",
   },
   merged: {
     label: "Merged",
@@ -44,12 +44,12 @@ const checkStatusConfig: Record<string, { dotClass: string; tooltip: string }> =
   failure: { dotClass: "bg-red-500", tooltip: "Checks failing" },
   neutral: { dotClass: "bg-gray-500", tooltip: "Checks neutral" },
   cancelled: { dotClass: "bg-gray-400", tooltip: "Checks cancelled" },
-  timed_out: { dotClass: "bg-amber-500", tooltip: "Checks timed out" },
+  timed_out: { dotClass: "bg-warning", tooltip: "Checks timed out" },
   action_required: { dotClass: "bg-red-600", tooltip: "Action required" },
   skipped: { dotClass: "bg-gray-400", tooltip: "Checks skipped" },
-  in_progress: { dotClass: "bg-amber-400 animate-pulse", tooltip: "Checks running" },
-  queued: { dotClass: "bg-yellow-400 animate-pulse", tooltip: "Checks queued" },
-  pending: { dotClass: "bg-yellow-400 animate-pulse", tooltip: "Checks pending" },
+  in_progress: { dotClass: "bg-warning animate-pulse", tooltip: "Checks running" },
+  queued: { dotClass: "bg-warning animate-pulse", tooltip: "Checks queued" },
+  pending: { dotClass: "bg-warning animate-pulse", tooltip: "Checks pending" },
 }
 
 export default function PRStatusBadge({ task, size = "sm" }: PRStatusBadgeProps) {

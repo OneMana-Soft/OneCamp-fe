@@ -813,7 +813,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                 </>
               ) : (
                 <>
-                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-warning">
                     <Sparkles className="h-3.5 w-3.5" />
                     A few details first
                   </div>

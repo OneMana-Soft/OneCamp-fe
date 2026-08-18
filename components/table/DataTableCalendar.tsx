@@ -122,7 +122,7 @@ export function DataTableCalendar({
         <h3 className="text-sm font-semibold">{monthLabel}</h3>
         <div className="flex items-center gap-1">
           <Button
-            variant="outline"
+ aria-label="Previous month"            variant="outline"
             size="icon"
             className="h-7 w-7"
             onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
@@ -141,7 +141,7 @@ export function DataTableCalendar({
             Today
           </Button>
           <Button
-            variant="outline"
+ aria-label="Next month"            variant="outline"
             size="icon"
             className="h-7 w-7"
             onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}

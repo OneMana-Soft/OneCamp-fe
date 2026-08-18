@@ -100,6 +100,7 @@ export enum GetEndpointUrl {
     // AI Agent Builder
     GetAgents = "/agents",
     MyAgentWork = "/ai/agent-work",
+    AgentWorkForEntity = "/ai/agent-work/for", // append /{entityId}
     GetAgent = "/agents",       // append /{id}
     GetAgentRuns = "/agents",   // append /{id}/runs
     GetAgentActivity = "/agents/activity",
@@ -162,6 +163,13 @@ export enum GetEndpointUrl {
 
     // Login OAuth credentials (admin)
     GetOAuthConfig = "/admin/auth/oauth-config",
+    // Your OWN second factor. Scoped to the caller — none of the 2FA endpoints takes a user id, so
+    // there is nothing to pass and no way to read another member's factor.
+    GetTwoFactorStatus = "/auth/2fa",
+    // SCIM provisioning credentials (admin). These authenticate the customer's identity provider
+    // against /scim/v2, so they belong to the WORKSPACE rather than to whoever created them — which is
+    // why they are managed here and not in a member's own settings.
+    GetScimTokens = "/admin/scim/tokens",
 
     // Workspace settings (admin)
     GetWorkspaceSettings = "/admin/settings",
@@ -171,6 +179,10 @@ export enum GetEndpointUrl {
 
     // AI model management (Admin)
     GetAIConfig = "/admin/ai/config",
+    // Current MCP admission decision, plus the tool groups that actually exist. The
+    // available groups come from the server so the UI cannot offer a group with no
+    // tools in it, or fail to offer one a new tool introduced.
+    GetAIMCPServer = "/admin/ai/mcp-server",
     GetAISystemStats = "/admin/ai/system",
     GetAIActivity = "/admin/ai/activity",
     GetAICodePRScorecard = "/admin/ai/code-pr/scorecard",
@@ -178,6 +190,7 @@ export enum GetEndpointUrl {
     GetAIReindexStatus = "/admin/ai/reindex/status",
     GetAIMemoryRebuildStatus = "/admin/ai/memory/rebuild/status",
     GetAIAuthorizedModels = "/admin/ai/authorized-models",
+    DiscoverAIModelLimits = "/admin/ai/authorized-models", // append /{id}/discover-limits
     GetAISelfTestStatus = "/admin/ai/self-test/status",
     GetAIBriefing = "/ai/briefing",
     GetAIAttention = "/ai/attention",
@@ -272,6 +285,7 @@ export enum PostEndpointUrl {
     DeleteAgent = "/agents",     // append /{id}/delete
     SetAgentActive = "/agents",  // append /{id}/active
     RunAgent = "/agents",        // append /{id}/run
+    StopAgentWork = "/ai/agent-work", // append /{taskId}/stop
     // MCP servers (external tool providers)
     CreateMcpServer = "/mcp/servers",
     UpdateMcpServer = "/mcp/servers",   // append /{id}/update
@@ -452,6 +466,10 @@ export enum PostEndpointUrl {
     SetAICodeAnalysisMaxFiles = "/admin/ai/code-analysis-max-files",
     SetAIReasoning = "/admin/ai/reasoning",
     SetAILocalOnly = "/admin/ai/local-only",
+    SetAIAgentDelegation = "/admin/ai/agent-delegation",
+    // Governed MCP surface: whether external agents may reach this workspace at all,
+    // and which tool groups they see.
+    SetAIMCPServer = "/admin/ai/mcp-server",
     SetAIPIIRedaction = "/admin/ai/pii-redaction",
     SetAIPIIPatterns = "/admin/ai/pii-patterns",
     SetAIMeetingRecap = "/admin/ai/meeting-recap",
@@ -482,6 +500,7 @@ export enum PostEndpointUrl {
     SetAIIssueTriage = "/admin/ai/issue-triage",
     AuthorizeAIModel = "/admin/ai/authorized-models",
     SetAIAuthorizedModelEnabled = "/admin/ai/authorized-models", // append /{id}/enabled
+    SetAIAuthorizedModelLimits = "/admin/ai/authorized-models", // append /{id}/limits
     RevokeAIAuthorizedModel = "/admin/ai/authorized-models", // append /{id} (DELETE)
     RunAISelfTest = "/admin/ai/self-test",
     SetAIModelPreference = "/ai/model-preference",
@@ -547,6 +566,19 @@ export enum PostEndpointUrl {
 
     // Login OAuth credentials (admin)
     UpdateOAuthConfig = "/admin/auth/oauth-config",
+    // Two-factor enrolment. Setup is a POST despite reading like a fetch because it MINTS a secret and
+    // stores an unconfirmed enrolment; making it a GET would let a prefetch or a repeated back-button
+    // rotate the secret out from under a QR code the user is mid-scan.
+    BeginTwoFactorSetup = "/auth/2fa/setup",
+    ConfirmTwoFactorSetup = "/auth/2fa/confirm",
+    DisableTwoFactor = "/auth/2fa/disable",
+    // Break-glass reset of ANOTHER member's second factor, admin-only. Distinct from
+    // DisableTwoFactor above, which is self-service and demands a code — that check is what makes a
+    // stolen session unable to strip the factor, so it cannot be the path used when the phone is the
+    // thing that was lost. The server refuses a self-targeted reset for the same reason.
+    AdminResetTwoFactor = "/admin/auth/2fa/reset",
+    CreateScimToken = "/admin/scim/tokens",  // POST /admin/scim/tokens
+    RevokeScimToken = "/admin/scim/tokens",  // append /{id}/revoke
 
     // Workspace settings (admin)
     UpdateWorkspaceSettings = "/admin/settings",

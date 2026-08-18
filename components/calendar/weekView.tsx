@@ -197,7 +197,7 @@ export function WeekView({
 
       {/* All-day rail */}
       <div className="flex border-b border-border/60 bg-muted/20">
-        <div className="flex w-14 shrink-0 items-center justify-center border-r border-border/60 py-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="flex w-14 shrink-0 items-center justify-center border-r border-border/60 py-1 text-3xs font-medium uppercase tracking-wide text-muted-foreground">
           All day
         </div>
         {allDayByDay.map((items, i) => (

@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Sparkles, Loader2, RefreshCw } from "@/lib/icons"
 import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { meetingPrep, type MeetingPrepResult } from "@/services/scheduleService"
+import { withAI } from "@/components/common/withFeature"
 
 const MeetingPrepDialog: React.FC<{
   open: boolean
@@ -93,4 +94,9 @@ const MeetingPrepDialog: React.FC<{
   )
 }
 
-export default MeetingPrepDialog
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI(MeetingPrepDialog)

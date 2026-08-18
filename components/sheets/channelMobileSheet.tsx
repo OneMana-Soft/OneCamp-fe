@@ -104,7 +104,7 @@ export function ChannelMobileSheet({ open, onOpenChange, channelId }: SidePanelP
 
                 <div className="flex flex-col flex-1 gap-6 p-4 overflow-y-auto">
                     <section className="space-y-2">
-                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
                             About
                         </h3>
                         <p className="text-sm text-foreground/90">
@@ -115,7 +115,7 @@ export function ChannelMobileSheet({ open, onOpenChange, channelId }: SidePanelP
                     </section>
 
                     <section className="space-y-3">
-                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
                             {memberCount} {memberCount === 1 ? "member" : "members"}
                         </h3>
                         <div className="flex items-center">

@@ -25,7 +25,8 @@ import { Loader2 } from "@/lib/icons"
 import axiosInstance from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostFileUploadURL, PostEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
-import { useClientConfig, formatBytes } from "@/hooks/useClientConfig"
+import { useClientConfig } from "@/hooks/useClientConfig"
+import { approxDataUrlBytes, exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
 import "@excalidraw/excalidraw/index.css"
 
 // Types are erased at runtime; importing them as types keeps SSR safe.
@@ -610,14 +611,15 @@ export function BoardCanvas({
           if (!f.dataURL || !f.dataURL.startsWith("data:")) continue
           seenFilesRef.current.add(fileId)
 
-          // Guard the workspace upload limit before sending bytes. base64 is
-          // ~4/3 the byte size; estimate to skip an obviously-too-large image
-          // (the backend enforces the real cap too).
-          const approxBytes = Math.floor((f.dataURL.length - (f.dataURL.indexOf(",") + 1)) * 0.75)
-          if (clientConfig.upload_limit_bytes > 0 && approxBytes > clientConfig.upload_limit_bytes) {
+          // Guard the workspace upload limit before sending bytes (the backend
+          // enforces the real cap too). The estimate and the wording come from the
+          // shared helper so the board, the doc editor and the upload hook all
+          // refuse the same things and say the same thing.
+          const approxBytes = approxDataUrlBytes(f.dataURL)
+          if (exceedsUploadLimit(approxBytes, clientConfig.upload_limit_bytes)) {
             toast({
               title: "Image too large",
-              description: `Images must be under ${clientConfig.upload_limit_mb} MB (this one is about ${formatBytes(approxBytes)}).`,
+              description: uploadLimitMessage(approxBytes, clientConfig.upload_limit_mb),
               variant: "destructive",
             })
             // Keep it marked seen so we don't retry on every change.

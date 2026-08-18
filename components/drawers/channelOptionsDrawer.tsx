@@ -25,6 +25,8 @@ import { useFetch } from "@/hooks/useFetch"
 import { app_channel_call } from "@/types/paths"
 import { useRouter } from "next/navigation"
 import { DrawerItem } from "@/components/drawers/drawerItem"
+import { FeatureGate } from "@/components/common/withFeature"
+import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 interface ChannelOptionsDrawerProps {
     drawerOpenState: boolean
@@ -126,6 +128,9 @@ export function ChannelOptionsDrawer({
                         }}
                     />
 
+                    {/* Calls need a LiveKit server, which the shipped stack does not include.
+                        Hidden rather than shown-and-failing when the operator has not run one. */}
+                    <FeatureGate feature={FEATURE_CALLS}>
                     <DrawerItem
                         icon={Video}
                         label="Join call"
@@ -134,6 +139,7 @@ export function ChannelOptionsDrawer({
                             router.push(app_channel_call + "/" + channelId)
                         }}
                     />
+                    </FeatureGate>
 
                     <DrawerItem
                         icon={Clapperboard}

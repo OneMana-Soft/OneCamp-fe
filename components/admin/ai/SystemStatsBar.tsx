@@ -4,12 +4,16 @@
  * SystemStatsBar — shows server headroom (disk, RAM, CPU) so an admin can
  * judge whether a local model will fit and run before installing it, plus
  * Ollama version awareness (update-available badge). OneCamp does NOT
- * auto-update Ollama; it surfaces the one-line command for the operator.
+ * auto-update the engine: replacing a container image needs the Docker
+ * socket, which is root-equivalent on the host. The steps an operator runs
+ * instead live in OllamaUpdateSteps, shared with the two install-failure
+ * surfaces so the remedy is written once and cannot drift.
  */
 
 import React from "react"
 import { Badge } from "@/components/ui/badge"
 import { RefreshCw, HardDrive, Cpu, MemoryStick, AlertTriangle } from "lucide-react"
+import { OllamaUpdateSteps } from "@/components/admin/ai/OllamaUpdateSteps"
 import { SystemStats, formatBytes } from "@/services/aiModelService"
 
 const Bar: React.FC<{ pct: number }> = ({ pct }) => {
@@ -81,17 +85,25 @@ export const SystemStatsBar: React.FC<{ stats: SystemStats; onRefresh: () => voi
           <span className="text-muted-foreground">Ollama</span>
           <Badge variant="secondary">{stats.ollama_version}</Badge>
           {stats.ollama_update_available ? (
-            <>
-              <Badge variant="destructive" className="gap-1">
-                <AlertTriangle className="h-3 w-3" /> update available
-                {stats.ollama_latest_version ? ` (${stats.ollama_latest_version})` : ""}
-              </Badge>
-              <code className="rounded bg-muted px-1.5 py-0.5">docker compose pull ollama && docker compose up -d ollama</code>
-            </>
+            <Badge variant="destructive" className="gap-1">
+              <AlertTriangle className="h-3 w-3" /> update available
+              {stats.ollama_latest_version ? ` (${stats.ollama_latest_version})` : ""}
+            </Badge>
           ) : (
             <Badge variant="outline">up to date</Badge>
           )}
         </div>
+      )}
+
+      {/*
+        The steps sit below the badge row rather than inside it. They used to be a bare <code> in the
+        same flex line, which wrapped mid-command on a narrow panel and could not be copied.
+      */}
+      {stats.ollama_version && stats.ollama_update_available && (
+        <OllamaUpdateSteps
+          currentVersion={stats.ollama_version}
+          targetVersion={stats.ollama_latest_version}
+        />
       )}
 
       {stats.warnings && stats.warnings.length > 0 && (

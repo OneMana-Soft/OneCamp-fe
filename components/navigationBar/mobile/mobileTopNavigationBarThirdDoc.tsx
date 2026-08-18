@@ -66,9 +66,11 @@ export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
     return (
         <div className='flex justify-end space-x-1'>
             {/*<DocCommentPopover/>*/}
-            <Link href={commentHref}><Button variant='ghost'><MessageCircle className='h-5'/>{docCommentCount || ''}</Button></Link>
+            {/* 44px, matching the other mobile top-bar actions: a thumb reaching
+                the top of a phone one-handed is at its least accurate. */}
+            <Link href={commentHref}><Button variant='ghost' className="h-11 min-w-11" aria-label="Comments"><MessageCircle className='h-5'/>{docCommentCount || ''}</Button></Link>
 
-            <Button variant='ghost' onClick={() => dispatch(openUI({ key: 'docOptionsDrawer', data: { docId: docId, isOwner: isOwner, deleteDoc: deleteDoc } }))}><Ellipsis className='h-5'/></Button>
+            <Button variant='ghost' size='icon' className="h-11 w-11" aria-label="Document options" onClick={() => dispatch(openUI({ key: 'docOptionsDrawer', data: { docId: docId, isOwner: isOwner, deleteDoc: deleteDoc } }))}><Ellipsis className='h-5'/></Button>
 
         </div>
 

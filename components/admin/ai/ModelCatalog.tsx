@@ -41,6 +41,7 @@ import {
   formatBytes,
 } from "@/services/aiModelService"
 import { useToast } from "@/hooks/use-toast"
+import { OllamaUpdateSteps } from "@/components/admin/ai/OllamaUpdateSteps"
 
 // errMessage safely extracts a human-readable message from an unknown error
 // (axios error shape or a plain Error) without resorting to `any`.
@@ -76,7 +77,12 @@ export const ModelCatalog: React.FC<{
   providerId: string
   /** Called after a successful install so the parent can refresh its lists. */
   onInstalled: () => void
-}> = ({ providerId, onInstalled }) => {
+  /**
+   * Newest published engine version, when the page has it. A tile learns the engine is too old from
+   * its own pull stream, which reports no version, so this is the only way it can name a target.
+   */
+  ollamaLatestVersion?: string
+}> = ({ providerId, onInstalled, ollamaLatestVersion }) => {
   const { toast } = useToast()
   const [models, setModels] = useState<CatalogModelView[] | null>(null)
   const [loading, setLoading] = useState(true)
@@ -212,7 +218,13 @@ export const ModelCatalog: React.FC<{
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {filtered.map((m) => (
-            <CatalogCard key={m.tag} model={m} providerId={providerId} onInstalled={() => onCardInstalled(m.tag)} />
+            <CatalogCard
+              key={m.tag}
+              model={m}
+              providerId={providerId}
+              onInstalled={() => onCardInstalled(m.tag)}
+              ollamaLatestVersion={ollamaLatestVersion}
+            />
           ))}
         </div>
       )}
@@ -226,7 +238,9 @@ const CatalogCard: React.FC<{
   model: CatalogModelView
   providerId: string
   onInstalled: () => void
-}> = ({ model, providerId, onInstalled }) => {
+  /** Newest published engine version, threaded from the page that already loaded it. */
+  ollamaLatestVersion?: string
+}> = ({ model, providerId, onInstalled, ollamaLatestVersion }) => {
   const { toast } = useToast()
   const [pulling, setPulling] = useState(false)
   const [progress, setProgress] = useState<PullProgress | null>(null)
@@ -298,7 +312,7 @@ const CatalogCard: React.FC<{
           <p className="text-[11px] font-mono text-muted-foreground truncate">{model.tag}</p>
         </div>
         {model.installed ? (
-          <Badge variant="outline" className="shrink-0 gap-1 border-emerald-500/40 text-emerald-600 dark:text-emerald-500">
+          <Badge variant="outline" className="shrink-0 gap-1 border-emerald-500/40 text-success dark:text-emerald-500">
             <Check className="h-3 w-3" /> Installed
           </Badge>
         ) : null}
@@ -356,7 +370,7 @@ const CatalogCard: React.FC<{
           </div>
         </div>
       ) : model.installed ? (
-        <Button variant="ghost" size="sm" disabled className="h-7 justify-start px-0 text-emerald-600 dark:text-emerald-500">
+        <Button variant="ghost" size="sm" disabled className="h-7 justify-start px-0 text-success dark:text-emerald-500">
           <Check className="h-3.5 w-3.5 mr-1" /> Ready to use
         </Button>
       ) : (
@@ -365,16 +379,7 @@ const CatalogCard: React.FC<{
         </Button>
       )}
 
-      {updateRequired && (
-        <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-2">
-          <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" /> Ollama update required
-          </p>
-          <code className="mt-1 block rounded bg-muted px-1.5 py-1 text-[10px]">
-            docker compose pull ollama &amp;&amp; docker compose up -d ollama
-          </code>
-        </div>
-      )}
+      {updateRequired && <OllamaUpdateSteps variant="blocked" targetVersion={ollamaLatestVersion} />}
     </div>
   )
 }

@@ -9,6 +9,7 @@ import {ChannelListChannel} from "@/components/channel/channelListChannel";
 import {ChannelListResult} from "@/components/channel/chnnelListResult";
 import {sortChannelList} from "@/lib/utils/sortChannelList";
 import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import { ErrorState } from "@/components/ui/error-state"
 
 export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
     const post = usePost();
@@ -27,7 +28,7 @@ export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
 
     // Fetch data for the current page
     const endpoint = `${GetEndpointUrl.GetUserArchiveChannelList}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
-    const { data: pageData, isLoading } = useFetch<ChannelInfoListInterfaceResp>(searchQuery.trim().length === 0 ? endpoint : "")
+    const { data: pageData, isLoading, isError, mutate } = useFetch<ChannelInfoListInterfaceResp>(searchQuery.trim().length === 0 ? endpoint : "")
 
     // Function to fetch search results
     const fetchSearchResults = async (query: string, page: number) => {
@@ -116,6 +117,11 @@ export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
                     hasMore={currentHasMore}
                     isLoading={currentIsLoading}
                 /> :
+                isError ? (
+                    <div className="p-4">
+                        <ErrorState subject="your archived channels" onRetry={() => void mutate()} />
+                    </div>
+                ) :
                 (!currentIsLoading && (
                     <div className="p-4">
                         <StatePlaceholder 

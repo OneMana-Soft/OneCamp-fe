@@ -8,6 +8,7 @@
 
 import * as React from "react"
 import { Switch } from "@/components/ui/switch"
+import { PrincipalTag } from "@/components/ui/principalTag"
 import { Sparkles, Loader2 } from "@/lib/icons"
 import { toast } from "@/hooks/use-toast"
 import {
@@ -91,9 +92,7 @@ export default function ChannelAITeammates({ channelId }: ChannelAITeammatesProp
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-medium">{opt.name}</span>
-                  <span className="rounded bg-primary/10 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-primary">
-                    AI
-                  </span>
+                  <PrincipalTag kind="ai" />
                 </div>
                 <p className="truncate text-[11px] text-muted-foreground">
                   {opt.in_channel

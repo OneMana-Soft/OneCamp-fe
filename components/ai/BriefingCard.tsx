@@ -34,6 +34,7 @@ import {
   Github,
   Mail,
 } from "@/lib/icons"
+import { withAI } from "@/components/common/withFeature"
 
 interface SelfProfile {
   data?: { user_uuid?: string }
@@ -58,7 +59,7 @@ const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
 const KIND_TINT: Record<string, string> = {
   decision: "text-violet-600 dark:text-violet-400",
   commitment: "text-blue-600 dark:text-blue-400",
-  question: "text-amber-600 dark:text-amber-400",
+  question: "text-warning",
 }
 
 // Per-source icon + tint for the cross-connector "Your day" agenda.
@@ -78,7 +79,7 @@ function isOverdue(due?: string): boolean {
   return due < new Date().toISOString().slice(0, 10)
 }
 
-export default function BriefingCard() {
+function BriefingCard() {
   const router = useRouter()
   const channels = useSelector((s: RootState) => s.users.userSidebar.userChannels)
   const { data: selfProfile } = useFetchOnlyOnce<SelfProfile>(GetEndpointUrl.SelfProfile)
@@ -270,7 +271,7 @@ export default function BriefingCard() {
                           {it.due_at && (
                             <span
                               className={`inline-flex items-center gap-1 text-[11px] ${
-                                overdue ? "text-red-600 dark:text-red-400 font-medium" : "text-muted-foreground"
+                                overdue ? "text-destructive font-medium" : "text-muted-foreground"
                               }`}
                             >
                               <Clock className="h-3 w-3" />
@@ -331,3 +332,8 @@ export default function BriefingCard() {
     </div>
   )
 }
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, and on v2
+// whenever an admin has switched AI off. Wrapping the export covers every place this
+// is rendered, desktop and mobile, instead of asking each of them to remember.
+export default withAI(BriefingCard)

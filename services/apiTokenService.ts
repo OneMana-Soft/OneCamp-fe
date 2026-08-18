@@ -16,6 +16,15 @@ export interface ApiToken {
   revoked_at?: string | null
   created_at: string
   updated_at: string
+  /**
+   * Set when this credential is bound to an AGENT IDENTITY rather than being a plain
+   * integration credential. A bound token is attributed to that agent in the audit
+   * log, stops working the moment the agent is deactivated, spends against the
+   * agent's own daily token budget, and is limited to the agent's enabled tools.
+   * Set at creation only — a credential that could change which identity it acts as
+   * would make every earlier audit row mean something different.
+   */
+  agent_id?: string | null
 }
 
 export interface CreatedToken {
@@ -45,6 +54,7 @@ export const SCOPE_LABELS: Record<string, string> = {
   "calendar:write": "Create calendar events",
   "tables:read": "Read tables",
   "tables:write": "Write table rows",
+  "data_sources:read": "Read connected data sources",
   "search:read": "Search workspace & apps",
 }
 
@@ -56,6 +66,8 @@ export async function createApiToken(input: {
   name: string
   scopes: string[]
   expires_in_days?: number
+  /** Optional agent identity to bind this credential to. Omit for a plain token. */
+  agent_id?: string
 }): Promise<CreatedToken> {
   const res = await axiosInstance.post(PostEndpointUrl.CreateApiToken, input)
   return res.data?.data as CreatedToken

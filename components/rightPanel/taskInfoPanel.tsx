@@ -74,10 +74,12 @@ import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
 import {useTranslation} from "react-i18next";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {EmptyState} from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state"
 import {mutate} from "swr";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import {useMqtt} from "@/components/mqtt/mqttProvider";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
+import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 
 const CONSTANTS = {
     LABEL_PLACEHOLDER: "addLabel",
@@ -1210,7 +1212,17 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                                 )}
                             </TabsList>
                             <TabsContent value="comments" className="pr-2 pt-2">
-                                {taskCommentState?.length ? (
+                                {taskInfo.isError ? (
+                                    // Ahead of the empty branch: "Be the first to
+                                    // share an update" on a failed fetch invites a
+                                    // comment onto a thread that may already have
+                                    // one, which the user then talks over.
+                                    <ErrorState
+                                        subject="the comments"
+                                        onRetry={() => void taskInfo.mutate()}
+                                        className="py-8"
+                                    />
+                                ) : taskCommentState?.length ? (
                                     <CommentsList
                                         comments={taskCommentState}
                                         removeReaction={removeCommentReaction}
@@ -1239,6 +1251,13 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         </Tabs>
                     </div>
                 </div>
+            </div>
+
+            {/* An AI teammate working on THIS task, with the control to stop it.
+                Sits directly above the composer — the same place a person types a
+                correction — and renders nothing when no agent is working. */}
+            <div className="px-4 pb-2 sm:px-6">
+                <AgentWorkStrip entityId={taskUUID} revalidateKey={taskCommentState.length} />
             </div>
 
             <TaskCommentComposer

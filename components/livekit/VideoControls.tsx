@@ -22,6 +22,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils/helpers/cn"
+import { FeatureGate } from "@/components/common/withFeature"
+import { FEATURE_AI } from "@/hooks/useClientConfig"
 
 interface VideoControlsProps {
   onDisconnect?: () => void;
@@ -190,6 +192,7 @@ export function VideoControls({
 
       {/* AI Assistant Toggle */}
       {onToggleAI && (
+        <FeatureGate feature={FEATURE_AI}>
         <div className="relative">
         <ControlBtn
             label={isAIOpen ? "Hide AI Assistant" : "Ask AI"}
@@ -205,6 +208,7 @@ export function VideoControls({
             </span>
         )}
         </div>
+        </FeatureGate>
       )}
 
       {/* Layout Toggle */}
@@ -236,7 +240,7 @@ export function VideoControls({
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="destructive"
+ aria-label="Leave call"              variant="destructive"
               size="icon"
               className="h-12 w-12 rounded-full shadow-lg hover:scale-110 transition-transform"
               onClick={handleLeave}
@@ -254,7 +258,7 @@ export function VideoControls({
       <div className="md:hidden">
          <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10 rounded-xl h-12 w-12">
+                <Button aria-label="More call options" variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10 rounded-xl h-12 w-12">
                     <MoreVertical className="h-6 w-6" />
                 </Button>
             </DropdownMenuTrigger>

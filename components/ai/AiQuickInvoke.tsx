@@ -20,6 +20,7 @@ import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
 import { openRightPanel, closeRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { withAI } from "@/components/common/withFeature"
 
 // surfaceTypeFromPath maps the current route to a coarse surface type the
 // assistant uses to tailor its starter suggestions. Returns "" for generic
@@ -37,7 +38,7 @@ function surfaceTypeFromPath(pathname: string | null): string {
   return ""
 }
 
-export default function AiQuickInvoke() {
+function AiQuickInvoke() {
   const dispatch = useDispatch()
   const pathname = usePathname()
   const isAiOpen = useSelector(
@@ -64,3 +65,8 @@ export default function AiQuickInvoke() {
 
   return null
 }
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, and on v2
+// whenever an admin has switched AI off. Wrapping the export covers every place this
+// is rendered, desktop and mobile, instead of asking each of them to remember.
+export default withAI(AiQuickInvoke)

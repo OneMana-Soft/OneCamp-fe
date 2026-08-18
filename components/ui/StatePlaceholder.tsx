@@ -21,7 +21,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 interface StatePlaceholderProps {
     type: "empty" | "error" | "search"
     title: string
-    description?: string
+    description?: React.ReactNode
     icon?: LucideIcon
     className?: string
     action?: React.ReactNode

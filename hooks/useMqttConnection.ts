@@ -678,12 +678,28 @@ export const useMqttConnection = ({
             }
         }
 
+        // NETWORK RETURNED. The backoff chain gives up after
+        // maxReconnectAttempts (~17 minutes), and until now the only thing that
+        // re-armed it was the tab going away and coming back. Someone sitting in
+        // a foreground tab through a wifi drop or a broker restart therefore had
+        // a permanently dead stream with no visibilitychange to rescue it — the
+        // app looked fine and silently stopped updating. The browser's own
+        // online signal is the cheapest, most reliable "try again now" there is.
+        const handleOnline = () => {
+            if (isManualDisconnect.current || lastAuthFailedCredsRef.current) return
+            if (latestConnectionStateRef.current.isConnected) return
+            updateConnectionState({ reconnectAttempts: 0, isConnecting: true })
+            connect()
+        }
+
         document.addEventListener("visibilitychange", handleVisibilityChange)
         window.addEventListener("focus", handleVisibilityChange)
+        window.addEventListener("online", handleOnline)
 
         return () => {
             document.removeEventListener("visibilitychange", handleVisibilityChange)
             window.removeEventListener("focus", handleVisibilityChange)
+            window.removeEventListener("online", handleOnline)
         }
     }, [connect, updateConnectionState])
 

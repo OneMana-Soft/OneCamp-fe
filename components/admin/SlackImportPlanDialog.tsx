@@ -259,14 +259,14 @@ const PlanStat: React.FC<{ label: string; value: React.ReactNode; positive?: boo
     <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
     <div
       className={`text-lg font-semibold mt-0.5 ${
-        warn ? "text-amber-500" : positive ? "text-green-600" : ""
+        warn ? "text-amber-500" : positive ? "text-success" : ""
       }`}
     >
       {value}
     </div>
     {warn && <Badge variant="outline" className="mt-1 text-[10px]">Review warnings</Badge>}
     {positive && (
-      <Badge variant="outline" className="mt-1 text-[10px] bg-green-500/10 text-green-600 border-green-500/20 gap-1">
+      <Badge variant="outline" className="mt-1 text-[10px] bg-success/10 text-success border-success/20 gap-1">
         <CheckCircle2 className="h-3 w-3" />
         match
       </Badge>

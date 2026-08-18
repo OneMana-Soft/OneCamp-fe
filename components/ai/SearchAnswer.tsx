@@ -16,9 +16,15 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Sparkles, ExternalLink } from "@/lib/icons"
+import { Loader2, Sparkles, Scissors, ExternalLink, CircleStop } from "@/lib/icons"
 import { getOtherUserId } from "@/lib/utils/getOtherUserId"
-import { unifiedSearchAnswer, type SearchCitation, type UnifiedAnswerResponse } from "@/services/aiSearchService"
+import {
+  unifiedSearchAnswer,
+  isAbortedRequest,
+  type SearchCitation,
+  type UnifiedAnswerResponse,
+} from "@/services/aiSearchService"
+import { withAI } from "@/components/common/withFeature"
 
 // citationHref maps a citation to a navigable target. External hits carry an
 // absolute url (opened in a new tab); internal hits are resolved to an in-app
@@ -69,6 +75,9 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
   const router = useRouter()
   const [loading, setLoading] = React.useState(false)
   const [data, setData] = React.useState<UnifiedAnswerResponse | null>(null)
+  // Held so the in-flight synthesis can be abandoned — by a new query, by
+  // unmounting, or by the person pressing Stop.
+  const abortRef = React.useRef<AbortController | null>(null)
 
   React.useEffect(() => {
     const q = query.trim()
@@ -80,12 +89,16 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
     setLoading(true)
     // Slightly longer debounce than the results list: the answer is a heavier
     // synthesis, so we wait until the user has settled on a query.
+    const controller = new AbortController()
+    abortRef.current = controller
     const t = setTimeout(async () => {
       try {
-        const res = await unifiedSearchAnswer(q)
+        const res = await unifiedSearchAnswer(q, controller.signal)
         if (!cancelled) setData(res)
-      } catch {
-        if (!cancelled) setData(null)
+      } catch (e) {
+        // An answer the user abandoned (typed on, navigated, pressed Stop) is not
+        // a failure: leave whatever is on screen rather than blanking it.
+        if (!cancelled && !isAbortedRequest(e)) setData(null)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -93,8 +106,18 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
     return () => {
       cancelled = true
       clearTimeout(t)
+      // Abandon the request itself, not just its result: the server's handler
+      // runs on the request context, so this stops work nobody will read.
+      controller.abort()
     }
   }, [query])
+
+  // Stop lets a person end a slow synthesis instead of watching a skeleton. The
+  // request is aborted (client AND server) and the panel simply stops loading.
+  const stop = React.useCallback(() => {
+    abortRef.current?.abort()
+    setLoading(false)
+  }, [])
 
   if (query.trim().length < 2) return null
   if (!loading && (!data || !data.enabled)) return null
@@ -122,6 +145,17 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
         <Sparkles className="h-3.5 w-3.5" />
         AI answer
         {loading && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+        {loading && (
+          <button
+            type="button"
+            onClick={stop}
+            className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-md px-2.5 text-3xs font-medium normal-case tracking-normal text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/40 [@media(hover:hover)]:min-h-0 [@media(hover:hover)]:px-1.5 [@media(hover:hover)]:py-0.5"
+            aria-label="Stop generating this answer"
+          >
+            <CircleStop className="h-3.5 w-3.5" />
+            Stop
+          </button>
+        )}
       </div>
 
       {loading && !hasAnswer ? (
@@ -145,7 +179,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
                     if (c) goToCitation(c)
                   }}
                   title={byIndex.get(seg.cite)?.title || ""}
-                  className="mx-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded bg-primary/15 px-1 align-super text-[10px] font-bold text-primary transition-colors hover:bg-primary/30"
+                  className="mx-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded bg-primary/15 px-1 align-super text-3xs font-bold text-primary transition-colors hover:bg-primary/30"
                 >
                   {seg.cite}
                 </button>
@@ -153,9 +187,20 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
             )}
           </p>
 
+          {/* The answer covered part of what the search found. A footnote rather than a
+              warning: the answer is real and useful, it just did not see everything, and
+              knowing that is what lets someone narrow the query instead of assuming the
+              answer is wrong. */}
+          {data?.notice && (
+            <div className="mt-2 flex items-start gap-1.5 text-2xs text-muted-foreground" role="note">
+              <Scissors className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+              <span>{data.notice}</span>
+            </div>
+          )}
+
           {citations.length > 0 && (
             <div className="mt-3 border-t border-border/50 pt-2">
-              <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <div className="mb-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
                 Sources
               </div>
               <div className="space-y-1">
@@ -171,7 +216,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
                         nav ? "hover:bg-accent/50" : "cursor-default"
                       }`}
                     >
-                      <span className="mt-0.5 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded bg-primary/15 px-1 text-[10px] font-bold text-primary">
+                      <span className="mt-0.5 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded bg-primary/15 px-1 text-3xs font-bold text-primary">
                         {c.index}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -181,7 +226,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
                             <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                           )}
                         </span>
-                        {c.meta && <span className="block truncate text-[11px] text-muted-foreground">{c.meta}</span>}
+                        {c.meta && <span className="block truncate text-2xs text-muted-foreground">{c.meta}</span>}
                       </span>
                     </button>
                   )
@@ -195,4 +240,9 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
   )
 }
 
-export default SearchAnswer
+
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export default withAI(SearchAnswer)

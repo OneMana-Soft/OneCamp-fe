@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useDocAI } from "@/services/aiService"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { Sparkles, Loader2, X } from "@/lib/icons"
+import { withAI } from "@/components/common/withFeature"
 
 interface ThreadSummaryButtonProps {
   /** Returns the full thread text to summarize (root message + replies). */
@@ -28,7 +29,7 @@ interface ThreadSummaryButtonProps {
   className?: string
 }
 
-export const ThreadSummaryButton: React.FC<ThreadSummaryButtonProps> = ({ getText, className }) => {
+const ThreadSummaryButtonUngated: React.FC<ThreadSummaryButtonProps> = ({ getText, className }) => {
   const { toast } = useToast()
   const { complete } = useDocAI()
   const [busy, setBusy] = useState(false)
@@ -92,3 +93,9 @@ export const ThreadSummaryButton: React.FC<ThreadSummaryButtonProps> = ({ getTex
     </Button>
   )
 }
+// Gated on the AI subsystem: hidden entirely on the AI-free v1 edition, whose backend
+// serves no AI routes, and on v2 whenever an admin has switched AI off. Wrapping the
+// export covers every place this is rendered, desktop and mobile, rather than asking
+// each of them to remember.
+export const ThreadSummaryButton = withAI(ThreadSummaryButtonUngated)
+export default ThreadSummaryButton

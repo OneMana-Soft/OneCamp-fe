@@ -7,6 +7,7 @@ import { Provider } from "react-redux";
 import { MediaQueryProvider } from "@/context/MediaQueryContext";
 import { ActiveThemeProvider } from "@/components/activeTheme/activeTheme";
 import { ThemeSync } from "@/components/activeTheme/ThemeSync";
+import { ThemeColorMeta } from "@/components/activeTheme/ThemeColorMeta";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 
 export function ClientProviders({
@@ -21,6 +22,8 @@ export function ClientProviders({
           <Provider store={store}>
             <MediaQueryProvider>
               <ThemeSync />
+              {/* Browser/OS chrome follows the shell the user actually chose. */}
+              <ThemeColorMeta />
               <div className="theme-container relative h-full bg-background">
                 {children}
               </div>

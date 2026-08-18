@@ -48,8 +48,12 @@ export interface UnifiedSearchResponse {
   groups: UnifiedSearchGroup[]
 }
 
-export async function unifiedSearch(query: string): Promise<UnifiedSearchResponse> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearch, { query })
+// signal lets a caller abandon a search that is no longer wanted — the user typed
+// on, navigated away, or pressed Stop. Aborting also releases the server side:
+// the handler's context is the request's, so a cancelled search stops fanning out
+// instead of finishing work nobody will read.
+export async function unifiedSearch(query: string, signal?: AbortSignal): Promise<UnifiedSearchResponse> {
+  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearch, { query }, { signal })
   return (
     res.data?.data ?? {
       enabled: false,
@@ -57,6 +61,15 @@ export async function unifiedSearch(query: string): Promise<UnifiedSearchRespons
       groups: [],
     }
   )
+}
+
+// isAbortedRequest reports whether a rejection is "we cancelled it", so a caller
+// can stay silent instead of showing an error for something the user asked to
+// stop. Covers both axios' own cancellation and a raw DOMException abort.
+export function isAbortedRequest(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false
+  const e = err as { code?: string; name?: string; message?: string }
+  return e.code === "ERR_CANCELED" || e.name === "AbortError" || e.name === "CanceledError"
 }
 
 /**
@@ -93,11 +106,17 @@ export interface UnifiedAnswerResponse {
   answer: string
   citations: SearchCitation[]
   note?: string
+  /**
+   * Set when the retrieved material was shortened to fit the model's context window, so
+   * the reader knows the answer covers part of what the search found. Distinct from
+   * `note`, which explains why there is no answer at all.
+   */
+  notice?: string
   provider?: string
 }
 
-export async function unifiedSearchAnswer(query: string): Promise<UnifiedAnswerResponse> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearchAnswer, { query })
+export async function unifiedSearchAnswer(query: string, signal?: AbortSignal): Promise<UnifiedAnswerResponse> {
+  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearchAnswer, { query }, { signal })
   return (
     res.data?.data ?? {
       enabled: false,

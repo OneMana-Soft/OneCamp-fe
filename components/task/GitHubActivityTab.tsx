@@ -5,6 +5,8 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Github, GitBranch, MessageSquare, Smile, GitCommit, AlertCircle, CheckCircle2, RotateCcw, Tag, User, GitPullRequest, GitPullRequestDraft, GitMerge } from "@/lib/icons";
 import { CopyCheck, FileDiff } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { formatDistanceToNow } from "date-fns"
 
@@ -39,14 +41,14 @@ const activityIcon = (type: string) => {
     case "pr_review_approved": return <CopyCheck className="h-4 w-4 text-green-400" />
     case "pr_review_changes_requested": return <FileDiff className="h-4 w-4 text-red-400" />
     case "pr_review_commented": return <MessageSquare className="h-4 w-4 text-blue-400" />
-    case "review_requested": return <User className="h-4 w-4 text-amber-400" />
+    case "review_requested": return <User className="h-4 w-4 text-yellow-400" />
     case "issue_opened": return <Github className="h-4 w-4 text-blue-400" />
     case "issue_closed": return <CheckCircle2 className="h-4 w-4 text-green-400" />
     case "issue_reopened": return <RotateCcw className="h-4 w-4 text-orange-400" />
     case "issue_edited": return <FileDiff className="h-4 w-4 text-blue-400" />
     case "branch_created": return <GitBranch className="h-4 w-4 text-cyan-400" />
     case "commit_pushed": return <GitCommit className="h-4 w-4 text-gray-400" />
-    case "commit_linked": return <GitCommit className="h-4 w-4 text-emerald-400" />
+    case "commit_linked": return <GitCommit className="h-4 w-4 text-green-400" />
     case "status_synced": return <CheckCircle2 className="h-4 w-4 text-green-400" />
     case "assignee_synced": return <User className="h-4 w-4 text-pink-400" />
     case "label_synced": return <Tag className="h-4 w-4 text-indigo-400" />
@@ -94,13 +96,21 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
     return <div className="text-xs text-muted-foreground py-4">Loading GitHub activity...</div>
   }
 
+  if (activitiesRes.isError) {
+    return (
+      <ErrorState
+        subject="the GitHub activity"
+        onRetry={() => void activitiesRes.mutate()}
+      />
+    )
+  }
   if (activities.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-        <Github className="h-8 w-8 mb-2 opacity-40" />
-        <p className="text-sm">No GitHub activity yet</p>
-        <p className="text-xs opacity-60">Activity from linked issues, PRs, and branches will appear here.</p>
-      </div>
+      <EmptyState
+        icon={Github}
+        title="No GitHub activity yet"
+        description="Activity from linked issues, PRs, and branches will appear here."
+      />
     )
   }
 
