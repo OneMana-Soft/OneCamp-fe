@@ -62,8 +62,6 @@ const SURFACES = [
   // connected" and offered a Connect button that starts a redundant OAuth flow.
   "components/admin/ApiTokensCard.tsx",
   "components/admin/DataSourcesCard.tsx",
-  "components/admin/McpServersCard.tsx",
-  "components/admin/AgentsCard.tsx",
   "components/admin/WebhooksCard.tsx",
   "components/admin/SlackImportCard.tsx",
   "components/admin/GitHubIntegrationCard.tsx",

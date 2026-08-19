@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Sparkles, Send, X, Loader2, AlertCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
-import MarkdownMessage from "@/components/ai/MarkdownMessage";
 import { useAIStatus, AIStatusResponse } from "@/services/aiService";
 import { InCallQAItem } from "./useInCallAgent";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -184,7 +183,7 @@ export function InCallAIPanel({
                                 {it.error ? (
                                     <span className="text-red-400">{it.error}</span>
                                 ) : it.answer ? (
-                                    <MarkdownMessage content={it.answer} className="text-sm leading-relaxed" />
+                                    <div className="whitespace-pre-wrap text-sm leading-relaxed">{it.answer}</div>
                                 ) : (
                                     <span className="inline-flex items-center gap-2 text-white/50">
                                         <Loader2 className="h-3.5 w-3.5 animate-spin" />

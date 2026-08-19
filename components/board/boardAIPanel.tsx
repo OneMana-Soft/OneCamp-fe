@@ -18,7 +18,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Sparkles, X, Loader2, Workflow, Milestone, Route, Network, Users, Smartphone, Monitor, ChevronDown } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
-import AiModelPicker from "@/components/ai/AiModelPicker"
 import BoardUIStudio from "@/components/board/boardUIStudio"
 
 interface BoardAIPanelProps {
@@ -832,7 +831,6 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
 
           <div className="mt-2 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">
-              <AiModelPicker />
               <span className="hidden truncate text-[11px] text-muted-foreground sm:inline">
                 {isStreaming
                   ? `${STAGE_LABELS[stage || ""] || "Working"}…`

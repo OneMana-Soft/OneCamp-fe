@@ -1,7 +1,6 @@
 "use client"
 
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import { ComposerAIButton } from "@/components/ai/ComposerAIButton";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
@@ -102,12 +101,6 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
                             dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
                         }}
                         fixedToolbarToBottom={true}
-                        aiSlot={
-                            <ComposerAIButton
-                                getText={() => channelInputState.inputTextHTML || ""}
-                                onResult={(html) => dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))}
-                            />
-                        }
                     >
 
 

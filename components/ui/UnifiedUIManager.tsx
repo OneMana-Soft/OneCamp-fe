@@ -38,7 +38,6 @@ const BoardShareDialog = dynamic(() => import("@/components/dialog/boardShareDia
 const BoardViewersDialog = dynamic(() => import("@/components/dialog/boardViewersDialog"), { ssr: false });
 const DocVersionHistoryDialog = dynamic(() => import("@/components/dialog/docVersionHistoryDialog"), { ssr: false });
 const DocViewersDialog = dynamic(() => import("@/components/dialog/docViewersDialog"), { ssr: false });
-const ExtractTasksDialog = dynamic(() => import("@/components/ai/ExtractTasksDialog"), { ssr: false });
 
 // Admin card dialogs
 const WebhookCreateDialog = dynamic(() => import("@/components/admin/WebhookCreateDialog"), { ssr: false });
@@ -333,15 +332,6 @@ export function UnifiedUIManager() {
           open={ui.docViewers.isOpen}
           onOpenChange={() => dispatch(closeUI('docViewers'))}
           docId={ui.docViewers.data.docId}
-        />
-      )}
-
-      {ui.extractTasks.isOpen && (
-        <ExtractTasksDialog
-          open={ui.extractTasks.isOpen}
-          onOpenChange={() => dispatch(closeUI('extractTasks'))}
-          sourceType={ui.extractTasks.data.sourceType}
-          sourceId={ui.extractTasks.data.sourceId}
         />
       )}
 

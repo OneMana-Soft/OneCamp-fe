@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
-import AiModelPicker from "@/components/ai/AiModelPicker"
 import {
   Sparkles,
   X,
@@ -323,8 +322,7 @@ export function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDe
             )}
           </Button>
 
-          <div className="flex items-center justify-between gap-2">
-            <AiModelPicker />
+          <div className="flex items-center justify-end gap-2">
             <span className="hidden text-[11px] text-muted-foreground sm:inline">Cmd/Ctrl + Enter</span>
           </div>
 

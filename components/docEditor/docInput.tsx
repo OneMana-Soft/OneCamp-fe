@@ -17,7 +17,6 @@ import { SectionThree } from '@/components/minimal-tiptap/components/section/thr
 import { SectionFour } from '@/components/minimal-tiptap/components/section/four'
 import { SectionFive } from '@/components/minimal-tiptap/components/section/five'
 import { LinkBubbleMenu } from '@/components/minimal-tiptap/components/bubble-menu/link-bubble-menu'
-import { SelectionAiBubbleMenu } from '@/components/minimal-tiptap/components/bubble-menu/selection-ai-bubble-menu'
 import { useMinimalTiptapEditor } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
 import { Callout } from '@/components/minimal-tiptap/extensions/callout/callout'
 import { Collapsible } from '@/components/minimal-tiptap/extensions/collapsible/collapsible'
@@ -33,11 +32,9 @@ import { MeasuredContainer } from '@/components/minimal-tiptap/components/measur
 import { useDispatch, useSelector } from "react-redux"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { useMedia } from "@/context/MediaQueryContext"
-import { Drawer } from 'vaul'
 import { Image as ImageIcon, Users, Loader2, Check } from "@/lib/icons";
 import { Cloud, CloudOff } from "lucide-react";
-import { DocAiAssistantPanel } from '@/components/ai/DocAiAssistantPanel'
-import { PostFileUploadURL, GetEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
 import axiosInstance from "@/lib/axiosInstance"
 import { UploadFileInterfaceRes } from "@/types/file"
 import { useToast } from "@/hooks/use-toast"
@@ -68,7 +65,7 @@ const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "c
 const SECTION_4_ACTIONS: ("orderedList" | "bulletList")[] = ['bulletList', 'orderedList'];
 const SECTION_5_ACTIONS: ("codeBlock" | "blockquote" | "horizontalRule")[] = ['blockquote', 'codeBlock', 'horizontalRule'];
 
-const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClick: () => void; hasSelection: boolean }) => (
+const Toolbar = ({ editor }: { editor: Editor }) => (
     <div className="flex w-max items-center gap-px">
             <SectionOne editor={editor} activeLevels={[1, 2, 3]} variant="outline" />
 
@@ -120,25 +117,6 @@ const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClic
             >
                 <ImageIcon className="size-4" />
                 <span>Image</span>
-            </button>
-
-            <Separator orientation="vertical" className="mx-2 h-7" />
-
-            <button
-                onClick={(e) => {
-                    e.preventDefault();
-                    onAIClick();
-                }}
-                className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                    "bg-primary/10 border border-primary/20 hover:border-primary/40",
-                    "text-primary hover:text-primary/80",
-                    "hover:bg-primary/20"
-                )}
-                title={hasSelection ? "AI: Transform selected text" : "AI: Write with AI"}
-            >
-            <span className="text-sm">✨</span>
-            <span>AI</span>
             </button>
         </div>
 )
@@ -298,13 +276,7 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
             }
         }, [editor, onTitleBlur])
 
-        const dispatch = useDispatch()
-        const { isDesktop, isMobile } = useMedia()
-        const docAiOpen = useSelector((state: any) => state.rightPanel.rightPanelState.data.docAiOpen)
-        const [isDrawerOpen, setIsDrawerOpen] = React.useState(false)
-        const suppressOverlays = isDrawerOpen || docAiOpen
-        const [selectedText, setSelectedText] = React.useState('')
-        const [hasSelection, setHasSelection] = React.useState(false)
+        const suppressOverlays = false
         const [wordCount, setWordCount] = React.useState(0)
         const [charCount, setCharCount] = React.useState(0)
         const [readingTime, setReadingTime] = React.useState(0)
@@ -329,157 +301,6 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                 editor.off('create', updateCounts)
             }
         }, [editor])
-
-        // Track selection state
-        React.useEffect(() => {
-            if (!editor) return
-
-            const handleSelectionUpdate = () => {
-                const { from, to } = editor.state.selection
-                setHasSelection(from !== to)
-            }
-
-            editor.on('selectionUpdate', handleSelectionUpdate)
-            return () => { editor.off('selectionUpdate', handleSelectionUpdate) }
-        }, [editor])
-
-        const handleInsert = React.useCallback((text: string) => {
-            if (!editor) return
-            const { to } = editor.state.selection
-            editor.chain().focus().insertContentAt(to, text).run()
-        }, [editor])
-
-        const handleReplace = React.useCallback((text: string, originalText?: string) => {
-            if (!editor) return
-            const { from, to } = editor.state.selection
-            if (from !== to) {
-                const storedOriginal = originalText ?? editor.state.doc.textBetween(from, to, ' ')
-                editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, text).run()
-                undoDataRef.current = {
-                    originalText: storedOriginal,
-                    from,
-                    replacedLength: text.length,
-                }
-            } else {
-                editor.chain().focus().insertContent(text).run()
-                undoDataRef.current = null
-            }
-        }, [editor])
-
-        const handleUndo = React.useCallback(() => {
-            if (!editor) return
-
-            const undoData = undoDataRef.current
-            if (undoData) {
-                try {
-                    const to = undoData.from + undoData.replacedLength
-                    editor.chain()
-                        .focus()
-                        .deleteRange({ from: undoData.from, to })
-                        .insertContentAt(undoData.from, undoData.originalText)
-                        .run()
-                } catch {
-                    editor.commands.undo()
-                }
-                undoDataRef.current = null
-            } else {
-                editor.commands.undo()
-            }
-        }, [editor])
-
-        const handleAIClick = React.useCallback(() => {
-            if (!editor) return
-
-            const { from, to } = editor.state.selection
-            const text = from !== to
-                ? editor.state.doc.textBetween(from, to, ' ')
-                : ''
-
-            const contextSize = 500
-            const contextBefore = editor.state.doc.textBetween(Math.max(0, from - contextSize), from, ' ')
-            const contextAfter = editor.state.doc.textBetween(to, Math.min(editor.state.doc.content.size, to + contextSize), ' ')
-            const surroundingContext = `[BEFORE]: ${contextBefore}\n[SELECTED]: ${text}\n[AFTER]: ${contextAfter}`
-
-            setSelectedText(text)
-
-            if (isDesktop) {
-                dispatch(openRightPanel({
-                    docAiOpen: true,
-                    docAiData: {
-                        selectedText: text,
-                        docId: docId || '',
-                        surroundingContext
-                    }
-                }))
-            } else {
-                setIsDrawerOpen(true)
-            }
-        }, [editor, isDesktop, dispatch, docId])
-
-        // Listen for AI actions from sidebar/drawer
-        React.useEffect(() => {
-            const onInsert = (e: any) => handleInsert(e.detail.text)
-            const onReplace = (e: any) => handleReplace(e.detail.text, e.detail.originalText)
-            const onUndo = () => handleUndo()
-
-            window.addEventListener('doc-ai-insert', onInsert)
-            window.addEventListener('doc-ai-replace', onReplace)
-            window.addEventListener('doc-ai-undo', onUndo)
-
-            return () => {
-                window.removeEventListener('doc-ai-insert', onInsert)
-                window.removeEventListener('doc-ai-replace', onReplace)
-                window.removeEventListener('doc-ai-undo', onUndo)
-            }
-        }, [handleInsert, handleReplace, handleUndo])
-
-        // Listen for AI slash commands — open panel with specific action
-        React.useEffect(() => {
-            const onSlashAI = (e: any) => {
-                if (!editor) return
-                const action = e.detail?.action as string
-                if (!action) return
-
-                const { from, to } = editor.state.selection
-                const hasSelection = from !== to
-                const text = hasSelection
-                    ? editor.state.doc.textBetween(from, to, ' ')
-                    : editor.state.doc.textBetween(
-                        Math.max(0, from - 200),
-                        Math.min(editor.state.doc.content.size, to + 200),
-                        ' '
-                      )
-
-                const contextSize = 500
-                const contextBefore = editor.state.doc.textBetween(Math.max(0, from - contextSize), from, ' ')
-                const contextAfter = editor.state.doc.textBetween(to, Math.min(editor.state.doc.content.size, to + contextSize), ' ')
-                const surroundingContext = `[BEFORE]: ${contextBefore}\n[SELECTED]: ${text}\n[AFTER]: ${contextAfter}`
-
-                setSelectedText(text)
-
-                if (isDesktop) {
-                    dispatch(openRightPanel({
-                        docAiOpen: true,
-                        docAiData: {
-                            selectedText: text,
-                            docId: docId || '',
-                            surroundingContext,
-                            initialAction: action,
-                        }
-                    }))
-                } else {
-                    setIsDrawerOpen(true)
-                    setTimeout(() => {
-                        window.dispatchEvent(new CustomEvent('doc-ai-initial-action', { detail: { action } }))
-                    }, 100)
-                }
-            }
-
-            window.addEventListener('doc-ai-slash', onSlashAI)
-            return () => {
-                window.removeEventListener('doc-ai-slash', onSlashAI)
-            }
-        }, [editor, isDesktop, dispatch, docId])
 
         // Table embed picker — opened by the "/table" slash command. Only doc
         // editors can insert (the slash menu only shows in an editable editor,
@@ -551,7 +372,7 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                 {!focusMode && (
                     <div className="shrink-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border w-full overflow-x-auto">
                         <div className="px-4 md:px-8 py-2">
-                            <Toolbar editor={editor} onAIClick={handleAIClick} hasSelection={hasSelection} />
+                            <Toolbar editor={editor} />
                         </div>
                     </div>
                 )}
@@ -660,26 +481,6 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                     </div>
                 </div>
                 <LinkBubbleMenu editor={editor} hide={suppressOverlays} />
-                <SelectionAiBubbleMenu editor={editor} onAIClick={handleAIClick} hide={suppressOverlays} />
-
-                {/* Mobile AI Drawer */}
-                <Drawer.Root open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
-                    <Drawer.Portal>
-                        <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[var(--z-modal-backdrop)]" />
-                        <Drawer.Content className="bg-background flex flex-col rounded-t-[20px] h-[85vh] mt-24 fixed bottom-0 left-0 right-0 z-[var(--z-modal)] outline-none border-t border-border">
-                            <Drawer.Title className="sr-only">AI Assistant</Drawer.Title>
-                            <Drawer.Description className="sr-only">AI powered document assistant for writing and transforming text.</Drawer.Description>
-                            <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted my-4" />
-                            <div className="flex-1 overflow-y-auto">
-                                <DocAiAssistantPanel 
-                                    selectedText={selectedText} 
-                                    docId={docId || ''} 
-                                    onClose={() => setIsDrawerOpen(false)}
-                                />
-                            </div>
-                        </Drawer.Content>
-                    </Drawer.Portal>
-                </Drawer.Root>
 
                 <TableEmbedPickerDialog
                     open={embedTableOpen}

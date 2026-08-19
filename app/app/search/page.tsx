@@ -14,8 +14,6 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { getIcon, getHighlightedTitle, getHighlightedContext, isResultPreviewable } from "@/lib/utils/helpers/search"
-import ConnectorSearchResults from "@/components/ai/ConnectorSearchResults"
-import SearchAnswer from "@/components/ai/SearchAnswer"
 
 export default function SearchPage() {
     const searchParams = useSearchParams()
@@ -94,7 +92,6 @@ export default function SearchPage() {
 
             <ScrollArea className="flex-1">
                 <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-3">
-                    <SearchAnswer query={inputValue} selfUUID={selfUUID} />
                     {isLoading ? (
                         /* Shaped like the result rows below, so the list does not
                            jump when matches arrive. The announcement carries the
@@ -178,8 +175,6 @@ export default function SearchPage() {
                             )}
                         </div>
                     )}
-
-                    <ConnectorSearchResults query={inputValue} />
                 </div>
             </ScrollArea>
         </div>

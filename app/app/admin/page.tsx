@@ -16,10 +16,6 @@ import ArchiveCard from "@/components/admin/ArchiveCard"
 import ExternalUsersCard from "@/components/admin/ExternalUsersCard"
 import SlackImportCard from "@/components/admin/SlackImportCard"
 import ImportCard from "@/components/admin/ImportCard"
-import AIModelsCard from "@/components/admin/AIModelsCard"
-import AgentDelegationCard from "@/components/admin/AgentDelegationCard"
-import MCPServerCard from "@/components/admin/MCPServerCard"
-import AIActivityCard from "@/components/admin/AIActivityCard"
 import AppsCard from "@/components/admin/AppsCard"
 import WorkspaceSettingsCard from "@/components/admin/WorkspaceSettingsCard"
 import GuestAccessCard from "@/components/admin/GuestAccessCard"
@@ -29,10 +25,10 @@ import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsC
 import WorkflowsCard from "@/components/admin/WorkflowsCard"
 import AdminAuditLog from "@/components/admin/AdminAuditLog"
 import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic } from "@/lib/icons"
-import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound } from "lucide-react"
+import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight, Plug, SlidersHorizontal, Zap, KeyRound } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useMedia } from "@/context/MediaQueryContext"
-import { FEATURE_AI, FEATURE_CALLS, useFeature } from "@/hooks/useClientConfig"
+import { FEATURE_CALLS, useFeature } from "@/hooks/useClientConfig"
 
 /**
  * Vertical rhythm between top-level cards on a tab that holds more than one.
@@ -59,7 +55,6 @@ const TABS: TabDef[] = [
   { value: "settings", label: "Settings", icon: SlidersHorizontal },
   { value: "permissions", label: "Permissions", icon: KeyRound },
   { value: "transcription", label: "Transcription", icon: Mic },
-  { value: "ai-models", label: "AI Models", icon: Sparkles },
   { value: "webhooks", label: "Webhooks", icon: Webhook },
   { value: "workflows", label: "Workflows", icon: Zap },
   { value: "apps", label: "Apps", icon: Plug },
@@ -74,10 +69,8 @@ const AdminPage = () => {
   const searchParams = useSearchParams()
   const {isDesktop } = useMedia();
   const { toast } = useToast()
-  const aiAvailable = useFeature(FEATURE_AI)
   const callsAvailable = useFeature(FEATURE_CALLS)
   const visibleTabs = TABS.filter((tab) => {
-    if (tab.value === "ai-models") return aiAvailable
     if (tab.value === "transcription") return callsAvailable
     return true
   })
@@ -302,24 +295,6 @@ const AdminPage = () => {
               {callsAvailable && (
               <TabsContent value="transcription" className="mt-0 outline-none">
                 <TranscriptionSettingsCard />
-              </TabsContent>
-              )}
-              {/* These four had NO wrapper at all, so they rendered flush: "Agent collaboration"
-                  ended and "External agent access" began against it with only a hairline between,
-                  and the eye read them as one section. The two tabs above were wrapped; this one was
-                  missed when cards were appended to it, which is exactly the kind of thing that
-                  survives review because nothing about it looks wrong in the diff. */}
-              {aiAvailable && (
-              <TabsContent value="ai-models" className="mt-0 outline-none">
-                <div className={ADMIN_SECTION_STACK}>
-                  <AIModelsCard />
-                  <AgentDelegationCard />
-                  {/* Beside agent collaboration because they are the same kind of decision:
-                      who may cause an agent to act here. Delegation governs agents inside
-                      the workspace; this governs clients outside it. */}
-                  <MCPServerCard />
-                  <AIActivityCard />
-                </div>
               </TabsContent>
               )}
               <TabsContent value="webhooks" className="mt-0 outline-none">

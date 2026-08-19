@@ -14,7 +14,6 @@ import {MobileMessage} from "@/components/mobileMessage/mobileMessage";
 import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
-import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 import { UserProfileInterface} from "@/types/user";
@@ -35,7 +34,6 @@ import {
 import {usePost} from "@/hooks/usePost";
 import {CreateUpdateCommentReqInterface} from "@/types/comment";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
-import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 
 export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUID: string }) => {
@@ -318,23 +316,6 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                 />
                 <ReplyDivider replyCount={mainMessageData.commentCount}/>
 
-                {/* TL;DR for long threads — parity with the desktop right panel.
-                    Reuses doc-AI summarize over the attributed root + replies. */}
-                {mainMessageData.commentCount >= 4 && (
-                    <div className="mx-4 mt-2">
-                        <ThreadSummaryButton
-                            getText={() =>
-                                [
-                                    `${mainMessageData.userName || "Someone"}: ${mainMessageData.content}`,
-                                    ...postCommentState.map(
-                                        (c) => `${c.comment_by?.user_name || "Someone"}: ${c.comment_text}`,
-                                    ),
-                                ].join("\n")
-                            }
-                        />
-                    </div>
-                )}
-
                     <MobileMessageCommentList
                         comments={postCommentState}
                         addReaction={createOrUpdateCommentReaction}
@@ -346,20 +327,6 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                         postUUID={postUUID}
                         isAdmin={postInfo.data.data.post_channel?.ch_is_admin}
 
-                    />
-
-                    {/* Same control as on desktop: an AI teammate working in this
-                        thread can be stopped from here. Sticky to the bottom of the
-                        scroll area on a phone — in a long thread the strip would
-                        otherwise sit far below the fold, which is no control at all
-                        — and it renders nothing when no agent is working, so it adds
-                        no chrome to an ordinary thread. */}
-                    <AgentWorkStrip
-                        entityId={postUUID}
-                        revalidateKey={postCommentState.length}
-                        // Sticky over scrolling comments, so it does float — which
-                        // means the sanctioned overlay token, not an ad-hoc shadow.
-                        className="sticky bottom-0 z-10 mx-3 mb-2 shadow-overlay"
                     />
 
             </div>

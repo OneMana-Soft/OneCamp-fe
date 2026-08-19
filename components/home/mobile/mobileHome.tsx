@@ -15,15 +15,9 @@ import {
     Folder,
     Hash,
     MessageCircle,
-    Sparkles,
     Users,
 } from "@/lib/icons"
 import { MobileHomeSearchBar } from "@/components/home/mobile/mobileHomeSearchBar"
-import { FeatureGate } from "@/components/common/withFeature"
-import { FEATURE_AI } from "@/hooks/useClientConfig"
-import BriefingCard from "@/components/ai/BriefingCard"
-import AttentionCard from "@/components/ai/AttentionCard"
-import WhileYouWereAwayCard from "@/components/ai/WhileYouWereAwayCard"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatDistanceToNow } from "date-fns"
 import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
@@ -240,16 +234,6 @@ export function MobileHome() {
             {/* Search */}
             <MobileHomeSearchBar />
 
-            {/* What needs me now — cross-surface action queue; self-hides when empty */}
-            <AttentionCard />
-
-            {/* "What did I miss" — free at rest (counts come from the sidebar
-                already in the store); spends one LLM call only when asked. */}
-            <WhileYouWereAwayCard />
-
-            {/* AI briefing — self-hides when AI/memory is off or empty */}
-            <BriefingCard />
-
             {/* Quick Actions */}
             <div className="grid grid-cols-4 gap-2.5">
                 <QuickActionTile
@@ -381,37 +365,6 @@ export function MobileHome() {
                 </div>
             )}
 
-            {/* AI CTA. The cards above already hide themselves via withAI;
-                this row is inline, so it needs the same gate or a v1 home
-                still advertises an assistant the server cannot serve. */}
-            <FeatureGate feature={FEATURE_AI}>
-            <TapSurface
-                ariaLabel="Open AI Assistant"
-                onClick={() => router.push("/app/ai")}
-                className={cn(
-                    "flex items-center gap-3 rounded-xl border p-3.5",
-                    "border-violet-500/20 bg-violet-500/5",
-                )}
-            >
-                <div
-                    className={cn(
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-                        categoryColors.ai.bg,
-                    )}
-                >
-                    <Sparkles className={cn("h-5 w-5", categoryColors.ai.text)} />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-foreground">
-                        AI Assistant
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                        Ask questions, summarize docs, and more
-                    </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            </TapSurface>
-            </FeatureGate>
         </div>
     )
 }

@@ -6,7 +6,6 @@ import { MqttProvider } from "@/components/mqtt/mqttProvider";
 import { Toaster } from "@/components/ui/toaster";
 import GlobalCommandHost from "@/components/command/GlobalCommandHost";
 import CommandActionBridge from "@/components/command/CommandActionBridge";
-import AiQuickInvoke from "@/components/ai/AiQuickInvoke";
 import { MediaQueryProvider } from "@/context/MediaQueryContext";
 import { LoadingProvider } from "@/context/LoadingContext";
 import { SWRConfig } from "swr";
@@ -56,7 +55,6 @@ export default function ClientProviders({
               {children}
               <CommandActionBridge />
               <GlobalCommandHost />
-              <AiQuickInvoke />
               <Toaster />
             </MqttProvider>
           </TooltipProvider>

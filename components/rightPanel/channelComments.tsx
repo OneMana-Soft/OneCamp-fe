@@ -9,9 +9,7 @@ import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 import {MessageContent} from "@/components/rightPanel/messageContent";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
-import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
 import {CommentsList} from "@/components/rightPanel/commentsList";
-import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
 import {cn} from "@/lib/utils/helpers/cn";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
@@ -449,25 +447,6 @@ export const ChannelComments = () => {
 
                 )}
 
-                {/* TL;DR for long threads — calm, on-demand. Reuses doc-AI
-                    summarize over the assembled root + replies text. Each line
-                    is attributed with the author so the recap can say who said
-                    what ("@alex asked… @sam replied…"). */}
-                {mainMessageData.commentCount >= 4 && (
-                    <div className="mx-4 mt-2">
-                        <ThreadSummaryButton
-                            getText={() =>
-                                [
-                                    `${mainMessageData.userName || "Someone"}: ${mainMessageData.content}`,
-                                    ...postCommentState.map(
-                                        (c) => `${c.comment_by?.user_name || "Someone"}: ${c.comment_text}`,
-                                    ),
-                                ].join("\n")
-                            }
-                        />
-                    </div>
-                )}
-
             <div className="flex-1 overflow-y-auto pb-4 pt-2 space-y-4">
 
 
@@ -479,16 +458,6 @@ export const ChannelComments = () => {
                     updateComment={handleUpdatePostComment}
                     getMediaURL={GetEndpointUrl.GetChannelMedia + '/' + rightPanelState.data.channelUUID}
 
-                />
-
-                {/* An AI teammate working in THIS thread, with the control to
-                    stop it. Renders nothing when no agent is working here, so a
-                    normal thread is untouched; the count of comments is used as
-                    the revalidation signal, since a new reply is exactly when
-                    agent work tends to start, change, or be steered. */}
-                <AgentWorkStrip
-                    entityId={rightPanelState.data.postUUID}
-                    revalidateKey={postCommentState.length}
                 />
 
                 <MinimalTiptapTextInput

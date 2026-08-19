@@ -79,7 +79,6 @@ import {mutate} from "swr";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import {useMqtt} from "@/components/mqtt/mqttProvider";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
-import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 
 const CONSTANTS = {
     LABEL_PLACEHOLDER: "addLabel",
@@ -1251,13 +1250,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         </Tabs>
                     </div>
                 </div>
-            </div>
-
-            {/* An AI teammate working on THIS task, with the control to stop it.
-                Sits directly above the composer — the same place a person types a
-                correction — and renders nothing when no agent is working. */}
-            <div className="px-4 pb-2 sm:px-6">
-                <AgentWorkStrip entityId={taskUUID} revalidateKey={taskCommentState.length} />
             </div>
 
             <TaskCommentComposer

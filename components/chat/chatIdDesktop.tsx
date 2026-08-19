@@ -1,10 +1,10 @@
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { SendHorizontal, Video, Clapperboard, Sparkles, CheckSquare, X } from "@/lib/icons";
+import { SendHorizontal, Video, Clapperboard, X } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
@@ -20,9 +20,7 @@ import {USER_STATUS_ONLINE, UserEmojiStatus, UserProfileInterface} from "@/types
 import {ChatNotificationInterface} from "@/types/chat";
 import {ChatUserAvatar} from "@/components/chat/chatUserAvatar";
 import {ChatFileUpload} from "@/components/fileUpload/chatFileUpload";
-import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {createOrUpdateChatBody, clearChatReplyTarget} from "@/store/slice/chatSlice";
-import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus, UserEmojiInterface} from "@/store/slice/userSlice";
 import {ChatUserEmojiStatus} from "@/components/chat/chatUserEmojiStatus";
 import {Button} from "@/components/ui/button";
@@ -31,16 +29,14 @@ import Link from "next/link";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
-import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 import CommandSurface from "@/components/command/CommandSurface";
-import PendingActionsTray from "@/components/ai/PendingActionsTray";
 import { FeatureGate } from "@/components/common/withFeature"
-import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
+import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 
-export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
+export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string)=>void }) => {
 
     const dispatch = useDispatch()
     const postNotification  = usePost()
@@ -84,18 +80,6 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
     const EMPTY_USER_STATUS: UserEmojiInterface = { deviceConnected: 0 } as UserEmojiInterface;
 
     const chatState = useSelector((state: RootState) => state.chat.chatInputState[chatId] || EMPTY_INPUT_STATE);
-
-    // Suggested starter prompts for an empty DM with an AI peer (the shared
-    // coworker or a DM-able agent), so a new user isn't faced with a blank box.
-    // Only fetched when the peer is a bot and the conversation is empty.
-    const isBotPeer = otherUserInfo.data?.data?.is_bot === true;
-    const msgCount = useSelector((state: RootState) => (state.chat.chatMessages[chatId] || []).length);
-    const composerEmpty = !chatState.chatBody || chatState.chatBody.replace(/<[^>]*>/g, "").trim().length === 0;
-    const showSuggestions = isBotPeer && msgCount === 0 && composerEmpty;
-    const aiSuggestions = useFetch<{ data: string[] }>(
-        showSuggestions ? `${GetEndpointUrl.GetDMAISuggestions}?peer=${chatId}` : "",
-    );
-    const suggestions = (showSuggestions && aiSuggestions.data?.data) || [];
 
     const chatCallStatusActive = useSelector((state: RootState) => state.chat.chatCallStatus[chatId]?.active || false);
 
@@ -177,54 +161,14 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                     </Link>
                     </FeatureGate>
                     <Link href={chatRecordingHref} aria-label="View recordings"><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
-                    <FeatureGate feature={FEATURE_AI}>
-                    <Button
-                        size='icon'
-                        variant='ghost'
-                        aria-label="Create tasks from this conversation"
-                        title="Create tasks from this conversation"
-                        onClick={() => {
-                            const selfUUID = selfProfile.data?.data?.user_uuid
-                            if (!selfUUID) return
-                            dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'dm', sourceId: getGroupingId(selfUUID, chatId) } }))
-                        }}
-                    >
-                        <CheckSquare className="text-muted-foreground" />
-                    </Button>
-                    </FeatureGate>
                 </div>
             </header>
             <div className="flex-1 overflow-y-auto">
-                <CatchMeUpBanner
-                    channelUUID={chatId}
-                    unreadCount={unreadCount || 0}
-                    channelName={otherUserInfo.data?.data.user_name}
-                    isChannel={false}
-                    type="dm"
-                />
                 <ChatMessageList chatId={chatId} />
             </div>
 
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
                 <div className="max-w-6xl mx-auto w-full">
-                    {suggestions.length > 0 && (
-                        <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                            <span className="mr-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                                <Sparkles className="h-3 w-3 text-primary" /> Try asking
-                            </span>
-                            {suggestions.map((s, i) => (
-                                <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => handleSend(`<p>${s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`)}
-                                    className="rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-foreground transition-colors hover:border-primary hover:bg-primary/5"
-                                >
-                                    {s}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    <PendingActionsTray surfaceId={getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')} />
                     <CommandSurface
                         surfaceKey={chatId}
                         dmGroupId={getGroupingId(chatId, selfProfile.data?.data.user_uuid || '')}
@@ -275,12 +219,6 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                             publishTyping(content as string)
                             dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
                         }}
-                        aiSlot={
-                            <ComposerAIButton
-                                getText={() => chatState.chatBody || ""}
-                                onResult={(html) => dispatch(createOrUpdateChatBody({ chatUUID: chatId, body: html }))}
-                            />
-                        }
                     >
                         <ChatFileUpload chatUUID={chatId} />
                     </MinimalTiptapTextInput>

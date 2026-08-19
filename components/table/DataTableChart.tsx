@@ -9,7 +9,6 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Loader2 } from "@/lib/icons"
-import AgentChart from "@/components/ai/AgentChart"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
 import {
     aggregateTable,
@@ -252,7 +251,9 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
                     </div>
                 ) : chart ? (
                     <>
-                        <AgentChart chart={chart} />
+                        <div className="rounded border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+                            Chart view placeholder
+                        </div>
                         {result?.truncated && (
                             <p className="mt-2 text-center text-xs text-muted-foreground">
                                 Showing the top {result.buckets.length} of {result.distinct_groups} groups.

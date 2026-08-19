@@ -25,7 +25,7 @@ import {
   UpdateMessageInChatList,
   UpdateUnreadCountToZero,
 } from "@/store/slice/chatSlice";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { addUserToUserChatList, resetUserChatUnread } from "@/store/slice/userSlice";
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
 import { getGroupingId } from "@/lib/utils/getGroupingId";
@@ -44,11 +44,6 @@ export default function Page() {
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
     GetEndpointUrl.SelfProfile
   );
-
-  const userChats = useSelector((state: RootState) => state.users.userSidebar.userChats);
-  const grpId = selfProfile.data?.data.user_uuid ? getGroupingId(chatId, selfProfile.data.data.user_uuid) : '';
-  const chatInSidebar = userChats.find(chat => chat.dm_grouping_id === grpId);
-  const unreadCountRef = useRef(chatInSidebar?.dm_unread || 0);
 
   const EMPTY_CHATS: ChatInfo[] = [];
   const EMPTY_INPUT_STATE = {};
@@ -216,9 +211,9 @@ export default function Page() {
 
   return (
     <>
-      {isMobile && <ChatIdMobile chatId={chatId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
+      {isMobile && <ChatIdMobile chatId={chatId} handleSend={handleSend} />}
 
-      {isDesktop && <ChatIdDesktop chatId={chatId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
+      {isDesktop && <ChatIdDesktop chatId={chatId} handleSend={handleSend} />}
     </>
   );
 }

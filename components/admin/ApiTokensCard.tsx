@@ -16,8 +16,6 @@ import { Plus, Trash2, Loader2, Check, Copy, Key, Sparkles } from "@/lib/icons"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
-import { CopyableCode } from "@/components/ui/copyable-code"
-import { mcpClientConfig, mcpEndpointUrl } from "@/lib/utils/mcpEndpoint"
 import {
   ApiToken,
   CreatedToken,
@@ -133,10 +131,6 @@ const ApiTokensCard = () => {
     }
   }
 
-  // Resolved once. Empty when this build has no backend URL configured, in which case the MCP block
-  // is omitted rather than shown with a broken URL in it.
-  const mcpEndpoint = mcpEndpointUrl()
-
   return (
     <Card className="border-border/60">
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
@@ -247,44 +241,6 @@ const ApiTokensCard = () => {
                   <Copy className="h-3.5 w-3.5" /> Copy
                 </Button>
               </div>
-
-              {/*
-                THE MCP CONFIG, WITH THE REAL TOKEN ALREADY IN IT.
-                
-                This is the only moment it can be offered. Only a SHA-256 hash is stored, so after
-                this dialog closes nothing — not this screen, not an admin, not the database — can
-                produce the credential again. A config block shown anywhere later could only carry a
-                placeholder for the user to paste into by hand, which is the step most likely to go
-                wrong and the one they have the least help with.
-                
-                Rendered for every token rather than only for MCP-shaped ones, because scopes do not
-                tell you the client's intent: the same `docs:read` token serves a shell script and
-                Claude Desktop equally. It costs a collapsed block and removes a trip to the docs.
-                
-                It does NOT claim the surface is on. That is an admin setting this user may not be
-                able to see, so the note below states the dependency instead of asserting a state
-                this screen cannot verify.
-              */}
-              {mcpEndpoint && (
-                <details className="rounded-lg border border-border/60 bg-muted/20">
-                  <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
-                    Use this token with an MCP client (Claude, Cursor, …)
-                  </summary>
-                  <div className="space-y-2 px-3 pb-3">
-                    <CopyableCode
-                      value={mcpClientConfig(created.plaintext)}
-                      label="MCP client config"
-                    />
-                    <p className="text-2xs text-muted-foreground">
-                      The token above is already filled in. External agent access also has to be
-                      turned on by an admin in{" "}
-                      <span className="font-medium">Admin → AI Models → External agent access</span>
-                      ; until it is, the endpoint refuses every call regardless of this token&apos;s
-                      scopes.
-                    </p>
-                  </div>
-                </details>
-              )}
 
               <div className="flex justify-end">
                 <Button onClick={() => setCreating(false)} className="gap-1.5">

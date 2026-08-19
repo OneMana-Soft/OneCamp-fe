@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils/helpers/cn";
 
 import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
 import { AddReactionTrigger } from "@/components/reactionPicker/AddReactionTrigger";
-import { SaveToMemoryButton } from "@/components/ai/SaveToMemoryButton";
 
 import { openUI } from "@/store/slice/uiSlice";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
@@ -193,27 +192,6 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                     <Languages className="h-4 w-4" />
                 </HoverIconButton>
             )}
-
-            {/* Save to memory — channel posts, group chats, and DMs (every
-                scope the memory layer understands). Renders only when the
-                message has a resolvable scope + source. */}
-            {channelUUID && postUUID ? (
-                <SaveToMemoryButton
-                    messageText={messageText}
-                    channelUUID={channelUUID}
-                    sourceType="post"
-                    sourceUUID={postUUID}
-                    onOpenChange={setIsDropdownOpen}
-                />
-            ) : (groupUUID || chatGrpID) && chatMessageID ? (
-                <SaveToMemoryButton
-                    messageText={messageText}
-                    chatGrpID={groupUUID || chatGrpID}
-                    sourceType="chat"
-                    sourceUUID={chatMessageID}
-                    onOpenChange={setIsDropdownOpen}
-                />
-            ) : null}
 
             {showDropdown && (
                 <MessageDesktopDropdown

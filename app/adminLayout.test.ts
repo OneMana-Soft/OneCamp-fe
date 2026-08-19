@@ -88,12 +88,11 @@ describe("admin page scroll ownership", () => {
 })
 
 describe("admin page optional subsystems", () => {
-  it("hides the AI Models tab when the server has no AI", () => {
+  it("does not include an AI Models tab in the non-AI snapshot", () => {
     expect(
       rawSource,
-      "the AI Models tab must be filtered on FEATURE_AI, otherwise a v1 server or a v2 " +
-        "admin who has switched AI off still sees a tab whose every control fails",
-    ).toMatch(/if \(tab\.value === "ai-models"\) return aiAvailable/)
+      "the AI Models tab and its AI-only cards are removed from this non-AI snapshot",
+    ).not.toMatch(/value: "ai-models"/)
   })
 
   it("hides the Transcription tab when calling is unavailable", () => {

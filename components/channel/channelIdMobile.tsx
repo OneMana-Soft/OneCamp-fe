@@ -12,7 +12,6 @@ import {RootState} from "@/store/store";
 import {UserProfileInterface} from "@/types/user";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
-import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
 import { clearChannelReplyTarget } from "@/store/slice/channelSlice";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 
@@ -98,11 +97,6 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId
     }
     return (
         <div className='flex flex-col h-full'>
-            <CatchMeUpBanner
-                channelUUID={channelId}
-                unreadCount={unreadCount || 0}
-                channelName={channelDisplayName}
-            />
             <div className="flex-1 min-h-0">
                 <ChannelMessageList channelId={channelId}/>
             </div>

@@ -21,7 +21,6 @@ import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {openUI} from "@/store/slice/uiSlice";
 import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
 import {ChannelFileUpload} from "@/components/fileUpload/channelFileUpload";
-import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {
     addUUIDToLocallyCreatedPost, clearChannelInputState,
     createPostLocally, updateChannelInputText, MessageInputState, updateChannelCallStatus, clearChannelReplyTarget
@@ -39,8 +38,6 @@ import Link from "next/link";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {ChatSkeleton} from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
-import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
-import {ChannelMemoryIndicator} from "@/components/ai/ChannelMemoryIndicator";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
@@ -222,19 +219,13 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
             ButtonIcon={SendHorizontal}
             buttonOnclick={handleSend}
             editorClassName="focus:outline-none px-2 py-2"
-            onChange={(content ) => {
-                publishTyping(content as string)
-                dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
-            }}
-            aiSlot={
-                <ComposerAIButton
-                    getText={() => channelState.inputTextHTML || ""}
-                    onResult={(html) => dispatch(updateChannelInputText({ channelId, inputTextHTML: html }))}
-                />
-            }
-        >
-            <ChannelFileUpload channelId={channelId}/>
-        </MinimalTiptapTextInput>
+                        onChange={(content ) => {
+                            publishTyping(content as string)
+                            dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
+                        }}
+                    >
+                        <ChannelFileUpload channelId={channelId}/>
+                </MinimalTiptapTextInput>
         </>)
     }
 
@@ -246,7 +237,6 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                 <div className='flex justify-center items-center space-x-1'>
                     <div><Hash className='h-5 w-5 text-muted-foreground'/></div>
                     <div>{channelDisplayName}</div>
-                    <ChannelMemoryIndicator channelUUID={channelId} isMember={!!channelInfo.data?.channel_info.ch_is_member} />
                 </div>
                 <div className='flex justify-center items-center ml-2'>
                     <Button size='icon' variant='ghost' onClick={toggleFavourite} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
@@ -308,11 +298,6 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
 
             </div>
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
-                <CatchMeUpBanner
-                    channelUUID={channelId}
-                    unreadCount={unreadCount || 0}
-                    channelName={channelDisplayName}
-                />
                 <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin}/>
             </div>
             <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">

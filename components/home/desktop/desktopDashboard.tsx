@@ -13,7 +13,6 @@ import {
     Hash,
     Lock,
     MessageCircle,
-    Sparkles,
     Users,
 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -21,14 +20,10 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { UserProfileInterface } from "@/types/user"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { formatDistanceToNow } from "date-fns"
-import { closeRightPanel, openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { openUI } from "@/store/slice/uiSlice"
 import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
 import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
-import BriefingCard from "@/components/ai/BriefingCard"
-import AttentionCard from "@/components/ai/AttentionCard"
-import WhileYouWereAwayCard from "@/components/ai/WhileYouWereAwayCard"
 
 function StatCard({
     icon: Icon,
@@ -139,8 +134,6 @@ export function DesktopDashboard() {
     const rightPanelState = useSelector(
         (state: RootState) => state.rightPanel.rightPanelState,
     )
-    const isAiOpen = rightPanelState.isOpen && rightPanelState.data.aiChatOpen
-
     const userName = selfProfile.data?.data?.user_full_name || "there"
     const totalDMUnread = (userSidebar.userChats || []).reduce(
         (acc, chat) => acc + (chat.dm_unread || 0),
@@ -160,11 +153,6 @@ export function DesktopDashboard() {
         return "Good evening"
     })()
 
-    const handleAiToggle = () => {
-        if (isAiOpen) dispatch(closeRightPanel())
-        else dispatch(openRightPanel({ aiChatOpen: true }))
-    }
-
     return (
         <PageContainer className="overflow-y-auto py-8" bounded={false}>
             <div className="max-w-5xl mx-auto flex flex-col gap-8">
@@ -177,16 +165,6 @@ export function DesktopDashboard() {
                         Here&apos;s what&apos;s happening in your workspace
                     </p>
                 </div>
-
-                {/* What needs me now — cross-surface action queue; self-hides when empty */}
-                <AttentionCard />
-
-                {/* "What did I miss" — free at rest (counts come from the sidebar
-                    already in the store); spends one LLM call only when asked. */}
-                <WhileYouWereAwayCard />
-
-                {/* AI briefing — self-hides when AI/memory is off or empty */}
-                <BriefingCard />
 
                 {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -406,37 +384,6 @@ export function DesktopDashboard() {
                                         />
                                     </div>
                                     <span className="text-sm font-medium">New task</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleAiToggle}
-                                    className={cn(
-                                        "w-full text-left flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors",
-                                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                                        isAiOpen
-                                            ? "border-violet-500/30 bg-violet-500/10"
-                                            : "border-border/50 bg-card/30 hover:bg-accent/40 hover:border-border",
-                                    )}
-                                >
-                                    <div
-                                        className={cn(
-                                            "flex h-7 w-7 items-center justify-center rounded-md",
-                                            categoryColors.ai.bg,
-                                        )}
-                                    >
-                                        <Sparkles
-                                            className={cn(
-                                                "h-3.5 w-3.5",
-                                                categoryColors.ai.text,
-                                            )}
-                                        />
-                                    </div>
-                                    <span className="text-sm font-medium">AI assistant</span>
-                                    {isAiOpen && (
-                                        <span className="ml-auto text-[10px] font-medium text-violet-600 dark:text-violet-400">
-                                            Open
-                                        </span>
-                                    )}
                                 </button>
                             </div>
                         </div>
