@@ -55,7 +55,7 @@ export function EmailOffBanner({ isAdmin }: { isAdmin?: boolean }) {
     return (
         <div
             role="status"
-            className="flex items-start gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-900 dark:text-amber-200"
+            className="flex items-start gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-xs text-warning"
         >
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <p className="flex-1">
@@ -69,7 +69,7 @@ export function EmailOffBanner({ isAdmin }: { isAdmin?: boolean }) {
             <button
                 onClick={dismiss}
                 aria-label="Dismiss"
-                className="shrink-0 rounded p-0.5 hover:bg-amber-500/20"
+                className="shrink-0 rounded p-0.5 hover:bg-warning/20"
             >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
