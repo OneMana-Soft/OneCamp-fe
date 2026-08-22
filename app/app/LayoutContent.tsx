@@ -12,6 +12,10 @@ import { useRef, useEffect, useState } from "react";
 import { ImperativePanelHandle } from "react-resizable-panels";
 import {usePathname} from "next/navigation";
 import { PageTransition } from "@/components/ui/PageTransition";
+import { EmailOffBanner } from "@/components/banner/EmailOffBanner";
+import { useFetch } from "@/hooks/useFetch";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { UserProfileInterface } from "@/types/user";
 
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
@@ -22,6 +26,13 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const path = usePathname().split('/')
+
+  // Same request the navigation bar already makes, so this is a cache hit rather
+  // than a second round trip.
+  const selfProfile = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfileSideNav, undefined, {
+    revalidateOnFocus: false,
+  })
+  const isAdmin = selfProfile.data?.data?.user_is_admin
 
 
   useEffect(() => {
@@ -40,6 +51,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   if (isMobile) {
     return (
       <MobileNavigationBar disableBottomPadding={isTaskPage}>
+        <EmailOffBanner isAdmin={isAdmin} />
         {children}
       </MobileNavigationBar>
     );
@@ -51,6 +63,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <DesktopNavigationBar>
+      <EmailOffBanner isAdmin={isAdmin} />
       <ResizablePanelGroup
         direction="horizontal"
         onLayout={(sizes) => {

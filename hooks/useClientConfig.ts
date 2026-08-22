@@ -29,6 +29,15 @@ export interface ClientConfig {
     // Either way the UI must not offer it. Gate on useFeature() below rather than
     // reading this directly, so both cases are handled the same way in one place.
     features?: Record<string, boolean>
+    // Whether this workspace can send email at all.
+    //
+    // False on every freshly provisioned install until an admin adds a sending key:
+    // the installer clears it deliberately so that nothing ever sends from a
+    // customer's domain without them choosing to. Nothing else reveals it —
+    // /auth/forgot-password answers "check your email" whether or not it could
+    // send, so the failure is silent from the outside and the first person to find
+    // out is an admin who locked themselves out.
+    email_enabled: boolean
 }
 
 // These must match the FeatureName* constants in the backend's helpers package.
@@ -52,6 +61,10 @@ const DEFAULT_CONFIG: ClientConfig = {
     upload_limit_mb: DEFAULT_UPLOAD_LIMIT_MB,
     upload_limit_bytes: DEFAULT_UPLOAD_LIMIT_MB * 1024 * 1024,
     transcription_mode: "frontend",
+    // Optimistic, like transcription_mode above and unlike features. Assuming email
+    // works costs nothing if we are wrong for 200ms; assuming it is broken paints a
+    // scary banner on every page load of every healthy workspace.
+    email_enabled: true,
     // No features until the server says otherwise, which makes optional subsystems
     // FAIL CLOSED while this request is in flight.
     //
