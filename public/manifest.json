@@ -38,5 +38,26 @@
       "type": "image/png",
       "purpose": "monochrome"
     }
+  ],
+  "scope": "/",
+  "shortcuts": [
+    {
+      "name": "Chat",
+      "short_name": "Chat",
+      "description": "Jump to your conversations",
+      "url": "/app/chat"
+    },
+    {
+      "name": "My tasks",
+      "short_name": "Tasks",
+      "description": "What is assigned to you",
+      "url": "/app/myTask"
+    },
+    {
+      "name": "Calendar",
+      "short_name": "Calendar",
+      "description": "Your week",
+      "url": "/app/calendar"
+    }
   ]
 }
