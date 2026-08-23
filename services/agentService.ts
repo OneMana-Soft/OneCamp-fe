@@ -257,17 +257,6 @@ export interface ToolCatalogGroup {
   note?: string
 }
 
-// THIS LIST IS HAND-MAINTAINED AND THE BACKEND REGISTRY IS THE TRUTH.
-//
-// An agent's enabled_tools is an allow-list, and this is the only place a person
-// can add to it. A tool registered in the backend and missing here is invisible:
-// it exists, it is documented, it is tested, and no agent can ever call it,
-// because nobody can tick the box. That is how read_meeting_transcript and
-// find_people first shipped, which is worse than not shipping them, because
-// everything looks finished.
-//
-// Adding a backend tool is two edits, not one. If this list ever grows tedious,
-// serve it from the registry rather than copying it.
 export const TOOL_CATALOG: ToolCatalogGroup[] = [
   {
     group: "Tasks & projects",
@@ -328,8 +317,6 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
     group: "Knowledge & search",
     tools: [
       { name: "search_workspace", label: "Search workspace & connected apps", write: false },
-      { name: "find_people", label: "Look up a person (name, title, team)", write: false },
-      { name: "read_meeting_transcript", label: "Read what was said in a call", write: false },
     ],
   },
   {
