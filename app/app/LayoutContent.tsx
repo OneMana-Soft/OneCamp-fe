@@ -13,7 +13,6 @@ import { ImperativePanelHandle } from "react-resizable-panels";
 import {usePathname} from "next/navigation";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { EmailOffBanner } from "@/components/banner/EmailOffBanner";
-import { DemoLeadPrompt } from "@/components/banner/DemoLeadPrompt";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
@@ -53,7 +52,6 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     return (
       <MobileNavigationBar disableBottomPadding={isTaskPage}>
         <EmailOffBanner isAdmin={isAdmin} />
-      <DemoLeadPrompt />
         {children}
       </MobileNavigationBar>
     );
@@ -66,7 +64,6 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <DesktopNavigationBar>
       <EmailOffBanner isAdmin={isAdmin} />
-      <DemoLeadPrompt />
       <ResizablePanelGroup
         direction="horizontal"
         onLayout={(sizes) => {
