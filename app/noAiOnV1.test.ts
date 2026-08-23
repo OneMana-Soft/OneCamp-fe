@@ -28,13 +28,16 @@ const ROOTS = ["app", "components"]
 const AI_IMPORT = /^import[^\n]*from\s+["'][^"']*(?:\/|^)(?:[A-Za-z]*(?:AI|Ai)[A-Za-z]*)["']/gm
 
 /**
- * KNOWN AND NOT YET REMOVED. The in-call AI panel is woven through
- * VideoConference state, the useInCallAgent hook, unread counts and a toolbar
- * control, and calls are a core feature that needs exercising by hand before
- * surgery. Listed here so the guard passes today and the debt stays visible
- * rather than being quietly re-approved by a broader rule.
+ * EMPTY, AND IT SHOULD STAY THAT WAY. The in-call AI panel was the last entry and
+ * has been removed: no import, no hook, no toolbar control. VideoControls already
+ * renders its AI button only when a handler is passed, which is the path guests
+ * have taken in production all along, so removing it rode a route that was
+ * already exercised rather than a new one.
+ *
+ * An entry here is a customer-visible defect with a note attached. Prefer fixing
+ * the import.
  */
-const KNOWN_EXCEPTIONS = ["components/livekit/VideoConference.tsx"]
+const KNOWN_EXCEPTIONS: string[] = []
 
 function walk(dir: string, out: string[] = []): string[] {
     for (const entry of readdirSync(dir)) {
