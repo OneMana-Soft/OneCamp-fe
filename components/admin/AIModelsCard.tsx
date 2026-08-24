@@ -350,14 +350,23 @@ const AIModelsCard = () => {
     }
   }
 
-  // Admin verify: run the weekly team report now (posts into active channels),
-  // bypassing the Monday/hour schedule + idempotency lock.
+  // Admin verify: run the weekly team report now, bypassing the Monday/hour
+  // schedule + idempotency lock. It still only posts into channels that opted
+  // in, so zero reports is the normal result right after enabling this and is
+  // reported as such rather than looking like a failure.
   const [runningReport, setRunningReport] = useState(false)
   const handleRunTeamReport = async () => {
     setRunningReport(true)
     try {
       const res = await runTeamReportNow()
-      toast({ title: "Team report run", description: res.msg || `Posted ${res.posted} report(s).` })
+      toast({
+        title: "Team report run",
+        description:
+          res.msg ||
+          (res.posted === 0
+            ? "No channels have turned the weekly report on yet. A channel moderator enables it in the channel's settings."
+            : `Posted ${res.posted} report(s).`),
+      })
     } catch (e: unknown) {
       toast({ title: "Could not run team report", description: apiErrorMessage(e, "failed"), variant: "destructive" })
     } finally {
@@ -780,8 +789,9 @@ const AIModelsCard = () => {
               <div className="pr-4">
                 <h4 className="text-sm font-medium">Weekly Team Report</h4>
                 <p className="text-xs text-muted-foreground">
-                  Post a weekly &quot;state of the channel&quot; report — open decisions, commitments (with owners),
-                  and unresolved questions — into each active channel, grounded in workspace memory. Requires
+                  Allow a weekly &quot;state of the channel&quot; report: open decisions, commitments (with owners),
+                  and unresolved questions, grounded in workspace memory. This permits it; each channel stays
+                  silent until a channel moderator turns it on in that channel&apos;s settings. Requires
                   Workspace Memory.
                 </p>
               </div>
