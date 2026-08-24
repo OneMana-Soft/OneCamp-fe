@@ -43,6 +43,7 @@ import ReferenceMentionNodeView from '../extensions/reference-mention/ReferenceM
 import { makeReferenceSuggestion } from '../extensions/reference-mention/referenceMentionList'
 import { RecordingEmbed } from '../extensions/recording-embed/recording-embed'
 import { ChartEmbed } from '../extensions/chart-embed/chart-embed'
+import { DiffEmbed } from '../extensions/diff-embed/diff-embed'
 
 // Distinct plugin keys so the #-channel and +-work-item suggestion plugins
 // don't collide with each other or with the @-user mention plugin.
@@ -329,6 +330,7 @@ const createExtensions = (
     // Read-only block emitted by an AI agent's reply (```chart → chart div);
     // renders a data chart inline in a channel/DM message or doc.
     ChartEmbed,
+    DiffEmbed,
     Placeholder.configure({
       placeholder: ({ node }) => {
         if (placeholder?.trim()) {
