@@ -9,16 +9,17 @@ import { useClientConfig } from "@/hooks/useClientConfig";
 // empty overlay looks identical whether the recognizer is muted, unsupported by
 // this browser, or simply waiting for someone to speak — and the user can only
 // act on the first two if we say which it is.
-export type TranscriberStatus =
-  | "listening"
-  | "starting"
-  | "mic-off"
-  | "unsupported"
-  | "disabled";
+export interface TranscriberState {
+  status: "listening" | "starting" | "mic-off" | "unsupported" | "disabled" | "error";
+  // The SpeechRecognition error code when status is "error" (not-allowed,
+  // audio-capture, network, ...). Carried up so the UI can name the actual
+  // problem rather than leaving the user to open devtools.
+  error?: string;
+}
 
 interface FrontendTranscriberProps {
   onTranscript: (data: any) => void;
-  onStatus?: (status: TranscriberStatus) => void;
+  onStatus?: (state: TranscriberState) => void;
 }
 
 export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscriberProps) {
@@ -28,6 +29,13 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
   // Web Speech is a Chrome/Edge API. Firefox and Safari have no recognizer at
   // all, so frontend transcription cannot run there whatever the admin sets.
   const [supported, setSupported] = useState(true);
+  // Last fatal recognizer error, so the caption overlay can say what went wrong.
+  const [fatalError, setFatalError] = useState<string | null>(null);
+  // Chrome restarts the recognizer often, and event.results (and so the result
+  // index) resets to 0 each time. Utterance ids must include the session or the
+  // first utterance after every restart reuses an id the UI has already seen and
+  // is discarded as a duplicate.
+  const sessionRef = useRef(0);
   // Runtime transcription mode, admin-controlled via /config/client (no longer
   // a build-time env var). "frontend" → run the browser Web-Speech recognizer
   // here; "backend" → the server-side agent transcribes, we only relay/render
@@ -173,7 +181,9 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
     // Retry logic state - moved to top level
 
     recognition.onstart = () => {
+      sessionRef.current++;
       setIsListening(true);
+      setFatalError(null);
       lastErrorRef.current = null;
       startTimesRef.current.clear();
     };
@@ -217,6 +227,8 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
       if (event.error !== 'no-speech') {
           console.error("Frontend Transcription Error:", event.error);
           lastErrorRef.current = event.error;
+          // 'aborted' is what a normal stop() looks like, so it is not a fault.
+          if (event.error !== 'aborted') setFatalError(event.error);
       }
     };
 
@@ -271,7 +283,7 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
         }
         
         // Generate a stable ID for this sentence index.
-        const stableId = `local-${lp.identity}-${i}`;
+        const stableId = `local-${lp.identity}-${sessionRef.current}-${i}`;
         
         // Accurate Start Time Logic:
         // Capture the timestamp of the FIRST time we see this result index (First Interim Result).
@@ -360,14 +372,12 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
   // Report why captions are, or are not, being produced.
   useEffect(() => {
     if (!onStatus) return;
-    onStatus(
-      !enabled ? "disabled"
-        : !supported ? "unsupported"
-        : !isMicOn ? "mic-off"
-        : isListening ? "listening"
-        : "starting"
-    );
-  }, [onStatus, enabled, supported, isMicOn, isListening]);
+    if (!enabled) return onStatus({ status: "disabled" });
+    if (!supported) return onStatus({ status: "unsupported" });
+    if (fatalError) return onStatus({ status: "error", error: fatalError });
+    if (!isMicOn) return onStatus({ status: "mic-off" });
+    onStatus({ status: isListening ? "listening" : "starting" });
+  }, [onStatus, enabled, supported, isMicOn, isListening, fatalError]);
 
   return null;
 }

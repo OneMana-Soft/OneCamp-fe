@@ -25,7 +25,7 @@ import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind, LocalAudioTrack }
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Loader2, Pin, PinOff } from "@/lib/icons";
 import { VideoControls } from "./VideoControls";
-import { FrontendTranscriber, type TranscriberStatus } from "./FrontendTranscriber";
+import { FrontendTranscriber, type TranscriberState } from "./FrontendTranscriber";
 import { InCallAIPanel } from "./InCallAIPanel";
 import { useInCallAgent } from "./useInCallAgent";
 import { KrispNoiseFilter, isKrispNoiseFilterSupported } from "@livekit/krisp-noise-filter";
@@ -317,7 +317,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
   const [showCaptions, setShowCaptions] = useState(false);
   // Why no captions are appearing, so switching them on never leaves the user
   // staring at an empty screen wondering whether the feature is broken.
-  const [captionStatus, setCaptionStatus] = useState<TranscriberStatus>("starting");
+  const [captionState, setCaptionState] = useState<TranscriberState>({ status: "starting" });
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   // Rolling buffer of recent FINAL utterances ("Name: text"), newest last.
   // Fed from handleTranscript; this is the freshest in-call context source for
@@ -551,13 +551,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
                     {/* Sort by lastUpdate to keep stable order? No, keep fixed slots? Just map. */}
                     {Object.keys(activeTranscripts).length === 0 && (
                         <div className="bg-black/70 backdrop-blur-md text-slate-200 px-5 py-3 rounded-2xl text-sm shadow-lg border border-white/10">
-                            {captionStatus === "mic-off"
-                                ? "Unmute your microphone to caption what you say."
-                                : captionStatus === "unsupported"
-                                ? "This browser cannot generate captions. Chrome or Edge can."
-                                : captionStatus === "disabled"
-                                ? "Captions are turned off for this workspace."
-                                : "Listening for speech..."}
+                            {captionMessage(captionState)}
                         </div>
                     )}
                     {Object.entries(activeTranscripts).map(([pIdentity, data]) => (
@@ -610,9 +604,39 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
             isAIOpen={aiPanelOpen}
             aiUnreadCount={aiUnread}
         />
-        {!guest && <FrontendTranscriber onTranscript={handleTranscript} onStatus={setCaptionStatus} />}
+        {!guest && <FrontendTranscriber onTranscript={handleTranscript} onStatus={setCaptionState} />}
     </div>
   );
+}
+
+// What to tell the user while the caption overlay has nothing to show. Every
+// one of these used to render as an empty box, which is indistinguishable from
+// a broken feature, and the recognizer errors were only visible in devtools.
+function captionMessage(state: TranscriberState): string {
+    switch (state.status) {
+        case "disabled":
+            return "Captions are turned off for this workspace.";
+        case "unsupported":
+            return "This browser cannot generate captions. Chrome or Edge can.";
+        case "mic-off":
+            return "Unmute your microphone to caption what you say.";
+        case "error":
+            switch (state.error) {
+                case "not-allowed":
+                case "service-not-allowed":
+                    return "Captions need microphone permission for this site.";
+                case "audio-capture":
+                    return "No microphone was available for captions.";
+                case "network":
+                    return "Captions cannot reach the speech service. Retrying.";
+                case "language-not-supported":
+                    return "Captions do not support this language yet.";
+                default:
+                    return `Captions stopped: ${state.error ?? "unknown error"}.`;
+            }
+        default:
+            return "Listening for speech...";
+    }
 }
 
 // Sub-component for smooth typing effect
