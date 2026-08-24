@@ -5,14 +5,29 @@ import { LocalParticipant, RoomEvent, Track } from "livekit-client";
 import { useEffect, useRef, useState } from "react";
 import { useClientConfig } from "@/hooks/useClientConfig";
 
+// Why the caption overlay may be showing nothing. Reported upward because an
+// empty overlay looks identical whether the recognizer is muted, unsupported by
+// this browser, or simply waiting for someone to speak — and the user can only
+// act on the first two if we say which it is.
+export type TranscriberStatus =
+  | "listening"
+  | "starting"
+  | "mic-off"
+  | "unsupported"
+  | "disabled";
+
 interface FrontendTranscriberProps {
   onTranscript: (data: any) => void;
+  onStatus?: (status: TranscriberStatus) => void;
 }
 
-export function FrontendTranscriber({ onTranscript }: FrontendTranscriberProps) {
+export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscriberProps) {
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
   const [isListening, setIsListening] = useState(false);
+  // Web Speech is a Chrome/Edge API. Firefox and Safari have no recognizer at
+  // all, so frontend transcription cannot run there whatever the admin sets.
+  const [supported, setSupported] = useState(true);
   // Runtime transcription mode, admin-controlled via /config/client (no longer
   // a build-time env var). "frontend" → run the browser Web-Speech recognizer
   // here; "backend" → the server-side agent transcribes, we only relay/render
@@ -146,6 +161,7 @@ export function FrontendTranscriber({ onTranscript }: FrontendTranscriberProps) 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       console.warn("Browser does not support SpeechRecognition");
+      setSupported(false);
       return;
     }
 
@@ -340,6 +356,18 @@ export function FrontendTranscriber({ onTranscript }: FrontendTranscriberProps) 
          recognitionRef.current.stop();
      }
   }, [isMicOn, enabled]);
+
+  // Report why captions are, or are not, being produced.
+  useEffect(() => {
+    if (!onStatus) return;
+    onStatus(
+      !enabled ? "disabled"
+        : !supported ? "unsupported"
+        : !isMicOn ? "mic-off"
+        : isListening ? "listening"
+        : "starting"
+    );
+  }, [onStatus, enabled, supported, isMicOn, isListening]);
 
   return null;
 }

@@ -25,7 +25,7 @@ import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind, LocalAudioTrack }
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Loader2, Pin, PinOff } from "@/lib/icons";
 import { VideoControls } from "./VideoControls";
-import { FrontendTranscriber } from "./FrontendTranscriber";
+import { FrontendTranscriber, type TranscriberStatus } from "./FrontendTranscriber";
 import { InCallAIPanel } from "./InCallAIPanel";
 import { useInCallAgent } from "./useInCallAgent";
 import { KrispNoiseFilter, isKrispNoiseFilterSupported } from "@livekit/krisp-noise-filter";
@@ -315,6 +315,9 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
 
   // State for active transcripts: map participantIdentity -> { accumulated, lastFinalId, name, lastUpdate }
   const [showCaptions, setShowCaptions] = useState(false);
+  // Why no captions are appearing, so switching them on never leaves the user
+  // staring at an empty screen wondering whether the feature is broken.
+  const [captionStatus, setCaptionStatus] = useState<TranscriberStatus>("starting");
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   // Rolling buffer of recent FINAL utterances ("Name: text"), newest last.
   // Fed from handleTranscript; this is the freshest in-call context source for
@@ -546,6 +549,17 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
             {showCaptions && (
                 <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-full max-w-2xl flex flex-col justify-end items-center gap-3 pointer-events-none z-[var(--z-fixed)] px-4">
                     {/* Sort by lastUpdate to keep stable order? No, keep fixed slots? Just map. */}
+                    {Object.keys(activeTranscripts).length === 0 && (
+                        <div className="bg-black/70 backdrop-blur-md text-slate-200 px-5 py-3 rounded-2xl text-sm shadow-lg border border-white/10">
+                            {captionStatus === "mic-off"
+                                ? "Unmute your microphone to caption what you say."
+                                : captionStatus === "unsupported"
+                                ? "This browser cannot generate captions. Chrome or Edge can."
+                                : captionStatus === "disabled"
+                                ? "Captions are turned off for this workspace."
+                                : "Listening for speech..."}
+                        </div>
+                    )}
                     {Object.entries(activeTranscripts).map(([pIdentity, data]) => (
                         <div 
                             key={pIdentity} 
@@ -596,7 +610,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
             isAIOpen={aiPanelOpen}
             aiUnreadCount={aiUnread}
         />
-        {!guest && <FrontendTranscriber onTranscript={handleTranscript} />}
+        {!guest && <FrontendTranscriber onTranscript={handleTranscript} onStatus={setCaptionStatus} />}
     </div>
   );
 }
