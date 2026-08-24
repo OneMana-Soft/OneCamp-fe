@@ -17,6 +17,7 @@ import {Input} from "@/components/ui/input";
 import {usePost} from "@/hooks/usePost";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {Switch} from "@/components/ui/switch";
+import {ChannelWeeklyReportSetting} from "@/components/ai/ChannelWeeklyReportSetting";
 import {CheckCircle, AlertCircle, Loader2, Lock, Megaphone, FileArchive} from "@/lib/icons";
 import {useEffect, useMemo, useState} from "react";
 import {useFetch} from "@/hooks/useFetch";
@@ -59,8 +60,10 @@ interface EditTeamDialogProps {
 }
 
 // A consistent settings row: icon + label + description on the left, control on
-// the right. Keeps Private / Announcement / Archive visually aligned.
-const SettingRow: React.FC<{
+// the right. Keeps Private / Announcement / Archive visually aligned. Exported
+// so settings that save through their own endpoint (rather than this form) still
+// line up with the rest of the dialog.
+export const SettingRow: React.FC<{
     icon: React.ReactNode;
     label: string;
     description: string;
@@ -251,6 +254,11 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
 
                     {/* Settings */}
                     <div className="space-y-2">
+                        {/* Saves immediately through its own endpoint rather
+                            than with this form, and hides itself entirely when
+                            the workspace has the weekly report switched off. */}
+                        <ChannelWeeklyReportSetting channelUUID={channelId} />
+
                         <Controller
                             name="channel_private"
                             control={control}
