@@ -15,6 +15,7 @@ import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { DataInventoryButton } from "@/components/admin/DataInventoryButton"
 
 interface AdminUserListProps {
   users: UserProfileDataInterface[]
@@ -220,6 +221,11 @@ function AdminUserRow({
         {/* Only for an ACTIVE member. Resetting the second factor of somebody who cannot sign in
             achieves nothing, and offering it there would suggest reactivation was not the thing
             actually needed. */}
+        {/* Where this person's data lives. Self-contained, and it fetches only
+            when opened: the endpoint runs one COUNT per user-referencing
+            column and there are 47 of them. */}
+        <DataInventoryButton userUUID={user.user_uuid} displayName={seed} />
+
         {!isDeactivated && (
           <Tooltip>
             <TooltipTrigger asChild>
