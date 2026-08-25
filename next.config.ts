@@ -1,17 +1,33 @@
 import type { NextConfig } from "next";
+import { cspFromEnv } from "./lib/security/csp";
 
 const isProd = process.env.NODE_ENV === "production";
 
 /**
- * Default security headers applied to every response. CSP is omitted
- * here because it interacts with Tiptap / LiveKit / MQTT in ways that
- * need per-route tuning; the upstream proxy (Traefik) is the correct
- * place to enforce it.
+ * Default security headers applied to every response.
+ *
+ * CSP used to be omitted here, deferred to "the upstream proxy". It was never
+ * set there: a live check of the deployed app returned Permissions-Policy,
+ * Referrer-Policy, HSTS, X-Content-Type-Options and X-Frame-Options, and no
+ * Content-Security-Policy at all. Deferring it to another layer and not telling
+ * that layer is the same as not having one.
+ *
+ * It is generated from the configured service origins (lib/security/csp.ts)
+ * because this product is self-hosted and every install has different hostnames.
+ * It ships REPORT-ONLY: the policy has to satisfy Tiptap, LiveKit, an MQTT
+ * websocket, uploads and Firebase push simultaneously, and report-only reports
+ * what would have broken without breaking it. Switch the key to
+ * "Content-Security-Policy" once the reports are clean.
  *
  * X-Frame-Options is also set by middleware on auth routes; this
  * default catches every other path (e.g. static assets).
  */
 const securityHeaders = [
+    {
+        // Report-only for now. See the note above before enforcing.
+        key: "Content-Security-Policy-Report-Only",
+        value: cspFromEnv(),
+    },
     {
         key: "X-Content-Type-Options",
         value: "nosniff",
