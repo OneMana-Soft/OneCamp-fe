@@ -80,9 +80,14 @@ export function countChanges(rows: Row[]): { added: number; removed: number } {
     return { added, removed }
 }
 
+// Status colour comes from a token, never a raw hue, and --success/--destructive
+// already redefine themselves for dark mode, so no dark: variant is needed here.
+// The row is tinted and the text stays foreground: at 10% tint, coloured text on
+// top costs contrast for no added meaning, since the tint already says which
+// side of the change this is.
 const ROW_STYLES: Record<RowKind, string> = {
-    add: "bg-emerald-500/10 text-emerald-900 dark:text-emerald-200",
-    del: "bg-rose-500/10 text-rose-900 dark:text-rose-200",
+    add: "bg-success/10",
+    del: "bg-destructive/10",
     hunk: "bg-muted text-muted-foreground",
     meta: "text-muted-foreground",
     context: "text-foreground/80",
@@ -112,8 +117,8 @@ export const DiffEmbedView: React.FC<{ node: { attrs: { diff?: string } } }> = (
             <div className="overflow-hidden rounded-lg border border-border bg-card">
                 <div className="flex items-center gap-3 border-b border-border/60 px-3 py-1.5 text-xs">
                     <span className="font-medium text-muted-foreground">Proposed change</span>
-                    <span className="font-mono text-emerald-600 dark:text-emerald-400">+{added}</span>
-                    <span className="font-mono text-rose-600 dark:text-rose-400">-{removed}</span>
+                    <span className="font-mono text-success">+{added}</span>
+                    <span className="font-mono text-destructive">-{removed}</span>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full border-collapse font-mono text-xs">
