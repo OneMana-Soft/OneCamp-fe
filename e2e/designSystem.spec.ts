@@ -34,18 +34,35 @@ async function computed(page: Page, selector: string, prop: string): Promise<str
   )
 }
 
-/** Resolves a Tailwind utility to a computed value by probing a real element. */
-async function probeUtility(page: Page, classes: string, prop: string): Promise<string> {
+/**
+ * Resolves a Tailwind utility to a computed value by probing a real element.
+ *
+ * `dark` wraps the probe in an element carrying the `dark` class rather than
+ * putting that class on <html>. The dark variant is `&:is(.dark *)`, so any
+ * ancestor works, and this one is not shared with anybody: next-themes owns the
+ * class on <html> and rewrites it on mount from the stored theme. A test that set
+ * it there was racing the provider, and lost intermittently, reading the light
+ * value twice and reporting that the token did not re-point.
+ */
+async function probeUtility(
+  page: Page,
+  classes: string,
+  prop: string,
+  opts: { dark?: boolean } = {},
+): Promise<string> {
   return page.evaluate(
-    ([cls, p]) => {
+    ([cls, p, dark]) => {
+      const host = document.createElement("div")
+      if (dark) host.className = "dark"
       const probe = document.createElement("div")
       probe.className = cls as string
-      document.body.appendChild(probe)
+      host.appendChild(probe)
+      document.body.appendChild(host)
       const value = getComputedStyle(probe).getPropertyValue(p as string)
-      probe.remove()
+      host.remove()
       return value
     },
-    [classes, prop],
+    [classes, prop, Boolean(opts.dark)] as [string, string, boolean],
   )
 }
 
@@ -125,8 +142,7 @@ test.describe("status colour tokens resolve to real colours", () => {
   test("the tokens re-point in dark mode instead of staying light", async ({ page }) => {
     await page.goto(PRIMITIVES_PAGE)
     const light = await probeUtility(page, "text-success", "color")
-    await page.evaluate(() => document.documentElement.classList.add("dark"))
-    const dark = await probeUtility(page, "text-success", "color")
+    const dark = await probeUtility(page, "text-success", "color", { dark: true })
     // The whole reason 78 `text-x-600 dark:text-x-400` pairs could collapse into
     // one class is that the token itself is mode-aware. If these matched, every
     // converted call site would be wrong in dark mode.
