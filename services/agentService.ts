@@ -818,6 +818,12 @@ export interface AgentEvalSummary {
   passed: number
   scored: number
   last_evaluated_at?: string | null
+  /**
+   * The agent was edited after these numbers were measured, so the pass rate
+   * describes a version that no longer exists. The backend reruns stale suites
+   * on its own, so this clears without anyone pressing anything.
+   */
+  stale?: boolean
 }
 
 export async function listEvalScenarios(agentId: string): Promise<EvalScenario[]> {

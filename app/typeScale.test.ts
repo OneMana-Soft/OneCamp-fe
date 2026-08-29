@@ -49,11 +49,14 @@ const FLOOR_PX = 10
  * prose brings the real figure to 470, which is also lower than the old baseline
  * because two conversions since then genuinely removed usages.
  *
+ * 445: AgentsCard's eleven text-[10px] call sites became text-3xs while adding
+ *      the stale-eval badge. Ratcheted immediately rather than left with slack,
+ *      because unused headroom is how a ratchet stops ratcheting.
  * 455: the three hand-written copies of the Ollama update instruction became one
  * OllamaUpdateSteps, which uses text-2xs and text-3xs rather than the arbitrary
  * sizes each copy had picked for itself.
  */
-const BYPASS_BASELINE = 455
+const BYPASS_BASELINE = 445
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)

@@ -111,15 +111,36 @@ const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) =
   if (!summary || summary.scenario_count === 0) return null
   if (summary.scored === 0) {
     return (
-      <Badge variant="secondary" className="text-[10px]" title={`${summary.scenario_count} test(s), not run yet`}>
+      <Badge variant="secondary" className="text-3xs" title={`${summary.scenario_count} test(s), not run yet`}>
         {summary.scenario_count} test{summary.scenario_count === 1 ? "" : "s"}
       </Badge>
     )
   }
   const rate = Math.round((summary.passed / summary.scored) * 100)
+
+  // STALE BEATS THE SCORE. The agent has been edited since these numbers were
+  // measured, so the rate is true about a version that no longer exists. Showing
+  // a confident green 100% next to an agent whose instructions were rewritten a
+  // minute ago is worse than showing nothing: it answers a question nobody
+  // asked, in a way the reader has no way to tell is out of date.
+  //
+  // Deliberately not alarming. Nothing is wrong, the measurement is simply
+  // behind, and the server reruns it without anyone pressing a thing.
+  if (summary.stale) {
+    return (
+      <Badge
+        variant="secondary"
+        className="text-3xs text-muted-foreground"
+        title={`Was ${summary.passed}/${summary.scored} passing before this agent was edited. Tests rerun automatically.`}
+      >
+        {rate}% · rechecking
+      </Badge>
+    )
+  }
+
   const tone = rate >= 90 ? "text-success" : rate >= 70 ? "text-amber-600" : "text-red-600"
   return (
-    <Badge variant="secondary" className={cn("text-[10px]", tone)} title={`${summary.passed}/${summary.scored} tests passing`}>
+    <Badge variant="secondary" className={cn("text-3xs", tone)} title={`${summary.passed}/${summary.scored} tests passing`}>
       {rate}% tests
     </Badge>
   )
@@ -245,17 +266,17 @@ const AgentsCard = () => {
                     <div className="flex flex-wrap items-center gap-2">
                       <AgentHealthDot health={health?.data?.[a.id]} />
                       <span className="truncate font-medium">{a.name}</span>
-                      <Badge variant="outline" className="text-[10px]">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</Badge>
-                      {!a.is_active && <Badge variant="secondary" className="text-[10px]">Paused</Badge>}
-                      {a.dm_able && <Badge variant="secondary" className="text-[10px] text-primary">DM</Badge>}
-                      {a.run_in_background && <Badge variant="secondary" className="text-[10px]" title="Answers mentions & DMs as durable background runs with live status">Background</Badge>}
-                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-[10px] text-amber-600">Approval</Badge>}
-                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-[10px] text-amber-600">Plan-approve</Badge>}
+                      <Badge variant="outline" className="text-3xs">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</Badge>
+                      {!a.is_active && <Badge variant="secondary" className="text-3xs">Paused</Badge>}
+                      {a.dm_able && <Badge variant="secondary" className="text-3xs text-primary">DM</Badge>}
+                      {a.run_in_background && <Badge variant="secondary" className="text-3xs" title="Answers mentions & DMs as durable background runs with live status">Background</Badge>}
+                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-3xs text-amber-600">Approval</Badge>}
+                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-3xs text-amber-600">Plan-approve</Badge>}
                       {(a.max_daily_tokens ?? 0) > 0 && (
-                        <Badge variant="secondary" className="text-[10px]">{fmtTokens(a.max_daily_tokens as number)}/day</Badge>
+                        <Badge variant="secondary" className="text-3xs">{fmtTokens(a.max_daily_tokens as number)}/day</Badge>
                       )}
                       <AgentEvalBadge summary={evalSummary?.data?.[a.id]} />
-                      {a.last_error && <Badge variant="destructive" className="text-[10px]">Last run failed</Badge>}
+                      {a.last_error && <Badge variant="destructive" className="text-3xs">Last run failed</Badge>}
                     </div>
                     {a.description && <p className="text-xs text-muted-foreground">{a.description}</p>}
                     <div className="flex flex-wrap items-center gap-1.5">
