@@ -58,7 +58,14 @@ const EmailSettingsCard = () => {
     if (configData?.data) {
       const data = configData.data
       const initialForm = {
-        sender_email: data.sender_email || "noreply@onemana.dev",
+        // Empty when unset, NOT a literal address. This used to prefill our own
+        // domain, which is not the customer's: an admin who opened this screen
+        // and pressed Save adopted it as their sender, and their invitations
+        // then failed SPF from a domain they do not own. Empty is also correct
+        // rather than merely safe, because the backend already computes
+        // noreply@<this install's domain> when no sender is configured. Showing
+        // nothing lets that default stand.
+        sender_email: data.sender_email || "",
         subject: data.invitation_email_subject || DEFAULT_SUBJECT,
         template: data.invitation_email_template || DEFAULT_TEMPLATE,
       }
@@ -160,9 +167,12 @@ const EmailSettingsCard = () => {
     return `${backendDomain}/public/email/logo?ts=${logoTs}`
   }
 
-  // Safe URL for preview so anchor tags don't break
+  // Safe URL for preview so anchor tags don't break. Built from this install's
+  // own address; it was hard-coded to ours, so every customer's preview showed
+  // them a link to somebody else's workspace.
+  const previewSignupLink = `${(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "")}/signup?token=preview`
   const previewHtml = formData.template
-    .replace(/\{\{signup_link\}\}/g, 'https://onecamp.onemana.dev/signup?token=preview')
+    .replace(/\{\{signup_link\}\}/g, previewSignupLink)
     .replace(/\{\{logo_image\}\}/g, hasLogo ? `<img src="${getPublicLogoUrl()}" alt="Logo" style="max-height:80px; max-width:200px;" />` : '')
 
   return (
@@ -255,6 +265,11 @@ const EmailSettingsCard = () => {
                       value={formData.sender_email}
                       onChange={(e) => setFormData({...formData, sender_email: e.target.value})}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty to send from your workspace domain. Whatever you set
+                      here must be a domain you control, or invitations will be
+                      rejected as spoofed.
+                    </p>
                   </div>
                   
                   <div className="grid gap-2">
@@ -319,7 +334,11 @@ const EmailSettingsCard = () => {
                   <div className="bg-white px-6 py-4 border-b border-[#e5e5e5] text-sm space-y-2">
                     <div className="flex items-start">
                       <span className="text-gray-400 font-medium w-16">From:</span> 
-                      <span className="font-medium text-gray-800 break-all">{formData.sender_email || "noreply@onemana.dev"}</span>
+                      <span className="font-medium text-gray-800 break-all">
+                        {formData.sender_email || (
+                          <span className="italic text-gray-500">your workspace default</span>
+                        )}
+                      </span>
                     </div>
                     <div className="flex items-start">
                       <span className="text-gray-400 font-medium w-16">Subject:</span> 
