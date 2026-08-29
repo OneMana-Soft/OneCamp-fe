@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildCsp, originsFrom } from "./csp"
+import { buildCsp, originsFrom, cspReportEndpoint, CSP_REPORT_GROUP } from "./csp"
 
 /**
  * The failure mode worth testing is not "the header is wrong", it is "the header
@@ -139,5 +139,47 @@ describe("originsFrom refuses a hostname a browser cannot reach", () => {
             "http://localhost:3000",
             "ws://localhost:3000",
         ])
+    })
+})
+
+describe("violation reporting", () => {
+    const csp = buildCsp({ backendUrl: "https://onecamp-backend.acme.com/" })
+
+    it("names both mechanisms, because neither covers every browser", () => {
+        // report-uri is deprecated and is the only one Firefox and Safari act on.
+        // report-to is what Chrome and Edge batch and retry. A browser that
+        // understands report-to ignores report-uri, so both is correct.
+        expect(csp).toContain("report-uri https://onecamp-backend.acme.com/public/csp-report")
+        expect(csp).toContain(`report-to ${CSP_REPORT_GROUP}`)
+    })
+
+    it("reports to this install's own API and never to ours", () => {
+        // The product's whole argument is that a customer's data stays on their
+        // infrastructure. A policy posting reports to us would tell us which
+        // pages their users open and what those pages tried to load.
+        const endpoint = cspReportEndpoint("https://onecamp-backend.acme.com/")
+        expect(endpoint.startsWith("https://onecamp-backend.acme.com/")).toBe(true)
+        expect(csp).not.toMatch(/onemana\.dev/)
+    })
+
+    it("emits no reporting directive when there is no backend to report to", () => {
+        // "report-uri " with nothing after it is a malformed directive, and
+        // browsers differ on whether that invalidates the whole policy.
+        const bare = buildCsp({})
+        expect(bare).not.toContain("report-uri")
+        expect(bare).not.toContain("report-to")
+        expect(cspReportEndpoint(undefined)).toBe("")
+        expect(cspReportEndpoint("not a url")).toBe("")
+    })
+
+    it("keeps the group name in the policy and the header identical", () => {
+        // THE SILENT FAILURE THIS PINS. report-to names a group; the
+        // Reporting-Endpoints header binds that name to a URL. If the two strings
+        // drift apart the policy still looks complete and reports go nowhere,
+        // which is indistinguishable from having no violations.
+        const header = `${CSP_REPORT_GROUP}="${cspReportEndpoint("https://onecamp-backend.acme.com/")}"`
+        const group = csp.match(/report-to ([^;]+)/)?.[1].trim()
+        expect(group).toBeTruthy()
+        expect(header.startsWith(`${group}=`)).toBe(true)
     })
 })

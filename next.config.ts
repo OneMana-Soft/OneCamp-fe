@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { cspFromEnv } from "./lib/security/csp";
+import { cspFromEnv, reportingEndpointsFromEnv } from "./lib/security/csp";
 import { imageRemotePatterns, mediaOriginWarning } from "./lib/security/mediaOrigin";
 
 const isProd = process.env.NODE_ENV === "production";
@@ -84,6 +84,15 @@ const securityHeaders = [
 // The alternative is finding out from broken avatars in a browser.
 const mediaWarning = mediaOriginWarning();
 if (mediaWarning) console.warn(`\n  [OneCamp] ${mediaWarning}\n`);
+
+// report-to in the policy names a GROUP; this header is what binds that name to a
+// URL. Sending one without the other is the quiet failure the collector exists to
+// end: the policy reads as complete and the browser has no address for the group.
+// Conditional because a build with no backend configured should carry neither.
+const reportingEndpoints = reportingEndpointsFromEnv();
+if (reportingEndpoints) {
+    securityHeaders.push({ key: "Reporting-Endpoints", value: reportingEndpoints });
+}
 
 const nextConfig: NextConfig = {
     reactStrictMode: false,

@@ -54,6 +54,36 @@ export function originsFrom(raw?: string): string[] {
     return [`${url.protocol}//${url.host}`, `${ws}//${url.host}`]
 }
 
+/**
+ * Where violation reports go: THIS install's own API, never ours.
+ *
+ * The policy shipped Report-Only with no collector at all, so every violation
+ * went to the individual visitor's browser console and nowhere else. The comment
+ * on this module describes a validation window before enforcing; without a
+ * collector that window gathers nothing and the policy can never be promoted.
+ *
+ * It has to be the customer's own backend. OneCamp is self-hosted and the whole
+ * argument for it is that their data stays on their infrastructure; a policy that
+ * posted reports to us would mean every install quietly telling us which pages
+ * its users open and what those pages tried to load.
+ *
+ * Cross-origin (the app and the API are different subdomains), so the browser
+ * sends a CORS preflight first and the API answers it. Returns "" when there is
+ * no usable backend, because "report-uri " with nothing after it is a malformed
+ * directive and browsers differ on whether that invalidates the whole policy.
+ */
+export function cspReportEndpoint(backendUrl?: string): string {
+    const origin = originsFrom(backendUrl)[0]
+    return origin ? `${origin}/public/csp-report` : ""
+}
+
+/**
+ * The group name tying the CSP's report-to directive to the Reporting-Endpoints
+ * header. Exported so next.config cannot drift from the policy: if these two
+ * strings stop matching, reports go nowhere and nothing says so.
+ */
+export const CSP_REPORT_GROUP = "csp-endpoint"
+
 /** Deduplicate while keeping order, so the header reads predictably. */
 function unique(values: string[]): string[] {
     return [...new Set(values.filter(Boolean))]
@@ -122,9 +152,32 @@ export function buildCsp(origins: CspOrigins): string {
         "form-action": ["'self'"],
     }
 
+    // BOTH reporting mechanisms, because neither covers every browser. report-uri
+    // is deprecated and is still the only one Firefox and Safari act on; report-to
+    // is the modern one that Chrome and Edge batch and retry. A browser that
+    // understands report-to ignores report-uri, so naming both costs nothing and
+    // omitting either loses a slice of the traffic the validation window is for.
+    const reportTo = cspReportEndpoint(origins.backendUrl)
+    if (reportTo) {
+        directives["report-uri"] = [reportTo]
+        directives["report-to"] = [CSP_REPORT_GROUP]
+    }
+
     return Object.entries(directives)
         .map(([name, values]) => `${name} ${unique(values).join(" ")}`)
         .join("; ")
+}
+
+/**
+ * The Reporting-Endpoints header value, or "" when there is nothing to report to.
+ *
+ * report-to names a group; this header is what binds that name to a URL. Sending
+ * the directive without this header is the quiet failure: the policy looks
+ * complete and the browser has no address for the group.
+ */
+export function reportingEndpointsFromEnv(): string {
+    const endpoint = cspReportEndpoint(process.env.NEXT_PUBLIC_BACKEND_URL)
+    return endpoint ? `${CSP_REPORT_GROUP}="${endpoint}"` : ""
 }
 
 /** Build the policy from process.env. Kept separate so buildCsp stays pure. */
