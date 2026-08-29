@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { imageRemotePatterns, mediaOrigin } from "./mediaOrigin"
+import { imageRemotePatterns, mediaOrigin, mediaOriginWarning } from "./mediaOrigin"
 
 /**
  * The bug being pinned: remotePatterns held our own object-store hostname as a
@@ -84,5 +84,26 @@ describe("imageRemotePatterns", () => {
             .map((p) => p.hostname)
             .filter((h) => h !== "localhost" && !h.endsWith("acme.com"))
         expect(foreign).toEqual([])
+    })
+})
+
+describe("mediaOriginWarning", () => {
+    it("says nothing when the object store resolved", () => {
+        expect(mediaOriginWarning(undefined, "https://onecamp-backend.acme.com")).toBeNull()
+        expect(mediaOriginWarning("https://files.acme.com", "https://api.acme.com")).toBeNull()
+    })
+
+    it("says nothing before anything is configured", () => {
+        // A fresh clone with placeholders is not a misconfiguration to shout about.
+        expect(mediaOriginWarning(undefined, undefined)).toBeNull()
+        expect(mediaOriginWarning(undefined, "")).toBeNull()
+    })
+
+    it("names the variable to set when the convention does not apply", () => {
+        // The case this exists for: a legitimate backend hostname that the
+        // derivation cannot work from. Silence here is images that never load.
+        const w = mediaOriginWarning(undefined, "https://api.acme.com")
+        expect(w).toContain("NEXT_PUBLIC_MINIO_URL")
+        expect(w).toContain("api.acme.com")
     })
 })
