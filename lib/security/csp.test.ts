@@ -118,3 +118,26 @@ describe("buildCsp", () => {
         expect(occurrences).toBe(1)
     })
 })
+
+describe("originsFrom refuses a hostname a browser cannot reach", () => {
+    it("rejects the literal string an unset variable produces", () => {
+        // The module's own header calls this out as the reason it is a function.
+        // It guarded against empty and not against "undefined", which parses to a
+        // valid origin and reads in the header as a host somebody configured.
+        for (const input of ["undefined", "null", "NaN"]) {
+            expect(originsFrom(input), `input: ${input}`).toEqual([])
+        }
+    })
+
+    it("rejects a container name, which only resolves inside the network", () => {
+        // The browser enforces this policy, and it is not on the Docker network.
+        expect(originsFrom("http://minio:9000")).toEqual([])
+    })
+
+    it("still allows localhost for development", () => {
+        expect(originsFrom("http://localhost:3000")).toEqual([
+            "http://localhost:3000",
+            "ws://localhost:3000",
+        ])
+    })
+})
