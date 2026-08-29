@@ -26,6 +26,8 @@ import { openUI } from "@/store/slice/uiSlice"
 import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
 import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
+import { useHydrateUserSidebar } from "@/hooks/useHydrateUserSidebar"
+import SetupChecklist from "@/components/home/SetupChecklist"
 import BriefingCard from "@/components/ai/BriefingCard"
 import AttentionCard from "@/components/ai/AttentionCard"
 import WhileYouWereAwayCard from "@/components/ai/WhileYouWereAwayCard"
@@ -135,6 +137,9 @@ export function DesktopDashboard() {
         GetEndpointUrl.SelfProfile,
     )
     const userSidebar = useSelector((state: RootState) => state.users.userSidebar)
+    // Already fetched and deduped by the layout; this mount is a cache read,
+    // not a second request.
+    const isAdmin = useHydrateUserSidebar().data?.data?.user_is_admin
     const recentItems = useSelector((state: RootState) => state.recentItems.items)
     const rightPanelState = useSelector(
         (state: RootState) => state.rightPanel.rightPanelState,
@@ -177,6 +182,10 @@ export function DesktopDashboard() {
                         Here&apos;s what&apos;s happening in your workspace
                     </p>
                 </div>
+
+                {/* Setup, while there is any left. Self-hides when the workspace
+                    is actually configured, not when somebody ticks a box. */}
+                <SetupChecklist isAdmin={isAdmin} />
 
                 {/* What needs me now — cross-surface action queue; self-hides when empty */}
                 <AttentionCard />
