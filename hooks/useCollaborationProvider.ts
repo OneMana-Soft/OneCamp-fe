@@ -127,7 +127,12 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
     log('[Collab] Connecting — docId:', config.documentId)
 
     const provider = new HocuspocusProvider({
-      url: process.env.NEXT_PUBLIC_COLLABORATION_URL || 'wss://onecamp-collab.onemana.dev',
+      // No fallback. This used to default to OUR collaboration server, so an
+      // install that had not set the variable silently opened a websocket to
+      // somebody else's host: the token is rejected there, so the document never
+      // syncs, and the only symptom is editing that quietly does not save. An
+      // empty URL fails immediately and locally, which is the honest failure.
+      url: (process.env.NEXT_PUBLIC_COLLABORATION_URL || '').trim(),
       name: config.documentId,
       // Async token provider: invoked on every (re)connect, so an expired
       // 5-min JWT is transparently replaced on the next attempt.

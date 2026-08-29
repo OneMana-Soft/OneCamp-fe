@@ -25,9 +25,13 @@
  * CSP is asked to do in a review.
  */
 
+import { mediaOriginFromEnv } from "./mediaOrigin"
+
 /** The env values the policy is derived from. Passed in so the builder is pure. */
 export interface CspOrigins {
     backendUrl?: string
+    /** Object store serving avatars and attachments. See mediaOrigin.ts. */
+    mediaUrl?: string
     collaborationUrl?: string
     livekitUrl?: string
     mqttHost?: string
@@ -56,7 +60,11 @@ export function originsFrom(raw?: string): string[] {
     } catch {
         return []
     }
-    if (!url.host) return []
+    // A dot, or localhost. The comment above promised this and the code did not
+    // deliver it: `new URL()` accepts any single word as a hostname, so the
+    // literal "undefined" from an unset variable parsed to a valid origin and
+    // was written into the policy as though it were a host somebody had chosen.
+    if (!url.host || !(url.hostname === "localhost" || url.hostname.includes("."))) return []
 
     const ws = url.protocol === "http:" ? "ws:" : "wss:"
     return [`${url.protocol}//${url.host}`, `${ws}//${url.host}`]
@@ -85,12 +93,13 @@ const FIREBASE_CONNECT = [
  */
 export function buildCsp(origins: CspOrigins): string {
     const backend = originsFrom(origins.backendUrl)
+    const media = originsFrom(origins.mediaUrl)
     const collab = originsFrom(origins.collaborationUrl)
     const livekit = originsFrom(origins.livekitUrl)
     const mqtt = originsFrom(origins.mqttHost)
     const app = originsFrom(origins.appUrl)
 
-    const services = unique([...backend, ...collab, ...livekit, ...mqtt, ...app])
+    const services = unique([...backend, ...media, ...collab, ...livekit, ...mqtt, ...app])
 
     const directives: Record<string, string[]> = {
         "default-src": ["'self'"],
@@ -138,6 +147,9 @@ export function buildCsp(origins: CspOrigins): string {
 export function cspFromEnv(): string {
     return buildCsp({
         backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL,
+        // Not a variable of its own in most installs: derived from the backend
+        // host by convention, so a stock deployment needs no extra setting.
+        mediaUrl: mediaOriginFromEnv(),
         collaborationUrl: process.env.NEXT_PUBLIC_COLLABORATION_URL,
         livekitUrl: process.env.NEXT_PUBLIC_LIVEKIT_URL,
         mqttHost: process.env.NEXT_PUBLIC_MQTT_HOST,

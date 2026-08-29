@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { cspFromEnv } from "./lib/security/csp";
+import { imageRemotePatterns } from "./lib/security/mediaOrigin";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -93,26 +94,11 @@ const nextConfig: NextConfig = {
     images: {
         // unoptimized: true,
         dangerouslyAllowLocalIP: true,
-        remotePatterns: [
-            {
-                protocol: "http",
-                hostname: "localhost",
-                port: "3000",
-            },
-            {
-                protocol: "http",
-                hostname: "localhost",
-                port: "9000",
-            },
-            {
-                protocol: "https",
-                hostname: "onecamp-minio.onemana.dev",
-            },
-            {
-                protocol: "http",
-                hostname: "onecamp-minio.onemana.dev",
-            },
-        ],
+        // Derived from this install's own configuration. This list used to name
+        // OUR object-store hostname as a literal, which meant `next/image`
+        // returned 400 for every avatar and attachment on every install that was
+        // not ours. See lib/security/mediaOrigin.ts.
+        remotePatterns: imageRemotePatterns(),
     },
     async headers() {
         return [
