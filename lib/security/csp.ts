@@ -26,6 +26,7 @@
  */
 
 import { mediaOriginFromEnv } from "./mediaOrigin"
+import { parseOrigin } from "./origin"
 
 /** The env values the policy is derived from. Passed in so the builder is pure. */
 export interface CspOrigins {
@@ -47,25 +48,8 @@ export interface CspOrigins {
  * and silently allows nothing while looking configured.
  */
 export function originsFrom(raw?: string): string[] {
-    const value = (raw ?? "").trim()
-    if (!value) return []
-
-    // A bare host (the MQTT broker is often configured this way) has no scheme
-    // for the URL parser to work with.
-    const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `https://${value}`
-
-    let url: URL
-    try {
-        url = new URL(withScheme)
-    } catch {
-        return []
-    }
-    // A dot, or localhost. The comment above promised this and the code did not
-    // deliver it: `new URL()` accepts any single word as a hostname, so the
-    // literal "undefined" from an unset variable parsed to a valid origin and
-    // was written into the policy as though it were a host somebody had chosen.
-    if (!url.host || !(url.hostname === "localhost" || url.hostname.includes("."))) return []
-
+    const url = parseOrigin(raw)
+    if (!url) return []
     const ws = url.protocol === "http:" ? "ws:" : "wss:"
     return [`${url.protocol}//${url.host}`, `${ws}//${url.host}`]
 }

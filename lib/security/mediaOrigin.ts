@@ -27,6 +27,8 @@
  * else sets one variable.
  */
 
+import { originOf } from "./origin"
+
 /** Object-store subdomain in a stock install, and the backend's, which it replaces. */
 const STOCK_BACKEND_LABEL = "onecamp-backend"
 const STOCK_MEDIA_LABEL = "onecamp-minio"
@@ -51,32 +53,6 @@ export function mediaOrigin(explicit?: string, backendUrl?: string): string {
     if (!url.hostname.startsWith(`${STOCK_BACKEND_LABEL}.`)) return ""
     url.hostname = STOCK_MEDIA_LABEL + url.hostname.slice(STOCK_BACKEND_LABEL.length)
     return `${url.protocol}//${url.host}`
-}
-
-/** scheme://host for a URL or bare host, or "" for anything unusable. */
-function originOf(raw?: string): string {
-    const value = (raw ?? "").trim()
-    if (!value) return ""
-    const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `https://${value}`
-    try {
-        const url = new URL(withScheme)
-        return url.host && isBrowserReachable(url.hostname) ? `${url.protocol}//${url.host}` : ""
-    } catch {
-        return ""
-    }
-}
-
-/**
- * A hostname a browser could actually resolve on the public internet.
- *
- * The check is for a dot, and it is not pedantry. `new URL()` accepts any single
- * word as a hostname, so the literal string "undefined" from an unset variable
- * parses to a perfectly valid origin and lands in an allowlist looking like
- * configuration. A Docker-internal name like `minio` does the same thing and is
- * equally unreachable from the browser that has to enforce the list.
- */
-function isBrowserReachable(hostname: string): boolean {
-    return hostname === "localhost" || hostname.includes(".")
 }
 
 /** Resolve from process.env, so callers do not each repeat the variable names. */
