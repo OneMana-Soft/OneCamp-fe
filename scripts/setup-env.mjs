@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * pnpm configure — point this frontend at your OneCamp server.
+ * pnpm configure: point this frontend at your OneCamp server.
  *
  * WHY THIS EXISTS. The committed .env.production holds placeholders, so a fresh
  * clone builds against a domain that does not resolve. That is the safe default,
@@ -45,7 +45,29 @@ const SERVICES = {
     livekit: "onecamp-livekit",
     collab: "onecamp-collab",
     mqtt: "onecamp-emqx",
+    // Not written to the env file: the object store is derived from the backend
+    // host at build time (see lib/security/mediaOrigin.ts). Named here so the
+    // summary can tell the operator it exists, because it needs a DNS record and
+    // it is the one whose absence looks like "images are broken".
+    media: "onecamp-minio",
+    // Neither written nor contacted by this app: LiveKit hands the client its ICE
+    // servers. It still needs a record, and it must NOT be proxied, so leaving it
+    // out of the summary entirely produces calls that fail on some networks only.
+    turn: "onecamp-turn",
 };
+
+/**
+ * The hosts that live on the backend machine, in the order an operator checks
+ * them, each with what breaks when it is missing. The workspace host is not here
+ * on purpose: it resolves somewhere else entirely, and saying so is the point.
+ */
+const BACKEND_HOSTS = [
+    ["backend", "API"],
+    ["livekit", "calls and meetings"],
+    ["collab", "live document editing"],
+    ["mqtt", "realtime messaging"],
+    ["media", "file storage (derived; NEXT_PUBLIC_MINIO_URL overrides)"],
+];
 
 /**
  * Accepts what people actually type: "acme.com", "https://acme.com/",
@@ -142,10 +164,31 @@ async function main() {
 
     writeFileSync(TARGET, renderEnv(domain), "utf8");
 
-    console.log(`\nWrote .env.production.local for ${domain}:\n`);
-    for (const [, sub] of Object.entries(SERVICES)) console.log(`    ${sub}.${domain}`);
+    console.log(`\nWrote .env.production.local for ${domain}.\n`);
+
+    // The two kinds of host are separated because they resolve to DIFFERENT
+    // machines, and conflating them is the failure the backend's own DNS helper
+    // calls out: point the workspace address at the API server and it answers
+    // nothing on the root path.
+    console.log("This app will call, on the machine running your backend:\n");
+    for (const [key, note] of BACKEND_HOSTS) {
+        console.log(`    ${`${SERVICES[key]}.${domain}`.padEnd(38)}${note}`);
+    }
+
     console.log(
-        `\nPoint those DNS records at your server, then:\n\n` +
+        `\nThe workspace address itself, ${SERVICES.frontend}.${domain}, points at\n` +
+        `wherever you deploy THIS app, not at the backend machine.\n` +
+        `\n` +
+        `Keep it on ${domain}. Sign-in and CSRF cookies are scoped to the shared\n` +
+        `parent domain, so a frontend on someone else's domain (a *.vercel.app\n` +
+        `address, say) cannot read them: sign-in appears to work and every write\n` +
+        `then fails.\n` +
+        `\n` +
+        `Your backend install also needs a ${SERVICES.turn}.${domain} record for call\n` +
+        `relay. This app never contacts it; \`make replace-domain\` on the server\n` +
+        `covers it.\n` +
+        `\n` +
+        `Then:\n\n` +
         `    pnpm build && pnpm start\n\n` +
         `Push notifications are off until you add a Firebase project;\n` +
         `.env.production says which values and where to find them.\n`,

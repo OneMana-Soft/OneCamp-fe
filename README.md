@@ -6,7 +6,7 @@
 
 ### The Self-Hosted Unified Workspace
 
-**Chat · Tasks · Docs · Whiteboards · Video — all on your own server.**
+**Chat · Tasks · Docs · Whiteboards · Video. All on your own server.**
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
@@ -80,17 +80,28 @@ pnpm install
 pnpm configure
 ```
 
-It asks one question, your domain, and writes `.env.production.local` with the six addresses derived from it:
+It asks one question, your domain, and derives every address from it. These match the hostnames the backend already requests certificates for, so a stock install needs no further edits.
+
+**On the machine running your backend:**
 
 ```
-onecamp.your-domain.com            the app
 onecamp-backend.your-domain.com    the API
-onecamp-livekit.your-domain.com    calls
+onecamp-livekit.your-domain.com    calls and meetings
 onecamp-collab.your-domain.com     live document editing
 onecamp-emqx.your-domain.com       real-time messaging
+onecamp-minio.your-domain.com      file storage
+onecamp-turn.your-domain.com       call relay (must NOT be proxied)
 ```
 
-Those match the hostnames the backend's Docker Compose already requests certificates for, so a stock install needs no further edits. Point the DNS records at your server and you are done.
+**Wherever you deploy this app:**
+
+```
+onecamp.your-domain.com            the workspace people open
+```
+
+> **Keep the workspace on the same parent domain as the API.** Sign-in and CSRF cookies are scoped to the shared parent, so a frontend served from a different domain, a `*.vercel.app` address say, cannot read them. Sign-in appears to work and then every write fails. Host it wherever you like; point `onecamp.your-domain.com` at it.
+
+The last two are the ones that bite. `onecamp-minio` is where uploads are served from, and a missing record looks like "images are broken" rather than like a DNS problem. `onecamp-turn` carries call media over UDP, which a CDN proxy cannot pass, so proxying it does not fail loudly: calls just do not connect for some networks.
 
 For a scripted install, skip the prompt:
 
@@ -103,9 +114,9 @@ pnpm configure --domain your-domain.com
 
 Every variable is documented in [`.env.production`](.env.production), which ships with placeholders. Three ways to supply real values, in the order Next.js prefers them:
 
-1. **Environment variables** — highest precedence, and the right answer for a Docker or CI build.
-2. **`.env.production.local`** — what `pnpm configure` writes. Git-ignored, so your domains never land in a commit and `git pull` never conflicts with your configuration.
-3. **`.env.production`** — the committed reference. Editing it works, but your changes will collide the next time you pull.
+1. **Environment variables.** Highest precedence, and the right answer for a Docker or CI build.
+2. **`.env.production.local`.** What `pnpm configure` writes. Git-ignored, so your domains never land in a commit and `git pull` never conflicts with your configuration.
+3. **`.env.production`.** The committed reference. Editing it works, but your changes will collide the next time you pull.
 
 Everything here is `NEXT_PUBLIC_`, which means it is compiled into the JavaScript the browser downloads. None of it is secret and none of it should be. Real secrets stay in the backend's own `.env`.
 
@@ -139,7 +150,7 @@ This frontend requires the **OneCamp Go backend**. It ships as a single Docker C
 - Enterprise sign-in: SAML, OIDC, LDAP, SCIM, MFA
 - One command to install, one command to update
 
-**→ [Get the backend licence for $19 at onemana.dev](https://onemana.dev/buy)** — pay once, unlimited users, no per-seat pricing.
+**→ [Get the backend licence for $19 at onemana.dev](https://onemana.dev/buy)**: pay once, unlimited users, no per-seat pricing.
 
 ---
 
