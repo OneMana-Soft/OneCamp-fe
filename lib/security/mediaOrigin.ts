@@ -60,6 +60,36 @@ export function mediaOriginFromEnv(): string {
     return mediaOrigin(process.env.NEXT_PUBLIC_MINIO_URL, process.env.NEXT_PUBLIC_BACKEND_URL)
 }
 
+/**
+ * The one configuration this module cannot rescue, described in the build log.
+ *
+ * A backend at api.acme.com rather than onecamp-backend.acme.com is legitimate
+ * and defeats the convention, so nothing is derived and both allowlists come up
+ * short. The install then works in every respect except that avatars and
+ * attachments do not appear, which reads as a broken product rather than as a
+ * missing setting: `next/image` returns 400 and the CSP reports a violation, and
+ * neither says "you did not configure the object store".
+ *
+ * Returns null when there is nothing to say, so the caller stays a one-liner.
+ * Deliberately a warning rather than a thrown error: an operator who genuinely
+ * serves files elsewhere should not be blocked from building, and the build log
+ * is where a person is already looking when they set this up.
+ */
+export function mediaOriginWarning(
+    explicit = process.env.NEXT_PUBLIC_MINIO_URL,
+    backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL,
+): string | null {
+    if (mediaOrigin(explicit, backendUrl)) return null
+    if (!originOf(backendUrl)) return null // nothing configured yet; not this module's complaint
+
+    return (
+        `Could not work out where uploaded files are served from. ` +
+        `NEXT_PUBLIC_BACKEND_URL is ${backendUrl}, which does not start with ` +
+        `"${STOCK_BACKEND_LABEL}.", so the "${STOCK_MEDIA_LABEL}." host cannot be derived from it. ` +
+        `Avatars and attachments will not load. Set NEXT_PUBLIC_MINIO_URL to your object store.`
+    )
+}
+
 /** One entry of next.config's images.remotePatterns. */
 export interface RemotePattern {
     protocol: "http" | "https"

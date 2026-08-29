@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 import { cspFromEnv } from "./lib/security/csp";
-import { imageRemotePatterns } from "./lib/security/mediaOrigin";
+import { imageRemotePatterns, mediaOriginWarning } from "./lib/security/mediaOrigin";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -79,6 +79,11 @@ const securityHeaders = [
         value: "same-origin-allow-popups",
     },
 ];
+
+// Said once, at build time, where somebody configuring this is already looking.
+// The alternative is finding out from broken avatars in a browser.
+const mediaWarning = mediaOriginWarning();
+if (mediaWarning) console.warn(`\n  [OneCamp] ${mediaWarning}\n`);
 
 const nextConfig: NextConfig = {
     reactStrictMode: false,
