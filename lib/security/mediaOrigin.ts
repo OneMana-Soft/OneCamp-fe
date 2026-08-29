@@ -80,7 +80,16 @@ export function mediaOriginWarning(
     backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL,
 ): string | null {
     if (mediaOrigin(explicit, backendUrl)) return null
-    if (!originOf(backendUrl)) return null // nothing configured yet; not this module's complaint
+
+    const backend = originOf(backendUrl)
+    if (!backend) return null // nothing configured yet; not this module's complaint
+
+    // Local development is not a misconfiguration. The backend runs on
+    // localhost:3000 and the object store on localhost:9000, and both ports are
+    // in the allowlist unconditionally, so there is nothing here to fix. Warning
+    // anyway would put this line in front of every developer on every build,
+    // which is how a warning stops being read by the time it matters.
+    if (new URL(backend).hostname === "localhost") return null
 
     return (
         `Could not work out where uploaded files are served from. ` +

@@ -93,6 +93,14 @@ describe("mediaOriginWarning", () => {
         expect(mediaOriginWarning("https://files.acme.com", "https://api.acme.com")).toBeNull()
     })
 
+    it("says nothing during local development", () => {
+        // localhost:3000 and localhost:9000 are both allowlisted unconditionally,
+        // so there is nothing to fix. This fired on every dev build before it was
+        // fixed, which is how a warning stops being read by the time it matters.
+        expect(mediaOriginWarning(undefined, "http://localhost:3000/")).toBeNull()
+        expect(mediaOriginWarning(undefined, "http://localhost:3000")).toBeNull()
+    })
+
     it("says nothing before anything is configured", () => {
         // A fresh clone with placeholders is not a misconfiguration to shout about.
         expect(mediaOriginWarning(undefined, undefined)).toBeNull()
