@@ -30,7 +30,14 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
+# .env.production IS committed: it holds placeholders and documents every
+# variable. The .local files are where real values go, so they stay out of git
+# and a `git pull` never conflicts with your configuration.
+.env.local
+.env.production.local
+.env.development.local
+.env.test.local
 
 # vercel
 .vercel
@@ -38,7 +45,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.env.local
 
 # Playwright
 /test-results/
