@@ -7,6 +7,7 @@
     "node": ">=20.9.0"
   },
   "scripts": {
+    "configure": "node scripts/setup-env.mjs",
     "dev": "next dev --turbopack -p 3001",
     "build": "next build",
     "start": "next start",
