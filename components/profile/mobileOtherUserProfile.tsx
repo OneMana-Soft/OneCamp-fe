@@ -20,6 +20,7 @@ import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
+import { ASSISTANT_BIO, ASSISTANT_DEFAULT_NAME } from "@/lib/assistantCopy";
 
 export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const router = useRouter();
@@ -133,9 +134,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                         <div className="bg-muted/10 p-5 rounded-2xl border space-y-2 ">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">About</p>
                             <p className="text-base text-foreground leading-relaxed">
-                                {profileInfo.data?.data?.user_name || "OneCamp AI"} is your workspace assistant. It posts meeting
-                                recaps, answers questions in a DM or when you @mention it in a channel, and runs your agents and
-                                automations.
+                                {profileInfo.data?.data?.user_name || ASSISTANT_DEFAULT_NAME} {ASSISTANT_BIO}
                             </p>
                         </div>
                     ) : (
