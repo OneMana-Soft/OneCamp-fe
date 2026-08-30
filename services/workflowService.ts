@@ -15,7 +15,7 @@ export type WorkflowActionType =
     | "warn_user"
     | "flag_to_channel";
 
-export type WorkflowTriggerType = "message_posted" | "user_joined_channel";
+export type WorkflowTriggerType = "message_posted" | "user_joined_channel" | "meeting_ended";
 
 export interface WorkflowAction {
     type: WorkflowActionType;
