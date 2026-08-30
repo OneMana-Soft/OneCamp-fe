@@ -28,6 +28,7 @@ import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
+import { ASSISTANT_BIO_WITH_INVITE, ASSISTANT_DEFAULT_NAME } from "@/lib/assistantCopy";
 
 
 interface editProfileDialogProps {
@@ -199,9 +200,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                             <div className="space-y-1">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">About</p>
                                 <p className="text-sm text-foreground leading-relaxed">
-                                    {profileInfo.data?.data?.user_name || "OneCamp AI"} is your workspace assistant. It posts
-                                    meeting recaps, answers questions in a DM or when you @mention it in a channel, and runs your
-                                    agents and automations. Message it anytime to ask about your workspace.
+                                    {profileInfo.data?.data?.user_name || ASSISTANT_DEFAULT_NAME} {ASSISTANT_BIO_WITH_INVITE}
                                 </p>
                             </div>
                         ) : (

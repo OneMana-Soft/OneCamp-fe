@@ -105,6 +105,26 @@ function isKnownTrigger(t: string): t is WorkflowTriggerType {
     return (KNOWN_TRIGGERS as string[]).includes(t);
 }
 
+/**
+ * One line under the trigger picker saying what the chosen event actually hands
+ * the workflow.
+ *
+ * Keyed by trigger rather than written inline so a new trigger cannot ship
+ * without one: Record<WorkflowTriggerType, string> refuses to compile until the
+ * entry exists, the same way KNOWN_TRIGGERS above refuses to forget it.
+ *
+ * meeting_ended earns the longest note. It fires for every call that ends,
+ * recorded or not, and it carries no transcript, so someone expecting it to
+ * hand them what was said should hear that before building the workflow rather
+ * than after watching it post nothing useful.
+ */
+const TRIGGER_HELP: Record<WorkflowTriggerType, string> = {
+    message_posted: "Runs when a message is posted. Add keywords below to narrow which ones.",
+    user_joined_channel: "Runs once for each person who joins the channel.",
+    meeting_ended:
+        "Runs when a call in the channel ends, whether or not it was recorded. The workflow knows the call happened, not what was said in it.",
+};
+
 export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) {
     const { toast } = useToast();
     const isEdit = !!workflow;
@@ -353,6 +373,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                 </SelectItem>
                             </SelectContent>
                         </Select>
+
+                        <p className="text-xs text-muted-foreground">{TRIGGER_HELP[triggerType]}</p>
 
                         <div className="space-y-1.5">
                             <Label className="text-sm font-normal">
