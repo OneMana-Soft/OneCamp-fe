@@ -20,7 +20,7 @@ import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
-import { ASSISTANT_BIO, ASSISTANT_DEFAULT_NAME } from "@/lib/assistantCopy";
+import { botProfileCopy } from "@/lib/botCopy";
 
 export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const router = useRouter();
@@ -41,6 +41,8 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const isOnline = currentStatus === USER_STATUS_ONLINE && currentDeviceCount > 0;
     const isExternal = isExternalUser(profileInfo.data?.data);
     const isBot = profileInfo.data?.data?.is_bot === true;
+    // Same classification as the desktop dialog; see lib/botCopy.ts.
+    const botCopy = botProfileCopy(profileInfo.data?.data?.user_bot_kind);
 
     return (
         <div className="flex flex-col h-full bg-background w-full">
@@ -94,13 +96,13 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 {profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "Loading..."}
                             </h2>
                             {isBot ? (
-                                <Badge variant="secondary" className="text-3xs h-5 shrink-0">AI</Badge>
+                                <Badge variant="secondary" className="text-3xs h-5 shrink-0">{botCopy.badge}</Badge>
                             ) : isExternal ? (
                                 <Badge variant="secondary" className="text-3xs h-5 shrink-0">External</Badge>
                             ) : null}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[80vw]">
-                            {isBot ? "Automated assistant" : (profileInfo.data?.data?.user_email_id || "\u00A0")}
+                            {isBot ? botCopy.subtitle : (profileInfo.data?.data?.user_email_id || "\u00A0")}
                         </p>
                         {/*
                           External users are read-only contacts. OneCamp users
@@ -119,7 +121,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 onClick={() => router.push(`/app/chat/${userUUID}`)}
                             >
                                 <MessageSquare className="h-4 w-4" />
-                                {isBot ? "Chat with AI" : "Message"}
+                                {isBot ? botCopy.action : "Message"}
                             </Button>
                         )}
                         {profileInfo.data?.data && isExternal && !isBot && (
@@ -134,7 +136,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                         <div className="bg-muted/10 p-5 rounded-2xl border space-y-2 ">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">About</p>
                             <p className="text-base text-foreground leading-relaxed">
-                                {profileInfo.data?.data?.user_name || ASSISTANT_DEFAULT_NAME} {ASSISTANT_BIO}
+                                {profileInfo.data?.data?.user_name || botCopy.defaultName} {botCopy.bio}
                             </p>
                         </div>
                     ) : (

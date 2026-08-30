@@ -51,6 +51,8 @@ export interface UserProfileDataInterface {
     user_theme_mode?: string
     is_external?: boolean
     is_bot?: boolean
+    /** Which kind of bot: see lib/botCopy.ts. Absent for people, and for a server older than the field. */
+    user_bot_kind?: string
 }
 
 export interface UserDMSearchTextInterface {

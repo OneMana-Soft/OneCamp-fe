@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import { ASSISTANT_BIO } from "./assistantCopy"
+import { BOT_PROFILE_COPY } from "./botCopy"
 
 /**
  * The meeting recap needs the call to have been recorded, and there is no way
@@ -35,7 +35,15 @@ function block(file: string, startMarker: string, endMarker: string): string {
 
 describe("every surface that describes the recap says it needs a recording", () => {
     it("the assistant's own profile does", () => {
-        expect(ASSISTANT_BIO).toMatch(/recorded/i)
+        expect(BOT_PROFILE_COPY.assistant.bio).toMatch(/recorded/i)
+    })
+
+    it("and no other kind of bot claims to recap anything", () => {
+        // An agent's principal is not the assistant. Describing it as one is
+        // how "posts meeting recaps" reached bots that never touch a call.
+        for (const kind of ["agent", "automation", "bot"] as const) {
+            expect(BOT_PROFILE_COPY[kind].bio).not.toMatch(/recap/i)
+        }
     })
 
     it("the Meeting Recap setting does, and says what happens without one", () => {
