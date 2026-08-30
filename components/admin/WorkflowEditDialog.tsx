@@ -35,6 +35,7 @@ import {
     Shield,
     Flag,
     UserPlus,
+    PhoneOff,
     MessageCircle,
     Sparkles,
 } from "@/lib/icons";
@@ -89,6 +90,21 @@ function emptyAction(type: WorkflowActionType): WorkflowAction {
     }
 }
 
+/**
+ * Every trigger this build knows how to edit.
+ *
+ * Narrowing against this rather than a chain of ternaries matters when the
+ * server learns a new trigger before the client does: the old code reopened
+ * anything unfamiliar as "a message is posted" and saved it back that way,
+ * silently rewriting a workflow the user never touched.
+ */
+const KNOWN_TRIGGERS: WorkflowTriggerType[] = ["message_posted", "user_joined_channel", "meeting_ended"];
+
+/** A type guard, because Array.includes does not narrow and both call sites need it to. */
+function isKnownTrigger(t: string): t is WorkflowTriggerType {
+    return (KNOWN_TRIGGERS as string[]).includes(t);
+}
+
 export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) {
     const { toast } = useToast();
     const isEdit = !!workflow;
@@ -126,7 +142,10 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             const { keywords: kw, actions: acts } = parseWorkflow(workflow);
             setName(workflow.name);
             setIsActive(workflow.is_active);
-            setTriggerType(workflow.trigger_type === "user_joined_channel" ? "user_joined_channel" : "message_posted");
+            // Narrowed against the known set rather than a chain of ternaries, so a
+            // trigger added on the server does not silently reopen as "a message is
+            // posted" and get saved back as the wrong kind.
+            setTriggerType(isKnownTrigger(workflow.trigger_type) ? workflow.trigger_type : "message_posted");
             setBotName(workflow.bot_name || "");
             setChannelId(workflow.channel_id || NO_CHANNEL);
             setKeywords(kw);
@@ -185,7 +204,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
         try {
             const d = await draftWorkflow(p);
             const trig: WorkflowTriggerType =
-                d.trigger_type === "user_joined_channel" ? "user_joined_channel" : "message_posted";
+                isKnownTrigger(d.trigger_type) ? d.trigger_type : "message_posted";
             const msgTrigger = trig === "message_posted";
             if (!name.trim() && d.name) setName(d.name);
             setTriggerType(trig);
@@ -328,6 +347,9 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                 </SelectItem>
                                 <SelectItem value="user_joined_channel">
                                     <span className="inline-flex items-center gap-2"><UserPlus className="h-4 w-4" /> Someone joins a channel</span>
+                                </SelectItem>
+                                <SelectItem value="meeting_ended">
+                                    <span className="inline-flex items-center gap-2"><PhoneOff className="h-4 w-4" /> A call in this channel ends</span>
                                 </SelectItem>
                             </SelectContent>
                         </Select>
