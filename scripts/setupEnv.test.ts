@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-// @ts-expect-error - plain ESM script, no type declarations by design
+// Plain ESM script, no type declarations by design; allowJs resolves it.
 import { normaliseDomain, renderEnv } from "./setup-env.mjs"
 
 /**
