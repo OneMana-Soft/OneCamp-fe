@@ -28,7 +28,7 @@ import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
-import { ASSISTANT_BIO_WITH_INVITE, ASSISTANT_DEFAULT_NAME } from "@/lib/assistantCopy";
+import { botProfileCopy } from "@/lib/botCopy";
 
 
 interface editProfileDialogProps {
@@ -81,6 +81,9 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
 
     const isExternal = isExternalUser(profileInfo.data?.data);
     const isBot = profileInfo.data?.data?.is_bot === true;
+    // What KIND of bot. Every bot used to be described as the workspace
+    // assistant, including agents that do something else entirely.
+    const botCopy = botProfileCopy(profileInfo.data?.data?.user_bot_kind);
 
     function closeModal() {
         setOpenState(false);
@@ -93,7 +96,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle className="text-base font-semibold">{isBot ? "Assistant" : "Member profile"}</DialogTitle>
+                    <DialogTitle className="text-base font-semibold">{isBot ? botCopy.title : "Member profile"}</DialogTitle>
                 </DialogHeader>
 
                 <div className="flex flex-col gap-8 md:flex-row md:gap-12 py-4">
@@ -148,13 +151,13 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                     {profileInfo.data?.data?.user_name || "—"}
                                 </h2>
                                 {isBot ? (
-                                    <Badge variant="secondary" className="text-[10px] h-5 shrink-0">AI</Badge>
+                                    <Badge variant="secondary" className="text-[10px] h-5 shrink-0">{botCopy.badge}</Badge>
                                 ) : isExternal ? (
                                     <Badge variant="secondary" className="text-[10px] h-5 shrink-0">External</Badge>
                                 ) : null}
                             </div>
                             <p className="text-sm text-muted-foreground truncate max-w-[260px]">
-                                {isBot ? "Automated assistant" : (profileInfo.data?.data?.user_email_id || "\u00A0")}
+                                {isBot ? botCopy.subtitle : (profileInfo.data?.data?.user_email_id || "\u00A0")}
                             </p>
                         </div>
                         {/*
@@ -184,7 +187,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                 }}
                             >
                                 <MessageSquare className="h-4 w-4" />
-                                {isBot ? "Chat with AI" : "Message"}
+                                {isBot ? botCopy.action : "Message"}
                             </Button>
                         )}
                         {profileInfo.data?.data && isExternal && !isBot && (
@@ -200,7 +203,8 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                             <div className="space-y-1">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">About</p>
                                 <p className="text-sm text-foreground leading-relaxed">
-                                    {profileInfo.data?.data?.user_name || ASSISTANT_DEFAULT_NAME} {ASSISTANT_BIO_WITH_INVITE}
+                                    {profileInfo.data?.data?.user_name || botCopy.defaultName} {botCopy.bio}
+                                    {botCopy.invite ? ` ${botCopy.invite}` : ""}
                                 </p>
                             </div>
                         ) : (

@@ -233,7 +233,7 @@ export default function TranscriptionSettingsCard() {
                     </Select>
                     <p className="text-[11px] text-muted-foreground">{MODE_DESCRIPTION[mode]}</p>
                     <p className="text-[11px] text-muted-foreground">
-                        Transcripts are captured for recorded calls and power searchable playback plus AI meeting recaps.
+                        Transcripts are captured for recorded calls and power searchable playback.
                         Live captions work in any call.
                     </p>
                 </div>
