@@ -874,6 +874,108 @@ export async function getAgentEvalSummaryBatch(): Promise<Record<string, AgentEv
   return (res.data?.data as Record<string, AgentEvalSummary>) || {}
 }
 
+// ─── Agent outcomes: what people did with what an agent proposed ─────────────
+//
+// The other half of "is this agent any good". The eval rollup above scores an
+// agent against test cases its own author wrote; this counts the decisions real
+// people made on its real proposals. Kept as a separate call, and rendered as a
+// separate badge, because reading one as the other is the mistake worth
+// preventing.
+
+/** An agent has proposed nothing anybody has ruled on yet. */
+export const OUTCOME_UNMEASURED = -1
+
+export interface AgentOutcome {
+  approved: number
+  rejected: number
+  expired: number
+  pending: number
+  /** Approved, then the execution failed. An execution bug, not a rejection. */
+  failed: number
+  /** approved + rejected: the proposals a person actually ruled on. */
+  decided: number
+  /** approved/decided, or OUTCOME_UNMEASURED when nobody has decided yet. */
+  acceptance_rate: number
+  /**
+   * Proposals are expiring unanswered rather than being decided. Reported apart
+   * from a low acceptance rate on purpose: an agent people argue with is being
+   * used, an agent people scroll past is not.
+   */
+  ignored: boolean
+}
+
+/** True when nobody has ruled on this agent yet, which is not the same as 0%. */
+export function outcomeMeasured(o: AgentOutcome | undefined | null): boolean {
+  return !!o && o.acceptance_rate !== OUTCOME_UNMEASURED && o.decided > 0
+}
+
+/** Which of the three things the outcome badge can say. */
+export type OutcomeBadgeState = "none" | "ignored" | "scored"
+
+/**
+ * The badge's decision, exported so the component and its test share one copy.
+ *
+ * The eval badge next to it keeps this logic inline and restates it in its own
+ * test, which the test itself notes it is mirroring. Two copies of a branch is
+ * two things to keep in step, and the point of a badge test is that the badge
+ * cannot quietly start saying something else.
+ *
+ * "ignored" outranks "scored" for the same reason "stale" outranks a pass rate:
+ * "3 of 4 kept" is a true number and the wrong headline for an agent whose
+ * proposals nobody is answering any more.
+ */
+export function outcomeBadgeState(o: AgentOutcome | undefined | null): OutcomeBadgeState {
+  if (o?.ignored) return "ignored"
+  return outcomeMeasured(o) ? "scored" : "none"
+}
+
+/**
+ * Roll every visible agent's record into one workspace figure.
+ *
+ * Summed on the client from the map the page already has rather than added as
+ * another endpoint: it is the same numbers, the request is already in flight,
+ * and a second query would be a second definition of the same total to keep in
+ * step with this one.
+ *
+ * Returns decided === 0 when nobody has ruled on anything, which callers must
+ * render as "nothing yet" rather than as 0%.
+ */
+export function sumOutcomes(byAgent: Record<string, AgentOutcome> | undefined | null): AgentOutcome {
+  const total: AgentOutcome = {
+    approved: 0, rejected: 0, expired: 0, pending: 0, failed: 0,
+    decided: 0, acceptance_rate: OUTCOME_UNMEASURED, ignored: false,
+  }
+  for (const o of Object.values(byAgent ?? {})) {
+    total.approved += o.approved
+    total.rejected += o.rejected
+    total.expired += o.expired
+    total.pending += o.pending
+    total.failed += o.failed
+    total.decided += o.decided
+  }
+  if (total.decided > 0) total.acceptance_rate = total.approved / total.decided
+  return total
+}
+
+export async function getAgentOutcome(agentId: string): Promise<AgentOutcome | null> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/${agentId}/outcome`, {
+    // @ts-expect-error — suppress the global loading bar for this background fetch
+    silent: true,
+  })
+  return (res.data?.data as AgentOutcome) || null
+}
+
+// One request for the whole list (no N+1), keyed by agent id. Every visible
+// agent is present, including one with nothing decided yet, so an absent key
+// means "not visible to you" rather than "no data".
+export async function getAgentOutcomeBatch(): Promise<Record<string, AgentOutcome>> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/outcomes`, {
+    // @ts-expect-error — suppress the global loading bar for this background fetch
+    silent: true,
+  })
+  return (res.data?.data as Record<string, AgentOutcome>) || {}
+}
+
 // ─── Reusable agent skills (workspace library) ───────────────────────────────
 
 export interface AgentSkill {

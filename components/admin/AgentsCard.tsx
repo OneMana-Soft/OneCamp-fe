@@ -20,6 +20,9 @@ import {
   WorkspaceAgentStats,
   AgentHealth,
   AgentEvalSummary,
+  AgentOutcome,
+  outcomeBadgeState,
+  sumOutcomes,
   parseEnabledTools,
   parseScope,
   parseTriggerConfig,
@@ -51,18 +54,29 @@ function fmtTokens(n: number): string {
 // agents are active, aggregate run health (success rate over completed runs),
 // total AI spend, and recent activity. The admin's "is the fleet healthy and
 // worth the cost" glance.
-const AgentOverviewStrip: React.FC<{ stats: WorkspaceAgentStats }> = ({ stats }) => {
+const AgentOverviewStrip: React.FC<{ stats: WorkspaceAgentStats; outcomes?: Record<string, AgentOutcome> }> = ({
+  stats,
+  outcomes,
+}) => {
   const completed = stats.succeeded + stats.failed + stats.stopped
   const successRate = completed > 0 ? Math.round((stats.succeeded / completed) * 100) : null
+
+  // "Success rate" is runs that finished without erroring. That is completion,
+  // not usefulness: an agent can succeed every time at producing something
+  // nobody wanted. This tile is the other question, and the two sit together on
+  // purpose so neither is mistaken for the other.
+  const kept = sumOutcomes(outcomes)
+
   const tiles = [
     { label: "Active agents", value: `${stats.active_agents}/${stats.total_agents}` },
     { label: "Total runs", value: stats.total_runs.toLocaleString() },
     { label: "Success rate", value: successRate === null ? "—" : `${successRate}%` },
+    { label: "Proposals kept", value: kept.decided === 0 ? "—" : `${kept.approved}/${kept.decided}` },
     { label: "AI spend (7d)", value: `${fmtTokens(stats.last_7d_tokens)} tok` },
     { label: "Runs (7d)", value: stats.last_7d_runs.toLocaleString() },
   ]
   return (
-    <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+    <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
       {tiles.map((t) => (
         <div key={t.label} className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
           <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t.label}</div>
@@ -146,11 +160,53 @@ const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) =
   )
 }
 
+// AgentOutcomeBadge shows what people did with what this agent proposed.
+//
+// SEPARATE FROM THE TEST BADGE ON PURPOSE. The pass rate beside it scores the
+// agent against scenarios its own author wrote, which says whether it behaves
+// as intended, not whether anybody wanted the result. This is the second
+// question, answered with decisions people already made: an approve or a deny
+// on a real proposal, on the way to doing real work.
+//
+// Absent until somebody has actually decided. An agent whose writes all run
+// unattended proposes nothing and correctly shows no badge here.
+const AgentOutcomeBadge: React.FC<{ outcome?: AgentOutcome }> = ({ outcome }) => {
+  // IGNORED BEATS THE RATE, for the same reason stale beats the score above.
+  // "3 of 4 kept" is a fine number to print next to an agent whose proposals
+  // nobody is answering any more, and it tells the reader the opposite of what
+  // is happening.
+  const state = outcomeBadgeState(outcome)
+  if (state === "none" || !outcome) return null
+  if (state === "ignored") {
+    return (
+      <Badge
+        variant="secondary"
+        className="text-3xs text-muted-foreground"
+        title={`${outcome.expired} proposal${outcome.expired === 1 ? "" : "s"} expired with nobody deciding. This agent may not be worth running.`}
+      >
+        mostly ignored
+      </Badge>
+    )
+  }
+  const rate = Math.round(outcome.acceptance_rate * 100)
+  const tone = rate >= 80 ? "text-success" : rate >= 50 ? "text-warning" : "text-destructive"
+  return (
+    <Badge
+      variant="secondary"
+      className={cn("text-3xs", tone)}
+      title={`People approved ${outcome.approved} of ${outcome.decided} thing${outcome.decided === 1 ? "" : "s"} this agent proposed`}
+    >
+      {outcome.approved}/{outcome.decided} kept
+    </Badge>
+  )
+}
+
 const AgentsCard = () => {
   const { data, isLoading, isError, mutate } = useFetch<{ data: Agent[] }>(GetEndpointUrl.GetAgents)
   const { data: overview } = useFetch<{ data: WorkspaceAgentStats }>(`${GetEndpointUrl.GetAgents}/overview`)
   const { data: health } = useFetch<{ data: Record<string, AgentHealth> }>(`${GetEndpointUrl.GetAgents}/health`)
   const { data: evalSummary } = useFetch<{ data: Record<string, AgentEvalSummary> }>(`${GetEndpointUrl.GetAgents}/eval/summary`)
+  const { data: outcomes } = useFetch<{ data: Record<string, AgentOutcome> }>(`${GetEndpointUrl.GetAgents}/outcomes`)
   const { toast } = useToast()
   const confirm = useConfirm()
   const [editing, setEditing] = useState<Agent | null>(null)
@@ -252,7 +308,9 @@ const AgentsCard = () => {
           />
         ) : (
           <div className="space-y-3">
-            {overview?.data && overview.data.total_runs > 0 && <AgentOverviewStrip stats={overview.data} />}
+            {overview?.data && overview.data.total_runs > 0 && (
+              <AgentOverviewStrip stats={overview.data} outcomes={outcomes?.data} />
+            )}
             <AgentActiveWorkPanel />
             <AgentActivityFeed />
             {agents.map((a) => {
@@ -276,6 +334,7 @@ const AgentsCard = () => {
                         <Badge variant="secondary" className="text-3xs">{fmtTokens(a.max_daily_tokens as number)}/day</Badge>
                       )}
                       <AgentEvalBadge summary={evalSummary?.data?.[a.id]} />
+                      <AgentOutcomeBadge outcome={outcomes?.data?.[a.id]} />
                       {a.last_error && <Badge variant="destructive" className="text-3xs">Last run failed</Badge>}
                     </div>
                     {a.description && <p className="text-xs text-muted-foreground">{a.description}</p>}
