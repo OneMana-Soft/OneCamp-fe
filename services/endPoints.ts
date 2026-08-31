@@ -474,6 +474,7 @@ export enum PostEndpointUrl {
     SetAIPIIPatterns = "/admin/ai/pii-patterns",
     SetAIMeetingRecap = "/admin/ai/meeting-recap",
     SetAIMeetingNotesDoc = "/admin/ai/meeting-notes-doc",
+    SaveMyTranscript = "/livekit/my-transcript",
     SetAIMeetingRecapInstructions = "/admin/ai/meeting-recap/instructions",
     SetAIWebSearch = "/admin/ai/web-search",
     SetAISandbox = "/admin/ai/sandbox",

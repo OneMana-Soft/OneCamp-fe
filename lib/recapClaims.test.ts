@@ -70,12 +70,15 @@ describe("every surface that describes the recap says when it stays silent", () 
         expect(help).toMatch(/not what was said/i)
     })
 
-    it("the transcription setting explains which mode actually keeps the words", () => {
+    it("the transcription setting names the limit each mode actually has", () => {
         const note = source("components/admin/TranscriptionSettingsCard.tsx").replace(/\s+/g, " ")
-        // No longer "for recorded calls": that requirement is gone.
+        // Recording is not required, and browser mode keeps its words now, so
+        // both of the limits this test used to assert are gone. What is left is
+        // the one a person cannot see coming: browser mode has no recognizer on
+        // Firefox or Safari, so those participants are simply absent from the
+        // transcript with nothing to indicate it.
         expect(note).toMatch(/for every call, recorded or not/i)
-        // Browser mode is now the only one with no transcript, which is the
-        // surprise left in this feature and so has to be said out loud.
-        expect(note).toMatch(/Captions only: nothing is kept afterwards/i)
+        expect(note).toMatch(/Chrome and Edge only/i)
+        expect(note).not.toMatch(/nothing is kept afterwards/i)
     })
 })
