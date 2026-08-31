@@ -99,6 +99,8 @@ export interface AIConfig {
   pii_redaction_enabled: boolean
   pii_custom_patterns: string
   meeting_recap_enabled: boolean
+  /** Also write the recap and full transcript into an editable document. */
+  meeting_notes_doc_enabled: boolean
   meeting_recap_instructions: string
   memory_layer_enabled: boolean
   team_report_enabled: boolean
@@ -460,6 +462,10 @@ export async function setAIPIIPatterns(patterns: string): Promise<void> {
 
 export async function setMeetingRecapEnabled(enabled: boolean): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAIMeetingRecap, { enabled })
+}
+
+export async function setMeetingNotesDocEnabled(enabled: boolean): Promise<void> {
+  await axiosInstance.post(PostEndpointUrl.SetAIMeetingNotesDoc, { enabled })
 }
 
 export async function setMeetingRecapInstructions(instructions: string): Promise<void> {

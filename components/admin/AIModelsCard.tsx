@@ -57,6 +57,7 @@ import {
   setAIPIIRedaction,
   setAIPIIPatterns,
   setMeetingRecapEnabled,
+  setMeetingNotesDocEnabled,
   setMeetingRecapInstructions,
   setWebSearch,
   setSandboxConfig,
@@ -241,6 +242,19 @@ const AIModelsCard = () => {
       toast({ title: enabled ? "Meeting Recap enabled" : "Meeting Recap disabled" })
     } catch {
       toast({ title: "Error", description: "Failed to toggle Meeting Recap", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleToggleNotesDoc = async (enabled: boolean) => {
+    setSaving(true)
+    try {
+      await setMeetingNotesDocEnabled(enabled)
+      setConfig((c) => (c ? { ...c, meeting_notes_doc_enabled: enabled } : c))
+      toast({ title: enabled ? "Meeting notes document enabled" : "Meeting notes document disabled" })
+    } catch {
+      toast({ title: "Error", description: "Failed to toggle the meeting notes document", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -717,6 +731,23 @@ const AIModelsCard = () => {
                 onCheckedChange={handleToggleRecap}
               />
             </div>
+            {config.meeting_recap_enabled && (
+              <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-3">
+                <div className="pr-4">
+                  <h4 className="text-sm font-medium">Also write a notes document</h4>
+                  <p className="text-2xs text-muted-foreground">
+                    Put the recap and the full transcript in a document the people on the call can edit,
+                    as well as posting it. The document is private to whoever spoke, which is narrower
+                    than the channel, so share it if others need it.
+                  </p>
+                </div>
+                <Switch
+                  checked={config.meeting_notes_doc_enabled}
+                  disabled={saving || !config.enabled}
+                  onCheckedChange={handleToggleNotesDoc}
+                />
+              </div>
+            )}
             {config.meeting_recap_enabled && (
               <RecapInstructionsField
                 initial={config.meeting_recap_instructions || ""}
