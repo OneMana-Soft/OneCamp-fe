@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { SkillLibraryDialog } from "@/components/admin/SkillLibraryDialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -163,6 +164,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   // Reusable skills attached to this agent (composed into its prompt).
   const [skillIds, setSkillIds] = React.useState<Set<string>>(new Set())
   const [skills, setSkills] = React.useState<AgentSkill[]>([])
+  // The library editor is where a skill's text, its blast radius and its
+  // history live. Kept out of this dialog because editing a SHARED skill is a
+  // different act from choosing which ones this one agent uses.
+  const [libraryOpen, setLibraryOpen] = React.useState(false)
   const [newSkillName, setNewSkillName] = React.useState("")
   const [newSkillBody, setNewSkillBody] = React.useState("")
   const [addingSkill, setAddingSkill] = React.useState(false)
@@ -503,6 +508,12 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   }
 
   return (
+    <>
+    <SkillLibraryDialog
+      open={libraryOpen}
+      onClose={() => setLibraryOpen(false)}
+      onChanged={() => void listAgentSkills().then(setSkills).catch(() => {})}
+    />
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -874,6 +885,13 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             <p className="text-xs text-muted-foreground -mt-1">
               Reusable instructions the agent follows. Define once, attach to many agents; edits apply everywhere.
             </p>
+            <button
+              type="button"
+              onClick={() => setLibraryOpen(true)}
+              className="self-start text-2xs text-primary underline-offset-2 hover:underline"
+            >
+              Edit the skill library
+            </button>
             {skills.length > 0 && (
               <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
                 {skills.map((s) => {
@@ -1156,6 +1174,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
         </div>
       </DialogContent>
     </Dialog>
+    </>
   )
 }
 

@@ -1050,6 +1050,11 @@ export async function createAgentSkill(input: SkillInput): Promise<AgentSkill> {
   return res.data?.data as AgentSkill
 }
 
+export async function updateAgentSkill(id: string, input: SkillInput): Promise<AgentSkill> {
+  const res = await axiosInstance.post(`/agent-skills/${id}/update`, input)
+  return res.data?.data as AgentSkill
+}
+
 export async function deleteAgentSkill(id: string): Promise<void> {
   await axiosInstance.post(`${GetEndpointUrl.GetAgents}-skills/${id}/delete`)
 }
