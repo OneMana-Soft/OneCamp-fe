@@ -15,6 +15,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { sha256Hex } from "@/lib/sha256"
+import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
@@ -36,6 +38,8 @@ import {
   setAgentRoutineEnabled,
   deleteAgentRoutine,
   parseRunSteps,
+  parseRunSkills,
+  listAgentSkills,
   toolLabel,
 } from "@/services/agentService"
 
@@ -466,7 +470,75 @@ const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
   </div>
 )
 
-const RunRow: React.FC<{ run: AgentRun }> = ({ run }) => {
+/**
+ * RunProvenance — what the agent was told, as opposed to what it did.
+ *
+ * Rendered above the transcript rather than below it, and rendered even when the
+ * transcript is gone. That is the whole point of storing fingerprints instead of
+ * copies: after retention clears a run's content, this strip still answers which
+ * model read the prompt and which version of each skill was in it.
+ *
+ * "Changed since" is the line an admin actually acts on. A skill is shared and
+ * editable, so a run that looks wrong today may have been given different
+ * instructions than the ones now in the library, and without this you would
+ * debug the agent instead of reading the edit.
+ */
+const RunProvenance: React.FC<{ run: AgentRun; current: Map<string, string> }> = ({ run, current }) => {
+  const skills = parseRunSkills(run)
+  if (!run.model && !run.prompt_sha256 && skills.length === 0) return null
+
+  return (
+    <div className="space-y-1.5 rounded-md border border-border/60 bg-muted/20 p-2">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-2xs text-muted-foreground">
+        {run.model && (
+          <span>
+            Model <span className="font-medium text-foreground">{run.model}</span>
+          </span>
+        )}
+        {run.prompt_sha256 && (
+          <span title={`Full fingerprint: ${run.prompt_sha256}`}>
+            Instructions{" "}
+            <code className="font-mono text-foreground">{run.prompt_sha256.slice(0, 12)}</code>
+          </span>
+        )}
+      </div>
+      {skills.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5">
+          {skills.map((sk) => {
+            // Absent from the map means the skill was deleted after this run,
+            // which is a different statement from "it was edited" and worth
+            // making separately.
+            const now = current.get(sk.id)
+            const changed = now !== undefined && now !== sk.sha256
+            const removed = current.size > 0 && now === undefined
+            return (
+              <span
+                key={sk.id}
+                title={changed ? "This skill has been edited since this run" : undefined}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-3xs",
+                  // The semantic warning token rather than a raw hue: this chip
+                  // means the same thing as every other "needs a second look"
+                  // mark in the product, and it has to keep meaning it in both
+                  // themes.
+                  changed || removed
+                    ? "border-warning/40 bg-warning/10 text-warning"
+                    : "border-border bg-background text-muted-foreground",
+                )}
+              >
+                {sk.name}
+                {changed && <span className="opacity-80">edited since</span>}
+                {removed && <span className="opacity-80">deleted since</span>}
+              </span>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+const RunRow: React.FC<{ run: AgentRun; currentSkills: Map<string, string> }> = ({ run, currentSkills }) => {
   const [open, setOpen] = useState(false)
   const steps = parseRunSteps(run)
   return (
@@ -491,6 +563,7 @@ const RunRow: React.FC<{ run: AgentRun }> = ({ run }) => {
       </button>
       {open && (
         <div className="space-y-3 border-t border-border/60 p-3">
+          <RunProvenance run={run} current={currentSkills} />
           {run.error && (
             <p className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">{run.error}</p>
           )}
@@ -533,6 +606,11 @@ export const AgentRunsDialog: React.FC<{
   const [stats, setStats] = useState<AgentRunStats | null>(null)
   const [routines, setRoutines] = useState<AgentRoutine[]>([])
   const [loading, setLoading] = useState(false)
+  // Fingerprints of the skill library as it stands NOW, so a run can say which
+  // of the skills it used have been edited since. Empty when the browser has no
+  // SubtleCrypto, in which case the viewer shows no "edited since" marks rather
+  // than wrong ones.
+  const [currentSkills, setCurrentSkills] = useState<Map<string, string>>(new Map())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -545,6 +623,19 @@ export const AgentRunsDialog: React.FC<{
       setRuns(runsRes)
       setStats(statsRes)
       setRoutines(routinesRes)
+
+      // Deliberately after the runs are set: the transcript is what somebody
+      // opened the dialog for, and the comparison is an enrichment that should
+      // never delay it or fail it.
+      try {
+        const library = await listAgentSkills()
+        const pairs = await Promise.all(
+          library.map(async (sk) => [sk.id, await sha256Hex(sk.instructions.trim())] as const),
+        )
+        setCurrentSkills(new Map(pairs.filter((p): p is [string, string] => p[1] !== null)))
+      } catch {
+        setCurrentSkills(new Map())
+      }
     } catch {
       setRuns([])
     } finally {
@@ -589,7 +680,7 @@ export const AgentRunsDialog: React.FC<{
               <SkeletonRows rows={4} lines={1} avatar={false} />
             </div>
           ) : runs && runs.length > 0 ? (
-            runs.map((r) => <RunRow key={r.id} run={r} />)
+            runs.map((r) => <RunRow key={r.id} run={r} currentSkills={currentSkills} />)
           ) : (
             <EmptyState
               icon={History}

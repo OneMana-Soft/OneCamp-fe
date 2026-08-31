@@ -111,10 +111,46 @@ export interface AgentRun {
   error?: string | null
   started_at: string
   ended_at?: string | null
+  // What the agent was told, recorded when the run started. Fingerprints rather
+  // than copies, so they cost almost nothing and, because a fingerprint is not
+  // content, they survive the retention sweep that clears everything else.
+  model?: string | null
+  prompt_sha256?: string | null
+  /** Raw JSON array of { id, name, sha256 }; absent when the run used no skills. */
+  skills_used?: string | null
+
   // Set once the retention window has cleared this run's transcript. The row
   // stays so the counts above remain true; the detail is gone. Present so the
   // UI can say which of the two reasons an empty transcript has.
   redacted_at?: string | null
+}
+
+/** One skill as it stood when a run was given it. */
+export interface RunSkillFingerprint {
+  id: string
+  name: string
+  sha256: string
+}
+
+/**
+ * parseRunSkills reads the fingerprints off a run.
+ *
+ * Tolerant on purpose: this is a display path for an audit record, and a run
+ * whose provenance cannot be parsed should render without its skill list rather
+ * than take the whole dialog down.
+ */
+export function parseRunSkills(run: AgentRun): RunSkillFingerprint[] {
+  if (!run.skills_used) return []
+  try {
+    const parsed: unknown = JSON.parse(run.skills_used)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (s): s is RunSkillFingerprint =>
+        !!s && typeof s === "object" && typeof (s as RunSkillFingerprint).id === "string",
+    )
+  } catch {
+    return []
+  }
 }
 
 export interface AgentInput {
