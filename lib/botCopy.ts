@@ -11,11 +11,10 @@
  * The backend now says which kind it is (`user_bot_kind`, classified from the
  * principal's email in domain/User/botKind.go). This maps that to words.
  *
- * "recorded calls" in the assistant's bio is load-bearing rather than padding:
- * the recap is built from the transcript, the transcript is only written while
- * a recording is running, so a call nobody recorded produces no recap. Saying
- * "posts meeting recaps" promised something the product does not do for the
- * majority of calls.
+ * The assistant's bio said "recaps recorded calls", which was true and is not
+ * any more: transcripts no longer require a recording, so it recaps calls. The
+ * wording is deliberately about what it produces rather than what it needs,
+ * because the thing it needs has changed once already.
  */
 
 export type BotKind = "assistant" | "agent" | "automation" | "bot"
@@ -45,7 +44,7 @@ export const BOT_PROFILE_COPY: Record<BotKind, BotProfileCopy> = {
         title: "Assistant",
         badge: "AI",
         subtitle: "Automated assistant",
-        bio: "is your workspace assistant. It recaps recorded calls, answers questions in a DM or when you @mention it in a channel, and runs your agents and automations.",
+        bio: "is your workspace assistant. It recaps calls, answers questions in a DM or when you @mention it in a channel, and runs your agents and automations.",
         invite: "Message it anytime to ask about your workspace.",
         action: "Chat with AI",
         defaultName: "OneCamp AI",

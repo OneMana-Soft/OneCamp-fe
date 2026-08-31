@@ -705,10 +705,10 @@ const AIModelsCard = () => {
               <div className="pr-4">
                 <h4 className="text-sm font-medium">Meeting Recap</h4>
                 <p className="text-xs text-muted-foreground">
-                  When a recorded call ends, post a recap (summary, decisions, action items) from the
-                  transcript to the channel or chat where the call happened. A call nobody recorded leaves
-                  no transcript, so it gets no recap, and calls too short to have said anything are skipped.
-                  The meeting can be in any language; the recap is always written in English.
+                  When a call ends, post a recap (summary, decisions, action items) from the transcript
+                  to the channel or chat where the call happened. Recording the call is not required.
+                  Calls too short to have said anything are skipped, and so is a call where transcription
+                  was off. The meeting can be in any language; the recap is always written in English.
                 </p>
               </div>
               <Switch
