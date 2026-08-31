@@ -737,8 +737,8 @@ const AIModelsCard = () => {
                   <h4 className="text-sm font-medium">Also write a notes document</h4>
                   <p className="text-2xs text-muted-foreground">
                     Put the recap and the full transcript in a document the people on the call can edit,
-                    as well as posting it. The document is private to whoever spoke, which is narrower
-                    than the channel, so share it if others need it.
+                    as well as posting it. The document is private to whoever was in the call, not to the
+                    whole channel, so share it if anyone else needs it.
                   </p>
                 </div>
                 <Switch
