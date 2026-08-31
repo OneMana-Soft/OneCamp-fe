@@ -32,8 +32,6 @@ export function MobileTopNavigationBarSecond() {
                 if (path.length < 5)
                     return <MobileTopNavigationBarSecondTeam teamId={path[3]}/>
                 break;
-            case "ai":
-                return "Assistant"
             case "calendar":
                 if (path.length < 4)
                     return "My Calendar";
@@ -63,6 +61,30 @@ export function MobileTopNavigationBarSecond() {
 
                 }
                 break
+            case "settings":
+                // Five pages with no case at all, so each one arrived with a blank
+                // title bar. The names match what the entry in the profile drawer
+                // says, so the screen you land on is the one you thought you tapped.
+                switch (path[3]) {
+                    case "api-tokens":
+                        return "API tokens";
+                    case "connectors":
+                        return "Connectors";
+                    case "notifications":
+                        return "Notifications";
+                    case "workflows":
+                        return "Workflows";
+                }
+                return "Settings";
+
+            case "tables":
+                if (path.length < 4)
+                    return "Tables";
+                return "Table";
+
+            case "templates":
+                return "Templates";
+
             case "posts":
                 return "Your Posts"
 
@@ -121,6 +143,10 @@ export function MobileTopNavigationBarSecond() {
             case "user":
                 if (path.length > 4)
                     return <MobileTopNavigationBarSecondGroupChat grpId={path[4]}/>
+                // Without this, the case fell through to "chat" below, which asked
+                // the chat lookup to name a conversation using a user id. It found
+                // nothing, so a profile arrived with an empty title bar.
+                return "Profile";
             case "chat":
                 if (path.length < 4)
                     return "Chat";

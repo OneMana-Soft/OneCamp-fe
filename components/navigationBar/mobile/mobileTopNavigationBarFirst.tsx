@@ -25,7 +25,6 @@ export function MobileTopNavigationBarFirst() {
             case "meet":
             case "search":
             case "home":
-            case "ai":
             case "admin":
             case "calendar":
             case "profile":
@@ -59,6 +58,18 @@ export function MobileTopNavigationBarFirst() {
                 if(path.length < 6)
                     return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
                 break;
+            case "settings":
+            case "templates":
+                // Reached from the profile drawer, so back is the only way out that
+                // does not involve the browser gesture. There was no case here at
+                // all, which is how these pages ended up with an empty left slot.
+                return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+
+            case "tables":
+                if(path.length < 4)
+                    return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
+                return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+
             case "doc":
             case "board":
             case "task":

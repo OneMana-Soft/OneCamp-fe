@@ -39,8 +39,33 @@ export function MobileBottomNavigationBar() {
     const path = pathname.slice(1)
     const [drawerOpen, setDrawerOpen] = useState(false)
 
-    const pathLength = path.split("/").length
-    const isVisible = pathLength <= 2 || pathname.startsWith("/app/team/")
+    // Which surfaces own the bottom edge of the screen.
+    //
+    // The rule used to be depth: more than two segments and the bar disappeared.
+    // That is right for a channel or a chat, where a composer sits on the bottom
+    // edge and a nav bar would fight it, and wrong for everything else that
+    // happens to be nested. Settings pages are two segments deep, so a phone
+    // arriving at /app/settings/connectors lost the bottom bar, and the top bar had
+    // no case for it either, so there was no title and no back button. The only
+    // way out of the page was the browser gesture.
+    //
+    // Naming the surfaces that genuinely need the space inverts the default: a
+    // page added later keeps its navigation unless somebody decides otherwise.
+    // That is the safer of the two defaults, because the failure mode of this
+    // one is a redundant bar rather than a dead end.
+    const BOTTOM_OWNED_BY_PAGE = [
+        /^\/app\/channel\/[^/]+/,     // message composer
+        /^\/app\/chat\/[^/]+/,        // message composer, DM and group
+        /^\/app\/doc\/[^/]+/,         // editor toolbar
+        /^\/app\/board\/[^/]+/,       // canvas
+        /^\/app\/task\/[^/]+/,        // detail view with its own action row
+        /^\/app\/tables\/[^/]+/,      // grid that scrolls both ways
+        /^\/app\/calendar\/event\//, // detail view
+        /^\/app\/meet\//,             // a call owns the whole screen
+        /^\/app\/create\//,           // form with a submit bar
+        /^\/app\/forward\//,          // send bar
+    ]
+    const isVisible = !BOTTOM_OWNED_BY_PAGE.some((r) => r.test(pathname))
 
     const userSidebarState = useSelector((state: RootState) => state.users.userSidebar)
 
