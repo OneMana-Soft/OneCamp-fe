@@ -52,8 +52,14 @@ const FLOOR_PX = 10
  * 455: the three hand-written copies of the Ollama update instruction became one
  * OllamaUpdateSteps, which uses text-2xs and text-3xs rather than the arbitrary
  * sizes each copy had picked for itself.
+ *
+ * 260: the real count on THIS branch, measured. The baseline is a count of the
+ * files in components/ and app/, and this edition ships far fewer of them, so
+ * the number inherited from the AI edition left roughly 195 slots of headroom
+ * and the check could not fail here however many were added. A ratchet that
+ * cannot fail is worse than no ratchet, because it reads as enforcement.
  */
-const BYPASS_BASELINE = 455
+const BYPASS_BASELINE = 260
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)

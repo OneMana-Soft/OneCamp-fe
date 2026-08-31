@@ -109,7 +109,13 @@ export async function exportAuditLog(format: "csv" | "json", category?: string):
 // ─── Call transcription config (admin) ───────────────────────────────────
 
 export type TranscriptionMode = "frontend" | "backend" | "off"
-export type STTProvider = "deepgram" | "google" | "openai"
+/**
+ * "local" is the Whisper server bundled with OneCamp, running on the customer's
+ * own machine. Its own provider rather than a preset of the OpenAI-compatible
+ * one, because it is a different decision (where does the audio of my meetings
+ * go) rather than a different endpoint.
+ */
+export type STTProvider = "deepgram" | "google" | "openai" | "local"
 export type ConfigSource = "db" | "env" | "default" | "none"
 
 export interface TranscriptionConfig {
