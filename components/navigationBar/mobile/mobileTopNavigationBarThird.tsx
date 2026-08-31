@@ -43,6 +43,9 @@ export function MobileTopNavigationBarThird() {
             case "ai":
             case "admin":
             case "profile":
+            case "settings":
+            case "templates":
+            case "tables":
 
                 return <div className='flex items-center space-x-4 justify-end '>
                     <NudgeBell />
