@@ -44,7 +44,7 @@ const SOURCE_LABEL: Record<string, string> = {
 }
 
 const MODE_DESCRIPTION: Record<TranscriptionMode, string> = {
-    frontend: "Each participant's browser transcribes their own speech (Web Speech API). Free, no API key, English-biased, quality varies by browser. Captions only: nothing is kept afterwards, so there is no searchable transcript and no meeting recap.",
+    frontend: "Each participant's browser transcribes their own speech (Web Speech API). Free, no API key, English-biased, quality varies by browser. Chrome and Edge only: a participant on Firefox or Safari contributes nothing, so the transcript has their turns missing.",
     backend: "A server-side agent transcribes every speaker using your chosen STT model. Higher quality and multi-speaker. Use the bundled server to keep the audio on this machine, or a cloud provider billed per minute.",
     off: "Live captions and transcript capture are disabled for all calls.",
 }
@@ -247,8 +247,9 @@ export default function TranscriptionSettingsCard() {
                     </Select>
                     <p className="text-2xs text-muted-foreground">{MODE_DESCRIPTION[mode]}</p>
                     <p className="text-2xs text-muted-foreground">
-                        In this mode transcripts are captured for every call, recorded or not, and power
-                        searchable playback. Live captions work in any mode; only this one keeps the words.
+                        Transcripts are captured for every call, recorded or not, and power searchable
+                        playback, the meeting recap and the notes document. Both modes above keep the
+                        words; they differ in who does the transcribing and how complete it is.
                     </p>
                 </div>
 

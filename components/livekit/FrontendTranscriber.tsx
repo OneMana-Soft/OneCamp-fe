@@ -4,6 +4,7 @@ import { useLocalParticipant, useRoomContext } from "@livekit/components-react";
 import { LocalParticipant, RoomEvent, Track } from "livekit-client";
 import { useEffect, useRef, useState } from "react";
 import { useClientConfig } from "@/hooks/useClientConfig";
+import { persistTranscriptLine } from "@/services/transcriptService";
 
 interface FrontendTranscriberProps {
   onTranscript: (data: any) => void;
@@ -303,7 +304,28 @@ export function FrontendTranscriber({ onTranscript }: FrontendTranscriberProps) 
         // 1. Update Local UI immediately
         onTranscript(payload);
         
-        // 2. Publish to Room (so others see it)
+        // 2. Persist FINAL utterances, so the words outlive the call.
+        //
+        // Browser mode is the default and it used to keep nothing: the text was
+        // drawn as a caption and thrown away, so a workspace on default
+        // settings had no transcript, no meeting recap and no notes document.
+        //
+        // Finals only. Interim results are revised on nearly every word, and
+        // storing them would file half-sentences that the speaker never
+        // finished saying.
+        //
+        // Best-effort and deliberately silent: a caption that appeared is worth
+        // more than an error about a transcript nobody asked for. A refusal is
+        // the normal answer for the moment after everyone hangs up.
+        if (isFinal) {
+            void persistTranscriptLine({
+                room_name: roomRef.current?.name ?? "",
+                text,
+                offset_ms: payload.offsetMs,
+            })
+        }
+
+        // 3. Publish to Room (so others see it)
         const currentRoom = roomRef.current;
         if (currentRoom && currentRoom.state === "connected") {
             const data = JSON.stringify(payload);
