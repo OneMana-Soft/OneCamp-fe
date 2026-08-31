@@ -111,6 +111,10 @@ export interface AgentRun {
   error?: string | null
   started_at: string
   ended_at?: string | null
+  // Set once the retention window has cleared this run's transcript. The row
+  // stays so the counts above remain true; the detail is gone. Present so the
+  // UI can say which of the two reasons an empty transcript has.
+  redacted_at?: string | null
 }
 
 export interface AgentInput {

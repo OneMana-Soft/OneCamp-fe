@@ -495,7 +495,19 @@ const RunRow: React.FC<{ run: AgentRun }> = ({ run }) => {
             <p className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">{run.error}</p>
           )}
           {steps.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No transcript recorded for this run.</p>
+            // Two very different reasons for an empty transcript, and saying the
+            // wrong one sends an admin looking for a bug. A redacted run DID
+            // record its steps; the retention window cleared them, which is the
+            // policy working. The counts in the header are still the real ones.
+            run.redacted_at ? (
+              <p className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs text-muted-foreground">
+                The transcript and result of this run were cleared on{" "}
+                {formatWhen(run.redacted_at)} by the workspace retention policy. The status, step
+                count and token usage above are unchanged.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">No transcript recorded for this run.</p>
+            )
           ) : (
             steps.map((s, i) => <StepView key={i} step={s} />)
           )}
