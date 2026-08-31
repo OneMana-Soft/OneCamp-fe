@@ -92,6 +92,12 @@ export function sanitizeRichHtml(html: string): string {
         ALLOWED_ATTR: [
             "href", "src", "alt", "title", "class",
             "data-id", "data-checked",
+            // Provenance, not behaviour: marks a body as machine-written so the
+            // content itself says so, which the AI Act requires of generated
+            // content from 2 August 2026. Inert, like every data-* here, and
+            // stripping it would remove the marking on render and leave the
+            // claim in the documentation with nothing behind it.
+            "data-ai-generated",
             "colspan", "rowspan",
             "target", "rel",
         ],
@@ -137,7 +143,7 @@ export function sanitizeImportedDocument(html: string): string {
             "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "col", "colgroup",
             "span", "div",
         ],
-        ALLOWED_ATTR: ["href", "src", "alt", "title", "class", "colspan", "rowspan", "target", "rel"],
+        ALLOWED_ATTR: ["href", "src", "alt", "title", "class", "colspan", "rowspan", "target", "rel", "data-ai-generated"],
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|#)/i,
         FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "svg", "form", "input", "button", "link", "meta"],
         FORBID_ATTR: ["style", "onerror", "onload", "onclick", "onmouseover"],
