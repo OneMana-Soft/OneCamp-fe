@@ -56,7 +56,7 @@ const FLOOR_PX = 10
  * OllamaUpdateSteps, which uses text-2xs and text-3xs rather than the arbitrary
  * sizes each copy had picked for itself.
  */
-const BYPASS_BASELINE = 445
+const BYPASS_BASELINE = 440
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)

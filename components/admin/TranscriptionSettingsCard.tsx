@@ -45,24 +45,36 @@ const SOURCE_LABEL: Record<string, string> = {
 
 const MODE_DESCRIPTION: Record<TranscriptionMode, string> = {
     frontend: "Each participant's browser transcribes their own speech (Web Speech API). Free, no API key, English-biased, quality varies by browser.",
-    backend: "A server-side agent transcribes every speaker using your chosen STT model. Higher quality and multi-speaker, but bills per minute.",
+    backend: "A server-side agent transcribes every speaker using your chosen STT model. Higher quality and multi-speaker. Use the bundled server to keep the audio on this machine, or a cloud provider billed per minute.",
     off: "Live captions and transcript capture are disabled for all calls.",
 }
 
 const PROVIDER_LABEL: Record<STTProvider, string> = {
+    local: "Self-hosted (runs on this server)",
     deepgram: "Deepgram",
     google: "Google Cloud Speech-to-Text",
-    openai: "OpenAI-compatible (Whisper / Groq / self-hosted)",
+    openai: "OpenAI-compatible (Whisper / Groq / your own endpoint)",
+}
+
+// Shown under the picker. Only the bundled option keeps the audio on the
+// machine, and that is the difference an admin is actually choosing between,
+// so it is stated rather than left to be inferred from the provider's name.
+const PROVIDER_NOTE: Record<STTProvider, string> = {
+    local: "Meeting audio never leaves this server, and there is nothing to pay per minute. Start it with `make stt_up`. The first call after a restart is slower while the model loads.",
+    deepgram: "Meeting audio is sent to Deepgram and billed per minute.",
+    google: "Meeting audio is sent to Google Cloud and billed per minute.",
+    openai: "Meeting audio is sent to the endpoint you enter below. Billing depends on who runs it.",
 }
 
 const MODEL_PLACEHOLDER: Record<STTProvider, string> = {
+    local: "whisper-1",
     deepgram: "nova-2",
     google: "(plugin default)",
     openai: "whisper-1",
 }
 
 const SourceBadge = ({ source }: { source: string }) => (
-    <span className="text-[11px] text-muted-foreground">Source: {SOURCE_LABEL[source] ?? source}</span>
+    <span className="text-2xs text-muted-foreground">Source: {SOURCE_LABEL[source] ?? source}</span>
 )
 
 const ConfiguredBadge = ({ configured }: { configured: boolean }) =>
@@ -196,6 +208,8 @@ export default function TranscriptionSettingsCard() {
     }
 
     const showBackendConfig = mode === "backend"
+    // The bundled server sits on the stack network with no credential of its
+    // own, so asking for a key would be a question with no right answer.
     const usesApiKey = sttProvider === "deepgram" || sttProvider === "openai"
 
     return (
@@ -231,8 +245,8 @@ export default function TranscriptionSettingsCard() {
                             <SelectItem value="off">Off</SelectItem>
                         </SelectContent>
                     </Select>
-                    <p className="text-[11px] text-muted-foreground">{MODE_DESCRIPTION[mode]}</p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">{MODE_DESCRIPTION[mode]}</p>
+                    <p className="text-2xs text-muted-foreground">
                         Transcripts are captured for recorded calls and power searchable playback.
                         Live captions work in any call.
                     </p>
@@ -258,9 +272,11 @@ export default function TranscriptionSettingsCard() {
                                         <SelectValue placeholder="Select a provider" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="deepgram">{PROVIDER_LABEL.deepgram}</SelectItem>
-                                        <SelectItem value="google">{PROVIDER_LABEL.google}</SelectItem>
-                                        <SelectItem value="openai">{PROVIDER_LABEL.openai}</SelectItem>
+                                        {(Object.keys(PROVIDER_LABEL) as STTProvider[]).map((p) => (
+                                            <SelectItem key={p} value={p}>
+                                                {PROVIDER_LABEL[p]}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -275,12 +291,16 @@ export default function TranscriptionSettingsCard() {
                                     disabled={loading}
                                     className="w-full sm:w-72"
                                 />
-                                <p className="text-[11px] text-muted-foreground">
+                                <p className="text-2xs text-muted-foreground">
                                     Free-text model name passed to the provider. Leave blank to use its default.
                                 </p>
                             </div>
 
-                            {/* Base URL — openai-compatible only */}
+                            <p className="text-2xs text-muted-foreground">{PROVIDER_NOTE[sttProvider]}</p>
+
+                            {/* Base URL: the openai-compatible provider only. The bundled
+                                server's endpoint is a server-side constant, which is what
+                                lets the backend probe it without the SSRF guard. */}
                             {sttProvider === "openai" && (
                                 <div className="space-y-1.5">
                                     <Label className="text-xs">Endpoint base URL</Label>
@@ -291,7 +311,7 @@ export default function TranscriptionSettingsCard() {
                                         disabled={loading}
                                         autoComplete="off"
                                     />
-                                    <p className="text-[11px] text-muted-foreground">
+                                    <p className="text-2xs text-muted-foreground">
                                         Any OpenAI-compatible STT endpoint (OpenAI, Groq, self-hosted faster-whisper).
                                         Leave blank for OpenAI's default.
                                     </p>
