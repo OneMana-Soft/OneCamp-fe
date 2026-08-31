@@ -617,7 +617,7 @@ function captionMessage(state: TranscriberState): string {
         case "disabled":
             return "Captions are turned off for this workspace.";
         case "unsupported":
-            return "This browser cannot generate captions. Chrome or Edge can.";
+            return "This browser cannot transcribe speech, so nothing you say reaches the captions, the transcript or the meeting recap. Chrome or Edge can.";
         case "mic-off":
             return "Unmute your microphone to caption what you say.";
         case "error":

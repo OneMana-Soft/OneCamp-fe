@@ -4,7 +4,7 @@ import { useLocalParticipant, useRoomContext } from "@livekit/components-react";
 import { LocalParticipant, RoomEvent, Track } from "livekit-client";
 import { useEffect, useRef, useState } from "react";
 import { useClientConfig } from "@/hooks/useClientConfig";
-import { persistTranscriptLine } from "@/services/transcriptService";
+import { persistTranscriptLine, reportTranscriptionCapability } from "@/services/transcriptService";
 
 // Why the caption overlay may be showing nothing. Reported upward because an
 // empty overlay looks identical whether the recognizer is muted, unsupported by
@@ -45,6 +45,10 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
   const enabled = mode === 'frontend';
   
   // Use refs to keep track of latest values without triggering re-renders/effect cleanup
+  // Reported once per call. A browser with no recognizer contributes nothing to
+  // the transcript, and nothing errors, so without telling the server the
+  // record silently loses this person's turns.
+  const reportedRoomRef = useRef<string | null>(null);
   const recognitionRef = useRef<any>(null);
   const localParticipantRef = useRef(localParticipant);
   const enabledRef = useRef(enabled);
@@ -393,6 +397,12 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
 
   // Report why captions are, or are not, being produced.
   useEffect(() => {
+    const roomName = roomRef.current?.name ?? "";
+    if (enabled && !supported && roomName && reportedRoomRef.current !== roomName) {
+        reportedRoomRef.current = roomName;
+        void reportTranscriptionCapability(roomName, false);
+    }
+
     if (!onStatus) return;
     if (!enabled) return onStatus({ status: "disabled" });
     if (!supported) return onStatus({ status: "unsupported" });

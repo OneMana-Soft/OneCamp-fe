@@ -31,3 +31,28 @@ export async function persistTranscriptLine(line: TranscriptLineInput): Promise<
         // Deliberately swallowed; see above.
     }
 }
+
+/**
+ * Tell the server this browser cannot transcribe, so the record can say so.
+ *
+ * Only the negative is worth sending. Being able to transcribe is the
+ * assumption everywhere else, and reporting it would be every participant of
+ * every call announcing the absence of a problem.
+ *
+ * Never throws, and called once per call: a failure here costs a caveat on one
+ * recap, not the call.
+ */
+export async function reportTranscriptionCapability(roomName: string, canTranscribe: boolean): Promise<void> {
+    if (!roomName) return
+    try {
+        await axiosInstance.post(PostEndpointUrl.ReportTranscriptionCapability, {
+            room_name: roomName,
+            can_transcribe: canTranscribe,
+        }, {
+            // @ts-expect-error — suppress the global loading bar for this background write
+            silent: true,
+        })
+    } catch {
+        // Deliberately swallowed; see above.
+    }
+}
