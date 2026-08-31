@@ -31,6 +31,7 @@ import SetupChecklist from "@/components/home/SetupChecklist"
 import BriefingCard from "@/components/ai/BriefingCard"
 import AttentionCard from "@/components/ai/AttentionCard"
 import WhileYouWereAwayCard from "@/components/ai/WhileYouWereAwayCard"
+import { AgentWorkCard } from "@/components/ai/AgentWorkCard"
 
 function StatCard({
     icon: Icon,
@@ -193,6 +194,7 @@ export function DesktopDashboard() {
                 {/* "What did I miss" — free at rest (counts come from the sidebar
                     already in the store); spends one LLM call only when asked. */}
                 <WhileYouWereAwayCard />
+                <AgentWorkCard />
 
                 {/* AI briefing — self-hides when AI/memory is off or empty */}
                 <BriefingCard />
