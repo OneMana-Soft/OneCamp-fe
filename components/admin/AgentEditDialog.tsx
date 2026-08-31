@@ -883,7 +883,11 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                       key={s.id}
                       type="button"
                       onClick={() => toggleSkill(s.id)}
-                      title={s.instructions}
+                      title={
+                        s.agent_count > 1
+                          ? `Used by ${s.agent_count} agents. Editing it changes all of them.\n\n${s.instructions}`
+                          : s.instructions
+                      }
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                         on
@@ -892,6 +896,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                       )}
                     >
                       {on ? <Check className="h-3 w-3" /> : null}{s.name}
+                      {s.agent_count > 1 && (
+                        <span className="text-3xs opacity-60">{s.agent_count}</span>
+                      )}
                     </button>
                   )
                 })}

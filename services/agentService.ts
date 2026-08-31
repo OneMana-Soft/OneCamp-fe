@@ -985,11 +985,59 @@ export interface AgentSkill {
   created_by: string
   created_at: string
   updated_at: string
+  /**
+   * How many agents this skill is attached to: the blast radius of editing it.
+   * Comes back with the list, so showing it costs no extra request.
+   */
+  agent_count: number
 }
 
 export interface SkillInput {
   name: string
   instructions: string
+  /** Why this edit was made, stored with the revision. Optional. */
+  note?: string
+}
+
+/**
+ * Which agents a skill is attached to: the blast radius of editing it.
+ *
+ * A skill is one text shared by many agents, so a change reaches all of them on
+ * their next run. This exists to be read BEFORE an edit rather than discovered
+ * after one.
+ */
+export interface SkillUsage {
+  agent_count: number
+  agents: string[]
+}
+
+/** One version of a skill's text, with who wrote it and why. */
+export interface SkillRevision {
+  id: string
+  skill_id: string
+  name: string
+  instructions: string
+  note: string
+  edited_by_name?: string
+  created_at: string
+}
+
+export async function getAgentSkillUsage(id: string): Promise<SkillUsage> {
+  const res = await axiosInstance.get(`/agent-skills/${id}/usage`, {
+    // @ts-expect-error — suppress the global loading bar for this background fetch
+    silent: true,
+  })
+  return (res.data?.data as SkillUsage) || { agent_count: 0, agents: [] }
+}
+
+export async function listAgentSkillRevisions(id: string): Promise<SkillRevision[]> {
+  const res = await axiosInstance.get(`/agent-skills/${id}/revisions`)
+  return (res.data?.data as SkillRevision[]) || []
+}
+
+export async function revertAgentSkill(id: string, revisionId: string): Promise<AgentSkill> {
+  const res = await axiosInstance.post(`/agent-skills/${id}/revert`, { revision_id: revisionId })
+  return res.data?.data as AgentSkill
 }
 
 export async function listAgentSkills(): Promise<AgentSkill[]> {
