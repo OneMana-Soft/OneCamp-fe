@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { History, RotateCcw, Users } from "lucide-react"
+import { History, RotateCcw, Trash2, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast"
 import {
     type AgentSkill,
     type SkillRevision,
+    deleteAgentSkill,
     listAgentSkillRevisions,
     listAgentSkills,
     revertAgentSkill,
@@ -22,9 +23,9 @@ import {
  * Editing the shared skill library.
  *
  * A skill is one instruction module attached to many agents, so an edit reaches
- * all of them on their next run. Until now it could be created, attached and
- * deleted from the interface but never EDITED: the update endpoint had no
- * caller, and so did the history and revert built to make editing safe.
+ * all of them on their next run. Until now it could be created and attached but
+ * never EDITED and never REMOVED: the update and delete endpoints had no caller,
+ * and neither did the history and revert built to make editing safe.
  *
  * The three things that make a shared edit safe are all on this screen, in the
  * order somebody needs them:
@@ -51,6 +52,9 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
     const [revisions, setRevisions] = React.useState<SkillRevision[]>([])
     const [showHistory, setShowHistory] = React.useState(false)
     const [saving, setSaving] = React.useState(false)
+    // Deleting a shared skill reaches every agent using it, so the button asks
+    // once and says the number out loud before it does anything.
+    const [confirmDelete, setConfirmDelete] = React.useState(false)
 
     const load = React.useCallback(() => {
         void listAgentSkills().then(setSkills).catch(() => setSkills([]))
@@ -68,6 +72,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
         setNote("")
         setShowHistory(false)
         setRevisions([])
+        setConfirmDelete(false)
     }
 
     const dirty = !!selected && (name.trim() !== selected.name || instructions.trim() !== selected.instructions)
@@ -87,6 +92,28 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
             onChanged?.()
         } catch {
             toast({ title: "Error", description: "Could not save the skill", variant: "destructive" })
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const remove = async () => {
+        if (!selected) return
+        setSaving(true)
+        try {
+            await deleteAgentSkill(selected.id)
+            toast({
+                title: "Skill deleted",
+                description: selected.agent_count > 0
+                    ? `${selected.agent_count} agent(s) will stop using it on their next run.`
+                    : "It was not attached to any agent.",
+            })
+            setSelected(null)
+            setConfirmDelete(false)
+            load()
+            onChanged?.()
+        } catch {
+            toast({ title: "Error", description: "Could not delete the skill", variant: "destructive" })
         } finally {
             setSaving(false)
         }
@@ -195,6 +222,34 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                                     <History className="mr-1.5 h-3.5 w-3.5" />
                                     History
                                 </Button>
+                                {/* Asks once, and the question carries the count rather than the
+                                    generic "are you sure" that teaches people to click through. */}
+                                {confirmDelete ? (
+                                    <div className="ml-auto flex items-center gap-2">
+                                        <span className="text-2xs text-muted-foreground">
+                                            {selected.agent_count > 0
+                                                ? `Remove it from ${selected.agent_count} agent${selected.agent_count === 1 ? "" : "s"}?`
+                                                : "Delete this skill?"}
+                                        </span>
+                                        <Button size="sm" variant="destructive" onClick={remove} disabled={saving}>
+                                            Delete
+                                        </Button>
+                                        <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)} disabled={saving}>
+                                            Cancel
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="ml-auto text-destructive hover:text-destructive"
+                                        onClick={() => setConfirmDelete(true)}
+                                        disabled={saving}
+                                    >
+                                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                                        Delete
+                                    </Button>
+                                )}
                             </div>
 
                             {showHistory && (

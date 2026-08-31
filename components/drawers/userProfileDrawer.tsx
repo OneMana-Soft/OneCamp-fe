@@ -9,6 +9,7 @@ import {
     LogOut,
     Moon,
     Sun,
+    Sparkles,
     Zap,
     MailPlus,
     LayoutDashboard,
@@ -20,7 +21,8 @@ import { useLogout } from "@/hooks/useLogout"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useCapabilities } from "@/hooks/useCapabilities"
-import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
+import { useAIAvailable } from "@/hooks/useClientConfig"
+import { CAP_AGENT_MANAGE, CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
 import { MemberInviteDialog } from "@/components/invite/MemberInviteDialog"
 import { useState } from "react"
 
@@ -84,6 +86,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const router = useRouter()
     const { theme, setTheme } = useTheme()
     const { can } = useCapabilities()
+    const aiAvailable = useAIAvailable()
     const [inviteOpen, setInviteOpen] = useState(false)
 
     const closeDrawer = () => setOpenState(false)
@@ -151,6 +154,20 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                             icon={Zap}
                             label="Workflows"
                             onClick={() => handleNavigate("/app/settings/workflows")}
+                        />
+                    )}
+
+                    {/* The agent builder, and with it the shared skill library, had no
+                        entry anywhere in the interface. The page existed and was gated
+                        exactly like Workflows above, but the only way to reach it was the
+                        command palette or a typed URL, so for most people it did not
+                        exist. Gated on AI as well as the capability, so the AI-free
+                        edition never shows a door to a page that tells you to go away. */}
+                    {aiAvailable && can(CAP_AGENT_MANAGE) && (
+                        <DrawerItem
+                            icon={Sparkles}
+                            label="Agents & skills"
+                            onClick={() => handleNavigate("/app/settings/agents")}
                         />
                     )}
 
