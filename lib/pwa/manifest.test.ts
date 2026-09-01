@@ -2,6 +2,26 @@ import { describe, expect, it } from "vitest"
 import { readFileSync, existsSync } from "node:fs"
 import { resolve } from "node:path"
 
+import { oklchToRgb, parseOklch, rgbToHex } from "@/lib/color/oklch"
+
+/**
+ * The light app shell colour, DERIVED from the token rather than written down.
+ *
+ * Hardcoding it here meant the test asserted a hex that had to be updated by
+ * hand every time the ground changed, which is a guard that fails for the wrong
+ * reason. Computing it means the test enforces the invariant it actually cares
+ * about: the manifest equals --background, whatever --background becomes.
+ */
+function lightShell(): string {
+  const css = readFileSync(resolve(__dirname, "..", "..", "app", "globals.css"), "utf8")
+  const root = css.slice(css.indexOf(":root {"))
+  const m = /--background:\s*([^;]+);/.exec(root)
+  if (!m) throw new Error("could not find --background in the light theme")
+  const parsed = parseOklch(m[1].trim())
+  if (!parsed) throw new Error(`--background is not oklch: ${m[1]}`)
+  return rgbToHex(oklchToRgb(parsed.l, parsed.c, parsed.h))
+}
+
 /**
  * These assert the PWA icons are what the manifest CLAIMS they are, by reading
  * the actual PNG bytes.
@@ -88,10 +108,12 @@ describe("PWA manifest icons", () => {
   })
 
   it("keeps the splash colours equal to the light app shell", () => {
-    // --background is oklch(1 0 0) in light mode, i.e. white. Matching both keeps
-    // the install splash from flashing a colour the app never shows.
-    expect(manifest.theme_color.toLowerCase()).toBe("#ffffff")
-    expect(manifest.background_color.toLowerCase()).toBe("#ffffff")
+    // Matching both keeps the install splash from flashing a colour the app
+    // never shows. The expected value comes from --background itself, so this
+    // stays true through a palette change instead of needing one more edit.
+    const shell = lightShell()
+    expect(manifest.theme_color.toLowerCase()).toBe(shell)
+    expect(manifest.background_color.toLowerCase()).toBe(shell)
   })
 
   it("ships an opaque apple-touch-icon PNG, since iOS ignores SVG", () => {

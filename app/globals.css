@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@import "./themes.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -11,6 +10,13 @@
   --breakpoint-3xl: 1600px;
   --breakpoint-4xl: 2000px;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* A second face, for headings and product moments only.
+     One typeface was doing the product name, section headings, body copy and
+     10px metadata alike, which leaves no typographic hierarchy at all. That
+     matters more than it sounds: once the borders and shadows come off, weight
+     and face ARE the hierarchy. Inter stays for everything dense, because it is
+     genuinely the right tool at 11px. */
+  --font-display: var(--font-display-face), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;
   /* Type scale below text-xs.
      The scale stopped at 12px, so dense UI reached past it: ~490 call sites use
@@ -47,6 +53,12 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  /* The brand, as utilities. Without these a component that wants the accent has
+     nowhere to get it and reaches for a raw Tailwind hue, which is exactly how
+     the 342 raw-hue call sites accumulated in the first place. */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-muted: var(--brand-muted);
   /* Status colours. destructive already existed; success/warning/info did not,
      which is why 156 raw hues accumulated in components — there was nowhere
      semantic to put them. See the :root block for the rule. */
@@ -102,41 +114,67 @@
 }
 
 :root {
-  --scroll-bar-color: #c5c5c5;
+  --scroll-bar-color: #cfc9c2;
   --scroll-bar-bg-color: 0 0% 100%;
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+
+  /* ── OneCamp identity ─────────────────────────────────────────────────────
+     One accent, and neutrals that carry a trace of its hue.
+
+     Every neutral here used to be oklch(L 0 0). That second number is chroma,
+     and zero means a grey with no colour in it whatsoever: the shadcn default,
+     unmodified, which is the visual signature of every AI-assisted SaaS built
+     since 2023. These carry roughly 0.005 chroma at the brand's hue, which is
+     far too little to read as orange and exactly enough that the greys look
+     chosen rather than inherited.
+
+     Worth stating what was actually wrong, because it was not taste. The light
+     theme was neutral grey, the dark theme was tinted BLUE (chroma 0.028 at hue
+     261), and the storefront was orange. Three temperature stories inside one
+     product. There is one now, and the storefront shares it.
+
+     PRIMARY STAYS INK rather than becoming the brand. A near-black primary
+     button is current practice and not a dated one, and spending the accent on
+     every button leaves nothing to mark the thing that actually matters on a
+     screen. The brand carries STATE: focus rings, active navigation, selection,
+     links. That is the difference between a product with a colour and a product
+     painted a colour. */
+  --brand: oklch(0.55 0.16 45);
+  --brand-foreground: oklch(0.99 0.01 85);
+  /* A tinted ground for brand surfaces: selected rows, active nav, callouts.
+     Never for text. */
+  --brand-muted: oklch(0.955 0.022 60);
+
+  --background: oklch(0.995 0.002 75);
+  --foreground: oklch(0.19 0.008 75);
+  --card: oklch(1 0.001 75);
+  --card-foreground: oklch(0.19 0.008 75);
+  --popover: oklch(1 0.001 75);
+  --popover-foreground: oklch(0.19 0.008 75);
+  --primary: oklch(0.22 0.01 75);
+  --primary-foreground: oklch(0.985 0.003 85);
+  --secondary: oklch(0.968 0.004 75);
+  --secondary-foreground: oklch(0.22 0.01 75);
+  --muted: oklch(0.968 0.004 75);
+  --muted-foreground: oklch(0.545 0.012 75);
+  --accent: oklch(0.965 0.005 70);
+  --accent-foreground: oklch(0.22 0.01 75);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
 
-  /* STATUS COLOUR RULE — four meanings, four tokens. Never a raw hue.
+  /* STATUS COLOUR RULE - four meanings, four tokens. Never a raw hue.
      success / warning / info / destructive. If a colour is carrying meaning it
      comes from here; if it isn't carrying meaning it should be neutral.
 
      This existed only as `destructive` before, so components reached for raw
      Tailwind hues instead: 156 tinted surfaces across THIRTEEN hues, for roughly
      four meanings. The same "positive" state was text-green-600 in some files and
-     text-emerald-600 in others — and two components used both, so one meaning was
+     text-emerald-600 in others - and two components used both, so one meaning was
      drawn in two greens inside a single view. That is what the token set fixes:
      it is an inconsistency, not a matter of taste.
 
      Each token is mode-aware, which collapses the 43 hand-written
-     `text-x-600 dark:text-x-400` pairs into one class. The values ARE those pairs:
-     the 600 shade in light, the 400 in dark, so nothing shifts except the green
-     split resolving onto one hue (emerald, the majority incumbent). */
+     `text-x-600 dark:text-x-400` pairs into one class. */
   --success: var(--color-emerald-600);
   --success-foreground: var(--color-emerald-50);
   --warning: var(--color-amber-600);
@@ -144,83 +182,96 @@
   --info: var(--color-blue-600);
   --info-foreground: var(--color-blue-50);
 
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.918 0.005 75);
+  --input: oklch(0.918 0.005 75);
+  /* Focus is the most common place the brand appears, and the one place it must
+     never be decorative: it is how a keyboard user knows where they are. */
+  --ring: var(--brand);
   --chart-1: var(--color-blue-300);
   --chart-2: var(--color-blue-500);
   --chart-3: var(--color-blue-600);
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --surface: oklch(0.98 0 0);
+  --sidebar: oklch(0.978 0.004 75);
+  --sidebar-foreground: oklch(0.19 0.008 75);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: oklch(0.955 0.006 70);
+  --sidebar-accent-foreground: oklch(0.22 0.01 75);
+  --sidebar-border: oklch(0.918 0.005 75);
+  --sidebar-ring: var(--brand);
+  --surface: oklch(0.975 0.004 75);
   --surface-foreground: var(--foreground);
   --code: var(--surface);
   --code-foreground: var(--surface-foreground);
-  --code-highlight: oklch(0.96 0 0);
-  --code-number: oklch(0.56 0 0);
-  --selection: oklch(0.145 0 0);
-  --selection-foreground: oklch(1 0 0);
+  --code-highlight: oklch(0.955 0.006 70);
+  --code-number: oklch(0.56 0.01 75);
+  --selection: var(--brand);
+  --selection-foreground: var(--brand-foreground);
 }
 
 .dark {
-  --scroll-bar-color: #2c2e33;
-  --scroll-bar-bg-color: 240 10% 3.9%;
-  /* Richer dark mode background (Slate-950ish) */
-  --background: oklch(0.13 0.028 261.692);
-  --foreground: oklch(0.985 0 0);
-  /* Slightly lighter card background */
-  --card: oklch(0.16 0.03 261);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.16 0.03 261);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  /* The 400 shades — exactly what the hand-written dark: variants used, so the
+  --scroll-bar-color: #332e2a;
+  --scroll-bar-bg-color: 30 6% 8%;
+
+  /* The dark theme is warm now for the same reason the light one is, and the
+     brand lifts rather than darkens: the same orange that reads as confident on
+     paper reads as muddy on a dark ground, so this is a lighter, slightly less
+     saturated cut of the same hue rather than the light value reused. */
+  --brand: oklch(0.74 0.14 45);
+  --brand-foreground: oklch(0.18 0.02 60);
+  --brand-muted: oklch(0.28 0.04 50);
+
+  --background: oklch(0.17 0.008 70);
+  --foreground: oklch(0.975 0.003 85);
+  --card: oklch(0.202 0.009 70);
+  --card-foreground: oklch(0.975 0.003 85);
+  --popover: oklch(0.202 0.009 70);
+  --popover-foreground: oklch(0.975 0.003 85);
+  --primary: oklch(0.92 0.005 80);
+  --primary-foreground: oklch(0.2 0.01 75);
+  --secondary: oklch(0.27 0.008 70);
+  --secondary-foreground: oklch(0.975 0.003 85);
+  --muted: oklch(0.27 0.008 70);
+  --muted-foreground: oklch(0.715 0.012 75);
+  --accent: oklch(0.28 0.01 70);
+  --accent-foreground: oklch(0.975 0.003 85);
+  /* The 400 shades - exactly what the hand-written dark: variants used, so the
      token reproduces those pairs rather than reinterpreting them. */
   --success: var(--color-emerald-400);
   --warning: var(--color-amber-400);
   --info: var(--color-blue-400);
   --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.556 0 0);
+  /* Dark text on the destructive surface, not light.
+     This was near-white, inherited from the light theme where the red is dark.
+     In dark mode the red LIFTS to #ff6467, so white on it measured 2.77:1 and
+     the label on every Delete button failed AA. Nothing flagged it because
+     nothing was measuring; the contrast guard found it on its first run. */
+  --destructive-foreground: oklch(0.2 0.03 25);
+  --border: oklch(0.275 0.008 70);
+  --input: oklch(0.275 0.008 70);
+  --ring: var(--brand);
   --chart-1: var(--color-blue-300);
   --chart-2: var(--color-blue-500);
   --chart-3: var(--color-blue-600);
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
-  /* Sidebar matching card or slightly different */
-  --sidebar: oklch(0.15 0.03 261);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
-  --surface: oklch(0.2 0 0);
-  --surface-foreground: oklch(0.708 0 0);
+  --sidebar: oklch(0.187 0.008 70);
+  --sidebar-foreground: oklch(0.975 0.003 85);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: oklch(0.27 0.008 70);
+  --sidebar-accent-foreground: oklch(0.975 0.003 85);
+  --sidebar-border: oklch(0.275 0.008 70);
+  --sidebar-ring: var(--brand);
+  --surface: oklch(0.232 0.008 70);
+  --surface-foreground: oklch(0.715 0.012 75);
   --code: var(--surface);
   --code-foreground: var(--surface-foreground);
-  --code-highlight: oklch(0.27 0 0);
-  --code-number: oklch(0.72 0 0);
-  --selection: oklch(0.45 0.15 250);
-  --selection-foreground: oklch(0.985 0 0);
+  --code-highlight: oklch(0.27 0.008 70);
+  --code-number: oklch(0.72 0.01 75);
+  --selection: var(--brand);
+  --selection-foreground: var(--brand-foreground);
 }
 
 @keyframes blink {
@@ -268,6 +319,15 @@
 
   ::selection {
     @apply bg-selection text-selection-foreground;
+  }
+
+  /* Applied here rather than per component, because "which face is a heading"
+     is a system decision and 697 files cannot each be trusted to remember it.
+     A component that genuinely wants Inter for a heading overrides with
+     font-sans, which is a deliberate act and reads as one. */
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.018em;
   }
 
   html {
