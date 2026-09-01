@@ -140,7 +140,7 @@ export default function OAuthConfigCard() {
                             <Input type="password" value={googleSecret} onChange={(e) => setGoogleSecret(e.target.value)} placeholder={status?.google_has_client_secret ? "••••••••" : "GOCSPX-…"} disabled={loading} />
                         </div>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">Also used for Google Calendar integration.</p>
+                    <p className="text-2xs text-muted-foreground">Also used for Google Calendar integration.</p>
                     <Button size="sm" onClick={saveGoogle} disabled={savingGoogle || loading}>{savingGoogle ? "Saving…" : "Save Google"}</Button>
                 </div>
 
@@ -162,7 +162,7 @@ export default function OAuthConfigCard() {
                             <Input type="password" value={githubSecret} onChange={(e) => setGithubSecret(e.target.value)} placeholder={status?.github_has_client_secret ? "••••••••" : "client secret"} disabled={loading} />
                         </div>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">This is for GitHub <strong>login</strong>, separate from the GitHub repo integration above.</p>
+                    <p className="text-2xs text-muted-foreground">This is for GitHub <strong>login</strong>, separate from the GitHub repo integration above.</p>
                     <Button size="sm" onClick={saveGithub} disabled={savingGithub || loading}>{savingGithub ? "Saving…" : "Save GitHub"}</Button>
                 </div>
             </CardContent>

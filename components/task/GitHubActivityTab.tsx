@@ -124,7 +124,7 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
               {activity.github_avatar_url ? (
                 <Avatar className="h-5 w-5">
                   <AvatarImage src={activity.github_avatar_url} className="rounded-full" />
-                  <AvatarFallback className="text-[10px]">{activity.github_login?.[0]}</AvatarFallback>
+                  <AvatarFallback className="text-3xs">{activity.github_login?.[0]}</AvatarFallback>
                 </Avatar>
               ) : (
                 <Github className="h-4 w-4 text-muted-foreground" />
@@ -137,7 +137,7 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
                 ) : "GitHub"}
                 {" "}{activityLabel(activity.activity_type)}
               </span>
-              <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+              <span className="text-3xs text-muted-foreground ml-auto shrink-0">
                 {activity.created_at ? formatDistanceToNow(new Date(activity.created_at), { addSuffix: true }) : ""}
               </span>
             </div>

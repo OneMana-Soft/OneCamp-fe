@@ -319,7 +319,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                 maxLength={2000}
                             />
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-[11px] text-muted-foreground">
+                                <p className="text-2xs text-muted-foreground">
                                     The AI fills the form below. You review and pick channels/projects before saving.
                                 </p>
                                 <Button type="button" size="sm" variant="outline" onClick={handleDraft} disabled={drafting || !draftPrompt.trim()} className="shrink-0 gap-1.5">
@@ -327,7 +327,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                     Generate
                                 </Button>
                             </div>
-                            {draftNote && <p className="text-[11px] text-primary">{draftNote}</p>}
+                            {draftNote && <p className="text-2xs text-primary">{draftNote}</p>}
                         </div>
                     )}
 
@@ -344,7 +344,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
 
                     {/* Bot label */}
                     <div className="space-y-1.5">
-                        <Label className="flex items-center gap-1.5">Bot name <span className="text-[11px] font-normal text-muted-foreground">(optional)</span></Label>
+                        <Label className="flex items-center gap-1.5">Bot name <span className="text-2xs font-normal text-muted-foreground">(optional)</span></Label>
                         <Input
                             value={botName}
                             onChange={(e) => setBotName(e.target.value)}
@@ -442,14 +442,14 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                     </div>
                                 )}
                                 {keywords.length === 0 && (
-                                    <p className="text-[11px] text-muted-foreground">
+                                    <p className="text-2xs text-muted-foreground">
                                         No keywords = the workflow runs on every message in the selected scope.
                                     </p>
                                 )}
                             </div>
                         )}
                         {!isMessageTrigger && (
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-2xs text-muted-foreground">
                                 Tip: use <code className="rounded bg-muted px-1">{"{user}"}</code> in a message to greet the person who joined.
                             </p>
                         )}
@@ -459,7 +459,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                     <div className="space-y-3 rounded-xl border border-border/60 p-3">
                         <div className="flex items-center justify-between">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Then</p>
-                            <span className="text-[11px] text-muted-foreground">{actions.length}/{MAX_ACTIONS}</span>
+                            <span className="text-2xs text-muted-foreground">{actions.length}/{MAX_ACTIONS}</span>
                         </div>
 
                         {actions.map((a, idx) => {
@@ -506,7 +506,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                                 </SelectContent>
                                             </Select>
                                             {projects.length === 0 && (
-                                                <p className="text-[11px] text-amber-600">
+                                                <p className="text-2xs text-amber-600">
                                                     You can only create tasks in projects you administer.
                                                 </p>
                                             )}
@@ -545,7 +545,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                     )}
 
                                     {a.type === "delete_message" && (
-                                        <p className="text-[11px] text-muted-foreground">
+                                        <p className="text-2xs text-muted-foreground">
                                             Removes the matching message. Only works if you’re a moderator of the channel.
                                         </p>
                                     )}
@@ -581,7 +581,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                     <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
                             <Label className="text-sm">Enabled</Label>
-                            <p className="text-[11px] text-muted-foreground">Paused workflows keep their config but don’t run.</p>
+                            <p className="text-2xs text-muted-foreground">Paused workflows keep their config but don’t run.</p>
                         </div>
                         <Switch checked={isActive} onCheckedChange={setIsActive} />
                     </div>

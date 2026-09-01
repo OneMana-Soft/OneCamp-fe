@@ -256,7 +256,7 @@ export function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDe
           </span>
           <div className="leading-tight">
             <div className="text-sm font-semibold text-foreground">AI UI Designer</div>
-            <div className="hidden text-[11px] text-muted-foreground sm:block">
+            <div className="hidden text-2xs text-muted-foreground sm:block">
               Describe a screen, get a production-grade design you can export
             </div>
           </div>
@@ -323,12 +323,12 @@ export function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDe
           </Button>
 
           <div className="flex items-center justify-end gap-2">
-            <span className="hidden text-[11px] text-muted-foreground sm:inline">Cmd/Ctrl + Enter</span>
+            <span className="hidden text-2xs text-muted-foreground sm:inline">Cmd/Ctrl + Enter</span>
           </div>
 
           {html && (
             <div className="mt-1 space-y-2 rounded-lg border bg-muted/30 p-2.5">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Refine</p>
+              <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">Refine</p>
               <Textarea
                 value={refinePrompt}
                 onChange={(e) => setRefinePrompt(e.target.value)}
@@ -371,7 +371,7 @@ export function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDe
 
           {!html && !busy && (
             <div className="mt-1 space-y-1.5">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Try</p>
+              <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">Try</p>
               {EXAMPLES[device].map((ex) => (
                 <button
                   key={ex}

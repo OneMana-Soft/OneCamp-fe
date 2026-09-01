@@ -37,7 +37,7 @@ const badgeVariants = cva(
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
         soft: "border-transparent bg-primary/10 text-primary hover:bg-primary/20",
-        // text-3xs, not text-[10px]: the same 10px, but the primitive must not
+        // text-3xs, not text-3xs: the same 10px, but the primitive must not
         // bypass the type token it exists to hand out.
         sidebar: "border-transparent bg-primary text-primary-foreground text-3xs px-1.5 py-0 min-w-[1.2rem] h-5 flex items-center justify-center rounded-full",
       },

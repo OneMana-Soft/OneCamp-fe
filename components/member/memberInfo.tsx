@@ -81,7 +81,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                             />
                             <AvatarFallback
                                 className={cn(
-                                    "text-[11px] font-semibold",
+                                    "text-2xs font-semibold",
                                     getAvatarFallbackClass(userInfo.user_name),
                                 )}
                             >
@@ -110,7 +110,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 <PrincipalTag kind="ai" />
                             )}
                             {isSelf && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-muted text-muted-foreground">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-3xs font-medium bg-muted text-muted-foreground">
                                     You
                                 </span>
                             )}

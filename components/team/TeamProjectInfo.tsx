@@ -46,7 +46,7 @@ export const TeamProjectInfo = ({
                             {projectInfo.project_name}
                         </span>
                     )}
-                    <span className="text-[11px] text-muted-foreground mt-0.5">
+                    <span className="text-2xs text-muted-foreground mt-0.5">
                         {projectInfo.project_member_count || 0}{" "}
                         {(projectInfo.project_member_count || 0) === 1 ? "member" : "members"}
                     </span>

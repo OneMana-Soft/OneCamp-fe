@@ -303,7 +303,7 @@ const GitHubIntegrationCard = () => {
             </div>
 
             {isConnected && rateLimitData?.connected && (rateLimitData.percent || 100) < 20 && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-warning">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <div className="text-xs">
                   <span className="font-medium">GitHub API rate limit low:</span> {rateLimitData.remaining} / {rateLimitData.limit} requests remaining. Sync operations may fail until the limit resets.
@@ -324,12 +324,12 @@ const GitHubIntegrationCard = () => {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <a href={`https://github.com/${link.repo_owner}/${link.repo_name}`} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:underline flex items-center gap-1 truncate">{link.repo_owner}/{link.repo_name}<ExternalLink className="h-3 w-3 shrink-0" /></a>
-                              <Badge variant="outline" className="text-[10px]">{getProjectName(link.project_id)}</Badge>
+                              <Badge variant="outline" className="text-3xs">{getProjectName(link.project_id)}</Badge>
                             </div>
                             <div className="flex gap-2 mt-1 flex-wrap">
-                              {link.sync_issues && <Badge variant="outline" className="text-[10px]">Issues</Badge>}
-                              {link.sync_prs && <Badge variant="outline" className="text-[10px]">PRs</Badge>}
-                              {link.auto_create_tasks && <Badge variant="secondary" className="text-[10px]">Auto-create tasks</Badge>}
+                              {link.sync_issues && <Badge variant="outline" className="text-3xs">Issues</Badge>}
+                              {link.sync_prs && <Badge variant="outline" className="text-3xs">PRs</Badge>}
+                              {link.auto_create_tasks && <Badge variant="secondary" className="text-3xs">Auto-create tasks</Badge>}
                             </div>
                           </div>
                         </div>
@@ -427,14 +427,14 @@ const GitHubIntegrationCard = () => {
                     )}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground">GitHub issues and PRs will create tasks in this project.</p>
+                <p className="text-2xs text-muted-foreground">GitHub issues and PRs will create tasks in this project.</p>
               </div>
               <Separator />
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <Label className="text-sm font-semibold">Sync Issue Updates</Label>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Keep linked tasks up-to-date with GitHub issue changes (status, assignees, labels).</p>
+                    <p className="text-2xs text-muted-foreground mt-0.5">Keep linked tasks up-to-date with GitHub issue changes (status, assignees, labels).</p>
                   </div>
                   <Switch 
                     checked={syncIssues} 
@@ -447,7 +447,7 @@ const GitHubIntegrationCard = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <Label className="text-sm font-semibold">Sync PR Updates</Label>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Keep linked tasks up-to-date with GitHub pull request changes (merges, closures).</p>
+                    <p className="text-2xs text-muted-foreground mt-0.5">Keep linked tasks up-to-date with GitHub pull request changes (merges, closures).</p>
                   </div>
                   <Switch 
                     checked={syncPRs} 
@@ -460,7 +460,7 @@ const GitHubIntegrationCard = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div className={(!syncIssues && !syncPRs) ? "opacity-50" : ""}>
                     <Label className="text-sm font-semibold">Auto-create Tasks</Label>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Automatically create a new OneCamp task when a new issue or PR is opened in GitHub.</p>
+                    <p className="text-2xs text-muted-foreground mt-0.5">Automatically create a new OneCamp task when a new issue or PR is opened in GitHub.</p>
                   </div>
                   <Switch 
                     checked={autoCreateTasks} 
@@ -510,8 +510,8 @@ const GitHubIntegrationCard = () => {
                         <div className="min-w-0 flex-1 pr-2">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm truncate">{repo.full_name}</span>
-                            {repo.private && <Badge variant="secondary" className="text-[10px] shrink-0">Private</Badge>}
-                            {alreadyLinked && <Badge variant="outline" className="text-[10px] shrink-0">Already linked</Badge>}
+                            {repo.private && <Badge variant="secondary" className="text-3xs shrink-0">Private</Badge>}
+                            {alreadyLinked && <Badge variant="outline" className="text-3xs shrink-0">Already linked</Badge>}
                           </div>
                           {repo.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{repo.description}</p>}
                         </div>
@@ -577,7 +577,7 @@ const GitHubIntegrationCard = () => {
                             <div key={rule.key} className="flex items-center justify-between gap-3 py-1.5">
                               <div className="min-w-0">
                                 <Label className="text-sm font-medium">{rule.label}</Label>
-                                <p className="text-[11px] text-muted-foreground leading-tight">{rule.desc}</p>
+                                <p className="text-2xs text-muted-foreground leading-tight">{rule.desc}</p>
                               </div>
                               <Select
                                 value={currentRules[rule.key as keyof AutomationRules] || ""}
@@ -620,7 +620,7 @@ const GitHubIntegrationCard = () => {
                     <Label className="text-sm font-medium flex items-center gap-2">
                       <GitBranch className="h-3.5 w-3.5" /> Branch name format
                     </Label>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       Default format for copying branch names. Variables: {"{taskId}"}, {"{slug}"}, {"{user}"}
                     </p>
                     <div className="flex gap-2">

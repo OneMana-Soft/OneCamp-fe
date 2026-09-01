@@ -146,7 +146,7 @@ function ViewerRow({ viewer, isSelf }: { viewer: ResourceViewer; isSelf: boolean
     <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-accent/40">
       <Avatar className="h-7 w-7 shrink-0">
         <AvatarImage src={src} alt={name} className="object-cover" />
-        <AvatarFallback className="text-[11px]">{name.charAt(0).toUpperCase()}</AvatarFallback>
+        <AvatarFallback className="text-2xs">{name.charAt(0).toUpperCase()}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">

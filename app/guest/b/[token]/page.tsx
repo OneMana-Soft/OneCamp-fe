@@ -68,7 +68,7 @@ export default function GuestBoardPage({ params }: { params: Promise<{ token: st
                     </span>
                     Shared board
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
                     <Eye className="h-3 w-3" /> Read only
                 </span>
             </header>

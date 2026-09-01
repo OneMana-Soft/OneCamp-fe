@@ -170,7 +170,7 @@ function ExternalUserRow({ user, isSubmitting, onUnlink }: ExternalUserRowProps)
         <Avatar className="h-9 w-9 shrink-0">
           <AvatarImage src={avatarUrl} alt="" />
           <AvatarFallback
-            className={cn("text-[11px] font-semibold", getAvatarFallbackClass(displayName))}
+            className={cn("text-2xs font-semibold", getAvatarFallbackClass(displayName))}
           >
             {getNameInitials(displayName)}
           </AvatarFallback>
@@ -178,7 +178,7 @@ function ExternalUserRow({ user, isSubmitting, onUnlink }: ExternalUserRowProps)
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-medium leading-tight flex items-center gap-2 truncate">
             <span className="truncate">{displayName}</span>
-            <Badge variant="secondary" className="text-[10px] h-5 shrink-0">
+            <Badge variant="secondary" className="text-3xs h-5 shrink-0">
               External
             </Badge>
           </span>

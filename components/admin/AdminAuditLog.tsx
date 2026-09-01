@@ -20,7 +20,7 @@ import {
 } from "@/services/settingsService"
 
 const CATEGORY_STYLES: Record<string, string> = {
-    settings: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+    settings: "bg-blue-500/10 text-info border-blue-500/20",
     integration: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20",
     auth: "bg-amber-500/10 text-warning border-amber-500/20",
     app: "bg-success/10 text-success border-success/20",
@@ -200,7 +200,7 @@ export default function AdminAuditLog() {
                         {verifyResult && (
                             <Badge
                                 variant="outline"
-                                className={`text-[10px] ${verifyResult.ok ? "text-success border-success/30" : "text-red-600 border-red-500/30"}`}
+                                className={`text-3xs ${verifyResult.ok ? "text-success border-success/30" : "text-red-600 border-red-500/30"}`}
                                 title={verifyResult.message}
                             >
                                 {verifyResult.ok ? `Verified · ${verifyResult.checked}` : "Tampering detected"}

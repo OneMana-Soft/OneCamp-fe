@@ -196,7 +196,7 @@ export function DataTableCalendar({
                   return (
                     <div
                       key={row.id}
-                      className="truncate rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-foreground"
+                      className="truncate rounded bg-primary/10 px-1.5 py-0.5 text-2xs text-foreground"
                       title={title}
                     >
                       {title || "Untitled"}

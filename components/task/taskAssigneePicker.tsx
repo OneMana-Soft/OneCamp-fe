@@ -102,7 +102,7 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                                 className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
                                             >
                                                 <span className="flex-1 font-medium text-sm">{member.user_name}</span>
-                                                <span className="text-[10px] uppercase tracking-wide text-primary/70 border border-primary/30 rounded px-1 py-0.5">AI</span>
+                                                <span className="text-3xs uppercase tracking-wide text-primary/70 border border-primary/30 rounded px-1 py-0.5">AI</span>
                                                 <Check
                                                     className={cn(
                                                         "ml-1 h-4 w-4 text-primary",

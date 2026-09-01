@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils/helpers/cn"
  * It was drawn eight times by hand instead, and no two agreed. The "AI" marker
  * alone appeared six times: `rounded` on five surfaces and `rounded-full` on the
  * member panel, `px-1.5` on three and `px-1` on three, and `text-3xs` on five
- * against an arbitrary `text-[10px]` on the sixth. "Guest" appeared twice, once
+ * against an arbitrary `text-3xs` on the sixth. "Guest" appeared twice, once
  * font-medium and once font-semibold. So the signal a member relies on to tell a
  * bot from a colleague changed shape depending on which surface they happened to
  * be looking at.

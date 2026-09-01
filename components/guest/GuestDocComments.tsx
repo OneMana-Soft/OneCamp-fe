@@ -106,7 +106,7 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
         <MessageSquare className="h-4 w-4 text-muted-foreground" />
         Comments
         {comments.length > 0 && (
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">
             {comments.length}
           </span>
         )}
@@ -121,12 +121,12 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
           {comments.map((c) => (
             <li key={c.id} className="rounded-lg border border-border/50 bg-card/30 px-3 py-2.5">
               <div className="mb-1 flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold uppercase text-primary">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-3xs font-semibold uppercase text-primary">
                   {(c.guest_name || "G").charAt(0)}
                 </span>
                 <span className="text-xs font-medium text-foreground">{c.guest_name}</span>
                 <PrincipalTag kind="guest" />
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-2xs text-muted-foreground">
                   {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
                 </span>
               </div>
@@ -161,7 +161,7 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
           </div>
         </div>
       ) : (
-        <p className="mt-4 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+        <p className="mt-4 inline-flex items-center gap-1 text-2xs text-muted-foreground">
           <Eye className="h-3 w-3" /> This link is view only.
         </p>
       )}

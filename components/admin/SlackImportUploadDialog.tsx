@@ -225,7 +225,7 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
                 <FileArchive className="h-4 w-4" />
                 {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB
                 {file.size > PRESIGN_THRESHOLD && (
-                  <span className="ml-1 text-blue-600 dark:text-blue-400">
+                  <span className="ml-1 text-info">
                     · uploads direct to storage
                   </span>
                 )}

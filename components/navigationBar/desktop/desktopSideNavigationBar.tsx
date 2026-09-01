@@ -148,7 +148,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                                 <button
                                                     className={cn(
                                                         "flex-1 flex items-center gap-1.5 h-6 px-1.5 rounded-md",
-                                                        "text-[11px] font-semibold uppercase tracking-wide",
+                                                        "text-2xs font-semibold uppercase tracking-wide",
                                                         "text-muted-foreground hover:text-foreground hover:bg-accent/50",
                                                         "transition-colors duration-100 cursor-pointer text-left",
                                                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",

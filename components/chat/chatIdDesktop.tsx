@@ -132,7 +132,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                     </div>
                     <div className='flex flex-col min-w-0'>
                         <span className='text-sm font-semibold text-foreground truncate leading-tight'>{otherUserInfo.data?.data.user_name}</span>
-                        {isOnline && <span className='text-[11px] text-muted-foreground leading-tight'>Active now</span>}
+                        {isOnline && <span className='text-2xs text-muted-foreground leading-tight'>Active now</span>}
                     </div>
                 </div>
                 <div className='flex items-center gap-0.5 shrink-0'>

@@ -122,7 +122,7 @@ const GitHubWebhookHealth: React.FC = () => {
           <div className="rounded-md border bg-card px-3 py-2">
             <div className="text-2xl font-semibold">
               {h && h.processing_24h > 0 ? (
-                <span className="text-blue-600 dark:text-blue-400">
+                <span className="text-info">
                   {h.processing_24h}
                   <RefreshCw className="ml-1 inline h-4 w-4 animate-spin" />
                 </span>

@@ -21,7 +21,7 @@ export function ChatUserListUserAvatar({ userProfileObjKey, userName }: UserAvat
             <AvatarImage src={imageSrc || ""} />
             <AvatarFallback
                 className={cn(
-                    "text-[11px] font-semibold",
+                    "text-2xs font-semibold",
                     getAvatarFallbackClass(userName),
                 )}
             >

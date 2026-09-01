@@ -21,21 +21,21 @@ function getStatusBadge(status: string) {
   switch (status) {
     case "sent":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-blue-500/10 text-info">
           <Clock className="h-3 w-3" />
           Sent
         </span>
       )
     case "joined":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-success/10 text-success">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-success/10 text-success">
           <CheckCircle className="h-3 w-3" />
           Joined
         </span>
       )
     case "expired":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/10 text-destructive">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-red-500/10 text-destructive">
           <XCircle className="h-3 w-3" />
           Expired
         </span>
@@ -43,7 +43,7 @@ function getStatusBadge(status: string) {
     case "pending":
     default:
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-yellow-500/10 text-warning">
           <AlertCircle className="h-3 w-3" />
           Pending
         </span>
@@ -114,7 +114,7 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
                   {inv.email}
                 </span>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {new Date(inv.created_at).toLocaleDateString()}
                   </span>
                   {getStatusBadge(inv.status)}

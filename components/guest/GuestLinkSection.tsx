@@ -105,7 +105,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
       {open && !link && (
         <div className="flex items-end gap-2">
           <div className="flex-1 space-y-1.5">
-            <Label className="text-[11px] text-muted-foreground">Link expires after</Label>
+            <Label className="text-2xs text-muted-foreground">Link expires after</Label>
             <Select value={String(ttlHours)} onValueChange={(v) => setTtlHours(Number(v))}>
               <SelectTrigger className="h-9">
                 <SelectValue />
@@ -121,7 +121,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
           </div>
           {supportsComment && (
             <div className="flex-1 space-y-1.5">
-              <Label className="text-[11px] text-muted-foreground">Permission</Label>
+              <Label className="text-2xs text-muted-foreground">Permission</Label>
               <Select value={capability} onValueChange={(v) => setCapability(v as "view" | "comment")}>
                 <SelectTrigger className="h-9">
                   <SelectValue />

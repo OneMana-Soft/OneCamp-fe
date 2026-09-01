@@ -31,7 +31,7 @@ export const DocListItem: React.FC<DocItemProps> = ({
                         {docName}
                     </span>
                     {docCreatedAt && (
-                        <span className="text-[11px] text-muted-foreground shrink-0 whitespace-nowrap">
+                        <span className="text-2xs text-muted-foreground shrink-0 whitespace-nowrap">
                             {formatTimeForPostOrComment(docCreatedAt)}
                         </span>
                     )}

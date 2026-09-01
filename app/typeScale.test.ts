@@ -59,7 +59,9 @@ const FLOOR_PX = 10
  * and the check could not fail here however many were added. A ratchet that
  * cannot fail is worse than no ratchet, because it reads as enforcement.
  */
-const BYPASS_BASELINE = 260
+  // 0: the migration is complete on this edition. Every arbitrary pixel size was one
+  // of 11px, 10px, 12px or 13px, and every one of those has a named step.
+const BYPASS_BASELINE = 0
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)

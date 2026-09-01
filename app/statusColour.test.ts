@@ -103,7 +103,12 @@ describe("status colour tokens", () => {
     // 342: the Ollama update instruction was written out three times, each with its own amber
     // warning surface. Collapsing them into OllamaUpdateSteps removed two copies and moved the
     // survivor onto the warning token.
-    const BASELINE = 342
+        // 387: the mode-aware pairs whose meaning was unambiguous went onto the tokens.
+    // The rest stay deliberately: a size is a size, so that migration was mechanical,
+    // while a colour is a claim about meaning and a warning amber is indistinguishable
+    // from a decorative one at the level of a regex. Surface by surface, with eyes on
+    // the screen, not in a blind sweep.
+const BASELINE = 387
     const total = files.reduce(
       (n, f) => n + (readFileSync(f, "utf8").match(RAW_HUE_UTILITY)?.length ?? 0),
       0,

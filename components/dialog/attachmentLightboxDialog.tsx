@@ -673,7 +673,7 @@ export function MediaLightboxDialog({
                         {/* AI analysis result panel (image only). */}
                         {aiResult && (
                             <div className="border-t bg-background px-4 py-3 max-h-40 overflow-y-auto shrink-0">
-                                <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                <p className="mb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                                     AI analysis
                                 </p>
                                 <p className="text-sm text-foreground whitespace-pre-line">{aiResult}</p>

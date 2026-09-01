@@ -47,7 +47,7 @@ function ParticipantAvatar({ p }: { p: ThreadParticipant }) {
                     )}
                 </div>
             </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6} className="px-2 py-0.5 text-[11px] font-medium">
+            <TooltipContent side="top" sideOffset={6} className="px-2 py-0.5 text-2xs font-medium">
                 {p.name}
             </TooltipContent>
         </Tooltip>

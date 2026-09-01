@@ -51,7 +51,7 @@ function UserPickRow({ user, isSelected, onSelect }: UserPickRowProps) {
       <div className="flex items-center gap-3 min-w-0">
         <Avatar className="h-8 w-8 shrink-0">
           <AvatarImage src={imageSrc} alt={seed} />
-          <AvatarFallback className={cn("text-[10px] font-semibold", getAvatarFallbackClass(seed))}>
+          <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(seed))}>
             {getNameInitials(seed)}
           </AvatarFallback>
         </Avatar>

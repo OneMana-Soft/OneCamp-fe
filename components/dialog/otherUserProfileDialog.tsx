@@ -151,9 +151,9 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                     {profileInfo.data?.data?.user_name || "—"}
                                 </h2>
                                 {isBot ? (
-                                    <Badge variant="secondary" className="text-[10px] h-5 shrink-0">{botCopy.badge}</Badge>
+                                    <Badge variant="secondary" className="text-3xs h-5 shrink-0">{botCopy.badge}</Badge>
                                 ) : isExternal ? (
-                                    <Badge variant="secondary" className="text-[10px] h-5 shrink-0">External</Badge>
+                                    <Badge variant="secondary" className="text-3xs h-5 shrink-0">External</Badge>
                                 ) : null}
                             </div>
                             <p className="text-sm text-muted-foreground truncate max-w-[260px]">

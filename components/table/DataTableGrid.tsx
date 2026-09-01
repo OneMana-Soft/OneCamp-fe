@@ -387,7 +387,7 @@ function ColumnHeader({
       <th className="min-w-[160px] border-r border-border/40 px-3 py-2 text-left font-medium text-muted-foreground">
         {field.name}
         {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-violet-500" />}
-        <span className="ml-1 text-[10px] uppercase opacity-50">{field.type}</span>
+        <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
       </th>
     )
   }
@@ -400,7 +400,7 @@ function ColumnHeader({
             <span className="truncate">
               {field.name}
               {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-violet-500" />}
-              <span className="ml-1 text-[10px] uppercase opacity-50">{field.type}</span>
+              <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
             </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
           </button>
@@ -497,11 +497,11 @@ function ColumnHeader({
                   rows={3}
                   className="w-full resize-none rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500"
                 />
-                <p className="text-[11px] leading-tight text-muted-foreground">
+                <p className="text-2xs leading-tight text-muted-foreground">
                   Each cell is generated from this column&apos;s prompt and the row&apos;s other
                   values. Save first, then fill.
                 </p>
-                <label className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-[11px] leading-tight text-muted-foreground hover:bg-violet-500/5">
+                <label className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-2xs leading-tight text-muted-foreground hover:bg-violet-500/5">
                   <input
                     type="checkbox"
                     checked={aiAuto}

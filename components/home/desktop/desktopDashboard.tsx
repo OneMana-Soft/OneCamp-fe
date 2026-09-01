@@ -70,7 +70,7 @@ function StatCard({
                     {badge && (
                         <span
                             className={cn(
-                                "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                                "inline-flex items-center rounded-full px-1.5 py-0.5 text-3xs font-medium",
                                 badge.tone === "destructive"
                                     ? "bg-destructive/10 text-destructive"
                                     : "bg-muted text-muted-foreground",
@@ -99,7 +99,7 @@ function SectionHeader({
 }) {
     return (
         <div className="flex items-center justify-between mb-2.5">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {title}
             </h2>
             {actionLabel && href && (
@@ -318,7 +318,7 @@ export function DesktopDashboard() {
                                                         {channel.ch_name}
                                                     </span>
                                                     {channel.ch_call_active && (
-                                                        <span className="ml-auto shrink-0 flex items-center gap-1 text-[10px] font-medium text-success dark:text-emerald-500">
+                                                        <span className="ml-auto shrink-0 flex items-center gap-1 text-3xs font-medium text-success dark:text-emerald-500">
                                                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                                             Live
                                                         </span>
@@ -327,7 +327,7 @@ export function DesktopDashboard() {
 
                                                 {/* Subtitle: description when set, otherwise member count */}
                                                 <div className="flex items-center justify-between gap-2 mt-0.5">
-                                                    <span className="text-[11px] text-muted-foreground truncate">
+                                                    <span className="text-2xs text-muted-foreground truncate">
                                                         {channel.ch_about
                                                             ? channel.ch_about
                                                             : channel.ch_member_count > 0
@@ -336,7 +336,7 @@ export function DesktopDashboard() {
                                                     </span>
                                                     {/* Unread badge — only when there are unreads */}
                                                     {channel.unread_post_count > 0 && (
-                                                        <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center px-1">
+                                                        <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-3xs font-semibold flex items-center justify-center px-1">
                                                             {channel.unread_post_count > 99 ? "99+" : channel.unread_post_count}
                                                         </span>
                                                     )}
@@ -418,7 +418,7 @@ export function DesktopDashboard() {
                                             )}
                                         >
                                             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted">
-                                                <span className="text-[10px] font-semibold text-muted-foreground">
+                                                <span className="text-3xs font-semibold text-muted-foreground">
                                                     {team.team_name?.charAt(0)?.toUpperCase() || "T"}
                                                 </span>
                                             </div>

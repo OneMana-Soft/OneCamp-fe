@@ -92,12 +92,12 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                 activity.reaction.reaction_emoji_id ?? "",
             );
             badgeIcon = (
-                <span className="text-[11px] leading-none">
+                <span className="text-2xs leading-none">
                     {emoji?.skins[0].native || "👍"}
                 </span>
             );
             badgeClass =
-                "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20";
+                "bg-amber-500/10 text-warning border border-amber-500/20";
             time = activity.reaction.reaction_added_at;
             title = "reacted to your content";
             content = "";
@@ -128,7 +128,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                     alt={meta.user?.user_full_name}
                     className="object-cover"
                 />
-                <AvatarFallback className="text-[11px] font-medium bg-muted text-muted-foreground">
+                <AvatarFallback className="text-2xs font-medium bg-muted text-muted-foreground">
                     {getNameInitials(meta.user?.user_full_name || "?")}
                 </AvatarFallback>
             </Avatar>
@@ -155,7 +155,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                 <span className="font-normal text-muted-foreground">{meta.title}</span>
             </span>
             {activity.priority === "high" && (
-                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-primary/10 px-1.5 py-0.5 text-3xs font-medium text-primary">
                     Needs reply
                 </span>
             )}

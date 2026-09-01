@@ -111,12 +111,12 @@ function ResultCardChrome({ card }: { card: ResultCard }) {
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-medium leading-tight text-foreground">{card.title}</span>
+        <span className="block text-sm font-medium leading-tight text-foreground">{card.title}</span>
         {card.subtitle ? (
-          <span className="block truncate font-mono text-[11px] leading-tight text-muted-foreground">{card.subtitle}</span>
+          <span className="block truncate font-mono text-2xs leading-tight text-muted-foreground">{card.subtitle}</span>
         ) : null}
       </span>
-      <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors group-hover/rc:text-foreground">
+      <span className="flex shrink-0 items-center gap-1 text-2xs font-medium text-muted-foreground transition-colors group-hover/rc:text-foreground">
         {card.cta ? <span className="hidden sm:inline">{card.cta}</span> : null}
         <ExternalLink className="h-3.5 w-3.5" />
       </span>

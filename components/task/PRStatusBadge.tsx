@@ -74,7 +74,7 @@ export default function PRStatusBadge({ task, size = "sm" }: PRStatusBadgeProps)
       onClick={(e) => e.stopPropagation()}
       className={cn(
         "inline-flex items-center gap-1 rounded-md border font-medium transition-colors hover:opacity-80",
-        isSmall ? "px-1.5 py-0 h-5 text-[10px]" : "px-2 py-0.5 h-6 text-xs",
+        isSmall ? "px-1.5 py-0 h-5 text-3xs" : "px-2 py-0.5 h-6 text-xs",
         config.className
       )}
       title={`${config.label}${checkConfig ? ` • ${checkConfig.tooltip}` : ""}`}
@@ -104,7 +104,7 @@ export function IssueStatusBadge({ task, size = "sm" }: PRStatusBadgeProps) {
       onClick={(e) => e.stopPropagation()}
       className={cn(
         "inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/50 text-muted-foreground font-medium transition-colors hover:bg-muted hover:text-foreground",
-        isSmall ? "px-1.5 py-0 h-5 text-[10px]" : "px-2 py-0.5 h-6 text-xs"
+        isSmall ? "px-1.5 py-0 h-5 text-3xs" : "px-2 py-0.5 h-6 text-xs"
       )}
       title={`${repo}#${task.task_github_issue_number}`}
     >

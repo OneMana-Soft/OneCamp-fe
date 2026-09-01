@@ -74,7 +74,7 @@ const SettingRow: React.FC<{
             </span>
             <div className="space-y-0.5 min-w-0">
                 <Label className="text-sm font-medium">{label}</Label>
-                <p className="text-[11px] leading-snug text-muted-foreground">{description}</p>
+                <p className="text-2xs leading-snug text-muted-foreground">{description}</p>
             </div>
         </div>
         <div className="shrink-0 pt-0.5">{children}</div>

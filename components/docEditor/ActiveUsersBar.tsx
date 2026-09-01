@@ -46,7 +46,7 @@ function AvatarImage({
             className={cn(
                 "relative flex items-center justify-center rounded-full overflow-hidden",
                 "size-6 border-2 border-background shadow-sm",
-                !hasImage && "text-[10px] font-bold text-white",
+                !hasImage && "text-3xs font-bold text-white",
             )}
             style={{ backgroundColor: hasImage ? undefined : color }}
         >
@@ -86,7 +86,7 @@ function UserAvatar({
                 <TooltipContent
                     side="top"
                     sideOffset={6}
-                    className="px-2 py-0.5 text-[11px] font-semibold text-white border-0 shadow-lg"
+                    className="px-2 py-0.5 text-2xs font-semibold text-white border-0 shadow-lg"
                     style={{ backgroundColor: user.color }}
                 >
                     {user.name}
@@ -100,11 +100,11 @@ function RemainingBadge({ remaining, names }: { remaining: number; names: string
     return (
         <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
-                <div className="flex items-center justify-center rounded-full size-6 border-2 border-background bg-muted text-[10px] font-medium text-muted-foreground cursor-default hover:bg-muted/80 transition-colors">
+                <div className="flex items-center justify-center rounded-full size-6 border-2 border-background bg-muted text-3xs font-medium text-muted-foreground cursor-default hover:bg-muted/80 transition-colors">
                     +{remaining}
                 </div>
             </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6} className="text-[11px] font-medium">
+            <TooltipContent side="top" sideOffset={6} className="text-2xs font-medium">
                 {names}
             </TooltipContent>
         </Tooltip>

@@ -130,7 +130,7 @@ export default function GuestAccessCard() {
 
                 {enabled && (
                     <div>
-                        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
                             Active guest links
                         </h3>
                         {grantsLoading ? (
@@ -160,7 +160,7 @@ export default function GuestAccessCard() {
                                                         {g.capability}
                                                     </Badge>
                                                 </div>
-                                                <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                <div className="mt-0.5 flex items-center gap-1 text-2xs text-muted-foreground">
                                                     <Clock className="h-3 w-3" />
                                                     expires {formatDistanceToNow(new Date(g.expires_at), { addSuffix: true })}
                                                 </div>

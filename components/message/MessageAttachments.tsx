@@ -161,7 +161,7 @@ export function NonRenderableAttachment({ attachment, attachmentLength, mediaGet
                 >
                     {truncateFileName(attachment.attachment_file_name)}
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground/80">
+                <div className="flex items-center gap-1.5 text-3xs font-medium text-muted-foreground/80">
                     <span className="uppercase tracking-wider">
                         {getFriendlyFileExtension(attachment.attachment_raw_type, attachment.attachment_file_name)}
                     </span>

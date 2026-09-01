@@ -179,7 +179,7 @@ export function WeekView({
           const isToday = isSameDay(day, now);
           return (
             <div key={i} className="flex-1 min-w-[90px] border-r border-border/60 py-2 text-center">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {format(day, "EEE")}
               </div>
               <div
@@ -207,7 +207,7 @@ export function WeekView({
                 key={`${it.uuid}-${i}`}
                 onClick={() => (it.isTask ? onTaskClick(it.uuid) : onEventClick(it.uuid))}
                 className={cn(
-                  "block w-full truncate rounded px-1.5 py-0.5 text-left text-[10px] font-medium text-white",
+                  "block w-full truncate rounded px-1.5 py-0.5 text-left text-3xs font-medium text-white",
                   it.isTask ? calendarColors.task.solidOpacity : calendarColors.event.solidOpacity,
                 )}
               >
@@ -226,7 +226,7 @@ export function WeekView({
             {hours.map((h) => (
               <div key={h} className="relative" style={{ height: `${HOUR_HEIGHT}px` }}>
                 {h > 0 && (
-                  <span className="absolute -top-2 right-1.5 text-[10px] tabular-nums text-muted-foreground">
+                  <span className="absolute -top-2 right-1.5 text-3xs tabular-nums text-muted-foreground">
                     {format(new Date(2000, 0, 1, h), "h a")}
                   </span>
                 )}
@@ -279,7 +279,7 @@ export function WeekView({
                       width: `calc(${widthPct}% - 4px)`,
                     }}
                     className={cn(
-                      "absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-[10px] font-medium leading-tight text-white shadow-sm",
+                      "absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-3xs font-medium leading-tight text-white shadow-sm",
                       it.isTask ? calendarColors.task.solidOpacity : calendarColors.event.solidOpacity,
                     )}
                   >

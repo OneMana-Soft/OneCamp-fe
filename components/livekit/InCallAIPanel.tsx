@@ -89,7 +89,7 @@ export function InCallAIPanel({
                     </div>
                     <div>
                         <p className="text-sm font-semibold leading-tight">Call Assistant</p>
-                        <p className="text-[11px] text-white/50 leading-tight">
+                        <p className="text-2xs text-white/50 leading-tight">
                             {aiEnabled && modelLabel
                                 ? `Powered by ${modelLabel} · shared with the call`
                                 : "Shared with everyone in the call"}
@@ -160,7 +160,7 @@ export function InCallAIPanel({
                     <div key={it.id} className="space-y-1.5">
                         {/* Asker attribution — only for questions from others. */}
                         {!it.mine && (
-                            <p className="text-[11px] text-white/40 px-1">
+                            <p className="text-2xs text-white/40 px-1">
                                 {it.askedByName} asked
                             </p>
                         )}

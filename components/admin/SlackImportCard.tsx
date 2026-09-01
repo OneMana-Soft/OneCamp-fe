@@ -406,7 +406,7 @@ const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onR
 
 const Stat: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div>
-    <div className="text-muted-foreground uppercase tracking-wider text-[10px]">{label}</div>
+    <div className="text-muted-foreground uppercase tracking-wider text-3xs">{label}</div>
     <div className="font-medium">{value}</div>
   </div>
 )

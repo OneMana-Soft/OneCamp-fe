@@ -72,7 +72,7 @@ export default function ProjectAttachment({
                 <button
                     type="button"
                     onClick={handleDownload}
-                    className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1 w-fit transition-colors"
+                    className="text-2xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 w-fit transition-colors"
                 >
                     <Download className="h-3 w-3" />
                     Download

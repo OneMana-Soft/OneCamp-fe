@@ -139,7 +139,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                             key={cat}
                             type="button"
                             onClick={() => setActiveCategory(cat)}
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                            className={`rounded-full px-2.5 py-1 text-2xs font-medium transition-colors ${
                                 activeCategory === cat
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-muted text-muted-foreground hover:bg-muted/70"
@@ -167,7 +167,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             <div className="space-y-4">
                 {grouped.map(([category, items]) => (
                     <div key={category}>
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
+                        <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
                             {category}
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -223,7 +223,7 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
                     <div className="flex items-center gap-1.5">
                         <span className="font-medium text-sm truncate">{item.name}</span>
                         {item.featured && (
-                            <Badge variant="secondary" className="text-[10px]">Popular</Badge>
+                            <Badge variant="secondary" className="text-3xs">Popular</Badge>
                         )}
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{item.description}</p>
@@ -232,7 +232,7 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
 
             <div className="flex flex-wrap gap-1 mt-2">
                 {(item.commands || []).slice(0, 4).map((c) => (
-                    <span key={c} className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono">
+                    <span key={c} className="inline-flex items-center gap-0.5 text-3xs text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono">
                         <Terminal className="h-2.5 w-2.5" />/{c}
                     </span>
                 ))}

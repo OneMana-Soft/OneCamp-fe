@@ -439,7 +439,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
 
                         <div className="space-y-6 mt-6">
                             <div className="space-y-4">
-                                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Appearance</h3>
+                                <h3 className="text-3xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Appearance</h3>
                                 <div className="rounded-xl border bg-muted/10 p-4 space-y-4">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -459,7 +459,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                             </div>
 
                             <div className="space-y-4">
-                                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{t('integrations') || 'Integrations'}</h3>
+                                <h3 className="text-3xs font-bold uppercase tracking-[0.2em] text-muted-foreground">{t('integrations') || 'Integrations'}</h3>
                                 
                                 <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition-all hover:bg-muted/20">
                                     <div className="flex items-center justify-between">
@@ -469,7 +469,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                             </div>
                                             <div>
                                                 <p className="text-sm font-medium">Google Calendar</p>
-                                                <p className="text-[10px] text-muted-foreground leading-tight">Sync your workflow and events</p>
+                                                <p className="text-3xs text-muted-foreground leading-tight">Sync your workflow and events</p>
                                             </div>
                                         </div>
                                         {!gcalStatus?.isConnected ? (
@@ -487,7 +487,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         <div className="mt-4 flex items-center justify-between rounded-lg bg-background/50 p-3 ring-1 ring-border/50 animate-in slide-in-from-top-2 duration-300">
                                             <div className="space-y-0.5">
                                                 <p className="text-xs font-medium text-foreground">Sync Tasks</p>
-                                                <p className="text-[10px] text-muted-foreground">Due dates will appear on your calendar</p>
+                                                <p className="text-3xs text-muted-foreground">Due dates will appear on your calendar</p>
                                             </div>
                                             <Switch
                                                 checked={gcalStatus?.taskSyncEnabled}
@@ -501,7 +501,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                             </div>
                             
                             <div className="space-y-4">
-                                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Security</h3>
+                                <h3 className="text-3xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Security</h3>
                                 <ChangePasswordSection />
                                 <TwoFactorSection />
                             </div>

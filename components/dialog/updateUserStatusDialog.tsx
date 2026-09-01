@@ -279,7 +279,7 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
                   setMessage(e.target.value)
                 }}
                 placeholder='What’s your status?'
-                className='bg-transparent rounded-md text-[15px] h-12 dark:bg-transparent pl-12 pr-24'
+                className='bg-transparent rounded-md text-base md:text-sm h-12 dark:bg-transparent pl-12 pr-24'
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()

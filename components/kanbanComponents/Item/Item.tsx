@@ -212,7 +212,7 @@ export const Item = React.memo(
                     >
                         {/* Optional meta row — project + label */}
                         {hasMetaRow && (
-                            <div className="flex items-center gap-2 min-w-0 text-[11px] text-muted-foreground">
+                            <div className="flex items-center gap-2 min-w-0 text-2xs text-muted-foreground">
                                 {task.task_project && (
                                     <span className="inline-flex items-center gap-1 min-w-0 max-w-[60%]">
                                         <ColorIcon name={task.task_project.project_uuid} size="xs" />
@@ -222,7 +222,7 @@ export const Item = React.memo(
                                 {task.task_label && (
                                     <Badge
                                         variant="secondary"
-                                        className="text-[10px] h-4 px-1.5 font-medium uppercase tracking-wide truncate max-w-[40%]"
+                                        className="text-3xs h-4 px-1.5 font-medium uppercase tracking-wide truncate max-w-[40%]"
                                     >
                                         {task.task_label}
                                     </Badge>
@@ -277,11 +277,11 @@ export const Item = React.memo(
                             </div>
 
                             {/* Meta cluster on the right, allowed to wrap. */}
-                            <div className="ml-auto flex items-center justify-end flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground min-w-0">
+                            <div className="ml-auto flex items-center justify-end flex-wrap gap-x-2 gap-y-1 text-2xs text-muted-foreground min-w-0">
                                 {taskP && (
                                     <span
                                         className={cn(
-                                            "inline-flex items-center gap-1 h-5 px-1.5 rounded text-[10px] font-medium",
+                                            "inline-flex items-center gap-1 h-5 px-1.5 rounded text-3xs font-medium",
                                             taskP.color,
                                         )}
                                         title={`Priority: ${taskP.label}`}

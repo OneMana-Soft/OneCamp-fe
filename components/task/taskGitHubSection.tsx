@@ -61,19 +61,19 @@ export function TaskGitHubSection({
               {syncStatus?.status === "failed" && (
                 <div className="flex items-center gap-1 text-destructive" title={syncStatus.error || "Sync failed"}>
                   <AlertCircle className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-medium">Sync failed</span>
+                  <span className="text-3xs font-medium">Sync failed</span>
                 </div>
               )}
               {syncStatus?.status === "pending" && (
                 <div className="flex items-center gap-1 text-warning">
                   <div className="h-2 w-2 animate-pulse rounded-full bg-amber-600" />
-                  <span className="text-[10px] font-medium">Syncing...</span>
+                  <span className="text-3xs font-medium">Syncing...</span>
                 </div>
               )}
               {syncStatus?.status === "synced" && (
                 <div className="flex items-center gap-1 text-success" title="Synced with GitHub">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-medium">Synced</span>
+                  <span className="text-3xs font-medium">Synced</span>
                 </div>
               )}
             </div>
@@ -124,7 +124,7 @@ export function TaskGitHubSection({
                     })()}
                   </span>
                 </div>
-                <span className="text-[10px] uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition-all shrink-0 hidden sm:flex">
+                <span className="text-3xs uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition-all shrink-0 hidden sm:flex">
                   View Issue <ExternalLink className="h-3 w-3" />
                 </span>
                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 sm:hidden" />
@@ -146,7 +146,7 @@ export function TaskGitHubSection({
                     })()}
                   </span>
                 </div>
-                <span className="text-[10px] uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition-all shrink-0 hidden sm:flex">
+                <span className="text-3xs uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition-all shrink-0 hidden sm:flex">
                   View PR <ExternalLink className="h-3 w-3" />
                 </span>
                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 sm:hidden" />
@@ -161,7 +161,7 @@ export function TaskGitHubSection({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-[10px] gap-1 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  className="h-7 text-3xs gap-1 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                   onClick={(e) => {
                     e.preventDefault()
                     navigator.clipboard.writeText(task.task_github_branch || "")

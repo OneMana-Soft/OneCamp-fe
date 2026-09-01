@@ -398,7 +398,7 @@ export const BaseMessageCard = React.memo(({
               {message.from.is_bot && (
                 <PrincipalTag kind="ai" />
               )}
-              <span className="text-[11px] tabular-nums text-muted-foreground">
+              <span className="text-2xs tabular-nums text-muted-foreground">
                 {formatTimeForPostOrComment(message.createdAt, true)}
               </span>
             </div>
@@ -436,7 +436,7 @@ export const BaseMessageCard = React.memo(({
               back to the source text. Plain text (the model returns prose). */}
           {!isMessageEditEnabled && (translating || (translation && showTranslation)) && (
             <div className="mt-1.5 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
-              <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+              <div className="mb-0.5 flex items-center gap-1.5 text-2xs font-medium text-primary">
                 <Languages className="h-3 w-3" />
                 {translating ? "Translating…" : "Translated"}
                 {translation && !translating && (
@@ -460,7 +460,7 @@ export const BaseMessageCard = React.memo(({
             <button
               type="button"
               onClick={() => setShowTranslation(true)}
-              className="mt-1 text-[11px] font-medium text-primary underline-offset-2 hover:underline"
+              className="mt-1 text-2xs font-medium text-primary underline-offset-2 hover:underline"
             >
               Show translation
             </button>
