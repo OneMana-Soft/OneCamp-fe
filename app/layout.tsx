@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Inter } from "next/font/google";
+import { Bricolage_Grotesque, Inter } from "next/font/google";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ClientProviders } from "@/components/providers/ClientProviders";
 
@@ -8,6 +8,18 @@ const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
   display: "swap",
+});
+
+// Headings and product moments only; Inter still carries every dense surface.
+// Variable, so the whole weight range costs one file, and self-hosted at build
+// time by next/font, which matters for a product customers run on their own
+// machines behind their own firewall: nothing here calls out to Google at
+// runtime.
+const displayFace = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-display-face",
+  display: "swap",
+  weight: ["600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -29,7 +41,9 @@ export const viewport: Viewport = {
   // matches the manifest's theme_color and background_color, so the install
   // splash doesn't flash a different colour into the app shell. ThemeColorMeta
   // then keeps the tag equal to the background the user actually chose.
-  themeColor: "#ffffff",
+  // Matches --background in the light theme. The manifest carries the same value,
+  // so the install splash does not flash a different white into the app shell.
+  themeColor: "#fefdfc",
 };
 
 export default function RootLayout({
@@ -42,7 +56,7 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
-      className={inter.variable}
+      className={`${inter.variable} ${displayFace.variable}`}
     >
       <head>
         <link rel="manifest" href="/manifest.json" />
