@@ -86,6 +86,49 @@ export async function verifyAuditLog(): Promise<AuditVerifyResult | null> {
     return (res.data as { data?: AuditVerifyResult })?.data ?? null
 }
 
+/**
+ * downloadEvidencePack fetches the assembled evidence pack for a window.
+ *
+ * A different document from the audit export beside it, for a different reader.
+ * The export is the log, for somebody who wants the rows. The pack is an
+ * argument, for somebody deciding whether to trust the system: it carries the
+ * chain recomputation, what each agent was told, a manifest fingerprinting every
+ * section, and a plain statement of what it does not prove.
+ *
+ * Defaults to the last 90 days, which is the quarter audits are usually scoped
+ * in, and the server bounds it either way so an unbounded request cannot be made
+ * by leaving the fields empty.
+ */
+export async function downloadEvidencePack(from?: Date, to?: Date): Promise<void> {
+    const params = new URLSearchParams()
+    if (from) params.set("from", from.toISOString())
+    if (to) params.set("to", to.toISOString())
+    const query = params.toString()
+    const res = await axiosInstance.get(
+        `${GetEndpointUrl.GetAdminAuditLog}/evidence-pack${query ? `?${query}` : ""}`,
+        { responseType: "blob" },
+    )
+    downloadBlob(res.data as BlobPart, "application/json", "onecamp-evidence-pack.json")
+}
+
+/**
+ * downloadBlob turns a response body into a saved file.
+ *
+ * Extracted because a second caller needed the same eight lines, and the object
+ * URL has to be revoked either way: a copy that forgets leaks the whole file for
+ * the life of the tab.
+ */
+function downloadBlob(data: BlobPart, type: string, filename: string): void {
+    const url = URL.createObjectURL(new Blob([data], { type }))
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+}
+
 // exportAuditLog downloads the audit entries (chain order, with per-row hashes
 // so the file is independently verifiable) as CSV or JSON.
 export async function exportAuditLog(format: "csv" | "json", category?: string): Promise<void> {
@@ -95,15 +138,7 @@ export async function exportAuditLog(format: "csv" | "json", category?: string):
     const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}/export?${params.toString()}`, {
         responseType: "blob",
     })
-    const blob = new Blob([res.data as BlobPart], { type: format === "json" ? "application/json" : "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `audit-log.${format}`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    downloadBlob(res.data as BlobPart, format === "json" ? "application/json" : "text/csv", `audit-log.${format}`)
 }
 
 // ─── Call transcription config (admin) ───────────────────────────────────
