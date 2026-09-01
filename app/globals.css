@@ -58,6 +58,7 @@
   /* The brand, as utilities. Without these a component that wants the accent has
      nowhere to get it and reaches for a raw Tailwind hue, which is exactly how
      the 342 raw-hue call sites accumulated in the first place. */
+  --color-ink: var(--ink);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-muted: var(--brand-muted);
@@ -153,8 +154,19 @@
   --card-foreground: oklch(0.19 0.008 75);
   --popover: oklch(1 0.001 75);
   --popover-foreground: oklch(0.19 0.008 75);
-  --primary: oklch(0.22 0.01 75);
-  --primary-foreground: oklch(0.985 0.003 85);
+  /* PRIMARY IS THE ACCENT, and this is the correction to a call I got wrong.
+     I had set it to ink, reasoning that a near-black primary button is current
+     practice. It is, in a product with no accent picker. This one HAS one, and
+     Button's default variant and three of Badge's variants read --primary, so
+     with primary pinned to ink the picker changed a focus ring and nothing a
+     person would notice. Choosing green and getting black buttons is the bug
+     being reported, and it was mine.
+
+     Derived rather than repeated: a theme sets --brand and everything that
+     carries the accent follows, so there is still exactly one value per theme
+     and no way for the button and the ring to disagree. */
+  /* Kept for the surfaces that genuinely want ink rather than the accent. */
+  --ink: oklch(0.22 0.01 75);
   --secondary: oklch(0.968 0.004 75);
   --secondary-foreground: oklch(0.22 0.01 75);
   --muted: oklch(0.968 0.004 75);
@@ -188,7 +200,6 @@
   --input: oklch(0.918 0.005 75);
   /* Focus is the most common place the brand appears, and the one place it must
      never be decorative: it is how a keyboard user knows where they are. */
-  --ring: var(--brand);
   --chart-1: var(--color-blue-300);
   --chart-2: var(--color-blue-500);
   --chart-3: var(--color-blue-600);
@@ -196,20 +207,15 @@
   --chart-5: var(--color-blue-800);
   --sidebar: oklch(0.978 0.004 75);
   --sidebar-foreground: oklch(0.19 0.008 75);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-accent: oklch(0.955 0.006 70);
   --sidebar-accent-foreground: oklch(0.22 0.01 75);
   --sidebar-border: oklch(0.918 0.005 75);
-  --sidebar-ring: var(--brand);
   --surface: oklch(0.975 0.004 75);
   --surface-foreground: var(--foreground);
   --code: var(--surface);
   --code-foreground: var(--surface-foreground);
   --code-highlight: oklch(0.955 0.006 70);
   --code-number: oklch(0.56 0.01 75);
-  --selection: var(--brand);
-  --selection-foreground: var(--brand-foreground);
 }
 
 .dark {
@@ -230,8 +236,7 @@
   --card-foreground: oklch(0.975 0.003 85);
   --popover: oklch(0.202 0.009 70);
   --popover-foreground: oklch(0.975 0.003 85);
-  --primary: oklch(0.92 0.005 80);
-  --primary-foreground: oklch(0.2 0.01 75);
+  --ink: oklch(0.92 0.005 80);
   --secondary: oklch(0.27 0.008 70);
   --secondary-foreground: oklch(0.975 0.003 85);
   --muted: oklch(0.27 0.008 70);
@@ -252,7 +257,6 @@
   --destructive-foreground: oklch(0.2 0.03 25);
   --border: oklch(0.275 0.008 70);
   --input: oklch(0.275 0.008 70);
-  --ring: var(--brand);
   --chart-1: var(--color-blue-300);
   --chart-2: var(--color-blue-500);
   --chart-3: var(--color-blue-600);
@@ -260,20 +264,15 @@
   --chart-5: var(--color-blue-800);
   --sidebar: oklch(0.187 0.008 70);
   --sidebar-foreground: oklch(0.975 0.003 85);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-accent: oklch(0.27 0.008 70);
   --sidebar-accent-foreground: oklch(0.975 0.003 85);
   --sidebar-border: oklch(0.275 0.008 70);
-  --sidebar-ring: var(--brand);
   --surface: oklch(0.232 0.008 70);
   --surface-foreground: oklch(0.715 0.012 75);
   --code: var(--surface);
   --code-foreground: var(--surface-foreground);
   --code-highlight: oklch(0.27 0.008 70);
   --code-number: oklch(0.72 0.01 75);
-  --selection: var(--brand);
-  --selection-foreground: var(--brand-foreground);
 }
 
 @keyframes blink {
@@ -312,6 +311,34 @@
 
 @utility glass {
   @apply bg-background/80 backdrop-blur-xl border-b border-border/40;
+}
+
+
+/* Everything the accent drives, declared on BODY and not on :root.
+ *
+ * This is not a style preference, it is the only place it works. A var() inside
+ * a custom property is substituted at computed-value time ON THE ELEMENT WHERE
+ * IT IS DECLARED. Written as `:root { --primary: var(--brand) }`, --primary is
+ * resolved against the ROOT accent and then inherited as that fixed value, so
+ * the theme class on <body> changes --brand and --primary never moves.
+ *
+ * That is the bug behind "the theme picker does nothing to the buttons". It is
+ * also why the focus ring, the sidebar highlight and the text selection stayed
+ * put: every one of them was the same indirection in the same wrong place.
+ *
+ * Declared here, they resolve against body's --brand, which IS the themed one,
+ * and every descendant inherits the right value. Verified in a real browser
+ * rather than reasoned about, because the two look identical in the source.
+ */
+body {
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --ring: var(--brand);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-ring: var(--brand);
+  --selection: var(--brand);
+  --selection-foreground: var(--brand-foreground);
 }
 
 @layer base {
