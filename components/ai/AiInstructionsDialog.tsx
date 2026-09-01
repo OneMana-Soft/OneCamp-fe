@@ -88,7 +88,7 @@ const AiInstructionsDialog: React.FC<{
             disabled={loading || saving}
             className="resize-none text-sm"
           />
-          <span className="pointer-events-none absolute bottom-2 right-3 text-[11px] text-muted-foreground">
+          <span className="pointer-events-none absolute bottom-2 right-3 text-2xs text-muted-foreground">
             {value.length}/{MAX_LEN}
           </span>
         </div>

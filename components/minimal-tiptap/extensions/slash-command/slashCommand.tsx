@@ -638,7 +638,7 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
     <div className="flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl min-w-[17rem] max-h-[22rem] overflow-y-auto py-1.5 px-1">
       {groupedItems.map((group) => (
         <div key={group.section} className="mb-1 last:mb-0">
-          <div className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          <div className="px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70">
             {group.section}
           </div>
           <div className="flex flex-col gap-px">
@@ -667,7 +667,7 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="font-medium truncate">{item.title}</span>
-                    <span className="text-[11px] text-muted-foreground truncate">{item.description}</span>
+                    <span className="text-2xs text-muted-foreground truncate">{item.description}</span>
                   </div>
                 </button>
               )

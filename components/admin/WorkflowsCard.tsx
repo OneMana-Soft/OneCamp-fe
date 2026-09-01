@@ -164,10 +164,10 @@ const WorkflowsCard = () => {
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-medium truncate">{wf.name}</span>
                                             {!wf.is_active && (
-                                                <Badge variant="secondary" className="text-[10px]">Paused</Badge>
+                                                <Badge variant="secondary" className="text-3xs">Paused</Badge>
                                             )}
                                             {wf.last_error && (
-                                                <Badge variant="destructive" className="text-[10px]">Last run failed</Badge>
+                                                <Badge variant="destructive" className="text-3xs">Last run failed</Badge>
                                             )}
                                         </div>
                                         <p className="text-xs text-muted-foreground">
@@ -193,11 +193,11 @@ const WorkflowsCard = () => {
                                         </p>
                                         <div className="flex items-center gap-2 flex-wrap">
                                             {actions.map((a, i) => (
-                                                <Badge key={i} variant="outline" className="gap-1 text-[11px] font-normal">
+                                                <Badge key={i} variant="outline" className="gap-1 text-2xs font-normal">
                                                     {actionLabel(a.type)}
                                                 </Badge>
                                             ))}
-                                            <span className="text-[11px] text-muted-foreground">
+                                            <span className="text-2xs text-muted-foreground">
                                                 · ran {wf.run_count} {wf.run_count === 1 ? "time" : "times"}
                                             </span>
                                         </div>

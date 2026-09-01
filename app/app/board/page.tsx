@@ -164,7 +164,7 @@ function BoardCard({
       </div>
       <div className="min-w-0">
         <span className="block truncate text-xs font-medium sm:text-sm">{title}</span>
-        <span className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground sm:text-xs">
+        <span className="mt-0.5 flex items-center gap-1 text-3xs text-muted-foreground sm:text-xs">
           {isPrivate ? <Lock className="h-3 w-3" /> : <Users className="h-3 w-3" />}
           {relative ? <span>{relative}</span> : <span>{isPrivate ? "Private" : "Shared"}</span>}
         </span>

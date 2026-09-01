@@ -115,12 +115,12 @@ const RescheduleDialog: React.FC<{
           <div className="flex flex-col gap-3 min-w-0">
             {/* Current time + conflict summary */}
             <div className="rounded-lg border border-border/70 bg-muted/40 px-3 py-2 space-y-1">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Currently</div>
+              <div className="text-2xs uppercase tracking-wide text-muted-foreground">Currently</div>
               <div className="text-sm font-medium truncate">
                 {formatSlot(result.current_start, result.current_end)}
               </div>
               {result.conflict_count > 0 ? (
-                <div className="flex items-start gap-1.5 text-[11px] text-warning">
+                <div className="flex items-start gap-1.5 text-2xs text-warning">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
                   <span>
                     {result.conflict_count} {result.conflict_count === 1 ? "person has" : "people have"} a
@@ -128,14 +128,14 @@ const RescheduleDialog: React.FC<{
                   </span>
                 </div>
               ) : (
-                <div className="text-[11px] text-success">
+                <div className="text-2xs text-success">
                   No conflicts right now — but you can still move it.
                 </div>
               )}
             </div>
 
             {result.participants.length > 0 && (
-              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                 <Users className="h-3 w-3" />
                 {result.participants.map((p) => p.name).join(", ")}
               </div>
@@ -160,7 +160,7 @@ const RescheduleDialog: React.FC<{
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-medium truncate">{formatSlot(c.start, c.end)}</span>
                           <span
-                            className={`text-[11px] ${
+                            className={`text-2xs ${
                               c.all_free ? "text-success" : "text-warning"
                             }`}
                           >

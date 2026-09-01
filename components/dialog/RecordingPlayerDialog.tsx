@@ -186,7 +186,7 @@ export const RecordingPlayerDialog = () => {
                      <span className={cn("font-semibold text-xs", isActive ? "text-primary" : "text-muted-foreground")}>
                         {item.transcript_from?.user_name || "Unknown"}
                      </span>
-                     <span className="text-[10px] text-muted-foreground font-mono">
+                     <span className="text-3xs text-muted-foreground font-mono">
                         {formatDuration(startTimeSeconds)}
                      </span>
                  </div>

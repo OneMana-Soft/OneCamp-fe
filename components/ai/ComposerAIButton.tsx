@@ -216,7 +216,7 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
         )}
         {hasDraft ? (
           <>
-            <p className="px-1 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+            <p className="px-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground/70">
               Improve your draft
             </p>
             <div className="flex flex-col">
@@ -241,7 +241,7 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
           </>
         ) : null}
 
-        <p className="px-1 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+        <p className="px-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground/70">
           {hasDraft ? "Or draft something new" : "Draft with AI"}
         </p>
         <Textarea

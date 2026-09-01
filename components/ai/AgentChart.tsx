@@ -88,7 +88,7 @@ const AgentChart: React.FC<AgentChartProps> = ({ chart, className }) => {
             )}
         >
             {chart.title ? (
-                <figcaption className="mb-2 text-[13px] font-semibold text-foreground">
+                <figcaption className="mb-2 text-sm font-semibold text-foreground">
                     {chart.title}
                 </figcaption>
             ) : null}
@@ -327,7 +327,7 @@ const Legend: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
     return (
         <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
             {items.map((it, i) => (
-                <li key={`lg-${i}`} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <li key={`lg-${i}`} className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                     <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: it.color }} />
                     <span className="[overflow-wrap:anywhere]">{it.label}</span>
                 </li>

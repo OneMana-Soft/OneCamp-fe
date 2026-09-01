@@ -83,7 +83,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
                     <span className="text-xs text-muted-foreground truncate">
                         {subtitle}
                     </span>
-                    <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                    <span className="ml-auto shrink-0 text-2xs tabular-nums text-muted-foreground">
                         {post.post_created_at
                             ? formatTimeForPostOrComment(post.post_created_at)
                             : ""}

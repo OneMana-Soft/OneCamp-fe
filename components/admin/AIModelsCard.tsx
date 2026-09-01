@@ -518,7 +518,7 @@ const AIModelsCard = () => {
         <section className="space-y-6">
           {/* General */}
           <div className="space-y-3">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
               General
             </h3>
             <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
@@ -550,7 +550,7 @@ const AIModelsCard = () => {
                 <h4 className="text-sm font-semibold flex items-center gap-2">
                   Local-only AI
                   {config.local_only_pinned_by_env && (
-                    <Badge variant="secondary" className="text-[10px]">Locked by env</Badge>
+                    <Badge variant="secondary" className="text-3xs">Locked by env</Badge>
                   )}
                 </h4>
                 <p className="text-xs text-muted-foreground">
@@ -603,7 +603,7 @@ const AIModelsCard = () => {
 
           {/* Usage & limits */}
           <div className="space-y-3">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
               Usage &amp; limits
             </h3>
             <RateLimitRow
@@ -657,7 +657,7 @@ const AIModelsCard = () => {
 
           {/* Model tuning */}
           <div className="space-y-3">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
               Model tuning
             </h3>
             <ContextWindowRow
@@ -857,7 +857,7 @@ const AIModelsCard = () => {
                 {sendingDigest ? "Sending…" : "Email me a test digest"}
               </Button>
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
+            <p className="mt-2 text-2xs text-muted-foreground">
               The report posts into channels (not email). The only email is the per-user open-items digest, which
               each member opts into under their notification settings — &quot;Email me a test digest&quot; sends one to you now.
             </p>
@@ -954,7 +954,7 @@ const ReindexBanner: React.FC<{ status: ReindexStatus }> = ({ status }) => {
   return (
     <section className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+        <h3 className="text-sm font-semibold text-warning">
           {status.running ? "Rebuilding AI search index…" : "AI search index rebuilt"}
         </h3>
         <span className="text-xs text-muted-foreground">
@@ -1024,7 +1024,7 @@ const UsageRow: React.FC<{ usage: AIUsage }> = ({ usage }) => {
           No daily caps set. Set AI_WORKSPACE_DAILY_TOKEN_BUDGET and/or AI_USER_DAILY_TOKEN_BUDGET to limit spend.
         </p>
       )}
-      <p className="border-t border-border/50 pt-2 text-[11px] leading-relaxed text-muted-foreground">
+      <p className="border-t border-border/50 pt-2 text-2xs leading-relaxed text-muted-foreground">
         Counts both prompt (input) and response (output) tokens, combined. They use
         each provider&apos;s reported token usage where available and a calibrated
         estimate otherwise, are best-effort (a brief metering outage isn&apos;t
@@ -1274,7 +1274,7 @@ const TokenBudgetRow: React.FC<{
           onChange={(e) => setValue(Math.max(0, parseInt(e.target.value || "0", 10)))}
           className="w-40"
         />
-        <p className="text-[11px] text-muted-foreground mt-1">{value === 0 ? "Unlimited" : `${value.toLocaleString()} tokens/day`}</p>
+        <p className="text-2xs text-muted-foreground mt-1">{value === 0 ? "Unlimited" : `${value.toLocaleString()} tokens/day`}</p>
       </div>
       <Button
         size="sm"
@@ -1606,7 +1606,7 @@ const ActiveModelSection: React.FC<SectionProps> = ({
             </div>
           }
         />
-        <p className="text-xs text-amber-600 dark:text-amber-500">
+        <p className="text-xs text-warning">
           Current index dimension: {config.embedding_dimension}. Switching to a model with a different
           dimension rebuilds the search index.
         </p>
@@ -1820,7 +1820,7 @@ function RecapInstructionsField({
   return (
     <div className="mt-3 border-t border-border/50 pt-3">
       <Label className="text-xs font-medium text-muted-foreground">Custom instructions (optional)</Label>
-      <p className="mb-2 text-[11px] leading-tight text-muted-foreground">
+      <p className="mb-2 text-2xs leading-tight text-muted-foreground">
         Tailor what the recap emphasizes. These are added to the recap prompt and can&apos;t override its
         grounding rules (it always uses only the transcript). Example: &quot;Add a Risks section and write the
         recap in Spanish.&quot;
@@ -2389,7 +2389,7 @@ function CodePRSection({
           onChange={(e) => setEgress(e.target.value)}
           placeholder="github.com, api.github.com"
         />
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           Comma-separated. The runner is default-deny; only these hosts (your git host, plus any package registry
           your builds need) are reachable.
         </p>
@@ -2411,7 +2411,7 @@ function CodePRSection({
         <div className="flex items-end justify-between gap-3 pb-1">
           <div className="pr-2">
             <Label className="text-xs">Draft PR when it can&apos;t verify</Label>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               Open a clearly-labeled draft instead of nothing when the build/tests can&apos;t be made to pass.
             </p>
           </div>
@@ -2422,7 +2422,7 @@ function CodePRSection({
       <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-background/40 p-3">
         <div className="pr-2">
           <Label className="text-xs">Allow any repository the agent can access</Label>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             When on, the agent can open a PR on any repo the connected GitHub account can reach (access is verified
             per run), not only repos linked to a project. Leave off to restrict it to linked repositories — the safer
             default when the connected account can see repos beyond this workspace.
@@ -2483,13 +2483,13 @@ function CodePRSection({
           aria-invalid={wallInvalid}
           className="w-32"
         />
-        <p id="code-pr-wall-hint" className="text-[11px] text-muted-foreground">
+        <p id="code-pr-wall-hint" className="text-2xs text-muted-foreground">
           How long one coding run may work before it wraps up and hands back whatever it finished — partial work is
           still pushed to a branch. Use 0 for the default, or {CODE_PR_MIN_WALL_MINUTES}–{CODE_PR_MAX_WALL_MINUTES}{" "}
           minutes. In force now: {config.code_pr_effective_wall_minutes} min.
         </p>
         {wallInvalid && (
-          <p className="text-[11px] text-destructive">
+          <p className="text-2xs text-destructive">
             Use 0 (default) or a value between {CODE_PR_MIN_WALL_MINUTES} and {CODE_PR_MAX_WALL_MINUTES}.
           </p>
         )}
@@ -2674,7 +2674,7 @@ function CodePRReliabilityCard() {
 
           {runs.length > 0 && (
             <div className="space-y-1 pt-1">
-              <p className="text-[11px] font-medium text-muted-foreground">Recent runs</p>
+              <p className="text-2xs font-medium text-muted-foreground">Recent runs</p>
               <div className="divide-y divide-border/60 rounded-md border border-border/60">
                 {runs.map((run) => (
                   <CodePRRunRow key={run.id} run={run} />
@@ -2703,7 +2703,7 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
       case "ok":
         return {
           label: run.draft ? "Draft PR" : "PR opened",
-          cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+          cls: "bg-blue-500/15 text-info",
         }
       case "blocked":
         return { label: "Needs input", cls: "bg-amber-500/15 text-warning" }
@@ -2725,10 +2725,10 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
           <span className="truncate font-medium">{run.repo || "—"}</span>
         </div>
         {run.message ? (
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{run.message}</p>
+          <p className="mt-0.5 truncate text-2xs text-muted-foreground">{run.message}</p>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-3 text-[11px] text-muted-foreground">
+      <div className="flex shrink-0 items-center gap-3 text-2xs text-muted-foreground">
         {run.all_passed ? (
           <span className="text-success" title="Build & tests passed in the sandbox">
             ✓ verified
@@ -2757,8 +2757,8 @@ function Metric({ label, value, sub }: { label: string; value: string; sub?: str
   return (
     <div className="rounded-md border border-border/60 bg-background/40 px-3 py-2">
       <div className="text-lg font-semibold tabular-nums">{value}</div>
-      <div className="text-[11px] font-medium text-muted-foreground">{label}</div>
-      {sub ? <div className="text-[10px] text-muted-foreground/70 tabular-nums">{sub}</div> : null}
+      <div className="text-2xs font-medium text-muted-foreground">{label}</div>
+      {sub ? <div className="text-3xs text-muted-foreground/70 tabular-nums">{sub}</div> : null}
     </div>
   )
 }

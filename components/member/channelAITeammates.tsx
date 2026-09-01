@@ -79,7 +79,7 @@ export default function ChannelAITeammates({ channelId }: ChannelAITeammatesProp
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="flex items-center gap-1.5 px-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
         <Sparkles className="h-3 w-3" /> AI teammates
       </div>
       <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border/60">
@@ -94,7 +94,7 @@ export default function ChannelAITeammates({ channelId }: ChannelAITeammatesProp
                   <span className="truncate text-sm font-medium">{opt.name}</span>
                   <PrincipalTag kind="ai" />
                 </div>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="truncate text-2xs text-muted-foreground">
                   {opt.in_channel
                     ? "Replies to @mentions here"
                     : opt.global

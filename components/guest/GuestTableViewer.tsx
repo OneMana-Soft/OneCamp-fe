@@ -28,13 +28,13 @@ function optionColorClass(color?: string): string {
   // Map a stored option color to a subtle chip style; fall back to muted.
   switch ((color || "").toLowerCase()) {
     case "red":
-      return "bg-red-500/10 text-red-700 dark:text-red-300"
+      return "bg-red-500/10 text-destructive"
     case "green":
-      return "bg-success/10 text-green-700 dark:text-green-300"
+      return "bg-success/10 text-success"
     case "blue":
       return "bg-blue-500/10 text-blue-700 dark:text-blue-300"
     case "yellow":
-      return "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300"
+      return "bg-yellow-500/10 text-warning"
     case "purple":
       return "bg-purple-500/10 text-purple-700 dark:text-purple-300"
     case "orange":
@@ -46,7 +46,7 @@ function optionColorClass(color?: string): string {
 
 function Chip({ label, color }: { label: string; color?: string }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${optionColorClass(color)}`}>
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-2xs font-medium ${optionColorClass(color)}`}>
       {label}
     </span>
   )

@@ -125,7 +125,7 @@ export function InlineBoardCreator({ className, isOpen: controlledIsOpen, onOpen
         </Button>
       </div>
       {error && (
-        <p id="board-title-error" className="text-[10px] text-destructive mt-0.5 pl-5" role="alert">
+        <p id="board-title-error" className="text-3xs text-destructive mt-0.5 pl-5" role="alert">
           {error}
         </p>
       )}

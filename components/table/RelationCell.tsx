@@ -142,7 +142,7 @@ export function RelationCell({
                       linked ? "cursor-default opacity-50" : "hover:bg-muted",
                     )}
                   >
-                    <span className="rounded bg-muted px-1 text-[10px] uppercase text-muted-foreground">{ref.type}</span>
+                    <span className="rounded bg-muted px-1 text-3xs uppercase text-muted-foreground">{ref.type}</span>
                     <span className="min-w-0 flex-1 truncate">{ref.label}</span>
                   </button>
                 )

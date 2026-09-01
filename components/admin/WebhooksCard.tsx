@@ -303,7 +303,7 @@ const WebhooksCard = () => {
                             className="w-full flex items-center gap-2 text-xs py-1.5 px-1.5 rounded hover:bg-muted/40 text-left transition-colors"
                           >
                             {log.success ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />}
-                            <Badge variant="outline" className="text-[10px] px-1.5">{log.event_type}</Badge>
+                            <Badge variant="outline" className="text-3xs px-1.5">{log.event_type}</Badge>
                             {log.response_status && <span className={`font-mono ${log.response_status >= 200 && log.response_status < 300 ? "text-success" : "text-destructive"}`}>{log.response_status}</span>}
                             {log.duration_ms !== undefined && <span className="text-muted-foreground">{log.duration_ms}ms</span>}
                             {log.error_message && <span className="text-red-500 truncate flex-1">{log.error_message}</span>}
@@ -335,12 +335,12 @@ const WebhooksCard = () => {
             <SheetDescription>
               {selectedLog && (
                 <span className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[10px]">{selectedLog.event_type}</Badge>
+                  <Badge variant="outline" className="text-3xs">{selectedLog.event_type}</Badge>
                   <span className="text-muted-foreground">{new Date(selectedLog.created_at).toLocaleString()}</span>
                   {selectedLog.success ? (
-                    <Badge variant="default" className="text-[10px] bg-green-600">Success</Badge>
+                    <Badge variant="default" className="text-3xs bg-green-600">Success</Badge>
                   ) : (
-                    <Badge variant="destructive" className="text-[10px]">Failed</Badge>
+                    <Badge variant="destructive" className="text-3xs">Failed</Badge>
                   )}
                 </span>
               )}
@@ -373,7 +373,7 @@ const WebhooksCard = () => {
                   </div>
                   <div className="bg-muted/40 p-2.5 rounded-md">
                     <span className="text-muted-foreground block mb-0.5">Log ID</span>
-                    <span className="font-mono text-[10px] truncate block">{selectedLog.id}</span>
+                    <span className="font-mono text-3xs truncate block">{selectedLog.id}</span>
                   </div>
                 </div>
                 {selectedLog.error_message && (
@@ -393,7 +393,7 @@ const WebhooksCard = () => {
                     <Copy className="h-3 w-3 mr-1" /> Copy
                   </Button>
                 </div>
-                <pre className="text-[11px] bg-muted/40 p-3 rounded-md overflow-x-auto font-mono whitespace-pre-wrap flex-1">
+                <pre className="text-2xs bg-muted/40 p-3 rounded-md overflow-x-auto font-mono whitespace-pre-wrap flex-1">
                   {prettyJson(selectedLog.request_body) || "No request body recorded"}
                 </pre>
               </TabsContent>
@@ -407,7 +407,7 @@ const WebhooksCard = () => {
                     <Copy className="h-3 w-3 mr-1" /> Copy
                   </Button>
                 </div>
-                <pre className="text-[11px] bg-muted/40 p-3 rounded-md overflow-x-auto font-mono whitespace-pre-wrap flex-1">
+                <pre className="text-2xs bg-muted/40 p-3 rounded-md overflow-x-auto font-mono whitespace-pre-wrap flex-1">
                   {prettyJson(selectedLog.response_body) || "No response body recorded"}
                 </pre>
               </TabsContent>

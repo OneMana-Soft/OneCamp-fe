@@ -131,7 +131,7 @@ export function InlineDocCreator({ className, isOpen: controlledIsOpen, onOpenCh
         </Button>
       </div>
       {error && (
-        <p id="doc-title-error" className="text-[10px] text-destructive mt-0.5 pl-5" role="alert">
+        <p id="doc-title-error" className="text-3xs text-destructive mt-0.5 pl-5" role="alert">
           {error}
         </p>
       )}

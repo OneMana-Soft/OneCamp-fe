@@ -131,26 +131,26 @@ const McpServersCard = () => {
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium">{s.name}</span>
-                      {!s.enabled && <Badge variant="secondary" className="text-[10px]">Disabled</Badge>}
+                      {!s.enabled && <Badge variant="secondary" className="text-3xs">Disabled</Badge>}
                       {s.last_error ? (
-                        <Badge variant="destructive" className="text-[10px]">Connection error</Badge>
+                        <Badge variant="destructive" className="text-3xs">Connection error</Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px]">{tools.length} tool{tools.length === 1 ? "" : "s"}</Badge>
+                        <Badge variant="outline" className="text-3xs">{tools.length} tool{tools.length === 1 ? "" : "s"}</Badge>
                       )}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">{s.url}</p>
                     {tools.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5">
                         {tools.slice(0, 6).map((t) => (
-                          <Badge key={t.name} variant="outline" className="gap-1 text-[11px] font-normal">
+                          <Badge key={t.name} variant="outline" className="gap-1 text-2xs font-normal">
                             {t.name}
                             <McpToolRiskBadge tool={t} compact />
                           </Badge>
                         ))}
-                        {tools.length > 6 && <span className="text-[11px] text-muted-foreground">+{tools.length - 6} more</span>}
+                        {tools.length > 6 && <span className="text-2xs text-muted-foreground">+{tools.length - 6} more</span>}
                       </div>
                     )}
-                    {s.last_error && <p className="text-[11px] text-destructive">{s.last_error}</p>}
+                    {s.last_error && <p className="text-2xs text-destructive">{s.last_error}</p>}
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1">
@@ -201,20 +201,20 @@ const McpServersCard = () => {
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{c.name}</span>
-                      <Badge variant="outline" className="text-[10px] font-normal">{c.category}</Badge>
+                      <Badge variant="outline" className="text-3xs font-normal">{c.category}</Badge>
                     </div>
-                    <p className="line-clamp-2 text-[11px] text-muted-foreground">{c.description}</p>
+                    <p className="line-clamp-2 text-2xs text-muted-foreground">{c.description}</p>
                     <a
                       href={c.docs_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                      className="inline-flex items-center gap-1 text-2xs text-primary hover:underline"
                     >
                       Setup guide <ExternalLink className="h-3 w-3" />
                     </a>
                   </div>
                   {c.installed ? (
-                    <Badge variant="secondary" className="shrink-0 gap-1 text-[10px]">
+                    <Badge variant="secondary" className="shrink-0 gap-1 text-3xs">
                       <Check className="h-3 w-3" /> Installed
                     </Badge>
                   ) : (

@@ -316,7 +316,7 @@ export function CalendarApp() {
                                     <Popover>
                                         <PopoverTrigger asChild>
                                             <div 
-                                                className="text-[10px] font-bold text-muted-foreground/70 text-center pb-0.5 hover:text-primary transition-colors cursor-pointer z-30"
+                                                className="text-3xs font-bold text-muted-foreground/70 text-center pb-0.5 hover:text-primary transition-colors cursor-pointer z-30"
                                                 onClick={(e) => e.stopPropagation()}
                                             >
                                                 +{dayEvents.length - 3} more
@@ -325,10 +325,10 @@ export function CalendarApp() {
                                         <PopoverContent className="w-64 p-2 shadow-xl border-border bg-popover" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center justify-between px-2 pb-2">
-                                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                                    <span className="text-3xs font-bold text-muted-foreground uppercase tracking-wider">
                                                         {format(day, "EEEE, MMM d")}
                                                     </span>
-                                                    <span className="text-[10px] text-muted-foreground/50">
+                                                    <span className="text-3xs text-muted-foreground/50">
                                                         {dayEvents.length} events
                                                     </span>
                                                 </div>
@@ -362,7 +362,7 @@ export function CalendarApp() {
                                                                     event.isTask ? "group-hover:bg-blue-600" : "group-hover:bg-indigo-600"
                                                                 )} />
                                                                 <div className="flex flex-col min-w-0">
-                                                                    <div className="text-[11px] font-semibold truncate text-foreground group-hover:text-primary transition-colors">
+                                                                    <div className="text-2xs font-semibold truncate text-foreground group-hover:text-primary transition-colors">
                                                                         {event.event_title}
                                                                     </div>
                                                                     <div className="text-3xs text-muted-foreground truncate">
@@ -419,7 +419,7 @@ export function CalendarApp() {
                                             width: `${(event.colSpan / 7) * 100}%`
                                         }}
                                         className={cn(
-                                            "absolute h-5 px-1.5 py-0 text-[10px] font-medium truncate cursor-pointer transition-all flex items-center z-20",
+                                            "absolute h-5 px-1.5 py-0 text-3xs font-medium truncate cursor-pointer transition-all flex items-center z-20",
                                             isHovered && "scale-[1.02] z-30 shadow-md",
                                             event.isTask
                                                 ? (isHovered ? calendarColors.task.solidHover : calendarColors.task.solidOpacity)
@@ -468,7 +468,7 @@ export function CalendarApp() {
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={nextMiniMonth} aria-label="Next month"><ChevronRight className="h-3.5 w-3.5"/></Button>
                         </div>
                      </div>
-                     <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-muted-foreground font-semibold mb-2">
+                     <div className="grid grid-cols-7 gap-1 text-center text-3xs text-muted-foreground font-semibold mb-2">
                         {['S','M','T','W','T','F','S'].map((d, i) => <div key={i}>{d}</div>)}
                      </div>
                      <div className="grid grid-cols-7 gap-x-1 gap-y-1 text-center text-xs">
@@ -522,7 +522,7 @@ export function CalendarApp() {
 
                 <div className="space-y-4">
                     <div>
-                        <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-3">My Calendars</h4>
+                        <h4 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">My Calendars</h4>
                         <div className="space-y-2">
                             <label className="flex items-center gap-2.5 text-sm cursor-pointer group">
                                 <Checkbox
@@ -668,7 +668,7 @@ export function CalendarApp() {
                             {/* Days of week header */}
                             <div className="grid grid-cols-7 w-full border-b border-border/60 sticky top-0 bg-background z-20 border-l text-center">
                                 {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((dayName) => (
-                                    <div key={dayName} className="py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60">
+                                    <div key={dayName} className="py-2 text-3xs font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60">
                                         {dayName}
                                     </div>
                                 ))}

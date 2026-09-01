@@ -189,7 +189,7 @@ function AdminUserRow({
         <Avatar className="h-9 w-9 shrink-0">
           <AvatarImage src={imageSrc} alt="" />
           <AvatarFallback
-            className={cn("text-[11px] font-semibold", getAvatarFallbackClass(seed))}
+            className={cn("text-2xs font-semibold", getAvatarFallbackClass(seed))}
           >
             {getNameInitials(seed)}
           </AvatarFallback>
@@ -206,13 +206,13 @@ function AdminUserRow({
 
       <div className="flex items-center gap-1.5 shrink-0">
         {isDeactivated ? (
-          <Badge variant="destructive" className="text-[10px] h-5 hidden xs:inline-flex sm:inline-flex">
+          <Badge variant="destructive" className="text-3xs h-5 hidden xs:inline-flex sm:inline-flex">
             Deactivated
           </Badge>
         ) : (
           <Badge
             variant="outline"
-            className="text-[10px] h-5 hidden xs:inline-flex sm:inline-flex border-success/30 text-success bg-emerald-500/5"
+            className="text-3xs h-5 hidden xs:inline-flex sm:inline-flex border-success/30 text-success bg-emerald-500/5"
           >
             Active
           </Badge>

@@ -154,7 +154,7 @@ export default function TemplatesPage() {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-lg">{t.icon || <Icon className="h-5 w-5 text-primary" />}</span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
                     {meta?.label || t.kind}
                   </span>
                 </div>

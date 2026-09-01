@@ -36,7 +36,7 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
                 <div className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
                     {getHighlightedTitle(result)}
                 </div>
-                <div className="text-[11px] text-muted-foreground truncate">
+                <div className="text-2xs text-muted-foreground truncate">
                     {getContext(result)}
                 </div>
             </div>

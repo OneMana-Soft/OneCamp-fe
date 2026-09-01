@@ -103,7 +103,18 @@ describe("status colour tokens", () => {
     // 342: the Ollama update instruction was written out three times, each with its own amber
     // warning surface. Collapsing them into OllamaUpdateSteps removed two copies and moved the
     // survivor onto the warning token.
-    const BASELINE = 342
+    // 313: the mode-aware text pairs whose meaning was unambiguous went onto the tokens
+    // (blue -> info, amber and yellow -> warning, red -> destructive, green -> success).
+    //
+    // The REST is deliberately still here, and it is worth saying why rather than
+    // leaving the number to imply laziness. A size is a size, so migrating the type
+    // scale was mechanical. A colour is a claim about meaning, and deciding what each
+    // of the remaining ones means is a judgement per surface: an amber that marks a
+    // warning and an amber that is decoration look identical from a regex. Orange is
+    // excluded outright now, because it is the brand hue and an orange here may be
+    // identity rather than a state. These come off surface by surface, with eyes on
+    // the screen, not in one blind sweep.
+    const BASELINE = 313
     const total = files.reduce(
       (n, f) => n + (readFileSync(f, "utf8").match(RAW_HUE_UTILITY)?.length ?? 0),
       0,

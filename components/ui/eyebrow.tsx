@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils/helpers/cn"
  * "Sources" above a list of citations, "Automation" above a category of
  * templates, the weekday letters across a calendar header, a field label in a
  * profile panel. One idea, and it was hand-written 53 times across 26 files at
- * FIVE sizes (text-xs, text-[10px], text-[11px], text-2xs, and one with none at
+ * FIVE sizes (text-xs, text-3xs, text-2xs, text-2xs, and one with none at
  * all) and FOUR weights (semibold 37, medium 11, bold 1, none 4).
  *
  * That is invisible in any single screenshot and unmistakable when you move
@@ -43,7 +43,7 @@ export function Eyebrow({
   children,
   /**
    * `default` is 12px, the majority shape. `sm` is 10px — the documented floor —
-   * for dense rows and grid headers that previously reached for text-[10px].
+   * for dense rows and grid headers that previously reached for text-3xs.
    */
   size = "default",
   /** Rendered element. A section title is often a heading rather than a span. */

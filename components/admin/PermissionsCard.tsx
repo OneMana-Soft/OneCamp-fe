@@ -102,7 +102,7 @@ export default function PermissionsCard() {
                                     <div className="min-w-0 space-y-0.5">
                                         <Label className="text-sm font-medium">{meta.label}</Label>
                                         <p className="text-xs text-muted-foreground">{meta.description}</p>
-                                        <p className="text-[11px] font-medium text-muted-foreground/80">
+                                        <p className="text-2xs font-medium text-muted-foreground/80">
                                             {allMembers ? "All members" : "Admins only"}
                                         </p>
                                     </div>

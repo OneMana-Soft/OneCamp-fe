@@ -116,7 +116,7 @@ export const ModelInstaller: React.FC<{
     <div className="rounded-md border border-dashed border-border p-3 space-y-3">
       <div>
         <Label className="text-xs font-medium">Install a model</Label>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           Type any tag from{" "}
           <a href="https://ollama.com/library" target="_blank" rel="noreferrer" className="underline">
             ollama.com/library
@@ -157,7 +157,7 @@ export const ModelInstaller: React.FC<{
       {/* Progress */}
       {progress && pulling && (
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <div className="flex items-center justify-between text-2xs text-muted-foreground">
             <span>{progress.status || "working…"}</span>
             {progress.total ? (
               <span>

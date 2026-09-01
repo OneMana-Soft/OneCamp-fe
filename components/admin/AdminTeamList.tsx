@@ -106,11 +106,11 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                     {team.team_name}
                   </span>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    <span className="text-3xs text-muted-foreground uppercase tracking-wider">
                       {team.team_member_count || 0} members
                     </span>
                     {isDeleted && (
-                      <span className="text-[10px] text-destructive uppercase tracking-wider font-semibold">
+                      <span className="text-3xs text-destructive uppercase tracking-wider font-semibold">
                         • Deleted
                       </span>
                     )}

@@ -209,7 +209,7 @@ export function BoardMentionInput({
               </Avatar>
               <span className="truncate">{displayName(u)}</span>
               {u.user_name && (
-                <span className="truncate text-[10px] text-muted-foreground">@{u.user_name}</span>
+                <span className="truncate text-3xs text-muted-foreground">@{u.user_name}</span>
               )}
             </button>
           ))}

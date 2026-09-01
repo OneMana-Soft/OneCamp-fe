@@ -321,7 +321,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
               className="h-9 font-mono text-xs"
             />
             {!isCustom && (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {isOllama ? "Set via OLLAMA_HOST env." : "Built-in provider endpoint."}
               </p>
             )}
@@ -451,7 +451,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
               {/* Browse & install from the curated, server-driven catalog. */}
               <div className="pt-1">
                 <Label className="text-xs font-medium">Browse models</Label>
-                <p className="text-[11px] text-muted-foreground mb-2">
+                <p className="text-2xs text-muted-foreground mb-2">
                   Popular models, kept current. Anything not listed can still be installed by tag above.
                 </p>
                 <ModelCatalog
@@ -552,7 +552,7 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
           <X className="h-4 w-4" />
         </button>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-2xs text-muted-foreground">
         Works with vLLM, LM Studio, OpenRouter, llama.cpp server, Together, Groq, or any gateway that speaks the
         OpenAI /v1 API.
       </p>

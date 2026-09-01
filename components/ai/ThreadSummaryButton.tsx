@@ -62,7 +62,7 @@ const ThreadSummaryButtonUngated: React.FC<ThreadSummaryButtonProps> = ({ getTex
       <div className={"rounded-lg border border-border/60 bg-muted/40 px-3 py-2.5 " + (className || "")}>
         <div className="flex items-center gap-1.5 mb-1">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
             Thread summary
           </span>
           <button

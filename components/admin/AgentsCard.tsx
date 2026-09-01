@@ -79,7 +79,7 @@ const AgentOverviewStrip: React.FC<{ stats: WorkspaceAgentStats; outcomes?: Reco
     <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
       {tiles.map((t) => (
         <div key={t.label} className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t.label}</div>
+          <div className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">{t.label}</div>
           <div className="mt-0.5 text-base font-semibold text-foreground">{t.value}</div>
         </div>
       ))}
@@ -340,10 +340,10 @@ const AgentsCard = () => {
                     {a.description && <p className="text-xs text-muted-foreground">{a.description}</p>}
                     <div className="flex flex-wrap items-center gap-1.5">
                       {tools.slice(0, 5).map((t) => (
-                        <Badge key={t} variant="outline" className="text-[11px] font-normal">{toolLabel(t)}</Badge>
+                        <Badge key={t} variant="outline" className="text-2xs font-normal">{toolLabel(t)}</Badge>
                       ))}
-                      {tools.length > 5 && <span className="text-[11px] text-muted-foreground">+{tools.length - 5} more</span>}
-                      <span className="text-[11px] text-muted-foreground">· ran {a.run_count} {a.run_count === 1 ? "time" : "times"}</span>
+                      {tools.length > 5 && <span className="text-2xs text-muted-foreground">+{tools.length - 5} more</span>}
+                      <span className="text-2xs text-muted-foreground">· ran {a.run_count} {a.run_count === 1 ? "time" : "times"}</span>
                     </div>
                   </div>
 

@@ -145,7 +145,7 @@ function SnapshotRow({
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium">{relative || "Just now"}</span>
-          <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium", meta.className)}>
+          <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-3xs font-medium", meta.className)}>
             {meta.label}
           </span>
         </div>

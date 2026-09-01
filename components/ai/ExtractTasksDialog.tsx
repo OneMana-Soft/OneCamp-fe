@@ -193,7 +193,7 @@ const ExtractTasksDialog: React.FC<{
           )}
 
           {scanCaption && !loading && (
-            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
               <Sparkles className="h-3 w-3 shrink-0 text-primary/60" />
               {scanCaption}
             </p>
@@ -224,7 +224,7 @@ const ExtractTasksDialog: React.FC<{
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-medium text-foreground">{t.title}</span>
-                          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-2xs text-muted-foreground">
                             {t.assignee_name && (
                               <span className="inline-flex items-center gap-1">
                                 <User className="h-3 w-3" />
@@ -241,7 +241,7 @@ const ExtractTasksDialog: React.FC<{
                             {t.priority && t.priority !== "medium" && <span className="capitalize">{t.priority}</span>}
                           </span>
                           {t.description && (
-                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground/80">{t.description}</span>
+                            <span className="mt-0.5 block truncate text-2xs text-muted-foreground/80">{t.description}</span>
                           )}
                         </span>
                       </button>

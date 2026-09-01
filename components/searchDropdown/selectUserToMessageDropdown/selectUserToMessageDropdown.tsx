@@ -169,7 +169,7 @@ export function SelectUserToMessageDropdown({
                                     <div className="flex items-center gap-2 mb-1">
                                         <p className="font-medium text-sm text-foreground truncate">{user.user_name}</p>
                                         {user.is_bot && (
-                                            <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[10px] font-semibold text-primary">
+                                            <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-3xs font-semibold text-primary">
                                                 <Sparkles className="h-2.5 w-2.5" /> AI
                                             </Badge>
                                         )}

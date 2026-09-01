@@ -498,12 +498,12 @@ function ThreadMessageRow({
   return (
     <div className="group/msg flex gap-2">
       <Avatar className="h-6 w-6 shrink-0">
-        <AvatarFallback className="text-[10px]">{message.authorName?.charAt(0)?.toUpperCase() || "?"}</AvatarFallback>
+        <AvatarFallback className="text-3xs">{message.authorName?.charAt(0)?.toUpperCase() || "?"}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="truncate text-xs font-medium">{message.authorName}</span>
-          {relative && <span className="text-[10px] text-muted-foreground">{relative}</span>}
+          {relative && <span className="text-3xs text-muted-foreground">{relative}</span>}
         </div>
         <p className="whitespace-pre-wrap break-words text-xs text-foreground/90">{message.body}</p>
 
@@ -519,7 +519,7 @@ function ThreadMessageRow({
                   disabled={!editable}
                   onClick={() => onToggleReaction(emoji)}
                   className={cn(
-                    "flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[11px] transition-colors",
+                    "flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-2xs transition-colors",
                     mine ? "border-primary/40 bg-primary/10 text-primary" : "border-border/60 bg-muted/40 hover:bg-accent/50",
                   )}
                   title={`${users.length} reaction${users.length > 1 ? "s" : ""}`}

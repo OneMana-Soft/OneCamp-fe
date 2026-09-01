@@ -178,7 +178,7 @@ const SocialComposeDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) 
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-6 text-[11px] gap-1"
+                          className="h-6 text-2xs gap-1"
                           onClick={() => window.open(buildIntentUrl(p.platform, p.content), "_blank", "noopener,noreferrer")}
                           title="Open the platform's composer pre-filled with this draft"
                         >
@@ -189,7 +189,7 @@ const SocialComposeDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) 
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-6 text-[11px] gap-1"
+                        className="h-6 text-2xs gap-1"
                         onClick={() => copy(p.platform, p.content)}
                       >
                         {copiedKey === p.platform ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}

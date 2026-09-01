@@ -72,7 +72,7 @@ function ShortcutsHelp({ open, onClose }: { open: boolean; onClose: () => void }
               <div className="flex items-center gap-1">
                 {s.keys.map((k, i) => (
                   <React.Fragment key={k}>
-                    <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[10px] font-mono">{k}</kbd>
+                    <kbd className="px-1.5 py-0.5 rounded bg-muted border text-3xs font-mono">{k}</kbd>
                     {i < s.keys.length - 1 && <span className="text-muted-foreground">+</span>}
                   </React.Fragment>
                 ))}

@@ -104,14 +104,14 @@ const AiSearchMode: React.FC<AiSearchModeProps> = ({
                                 type="button"
                                 variant="outline"
                                 onClick={cancelStream}
-                                className="px-5 py-2.5 rounded-xl bg-destructive/15 text-destructive border border-destructive/20 text-[13px] font-semibold transition-all hover:bg-destructive/25"
+                                className="px-5 py-2.5 rounded-xl bg-destructive/15 text-destructive border border-destructive/20 text-sm font-semibold transition-all hover:bg-destructive/25"
                             >
                                 Stop
                             </Button>
                         ) : (
                             <Button
                                 type="submit"
-                                className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-[13px] font-semibold transition-colors disabled:opacity-40"
+                                className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold transition-colors disabled:opacity-40"
                                 disabled={!question.trim()}
                             >
                                 Ask AI

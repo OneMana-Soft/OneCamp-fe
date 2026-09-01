@@ -40,7 +40,7 @@ export function UserComboboxItem({
                     src={imageSrc}
                     alt={userName}
                 />
-                <AvatarFallback className="text-[10px] font-bold bg-primary/5 text-primary">
+                <AvatarFallback className="text-3xs font-bold bg-primary/5 text-primary">
                     {getNameInitials(userName)}
                 </AvatarFallback>
             </Avatar>
@@ -51,7 +51,7 @@ export function UserComboboxItem({
                         <PrincipalTag kind="ai" />
                     )}
                 </span>
-                <span className="text-[10px] text-muted-foreground truncate font-medium">{isBot ? "AI teammate" : userEmail}</span>
+                <span className="text-3xs text-muted-foreground truncate font-medium">{isBot ? "AI teammate" : userEmail}</span>
             </div>
             <Check
                 className={cn(

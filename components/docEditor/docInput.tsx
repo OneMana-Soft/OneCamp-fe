@@ -154,14 +154,14 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
             return (
                 <span className="flex items-center gap-1 text-muted-foreground">
                     <Loader2 className="size-3 animate-spin" />
-                    <span className="text-[10px] font-medium">Saving...</span>
+                    <span className="text-3xs font-medium">Saving...</span>
                 </span>
             )
         case 'saved':
             return (
                 <span className="flex items-center gap-1 text-success">
                     <Check className="size-3" />
-                    <span className="text-[10px] font-medium">
+                    <span className="text-3xs font-medium">
                         {lastSavedAt ? `Saved at ${formatTime(lastSavedAt)}` : 'Saved'}
                     </span>
                 </span>
@@ -170,14 +170,14 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
             return (
                 <span className="flex items-center gap-1 text-destructive">
                     <CloudOff className="size-3" />
-                    <span className="text-[10px] font-medium">Save failed</span>
+                    <span className="text-3xs font-medium">Save failed</span>
                 </span>
             )
         case 'offline':
             return (
                 <span className="flex items-center gap-1 text-primary-foreground0">
                     <CloudOff className="size-3" />
-                    <span className="text-[10px] font-medium">Offline</span>
+                    <span className="text-3xs font-medium">Offline</span>
                 </span>
             )
         default:
@@ -600,7 +600,7 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
 
                 {/* Footer — fixed at bottom */}
                 <div className="shrink-0 z-10 bg-background/95 backdrop-blur-sm border-t border-border w-full">
-                    <div className="max-w-3xl mx-auto px-3 py-1.5 flex items-center justify-between text-[11px] text-muted-foreground select-none">
+                    <div className="max-w-3xl mx-auto px-3 py-1.5 flex items-center justify-between text-2xs text-muted-foreground select-none">
                         <div className="hidden sm:flex items-center gap-3">
                             <span>{wordCount} word{wordCount !== 1 ? 's' : ''}</span>
                             <span>{charCount} character{charCount !== 1 ? 's' : ''}</span>
@@ -619,7 +619,7 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                         <div className="flex items-center gap-3 ml-auto sm:ml-0">
                             {/* Last edited time */}
                             {lastEditedRelative && (
-                                <span className="hidden sm:inline text-[10px] opacity-60">Edited {lastEditedRelative}</span>
+                                <span className="hidden sm:inline text-3xs opacity-60">Edited {lastEditedRelative}</span>
                             )}
 
                             {/* Notion-like save status */}
@@ -638,13 +638,13 @@ export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTip
                                                 ? "bg-warning"
                                                 : "bg-red-500"
                                         )} />
-                                        <span className="capitalize opacity-80 text-[10px] font-medium tracking-tight">
+                                        <span className="capitalize opacity-80 text-3xs font-medium tracking-tight">
                                             {collabStatus === 'synced' ? 'connected' : collabStatus}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1 opacity-60">
                                         <Users className="size-3" />
-                                        <span className="text-[10px] font-medium">{collaboration?.activeUsers ?? 0}</span>
+                                        <span className="text-3xs font-medium">{collaboration?.activeUsers ?? 0}</span>
                                     </div>
                                 </div>
                             )}

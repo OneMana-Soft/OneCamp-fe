@@ -58,7 +58,7 @@ const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
 }
 const KIND_TINT: Record<string, string> = {
   decision: "text-violet-600 dark:text-violet-400",
-  commitment: "text-blue-600 dark:text-blue-400",
+  commitment: "text-info",
   question: "text-warning",
 }
 
@@ -69,9 +69,9 @@ const DAY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   gmail: Mail,
 }
 const DAY_TINT: Record<string, string> = {
-  calendar: "text-blue-600 dark:text-blue-400",
+  calendar: "text-info",
   github: "text-foreground/70",
-  gmail: "text-red-500 dark:text-red-400",
+  gmail: "text-destructive",
 }
 
 function isOverdue(due?: string): boolean {
@@ -210,7 +210,7 @@ function BriefingCard() {
           only when the user has linked connectors and there's something today. */}
       {dayItems.length > 0 && (
         <div className="px-4 py-3 border-b border-border/50 bg-muted/20">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70 mb-2">
+          <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-2">
             Your day
           </p>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
@@ -223,7 +223,7 @@ function BriefingCard() {
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm leading-snug truncate">{d.title}</span>
                     {d.subtitle && (
-                      <span className="block text-[11px] text-muted-foreground truncate">{d.subtitle}</span>
+                      <span className="block text-2xs text-muted-foreground truncate">{d.subtitle}</span>
                     )}
                   </span>
                 </span>
@@ -250,7 +250,7 @@ function BriefingCard() {
             so an empty column never leaves dead space on the dashboard. */}
         {hasOpenItems && (
           <div className="p-4">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70 mb-2">
+            <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-2">
               Your open items
             </p>
             <ul className="space-y-1">
@@ -270,7 +270,7 @@ function BriefingCard() {
                         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                           {it.due_at && (
                             <span
-                              className={`inline-flex items-center gap-1 text-[11px] ${
+                              className={`inline-flex items-center gap-1 text-2xs ${
                                 overdue ? "text-destructive font-medium" : "text-muted-foreground"
                               }`}
                             >
@@ -279,7 +279,7 @@ function BriefingCard() {
                             </span>
                           )}
                           {it.scope_label && (
-                            <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground/70 truncate max-w-[160px]">
+                            <span className="inline-flex items-center gap-0.5 text-2xs text-muted-foreground/70 truncate max-w-[160px]">
                               {it.scope_type === "channel" ? <Hash className="h-3 w-3" /> : null}
                               {it.scope_type === "channel" ? it.scope_label : `· ${it.scope_label}`}
                             </span>
@@ -297,7 +297,7 @@ function BriefingCard() {
         {/* Recent highlights — only rendered when there's something new. */}
         {hasHighlights && (
           <div className="p-4">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70 mb-2">
+            <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-2">
               Recent highlights
             </p>
             <ul className="space-y-1">
@@ -313,7 +313,7 @@ function BriefingCard() {
                       <HighlightIcon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary/60" />
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm leading-snug truncate">{h.snippet}</span>
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-2xs text-muted-foreground">
                           {h.author_name ? `${h.author_name}` : h.content_type}
                           {h.channel_uuid && channelName.get(h.channel_uuid)
                             ? ` · #${channelName.get(h.channel_uuid)}`

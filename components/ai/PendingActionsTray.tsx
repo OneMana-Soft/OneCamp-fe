@@ -157,7 +157,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                             <div className="min-w-0 flex-1">
                                 <div
                                     className={
-                                        "flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide " +
+                                        "flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide " +
                                         (destructive ? "text-warning" : "text-muted-foreground")
                                     }
                                 >
@@ -173,7 +173,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                                 <p className="mt-0.5 text-sm text-foreground break-words">
                                     {a.description || a.tool_name}
                                 </p>
-                                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                <p className="mt-0.5 text-2xs text-muted-foreground">
                                     {destructive
                                         ? "This is irreversible. Runs as you, with your permissions."
                                         : "Runs as you, with your permissions."}

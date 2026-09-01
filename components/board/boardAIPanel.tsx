@@ -654,7 +654,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
             <button
               type="button"
               onClick={() => setShowTypes((s) => !s)}
-              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-2xs font-medium text-muted-foreground transition-colors hover:text-foreground"
               aria-expanded={showTypes}
             >
               <Sparkles className="h-3 w-3 text-primary" />
@@ -704,7 +704,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                 onClick={() => setDetailed(opt.v)}
                 aria-pressed={detailed === opt.v}
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  "rounded-full border px-2.5 py-1 text-2xs font-medium transition-colors",
                   detailed === opt.v
                     ? "border-transparent bg-primary/10 text-primary"
                     : "border-border/70 text-muted-foreground hover:text-foreground",
@@ -713,7 +713,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                 {opt.label}
               </button>
             ))}
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {detailed ? "Plans, then expands for depth" : "Fast single pass"}
             </span>
           </div>
@@ -722,7 +722,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
               divergent brainstorm into themes + a synthesis mind map. */}
           <div className="mb-2 flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/30 px-2.5 py-1.5">
             <Network className="h-3.5 w-3.5 shrink-0 text-primary" />
-            <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+            <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground">
               Notes on the board already? Group them into themes.
             </span>
             <Button
@@ -740,14 +740,14 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
 
           {synthesis && (
             <div className="mb-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
-              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+              <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium text-primary">
                 <Network className="h-3.5 w-3.5" />
                 {synthesis.clusters.length} themes
               </div>
               {synthesis.synthesis && (
-                <p className="mb-1.5 text-[12px] leading-relaxed text-foreground/80">{synthesis.synthesis}</p>
+                <p className="mb-1.5 text-xs leading-relaxed text-foreground/80">{synthesis.synthesis}</p>
               )}
-              <ul className="ml-4 list-disc space-y-0.5 text-[12px] text-foreground/80">
+              <ul className="ml-4 list-disc space-y-0.5 text-xs text-foreground/80">
                 {synthesis.clusters.map((c, i) => (
                   <li key={i}>
                     <span className="font-medium">{c.theme}</span>
@@ -755,7 +755,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                   </li>
                 ))}
               </ul>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-2xs text-muted-foreground">
                 A summary mind map was added to the board.
               </p>
             </div>
@@ -788,17 +788,17 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
             <div className="mt-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5">
               {plan.ready ? (
                 <>
-                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium text-primary">
                     <Milestone className="h-3.5 w-3.5" />
                     Here&apos;s my plan{plan.title ? `: ${plan.title}` : ""}
                   </div>
-                  <ol className="mb-2 ml-4 list-decimal space-y-0.5 text-[12px] text-foreground/80">
+                  <ol className="mb-2 ml-4 list-decimal space-y-0.5 text-xs text-foreground/80">
                     {plan.steps.map((s, i) => (
                       <li key={i}>{s}</li>
                     ))}
                   </ol>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       Type: {DIAGRAM_TYPES.find((t) => t.value === plan.suggested_type)?.label || "Auto"}
                     </span>
                     <div className="flex items-center gap-1.5">
@@ -813,16 +813,16 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                 </>
               ) : (
                 <>
-                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-warning">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-2xs font-medium text-warning">
                     <Sparkles className="h-3.5 w-3.5" />
                     A few details first
                   </div>
-                  <ul className="mb-1 ml-4 list-disc space-y-0.5 text-[12px] text-foreground/80">
+                  <ul className="mb-1 ml-4 list-disc space-y-0.5 text-xs text-foreground/80">
                     {plan.questions.map((q, i) => (
                       <li key={i}>{q}</li>
                     ))}
                   </ul>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     Add these to your description above, then Plan or Generate again.
                   </p>
                 </>
@@ -833,7 +833,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
           <div className="mt-2 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">
               <AiModelPicker />
-              <span className="hidden truncate text-[11px] text-muted-foreground sm:inline">
+              <span className="hidden truncate text-2xs text-muted-foreground sm:inline">
                 {isStreaming
                   ? `${STAGE_LABELS[stage || ""] || "Working"}…`
                   : api
@@ -875,7 +875,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
 
           {mode === "refine" && (
             <div className="space-y-2">
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Tell AI how to change the diagram, or go deeper. Each change updates it in place.
               </p>
               <div className="flex flex-wrap gap-1.5">

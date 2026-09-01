@@ -148,7 +148,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                     </div>
                     <div className='flex flex-col min-w-0'>
                         <span className='text-sm font-semibold text-foreground truncate leading-tight'>{otherUserInfo.data?.data.user_name}</span>
-                        {isOnline && <span className='text-[11px] text-muted-foreground leading-tight'>Active now</span>}
+                        {isOnline && <span className='text-2xs text-muted-foreground leading-tight'>Active now</span>}
                     </div>
                 </div>
                 <div className='flex items-center gap-0.5 shrink-0'>
@@ -209,7 +209,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                 <div className="max-w-6xl mx-auto w-full">
                     {suggestions.length > 0 && (
                         <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                            <span className="mr-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                            <span className="mr-0.5 inline-flex items-center gap-1 text-2xs font-medium text-muted-foreground">
                                 <Sparkles className="h-3 w-3 text-primary" /> Try asking
                             </span>
                             {suggestions.map((s, i) => (

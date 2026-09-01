@@ -118,7 +118,7 @@ export default function SearchPage() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-0.5">
                                         <span className={cn(
-                                            "px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider",
+                                            "px-1.5 py-0.5 rounded text-3xs font-bold uppercase tracking-wider",
                                             "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors"
                                         )}>
                                             {result.type}

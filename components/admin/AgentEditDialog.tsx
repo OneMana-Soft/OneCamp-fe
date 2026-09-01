@@ -386,7 +386,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
     <div className="mt-1 grid gap-1.5 border-t pt-2.5">
       <Label className="text-xs">{heading}</Label>
       {channels.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground">No channels available.</p>
+        <p className="text-2xs text-muted-foreground">No channels available.</p>
       ) : (
         <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
           {channels.map((c) => {
@@ -409,7 +409,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           })}
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">{hint}</p>
+      <p className="text-2xs text-muted-foreground">{hint}</p>
     </div>
   )
 
@@ -541,7 +541,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 disabled={drafting}
               />
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-2xs text-muted-foreground">
                   AI drafts the name, instructions, tools, and trigger. You review before saving.
                 </span>
                 <Button
@@ -588,8 +588,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             <div className="space-y-3 rounded-xl border p-3">
               {toolCatalog.map((g) => (
                 <div key={g.group}>
-                  <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{g.group}</div>
-                  {g.note && <p className="mb-1.5 -mt-1 text-[11px] text-muted-foreground/80">{g.note}</p>}
+                  <div className="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{g.group}</div>
+                  {g.note && <p className="mb-1.5 -mt-1 text-2xs text-muted-foreground/80">{g.note}</p>}
                   <div className="flex flex-wrap gap-1.5">
                     {g.tools.map((t) => {
                       const on = tools.has(t.name)
@@ -625,7 +625,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               <div className="space-y-3 rounded-xl border p-3">
                 {mcpServers.map((s) => (
                   <div key={s.id}>
-                    <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{s.name}</div>
+                    <div className="mb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{s.name}</div>
                     <div className="flex flex-wrap gap-1.5">
                       {parseMcpTools(s).map((t) => {
                         const full = mcpToolFullName(s, t)
@@ -781,7 +781,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                                 })
                               }
                               className={cn(
-                                "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                                "rounded-md border px-2 py-1 text-2xs font-medium transition-colors",
                                 on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground",
                               )}
                             >
@@ -950,7 +950,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               Channels the agent always reads for context, grounded in what its owner can see. Optional.
             </p>
             {channels.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground">No channels available.</p>
+              <p className="text-2xs text-muted-foreground">No channels available.</p>
             ) : (
               <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
                 {channels.map((c) => {
@@ -1016,7 +1016,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                       {on ? <Check className="h-3.5 w-3.5 text-primary" /> : null}
                       {opt.title}
                     </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{opt.desc}</p>
+                    <p className="mt-0.5 text-2xs text-muted-foreground">{opt.desc}</p>
                   </button>
                 )
               })}
@@ -1115,7 +1115,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                       onChange={(e) => setAmbientKeywords(e.target.value)}
                       placeholder="billing, refund, invoice"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       Comma or newline separated. It considers messages that mention these topics
                       (plus any question). Leave blank to only consider questions.
                     </p>

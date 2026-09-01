@@ -30,7 +30,7 @@ export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskA
             <div className="relative">
                 <Avatar className="h-8 w-8 mr-2">
                     <AvatarImage src={imageSrc} alt="@shadcn" />
-                    <AvatarFallback className={cn("text-[10px] font-semibold", getAvatarFallbackClass(taskActivity.activity_by.user_name))}>{nameInitial}</AvatarFallback>
+                    <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(taskActivity.activity_by.user_name))}>{nameInitial}</AvatarFallback>
                 </Avatar>{" "}
             </div>
             <div className="flex-1 pt-2">

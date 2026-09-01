@@ -67,12 +67,12 @@ const CommandSurface: React.FC<CommandSurfaceContext> = (ctx) => {
                                         onAction={onAction(card.trigger_id, command)}
                                     />
                                 ) : resp.text ? (
-                                    <div className="text-[13px] leading-relaxed text-foreground">
+                                    <div className="text-sm leading-relaxed text-foreground">
                                         <MarkdownMessage content={resp.text} />
                                     </div>
                                 ) : null}
                                 {resp.ephemeral && (
-                                    <div className="mt-1 text-[10px] text-muted-foreground/70">
+                                    <div className="mt-1 text-3xs text-muted-foreground/70">
                                         Only visible to you
                                     </div>
                                 )}

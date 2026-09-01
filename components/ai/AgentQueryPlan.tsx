@@ -77,15 +77,15 @@ function Row({ icon, label, children }: { icon: React.ReactNode; label: string; 
     return (
         <div className="flex items-start gap-2 py-1">
             <span className="mt-px flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground">{icon}</span>
-            <span className="w-16 flex-shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-            <span className="min-w-0 flex-1 text-[12px] leading-relaxed text-foreground">{children}</span>
+            <span className="w-16 flex-shrink-0 text-2xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+            <span className="min-w-0 flex-1 text-xs leading-relaxed text-foreground">{children}</span>
         </div>
     );
 }
 
 function Chip({ children }: { children: React.ReactNode }) {
     return (
-        <span className="mr-1 mb-1 inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+        <span className="mr-1 mb-1 inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/50 px-1.5 py-0.5 font-mono text-2xs text-foreground">
             {children}
         </span>
     );
@@ -104,7 +104,7 @@ function EditableChip({
     return (
         <span
             className={
-                "mr-1 mb-1 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[11px] text-foreground " +
+                "mr-1 mb-1 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-2xs text-foreground " +
                 (editing ? "border-primary/40 bg-primary/5" : "border-border/70 bg-muted/50")
             }
         >
@@ -114,7 +114,7 @@ function EditableChip({
 }
 
 const inputCls =
-    "min-w-[2ch] max-w-[16ch] rounded border border-border/60 bg-background px-1 py-px font-mono text-[11px] text-foreground outline-none focus:border-primary/60";
+    "min-w-[2ch] max-w-[16ch] rounded border border-border/60 bg-background px-1 py-px font-mono text-2xs text-foreground outline-none focus:border-primary/60";
 
 // buildPlanChart turns a PlanResult into a bounded NormalizedChart for the
 // primary metric across groups (line for a date group-by, bar otherwise) — the
@@ -230,8 +230,8 @@ export function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
         <div className="my-1.5 overflow-hidden rounded-lg border border-border/70 bg-card/40">
             <div className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-3 py-1.5">
                 <Database className="h-3.5 w-3.5 text-primary" />
-                <span className="text-[12px] font-semibold text-foreground">Query plan</span>
-                {plan.table ? <span className="truncate font-mono text-[11px] text-muted-foreground">{plan.table}</span> : null}
+                <span className="text-xs font-semibold text-foreground">Query plan</span>
+                {plan.table ? <span className="truncate font-mono text-2xs text-muted-foreground">{plan.table}</span> : null}
                 <span className="ml-auto rounded-full border border-success/30 bg-success/10 px-1.5 py-px text-3xs font-medium text-success">
                     deterministic
                 </span>
@@ -321,7 +321,7 @@ export function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
                             <button
                                 type="button"
                                 onClick={() => setAscending((a) => !a)}
-                                className="rounded border border-border/60 bg-background px-1.5 py-px text-[11px] text-foreground hover:border-primary/60"
+                                className="rounded border border-border/60 bg-background px-1.5 py-px text-2xs text-foreground hover:border-primary/60"
                             >
                                 {ascending ? "ascending" : "descending"}
                             </button>
@@ -357,7 +357,7 @@ export function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
                         type="button"
                         onClick={run}
                         disabled={running}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-2xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
                     >
                         {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                         {running ? "Running" : result ? "Re-run" : "Run plan"}
@@ -366,20 +366,20 @@ export function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
                         <button
                             type="button"
                             onClick={reset}
-                            className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                            className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-2xs text-muted-foreground hover:text-foreground"
                         >
                             <RotateCcw className="h-3 w-3" />
                             Reset
                         </button>
                     )}
-                    <span className="ml-auto text-[10px] text-muted-foreground">
+                    <span className="ml-auto text-3xs text-muted-foreground">
                         {dirty ? "Edited — runs the same method, your inputs" : "Runs exactly what the agent ran"}
                     </span>
                 </div>
             )}
 
             {error && (
-                <div className="flex items-start gap-2 border-t border-border/60 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
+                <div className="flex items-start gap-2 border-t border-border/60 bg-destructive/5 px-3 py-2 text-2xs text-destructive">
                     <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
                     <span>{error}</span>
                 </div>
@@ -403,7 +403,7 @@ function PlanResultView({
 }) {
     return (
         <div className="border-t border-border/60 px-3 py-2">
-            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <div className="mb-1.5 flex items-center gap-1.5 text-2xs text-muted-foreground">
                 <TableIcon className="h-3.5 w-3.5" />
                 <span>
                     {res.matched_rows != null
@@ -414,10 +414,10 @@ function PlanResultView({
             </div>
 
             {res.buckets.length === 0 ? (
-                <p className="text-[12px] text-muted-foreground">No rows matched.</p>
+                <p className="text-xs text-muted-foreground">No rows matched.</p>
             ) : (
                 <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-[12px]">
+                    <table className="w-full border-collapse text-xs">
                         <thead>
                             <tr className="border-b border-border/60 text-left text-muted-foreground">
                                 <th className="py-1 pr-3 font-medium">{res.group_by || "Group"}</th>

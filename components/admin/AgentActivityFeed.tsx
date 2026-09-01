@@ -85,12 +85,12 @@ const AgentActivityFeed: React.FC = () => {
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-baseline gap-x-1.5">
                 <span className="text-sm font-medium truncate">{it.agent_name}</span>
-                <span className="text-[11px] text-muted-foreground">· {triggerLabel(it.trigger_source)}</span>
-                <span className="text-[11px] text-muted-foreground/70">
+                <span className="text-2xs text-muted-foreground">· {triggerLabel(it.trigger_source)}</span>
+                <span className="text-2xs text-muted-foreground/70">
                   · {formatTimeForReplyCount(it.started_at)}
                 </span>
               </span>
-              <span className="block text-[13px] leading-snug text-foreground/80">
+              <span className="block text-sm leading-snug text-foreground/80">
                 {it.error ? it.error : it.summary}
               </span>
               {it.tools_used && it.tools_used.length > 0 && (
@@ -98,13 +98,13 @@ const AgentActivityFeed: React.FC = () => {
                   {it.tools_used.slice(0, 6).map((t) => (
                     <span
                       key={t}
-                      className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                      className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground"
                     >
                       {t.replace(/_/g, " ")}
                     </span>
                   ))}
                   {it.action_count > 0 && (
-                    <span className="inline-flex items-center text-[10px] text-muted-foreground/70">
+                    <span className="inline-flex items-center text-3xs text-muted-foreground/70">
                       {it.action_count} action{it.action_count === 1 ? "" : "s"}
                     </span>
                   )}

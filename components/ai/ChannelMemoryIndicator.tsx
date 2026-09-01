@@ -53,7 +53,7 @@ const ChannelMemoryIndicatorUngated: React.FC<{ channelUUID: string; isMember?: 
 
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/5 px-2 py-0.5 text-[11px] font-medium text-warning"
+      className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/5 px-2 py-0.5 text-2xs font-medium text-warning"
       title="An admin has paused AI memory capture for this channel — nothing here is added to workspace memory."
     >
       <Sparkles className="h-3 w-3" />

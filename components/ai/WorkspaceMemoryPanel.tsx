@@ -145,7 +145,7 @@ const KIND_META: Record<
   { label: string; Icon: React.ComponentType<{ className?: string }>; dot: string; tint: string }
 > = {
   decision: { label: "Decision", Icon: Zap, dot: "bg-violet-500", tint: "text-violet-600 dark:text-violet-400" },
-  commitment: { label: "Commitment", Icon: CheckCircle2, dot: "bg-blue-500", tint: "text-blue-600 dark:text-blue-400" },
+  commitment: { label: "Commitment", Icon: CheckCircle2, dot: "bg-blue-500", tint: "text-info" },
   question: { label: "Open question", Icon: HelpCircle, dot: "bg-amber-500", tint: "text-warning" },
   glossary: { label: "Glossary", Icon: Sparkles, dot: "bg-slate-400", tint: "text-slate-500" },
 }

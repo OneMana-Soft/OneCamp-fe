@@ -53,7 +53,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
                 <p className="mb-2 font-mono text-xs font-bold text-destructive">
                   {this.state.error?.name}: {this.state.error?.message}
                 </p>
-                <p className="font-mono text-[10px] text-muted-foreground whitespace-pre">
+                <p className="font-mono text-3xs text-muted-foreground whitespace-pre">
                   {this.state.error?.stack}
                 </p>
               </div>

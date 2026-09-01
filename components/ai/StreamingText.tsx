@@ -67,7 +67,7 @@ const StreamingText: React.FC<StreamingTextProps> = ({
                         {i < displayedText.split("\n").length - 1 && <br />}
                     </React.Fragment>
                 ))}
-                {isStreaming && <span className="inline-block animate-blink text-primary text-[12px] ml-[1px] align-text-bottom">▊</span>}
+                {isStreaming && <span className="inline-block animate-blink text-primary text-xs ml-[1px] align-text-bottom">▊</span>}
             </div>
         </div>
     );

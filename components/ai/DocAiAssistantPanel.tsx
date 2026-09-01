@@ -234,7 +234,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
         <div className="p-5">
         {selectedText && !streamText && !hookIsStreaming && (
           <div className="bg-primary/5 border border-primary/10 rounded-xl p-3 mb-5">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1 block">Context Selection</span>
+            <span className="text-3xs uppercase tracking-wider text-muted-foreground font-medium mb-1 block">Context Selection</span>
             <div className="line-clamp-2 text-xs text-muted-foreground italic">"{selectedText}"</div>
           </div>
         )}
@@ -264,7 +264,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                       </div>
                       <div className="flex flex-col text-left overflow-hidden">
                         <span className="font-medium text-sm text-foreground">{details.label}</span>
-                        <span className="text-[11px] text-muted-foreground line-clamp-1">{details.description}</span>
+                        <span className="text-2xs text-muted-foreground line-clamp-1">{details.description}</span>
                       </div>
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.15),transparent_70%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                     </Button>
@@ -288,11 +288,11 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                       value={customPrompt}
                       onChange={(e) => setCustomPrompt(e.target.value)}
                       placeholder="e.g., 'Make it sound like a pirate' or 'Convert to a todo list'..."
-                      className="w-full min-h-[100px] bg-muted/50 border border-border rounded-xl p-3 text-foreground text-[13px] resize-none outline-none transition-colors duration-200 focus:border-primary"
+                      className="w-full min-h-[100px] bg-muted/50 border border-border rounded-xl p-3 text-foreground text-sm resize-none outline-none transition-colors duration-200 focus:border-primary"
                       autoFocus
                     />
                     <div className="flex justify-between items-center mt-3">
-                      <Button variant="ghost" onClick={() => setShowPromptInput(false)} className="h-auto p-0 text-[10px] text-muted-foreground hover:text-foreground uppercase tracking-widest hover:bg-transparent">Cancel</Button>
+                      <Button variant="ghost" onClick={() => setShowPromptInput(false)} className="h-auto p-0 text-3xs text-muted-foreground hover:text-foreground uppercase tracking-widest hover:bg-transparent">Cancel</Button>
                       <Button
                         onClick={() => executeAction('write', customPrompt)}
                         disabled={!customPrompt.trim()}
@@ -319,7 +319,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                   <span className="text-muted-foreground animate-pulse">
                     AI is {state.action === 'write' ? 'writing' : 'thinking'}...
                   </span>
-                  <Button variant="ghost" onClick={handleCancel} className="h-auto p-0 text-[10px] text-muted-foreground hover:text-destructive uppercase tracking-widest mt-4 hover:bg-transparent">Stop Generation</Button>
+                  <Button variant="ghost" onClick={handleCancel} className="h-auto p-0 text-3xs text-muted-foreground hover:text-destructive uppercase tracking-widest mt-4 hover:bg-transparent">Stop Generation</Button>
                 </div>
               ) : (
                 <div className="bg-muted/10 border border-border rounded-[20px] p-4 shadow-sm">
@@ -332,7 +332,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                        >
                          <ArrowLeft className="h-3 w-3" />
                        </button>
-                       <span className="text-[10px] uppercase font-medium text-primary tracking-widest">AI Result</span>
+                       <span className="text-3xs uppercase font-medium text-primary tracking-widest">AI Result</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground transition-all duration-200 hover:bg-accent/10 hover:text-foreground" title="Copy to clipboard">
@@ -392,7 +392,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                                 }
                             }}
                             placeholder="Ask to refine (e.g., 'Make it formal')..."
-                            className="w-full bg-transparent border-none px-3.5 py-2.5 text-foreground text-[13px] outline-none shadow-none ring-0 focus-visible:ring-0"
+                            className="w-full bg-transparent border-none px-3.5 py-2.5 text-foreground text-sm outline-none shadow-none ring-0 focus-visible:ring-0"
                           />
                           <Button
  aria-label="Refine"                            variant="ghost"
@@ -409,18 +409,18 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                         <div className="flex flex-col gap-2">
                         {state.hasJustReplaced ? (
                           <Button
-                            className="w-full h-auto p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl font-medium text-[13px] flex items-center justify-center transition-all duration-200 hover:bg-destructive/20 hover:border-destructive/40"
+                            className="w-full h-auto p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl font-medium text-sm flex items-center justify-center transition-all duration-200 hover:bg-destructive/20 hover:border-destructive/40"
                             onClick={handleUndo}
                           >
                             <RotateCcw className="h-4 w-4 mr-2" />
                             Undo Change
                           </Button>
                         ) : (
-                          <Button className="w-full h-auto p-3 bg-primary text-primary-foreground rounded-xl font-medium text-[13px] transition-all duration-200 hover:bg-primary/90" onClick={handleReplace}>
+                          <Button className="w-full h-auto p-3 bg-primary text-primary-foreground rounded-xl font-medium text-sm transition-all duration-200 hover:bg-primary/90" onClick={handleReplace}>
                             Replace Selection
                           </Button>
                         )}
-                        <Button variant="ghost" className="w-full h-auto p-3 bg-muted text-muted-foreground rounded-xl font-medium text-[13px] transition-all duration-200 hover:bg-accent hover:text-foreground" onClick={handleInsert}>
+                        <Button variant="ghost" className="w-full h-auto p-3 bg-muted text-muted-foreground rounded-xl font-medium text-sm transition-all duration-200 hover:bg-accent hover:text-foreground" onClick={handleInsert}>
                           Insert Below
                         </Button>
                       </div>
@@ -435,7 +435,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
          {hookError && (
           <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex justify-between items-center text-destructive">
             <span className="text-xs">⚠️ {hookError}</span>
-            <Button variant="ghost" onClick={resetState} className="h-auto p-0 text-[10px] underline hover:bg-transparent">Dismiss</Button>
+            <Button variant="ghost" onClick={resetState} className="h-auto p-0 text-3xs underline hover:bg-transparent">Dismiss</Button>
           </div>
         )}
       </div>

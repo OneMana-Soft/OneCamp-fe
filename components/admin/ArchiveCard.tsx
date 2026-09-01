@@ -47,8 +47,8 @@ const UNSUPPORTED: string[] = []
 const UNSUPPORTED_UNDO: string[] = ["docs", "recordings"]
 
 const STATUS_STYLES: Record<string, { icon: React.ReactNode; color: string }> = {
-  pending: { icon: <Clock className="h-3.5 w-3.5" />, color: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20" },
-  running: { icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" />, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
+  pending: { icon: <Clock className="h-3.5 w-3.5" />, color: "bg-yellow-500/10 text-warning border-yellow-500/20" },
+  running: { icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" />, color: "bg-blue-500/10 text-info border-blue-500/20" },
   completed: { icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: "bg-success/10 text-success border-success/20" },
   failed: { icon: <XCircle className="h-3.5 w-3.5" />, color: "bg-red-500/10 text-destructive border-red-500/20" },
   cancelled: { icon: <AlertTriangle className="h-3.5 w-3.5" />, color: "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20" },
@@ -174,7 +174,7 @@ const ArchiveCard = () => {
                       </div>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-xs text-muted-foreground">Retain for <span className="font-semibold text-foreground">{policy.retention_days}</span> days</span>
-                        {policy.auto_archive ? <Badge className="text-[10px] bg-success/10 text-success border-success/20 gap-1"><CheckCircle2 className="h-2.5 w-2.5" />Auto</Badge> : <Badge variant="outline" className="text-[10px]">Manual only</Badge>}
+                        {policy.auto_archive ? <Badge className="text-3xs bg-success/10 text-success border-success/20 gap-1"><CheckCircle2 className="h-2.5 w-2.5" />Auto</Badge> : <Badge variant="outline" className="text-3xs">Manual only</Badge>}
                       </div>
                     </div>
                   </div>
@@ -207,7 +207,7 @@ const ArchiveCard = () => {
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="bg-muted/50 p-1.5 rounded-md shrink-0">{ENTITY_ICONS[job.entity_type] || <Database className="h-3.5 w-3.5" />}</div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium capitalize">{ENTITY_LABELS[job.entity_type] || job.entity_type}</span><Badge className={`text-[10px] gap-1 ${s.color}`}>{s.icon}{job.status}</Badge></div>
+                        <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium capitalize">{ENTITY_LABELS[job.entity_type] || job.entity_type}</span><Badge className={`text-3xs gap-1 ${s.color}`}>{s.icon}{job.status}</Badge></div>
                         <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
                           <span>{new Date(job.created_at).toLocaleString()}</span>
                           {job.items_processed > 0 && <span>{job.items_processed} processed</span>}

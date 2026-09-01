@@ -92,7 +92,7 @@ export const TaskListTask = ({
             </div>
             <Link href={taskHref} className="flex-1 min-w-0" onClick={(e) => { if (selectionMode) e.preventDefault() }}>
                 <div className="flex items-center gap-2 mb-1">
-                    {taskInfo.task_label && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{taskInfo.task_label}</Badge>}
+                    {taskInfo.task_label && <Badge variant="secondary" className="text-3xs px-1.5 py-0">{taskInfo.task_label}</Badge>}
                     <span className="text-sm font-medium truncate">{taskInfo.task_name}</span>
                 </div>
 

@@ -156,7 +156,7 @@ export default function GitHubConfigDialog({
                             placeholder={status?.has_webhook_secret ? "••••••••" : "webhook secret (optional)"}
                             disabled={loading}
                         />
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-2xs text-muted-foreground">
                             Used to verify incoming GitHub webhook signatures.
                         </p>
                     </div>

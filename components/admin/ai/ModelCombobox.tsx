@@ -97,7 +97,7 @@ export const ModelCombobox: React.FC<{
                       <Check className={cn("h-4 w-4 shrink-0", value === m.id ? "opacity-100" : "opacity-0")} />
                       <span className="truncate">{m.id}</span>
                     </span>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                    <span className="shrink-0 text-2xs text-muted-foreground">
                       {!m.installed ? "not installed" : m.size_bytes ? formatBytes(m.size_bytes) : ""}
                     </span>
                   </CommandItem>
@@ -116,7 +116,7 @@ export const ModelCombobox: React.FC<{
           </CommandList>
         </Command>
         {loading && (
-          <div className="flex items-center gap-1.5 border-t border-border/50 px-3 py-1.5 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 border-t border-border/50 px-3 py-1.5 text-2xs text-muted-foreground">
             <RefreshCw className="h-3 w-3 animate-spin" /> refreshing…
           </div>
         )}

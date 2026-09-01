@@ -98,7 +98,7 @@ export function TableEmbedPickerDialog({
               >
                 <span className="text-base">{t.icon || "📊"}</span>
                 <span className="min-w-0 flex-1 truncate font-medium">{t.name || "Untitled table"}</span>
-                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
                   {t.visibility === "private" ? "Private" : "Workspace"}
                 </span>
               </button>
@@ -106,7 +106,7 @@ export function TableEmbedPickerDialog({
           )}
         </div>
 
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-2xs leading-relaxed text-muted-foreground">
           Anyone who can read this doc sees the embedded table&apos;s live data, but only
           if they also have access to that table. A <span className="font-medium">Private</span> table
           stays visible to you alone; teammates will see an empty placeholder.

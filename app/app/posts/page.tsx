@@ -78,7 +78,7 @@ const PostsPage = () => {
             {isDesktop && <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-4 md:px-6 py-3 md:py-4 backdrop-blur-md">
                 <h1 className="text-base md:text-lg font-semibold tracking-tight text-foreground">Your Posts</h1>
                 {isLoading && (
-                    <div className="flex items-center gap-2 text-[10px] md:text-xs text-muted-foreground animate-in fade-in">
+                    <div className="flex items-center gap-2 text-3xs md:text-xs text-muted-foreground animate-in fade-in">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         <span className="hidden sm:inline">Refreshing...</span>
                     </div>

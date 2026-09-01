@@ -44,19 +44,22 @@ const FLOOR_PX = 10
  *   10px → text-3xs   11px → text-2xs   12px → text-xs
  */
 /**
- * The true count with comments stripped. It was 474 when first pinned, measured
- * INCLUDING comments — so the number was never quite what it claimed. Stripping
- * prose brings the real figure to 470, which is also lower than the old baseline
- * because two conversions since then genuinely removed usages.
+ * The backlog this number represented is gone.
  *
- * 445: AgentsCard's eleven text-[10px] call sites became text-3xs while adding
- *      the stale-eval badge. Ratcheted immediately rather than left with slack,
- *      because unused headroom is how a ratchet stops ratcheting.
- * 455: the three hand-written copies of the Ollama update instruction became one
- * OllamaUpdateSteps, which uses text-2xs and text-3xs rather than the arbitrary
- * sizes each copy had picked for itself.
+ * It was 474 when first pinned and 440 when the ratchet last moved, and every
+ * one of those was a call site the tokens above were built to serve and never
+ * reached. 419 of them were exactly 11px, 10px and 12px, which are text-2xs,
+ * text-3xs and text-xs; another 24 were 13px, which is not a step on any scale
+ * and is now text-sm.
+ *
+ * A ratchet is not a migration. Holding a number still stops things getting
+ * worse and never makes them better, and the product went on rendering the same
+ * caption at three sizes on three surfaces the whole time it was held.
+ *
+ * 1 remains: an emoji glyph sized at 18px, which is a picture rather than type
+ * and has no business on a type scale.
  */
-const BYPASS_BASELINE = 440
+const BYPASS_BASELINE = 1
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)

@@ -47,7 +47,7 @@ const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> =
 const SOURCE_TINT: Record<string, string> = {
   approval: "text-violet-600 dark:text-violet-400",
   task: "text-destructive",
-  commitment: "text-blue-600 dark:text-blue-400",
+  commitment: "text-info",
   question: "text-warning",
   calendar: "text-success",
 }
@@ -181,7 +181,7 @@ function AttentionCard() {
                 <span className="block text-sm leading-snug truncate">{it.title}</span>
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                   <span
-                    className={`inline-flex items-center gap-1 text-[11px] ${
+                    className={`inline-flex items-center gap-1 text-2xs ${
                       overdue ? "text-destructive font-medium" : "text-muted-foreground"
                     }`}
                   >
@@ -189,7 +189,7 @@ function AttentionCard() {
                     {it.kind}
                   </span>
                   {it.subtitle && (
-                    <span className="text-[11px] text-muted-foreground/80 truncate max-w-[220px]">
+                    <span className="text-2xs text-muted-foreground/80 truncate max-w-[220px]">
                       {it.subtitle}
                     </span>
                   )}
@@ -207,7 +207,7 @@ function AttentionCard() {
                   <Inbox className={`h-4 w-4 mt-0.5 shrink-0 ${tint}`} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm leading-snug">{it.title}</span>
-                    <span className="text-[11px] text-muted-foreground">{it.subtitle || it.kind}</span>
+                    <span className="text-2xs text-muted-foreground">{it.subtitle || it.kind}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1">
                     <button
@@ -224,7 +224,7 @@ function AttentionCard() {
                       disabled={rowBusy}
                       onClick={() => handleApprove(it)}
                       title="Approve"
-                      className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-2xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                     >
                       {rowBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                       Approve

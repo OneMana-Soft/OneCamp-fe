@@ -176,7 +176,7 @@ const ReferenceList = forwardRef<ReferenceListRef, ReferenceListProps>((props, r
             </span>
             <span className="flex min-w-0 flex-col">
               <span className="truncate font-medium leading-tight">{item.label}</span>
-              <span className="truncate text-[11px] text-muted-foreground leading-tight">
+              <span className="truncate text-2xs text-muted-foreground leading-tight">
                 {item.subtitle || referenceTypeLabel(item.refType)}
               </span>
             </span>

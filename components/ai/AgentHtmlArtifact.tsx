@@ -34,7 +34,7 @@ const AgentHtmlArtifact: React.FC<{ html: string }> = ({ html }) => {
   return (
     <div className="my-1 overflow-hidden rounded-lg border border-border/60">
       <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-foreground/[0.04] px-2.5 py-1.5">
-        <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+        <span className="flex items-center gap-1.5 text-2xs font-medium text-muted-foreground">
           <Code className="h-3.5 w-3.5" />
           HTML preview
         </span>
@@ -42,7 +42,7 @@ const AgentHtmlArtifact: React.FC<{ html: string }> = ({ html }) => {
           <button
             type="button"
             onClick={() => setRunning((v) => !v)}
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs font-medium text-primary transition-colors hover:bg-primary/10"
           >
             {running ? (
               <>
@@ -74,7 +74,7 @@ const AgentHtmlArtifact: React.FC<{ html: string }> = ({ html }) => {
       )}
 
       {tooLarge && (
-        <div className="flex items-center gap-1.5 border-t border-border/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-1.5 border-t border-border/50 px-2.5 py-1.5 text-2xs text-muted-foreground">
           <Eye className="h-3.5 w-3.5" />
           This preview is too large to run safely — showing the code only.
         </div>

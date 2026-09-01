@@ -127,10 +127,10 @@ function parseInline(text: string, keyPrefix: string): React.ReactNode[] {
 const HEADING_SIZES = [
     "text-base font-semibold",
     "text-sm font-semibold",
-    "text-[13px] font-semibold",
-    "text-[13px] font-semibold",
-    "text-[13px] font-semibold",
-    "text-[13px] font-semibold",
+    "text-sm font-semibold",
+    "text-sm font-semibold",
+    "text-sm font-semibold",
+    "text-sm font-semibold",
 ];
 
 const HR_RE = /^\s*([-*_])\s*(\1\s*){2,}$/;

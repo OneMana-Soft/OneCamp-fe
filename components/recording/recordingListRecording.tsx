@@ -49,7 +49,7 @@ export const RecordingListRecording = ({
                             : recordingInfo.recording_dm?.dm_participants?.find(p => p.user_uuid !== currentUserId)?.user_name 
                                 || "Direct Message Meeting"}
                     </h3>
-                    <span className="text-[10px] sm:text-xs font-medium text-muted-foreground/60 whitespace-nowrap bg-muted/30 px-2 py-0.5 rounded-full">
+                    <span className="text-3xs sm:text-xs font-medium text-muted-foreground/60 whitespace-nowrap bg-muted/30 px-2 py-0.5 rounded-full">
                         {(() => {
                             if (!recordingInfo.recording_stared_at) return "";
                             try {
@@ -63,7 +63,7 @@ export const RecordingListRecording = ({
                     </span>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground/80">
+                <div className="flex items-center gap-2 text-2xs sm:text-xs text-muted-foreground/80">
                     <span className="font-semibold text-foreground/70">
                         {recordingInfo.recording_started_by?.user_name || "Assistant"}
                     </span>

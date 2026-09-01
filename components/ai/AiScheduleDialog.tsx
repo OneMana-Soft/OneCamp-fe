@@ -145,7 +145,7 @@ const AiScheduleDialog: React.FC<{
               onChange={(e) => setParticipants(e.target.value)}
               placeholder="alice, bob (comma-separated names)"
             />
-            <p className="text-[11px] text-muted-foreground/70">You&apos;re always included.</p>
+            <p className="text-2xs text-muted-foreground/70">You&apos;re always included.</p>
           </div>
           <div className="flex gap-3">
             <div className="space-y-1">
@@ -183,7 +183,7 @@ const AiScheduleDialog: React.FC<{
           {result && (
             <div className="space-y-2 min-w-0">
               {result.participants.length > 0 && (
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                   <Users className="h-3 w-3" />
                   {result.participants.map((p) => p.name).join(", ")}
                 </div>
@@ -207,7 +207,7 @@ const AiScheduleDialog: React.FC<{
                           <span className="min-w-0 flex-1">
                             <span className="block text-sm font-medium truncate">{formatSlot(c.start, c.end)}</span>
                             <span
-                              className={`text-[11px] ${
+                              className={`text-2xs ${
                                 c.all_free ? "text-success" : "text-warning"
                               }`}
                             >
@@ -217,7 +217,7 @@ const AiScheduleDialog: React.FC<{
                           {isConfirming ? (
                             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
                           ) : (
-                            <span className="shrink-0 text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                            <span className="shrink-0 text-2xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                               <Check className="h-4 w-4 text-primary" />
                             </span>
                           )}

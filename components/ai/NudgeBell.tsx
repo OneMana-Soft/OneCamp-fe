@@ -120,7 +120,7 @@ function NudgeBell() {
                             <Bell className="h-[18px] w-[18px]" />
                             {openCount > 0 && (
                                 <span
-                                    className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold leading-4 text-center"
+                                    className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-3xs font-semibold leading-4 text-center"
                                     aria-hidden="true"
                                 >
                                     {openCount > 9 ? "9+" : openCount}
@@ -188,7 +188,7 @@ function NudgeBell() {
                                                 <button
                                                     aria-label="Dismiss"
                                                     onClick={(e) => handleDismiss(e, n)}
-                                                    className="shrink-0 text-[11px] text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground transition-opacity"
+                                                    className="shrink-0 text-2xs text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground transition-opacity"
                                                 >
                                                     Dismiss
                                                 </button>
@@ -197,11 +197,11 @@ function NudgeBell() {
                                                 <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-3">{n.body}</p>
                                             )}
                                             <div className="flex items-center gap-2 mt-1.5">
-                                                <span className="text-[10px] text-muted-foreground tabular-nums">
+                                                <span className="text-3xs text-muted-foreground tabular-nums">
                                                     {formatTimeForReplyCount(n.created_at)}
                                                 </span>
                                                 {n.cta_text && (
-                                                    <span className="text-[11px] font-medium text-primary">{n.cta_text} →</span>
+                                                    <span className="text-2xs font-medium text-primary">{n.cta_text} →</span>
                                                 )}
                                             </div>
                                         </div>

@@ -80,7 +80,7 @@ const GlobalCommandHost: React.FC = () => {
                                     {card.response.blocks && card.response.blocks.length > 0 ? (
                                         <BlockKitCard blocks={card.response.blocks} />
                                     ) : card.response.text ? (
-                                        <div className="text-[13px] leading-relaxed text-foreground">
+                                        <div className="text-sm leading-relaxed text-foreground">
                                             <MarkdownMessage content={card.response.text} />
                                         </div>
                                     ) : null}

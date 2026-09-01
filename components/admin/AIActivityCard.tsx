@@ -79,16 +79,16 @@ const AIActivityCard = () => {
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium text-foreground">{it.title || "AI action"}</span>
                       {it.status && (
-                        <span className={`text-[11px] font-medium capitalize ${statusTone(it.status)}`}>{it.status}</span>
+                        <span className={`text-2xs font-medium capitalize ${statusTone(it.status)}`}>{it.status}</span>
                       )}
                       {it.source && (
-                        <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                        <Badge variant="outline" className="text-3xs font-normal text-muted-foreground">
                           {it.source}
                         </Badge>
                       )}
                     </div>
                     {it.summary && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{it.summary}</p>}
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground/70">
+                    <div className="mt-0.5 flex items-center gap-2 text-2xs text-muted-foreground/70">
                       {it.actor && <span>{it.actor}</span>}
                       <span>·</span>
                       <span>{relativeTime(it.at)}</span>

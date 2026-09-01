@@ -29,17 +29,17 @@ function splitList(s: string): string[] {
 
 // A compact pass/fail/score chip for one scored run.
 const ScoreBadge: React.FC<{ score?: EvalScore }> = ({ score }) => {
-  if (!score) return <span className="text-[11px] text-muted-foreground">not run yet</span>
+  if (!score) return <span className="text-2xs text-muted-foreground">not run yet</span>
   if (score.inconclusive) {
     return (
-      <Badge variant="secondary" className="text-[10px]" title={score.reason || "inconclusive"}>
+      <Badge variant="secondary" className="text-3xs" title={score.reason || "inconclusive"}>
         Inconclusive
       </Badge>
     )
   }
   const cls = score.passed ? "text-success" : "text-red-600"
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium", cls)} title={`${score.score}% of checks met`}>
+    <span className={cn("inline-flex items-center gap-1 text-2xs font-medium", cls)} title={`${score.score}% of checks met`}>
       {score.passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
       {score.passed ? "Pass" : "Fail"} · {score.score}%
     </span>
@@ -166,13 +166,13 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
       <div className="flex items-center justify-between">
         <div>
           <Label className="text-sm">Saved tests</Label>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Save what a good answer looks like, then run them to catch regressions before shipping.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {suite && (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {suite.scored > 0 ? `${Math.round((suite.passed / suite.scored) * 100)}% passing` : "no verdict"} ({suite.passed}/{suite.scored})
             </span>
           )}
@@ -192,7 +192,7 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
             <div key={s.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-2">
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">{s.name}</div>
-                <div className="truncate text-[11px] text-muted-foreground">{s.prompt}</div>
+                <div className="truncate text-2xs text-muted-foreground">{s.prompt}</div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <ScoreBadge score={results[s.id]} />
@@ -212,7 +212,7 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
             </div>
           ))}
           {scenarios.length === 0 && (
-            <p className="py-2 text-[11px] text-muted-foreground">No saved tests yet. Add one below.</p>
+            <p className="py-2 text-2xs text-muted-foreground">No saved tests yet. Add one below.</p>
           )}
         </div>
       )}

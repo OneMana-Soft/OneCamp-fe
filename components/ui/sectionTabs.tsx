@@ -96,7 +96,7 @@ export function SectionTabs({
                                     <Badge
                                         variant="secondary"
                                         className={cn(
-                                            "ml-0.5 px-1.5 py-0 h-[18px] min-w-[18px] text-[10px] rounded-full",
+                                            "ml-0.5 px-1.5 py-0 h-[18px] min-w-[18px] text-3xs rounded-full",
                                             "bg-muted text-muted-foreground border-transparent",
                                             "group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary",
                                         )}

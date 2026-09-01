@@ -143,7 +143,7 @@ export const ListRow = React.forwardRef<HTMLDivElement, ListRowProps>(
                         {meta && (
                             <span
                                 className={cn(
-                                    "shrink-0 whitespace-nowrap text-[11px] tabular-nums",
+                                    "shrink-0 whitespace-nowrap text-2xs tabular-nums",
                                     emphasize
                                         ? "text-foreground font-medium"
                                         : "text-muted-foreground",

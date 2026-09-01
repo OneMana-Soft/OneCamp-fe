@@ -178,7 +178,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                     <span className="text-[18px]">{TOOL_ICONS[action.tool_name] || '⚡'}</span>
                                     <span className="font-medium text-sm text-primary">{TOOL_LABELS[action.tool_name] || action.tool_name}</span>
                                 </div>
-                                <p className="text-[13px] leading-relaxed text-muted-foreground m-0 mb-3">{action.description}</p>
+                                <p className="text-sm leading-relaxed text-muted-foreground m-0 mb-3">{action.description}</p>
 
                                 <div className="flex flex-col gap-1.5 mb-4 p-2.5 bg-background/50 border border-border/20 rounded-lg text-xs">
                                     {Object.entries(action.params || {})
@@ -210,7 +210,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                     </div>
                                 ) : (
                                     <div className={cn(
-                                        "text-[13px] p-2.5 rounded-lg font-medium",
+                                        "text-sm p-2.5 rounded-lg font-medium",
                                         executed.success ? "text-success bg-success/10" : "text-destructive bg-red-500/10"
                                     )}>
                                         {executed.success ? '' : '❌'} {executed.message}

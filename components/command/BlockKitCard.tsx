@@ -67,12 +67,12 @@ const BlockKitCard: React.FC<BlockKitCardProps> = ({ blocks, onAction, busyActio
                         )
                     case "section":
                         return (
-                            <div key={i} className="text-[13px] leading-relaxed text-foreground/90">
+                            <div key={i} className="text-sm leading-relaxed text-foreground/90">
                                 {renderText(block.text)}
                                 {block.fields && block.fields.length > 0 && (
                                     <div className="mt-1.5 grid grid-cols-2 gap-2">
                                         {block.fields.map((f, fi) => (
-                                            <div key={fi} className="text-[12px] text-muted-foreground">
+                                            <div key={fi} className="text-xs text-muted-foreground">
                                                 {renderText(f)}
                                             </div>
                                         ))}
@@ -82,7 +82,7 @@ const BlockKitCard: React.FC<BlockKitCardProps> = ({ blocks, onAction, busyActio
                         )
                     case "context":
                         return (
-                            <div key={i} className="text-[11px] text-muted-foreground">
+                            <div key={i} className="text-2xs text-muted-foreground">
                                 {renderText(block.text)}
                             </div>
                         )

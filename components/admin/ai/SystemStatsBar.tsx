@@ -107,12 +107,12 @@ export const SystemStatsBar: React.FC<{ stats: SystemStats; onRefresh: () => voi
       )}
 
       {stats.warnings && stats.warnings.length > 0 && (
-        <p className="text-xs text-amber-600 dark:text-amber-500">
+        <p className="text-xs text-warning">
           {stats.warnings.join("; ")}
         </p>
       )}
 
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-2xs text-muted-foreground">
         Disk reading reflects the API container&apos;s filesystem; for split-disk setups set AI_DISK_PATH to the
         model volume for an exact figure.
       </p>

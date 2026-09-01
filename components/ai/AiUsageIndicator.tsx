@@ -59,7 +59,7 @@ const AiUsageIndicator: React.FC<{ refreshSignal?: number }> = ({ refreshSignal 
 
   return (
     <span
-      className={`hidden sm:inline-flex items-center px-1.5 text-[11px] tabular-nums ${
+      className={`hidden sm:inline-flex items-center px-1.5 text-2xs tabular-nums ${
         near ? "text-warning" : "text-muted-foreground"
       }`}
       title={title}

@@ -175,7 +175,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
           </div>
 
           {!editing && prefill && (
-            <p className="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
+            <p className="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-2xs text-muted-foreground">
               Deploy the {prefill.name} MCP server, then paste its URL below.{" "}
               <a href={prefill.docs_url} target="_blank" rel="noreferrer" className="text-primary underline">
                 Setup guide
@@ -235,7 +235,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
                 autoComplete="new-password"
               />
               {!editing && prefill?.secret_hint && (
-                <p className="text-[11px] text-muted-foreground">{prefill.secret_hint}</p>
+                <p className="text-2xs text-muted-foreground">{prefill.secret_hint}</p>
               )}
             </div>
           )}
@@ -273,7 +273,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
                     {tools.map((t) => (
                       <span
                         key={t.name}
-                        className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px]"
+                        className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-2xs"
                       >
                         {t.name}
                         <McpToolRiskBadge tool={t} compact />

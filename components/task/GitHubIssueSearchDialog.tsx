@@ -344,17 +344,17 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
                             <span className="text-xs font-medium text-muted-foreground">#{issue.number}</span>
                             <span className="text-sm font-medium truncate">{issue.title}</span>
                             {isPR && (
-                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-purple-200 text-purple-600">PR</Badge>
+                              <Badge variant="outline" className="text-3xs px-1 py-0 h-4 border-purple-200 text-purple-600">PR</Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-3 mt-1">
-                            <Badge variant={issue.state === "open" ? "default" : "secondary"} className="text-[10px] px-1 py-0 h-4">
+                            <Badge variant={issue.state === "open" ? "default" : "secondary"} className="text-3xs px-1 py-0 h-4">
                               {issue.state}
                             </Badge>
-                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <span className="text-3xs text-muted-foreground flex items-center gap-1">
                               <User className="h-3 w-3" /> {issue.user.login}
                             </span>
-                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <span className="text-3xs text-muted-foreground flex items-center gap-1">
                               <Calendar className="h-3 w-3" /> {formatDate(issue.created_at)}
                             </span>
                           </div>

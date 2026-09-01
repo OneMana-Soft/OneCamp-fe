@@ -105,7 +105,7 @@ export default function WorkspaceSettingsCard() {
     }
 
     const SourceBadge = ({ source }: { source: string }) => (
-        <span className="text-[11px] text-muted-foreground">Source: {SOURCE_LABEL[source] ?? source}</span>
+        <span className="text-2xs text-muted-foreground">Source: {SOURCE_LABEL[source] ?? source}</span>
     )
 
     return (
@@ -142,7 +142,7 @@ export default function WorkspaceSettingsCard() {
                             {savingUpload ? "Saving…" : "Save"}
                         </Button>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                         Users see an instant message if they pick a file larger than this — before any upload starts.
                     </p>
                 </div>
@@ -195,7 +195,7 @@ export default function WorkspaceSettingsCard() {
                         placeholder={settings?.has_resend_api_key ? "••••••••" : "re_…"}
                         disabled={loading}
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                         Enables invitation, password-reset, and notification emails. Verify your domain in Resend first.
                     </p>
                     <Button size="sm" onClick={saveEmail} disabled={savingEmail || loading || !resendKey}>

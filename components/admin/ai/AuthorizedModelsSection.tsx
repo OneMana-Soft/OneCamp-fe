@@ -318,11 +318,11 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium">{m.label || m.model}</span>
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-3xs">
                       {m.provider_label}
                     </Badge>
                     {!m.provider_enabled && (
-                      <Badge variant="destructive" className="text-[10px]">
+                      <Badge variant="destructive" className="text-3xs">
                         provider disabled
                       </Badge>
                     )}

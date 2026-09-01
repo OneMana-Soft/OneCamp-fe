@@ -746,7 +746,7 @@ export function CommandPalette() {
 
         {/* Footer hint */}
         {!hasSearchQuery && (
-          <div className="flex items-center justify-between px-4 py-2 text-[10px] text-muted-foreground border-t">
+          <div className="flex items-center justify-between px-4 py-2 text-3xs text-muted-foreground border-t">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
                 <kbd className="px-1 rounded border bg-muted font-mono">↑↓</kbd> navigate

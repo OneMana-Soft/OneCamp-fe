@@ -39,7 +39,7 @@ const KIND_OPTIONS: {
   tint: string
 }[] = [
   { kind: "decision", label: "Decision", hint: "A choice the team made", Icon: Zap, tint: "text-violet-600 dark:text-violet-400" },
-  { kind: "commitment", label: "Commitment", hint: "Something someone will do", Icon: CheckCircle2, tint: "text-blue-600 dark:text-blue-400" },
+  { kind: "commitment", label: "Commitment", hint: "Something someone will do", Icon: CheckCircle2, tint: "text-info" },
   { kind: "question", label: "Open question", hint: "Something still unresolved", Icon: HelpCircle, tint: "text-warning" },
 ]
 
@@ -161,7 +161,7 @@ const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
           // Commitment due-date step — optional. "Save" with no date captures
           // a commitment without a deadline (back-compatible behavior).
           <div className="p-1">
-            <p className="px-1 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+            <p className="px-1 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground/70">
               Due date (optional)
             </p>
             <input
@@ -195,7 +195,7 @@ const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
           </div>
         ) : (
           <>
-            <p className="px-2 pt-1 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+            <p className="px-2 pt-1 pb-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground/70">
               Save as
             </p>
             <div className="flex flex-col">
@@ -218,7 +218,7 @@ const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
                   </span>
                   <span className="min-w-0">
                     <span className="block text-sm leading-tight">{label}</span>
-                    <span className="block text-[11px] text-muted-foreground leading-tight">{hint}</span>
+                    <span className="block text-2xs text-muted-foreground leading-tight">{hint}</span>
                   </span>
                 </button>
               ))}

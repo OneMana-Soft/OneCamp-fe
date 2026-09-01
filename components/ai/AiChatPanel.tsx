@@ -237,7 +237,7 @@ const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; o
 
     return (
         <div className="mt-2.5 pt-2.5 border-t border-border/70 min-w-0">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70 mb-1.5">
+            <p className="text-3xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-1.5">
                 Sources
             </p>
             <div className="flex flex-col gap-1 min-w-0">
@@ -254,16 +254,16 @@ const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; o
                             <span className="inline-flex items-center justify-center h-4 w-4 shrink-0 text-primary/70">
                                 <FileText size={12} />
                             </span>
-                            <span className="text-[11px] font-medium text-foreground/80 shrink-0">
+                            <span className="text-2xs font-medium text-foreground/80 shrink-0">
                                 {SOURCE_LABEL[src.content_type] || src.content_type}
                             </span>
                             {src.channel_name && (
-                                <span className="text-[11px] text-muted-foreground shrink-0 truncate max-w-[120px]">
+                                <span className="text-2xs text-muted-foreground shrink-0 truncate max-w-[120px]">
                                     #{src.channel_name}
                                 </span>
                             )}
                             {preview && (
-                                <span className="text-[11px] text-muted-foreground/80 truncate min-w-0">
+                                <span className="text-2xs text-muted-foreground/80 truncate min-w-0">
                                     {preview}
                                 </span>
                             )}
@@ -527,12 +527,12 @@ const AiChatPanel: React.FC = () => {
                             <Sparkles size={24} />
                         </div>
                         <h3 className="text-lg font-medium text-foreground m-0">OneCamp AI</h3>
-                        <p className="text-[13px] text-muted-foreground max-w-[280px] leading-normal m-0">
+                        <p className="text-sm text-muted-foreground max-w-[280px] leading-normal m-0">
                             Ask anything about your workspace — channels, tasks, docs, and more.
                         </p>
-                        <p className="text-[11px] text-muted-foreground/60 m-0 inline-flex items-center gap-1">
+                        <p className="text-2xs text-muted-foreground/60 m-0 inline-flex items-center gap-1">
                             Tip: press
-                            <kbd className="inline-flex items-center rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+                            <kbd className="inline-flex items-center rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-3xs">
                                 Ctrl J
                             </kbd>
                             anywhere to open this
@@ -566,7 +566,7 @@ const AiChatPanel: React.FC = () => {
                             </div>
                         )}
                         <div className={cn(
-                            "min-w-0 px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed relative",
+                            "min-w-0 px-3.5 py-2.5 rounded-xl text-sm leading-relaxed relative",
                             msg.role === "user"
                                 ? "max-w-[85%] bg-primary text-primary-foreground rounded-br-sm shadow-sm"
                                 : "max-w-[92%] bg-muted text-foreground border border-border rounded-bl-sm"
@@ -642,16 +642,16 @@ const AiChatPanel: React.FC = () => {
                         <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
                             <Sparkles size={14} />
                         </div>
-                        <div className="min-w-0 max-w-[92%] px-3.5 py-2.5 rounded-xl text-[13px] leading-relaxed bg-muted text-foreground border border-border rounded-bl-sm">
+                        <div className="min-w-0 max-w-[92%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed bg-muted text-foreground border border-border rounded-bl-sm">
                             {sanitizedStreamText.length === 0 ? (
-                                <div className="flex items-center gap-2 py-1 text-muted-foreground text-[13px]">
+                                <div className="flex items-center gap-2 py-1 text-muted-foreground text-sm">
                                     <Loader2 size={14} className="animate-spin" />
                                     <span>Thinking...</span>
                                 </div>
                             ) : (
                                 <div className="min-w-0">
                                     <MarkdownMessage content={sanitizedStreamText} />
-                                    <span className="inline-block animate-blink text-primary text-[12px] ml-[1px] align-text-bottom">
+                                    <span className="inline-block animate-blink text-primary text-xs ml-[1px] align-text-bottom">
                                         ▊
                                     </span>
                                 </div>
@@ -686,7 +686,7 @@ const AiChatPanel: React.FC = () => {
                         placeholder="Ask your workspace anything..."
                         className={cn(
                             "flex-1 min-w-0 border-0 bg-transparent shadow-none",
-                            "text-[13px] leading-relaxed text-foreground",
+                            "text-sm leading-relaxed text-foreground",
                             "placeholder:text-muted-foreground/70",
                             "resize-none outline-none ring-0 focus-visible:ring-0",
                             // transition-none: the height is set imperatively for
@@ -758,7 +758,7 @@ const AiChatPanel: React.FC = () => {
                     have, it is a permanent line of chrome telling them something
                     they just did — so it disappears. */}
                 {!input.trim() && (
-                    <p className="mt-1.5 px-1 text-[10px] leading-tight text-muted-foreground/70">
+                    <p className="mt-1.5 px-1 text-3xs leading-tight text-muted-foreground/70">
                         Enter to send, Shift+Enter for a new line.
                     </p>
                 )}

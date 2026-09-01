@@ -272,7 +272,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
 // Control is a small labeled wrapper for a chart control.
 const Control: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
     <label className="flex flex-col gap-1">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
             {label}
         </span>
         {children}

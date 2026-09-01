@@ -115,7 +115,7 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
           const isMemory = g.source === "memory"
           return (
             <div key={g.source}>
-              <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-medium text-foreground/70">
+              <div className="mb-1.5 flex items-center gap-1.5 px-1 text-2xs font-medium text-foreground/70">
                 <Icon className="h-3.5 w-3.5" />
                 {g.label}
               </div>
@@ -142,7 +142,7 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
                             <Badge variant="secondary" size="sm" caps className="rounded">
                               {memoryKindLabel(h.kind)}
                             </Badge>
-                            {h.meta && <span className="truncate text-[11px] text-muted-foreground">{h.meta}</span>}
+                            {h.meta && <span className="truncate text-2xs text-muted-foreground">{h.meta}</span>}
                           </div>
                           <p className="text-sm leading-relaxed text-foreground">{h.title}</p>
                         </div>
@@ -162,7 +162,7 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
                           <h3 className="line-clamp-1 text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
                             {h.title}
                           </h3>
-                          {h.meta && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{h.meta}</p>}
+                          {h.meta && <p className="mt-0.5 truncate text-2xs text-muted-foreground">{h.meta}</p>}
                           {h.snippet && (
                             <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                               {h.snippet}

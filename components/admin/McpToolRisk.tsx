@@ -28,7 +28,7 @@ const RISK_UI: Record<
   approval: {
     label: "Needs approval",
     hint: "Changes something: goes through approval unless you allow it explicitly.",
-    tone: "text-amber-600 dark:text-amber-500",
+    tone: "text-warning",
     Icon: Lock,
   },
   destructive: {
