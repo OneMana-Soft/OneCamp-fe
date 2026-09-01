@@ -280,3 +280,87 @@ test.describe("dense type scale, as rendered", () => {
     }
   })
 })
+
+/**
+ * The accent picker, verified where it actually failed.
+ *
+ * Two bugs shipped here in one day and neither was visible in review. The theme
+ * file was deleted as dead CSS, because the class is built at runtime as
+ * `theme-${activeTheme}` and a grep for a literal name finds nothing. Then, once
+ * restored, the accent still did not reach the buttons: --primary was declared
+ * as var(--brand) on :root, and a var() inside a custom property is substituted
+ * on the element where it is DECLARED, so it resolved against the root accent
+ * and inherited that fixed value regardless of the class on <body>.
+ *
+ * Both are invisible to any test that reads source. Both are obvious the moment
+ * something asks a browser what colour the button actually is.
+ */
+test.describe("accent themes reach the components", () => {
+  const applyTheme = async (page: Page, theme: string) => {
+    await page.evaluate((t) => {
+      // Snapshot before removing: classList is live, so removing while iterating
+      // it skips entries.
+      Array.from(document.body.classList)
+        .filter((c) => c.startsWith("theme-"))
+        .forEach((c) => document.body.classList.remove(c))
+      document.body.classList.add(`theme-${t}`)
+    }, theme)
+    // The Button carries transition-colors, and getComputedStyle mid-flight
+    // returns the INTERPOLATED colour, serialised as oklab(). Reading straight
+    // after the class change made three different themes all report the colour
+    // they were transitioning away from, which looked exactly like the bug this
+    // test exists to catch. Wait for the transition to land.
+    await page.waitForTimeout(600)
+  }
+
+  test("changing the theme changes the primary button, not just the ring", async ({ page }) => {
+    await page.goto(PRIMITIVES_PAGE)
+    // Named, not .first(): the first button on this page is the theme toggle,
+    // which is a ghost variant and computes transparent. Asserting on it proved
+    // only that a transparent thing stayed transparent.
+    const button = page.getByRole("button", { name: /reset password/i })
+    await expect(button).toBeVisible({ timeout: 10_000 })
+
+    await applyTheme(page, "onecamp")
+    const brand = await button.evaluate((el) => getComputedStyle(el).backgroundColor)
+
+    await applyTheme(page, "green")
+    const green = await button.evaluate((el) => getComputedStyle(el).backgroundColor)
+
+    await applyTheme(page, "violet")
+    const violet = await button.evaluate((el) => getComputedStyle(el).backgroundColor)
+
+    // The exact failure that was reported: the button stayed the same colour
+    // whatever was picked.
+    expect(green, "the primary button did not change with the theme").not.toBe(brand)
+    expect(violet).not.toBe(brand)
+    expect(violet).not.toBe(green)
+
+    // And each is a real colour rather than a transparent fallback from a var
+    // that resolved to nothing. Chromium serialises an oklch() token as lab(),
+    // not rgb(), so the check is on transparency rather than on notation.
+    for (const c of [brand, green, violet]) {
+      expect(c).not.toBe("rgba(0, 0, 0, 0)")
+      expect(c).not.toBe("transparent")
+      expect(c.length).toBeGreaterThan(0)
+    }
+  })
+
+  test("every offered accent produces a distinct primary", async ({ page }) => {
+    await page.goto(PRIMITIVES_PAGE)
+    const button = page.getByRole("button", { name: /reset password/i })
+    await expect(button).toBeVisible({ timeout: 10_000 })
+
+    // slate, zinc and stone are the three that were in the picker with no CSS at
+    // all, so they are the ones most worth naming here.
+    const themes = ["onecamp", "blue", "green", "amber", "rose", "violet", "teal", "orange", "slate", "zinc", "stone"]
+    const seen = new Map<string, string>()
+    for (const t of themes) {
+      await applyTheme(page, t)
+      const colour = await button.evaluate((el) => getComputedStyle(el).backgroundColor)
+      const clash = seen.get(colour)
+      expect(clash, `theme ${t} renders identically to ${clash}, so one of them is not defined`).toBeUndefined()
+      seen.set(colour, t)
+    }
+  })
+})
