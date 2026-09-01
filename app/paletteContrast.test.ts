@@ -20,11 +20,27 @@ import { contrastRatio, oklchToRgb, parseOklch, rgbToHex } from "@/lib/color/okl
 const CSS = readFileSync(join(__dirname, "globals.css"), "utf8")
 const THEMES_CSS = readFileSync(join(__dirname, "themes.css"), "utf8")
 
-/** Reads a token out of the :root or .dark block. */
+/**
+ * Reads a token, from the :root or .dark block, falling back to the body block.
+ *
+ * The fallback is not tidiness. Everything the accent drives is declared on body
+ * rather than :root, because a var() inside a custom property is substituted on
+ * the element where it is DECLARED: written on :root it resolves against the
+ * root accent and never sees the theme class on body. So --primary, --ring and
+ * --selection genuinely live in a different block from the neutrals, and a
+ * reader that only knows about :root reports them as missing.
+ */
 function token(name: string, mode: "light" | "dark"): string {
   const start = mode === "light" ? CSS.indexOf(":root {") : CSS.indexOf(".dark {")
   const block = CSS.slice(start, CSS.indexOf("\n}", start))
-  const m = new RegExp(`--${name}:\\s*([^;]+);`).exec(block)
+  let m = new RegExp(`--${name}:\\s*([^;]+);`).exec(block)
+  if (!m) {
+    const bodyStart = CSS.indexOf("\nbody {")
+    if (bodyStart !== -1) {
+      const bodyBlock = CSS.slice(bodyStart, CSS.indexOf("\n}", bodyStart))
+      m = new RegExp(`--${name}:\\s*([^;]+);`).exec(bodyBlock)
+    }
+  }
   if (!m) throw new Error(`token --${name} not found in ${mode}`)
   const value = m[1].trim()
   // One level of indirection is enough: --ring is var(--brand) and nothing is
