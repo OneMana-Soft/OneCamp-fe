@@ -18,6 +18,7 @@ import { contrastRatio, oklchToRgb, parseOklch, rgbToHex } from "@/lib/color/okl
  */
 
 const CSS = readFileSync(join(__dirname, "globals.css"), "utf8")
+const THEMES_CSS = readFileSync(join(__dirname, "themes.css"), "utf8")
 
 /** Reads a token out of the :root or .dark block. */
 function token(name: string, mode: "light" | "dark"): string {
@@ -85,4 +86,53 @@ describe("the neutrals are tinted, not grey", () => {
       }
     },
   )
+})
+
+
+/**
+ * Every accent a person can pick, in both modes.
+ *
+ * The ten themes were solved rather than chosen: each sits as close to the
+ * brand's own lightness as AA allows, which is why they read as a family. That
+ * property only survives if something checks it, and a theme is exactly the kind
+ * of thing added in a hurry with a hex that looked right.
+ *
+ * Both directions matter. An accent is text on the page (a link, an active item)
+ * and it is also a ground under its own foreground (a selected row, a filled
+ * button), and passing one does not imply passing the other.
+ */
+describe("every selectable accent meets WCAG AA", () => {
+  const themes = [...THEMES_CSS.matchAll(/^\.theme-([a-z-]+) \{/gm)].map((m) => m[1])
+
+  it("found the themes to check", () => {
+    expect(themes.length).toBeGreaterThan(0)
+  })
+
+  it.each(themes)("%s", (name) => {
+    for (const mode of ["light", "dark"] as const) {
+      const block =
+        mode === "light"
+          ? THEMES_CSS.slice(THEMES_CSS.indexOf(`.theme-${name} {`))
+          : THEMES_CSS.slice(THEMES_CSS.indexOf(`.dark .theme-${name}`))
+      const m = /--brand:\s*([^;]+);/.exec(block)
+      expect(m, `.theme-${name} has no --brand in ${mode}`).not.toBeNull()
+      const parsed = parseOklch(m![1].trim())
+      expect(parsed, `.theme-${name} ${mode} --brand is not oklch`).not.toBeNull()
+      const brand = oklchToRgb(parsed!.l, parsed!.c, parsed!.h)
+
+      const bg = rgb("background", mode)
+      const fg = rgb("brand-foreground", mode)
+
+      const onPage = contrastRatio(brand, bg)
+      const labelOnIt = contrastRatio(fg, brand)
+      expect(
+        onPage,
+        `theme ${name} (${mode}): the accent as text is ${rgbToHex(brand)} on ${rgbToHex(bg)}, ${onPage.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(4.5)
+      expect(
+        labelOnIt,
+        `theme ${name} (${mode}): a label on the accent is ${rgbToHex(fg)} on ${rgbToHex(brand)}, ${labelOnIt.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(4.5)
+    }
+  })
 })
