@@ -1,1 +1,8 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="256" cy="256" r="176" stroke="#FF4D00" stroke-width="56"/></svg>
+<!-- Stroke solved, not picked. The brand itself measures 5.11:1 on the light
+     ground but 3.68:1 on the dark one; the retired orange was the mirror image.
+     This value clears 4:1 on both, which a mark shown on either ground needs.
+     An img-loaded SVG is an isolated document with no access to page CSS, so it
+     cannot inherit the token and needs one literal. Rationale lives in the
+     commit, because an XML comment may not contain a double hyphen and the CSS
+     custom property syntax does. -->
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="256" cy="256" r="176" stroke="#c84f00" stroke-width="56"/></svg>
