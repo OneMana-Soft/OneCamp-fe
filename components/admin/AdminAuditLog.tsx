@@ -8,13 +8,14 @@ import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { FileText, RefreshCw, ShieldCheck, Download } from "@/lib/icons"
+import { FileText, RefreshCw, ShieldCheck, Download, FileArchive } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { parseAuditMetadata, auditReason } from "@/lib/utils/auditMetadata"
 import {
     getAdminAuditLog,
     verifyAuditLog,
     exportAuditLog,
+    downloadEvidencePack,
     type AuditEntry,
     type AuditVerifyResult,
 } from "@/services/settingsService"
@@ -179,6 +180,24 @@ export default function AdminAuditLog() {
         }
     }
 
+    // The evidence pack is a different deliverable from the export beside it, so
+    // it gets its own control rather than a third format on the same one. The
+    // export hands over rows; this hands over a document a reviewer can act on.
+    const handleEvidencePack = async () => {
+        setExporting(true)
+        try {
+            await downloadEvidencePack()
+            toast({
+                title: "Evidence pack downloaded",
+                description: "Covers the last 90 days: the log with its chain recomputation, what each agent was told, and a manifest fingerprinting every section.",
+            })
+        } catch {
+            toast({ title: "Could not build the evidence pack", variant: "destructive" })
+        } finally {
+            setExporting(false)
+        }
+    }
+
     const handleExport = async (format: "csv" | "json") => {
         setExporting(true)
         try {
@@ -219,6 +238,17 @@ export default function AdminAuditLog() {
                         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => handleExport("json")} disabled={exporting}>
                             <Download className="h-3.5 w-3.5" />
                             JSON
+                        </Button>
+                        <Button
+                            variant="default"
+                            size="sm"
+                            className="h-8 gap-1.5 text-xs"
+                            onClick={handleEvidencePack}
+                            disabled={exporting}
+                            title="The log, the chain recomputation, what each agent was told, and a manifest fingerprinting every section, as one document"
+                        >
+                            <FileArchive className="h-3.5 w-3.5" />
+                            Evidence pack
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => load(filter)} aria-label="Refresh">
                             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
