@@ -67,13 +67,26 @@ export default function Page() {
     useEffect(() => {
         if(channelId) {
             dispatch(resetUserChannelUnread({ch_uuid: channelId}))
+            // ON ENTER, not only on leave.
+            //
+            // The local reset above clears the badge instantly and only in Redux.
+            // The sidebar then revalidates every 30 seconds and overwrites that
+            // state with the server's counts, and the server still had the OLD
+            // last-seen marker, because it was advanced on unmount and nowhere
+            // else. So opening a channel cleared the badge for up to half a
+            // minute and then brought it back while the user was sitting there
+            // reading the messages it claimed were unread.
+            //
+            // Opening a channel IS the moment the user has seen what is in it,
+            // so the marker belongs here. The unmount call below still earns its
+            // place: it covers what arrived while they were watching.
+            markChannelSeen(channelId)
         }
 
         // On leave (channel switch / page unmount), durably advance the
         // server-side last-seen marker so messages that arrived while the user
         // was actively viewing don't resurrect the unread badge on the next
-        // channel-list refetch. The local reset above handles the immediate
-        // UX; this makes it stick. Fire-and-forget + silent by design.
+        // channel-list refetch. Fire-and-forget + silent by design.
         return () => {
             if (channelId) {
                 markChannelSeen(channelId)
