@@ -1,0 +1,146 @@
+/* Accent themes.
+ *
+ * WHAT THIS REPLACED, and why it is worth writing down. The file here before was
+ * the shadcn themes showcase copied in: twelve blocks that each swapped a whole
+ * palette, including the typeface. It was deleted in the palette commit as dead
+ * CSS, and that was wrong twice over.
+ *
+ * Wrong once because it was not dead. ActiveThemeProvider builds the class at
+ * runtime as `theme-${activeTheme}`, so a grep for "theme-blue" finds nothing
+ * while the feature works perfectly. A picker exists, and the choice is synced to
+ * the BACKEND, so people have stored preferences.
+ *
+ * Wrong twice because the feature was already broken and deleting it hid that.
+ * The picker offers ten themes; the old file defined blue, green, amber, rose,
+ * teal, violet and orange, and had nothing at all for slate, zinc or stone.
+ * Three of the ten silently did nothing, and had done for as long as they were
+ * offered. There is a test next to this file now that makes that impossible.
+ *
+ * WHAT A THEME IS NOW. One token: the accent. Not a whole palette.
+ *
+ * The neutrals, the ink, the surfaces and the type belong to the product and do
+ * not change, because those are what make it look like OneCamp rather than like
+ * a theme. What changes is the colour that carries state: focus rings, active
+ * navigation, selection, links. Everything downstream already reads var(--brand),
+ * so overriding it here re-themes all of them at once.
+ *
+ * EVERY VALUE IS SOLVED, NOT PICKED. Each accent sits as close to the brand's own
+ * lightness as WCAG AA allows, checked in both directions: as text on the page,
+ * and as a ground under its own foreground. That is why they read as a family
+ * rather than a swatch grab bag, and why the neutral three are legible instead of
+ * washing out. paletteContrast.test.ts checks all of them, in both modes.
+ */
+
+.theme-onecamp {
+  --brand: oklch(0.55 0.16 45);
+  --brand-muted: oklch(0.955 0.022 60);
+}
+.dark .theme-onecamp,
+.theme-onecamp.dark {
+  --brand: oklch(0.74 0.141 45);
+  --brand-muted: oklch(0.28 0.04 50);
+}
+
+.theme-blue {
+  --brand: oklch(0.55 0.15 250);
+  --brand-muted: oklch(0.955 0.02 250);
+}
+.dark .theme-blue,
+.theme-blue.dark {
+  --brand: oklch(0.74 0.132 250);
+  --brand-muted: oklch(0.28 0.038 250);
+}
+
+.theme-green {
+  --brand: oklch(0.54 0.13 150);
+  --brand-muted: oklch(0.955 0.018 150);
+}
+.dark .theme-green,
+.theme-green.dark {
+  --brand: oklch(0.74 0.114 150);
+  --brand-muted: oklch(0.28 0.034 150);
+}
+
+.theme-amber {
+  --brand: oklch(0.55 0.14 75);
+  --brand-muted: oklch(0.955 0.02 75);
+}
+.dark .theme-amber,
+.theme-amber.dark {
+  --brand: oklch(0.74 0.123 75);
+  --brand-muted: oklch(0.28 0.036 75);
+}
+
+.theme-rose {
+  --brand: oklch(0.55 0.16 15);
+  --brand-muted: oklch(0.955 0.022 15);
+}
+.dark .theme-rose,
+.theme-rose.dark {
+  --brand: oklch(0.74 0.141 15);
+  --brand-muted: oklch(0.28 0.04 15);
+}
+
+.theme-violet {
+  --brand: oklch(0.55 0.17 295);
+  --brand-muted: oklch(0.955 0.024 295);
+}
+.dark .theme-violet,
+.theme-violet.dark {
+  --brand: oklch(0.74 0.15 295);
+  --brand-muted: oklch(0.28 0.042 295);
+}
+
+.theme-teal {
+  --brand: oklch(0.534 0.11 190);
+  --brand-muted: oklch(0.955 0.016 190);
+}
+.dark .theme-teal,
+.theme-teal.dark {
+  --brand: oklch(0.74 0.097 190);
+  --brand-muted: oklch(0.28 0.03 190);
+}
+
+.theme-orange {
+  --brand: oklch(0.55 0.15 55);
+  --brand-muted: oklch(0.955 0.021 55);
+}
+.dark .theme-orange,
+.theme-orange.dark {
+  --brand: oklch(0.74 0.132 55);
+  --brand-muted: oklch(0.28 0.038 55);
+}
+
+/* The three that were offered and never existed. A near-neutral accent is a
+   legitimate choice for somebody who wants the interface to recede, and it still
+   has to clear contrast, which is why these are solved rather than set to a grey
+   that looked about right. */
+.theme-slate {
+  --brand: oklch(0.55 0.035 250);
+  --brand-muted: oklch(0.955 0.008 250);
+}
+.dark .theme-slate,
+.theme-slate.dark {
+  --brand: oklch(0.74 0.031 250);
+  --brand-muted: oklch(0.28 0.014 250);
+}
+
+.theme-zinc {
+  --brand: oklch(0.55 0.015 285);
+  --brand-muted: oklch(0.955 0.005 285);
+}
+.dark .theme-zinc,
+.theme-zinc.dark {
+  --brand: oklch(0.74 0.013 285);
+  --brand-muted: oklch(0.28 0.008 285);
+}
+
+.theme-stone {
+  --brand: oklch(0.55 0.02 60);
+  --brand-muted: oklch(0.955 0.006 60);
+}
+.dark .theme-stone,
+.theme-stone.dark {
+  --brand: oklch(0.74 0.018 60);
+  --brand-muted: oklch(0.28 0.01 60);
+}
