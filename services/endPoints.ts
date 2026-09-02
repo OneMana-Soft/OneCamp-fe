@@ -12,6 +12,9 @@
 /* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum GetEndpointUrl {
+    // Retention as a setting rather than a deploy: the person who owns the
+    // policy is usually compliance or legal, and they cannot edit a compose file.
+    AdminRetention = "/admin/retention",
     Logout = "/logout",
     SelfProfile = "/user/profile",
     SelfProfileSideNav = "/user/sidebarNav",

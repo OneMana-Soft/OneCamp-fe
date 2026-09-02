@@ -24,6 +24,7 @@ import PermissionsCard from "@/components/admin/PermissionsCard"
 import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsCard"
 import WorkflowsCard from "@/components/admin/WorkflowsCard"
 import AdminAuditLog from "@/components/admin/AdminAuditLog"
+import RetentionCard from "@/components/admin/RetentionCard"
 import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic } from "@/lib/icons"
 import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight, Plug, SlidersHorizontal, Zap, KeyRound } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -287,6 +288,9 @@ const AdminPage = () => {
                   <GuestAccessCard />
                   <ScimProvisioningCard />
                   <AdminAuditLog />
+                  {/* Beside the audit log, because retention is the policy that
+                      explains why an old entry has no content. */}
+                  <RetentionCard />
                 </div>
               </TabsContent>
               <TabsContent value="permissions" className="mt-0 outline-none">
