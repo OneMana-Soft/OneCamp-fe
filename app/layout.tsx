@@ -22,9 +22,38 @@ const displayFace = Bricolage_Grotesque({
   weight: ["600", "700"],
 });
 
+// metadataBase makes the generated card URLs absolute. Without it Next emits a
+// relative og:image, which every social scraper drops, so the card would exist
+// and still never render.
+//
+// Read from configuration with NO fallback, and that is the point. A literal
+// hostname here is one install's address baked into everybody's: every customer
+// would serve cards pointing at somebody else's server, and it would build,
+// render and look fine. An install that has not set this gets relative URLs and
+// a plain link preview, which is the honest failure.
+const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+
 export const metadata: Metadata = {
+  ...(appUrl ? { metadataBase: new URL(appUrl) } : {}),
   title: "OneCamp",
   description: "Your workspace, unified.",
+  // A shared OneCamp link used to render as a bare URL: no image, no title, no
+  // description. The demo is the single most useful thing to share and it was
+  // the least presentable.
+  openGraph: {
+    type: "website",
+    siteName: "OneCamp",
+    title: "OneCamp",
+    description:
+      "Chat, documents, tasks, boards, calendar and video calls. One install, on your server, with no per-seat pricing.",
+    ...(appUrl ? { url: appUrl } : {}),
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "OneCamp",
+    description:
+      "Chat, documents, tasks, boards, calendar and video calls. One install, on your server, with no per-seat pricing.",
+  },
 };
 
 export const viewport: Viewport = {
