@@ -200,3 +200,30 @@ export async function testTranscriptionConfig(): Promise<TranscriptionTestResult
     const res = await axiosInstance.post(PostEndpointUrl.TestTranscriptionConfig, {})
     return (res.data as { data?: TranscriptionTestResult })?.data ?? null
 }
+
+/**
+ * The workspace retention policy.
+ *
+ * window_days of 0 means keep everything, which is the default and the previous
+ * behaviour. minimum_days_floor is the six-month statutory minimum a shorter
+ * value is raised to, surfaced so the interface can EXPLAIN the floor rather
+ * than silently applying it: a setting that quietly turns 30 into 190 looks
+ * broken, one that says why is a control.
+ */
+export interface RetentionPolicy {
+    window_days: number
+    keeps_everything: boolean
+    minimum_days_floor: number
+    swept_stores?: string[]
+}
+
+export async function getRetentionPolicy(): Promise<RetentionPolicy> {
+    const res = await axiosInstance.get(GetEndpointUrl.AdminRetention)
+    return res.data?.data as RetentionPolicy
+}
+
+/** Returns what was APPLIED, which differs from what was asked whenever the floor intervenes. */
+export async function setRetentionPolicy(windowDays: number): Promise<RetentionPolicy> {
+    const res = await axiosInstance.post(GetEndpointUrl.AdminRetention, { window_days: windowDays })
+    return res.data?.data as RetentionPolicy
+}
