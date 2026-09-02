@@ -72,8 +72,7 @@ export default function OpenGraphImage() {
             maxWidth: 900,
           }}
         >
-          Chat, documents, tasks, boards, calendar and video calls. One install, on
-          your server, with no per-seat pricing.
+          {"Chat, documents, tasks, boards, calendar and video calls. One install, on your server, with no per-seat pricing."}
         </div>
         <div style={{ display: "flex", marginTop: 44, gap: 14 }}>
           {["Pay once", "Unlimited users", "Your data"].map((chip) => (
