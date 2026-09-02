@@ -207,6 +207,15 @@ export const useAskAI = () => {
  * as synchronous values, eliminating the race condition with React state updates.
  */
 export interface AskStreamResult {
+    /**
+     * The conversation this exchange belongs to.
+     *
+     * The server sends it first, before any content, and mints one when the
+     * client had none. Nothing did this before: the client started at null and
+     * had no way to learn an id, so every question was answered with no
+     * knowledge of the last and nothing was ever filed under a conversation.
+     */
+    sessionId?: string;
     text: string;
     actions: ProposedAction[];
     sources: SourceRef[];
@@ -253,8 +262,22 @@ export const useAskAIStream = () => {
             // the ground truth, immune to React batching / useEffect timing.
             let accumulated = "";
             let parsedActions: ProposedAction[] = [];
+            let streamedSessionId: string | undefined;
             let parsedSources: SourceRef[] = [];
             let parsedNotice = "";
+
+            // Three exits reach the caller: an explicit done event, a stream
+            // that stopped without one, and a failure part way through. The
+            // session id was added at the first and silently missing from the
+            // other two, which is how a dropped connection used to orphan a
+            // conversation. Build the result once.
+            const result = (): AskStreamResult => ({
+                sessionId: streamedSessionId,
+                text: accumulated,
+                actions: parsedActions,
+                sources: parsedSources,
+                notice: parsedNotice,
+            });
 
             try {
                 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -312,6 +335,11 @@ export const useAskAIStream = () => {
                                     accumulated = data.replace;
                                     setStreamText(data.replace);
                                 }
+                                // Sent before any content, so the caller can adopt
+                                // it even if the answer is cut short.
+                                if (data.session_id) {
+                                    streamedSessionId = data.session_id;
+                                }
                                 // Server sends parsed tool call actions
                                 if (data.actions) {
                                     parsedActions = data.actions;
@@ -330,7 +358,7 @@ export const useAskAIStream = () => {
                                 }
                                 if (data.done) {
                                     setIsStreaming(false);
-                                    return { text: accumulated, actions: parsedActions, sources: parsedSources, notice: parsedNotice };
+                                    return result();
                                 }
                             } catch {
                                 // Skip malformed JSON chunks
@@ -339,14 +367,17 @@ export const useAskAIStream = () => {
                     }
                 }
 
-                // Stream ended without explicit done event — return what we have
-                return { text: accumulated, actions: parsedActions, sources: parsedSources, notice: parsedNotice };
+                // Stream ended without explicit done event, return what we have
+                return result();
             } catch (err: any) {
                 if (err.name !== "AbortError") {
                     setError(err.message || "Streaming failed");
                 }
-                // Return accumulated text even on error so partial responses are usable
-                return accumulated ? { text: accumulated, actions: parsedActions, sources: parsedSources, notice: parsedNotice } : null;
+                // Return accumulated text even on error so partial responses are
+                // usable, and return the id even when there is no text: the
+                // conversation exists on the server either way, and dropping it
+                // here is what would send the next question somewhere else.
+                return accumulated || streamedSessionId ? result() : null;
             } finally {
                 setIsStreaming(false);
             }

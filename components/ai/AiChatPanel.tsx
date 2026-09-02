@@ -13,7 +13,8 @@ import { AgentTeammatesMenuItem } from "@/components/ai/AgentTeammatesMenuItem";
 import { ChatHistoryMenu, type ResumedConversation } from "@/components/ai/ChatHistoryMenu";
 import SocialComposeDialog from "@/components/ai/SocialComposeDialog";
 import AiScheduleDialog from "@/components/ai/AiScheduleDialog";
-import { ProposedAction } from "@/services/aiService";
+import { ProposedAction, getChatSession } from "@/services/aiService";
+import { forgetConversation, readLastConversation, rememberConversation } from "@/lib/ai/lastConversation";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -308,6 +309,44 @@ const AiChatPanel: React.FC = () => {
         );
         setSessionId(conversation.sessionId);
     }, []);
+
+    // Come back to where you were. A refresh kept no id and so had nothing to
+    // ask for; the conversation was still on the server the whole time.
+    const restored = useRef(false);
+    useEffect(() => {
+        if (restored.current) return;
+        restored.current = true;
+
+        const last = readLastConversation();
+        if (!last) return;
+
+        let cancelled = false;
+        (async () => {
+            try {
+                const stored = await getChatSession(last);
+                if (cancelled || stored.length === 0) return;
+                handleResume({
+                    sessionId: last,
+                    messages: stored.map((m) => ({ role: m.role, content: m.content })),
+                });
+            } catch {
+                // Deleted, expired, or someone else's. Start clean and stop
+                // asking for it, rather than showing an error for something
+                // the person did not ask to happen.
+                forgetConversation();
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [handleResume]);
+
+    // Remember the conversation as soon as it has an id, so a refresh mid
+    // answer still comes back to it.
+    useEffect(() => {
+        if (sessionId) rememberConversation(sessionId);
+    }, [sessionId]);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const dispatch = useDispatch();
@@ -384,6 +423,14 @@ const AiChatPanel: React.FC = () => {
         // resolved value — no more race condition with React state updates.
         const result = await askStream(q, sessionId || undefined);
 
+        // Adopt the conversation the server minted, so the NEXT question
+        // continues this one and the exchange is filed under something the
+        // history list can find. Done before the text check on purpose: an
+        // answer that arrived empty is still a conversation that happened.
+        if (result?.sessionId && result.sessionId !== sessionId) {
+            setSessionId(result.sessionId);
+        }
+
         if (result && result.text) {
             let finalText = sanitizeAIText(result.text);
             const finalActions = result.actions;
@@ -412,6 +459,8 @@ const AiChatPanel: React.FC = () => {
     const handleNewChat = useCallback(() => {
         setMessages([]);
         setSessionId(null);
+        // Asked for a blank panel, so a refresh should give one too.
+        forgetConversation();
         setInput("");
         inputRef.current?.focus();
     }, []);
