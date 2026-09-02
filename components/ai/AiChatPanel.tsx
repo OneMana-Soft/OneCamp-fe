@@ -10,6 +10,7 @@ import ReleaseNotesDialog from "@/components/ai/ReleaseNotesDialog";
 import AiInstructionsDialog from "@/components/ai/AiInstructionsDialog";
 import MyAgentWorkDialog from "@/components/ai/MyAgentWorkDialog";
 import { AgentTeammatesMenuItem } from "@/components/ai/AgentTeammatesMenuItem";
+import { ChatHistoryMenu, type ResumedConversation } from "@/components/ai/ChatHistoryMenu";
 import SocialComposeDialog from "@/components/ai/SocialComposeDialog";
 import AiScheduleDialog from "@/components/ai/AiScheduleDialog";
 import { ProposedAction } from "@/services/aiService";
@@ -293,6 +294,20 @@ const AiChatPanel: React.FC = () => {
     const [agentWorkOpen, setAgentWorkOpen] = useState(false);
     const [socialTopic, setSocialTopic] = useState("");
     const { askStream, cancelStream, isStreaming, streamText, streamActions, error } = useAskAIStream();
+
+    // Reopening a past conversation replaces what is on screen AND adopts its
+    // id, so the next question continues that thread rather than silently
+    // starting a new one under the old messages.
+    const handleResume = useCallback((conversation: ResumedConversation) => {
+        setMessages(
+            conversation.messages.map((m, i) => ({
+                id: `${conversation.sessionId}-${i}`,
+                role: m.role,
+                content: m.content,
+            })) as ChatMessage[],
+        );
+        setSessionId(conversation.sessionId);
+    }, []);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const dispatch = useDispatch();
@@ -463,6 +478,10 @@ const AiChatPanel: React.FC = () => {
                     </Button>
                     {/* Secondary tools tucked into an overflow menu to keep the
                         top bar clean (Notion-style). */}
+                    {/* Past conversations. Sits beside the tools menu rather than
+                        inside it, because reopening yesterday's thread is a
+                        top-level thing somebody does, not a tool. */}
+                    <ChatHistoryMenu onResume={handleResume} />
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button

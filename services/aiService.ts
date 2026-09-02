@@ -705,3 +705,42 @@ export const useTranslateText = () => {
 
     return { translateText, isSubmitting };
 };
+
+/**
+ * A past conversation with the assistant.
+ *
+ * These exist because a chat that cannot be reopened is a chat the product
+ * forgot: the session id lived only in React state and the history only in Redis
+ * under a 30 minute TTL, so closing the panel ended the conversation
+ * permanently.
+ */
+export interface ChatSessionSummary {
+    id: string
+    title: string
+    created_at: string
+    updated_at: string
+    message_count: number
+}
+
+export interface ChatSessionMessage {
+    role: "user" | "assistant"
+    content: string
+    created_at: string
+}
+
+/** A person's conversations, most recently active first. */
+export async function listChatSessions(): Promise<ChatSessionSummary[]> {
+    const res = await axiosInstance.get(GetEndpointUrl.AIChatSessions)
+    return (res.data?.data as ChatSessionSummary[]) || []
+}
+
+/** Replays one conversation so it can be resumed where it was left. */
+export async function getChatSession(sessionId: string): Promise<ChatSessionMessage[]> {
+    const res = await axiosInstance.get(`${GetEndpointUrl.AIChatSessions}/${sessionId}`)
+    return (res.data?.data as ChatSessionMessage[]) || []
+}
+
+/** Removes a conversation from the list. */
+export async function deleteChatSession(sessionId: string): Promise<void> {
+    await axiosInstance.delete(`${GetEndpointUrl.AIChatSessions}/${sessionId}`)
+}

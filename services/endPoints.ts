@@ -12,6 +12,10 @@
 /* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum GetEndpointUrl {
+    // Conversations you can come back to. Before these, a chat could not be
+    // listed or resumed: the id lived only in React state and the history only
+    // in Redis under a 30 minute TTL.
+    AIChatSessions = "/ai/sessions",
     Logout = "/logout",
     SelfProfile = "/user/profile",
     SelfProfileSideNav = "/user/sidebarNav",
