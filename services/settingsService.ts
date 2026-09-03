@@ -32,6 +32,15 @@ export async function updateWorkspaceSettings(req: UpdateSettingsRequest): Promi
 export interface AuditEntry {
     id: string
     actor_email?: string
+    /**
+     * Who acted, as opposed to who answers for it.
+     *
+     * actor_email names the accountable person, which for an agent is whoever
+     * authorised it, so a row about an agent reads as though the person did it
+     * themselves. Absent on entries written before the field existed, which is
+     * why the UI shows nothing rather than guessing "human".
+     */
+    actor_kind?: "human" | "agent" | "system"
     action: string
     category: string
     summary: string
