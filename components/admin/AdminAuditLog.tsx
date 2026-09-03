@@ -88,6 +88,15 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
                 )}
 
                 <p className="text-2xs text-muted-foreground mt-0.5">
+                    {/* An agent's row already carries the authorising person in
+                        actor_email, which on its own reads as though they did it
+                        themselves. This is the word that tells the two apart, and
+                        it is omitted rather than defaulted on older entries: the
+                        field did not exist when they were written, and guessing
+                        "human" would put an assertion into a compliance record
+                        that nothing supports. */}
+                    {entry.actor_kind === "agent" && <span className="text-warning">agent · </span>}
+                    {entry.actor_kind === "system" && <span>system · </span>}
                     {entry.actor_email || "Unknown"}
                     {entry.ip_address ? ` · ${entry.ip_address}` : ""}
                     {` · ${formatTime(entry.created_at)}`}
