@@ -15,6 +15,7 @@ export enum GetEndpointUrl {
     // Retention as a setting rather than a deploy: the person who owns the
     // policy is usually compliance or legal, and they cannot edit a compose file.
     AdminRetention = "/admin/retention",
+    AdminPush = "/admin/push",
     Logout = "/logout",
     SelfProfile = "/user/profile",
     SelfProfileSideNav = "/user/sidebarNav",

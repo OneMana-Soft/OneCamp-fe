@@ -227,3 +227,40 @@ export async function setRetentionPolicy(windowDays: number): Promise<RetentionP
     const res = await axiosInstance.post(GetEndpointUrl.AdminRetention, { window_days: windowDays })
     return res.data?.data as RetentionPolicy
 }
+
+/**
+ * Push notification configuration.
+ *
+ * Deliberately carries no credential. The service accepts a service-account key
+ * and never returns one: a key that can be read back leaks through a
+ * screenshot, a cached response or a support ticket, and an admin who needs a
+ * different key pastes a different key.
+ */
+export interface PushConfig {
+    /** A credential is stored and parses as a service account. */
+    configured: boolean
+    /** Where it came from: the admin setting, a mounted file, or nowhere. */
+    source: "settings" | "file" | "none"
+    project_id?: string
+    client_email?: string
+    /**
+     * Whether the messaging client actually loaded, which is a different
+     * question from whether a key is stored: one can be present and rejected.
+     */
+    active: boolean
+}
+
+export async function getPushConfig(): Promise<PushConfig> {
+    const res = await axiosInstance.get(GetEndpointUrl.AdminPush)
+    return res.data?.data as PushConfig
+}
+
+export async function setPushConfig(credentialJson: string): Promise<PushConfig> {
+    const res = await axiosInstance.post(GetEndpointUrl.AdminPush, { credential_json: credentialJson })
+    return res.data?.data as PushConfig
+}
+
+export async function clearPushConfig(): Promise<PushConfig> {
+    const res = await axiosInstance.delete(GetEndpointUrl.AdminPush)
+    return res.data?.data as PushConfig
+}
