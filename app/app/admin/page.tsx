@@ -29,6 +29,7 @@ import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsC
 import WorkflowsCard from "@/components/admin/WorkflowsCard"
 import AdminAuditLog from "@/components/admin/AdminAuditLog"
 import RetentionCard from "@/components/admin/RetentionCard"
+import PushNotificationsCard from "@/components/admin/PushNotificationsCard"
 import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic } from "@/lib/icons"
 import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -298,6 +299,7 @@ const AdminPage = () => {
                   {/* Beside the audit log, because retention is the policy that
                       explains why an old entry has no content. */}
                   <RetentionCard />
+                  <PushNotificationsCard />
                 </div>
               </TabsContent>
               <TabsContent value="permissions" className="mt-0 outline-none">

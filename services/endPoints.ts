@@ -15,6 +15,7 @@ export enum GetEndpointUrl {
     // Retention as a setting rather than a deploy: the person who owns the
     // policy is usually compliance or legal, and they cannot edit a compose file.
     AdminRetention = "/admin/retention",
+    AdminPush = "/admin/push",
     // Conversations you can come back to. Before these, a chat could not be
     // listed or resumed: the id lived only in React state and the history only
     // in Redis under a 30 minute TTL.
