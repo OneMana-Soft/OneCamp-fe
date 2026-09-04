@@ -1098,3 +1098,46 @@ export async function updateAgentSkill(id: string, input: SkillInput): Promise<A
 export async function deleteAgentSkill(id: string): Promise<void> {
   await axiosInstance.post(`${GetEndpointUrl.GetAgents}-skills/${id}/delete`)
 }
+
+/**
+ * What an agent's own history suggests should be checked or changed.
+ *
+ * Read-only, and deliberately so: accepting a proposal creates an ordinary
+ * scenario through createEvalScenario, so an accepted one is indistinguishable
+ * from a hand-written one afterwards. Nothing here is applied by the server.
+ */
+export interface ScenarioProposal {
+  run_id: string
+  name: string
+  prompt: string
+  expectations: EvalExpectations
+  /** The observation that motivated it, taken from the run. */
+  why: string
+  status: string
+  ran_at: string
+}
+
+/** The same failure seen repeatedly. Names the lever, never the wording. */
+export interface FailurePattern {
+  kind: "tool" | "block"
+  subject: string
+  count: number
+  run_ids: string[]
+  first_at: string
+  last_at: string
+  suggestion: string
+}
+
+export interface LearningReview {
+  agent_id: string
+  scenario_proposals: ScenarioProposal[] | null
+  failure_patterns: FailurePattern[] | null
+  /** So an empty review reads as "nothing to learn from" rather than "nothing happened". */
+  runs_considered: number
+  runs_without_prompt: number
+}
+
+export async function reviewAgentLearning(agentId: string): Promise<LearningReview> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/${agentId}/learning`)
+  return res.data?.data as LearningReview
+}

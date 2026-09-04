@@ -44,6 +44,7 @@ import {
 } from "@/services/agentService"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
 import { AgentEvalSection } from "@/components/admin/AgentEvalSection"
+import { AgentLearningSection } from "@/components/admin/AgentLearningSection"
 
 interface AgentEditDialogProps {
   agent: Agent | null
@@ -1159,6 +1160,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 </div>
               )}
               {agent && <AgentEvalSection agentId={agent.id} />}
+              {agent && <AgentLearningSection agentId={agent.id} />}
             </div>
           )}
         </div>
