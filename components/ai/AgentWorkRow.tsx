@@ -118,6 +118,31 @@ const AgentWorkRowUngated: React.FC<{
         {state === "blocked" && item.note && (
           <span className="block text-xs leading-snug text-foreground/80">{item.note}</span>
         )}
+        {/* The answers the agent offered, shown as answers.
+
+            A question with choices used to arrive as one collapsed line
+            ("Which environment? - staging - production") and a person had to
+            read an enumeration out of a sentence. These are the server's own
+            list, so what is shown here is exactly what a reply is matched
+            against.
+
+            Read-only on purpose. Answering happens where the conversation is —
+            the thread or the task the agent asked in — because that is where the
+            run is waiting and where the answer belongs in the record. A button
+            here would put the reply somewhere the question was never asked. */}
+        {state === "blocked" && item.options && item.options.length > 0 && (
+          <span className="mt-1 flex flex-wrap gap-1">
+            {item.options.map((o) => (
+              <span
+                key={o}
+                className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-2xs text-foreground/80"
+              >
+                {o}
+              </span>
+            ))}
+            <span className="self-center text-2xs text-muted-foreground/70">· reply with one of these</span>
+          </span>
+        )}
       </span>
       {canStop && (
         <button

@@ -522,6 +522,12 @@ export interface ActiveWorkItem {
   state: ActiveWorkState
   where: string // generic, e.g. "in a channel thread", "in a direct message"
   note?: string // blocker/pause reason for a blocked job ("waiting on you for …")
+  // The answers the agent offered with its question, when it offered any.
+  //
+  // Split out by the server rather than parsed from `note` here: the choices a
+  // person taps have to be the same list the run matches their reply against,
+  // and a list re-derived in the browser is not that list.
+  options?: string[]
   // Display name of the PERSON the work is attributed to — who asked. Absent for
   // a scheduled routine (nobody asked) or an unresolvable user.
   //
