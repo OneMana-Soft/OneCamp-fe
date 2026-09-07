@@ -679,8 +679,24 @@ export const usePost = () => {
         }
     }, [toast]);
 
-    return {
-        makeRequest,
-        isSubmitting,
-    }
+    // MEMOISED, because callers put this object in dependency arrays.
+    //
+    // A fresh object literal here gets a new identity on every render, so any
+    // useCallback or useEffect listing `post` re-runs every render. Nine call
+    // sites do exactly that, and for a useEffect that also sets state the result
+    // is an infinite loop: render, new identity, effect fires, setState, render.
+    //
+    // GitHubIssueSearchDialog hit it. Its search effect depends on performSearch,
+    // which depends on `post`, and its guard clause calls setResults([]) with a
+    // fresh array for a query too short to search. Opening the dialog spun until
+    // React gave up with "Maximum update depth exceeded", which the global error
+    // boundary shows as "Something went wrong" over the whole app.
+    //
+    // makeRequest is already stable via useCallback, so the only moving part is
+    // isSubmitting, and a caller that re-runs when a request starts or finishes
+    // is asking for exactly that.
+    return React.useMemo(
+        () => ({ makeRequest, isSubmitting }),
+        [makeRequest, isSubmitting],
+    )
 }

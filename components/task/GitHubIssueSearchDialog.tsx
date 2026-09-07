@@ -71,7 +71,11 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
 
   const performSearch = useCallback(async (q: string, type: SearchType) => {
     if (!q || q.trim().length < 2 || !searchTaskId) {
-      setResults([])
+      // Only when there is something to clear. setResults([]) hands React a new
+      // array identity every call, which re-renders for no change; harmless on
+      // its own, and the second half of the render loop when a dependency of
+      // this callback is unstable. See the memo note in hooks/usePost.ts.
+      setResults(prev => (prev.length === 0 ? prev : []))
       return
     }
     setSearching(true)
