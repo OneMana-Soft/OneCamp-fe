@@ -58,6 +58,12 @@ export interface SlackImportJob {
   plan?: SlackImportPlan
   progress?: Record<string, unknown>
   error_message?: string
+  /**
+   * The AI's account of what this import brought in. Absent on the AI-free
+   * edition, with AI switched off, and on jobs that finished before digests
+   * existed, so the panel must treat it as optional rather than empty.
+   */
+  digest?: string
   triggered_by?: string
   created_at: string
   updated_at: string

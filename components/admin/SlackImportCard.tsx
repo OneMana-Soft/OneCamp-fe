@@ -40,7 +40,8 @@ import {
   AlertTriangle,
   RotateCcw,
 } from "@/lib/icons"
-import { PlayCircle, Database } from "lucide-react"
+import { PlayCircle, Database, Sparkles } from "lucide-react"
+import { Eyebrow } from "@/components/ui/eyebrow"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
@@ -324,7 +325,9 @@ interface JobRowProps {
   onShowErrors: () => void
 }
 
-const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors }) => {
+// Exported for tests. The card around it needs polling, MQTT and endpoint
+// config to mount, none of which the row's own rendering depends on.
+export const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors }) => {
   const status = STATUS_BADGE[job.status] ?? STATUS_BADGE.pending
   const stageLabel = (job.stage && STAGE_LABELS[job.stage]) || job.stage || ""
   const total = Math.max(1, job.chunks_total)
@@ -399,6 +402,16 @@ const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onR
           </div>
           <Progress value={pct} className="mt-3 h-2" />
         </>
+      )}
+
+      {job.digest && (
+        <div className="mt-3 rounded-md border border-border/40 bg-muted/30 p-3">
+          <Eyebrow as="div" size="sm" className="flex items-center gap-1.5">
+            <Sparkles className="h-3 w-3" />
+            What came across
+          </Eyebrow>
+          <p className="mt-1.5 text-xs leading-relaxed whitespace-pre-line">{job.digest}</p>
+        </div>
       )}
     </div>
   )
