@@ -667,7 +667,7 @@ export default function SignUp() {
                 ) : (
                   <Rocket className="mr-2 h-4 w-4" />
                 )}
-                Try Demo — No Sign Up Required
+                Try the demo, no sign up needed
               </Button>
 
               {demoError && (
