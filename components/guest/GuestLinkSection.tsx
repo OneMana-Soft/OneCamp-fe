@@ -25,11 +25,17 @@ interface GuestLinkSectionProps {
   canShare: boolean
 }
 
+// A UI-only sentinel. It never travels as a ttl, because 0 already means "use
+// the server default" on the wire, and a link that never expires is sent as its
+// own flag rather than as an unusual duration.
+const NEVER = -1
+
 const EXPIRY_OPTIONS = [
   { label: "7 days", hours: 24 * 7 },
   { label: "14 days", hours: 24 * 14 },
   { label: "30 days", hours: 24 * 30 },
   { label: "90 days", hours: 24 * 90 },
+  { label: "Does not expire", hours: NEVER },
 ]
 
 export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLinkSectionProps) {
@@ -51,7 +57,14 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
   const handleCreate = async () => {
     setCreating(true)
     try {
-      const res = await createGuestLink(resourceType, resourceId, ttlHours, supportsComment ? capability : "view")
+      const neverExpires = ttlHours === NEVER
+      const res = await createGuestLink(
+        resourceType,
+        resourceId,
+        neverExpires ? undefined : ttlHours,
+        supportsComment ? capability : "view",
+        neverExpires,
+      )
       setLink(guestResourceLink(resourceType, res.token))
     } catch (e: any) {
       const status = e?.response?.status
@@ -105,7 +118,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
       {open && !link && (
         <div className="flex items-end gap-2">
           <div className="flex-1 space-y-1.5">
-            <Label className="text-2xs text-muted-foreground">Link expires after</Label>
+            <Label className="text-2xs text-muted-foreground">Link expires</Label>
             <Select value={String(ttlHours)} onValueChange={(v) => setTtlHours(Number(v))}>
               <SelectTrigger className="h-9">
                 <SelectValue />

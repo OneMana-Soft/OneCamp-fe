@@ -90,7 +90,8 @@ export interface GuestLinkResponse {
     resource_type: string
     resource_id: string
     capability: string
-    expires_at: string
+    /** Null when the link lasts until it is revoked. */
+    expires_at: string | null
 }
 
 export async function createGuestLink(
@@ -98,12 +99,14 @@ export async function createGuestLink(
     resourceId: string,
     ttlHours?: number,
     capability: "view" | "comment" = "view",
+    neverExpires = false,
 ): Promise<GuestLinkResponse> {
     const res = await axiosInstance.post(PostEndpointUrl.CreateGuestLink, {
         resource_type: resourceType,
         resource_id: resourceId,
         ttl_hours: ttlHours ?? 0,
         capability,
+        never_expires: neverExpires,
     })
     return (res.data as { data: GuestLinkResponse }).data
 }
@@ -222,7 +225,8 @@ export interface GuestGrant {
     resource_id: string
     capability: string
     created_by: string
-    expires_at: string
+    /** Null when the grant lasts until it is revoked. */
+    expires_at: string | null
     created_at: string
 }
 

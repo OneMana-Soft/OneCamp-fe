@@ -162,7 +162,9 @@ export default function GuestAccessCard() {
                                                 </div>
                                                 <div className="mt-0.5 flex items-center gap-1 text-2xs text-muted-foreground">
                                                     <Clock className="h-3 w-3" />
-                                                    expires {formatDistanceToNow(new Date(g.expires_at), { addSuffix: true })}
+                                                    {g.expires_at
+                                                        ? `expires ${formatDistanceToNow(new Date(g.expires_at), { addSuffix: true })}`
+                                                        : "does not expire"}
                                                 </div>
                                             </div>
                                         </div>
