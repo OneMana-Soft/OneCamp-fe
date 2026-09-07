@@ -53,6 +53,11 @@ export const FEATURE_CALLS = "calls"
 // FEATURE_PUSH needs Firebase credentials, which a self-hosted install with no
 // mobile app of its own legitimately will not have.
 export const FEATURE_PUSH = "push"
+// FEATURE_GITHUB reports whether an admin has connected GitHub. It is a feature
+// rather than a fetch because MEMBERS need the answer: the task panel decides
+// whether to offer a pull-request affordance with it, and it used to ask
+// /admin/github/status, which 403s for everyone who is not an admin.
+export const FEATURE_GITHUB = "github"
 
 // A sane default mirrors the backend default (10 MB) so validation still works
 // before the config request resolves.

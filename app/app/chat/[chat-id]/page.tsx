@@ -27,6 +27,7 @@ import {
 } from "@/store/slice/chatSlice";
 import { useEffect, useRef } from "react";
 import { addUserToUserChatList, resetUserChatUnread } from "@/store/slice/userSlice";
+import { clearChatUnread } from "@/services/unreadCache";
 import { removeEmptyPTags } from "@/lib/utils/removeEmptyPTags";
 import { getGroupingId } from "@/lib/utils/getGroupingId";
 import { NotificationType } from "@/types/channel";
@@ -194,6 +195,10 @@ export default function Page() {
       })
     );
     dispatch(resetUserChatUnread({ dm_grouping_id: grplclId }));
+    // The server marker is advanced by the chat fetch itself, but the SWR caches
+    // that hydrate these badges are not, and on a remount they re-seed Redux from
+    // a payload recorded before the read. See services/unreadCache.ts.
+    clearChatUnread(grplclId);
   }, [chatId, selfProfile.data?.data.user_uuid]);
 
   if(!chatId) return

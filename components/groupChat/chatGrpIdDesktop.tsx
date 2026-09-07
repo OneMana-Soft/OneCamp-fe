@@ -128,25 +128,32 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
 
     return (
         <div className='flex flex-col h-full relative'>
-            <div
-                className='flex font-semibold text-lg p-2 truncate overflow-auto overflow-ellipsis justify-start border-b'>
-                <div className='flex justify-center items-center space-x-2'>
-                    <div className='relative' />
-                </div>
-                <div className='flex justify-center items-center ml-2 gap-x-2'>
-                    <GroupedAvatar users={participants} max={2} overlap={20} className={'!pr-0'}/>
-
-                    <div className="text-ellipsis truncate max-w-40">
-
-                        {participants.map((item, index) => (
-                            <span key={index}>
-                                {item.user_name}
-                                {index < participants.length - 1 && ', '}
-                            </span>
-                        ))}
-
+            {/* Same shell as the 1:1 header in components/chat/chatIdDesktop.tsx.
+                This was a plain div at text-lg with p-2, no fixed height, no
+                sticky, no background and justify-start, so beside a DM it sat at
+                a different height, scrolled away with the messages, showed the
+                thread through it, and crammed its buttons against the title
+                instead of ranging them right. */}
+            <header className='flex items-center justify-between gap-2 h-12 md:h-14 px-3 md:px-4 border-b border-border/60 bg-background sticky top-0 z-[var(--z-sticky)]'>
+                <div className='flex items-center gap-2.5 min-w-0'>
+                    <div className='shrink-0'>
+                        <GroupedAvatar users={participants} max={2} overlap={20} className={'!pr-0'}/>
                     </div>
-
+                    <div className='flex flex-col min-w-0'>
+                        {/* Joined rather than a span per participant with manual
+                            separators: truncation applies to the whole line, so a
+                            long list ends in an ellipsis instead of a stray comma. */}
+                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>
+                            {participants.map((u) => u.user_name).join(', ')}
+                        </span>
+                        {/* Mirrors "Active now" on the 1:1 header, so both have a
+                            second line and the two sit at the same height. */}
+                        <span className='text-2xs text-muted-foreground leading-tight'>
+                            {participants.length} {participants.length === 1 ? 'member' : 'members'}
+                        </span>
+                    </div>
+                </div>
+                <div className='flex items-center gap-0.5 shrink-0'>
                     {
                         dmParticipantsInfo.data?.data &&
                         <NotificationBell notificationType={chatNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
@@ -174,12 +181,8 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                     </Button>
                     </FeatureGate>
                     <Button aria-label="View recordings" size='icon' variant='ghost' onClick={() => router.push(`/app/chat/group/${grpId}/recording`)}> <Clapperboard /></Button>
-
-
                 </div>
-
-
-            </div>
+            </header>
             <div className="flex-1 overflow-y-auto">
                 <CatchMeUpBanner
                     channelUUID={grpId}
