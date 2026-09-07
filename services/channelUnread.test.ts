@@ -23,12 +23,16 @@ vi.mock("swr", () => ({
 
 import axiosInstance from "@/lib/axiosInstance"
 import { markChannelSeen } from "@/services/channelService"
+import { clearActivityUnread, clearChatUnread } from "@/services/unreadCache"
 import { GetEndpointUrl } from "@/services/endPoints"
 
 const post = axiosInstance.post as unknown as ReturnType<typeof vi.fn>
 
 const READ = "read-channel"
 const OTHER = "other-channel"
+
+const DM = "dm-grouping-1"
+const OTHER_DM = "dm-grouping-2"
 
 const sidenav = () => ({
   data: {
@@ -37,6 +41,11 @@ const sidenav = () => ({
       { ch_uuid: OTHER, unread_post_count: 5 },
     ],
     user_fav_channels: [{ ch_uuid: READ, unread_post_count: 3 }],
+    user_dms: [
+      { dm_grouping_id: DM, dm_unread: 4 },
+      { dm_grouping_id: OTHER_DM, dm_unread: 7 },
+    ],
+    user_total_unread_activity_count: 9,
   },
 })
 
@@ -54,6 +63,7 @@ beforeEach(() => {
   cache.clear()
   cache.set(GetEndpointUrl.SelfProfileSideNav, sidenav())
   cache.set(`${GetEndpointUrl.GetUserActiveChannelList}?pageIndex=0&pageSize=20`, channelPage())
+  cache.set(GetEndpointUrl.GetUserLatestChatList, sidenav())
 })
 
 const sidenavCache = () => cache.get(GetEndpointUrl.SelfProfileSideNav) as ReturnType<typeof sidenav>
@@ -117,5 +127,30 @@ describe("reading a channel clears its badge", () => {
     await markChannelSeen("")
 
     expect(post).not.toHaveBeenCalled()
+  })
+
+  // A DM and a group chat use the same grouping id and the same two caches. The
+  // server advances the marker on the chat fetch itself, so only the caches in
+  // front of it can be wrong, and both of them were.
+  it("clears a chat's badge in the sidenav and the chat list", () => {
+    clearChatUnread(DM)
+
+    const chatList = cache.get(GetEndpointUrl.GetUserLatestChatList) as ReturnType<typeof sidenav>
+    expect(sidenavCache().data.user_dms.find((d) => d.dm_grouping_id === DM)?.dm_unread).toBe(0)
+    expect(chatList.data.user_dms.find((d) => d.dm_grouping_id === DM)?.dm_unread).toBe(0)
+  })
+
+  it("leaves other chats alone", () => {
+    clearChatUnread(DM)
+
+    expect(sidenavCache().data.user_dms.find((d) => d.dm_grouping_id === OTHER_DM)?.dm_unread).toBe(7)
+  })
+
+  // The activity count is a single number on the same cached payload, so opening
+  // the feed and navigating away brought the old count straight back.
+  it("clears the activity count", () => {
+    clearActivityUnread()
+
+    expect(sidenavCache().data.user_total_unread_activity_count).toBe(0)
   })
 })

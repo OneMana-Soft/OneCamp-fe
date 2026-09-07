@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useDispatch } from "react-redux"
 import { ActivityListTabContent } from "@/components/activity/activityListTabContent"
 import { setTotalUnreadActivityCount } from "@/store/slice/userSlice"
+import { clearActivityUnread } from "@/services/unreadCache"
 import { SectionTabs } from "@/components/ui/sectionTabs"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -66,6 +67,9 @@ export function ActivityListTabs() {
 
     useEffect(() => {
         dispatch(setTotalUnreadActivityCount({ count: 0 }))
+        // The sidenav cache carries this number too, and re-seeds Redux from it
+        // on remount. See services/unreadCache.ts.
+        clearActivityUnread()
     }, [dispatch])
 
     return (

@@ -38,6 +38,7 @@ import {TaskGitHubSection} from "@/components/task/taskGitHubSection"
 import {TaskAttachmentsSection} from "@/components/task/taskAttachmentsSection"
 import {LinkedItemsSection} from "@/components/entityLink/LinkedItemsSection"
 import {usePost} from "@/hooks/usePost"
+import { useFeature, FEATURE_GITHUB } from "@/hooks/useClientConfig";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch"
 
@@ -172,7 +173,10 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
             refreshWhenOffline: false,
         }
     )
-    const githubConnection = useFetch<{ connected: boolean }>(GetEndpointUrl.GetGitHubStatus)
+    // Read from the feature registry, not /admin/github/status. That route is in
+    // the admin router, so every non-admin opening a task got a 403 and the panel
+    // read the failure as "not connected" — right by accident, and noisy.
+    const githubConnected = useFeature(FEATURE_GITHUB)
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     // Debounced task-list revalidation — defined after taskInfo so the
@@ -1066,7 +1070,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                                 isAdmin={isAdmin}
                                 taskUUID={taskUUID}
                                 syncStatus={syncStatus.data?.data}
-                                githubConnected={!!githubConnection.data?.connected}
+                                githubConnected={githubConnected}
                                 onRetrySync={async () => {
                                     try {
                                         await post.makeRequest({

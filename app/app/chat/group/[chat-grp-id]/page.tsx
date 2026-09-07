@@ -22,6 +22,7 @@ import {
 } from "@/store/slice/groupChatSlice";
 import {UpdateMessageInChatList, UpdateUnreadCountToZero} from "@/store/slice/chatSlice";
 import {resetUserChatUnread} from "@/store/slice/userSlice";
+import { clearChatUnread } from "@/services/unreadCache";
 import {useEffect, useRef} from "react";
 
 
@@ -150,6 +151,9 @@ export default function Page() {
         if(!grpId) return
         dispatch(UpdateUnreadCountToZero({grpId}))
         dispatch(resetUserChatUnread({dm_grouping_id: grpId}))
+        // Same as the 1:1 page: the caches behind these badges would otherwise
+        // re-seed Redux with the pre-read count. See services/unreadCache.ts.
+        clearChatUnread(grpId)
     },[grpId, dispatch])
 
 
