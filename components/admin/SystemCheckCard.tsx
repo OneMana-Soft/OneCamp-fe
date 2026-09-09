@@ -31,9 +31,9 @@ import React, { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Activity, AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "@/lib/icons"
+import { Activity, AlertTriangle, CheckCircle2, Info, Loader2, RefreshCw } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { runSystemCheck, type SystemCheckReport } from "@/services/systemCheckService"
+import { runSystemCheck, type SystemCheckKind, type SystemCheckReport, type SystemCheckResult } from "@/services/systemCheckService"
 
 /** Sub-second timings read as noise; whole milliseconds are what an operator compares. */
 function formatDuration(ms: number): string {
@@ -48,6 +48,63 @@ function formatCheckedAt(unixSeconds: number): string {
     if (Number.isNaN(d.getTime())) return ""
     return d.toLocaleTimeString()
 }
+
+/**
+ * The two questions, in the order an admin needs them.
+ *
+ * A fresh install has no tasks, no syncs and no agent runs, so every behaviour
+ * check passes for want of anything to be wrong about -- while MinIO may have no
+ * bucket and no upload will ever succeed. Listing dependencies first, under a
+ * heading that says what they mean, is what stops three green ticks reading as a
+ * working installation.
+ */
+const SECTIONS: { kind: SystemCheckKind; title: string; blurb: string }[] = [
+    {
+        kind: "dependency",
+        title: "Services this install needs",
+        blurb: "Without these, OneCamp cannot work at all. Each was checked just now, not at startup.",
+    },
+    {
+        kind: "behaviour",
+        title: "Features that can break quietly",
+        blurb: "Everything above is reachable and a feature can still be broken. These look for the trace a known failure leaves behind.",
+    },
+]
+
+const CheckRow: React.FC<{ check: SystemCheckResult }> = ({ check }) => (
+    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+        <div className="flex items-start gap-2">
+            {check.healthy ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+            ) : (
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            )}
+            <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-sm font-medium">{check.name}</span>
+                    <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {formatDuration(check.took_ms)}
+                    </span>
+                </div>
+                {/* Always rendered, healthy or not. The scope of a passing check is
+                    the part an operator most needs and is most often denied. */}
+                <p className="mt-0.5 text-xs text-muted-foreground">{check.describe}</p>
+                {check.detail &&
+                    (check.healthy ? (
+                        // A note: true, worth knowing, and not a failure.
+                        <p className="mt-1.5 flex gap-1.5 rounded border border-warning/30 bg-warning/10 px-2 py-1 text-xs text-warning">
+                            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>{check.detail}</span>
+                        </p>
+                    ) : (
+                        <p className="mt-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs text-destructive">
+                            {check.detail}
+                        </p>
+                    ))}
+            </div>
+        </div>
+    </div>
+)
 
 export const SystemCheckCard: React.FC = () => {
     const [report, setReport] = useState<SystemCheckReport | null>(null)
@@ -157,36 +214,27 @@ export const SystemCheckCard: React.FC = () => {
                 )}
 
                 {!error &&
-                    report?.checks.map((check) => (
-                        <div
-                            key={check.name}
-                            className="rounded-lg border border-border bg-card px-3 py-2.5"
-                        >
-                            <div className="flex items-start gap-2">
-                                {check.healthy ? (
-                                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                                ) : (
-                                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-                                )}
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="font-mono text-sm font-medium">{check.name}</span>
-                                        <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-                                            {formatDuration(check.took_ms)}
-                                        </span>
-                                    </div>
-                                    {/* Always rendered, healthy or not. The scope of a passing check is
-                                        the part an operator most needs and is most often denied. */}
-                                    <p className="mt-0.5 text-xs text-muted-foreground">{check.describe}</p>
-                                    {!check.healthy && check.detail && (
-                                        <p className="mt-1.5 rounded border border-destructive/30 bg-destructive/5 px-2 py-1 text-xs text-destructive">
-                                            {check.detail}
-                                        </p>
-                                    )}
+                    report &&
+                    SECTIONS.map(({ kind, title, blurb }) => {
+                        const rows = report.checks.filter((c) => c.kind === kind)
+                        // A build that registered nothing in this group says so
+                        // in the empty-state above; an absent group here is just
+                        // an edition without those subsystems.
+                        if (rows.length === 0) return null
+                        return (
+                            <section key={kind} className="space-y-2">
+                                <div>
+                                    <h3 className="text-sm font-medium">{title}</h3>
+                                    <p className="text-xs text-muted-foreground">{blurb}</p>
                                 </div>
-                            </div>
-                        </div>
-                    ))}
+                                <div className="space-y-2">
+                                    {rows.map((check) => (
+                                        <CheckRow key={check.name} check={check} />
+                                    ))}
+                                </div>
+                            </section>
+                        )
+                    })}
             </CardContent>
         </Card>
     )

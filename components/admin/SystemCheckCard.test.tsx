@@ -44,6 +44,7 @@ describe("SystemCheckCard", () => {
                 checks: [
                     {
                         name: "entity-links",
+                        kind: "behaviour",
                         describe: "Proves the link filter matches live rows; does not prove linking a doc works end to end.",
                         healthy: true,
                         took_ms: 12,
@@ -69,6 +70,7 @@ describe("SystemCheckCard", () => {
                 checks: [
                     {
                         name: "github-sync",
+                        kind: "behaviour",
                         describe: "Looks at queued syncs in the last 24 hours.",
                         healthy: false,
                         detail: "67 of 69 queued syncs could not succeed: the task has no linked repository.",
@@ -102,5 +104,76 @@ describe("SystemCheckCard", () => {
         render(<SystemCheckCard />)
 
         await waitFor(() => expect(screen.getByText("Unavailable")).toBeTruthy())
+    })
+
+    it("puts dependencies above features, so a broken install is not read past", async () => {
+        runSystemCheck.mockResolvedValue(
+            report({
+                healthy: 2,
+                total: 2,
+                checks: [
+                    {
+                        name: "storage",
+                        kind: "dependency",
+                        describe: "MinIO is reachable and the upload bucket exists.",
+                        healthy: true,
+                        took_ms: 8,
+                    },
+                    {
+                        name: "entity-links",
+                        kind: "behaviour",
+                        describe: "The soft-delete filter still selects live rows.",
+                        healthy: true,
+                        took_ms: 3,
+                    },
+                ],
+            }),
+        )
+
+        const { container } = render(<SystemCheckCard />)
+
+        await waitFor(() => expect(screen.getByText("storage")).toBeTruthy())
+        const text = container.textContent ?? ""
+        expect(
+            text.indexOf("Services this install needs"),
+            "the dependency section must come first",
+        ).toBeLessThan(text.indexOf("Features that can break quietly"))
+    })
+
+    it("shows a note on a passing check instead of failing it", async () => {
+        runSystemCheck.mockResolvedValue(
+            report({
+                healthy: 1,
+                total: 1,
+                checks: [
+                    {
+                        name: "email",
+                        kind: "dependency",
+                        describe: "An email key is configured and readable.",
+                        healthy: true,
+                        detail: "no email key is set, so invitations are silently not sent",
+                        took_ms: 2,
+                    },
+                ],
+            }),
+        )
+
+        render(<SystemCheckCard />)
+
+        const note = await waitFor(() => screen.getByText(/invitations are silently not sent/))
+
+        // Asserting the text is present is not enough: it would still be present
+        // if the note were rendered through the failure branch. What matters is
+        // that it does NOT read as an error, so the class is the property.
+        const noteBox = note.closest("p") ?? note
+        expect(
+            noteBox.className,
+            "a note on a passing check must not be styled as a failure",
+        ).not.toContain("text-destructive")
+        expect(noteBox.className, "a note should read as advisory").toContain("text-warning")
+
+        // And a deliberate choice must not paint the install red.
+        expect(screen.getByText(/All 1 healthy/)).toBeTruthy()
+        expect(screen.queryByText(/need attention/)).toBeNull()
     })
 })

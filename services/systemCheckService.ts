@@ -6,12 +6,22 @@ import axiosInstance from "@/lib/axiosInstance"
 // behind and never writes to a workspace. See helpers/systemcheck.go on the
 // backend for why the checks exist at all.
 
+/** "dependency" = this install cannot work without it. "behaviour" = everything is reachable and a feature may still be broken. */
+export type SystemCheckKind = "dependency" | "behaviour"
+
 export interface SystemCheckResult {
     name: string
+    kind: SystemCheckKind
     /** What this proves and what it does not. Shown, never dropped: a green tick with no scope is worth less than nothing. */
     describe: string
     healthy: boolean
-    /** Present only when unhealthy: what is wrong, in terms an operator can act on. */
+    /**
+     * When unhealthy: what is wrong, in terms an operator can act on.
+     * When healthy: a note -- something true and worth knowing that is not a
+     * failure, such as "no email key is set, so invitations are not sent".
+     * Reporting that as a failure would paint a deliberately mail-less install
+     * red, and a check that cries wolf stops being read.
+     */
     detail?: string
     took_ms: number
 }
