@@ -30,7 +30,8 @@ import WorkflowsCard from "@/components/admin/WorkflowsCard"
 import AdminAuditLog from "@/components/admin/AdminAuditLog"
 import RetentionCard from "@/components/admin/RetentionCard"
 import PushNotificationsCard from "@/components/admin/PushNotificationsCard"
-import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic } from "@/lib/icons"
+import SystemCheckCard from "@/components/admin/SystemCheckCard"
+import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
 import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useMedia } from "@/context/MediaQueryContext"
@@ -59,6 +60,7 @@ const TABS: TabDef[] = [
   { value: "invitations", label: "Invitations", icon: Mail },
   { value: "email-settings", label: "Email Config", icon: Settings },
   { value: "settings", label: "Settings", icon: SlidersHorizontal },
+  { value: "health", label: "Health", icon: Activity },
   { value: "permissions", label: "Permissions", icon: KeyRound },
   { value: "transcription", label: "Transcription", icon: Mic },
   { value: "ai-models", label: "AI Models", icon: Sparkles },
@@ -301,6 +303,12 @@ const AdminPage = () => {
                   <RetentionCard />
                   <PushNotificationsCard />
                 </div>
+              </TabsContent>
+              {/* Its own tab rather than a card under Settings: this is a diagnostic, not a
+                  setting, and the Settings tab's order is a deliberate progression that an
+                  unrelated card in the middle of it would break. */}
+              <TabsContent value="health" className="mt-0 outline-none">
+                <SystemCheckCard />
               </TabsContent>
               <TabsContent value="permissions" className="mt-0 outline-none">
                 <PermissionsCard />
