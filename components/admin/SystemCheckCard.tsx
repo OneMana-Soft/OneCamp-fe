@@ -235,6 +235,23 @@ export const SystemCheckCard: React.FC = () => {
                             </section>
                         )
                     })}
+
+                {/* The boundary of this page, stated on the page.
+                    
+                    Everything above is read-only, which is what makes it safe to press and is exactly
+                    why it cannot tell you whether somebody can create a task and then find it again.
+                    An admin who does not know that reads a green page as a working product, which is
+                    the same false comfort this page was built to stop giving. */}
+                {!error && report && report.total > 0 && (
+                    <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+                        Nothing on this page writes, so it cannot prove that creating something and
+                        finding it again works. The <code className="font-mono">journey</code> check does:
+                        it signs in, creates a task, reads it back and searches for it. Run it against
+                        this server with{" "}
+                        <code className="font-mono">go-one-camp journey</code>, giving it an API token
+                        and a project you are happy to see a test task in.
+                    </p>
+                )}
             </CardContent>
         </Card>
     )

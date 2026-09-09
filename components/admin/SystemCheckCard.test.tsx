@@ -176,4 +176,30 @@ describe("SystemCheckCard", () => {
         expect(screen.getByText(/All 1 healthy/)).toBeTruthy()
         expect(screen.queryByText(/need attention/)).toBeNull()
     })
+
+    it("says on the page what this page cannot prove", async () => {
+        runSystemCheck.mockResolvedValue(
+            report({
+                healthy: 1,
+                total: 1,
+                checks: [
+                    {
+                        name: "search",
+                        kind: "dependency",
+                        describe: "OpenSearch is reachable and every index exists.",
+                        healthy: true,
+                        took_ms: 5,
+                    },
+                ],
+            }),
+        )
+
+        render(<SystemCheckCard />)
+
+        // An all-green read-only page reads as a working product unless it says
+        // otherwise, which is the false comfort the whole feature exists to stop.
+        await waitFor(() => expect(screen.getByText(/cannot prove/)).toBeTruthy())
+        // The actual command, not just the word: a pointer an admin cannot run is no pointer.
+        expect(screen.getByText("go-one-camp journey")).toBeTruthy()
+    })
 })
