@@ -63,7 +63,7 @@ const TABS: TabDef[] = [
   { value: "health", label: "Health", icon: Activity },
   { value: "permissions", label: "Permissions", icon: KeyRound },
   { value: "transcription", label: "Transcription", icon: Mic },
-  { value: "ai-models", label: "AI Models", icon: Sparkles },
+  { value: "ai-models", label: "AI & Agents", icon: Sparkles },
   { value: "webhooks", label: "Webhooks", icon: Webhook },
   { value: "workflows", label: "Workflows", icon: Zap },
   { value: "apps", label: "Apps", icon: Plug },
