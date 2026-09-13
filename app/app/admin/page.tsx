@@ -18,6 +18,7 @@ import SlackImportCard from "@/components/admin/SlackImportCard"
 import ImportCard from "@/components/admin/ImportCard"
 import AIModelsCard from "@/components/admin/AIModelsCard"
 import AgentDelegationCard from "@/components/admin/AgentDelegationCard"
+import GovernanceDrillCard from "@/components/admin/GovernanceDrillCard"
 import MCPServerCard from "@/components/admin/MCPServerCard"
 import AIActivityCard from "@/components/admin/AIActivityCard"
 import AppsCard from "@/components/admin/AppsCard"
@@ -328,6 +329,9 @@ const AdminPage = () => {
                 <div className={ADMIN_SECTION_STACK}>
                   <AIModelsCard />
                   <AgentDelegationCard />
+                  {/* Straight after delegation, because delegation says what an agent MAY
+                      do and this proves the limit actually holds on this install. */}
+                  <GovernanceDrillCard />
                   {/* Beside agent collaboration because they are the same kind of decision:
                       who may cause an agent to act here. Delegation governs agents inside
                       the workspace; this governs clients outside it. */}
