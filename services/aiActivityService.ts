@@ -13,7 +13,14 @@ export interface AIActivityItem {
   title: string
   actor?: string
   summary: string
-  status?: string // succeeded | failed | running
+  /**
+   * succeeded | failed | running | allowed | refused.
+   *
+   * "refused" is the permission system answering, not an error: the agent was
+   * stopped because the person behind it could not have done the thing. It is
+   * presented as such rather than beside real failures.
+   */
+  status?: string
   source?: string // trigger source / audit category
   at: string // RFC3339
   agent_id?: string
