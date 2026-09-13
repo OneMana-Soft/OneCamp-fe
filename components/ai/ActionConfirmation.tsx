@@ -9,6 +9,7 @@ import { createGroupChat } from '@/store/slice/groupChatSlice';
 import { useFetchOnlyOnce } from '@/hooks/useFetch';
 import { GetEndpointUrl } from '@/services/endPoints';
 import { UserProfileInterface } from '@/types/user';
+import { AlertCircle, Bell, Calendar, ClipboardList, FileText, Github, Mail, Megaphone, MessageSquare, Sparkles, Users, Zap } from "@/lib/icons";
 import {
     Dialog,
     DialogContent,
@@ -23,20 +24,25 @@ interface ActionConfirmationProps {
     onActionComplete?: (toolName: string, success: boolean, message: string) => void;
 }
 
-const TOOL_ICONS: Record<string, string> = {
-    create_task: '📋',
-    create_doc: '📄',
-    send_message: '📢',
-    send_dm: '💬',
-    send_group_chat: '👥',
-    set_reminder: '⏰',
-    summarize_channel: '📝',
-    summarize_dm: '💬',
-    summarize_group_chat: '👥',
-    gmail_send: '📧',
-    calendar_create_event: '📅',
-    github_comment: '🐙',
+// Lucide, not emoji. DESIGN.md: "No emoji as decoration." Emoji also render
+// differently on every platform, carry no semantic colour from the token system,
+// and cannot be sized or coloured with the surrounding type. Each icon here is a
+// noun the action is about, so it carries information rather than mood.
+const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    create_task: ClipboardList,
+    create_doc: FileText,
+    send_message: Megaphone,
+    send_dm: MessageSquare,
+    send_group_chat: Users,
+    set_reminder: Bell,
+    summarize_channel: FileText,
+    summarize_dm: MessageSquare,
+    summarize_group_chat: Users,
+    gmail_send: Mail,
+    calendar_create_event: Calendar,
+    github_comment: Github,
 };
+const FallbackIcon = Zap;
 
 const TOOL_LABELS: Record<string, string> = {
     create_task: 'Create Task',
@@ -161,7 +167,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
             <DialogContent className="sm:max-w-[425px] p-0">
                 <DialogHeader className="p-6 pb-2">
                     <DialogTitle className="text-base font-semibold flex items-center gap-2 text-foreground">
-                        <span>🤖</span> AI Suggested Actions
+                        <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> AI Suggested Actions
                     </DialogTitle>
                 </DialogHeader>
 
@@ -175,7 +181,10 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                 executed && !executed.success && "border-destructive/40 bg-destructive/5"
                             )}>
                                 <div className="flex items-center gap-2 mb-2">
-                                    <span className="text-[18px]">{TOOL_ICONS[action.tool_name] || '⚡'}</span>
+                                    {(() => {
+                                        const Icon = TOOL_ICONS[action.tool_name] ?? FallbackIcon;
+                                        return <Icon className="h-[18px] w-[18px] text-muted-foreground" aria-hidden="true" />;
+                                    })()}
                                     <span className="font-medium text-sm text-primary">{TOOL_LABELS[action.tool_name] || action.tool_name}</span>
                                 </div>
                                 <p className="text-sm leading-relaxed text-muted-foreground m-0 mb-3">{action.description}</p>
@@ -198,22 +207,28 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                             onClick={() => handleConfirm(action, index)}
                                             disabled={submittingIndex !== null}
                                         >
-                                            {submittingIndex === index ? 'Executing...' : '✓ Confirm'}
+                                            {submittingIndex === index ? 'Executing...' : 'Confirm'}
                                         </Button>
                                         <Button 
                                             variant="outline"
                                             className="bg-transparent border-border text-muted-foreground font-medium transition-all duration-150 hover:border-primary/20 hover:text-foreground" 
                                             onClick={onClose}
                                         >
-                                            ✕ Dismiss
+                                            Dismiss
                                         </Button>
                                     </div>
                                 ) : (
                                     <div className={cn(
                                         "text-sm p-2.5 rounded-lg font-medium",
-                                        executed.success ? "text-success bg-success/10" : "text-destructive bg-red-500/10"
+                                        "flex items-start gap-2",
+                                        executed.success ? "text-success bg-success/10" : "text-destructive bg-destructive/10"
                                     )}>
-                                        {executed.success ? '' : '❌'} {executed.message}
+                                        {/* Not colour-only: a failure carries an icon that means failure,
+                                            which is information, not decoration. */}
+                                        {!executed.success && (
+                                            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                                        )}
+                                        <span>{executed.message}</span>
                                     </div>
                                 )}
                             </div>
