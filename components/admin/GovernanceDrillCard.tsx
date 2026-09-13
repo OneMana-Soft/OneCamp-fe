@@ -49,6 +49,13 @@ import {
     type DrillStep,
 } from "@/services/governanceDrillService"
 
+/**
+ * Where the audit log lives in this admin page. One definition, so the link and
+ * the tab cannot drift apart: the log is a card inside the Settings tab, and the
+ * anchor scrolls past the cards above it.
+ */
+const AUDIT_LOG_HREF = "/app/admin?tab=settings#audit-log"
+
 /** A hash is identified by its ends; the middle is noise at this size. */
 function shortHash(hash?: string): string {
     if (!hash || hash.length <= 16) return hash || ""
@@ -84,14 +91,23 @@ export const StepRow: React.FC<{ step: DrillStep; index: number }> = ({ step, in
 )
 
 export const AuditRowLine: React.FC<{ row: DrillAuditRow }> = ({ row }) => (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border px-3 py-2 text-xs first:border-t-0">
-        <span className="shrink-0 font-mono tabular-nums text-muted-foreground">#{row.seq}</span>
-        <span className="shrink-0 font-mono font-medium">{row.action}</span>
-        <span className="min-w-0 flex-1 text-muted-foreground">{row.summary}</span>
+    <div className="border-t border-border px-3 py-2 text-xs first:border-t-0">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="shrink-0 font-mono tabular-nums text-muted-foreground">#{row.seq}</span>
+            <span className="shrink-0 font-mono font-medium">{row.action}</span>
+            <span className="min-w-0 flex-1 text-muted-foreground">{row.summary}</span>
+        </div>
+        {/* Both hashes, never just one. A single fingerprint demonstrates nothing;
+            the LINK is the claim, so the row shows what it carried forward and what
+            it produced. */}
         {row.entry_hash ? (
-            <span className="shrink-0 font-mono text-muted-foreground" title={row.entry_hash}>
-                {shortHash(row.entry_hash)}
-            </span>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-[0.7rem] text-muted-foreground">
+                <span title={row.prev_hash || "nothing: this is the first entry in the chain"}>
+                    prev {row.prev_hash ? shortHash(row.prev_hash) : "— first entry"}
+                </span>
+                <span aria-hidden>→</span>
+                <span title={row.entry_hash}>this {shortHash(row.entry_hash)}</span>
+            </div>
         ) : null}
     </div>
 )
@@ -228,7 +244,7 @@ const GovernanceDrillCard: React.FC = () => {
                                     <p className="mt-0.5 text-xs text-muted-foreground">
                                         Checked at {formatWhen(result.ran_at)}. The chain was recomputed over{" "}
                                         <span className="tabular-nums">{result.chain_checked.toLocaleString()}</span>{" "}
-                                        entries.
+                                        {result.chain_partial ? "recent entries" : "entries, the whole log"}.
                                     </p>
                                 </div>
                             </div>
@@ -279,13 +295,32 @@ const GovernanceDrillCard: React.FC = () => {
                                 </div>
                                 <p className="mt-1.5 text-xs text-muted-foreground">
                                     Sequence numbers and hashes are the ones in the database, not rendered from this
-                                    result. Export the log to verify them somewhere else.
+                                    result.{" "}
+                                    <a className="underline underline-offset-2 hover:text-foreground" href={AUDIT_LOG_HREF}>
+                                        Open the audit log
+                                    </a>{" "}
+                                    to find these rows, verify the whole chain, or export it and check the hashes
+                                    somewhere that is not this page.
                                 </p>
                             </div>
                         ) : null}
 
                         {!result.chain_ok && result.chain_message ? (
                             <p className="text-xs font-medium text-destructive">{result.chain_message}</p>
+                        ) : null}
+
+                        {/* Stated, not buried. A window proves the links inside it and
+                            seeds from one stored hash it takes on trust, so it cannot
+                            see an edit made before it. Letting "the last 500 verify"
+                            read as "the log is intact" would be the exact overstatement
+                            this feature exists to prevent. */}
+                        {result.chain_ok && result.chain_partial ? (
+                            <p className="text-xs text-muted-foreground">
+                                This checked the most recent entries
+                                {result.chain_from_seq ? ` (from #${result.chain_from_seq} onwards)` : ""}, not the
+                                whole log, so it runs fast enough to click. For the full chain from its first entry,
+                                use Verify in the audit log.
+                            </p>
                         ) : null}
 
                         <div className="flex items-center gap-2">

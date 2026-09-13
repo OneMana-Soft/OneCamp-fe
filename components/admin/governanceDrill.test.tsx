@@ -33,11 +33,13 @@ const passing = (): DrillResult => ({
   steps: [step({ name: "the person is not a member" }), step()],
   refusal_reason: "you are not a member of this channel",
   rows: [
-    { seq: 1204, id: "a", action: "agent.drill.attempt", summary: "about to attempt", entry_hash: "abcdef0123456789abcdef", created_at: new Date().toISOString() },
-    { seq: 1205, id: "b", action: "agent.drill.refused", summary: "refused", entry_hash: "1234567890abcdef123456", created_at: new Date().toISOString() },
+    { seq: 1204, id: "a", action: "agent.drill.attempt", summary: "about to attempt", prev_hash: "99998888aaaabbbbcccc", entry_hash: "abcdef0123456789abcdef", created_at: new Date().toISOString() },
+    { seq: 1205, id: "b", action: "agent.drill.refused", summary: "refused", prev_hash: "abcdef0123456789abcdef", entry_hash: "1234567890abcdef123456", created_at: new Date().toISOString() },
   ],
   chain_ok: true,
-  chain_checked: 1205,
+  chain_checked: 500,
+  chain_partial: true,
+  chain_from_seq: 706,
   ran_at: new Date().toISOString(),
 })
 
@@ -122,6 +124,70 @@ describe("governance drill card", () => {
     expect(text).toContain("#drill-finance")
     expect(text).not.toMatch(/#finance\b/)
     expect(text).not.toMatch(/#engineering\b/)
+  })
+
+  // A window proves the links inside it and seeds from one stored hash it takes
+  // on trust. Rendering "the last 500 verify" as "the log is intact" would be the
+  // exact overstatement this feature exists to prevent.
+  it("does not let a windowed verification read as a full one", async () => {
+    vi.mocked(getDrillStatus).mockResolvedValue(seeded)
+    vi.mocked(runDrill).mockResolvedValue(passing())
+    const { container } = render(<GovernanceDrillCard />)
+
+    const btn = await screen.findByRole("button", { name: /run the drill/i })
+    await act(async () => { fireEvent.click(btn) })
+    await screen.findByText(/the limit held/i)
+
+    const text = container.textContent || ""
+    expect(text).toMatch(/recent entries/i)
+    expect(text).toMatch(/not the\s+whole log/i)
+    expect(text).not.toMatch(/entries, the whole log/i)
+  })
+
+  it("says it checked the whole log when it actually did", async () => {
+    vi.mocked(getDrillStatus).mockResolvedValue(seeded)
+    vi.mocked(runDrill).mockResolvedValue({ ...passing(), chain_partial: false, chain_from_seq: undefined })
+    const { container } = render(<GovernanceDrillCard />)
+
+    const btn = await screen.findByRole("button", { name: /run the drill/i })
+    await act(async () => { fireEvent.click(btn) })
+    await screen.findByText(/the limit held/i)
+
+    const text = container.textContent || ""
+    expect(text).toMatch(/entries, the whole log/i)
+    expect(text).not.toMatch(/not the\s+whole log/i)
+  })
+
+  // One hash demonstrates nothing; the link is the claim.
+  it("shows each row's previous hash beside its own", async () => {
+    vi.mocked(getDrillStatus).mockResolvedValue(seeded)
+    vi.mocked(runDrill).mockResolvedValue(passing())
+    const { container } = render(<GovernanceDrillCard />)
+
+    const btn = await screen.findByRole("button", { name: /run the drill/i })
+    await act(async () => { fireEvent.click(btn) })
+    await screen.findByText(/the limit held/i)
+
+    const text = (container.textContent || "").replace(/\s+/g, " ")
+    expect(text).toMatch(/prev .*→ ?this/i)
+    // The refusal row must carry the attempt row's hash forward, which is the
+    // whole point of showing both.
+    expect(text).toContain("abcdef01")
+  })
+
+  // Evidence a reader can go and check beats a claim they have to accept.
+  it("links to the audit log rather than asking to be believed", async () => {
+    vi.mocked(getDrillStatus).mockResolvedValue(seeded)
+    vi.mocked(runDrill).mockResolvedValue(passing())
+    const { container } = render(<GovernanceDrillCard />)
+
+    const btn = await screen.findByRole("button", { name: /run the drill/i })
+    await act(async () => { fireEvent.click(btn) })
+    await screen.findByText(/the limit held/i)
+
+    const link = container.querySelector('a[href*="audit-log"]') as HTMLAnchorElement | null
+    expect(link, "no link to the audit log").toBeTruthy()
+    expect(link?.getAttribute("href")).toContain("tab=settings")
   })
 
   // A passing step must not carry a failure detail; that was a real bug in the

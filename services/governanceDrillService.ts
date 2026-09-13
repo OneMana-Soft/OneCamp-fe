@@ -24,6 +24,13 @@ export interface DrillAuditRow {
     id: string
     action: string
     summary: string
+    /**
+     * Shown as a PAIR with entry_hash, because one hash on its own demonstrates
+     * nothing. The link is the claim: this row carries the previous row's
+     * fingerprint, so removing or editing anything behind it changes what this
+     * row should have hashed to.
+     */
+    prev_hash?: string
     entry_hash?: string
     created_at: string
 }
@@ -38,6 +45,14 @@ export interface DrillResult {
     chain_ok: boolean
     chain_checked: number
     chain_message?: string
+    /**
+     * The drill recomputes a WINDOW of the chain, not all of it, because the log
+     * only grows and this runs from a browser. "The last 500 entries verify" and
+     * "the log has not been altered" are different claims; these two fields are
+     * what keeps the UI from making the larger one.
+     */
+    chain_partial: boolean
+    chain_from_seq?: number
     ran_at: string
 }
 

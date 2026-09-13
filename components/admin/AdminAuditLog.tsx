@@ -219,7 +219,7 @@ export default function AdminAuditLog() {
     }
 
     return (
-        <Card className="border-border/60">
+        <Card id="audit-log" className="border-border/60">
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
