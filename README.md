@@ -150,7 +150,7 @@ This frontend requires the **OneCamp Go backend**. It ships as a single Docker C
 - Enterprise sign-in: SAML, OIDC, LDAP, SCIM, MFA
 - One command to install, one command to update
 
-**→ [Get the backend licence for $19 at onemana.dev](https://onemana.dev/buy)**: pay once, unlimited users, no per-seat pricing.
+**→ [Get the backend licence at onemana.dev](https://onemana.dev/buy)**: pay once, unlimited users, no per-seat pricing. The current price is on that page.
 
 ---
 
