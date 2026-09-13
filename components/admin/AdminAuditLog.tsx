@@ -170,10 +170,10 @@ export default function AdminAuditLog() {
         load(filter)
     }, [filter])
 
-    const handleVerify = async () => {
+    const handleVerify = async (scope: "recent" | "full" = "recent") => {
         setVerifying(true)
         try {
-            const res = await verifyAuditLog()
+            const res = await verifyAuditLog(scope)
             setVerifyResult(res)
             if (res) {
                 toast({
@@ -228,15 +228,17 @@ export default function AdminAuditLog() {
                         {verifyResult && (
                             <Badge
                                 variant="outline"
-                                className={`text-3xs ${verifyResult.ok ? "text-success border-success/30" : "text-red-600 border-red-500/30"}`}
+                                className={`text-3xs ${verifyResult.ok ? "text-success border-success/30" : "text-destructive border-destructive/30"}`}
                                 title={verifyResult.message}
                             >
-                                {verifyResult.ok ? `Verified · ${verifyResult.checked}` : "Tampering detected"}
+                                {verifyResult.ok
+                                    ? `${verifyResult.partial ? "Recent" : "Whole chain"} verified · ${verifyResult.checked}`
+                                    : "Tampering detected"}
                             </Badge>
                         )}
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleVerify} disabled={verifying}>
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => handleVerify("recent")} disabled={verifying}>
                             <ShieldCheck className={`h-3.5 w-3.5 ${verifying ? "animate-pulse" : ""}`} />
                             Verify
                         </Button>
@@ -267,6 +269,27 @@ export default function AdminAuditLog() {
                 <CardDescription>
                     Configuration changes by admins, tamper-evident (hash-chained). Secret values are never recorded — only that a change occurred. Verify the chain or export it for an auditor.
                 </CardDescription>
+                {/* Offered only AFTER a windowed check comes back, and only when it
+                    passed. Verify is bounded by default because the log only grows
+                    and a full walk on a year-old workspace is the moment the button
+                    stops answering at all. The fast result is the useful one; this is
+                    for the reader who needs the claim to cover everything, and it is
+                    labelled as the slower thing so nobody clicks it by reflex. */}
+                {verifyResult?.ok && verifyResult.partial && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                        Checked the most recent {verifyResult.checked.toLocaleString()} entries
+                        {verifyResult.from_seq ? ` (from #${verifyResult.from_seq} onwards)` : ""}, not the whole log.{" "}
+                        <button
+                            type="button"
+                            onClick={() => handleVerify("full")}
+                            disabled={verifying}
+                            className="underline underline-offset-2 hover:text-foreground disabled:opacity-50"
+                        >
+                            Check the whole chain
+                        </button>{" "}
+                        — slower, and it starts from the first entry ever written.
+                    </p>
+                )}
             </CardHeader>
             <CardContent>
                 {/* One filter per category the SERVER records, not a list kept here.

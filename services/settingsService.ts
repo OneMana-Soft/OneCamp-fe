@@ -86,12 +86,28 @@ export interface AuditVerifyResult {
     first_bad_seq?: number
     first_bad_id?: string
     message: string
+    /**
+     * True when only a WINDOW of the chain was recomputed. A window seeds from
+     * its earliest row's stored hash rather than from the first entry ever
+     * written, so it proves the links inside itself and takes that one value on
+     * trust: "the last 500 entries verify" and "the log has not been altered" are
+     * different claims and the UI must not blur them.
+     */
+    partial?: boolean
+    /** Where the window began, so a reader can see what was not covered. */
+    from_seq?: number
 }
 
-// verifyAuditLog recomputes the server-side hash chain and reports whether the
-// log is provably unaltered (the tamper-evidence an auditor relies on).
-export async function verifyAuditLog(): Promise<AuditVerifyResult | null> {
-    const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}/verify`)
+/**
+ * Recompute the server-side hash chain.
+ *
+ * "recent" by default because the log only grows: a full walk is instant on a
+ * fresh install and a gateway timeout on a workspace that has been running a
+ * year, which is exactly when an auditor most wants the answer. "full" is the
+ * explicit, slower check, offered once the fast one has come back.
+ */
+export async function verifyAuditLog(scope: "recent" | "full" = "recent"): Promise<AuditVerifyResult | null> {
+    const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}/verify`, { params: { scope } })
     return (res.data as { data?: AuditVerifyResult })?.data ?? null
 }
 
