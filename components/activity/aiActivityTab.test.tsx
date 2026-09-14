@@ -8,10 +8,11 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   useFeature: () => aiOn,
 }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: [] }, isLoading: false }) }))
+let search = ""
 vi.mock("next/navigation", () => ({
   usePathname: () => "/app/activity",
   useRouter: () => ({ replace: () => {} }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(search),
 }))
 vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
 vi.mock("@/services/unreadCache", () => ({ clearActivityUnread: () => {} }))
@@ -24,6 +25,7 @@ import { ActivityListTabs } from "@/components/activity/activityListTabs"
 afterEach(() => {
   cleanup()
   aiOn = true
+  search = ""
 })
 
 describe("the AI filter in Activity", () => {
@@ -54,5 +56,25 @@ describe("the AI filter in Activity", () => {
       .map((n) => (n.textContent || "").trim())
       .filter((t) => ["Priority", "All", "Mentions", "Comments", "Reactions", "AI"].includes(t))
     expect(labels[labels.length - 1]).toBe("AI")
+  })
+})
+
+describe("a link to the AI filter on a server without AI", () => {
+  // ?tab=ai outlives the edition it was copied from: a bookmark, a shared URL,
+  // a mobile menu from before AI was switched off. The tab is correctly absent,
+  // so without a fallback the page selects nothing and renders a card that
+  // gates itself away, and Activity looks broken rather than AI-free.
+  it("falls back to the list everyone has", () => {
+    aiOn = false
+    search = "tab=ai"
+    render(<ActivityListTabs />)
+    expect(screen.getByText("other activity")).toBeTruthy()
+    expect(screen.queryByText("AI")).toBeNull()
+  })
+
+  it("still opens the AI filter where there is AI", () => {
+    search = "tab=ai"
+    render(<ActivityListTabs />)
+    expect(screen.queryByText("other activity")).toBeNull()
   })
 })

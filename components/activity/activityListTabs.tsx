@@ -64,6 +64,15 @@ export function ActivityListTabs() {
         [priorityCount, aiAvailable],
     )
 
+    // A link can ask for a tab this edition does not have: ?tab=ai reaches an
+    // AI-free server from a bookmark, a shared URL or a client that still has
+    // the old menu. Without this the page renders with no tab selected and a
+    // body that gates itself away, which reads as a broken Activity page.
+    // Derived rather than corrected in an effect, because the config request
+    // fails closed while it is in flight and a correction would bounce a
+    // legitimate ?tab=ai to All on every load.
+    const effectiveTab: TabValue = selectedTab === "ai" && !aiAvailable ? "all" : selectedTab
+
     const handleChangeTab = useCallback((value: string) => {
         if (VALID_TABS.includes(value as TabValue)) {
             setSelectedTab(value as TabValue)
@@ -88,15 +97,15 @@ export function ActivityListTabs() {
     return (
         <SectionTabs
             tabs={tabs}
-            value={selectedTab}
+            value={effectiveTab}
             onValueChange={handleChangeTab}
             icon={Bell}
             title="Activity"
         >
-            {selectedTab === "ai" ? (
+            {effectiveTab === "ai" ? (
                 <MyAIActivityCard />
             ) : (
-                <ActivityListTabContent selectedTab={selectedTab} onSelectTab={handleChangeTab} />
+                <ActivityListTabContent selectedTab={effectiveTab} onSelectTab={handleChangeTab} />
             )}
         </SectionTabs>
     )
