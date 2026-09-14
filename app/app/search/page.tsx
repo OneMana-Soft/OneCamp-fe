@@ -137,7 +137,7 @@ export default function SearchPage() {
                                             handlePreview(result)
                                         }}
                                         aria-label="Preview attachment"
-                                        className="h-8 w-8 md:h-10 md:w-10 rounded-full opacity-0 group-hover:opacity-100 transition-all text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                        className="h-8 w-8 md:h-10 md:w-10 rounded-full opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all text-muted-foreground hover:text-primary hover:bg-primary/10"
                                     >
                                         <Eye className="h-5 w-5" />
                                     </Button>

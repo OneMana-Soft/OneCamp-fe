@@ -33,7 +33,7 @@ export const RecordingListRecording = ({
 
     return (
         <div className="group flex items-center gap-4 p-4 hover:bg-primary/5 cursor-pointer transition-all duration-150 border-b border-border/40 last:border-0 relative overflow-hidden">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity" />
             
             <div className="relative">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success shadow-sm ring-1 ring-emerald-500/20 group-hover:scale-105 transition-transform duration-150">
@@ -84,13 +84,13 @@ export const RecordingListRecording = ({
                 {onDelete && (
                     <button
                         onClick={handleDelete}
-                        className="h-8 w-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 text-destructive"
+                        className="h-8 w-8 rounded-full flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity hover:bg-destructive/10 text-destructive"
                         title="Delete recording"
                     >
                         <Trash2 size={16} />
                     </button>
                 )}
-                <div className="hidden sm:flex self-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="hidden sm:flex self-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
                      <div className="h-8 w-8 rounded-full flex items-center justify-center bg-primary/10 text-primary">
                         <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="translate-x-0.5">
                             <path d="M3.24182 2.32181C2.9063 2.15603 2.5 2.40453 2.5 2.78359V12.2164C2.5 12.5955 2.9063 12.844 3.24182 12.6782L12.7443 7.96181C13.0852 7.79284 13.0852 7.20716 12.7443 7.03819L3.24182 2.32181Z" fill="currentColor"></path>

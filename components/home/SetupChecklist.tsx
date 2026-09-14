@@ -144,7 +144,7 @@ export const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                                         {step.detail}
                                     </span>
                                 </span>
-                                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 pointer-events-none transition-opacity group-hover:opacity-100" />
                             </Link>
                         )}
                     </li>

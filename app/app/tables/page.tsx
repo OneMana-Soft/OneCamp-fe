@@ -150,7 +150,7 @@ export default function TablesPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-destructive opacity-0 transition-opacity group-hover:opacity-100"
+                className="h-8 w-8 text-destructive opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
                 disabled={busyId === t.id}
                 onClick={() => handleDelete(t)}
                 title="Delete"

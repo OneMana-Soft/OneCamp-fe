@@ -299,7 +299,7 @@ function UserRow({ user, role, onRemove, isOwner }: { user: UserProfileDataInter
             <div className="flex items-center gap-4">
                 <span className="text-xs text-muted-foreground capitalize">{role}</span>
                  {(isOwner && role !== 'owner') && (
-                    <Button aria-label="Remove access" variant="ghost" size="icon" className="h-6 w-6 md:opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive" onClick={onRemove}>
+                    <Button aria-label="Remove access" variant="ghost" size="icon" className="h-6 w-6 md:opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity text-muted-foreground hover:text-destructive" onClick={onRemove}>
                         <X className="w-4 h-4" />
                     </Button>
                  )}

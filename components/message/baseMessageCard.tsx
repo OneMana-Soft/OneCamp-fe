@@ -361,7 +361,7 @@ export const BaseMessageCard = React.memo(({
               "absolute right-3 top-1.5 z-10 transition-opacity duration-150",
               isDropdownOpen || isEmojiPickerOpen
                 ? "opacity-100"
-                : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+                : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
             )}
           >
             <MessageDesktopHoverOptionsForMainChatAndChannel

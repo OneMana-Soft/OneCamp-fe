@@ -129,7 +129,7 @@ function LinkedChip({ icon: Icon, accent, title, locked, canEdit, onOpen, onRemo
           type="button"
           onClick={onRemove}
           aria-label="Unlink"
-          className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+          className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 pointer-events-none transition-opacity hover:bg-destructive/10 hover:text-destructive focus:opacity-100 group-hover:opacity-100 group-hover:pointer-events-auto"
         >
           <X className="h-3.5 w-3.5" />
         </button>

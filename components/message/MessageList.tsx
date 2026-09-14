@@ -202,7 +202,9 @@ export const MessageList = <T,>({
 
             {visibleDateIndex > -1 && (
                 <SeparatorPill
-                    className="sticky top-1 z-[var(--z-sticky)] transition-opacity duration-200 "
+                    /* See MessaageListVirtua: the band is what keeps the date
+                       from reading as collided with the message under it. */
+                    className="sticky top-0 z-[var(--z-sticky)] pointer-events-none py-1.5 transition-opacity duration-200 bg-gradient-to-b from-background via-background/95 to-transparent"
                     lineClassName="bg-transparent"
                     pillClassName="shadow-overlay"
                 >

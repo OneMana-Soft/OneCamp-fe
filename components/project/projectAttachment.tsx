@@ -86,7 +86,7 @@ export default function ProjectAttachment({
                             size="icon"
                             className={cn(
                                 "h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground",
-                                "md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity",
+                                "md:opacity-0 pointer-events-none md:group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 transition-opacity",
                                 isDropdownOpen && "md:opacity-100",
                             )}
                             aria-label="Attachment options"

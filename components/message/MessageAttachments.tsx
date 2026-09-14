@@ -175,7 +175,7 @@ export function NonRenderableAttachment({ attachment, attachmentLength, mediaGet
             <button
                 onClick={download}
                 className={cn(
-                    "opacity-0 group-hover:opacity-100 transition-all duration-150",
+                    "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-150",
                     "p-1.5 hover:bg-background rounded-full shadow-sm border border-border/50 shrink-0",
                     "translate-x-2 group-hover:translate-x-0"
                 )}

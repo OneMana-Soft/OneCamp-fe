@@ -84,7 +84,7 @@ export const CalloutView: React.FC<NodeViewProps> = ({ node, updateAttributes, e
         {/* Color cycle button (visible on hover/focus) */}
         <button
           onClick={cycleColor}
-          className="opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 self-start rounded p-1 text-xs text-muted-foreground hover:bg-accent transition-opacity"
+          className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 shrink-0 self-start rounded p-1 text-xs text-muted-foreground hover:bg-accent transition-opacity"
           contentEditable={false}
           title="Change color"
           type="button"

@@ -195,8 +195,14 @@ export const MessageListVirtua = <T,>({
             }}
         >
             {visibleDateIndex > -1 && items.length > 2 && (
+                /* A floating date, not a thing sitting on the conversation.
+                   The pill is opaque but the row it sits in was transparent, so
+                   message text ran past it at the same height and the two read
+                   as collided. The band fades the messages out beneath it, which
+                   is what makes it look like they are scrolling underneath, and
+                   it never takes a click meant for the message below. */
                 <SeparatorPill
-                    className="sticky top-1 z-[var(--z-sticky)] transition-opacity duration-200"
+                    className="sticky top-0 z-[var(--z-sticky)] pointer-events-none py-1.5 transition-opacity duration-200 bg-gradient-to-b from-background via-background/95 to-transparent"
                     lineClassName="bg-transparent"
                     pillClassName="shadow-overlay"
                 >
