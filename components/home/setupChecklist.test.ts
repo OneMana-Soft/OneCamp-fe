@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { shouldShowChecklist } from "./SetupChecklist"
@@ -54,4 +57,24 @@ describe("shouldShowChecklist", () => {
         // A dashboard must not reserve space for a card that may never appear.
         expect(shouldShowChecklist(true, false, null)).toBe(false)
     })
+})
+
+// The Home page contradicted itself on a first visit: "No recent activity yet"
+// sat directly under a briefing describing the morning's activity. The list is
+// what YOU opened, not what happened, and the two words for those must not be
+// the same word.
+describe("the Recent card's empty state", () => {
+  const dashboard = readFileSync(
+    join(__dirname, "desktop", "desktopDashboard.tsx"),
+    "utf8",
+  )
+
+  it("does not call your own history 'activity'", () => {
+    const rendered = dashboard.replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+    expect(rendered).not.toContain("No recent activity")
+  })
+
+  it("says what will fill it", () => {
+    expect(dashboard).toContain("appear here")
+  })
 })

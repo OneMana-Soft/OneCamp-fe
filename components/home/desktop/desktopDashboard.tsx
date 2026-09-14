@@ -289,8 +289,16 @@ export function DesktopDashboard() {
                                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
                                             <Clock className="h-5 w-5 text-muted-foreground" />
                                         </div>
+                                        {/* "No recent activity yet" sat directly
+                                            under a briefing describing the
+                                            morning's activity, so the page
+                                            contradicted itself on first visit.
+                                            This list is what YOU opened, not
+                                            what happened, and saying so is both
+                                            true and the thing that stops it
+                                            reading as a broken feed. */}
                                         <p className="text-sm text-muted-foreground">
-                                            No recent activity yet
+                                            Nothing opened yet. Channels, docs and tasks you visit appear here.
                                         </p>
                                     </div>
                                 </div>
