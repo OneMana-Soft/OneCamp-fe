@@ -15,6 +15,7 @@ import SocialComposeDialog from "@/components/ai/SocialComposeDialog";
 import AiScheduleDialog from "@/components/ai/AiScheduleDialog";
 import { ProposedAction, getChatSession } from "@/services/aiService";
 import { forgetConversation, readLastConversation, rememberConversation } from "@/lib/ai/lastConversation";
+import { sendTarget } from "@/lib/ai/sendTarget";
 import { cn } from "@/lib/utils/helpers/cn";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -400,8 +401,9 @@ const AiChatPanel: React.FC = () => {
         setTimeout(() => inputRef.current?.focus(), 200);
     }, []);
 
-    const handleSend = useCallback(async () => {
-        const q = input.trim();
+    /** Send what is in the box, or a specific question. See lib/ai/sendTarget. */
+    const handleSend = useCallback(async (text?: string) => {
+        const { text: q, clearDraft } = sendTarget(text, input);
         if (!q || isStreaming) return;
 
         const userMsg: ChatMessage = {
@@ -412,11 +414,13 @@ const AiChatPanel: React.FC = () => {
         };
 
         setMessages((prev) => [...prev, userMsg]);
-        setInput("");
 
-        // Reset textarea height to match the min-h-[36px] of the input.
-        if (inputRef.current) {
-            inputRef.current.style.height = "36px";
+        if (clearDraft) {
+            setInput("");
+            // Reset textarea height to match the min-h-[36px] of the input.
+            if (inputRef.current) {
+                inputRef.current.style.height = "36px";
+            }
         }
 
         // askStream returns the final text + actions synchronously as its
@@ -596,7 +600,7 @@ const AiChatPanel: React.FC = () => {
                         </div>
                         <h3 className="text-lg font-medium text-foreground m-0">OneCamp AI</h3>
                         <p className="text-sm text-muted-foreground max-w-[280px] leading-normal m-0">
-                            Ask anything about your workspace — channels, tasks, docs, and more.
+                            Ask anything about your workspace: channels, tasks, docs, and more.
                         </p>
                         <p className="text-2xs text-muted-foreground/60 m-0 inline-flex items-center gap-1">
                             Tip: press
@@ -611,8 +615,11 @@ const AiChatPanel: React.FC = () => {
                                     key={suggestion}
                                     variant="outline"
                                     className="h-auto px-3.5 py-2.5 bg-card text-foreground text-xs text-left transition-all duration-150 leading-[1.4] hover:border-primary hover:bg-primary/5 whitespace-normal justify-start"
+                                    /* Ask it. Filling the box and stopping there
+                                       made every suggestion a two-step
+                                       instruction nobody asked for. */
                                     onClick={() => {
-                                        setInput(suggestion);
+                                        void handleSend(suggestion);
                                         inputRef.current?.focus();
                                     }}
                                 >
@@ -813,7 +820,7 @@ const AiChatPanel: React.FC = () => {
                                 "transition-colors duration-150",
                                 "disabled:opacity-30 disabled:cursor-not-allowed",
                             )}
-                            onClick={handleSend}
+                            onClick={() => void handleSend()}
                             disabled={!input.trim()}
                             title="Send (Enter)"
                             aria-label="Send message"
