@@ -77,6 +77,18 @@ cd OneCamp-fe
 pnpm install
 ```
 
+**Which edition you get.** This is the `ai` branch, and it is what a clone
+gives you by default. It expects a backend built with agents. If your licence
+is for the edition without them, take `main` instead, or the interface will
+offer you agents your server has no routes for:
+
+```bash
+git clone -b main https://github.com/OneMana-Soft/OneCamp-fe.git
+```
+
+The installer picks the right branch for your licence on its own; this note is
+for anyone cloning by hand.
+
 ### 2. Point it at your server
 
 ```bash
