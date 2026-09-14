@@ -5,10 +5,11 @@ import {
     Calendar,
     CircleUser,
     ClipboardCheck,
-    Hash,
     LogOut,
     Moon,
     Sun,
+    Shield,
+    Table as TableIcon,
     Zap,
     MailPlus,
     LayoutDashboard,
@@ -22,6 +23,9 @@ import { useTheme } from "next-themes"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
 import { MemberInviteDialog } from "@/components/invite/MemberInviteDialog"
+import { useFetchOnlyOnce } from "@/hooks/useFetch"
+import { GetEndpointUrl } from "@/services/endPoints"
+import type { UserProfileInterface } from "@/types/user"
 import { useState } from "react"
 
 import { cn } from "@/lib/utils/helpers/cn"
@@ -44,14 +48,13 @@ interface DrawerItemProps {
     label: string
     onClick: () => void
     destructive?: boolean
-    trailing?: React.ReactNode
 }
 
 /**
  * DrawerItem — single tappable row matching the rest of the mobile UI's
  * 48px touch target with Tailwind active state for press feedback.
  */
-function DrawerItem({ icon: Icon, label, onClick, destructive, trailing }: DrawerItemProps) {
+function DrawerItem({ icon: Icon, label, onClick, destructive }: DrawerItemProps) {
     return (
         <button
             type="button"
@@ -74,8 +77,52 @@ function DrawerItem({ icon: Icon, label, onClick, destructive, trailing }: Drawe
                 strokeWidth={1.75}
             />
             <span className="flex-1 truncate">{label}</span>
-            {trailing}
         </button>
+    )
+}
+
+/**
+ * A row whose control is a switch rather than a destination.
+ *
+ * It used to be a DrawerItem with the Switch in a trailing slot, which put a
+ * button inside a button: invalid markup that React warns about, that gives
+ * the row two overlapping hit targets, and that assistive tech reads
+ * inconsistently. The switch is the only control, and the visible label names
+ * it rather than a duplicate aria-label.
+ */
+function DrawerSwitchRow({
+    icon: Icon,
+    label,
+    checked,
+    onCheckedChange,
+}: {
+    icon: LucideIcon
+    label: string
+    checked: boolean
+    onCheckedChange: (checked: boolean) => void
+}) {
+    const labelId = `drawer-switch-${label.replace(/\s+/g, "-").toLowerCase()}`
+    return (
+        <div className="w-full h-12 flex items-center gap-3 px-3 rounded-md text-sm font-medium">
+            <Icon className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            <span id={labelId} className="flex-1 truncate">
+                {label}
+            </span>
+            <Switch checked={checked} onCheckedChange={onCheckedChange} aria-labelledby={labelId} />
+        </div>
+    )
+}
+
+/**
+ * A heading over a run of rows. The drawer is the whole of mobile navigation
+ * beyond five bottom-bar cells, and a flat list of a dozen unrelated rows is
+ * what made everything in it read as second class.
+ */
+function DrawerSection({ label }: { label: string }) {
+    return (
+        <p className="px-3 pt-3 pb-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {label}
+        </p>
     )
 }
 
@@ -84,6 +131,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const router = useRouter()
     const { theme, setTheme } = useTheme()
     const { can } = useCapabilities()
+    const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    const isAdmin = !!selfProfile.data?.data.user_is_admin
     const [inviteOpen, setInviteOpen] = useState(false)
 
     const closeDrawer = () => setOpenState(false)
@@ -106,11 +155,10 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerDescription>App menu</DrawerDescription>
                 </DrawerHeader>
                 <div className="p-3 pb-6 space-y-0.5">
-                    <DrawerItem
-                        icon={Hash}
-                        label="Channels"
-                        onClick={() => handleNavigate("/app/channel")}
-                    />
+                    {/* Channels used to lead this list while sitting in the bottom bar
+                        two centimetres below, spending the drawer's first row on the
+                        one destination that never needed it. */}
+                    <DrawerSection label="Work" />
                     <DrawerItem
                         icon={ClipboardCheck}
                         label="My Tasks"
@@ -131,14 +179,25 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         label="Boards"
                         onClick={() => handleNavigate("/app/board")}
                     />
-
-                    <div className="my-2 border-t border-border/60" />
-
+                    {/* Tables is a top-level destination on desktop and had no door at
+                        all on a phone: no bottom-bar cell, no drawer row, reachable
+                        only by typing the URL. */}
                     <DrawerItem
-                        icon={CircleUser}
-                        label="My Profile"
-                        onClick={() => handleNavigate("/app/profile")}
+                        icon={TableIcon}
+                        label="Tables"
+                        onClick={() => handleNavigate("/app/tables")}
                     />
+
+                    <DrawerSection label="Workspace" />
+                    {/* Admin was reachable on a phone only through the org avatar in
+                        the top bar, which is not where anyone looks for it. */}
+                    {isAdmin && (
+                        <DrawerItem
+                            icon={Shield}
+                            label="Admin"
+                            onClick={() => handleNavigate("/app/admin")}
+                        />
+                    )}
 
                     <DrawerItem
                         icon={Plug}
@@ -165,18 +224,19 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         />
                     )}
 
+                    <div className="my-2 border-t border-border/60" />
+
                     <DrawerItem
+                        icon={CircleUser}
+                        label="My Profile"
+                        onClick={() => handleNavigate("/app/profile")}
+                    />
+
+                    <DrawerSwitchRow
                         icon={isDark ? Moon : Sun}
                         label="Dark mode"
-                        onClick={() => setTheme(isDark ? "light" : "dark")}
-                        trailing={
-                            <Switch
-                                checked={isDark}
-                                onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
-                                onClick={(e) => e.stopPropagation()}
-                                aria-label="Toggle dark mode"
-                            />
-                        }
+                        checked={isDark}
+                        onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
                     />
 
                     <div className="my-2 border-t border-border/60" />
