@@ -108,6 +108,16 @@ export enum GetEndpointUrl {
     // AI Agent Builder
     GetAgents = "/agents",
     MyAgentWork = "/ai/agent-work",
+    /**
+     * What the AI did FOR YOU, refusals included.
+     *
+     * The member-scoped twin of GetAIActivity. The server returns the caller's own
+     * agent runs and the decisions recorded against them as the actor; the
+     * workspace-wide log stays on the admin route. Two constants rather than a
+     * flag, because which one a call site uses IS the access decision and it
+     * should be visible at the call site.
+     */
+    MyAIActivity = "/ai/activity",
     AgentWorkForEntity = "/ai/agent-work/for", // append /{entityId}
     GetAgent = "/agents",       // append /{id}
     GetAgentRuns = "/agents",   // append /{id}/runs
