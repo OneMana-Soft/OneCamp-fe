@@ -31,13 +31,20 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
-  "fixed z-[var(--z-modal)] gap-4 bg-background p-6 shadow-xl transition ease-out data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  // Every side scrolls its own content. A sheet with more in it than the screen
+  // can show used to clip the overflow with no way to reach it: the side ones
+  // are bounded by h-full and simply cut off, and the top and bottom ones have
+  // an automatic height and grew off the edge of the screen entirely.
+  //
+  // dvh, not vh: on mobile Safari vh is measured as if the address bar were
+  // hidden, so a 92vh sheet still runs under the bar when it is not.
+  "fixed z-[var(--z-modal)] gap-4 overflow-y-auto overscroll-contain bg-background p-6 shadow-xl transition ease-out data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out",
   {
     variants: {
       side: {
-        top: "inset-x-0 top-0 border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+        top: "inset-x-0 top-0 max-h-[92dvh] border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
         bottom:
-          "inset-x-0 bottom-0 border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          "inset-x-0 bottom-0 max-h-[92dvh] border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
         left: "inset-y-0 left-0 h-full w-full sm:max-w-md border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
         right:
           "inset-y-0 right-0 h-full w-full sm:max-w-md border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
