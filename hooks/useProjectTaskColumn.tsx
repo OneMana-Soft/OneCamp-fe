@@ -1,4 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 
@@ -19,13 +20,14 @@ import {useDispatch} from "react-redux";
 
 export const useProjectTaskColumn = () => {
 
+    const { t } = useTranslation();
     const dispatch = useDispatch();
     const columns: ColumnDef<TaskInfoInterface>[] = [
 
         {
             accessorKey: "task_name",
             header: ({ column }) => (
-                <TaskTableColumnHeader column={column} title={("title")} />
+                <TaskTableColumnHeader column={column} title={t("title")} />
             ),
             cell: ({ row }) => {
                 const label = row.original.task_label;
@@ -61,7 +63,7 @@ export const useProjectTaskColumn = () => {
         {
             accessorKey: "task_status",
             header: ({ column }) => (
-                <TaskTableColumnHeader column={column} title={("status")} />
+                <TaskTableColumnHeader column={column} title={t("status")} />
             ),
             cell: ({ row }) => {
                 const status = taskStatuses.find(
@@ -96,7 +98,7 @@ export const useProjectTaskColumn = () => {
         {
             accessorKey: "task_priority",
             header: ({ column }) => (
-                <TaskTableColumnHeader column={column} title={("priority")} />
+                <TaskTableColumnHeader column={column} title={t("priority")} />
             ),
             cell: ({ row }) => {
                 const priority = priorities.find(
@@ -133,7 +135,7 @@ export const useProjectTaskColumn = () => {
         {
             accessorKey: "task_assignee_name",
             header: ({ column }) => (
-                <TaskTableColumnHeader column={column} title={("assignee")} />
+                <TaskTableColumnHeader column={column} title={t("assignee")} />
             ),
             cell: ({ row }) => (
 
@@ -152,7 +154,7 @@ export const useProjectTaskColumn = () => {
         {
             accessorKey: "task_start_date",
             header: ({ column }) => (
-                <TaskTableColumnHeader column={column} title={("startDate")} />
+                <TaskTableColumnHeader column={column} title={t("startDate")} />
             ),
             cell: ({ row }) =>{
 
@@ -182,7 +184,7 @@ export const useProjectTaskColumn = () => {
         {
             accessorKey: "task_due_date",
             header: ({ column }) => (
-                <TaskTableColumnHeader column={column} title={("dueDate")} />
+                <TaskTableColumnHeader column={column} title={t("dueDate")} />
             ),
             cell: ({ row }) => {
                 const d = new Date(row.getValue("task_due_date"))
@@ -214,7 +216,7 @@ export const useProjectTaskColumn = () => {
         {
             accessorKey: "task_created_at",
             header: ({ column }) => (
-                <TaskTableColumnHeader column={column} title={("createdDate")} />
+                <TaskTableColumnHeader column={column} title={t("createdDate")} />
             ),
             cell: ({ row }) => {
                 const d = new Date(row.getValue("task_created_at"))
