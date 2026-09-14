@@ -43,20 +43,40 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-[var(--z-modal)] mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+        "fixed inset-x-0 bottom-0 z-[var(--z-modal)] flex h-auto flex-col rounded-t-[10px] border bg-background",
+        // A sheet taller than the screen used to grow off the top of it.
+        //
+        // The element is fixed to the bottom with an automatic height, so
+        // `mt-24` never applied: margin does nothing to a fixed box with no
+        // top. Content simply extended past the top edge and was clipped, and
+        // the rows up there could not be reached by any gesture. The More menu
+        // is the one people meet, because it is the longest, but only three of
+        // the twenty-nine drawers handled their own height and none capped it,
+        // so this was every drawer on a short screen.
+        //
+        // dvh, not vh: on mobile Safari `vh` is the tall viewport, measured as
+        // if the address bar were hidden, so a 92vh sheet still runs under the
+        // bar when it is not.
+        "max-h-[92dvh]",
         // Reserve the home-indicator strip. layout.tsx sets viewportFit:"cover",
-        // so a `bottom-0` sheet genuinely extends under it — and the OS owns the
+        // so a `bottom-0` sheet genuinely extends under it, and the OS owns the
         // bottom ~34px for its swipe gesture. Without this the last row of every
         // drawer (Apply/Clear in the filter drawers, the last option in every
         // options drawer) sits where the system swipe wins and the tap opens the
-        // app switcher instead. One line here covers all 26 drawers.
+        // app switcher instead. One line here covers all the drawers.
         "pb-[env(safe-area-inset-bottom)]",
         className
       )}
       {...props}
     >
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      {children}
+      {/* The handle stays put; the content below it scrolls. A drawer whose
+          own body already scrolls keeps doing so and this never engages.
+          overscroll-contain stops a flick at the end of the list from
+          scrolling the page underneath the sheet. */}
+      <div className="mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full bg-muted" />
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+        {children}
+      </div>
     </DrawerPrimitive.Content>
   </DrawerPortal>
 ))
