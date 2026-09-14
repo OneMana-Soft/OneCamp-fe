@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import MarkdownMessage from "@/components/ai/MarkdownMessage";
 
 interface StreamingTextProps {
     /** Text content to display with typewriter effect */
@@ -60,13 +61,15 @@ const StreamingText: React.FC<StreamingTextProps> = ({
 
     return (
         <div ref={containerRef} className={`text-sm leading-relaxed text-foreground max-h-[300px] overflow-y-auto scrollbar-thin ${className}`}>
-            <div className="whitespace-pre-wrap break-words">
-                {displayedText.split("\n").map((line, i) => (
-                    <React.Fragment key={i}>
-                        {line}
-                        {i < displayedText.split("\n").length - 1 && <br />}
-                    </React.Fragment>
-                ))}
+            {/* Rendered as markdown, because that is what a model emits. Printing
+                the characters put a literal "**Summary**", asterisks and all, on
+                the home screen of the live demo for anyone to see. The renderer
+                builds React nodes rather than HTML, so there
+                is no injection surface, and it tolerates the half-finished tokens
+                this component necessarily hands it mid-animation: an unmatched
+                "**" renders as itself until its partner arrives. */}
+            <div className="break-words">
+                <MarkdownMessage content={displayedText} />
                 {isStreaming && <span className="inline-block animate-blink text-primary text-xs ml-[1px] align-text-bottom">▊</span>}
             </div>
         </div>

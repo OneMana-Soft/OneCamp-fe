@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -33,6 +34,7 @@ export function TaskStatusPriorityControl({
                                            onSelectStatus,
                                            onSelectPriority,
                                        }: StatusPriorityControlsProps) {
+    const { t } = useTranslation()
     const [openStatus, setOpenStatus] = React.useState(false)
     const [openPriority, setOpenPriority] = React.useState(false)
 
@@ -49,21 +51,21 @@ export function TaskStatusPriorityControl({
 
                                         </>
                                     ) : (
-                                        <>+ {("setStatus")}</>
+                                        <>+ {t("setStatus")}</>
                                     )}
                                 </Button>
                             </TooltipTrigger>
                         </PopoverTrigger>
                         <TooltipContent>
-                            <p>{("taskStatus")}</p>
+                            <p>{t("taskStatus")}</p>
                         </TooltipContent>
                     </Tooltip>
 
                     <PopoverContent className="p-0" side="right" align="start">
                         <Command>
-                            <CommandInput placeholder={("changeStatusPlaceHolder")} />
+                            <CommandInput placeholder={t("changeStatusPlaceHolder")} />
                             <CommandList>
-                                <CommandEmpty>{("noResultFound")}</CommandEmpty>
+                                <CommandEmpty>{t("noResultFound")}</CommandEmpty>
                                 <CommandGroup>
                                     {taskStatuses.map((status) => (
                                         <CommandItem
@@ -95,21 +97,21 @@ export function TaskStatusPriorityControl({
 
                                         </>
                                     ) : (
-                                        <>+ {("setPriority")}</>
+                                        <>+ {t("setPriority")}</>
                                     )}
                                 </Button>
                             </TooltipTrigger>
                         </PopoverTrigger>
                         <TooltipContent>
-                            <p>{("taskPriority")}</p>
+                            <p>{t("taskPriority")}</p>
                         </TooltipContent>
                     </Tooltip>
 
                     <PopoverContent className="p-0" side="right" align="start">
                         <Command>
-                            <CommandInput placeholder={("changePriority")} />
+                            <CommandInput placeholder={t("changePriority")} />
                             <CommandList>
-                                <CommandEmpty>{("noResultFound")}</CommandEmpty>
+                                <CommandEmpty>{t("noResultFound")}</CommandEmpty>
                                 <CommandGroup>
                                     {priorities.map((p) => (
                                         <CommandItem

@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useDocAI } from "@/services/aiService"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { Sparkles, Loader2, X } from "@/lib/icons"
+import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { withAI } from "@/components/common/withFeature"
 
 interface ThreadSummaryButtonProps {
@@ -74,7 +75,11 @@ const ThreadSummaryButtonUngated: React.FC<ThreadSummaryButtonProps> = ({ getTex
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-        <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap break-words">{summary}</p>
+        {/* The model writes markdown; printing its characters showed the
+            asterisks to the reader. Same renderer the chat bubble uses. */}
+        <div className="text-sm leading-relaxed text-foreground/90 break-words">
+          <MarkdownMessage content={summary} />
+        </div>
       </div>
     )
   }
