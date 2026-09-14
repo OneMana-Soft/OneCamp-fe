@@ -97,6 +97,63 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
 })
 SideNavLink.displayName = "SideNavLink"
 
+/**
+ * One entry in the icon rail.
+ *
+ * An entry that carries an action and no destination — focus mode's
+ * "More" — renders as a button, not a link: it opens the sidebar rather
+ * than navigating, and a link to "#" would jump the page to the top and
+ * announce itself to assistive tech as somewhere to go.
+ */
+const CollapsedNavItem = memo(({ link }: { link: DesktopNavType }) => {
+    const isAction = !!link.action && (!link.path || link.path === "#")
+
+    const itemClass = cn(
+        "flex items-center justify-center h-9 w-9 rounded-md transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        link.variant === "sidebarActive"
+            ? "bg-accent text-accent-foreground"
+            : "text-foreground/80 hover:bg-accent/60 hover:text-foreground",
+    )
+
+    const body = (
+        <>
+            {link?.icon && <link.icon className="h-4 w-4" strokeWidth={1.75} />}
+            <span className="sr-only">{link.title}</span>
+        </>
+    )
+
+    return (
+        <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+                {isAction ? (
+                    <button type="button" onClick={link.action} className={itemClass}>
+                        {body}
+                    </button>
+                ) : (
+                    <Link
+                        href={`${link.path}`}
+                        scroll={false}
+                        aria-current={link.variant === "sidebarActive" ? "page" : undefined}
+                        className={itemClass}
+                    >
+                        {body}
+                    </Link>
+                )}
+            </TooltipTrigger>
+            <TooltipContent side="right" className="flex items-center gap-4">
+                {link.title}
+                {link.label && (
+                    <Badge variant="sidebar" className="ml-auto">
+                        {link.label}
+                    </Badge>
+                )}
+            </TooltipContent>
+        </Tooltip>
+    )
+})
+CollapsedNavItem.displayName = "CollapsedNavItem"
+
 export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:DesktopNavType[], isCollapsed: boolean}) => {
 
 
@@ -108,33 +165,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
             <nav className="grid gap-0.5 px-2 group-[[data-collapsed=true]]:justify-center group-[[data-collapsed=true]]:px-2">
                 {links.map((link, index) =>
                         isCollapsed ? !link.children && (
-                            <Tooltip key={index} delayDuration={0}>
-                                <TooltipTrigger asChild>
-                                    <Link
-                                        href={`${link.path}`}
-                                        scroll={false}
-                                        aria-current={link.variant === "sidebarActive" ? "page" : undefined}
-                                        className={cn(
-                                            "flex items-center justify-center h-9 w-9 rounded-md transition-colors",
-                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                                            link.variant === "sidebarActive"
-                                                ? "bg-accent text-accent-foreground"
-                                                : "text-foreground/80 hover:bg-accent/60 hover:text-foreground",
-                                        )}
-                                    >
-                                        {link?.icon && <link.icon className="h-4 w-4" strokeWidth={1.75} />}
-                                        <span className="sr-only">{link.title}</span>
-                                    </Link>
-                                </TooltipTrigger>
-                                <TooltipContent side="right" className="flex items-center gap-4">
-                                    {link.title}
-                                    {link.label && (
-                                        <Badge variant="sidebar" className="ml-auto">
-                                            {link.label}
-                                        </Badge>
-                                    )}
-                                </TooltipContent>
-                            </Tooltip>
+                            <CollapsedNavItem key={index} link={link} />
                         ) : (
                             link.children ?
                                 <div key={index} className="mt-1.5">
