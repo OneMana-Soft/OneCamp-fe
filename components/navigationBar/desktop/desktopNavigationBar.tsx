@@ -5,21 +5,18 @@ import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from "@/components
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import {cn} from "@/lib/utils/helpers/cn";
 import {DesktopChildrenNavType, DesktopNavType} from "@/types/nav";
-import { Home, Users, Hash, Shield, MessageCircle, Calendar, Clock, Star, Table as TableIcon, Sparkles } from "@/lib/icons";
-import { CircleCheck, ClipboardList, Dot, File as FileIcon, LayoutDashboard, Bell as BellIcon, PanelLeftClose, PanelLeftOpen } from "@/lib/icons";
+import { Users, Hash, MessageCircle, Clock, Star } from "@/lib/icons";
+import { CircleCheck, ClipboardList, File as FileIcon, LayoutDashboard, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from "@/lib/icons";
 import {DesktopSideNavigationBar} from "@/components/navigationBar/desktop/desktopSideNavigationBar";
 import DesktopNavigationTopBar from "@/components/navigationBar/desktop/desktopNavigationTopBar";
 import {useFetch} from "@/hooks/useFetch";
 import {UserDMInterface, UserProfileDataInterface, UserProfileInterface} from "@/types/user";
 import {
-    app_home_path,
     app_channel_path,
     app_chat_path,
     app_project_path,
     app_project_team,
-    app_my_task_path,
-    app_calendar_path,
-    app_grp_chat_path, app_team_path, app_doc_path, app_board_path, app_doc_activity, app_admin, app_tables_path, app_templates_path
+    app_grp_chat_path, app_doc_path, app_board_path
 } from "@/types/paths";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
@@ -41,7 +38,9 @@ import {InlineDocCreator} from "@/components/doc/inlineDocCreator";
 import {InlineBoardCreator} from "@/components/board/inlineBoardCreator";
 import {sortChatList} from "@/lib/utils/sortChatList";
 import {isExternalUser} from "@/lib/utils/isExternalUser";
-import {formatCount} from "@/lib/utils/helpers/formatCount";
+import {buildPrimaryNavLinks} from "@/lib/nav/primaryNavLinks";
+import {FOCUS_SECTION_KEY, FOCUS_SECTION_TITLE, FOLDED_NAV_TITLES, partitionByTitle} from "@/lib/nav/focusMode";
+import {useSidebarDisclosure} from "@/lib/nav/sidebarDisclosure";
 import {batchUpdateChannelCallStatus} from "@/store/slice/channelSlice";
 import {batchUpdateChatCallStatus} from "@/store/slice/chatSlice";
 
@@ -54,19 +53,26 @@ export function DesktopNavigationBar({
 
     const dispatch = useDispatch();
 
-    const path = usePathname().split('/')
+    // Split once per navigation rather than once per render: every nav memo
+    // below keys off this array, and a fresh array each render made all of
+    // them miss and re-render the whole sidebar.
+    const pathname = usePathname()
+    const path = useMemo(() => pathname.split('/'), [pathname])
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [panelSizes, setPanelSizes] = useState([16, 84]); // Default sizes
 
-    const [isProjectOpen, setIsProjectOpen] = useState(false);
-    const [isTeamOpen, setIsTeamOpen] = useState(false);
-    const [isChannelOpen, setIsChannelOpen] = useState(false);
-    const [isChatOpen, setIsChatOpen] = useState(false);
-    const [isRecentOpen, setIsRecentOpen] = useState(true);
-    const [isFavOpen, setIsFavOpen] = useState(true);
-    const [isDocsOpen, setIsDocsOpen] = useState(false);
+    // Section open state is remembered across reloads: focus mode folds
+    // destinations away by default, so re-opening one has to stick.
+    const [isProjectOpen, setIsProjectOpen] = useSidebarDisclosure("projects", false);
+    const [isTeamOpen, setIsTeamOpen] = useSidebarDisclosure("teams", false);
+    const [isChannelOpen, setIsChannelOpen] = useSidebarDisclosure("channels", false);
+    const [isChatOpen, setIsChatOpen] = useSidebarDisclosure("chats", false);
+    const [isRecentOpen, setIsRecentOpen] = useSidebarDisclosure("recent", true);
+    const [isFavOpen, setIsFavOpen] = useSidebarDisclosure("favorites", true);
+    const [isDocsOpen, setIsDocsOpen] = useSidebarDisclosure("docs", false);
+    const [isBoardsOpen, setIsBoardsOpen] = useSidebarDisclosure("boards", false);
+    const [isMoreOpen, setIsMoreOpen] = useSidebarDisclosure(FOCUS_SECTION_KEY, false);
     const [isDocCreatorOpen, setIsDocCreatorOpen] = useState(false);
-    const [isBoardsOpen, setIsBoardsOpen] = useState(false);
     const [isBoardCreatorOpen, setIsBoardCreatorOpen] = useState(false);
 
     const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
@@ -168,76 +174,72 @@ export function DesktopNavigationBar({
 
     const isAdmin = userSideNav.data && userSideNav.data.data.user_is_admin
 
-    const navLinks:DesktopNavType[] = useMemo(() => {
-        const links: DesktopNavType[] = [
+    const navLinks: DesktopNavType[] = useMemo(
+        () => buildPrimaryNavLinks(
+            path,
             {
-                title: 'Home',
+                channel: totalChannelUnread,
+                dm: totalDMUnread,
+                activity: userSidebarState.totalUnreadActivityCount,
+            },
+            !!isAdmin,
+        ),
+        [path, userSidebarState.totalUnreadActivityCount, totalDMUnread, totalChannelUnread, isAdmin],
+    );
+
+    // Focus mode: the surfaces people live in keep the rail; the rest fold
+    // behind one disclosure that remembers having been opened.
+    const {kept: railNavLinks, folded: foldedNavLinks} = useMemo(
+        () => partitionByTitle(navLinks, FOLDED_NAV_TITLES),
+        [navLinks],
+    );
+
+    const isOnFoldedDestination = foldedNavLinks.some(l => l.variant === "sidebarActive");
+
+    useEffect(() => {
+        // Navigating to a folded destination opens the section, so the page
+        // you are on is never hidden inside a closed one.
+        if (isOnFoldedDestination) setIsMoreOpen(true);
+    }, [isOnFoldedDestination, setIsMoreOpen]);
+
+    const moreNavLinks: DesktopNavType[] = useMemo(() => {
+        if (foldedNavLinks.length === 0) return [];
+        if (isCollapsed) {
+            // The icon rail has no room for a disclosure, so the entry
+            // expands the sidebar onto the opened section instead.
+            return [{
+                title: FOCUS_SECTION_TITLE,
                 label: "",
-                icon: Home,
-                variant: (path.length > 2 && path[2] == 'home') ? "sidebarActive" : "ghost",
-                path: app_home_path,
-            },
-            {
-                title: 'Channels',
-                label: formatCount(totalChannelUnread),
-                icon: Hash,
-                variant: (path.length > 2 && path[2] == 'channel') ? "sidebarActive" : "ghost",
-                path: app_channel_path,
-            },
-            {
-                title: 'DMs',
-                label: formatCount(totalDMUnread),
-                icon: MessageCircle,
-                variant: (path.length > 2 && path[2] == 'chat') ? "sidebarActive" : "ghost",
-                path: app_chat_path,
-            },
-            {
-                title: 'My Tasks',
-                label: "",
-                icon: CircleCheck,
-                variant: (path.length > 2 && path[2] == 'myTask') ? "sidebarActive" : "ghost",
-                path: app_my_task_path,
-            },
-            {
-                title: 'Calendar',
-                label: "",
-                icon: Calendar,
-                variant: (path.length > 2 && path[2] == 'calendar') ? "sidebarActive" : "ghost",
-                path: app_calendar_path,
-            },
-            {
-                title: 'Tables',
-                label: "",
-                icon: TableIcon,
-                variant: (path.length > 2 && path[2] == 'tables') ? "sidebarActive" : "ghost",
-                path: app_tables_path,
-            },
-            {
-                title: 'Templates',
-                label: "",
-                icon: Sparkles,
-                variant: (path.length > 2 && path[2] == 'templates') ? "sidebarActive" : "ghost",
-                path: app_templates_path,
-            },
-            {
-                title: 'Activity',
-                label: formatCount(userSidebarState.totalUnreadActivityCount),
-                icon: BellIcon,
-                variant: (path.length > 2 && path[2] == 'activity') ? "sidebarActive" : "ghost",
-                path: app_doc_activity,
-            },
-        ];
-        if (isAdmin) {
-            links.push({
-                title: 'Admin',
-                label: "",
-                icon: Shield,
-                variant: (path.length > 2 && path[2] == 'admin') ? "sidebarActive" : "ghost",
-                path: app_admin,
-            });
+                icon: MoreHorizontal,
+                variant: isOnFoldedDestination ? "sidebarActive" : "ghost",
+                path: "#",
+                action: () => {
+                    setIsMoreOpen(true);
+                    sidebarPanelRef.current?.expand();
+                },
+            }];
         }
-        return links;
-    }, [path, userSidebarState.totalUnreadActivityCount, totalDMUnread, totalChannelUnread, isAdmin]);
+        return [{
+            title: FOCUS_SECTION_TITLE,
+            label: "",
+            icon: MoreHorizontal,
+            variant: "ghost",
+            path: "#",
+            isOpen: isMoreOpen,
+            setIsOpen: setIsMoreOpen,
+            children: foldedNavLinks.map((link): DesktopChildrenNavType => ({
+                title: link.title,
+                path: link.path || "#",
+                variant: link.variant,
+                icon: link.icon,
+            })),
+        }];
+    }, [foldedNavLinks, isCollapsed, isMoreOpen, setIsMoreOpen, isOnFoldedDestination]);
+
+    const primaryNavLinks = useMemo(
+        () => [...railNavLinks, ...moreNavLinks],
+        [railNavLinks, moreNavLinks],
+    );
 
     for (const p of (userSidebarState.userProjects || []).filter(Boolean)) {
         projectNavGrp.push({
@@ -563,7 +565,7 @@ export function DesktopNavigationBar({
                             isCollapsed && "min-w-[0.5rem]"
                         )}
                     >
-                        <DesktopSideNavigationBar isCollapsed={isCollapsed} links={navLinks} />
+                        <DesktopSideNavigationBar isCollapsed={isCollapsed} links={primaryNavLinks} />
                         {favNavLinks.length > 0 && (
                             <div className="border-t border-border/30 pt-2">
                                 <DesktopSideNavigationBar isCollapsed={isCollapsed} links={favNavLinks} />
