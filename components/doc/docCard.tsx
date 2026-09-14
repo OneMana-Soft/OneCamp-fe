@@ -41,7 +41,7 @@ export const DocCard: React.FC<DocCardProps> = ({ doc, onClick, className }) => 
             <div className="flex-1 bg-muted/30 border-b border-border relative overflow-hidden">
                 <DocPreview content={doc.doc_snippet || doc.doc_body} className="w-full h-full" />
                 {/* Hover Overlay */}
-                <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-black/5 opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity" />
             </div>
 
             {/* Metadata Area (Bottom ~1/3) */}

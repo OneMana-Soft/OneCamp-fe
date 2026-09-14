@@ -163,7 +163,7 @@ export function TaskGitHubSection({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 text-3xs gap-1 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                  className="h-7 text-3xs gap-1 shrink-0 sm:opacity-0 pointer-events-none sm:group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
                   onClick={(e) => {
                     e.preventDefault()
                     navigator.clipboard.writeText(task.task_github_branch || "")

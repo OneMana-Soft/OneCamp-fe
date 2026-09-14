@@ -302,7 +302,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                             </Avatar>
                             <label
                                 htmlFor="imageUpload"
-                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 rounded-full cursor-pointer transition-all duration-300 backdrop-blur-[2px]"
+                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto rounded-full cursor-pointer transition-all duration-300 backdrop-blur-[2px]"
                             >
                                 <Camera className="text-white h-8 w-8" />
                             </label>

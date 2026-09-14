@@ -217,7 +217,7 @@ const AiScheduleDialog: React.FC<{
                           {isConfirming ? (
                             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
                           ) : (
-                            <span className="shrink-0 text-2xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                            <span className="shrink-0 text-2xs text-muted-foreground opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto">
                               <Check className="h-4 w-4 text-primary" />
                             </span>
                           )}

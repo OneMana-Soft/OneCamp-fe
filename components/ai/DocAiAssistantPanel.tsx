@@ -266,7 +266,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                         <span className="font-medium text-sm text-foreground">{details.label}</span>
                         <span className="text-2xs text-muted-foreground line-clamp-1">{details.description}</span>
                       </div>
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.15),transparent_70%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.15),transparent_70%)] opacity-0 pointer-events-none transition-opacity duration-300 group-hover:opacity-100" />
                     </Button>
                   );
                 })}

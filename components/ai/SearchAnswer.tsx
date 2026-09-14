@@ -223,7 +223,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
                         <span className="flex items-center gap-1.5">
                           <span className="truncate text-xs font-medium text-foreground">{c.title || "Untitled"}</span>
                           {nav?.external && (
-                            <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                            <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 pointer-events-none transition-opacity group-hover:opacity-100" />
                           )}
                         </span>
                         {c.meta && <span className="block truncate text-2xs text-muted-foreground">{c.meta}</span>}

@@ -183,7 +183,7 @@ export function DataTableCalendar({
                 </span>
                 <button
                   onClick={() => addOnDay(d)}
-                  className="opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  className="opacity-0 pointer-events-none transition-opacity hover:text-foreground group-hover:opacity-100 group-hover:pointer-events-auto"
                   title="Add row on this day"
                 >
                   <Plus className="h-3.5 w-3.5" />

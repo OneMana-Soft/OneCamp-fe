@@ -46,7 +46,7 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
                         e.stopPropagation()
                         onPreview(result)
                     }}
-                    className="p-2 rounded-full hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all opacity-0 group-hover:opacity-100"
+                    className="p-2 rounded-full hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
                     title="Preview Attachment"
                 >
                     <Eye className="h-4 w-4" />

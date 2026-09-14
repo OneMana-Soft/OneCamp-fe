@@ -359,9 +359,13 @@ export const BaseMessageCard = React.memo(({
           <div
             className={cn(
               "absolute right-3 top-1.5 z-10 transition-opacity duration-150",
+              // Opacity hides the toolbar from the eye and not from the mouse.
+              // Invisible, it still covered the top-right of every message in
+              // the list, so clicking a word there hit a react button nobody
+              // could see. It takes clicks only when it is actually shown.
               isDropdownOpen || isEmojiPickerOpen
-                ? "opacity-100"
-                : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+                ? "opacity-100 pointer-events-auto"
+                : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
             )}
           >
             <MessageDesktopHoverOptionsForMainChatAndChannel

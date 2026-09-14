@@ -826,7 +826,7 @@ function MemoryRow({
           "flex items-center gap-0.5 flex-shrink-0 transition-opacity",
           actionsPinned
             ? "opacity-100"
-            : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
+            : "opacity-100 sm:opacity-0 pointer-events-none sm:group-hover:opacity-100 group-hover:pointer-events-auto sm:group-focus-within:opacity-100 focus-within:pointer-events-auto",
         )}
       >
         {/* Due-date picker — open commitments only. Reuses the task DateField

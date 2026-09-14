@@ -48,7 +48,7 @@ export const MessageReplyCount = ({
             <ChevronRight
                 className={cn(
                     "ml-auto hidden h-3.5 w-3.5 text-muted-foreground transition-opacity",
-                    "md:inline opacity-0 group-hover:opacity-100",
+                    "md:inline opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto",
                 )}
             />
         </div>

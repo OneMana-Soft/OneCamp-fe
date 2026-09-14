@@ -146,7 +146,7 @@ export const MessageContent = ({
             {!isMessageEditEnabled && !isGuest && <div
                 className={cn(
                     "absolute -top-0.5 right-2 transition-opacity duration-150 z-[var(--z-dropdown)]",
-                    (isDropdownOpen || isEmojiPickerOpen) || "opacity-0 group-hover:opacity-100",
+                    (isDropdownOpen || isEmojiPickerOpen) || "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto",
                 )}
             >
                 <MessageDesktopHoverOptionsForRightPanelChatAndChannel

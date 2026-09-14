@@ -236,7 +236,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: Da
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-destructive opacity-0 transition-opacity group-hover:opacity-100"
+                      className="h-7 w-7 text-destructive opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
                       disabled={busy}
                       onClick={() => handleDeleteRow(row)}
                       title="Delete row"
