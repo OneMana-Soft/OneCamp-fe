@@ -67,6 +67,15 @@ export const drillStatusUrl = "/admin/governance-drill"
 export const drillSetupUrl = "/admin/governance-drill/setup"
 export const drillRunUrl = "/admin/governance-drill/run"
 
+// The same drill, run by whoever is asking.
+//
+// It exists because the people who most need to believe the guarantee are not
+// admins, and on the public demo nobody is: a visitor could read that agents are
+// bounded by permissions and had no way to make one try. There is no member
+// setup route, because setup creates channels.
+export const myDrillStatusUrl = "/ai/governance-drill"
+export const myDrillRunUrl = "/ai/governance-drill/run"
+
 export async function getDrillStatus(): Promise<DrillStatus | undefined> {
     const res = await axiosInstance.get(drillStatusUrl)
     return (res.data as { data?: DrillStatus })?.data
@@ -79,5 +88,15 @@ export async function setupDrill(): Promise<DrillStatus | undefined> {
 
 export async function runDrill(): Promise<DrillResult | undefined> {
     const res = await axiosInstance.post(drillRunUrl)
+    return (res.data as { data?: DrillResult })?.data
+}
+
+export async function getMyDrillStatus(): Promise<DrillStatus | undefined> {
+    const res = await axiosInstance.get(myDrillStatusUrl)
+    return (res.data as { data?: DrillStatus })?.data
+}
+
+export async function runMyDrill(): Promise<DrillResult | undefined> {
+    const res = await axiosInstance.post(myDrillRunUrl)
     return (res.data as { data?: DrillResult })?.data
 }
