@@ -8,11 +8,18 @@ import { ActivityListTabContent } from "@/components/activity/activityListTabCon
 import { setTotalUnreadActivityCount } from "@/store/slice/userSlice"
 import { clearActivityUnread } from "@/services/unreadCache"
 import { SectionTabs } from "@/components/ui/sectionTabs"
+import MyAIActivityCard from "@/components/ai/MyAIActivityCard"
+import { useAIAvailable } from "@/hooks/useClientConfig"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activity"
 
-const VALID_TABS = ["priority", "all", "mentions", "comments", "reactions"] as const
+// "ai" is the governance filter the UI critique asked for, and it is a TAB rather
+// than a tenth item in the sidebar on purpose. That critique's own finding is that
+// the nav is a hotel lobby of equal doors and the wedge is quiet; answering it by
+// adding another door would make the first problem worse to fix the second. This
+// puts what the AI did in your name inside chrome people already open.
+const VALID_TABS = ["priority", "all", "mentions", "comments", "reactions", "ai"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export function ActivityListTabs() {
@@ -39,6 +46,8 @@ export function ActivityListTabs() {
         return items.filter((a) => a.priority === "high").length
     }, [firstPage])
 
+    const aiAvailable = useAIAvailable()
+
     const tabs = useMemo(
         () => [
             // Cap the visible count at 9+ so the pill stays compact.
@@ -47,8 +56,12 @@ export function ActivityListTabs() {
             { value: "mentions", label: "Mentions" },
             { value: "comments", label: "Comments" },
             { value: "reactions", label: "Reactions" },
+            // Last, and only when there is AI to account for. On the AI-free
+            // edition, and on v2 with AI switched off, an "AI" tab leading to an
+            // empty list would advertise a subsystem this server does not have.
+            ...(aiAvailable ? [{ value: "ai", label: "AI" }] : []),
         ],
-        [priorityCount],
+        [priorityCount, aiAvailable],
     )
 
     const handleChangeTab = useCallback((value: string) => {
@@ -80,7 +93,11 @@ export function ActivityListTabs() {
             icon={Bell}
             title="Activity"
         >
-            <ActivityListTabContent selectedTab={selectedTab} onSelectTab={handleChangeTab} />
+            {selectedTab === "ai" ? (
+                <MyAIActivityCard />
+            ) : (
+                <ActivityListTabContent selectedTab={selectedTab} onSelectTab={handleChangeTab} />
+            )}
         </SectionTabs>
     )
 }
