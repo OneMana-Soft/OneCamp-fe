@@ -40,6 +40,7 @@ import {ChatSkeleton} from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import { FeatureGate } from "@/components/common/withFeature"
+import { WithTooltip } from "@/components/common/withTooltip"
 import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
@@ -61,6 +62,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
     // Fallback to API response when channel isn't in sidebar state yet
     // (e.g. direct navigation from notification/bookmark)
     const channelDisplayName = channelNme?.ch_name || channelInfo.data?.channel_info?.ch_name || "channel";
+    const memberCount = channelInfo.data?.channel_info?.ch_member_count ?? 0;
 
     const channelState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || EMPTY_INPUT_STATE);
 
@@ -232,26 +234,48 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
 
     return (
         <div className='flex flex-col h-full w-full min-w-0'>
-            <div
-                className='flex font-semibold text-lg p-2 truncate overflow-x-hidden overflow-ellipsis justify-start border-b'>
-                <div className='flex justify-center items-center space-x-1'>
-                    <div><Hash className='h-5 w-5 text-muted-foreground'/></div>
-                    <div>{channelDisplayName}</div>
+            {/* The same shell as the DM and group headers: same height, same
+                padding, opaque and sticky. It was a plain div at text-lg that
+                scrolled away with the conversation and let the thread show
+                through it, which is the collision people saw when a thread was
+                open beside it. chatHeaderConsistency.test.ts holds all three to
+                it now. */}
+            <header className='flex items-center justify-between gap-2 h-12 md:h-14 px-3 md:px-4 border-b border-border/60 bg-background sticky top-0 z-[var(--z-sticky)]'>
+                <div className='flex items-center gap-2.5 min-w-0'>
+                    <Hash className='h-4 w-4 shrink-0 text-muted-foreground'/>
+                    <div className='flex flex-col min-w-0'>
+                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>{channelDisplayName}</span>
+                        {/* The second line keeps this header the same height as a
+                            DM's, and a member count is the thing people actually
+                            want to know about a channel they just opened. */}
+                        <span className='text-2xs text-muted-foreground leading-tight'>
+                            {memberCount > 0
+                                ? `${memberCount} ${memberCount === 1 ? "member" : "members"}`
+                                : channelInfo.data?.channel_info.ch_private ? "Private channel" : "Channel"}
+                        </span>
+                    </div>
                 </div>
-                <div className='flex justify-center items-center ml-2'>
-                    <Button size='icon' variant='ghost' onClick={toggleFavourite} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
-                        <Star className={isFavorite ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground'}/>
-                    </Button>
+                <div className='flex items-center gap-0.5 shrink-0'>
+                    <WithTooltip label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
+                        <Button size='icon' variant='ghost' onClick={toggleFavourite} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
+                            <Star className={isFavorite ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground'}/>
+                        </Button>
+                    </WithTooltip>
 
                     <NotificationBell notificationType={channelNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
                     {channelInfo.data?.channel_info.ch_is_admin && (
-                        <Button aria-label="Edit channel" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}}><Pencil /></Button>
+                        <WithTooltip label="Edit channel">
+                            <Button aria-label="Edit channel" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}}><Pencil /></Button>
+                        </WithTooltip>
                     )}
-                    <Button aria-label="Manage channel members" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannelMember', data: { channelUUID: channelId } }))}}> <Users /></Button>
+                    <WithTooltip label="Manage channel members">
+                        <Button aria-label="Manage channel members" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannelMember', data: { channelUUID: channelId } }))}}> <Users /></Button>
+                    </WithTooltip>
                     {/* Calls need a LiveKit server, which the shipped stack does not include.
                         Hidden rather than shown-and-failing when the operator has not run one. */}
                     <FeatureGate feature={FEATURE_CALLS}>
-                    <Link href={channelCallHref}>
+                    <WithTooltip label={channelCallActive ? "Join the call in progress" : "Start a call"}>
+                    <Link href={channelCallHref} aria-label={channelCallActive ? "Join the call in progress" : "Start a call"}>
                     <Button
                         size='icon'
                         variant={channelCallActive ? 'secondary' : 'ghost'}
@@ -269,34 +293,37 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                         )}
                     </Button>
                     </Link>
+                    </WithTooltip>
                     </FeatureGate>
-                    <Link href={channelRecordingHref} aria-label="View recordings"><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
+                    <WithTooltip label="Recordings">
+                        <Link href={channelRecordingHref} aria-label="Recordings"><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
+                    </WithTooltip>
                     <FeatureGate feature={FEATURE_AI}>
+                    {/* The two least guessable icons in the row, and the two the
+                        product is actually about. They say what they do now. */}
+                    <WithTooltip label="Channel memory: decisions, commitments and open questions">
                     <Link
                         href={`/app/ai/memory?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channelDisplayName)}`}
-                        title="Channel memory — decisions, commitments & open questions"
+                        aria-label="Channel memory"
                     >
                         <Button size='icon' variant='ghost' aria-label="Channel memory">
                             <Lightbulb className="text-muted-foreground" />
                         </Button>
                     </Link>
+                    </WithTooltip>
+                    <WithTooltip label="Create tasks from this conversation">
                     <Button
                         size='icon'
                         variant='ghost'
                         aria-label="Create tasks from this conversation"
-                        title="Create tasks from this conversation"
                         onClick={() => dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'channel', sourceId: channelId } }))}
                     >
                         <CheckSquare className="text-muted-foreground" />
                     </Button>
+                    </WithTooltip>
                     </FeatureGate>
-
-
-
                 </div>
-
-
-            </div>
+            </header>
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
                 <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin}/>
             </div>
