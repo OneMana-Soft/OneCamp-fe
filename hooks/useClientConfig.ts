@@ -89,7 +89,11 @@ async function fetchClientConfig(): Promise<ClientConfig> {
         silent: true,
     })
     const data = (res.data as { data?: Partial<ClientConfig> })?.data
-    if (!data) return DEFAULT_CONFIG
+    // A COPY, not DEFAULT_CONFIG itself. Object identity against that constant is
+    // how useFeatureState below tells "the server has not answered yet" from "the
+    // server answered", and returning the shared object here would make a reply
+    // this thin look permanently like silence.
+    if (!data) return { ...DEFAULT_CONFIG }
     // Merge over defaults so a backend that hasn't shipped a field yet (or a
     // partial payload) never yields an undefined transcription_mode.
     return { ...DEFAULT_CONFIG, ...data } as ClientConfig
@@ -102,6 +106,33 @@ export function useClientConfig(): ClientConfig {
         fallbackData: DEFAULT_CONFIG,
     })
     return data ?? DEFAULT_CONFIG
+}
+
+/**
+ * The three answers to "does this server have that subsystem", where useFeature
+ * gives two.
+ *
+ * Collapsing "not yet known" into "no" is right for a button: a control that
+ * appears 200ms late costs nothing, and one that appears and then fails costs
+ * trust. It is wrong for a whole ROUTE, because the same collapse means every
+ * visit to a call page opens on "calling is not available here" and then
+ * replaces it with the call, which reads as a broken product rather than a
+ * careful one.
+ *
+ * So routes get the third state and decide for themselves. The check is object
+ * identity against the fallback: SWR hands back that exact object until the
+ * request resolves, and every real reply is a new one.
+ */
+export type FeatureState = "unknown" | "available" | "unavailable"
+
+export function useFeatureState(name: string): FeatureState {
+    const { data } = useSWR("client-config", fetchClientConfig, {
+        revalidateOnFocus: false,
+        dedupingInterval: 5 * 60 * 1000,
+        fallbackData: DEFAULT_CONFIG,
+    })
+    if (!data || data === DEFAULT_CONFIG) return "unknown"
+    return data.features?.[name] === true ? "available" : "unavailable"
 }
 
 /**

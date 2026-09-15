@@ -11,14 +11,18 @@ import { afterEach, describe, expect, it, vi } from "vitest"
  */
 
 let features: Record<string, boolean> | undefined = { ai: true }
+/** Set to "unknown" to model the config request still being in flight. */
+let featureState: "unknown" | "available" | "unavailable" | null = null
 
 vi.mock("@/hooks/useClientConfig", () => ({
     FEATURE_AI: "ai",
     useClientConfig: () => ({ features }),
     useFeature: (name: string) => features?.[name] === true,
+    useFeatureState: (name: string) =>
+        featureState ?? (features?.[name] === true ? "available" : "unavailable"),
 }))
 
-const { FeatureGate, withAI, withFeature } = await import("./withFeature")
+const { FeatureGate, FeatureRoute, withAI, withFeature } = await import("./withFeature")
 
 const Marker = () => <div>subsystem ui</div>
 const GatedAI = withAI(Marker)
@@ -26,6 +30,7 @@ const GatedAI = withAI(Marker)
 afterEach(() => {
     cleanup()
     features = { ai: true }
+    featureState = null
 })
 
 describe("withFeature", () => {
@@ -159,5 +164,46 @@ describe("FeatureGate", () => {
             </FeatureGate>,
         )
         expect(mounted).not.toHaveBeenCalled()
+    })
+})
+
+describe("FeatureRoute", () => {
+    const page = <div>the call</div>
+
+    it("shows the page when the subsystem is there", () => {
+        features = { calls: true }
+        render(
+            <FeatureRoute feature="calls" title="no calls" description="x">
+                {page}
+            </FeatureRoute>,
+        )
+        expect(screen.queryByText("the call")).not.toBeNull()
+    })
+
+    it("says why instead of showing the page", () => {
+        // The old behaviour was the pre-join screen, a camera permission prompt, and
+        // then a toast blaming guest access after the click. The reason has to arrive
+        // before anything is asked for.
+        features = { calls: false }
+        render(
+            <FeatureRoute feature="calls" title="Calling is not set up on this server" description="Needs LiveKit.">
+                {page}
+            </FeatureRoute>,
+        )
+        expect(screen.queryByText("the call")).toBeNull()
+        expect(screen.queryByText("Calling is not set up on this server")).not.toBeNull()
+    })
+
+    it("waits rather than guessing while the config is in flight", () => {
+        // This is the whole reason a route needs three states. Failing closed here
+        // would open every call page on "not available" and then swap in the call.
+        featureState = "unknown"
+        render(
+            <FeatureRoute feature="calls" title="Calling is not set up on this server" description="Needs LiveKit.">
+                {page}
+            </FeatureRoute>,
+        )
+        expect(screen.queryByText("the call")).toBeNull()
+        expect(screen.queryByText("Calling is not set up on this server")).toBeNull()
     })
 })
