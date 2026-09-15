@@ -637,7 +637,14 @@ export function CalendarApp() {
                     )}
                 </header>
 
-                <div className="flex-1 overflow-y-auto bg-background custom-scrollbar">
+                {/* Scrolls in BOTH directions, which it did not.
+                    The week grid is 760px wide by construction (seven day columns
+                    plus a time gutter) and the month grid was 800px, inside a
+                    scroller that only offered overflow-y and a <main> that clips.
+                    On a phone that did not shrink the calendar, it cut it off:
+                    the last three days of every week were behind the right edge
+                    with nothing to scroll and no way to reach them. */}
+                <div className="flex-1 overflow-y-auto overflow-x-auto overscroll-contain bg-background custom-scrollbar">
                     {(isLoadingEvents || isLoadingTasks) ? (
                         <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] text-muted-foreground gap-4">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -663,8 +670,13 @@ export function CalendarApp() {
                             />
                         </div>
                     ) : (
-                        /* Calendar Grid Container */
-                        <div className="min-w-[800px] flex flex-col h-full">
+                        /* Calendar grid. The month grid fits a phone rather than scrolling on one.
+                           Seven columns at ~55px still carry a date, a dot and the
+                           "+N more" popover, and a month is read as a shape, so a
+                           view you have to pan across is the wrong answer here
+                           even once panning works. The week grid keeps its width:
+                           a timed day column genuinely cannot compress that far. */
+                        <div className="min-w-0 sm:min-w-[800px] flex flex-col h-full">
                             {/* Days of week header */}
                             <div className="grid grid-cols-7 w-full border-b border-border/60 sticky top-0 bg-background z-20 border-l text-center">
                                 {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((dayName) => (

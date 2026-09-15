@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
+import { join, relative } from "node:path"
 
 import { describe, expect, it } from "vitest"
 
@@ -98,5 +98,58 @@ describe("call entry points are gated on a LiveKit server being present", () => 
         expect(palette, "the instant meeting command is not gated on calls").toMatch(
             /id: "start-instant-meeting",\s*\n\s*featureKey: FEATURE_CALLS,/,
         )
+    })
+})
+
+/**
+ * A ROUTE is an entry point too, and that half was missing.
+ *
+ * Hiding the buttons leaves /app/meet/instant and its siblings reachable by every
+ * other means a URL is reached: a link pasted into a channel, a bookmark, browser
+ * history, a guest invite forwarded to a member. What they reached was the
+ * pre-join screen, a camera permission prompt, and a failure after the click that
+ * blamed guest access rather than the missing server.
+ *
+ * The gate belongs in the meet LAYOUT, so that a call route added later is covered
+ * by where it was put rather than by whether somebody remembered.
+ */
+describe("call routes are gated, not only call buttons", () => {
+    const MEET_DIR = join(REPO_ROOT, "app", "app", "meet")
+    const MEET_LAYOUT = join(MEET_DIR, "layout.tsx")
+
+    it("gates the whole meet area in one place", () => {
+        expect(existsSync(MEET_LAYOUT), "app/app/meet/layout.tsx is the one gate for every call route").toBe(true)
+        const layout = readFileSync(MEET_LAYOUT, "utf8")
+        expect(layout).toMatch(/FeatureRoute/)
+        expect(layout).toMatch(/FEATURE_CALLS/)
+    })
+
+    it("keeps every call page underneath that gate", () => {
+        // A page outside app/app/meet would route to a call without passing the
+        // layout, which is exactly the hole this closed.
+        const pages: string[] = []
+        const walk = (dir: string) => {
+            for (const entry of readdirSync(dir)) {
+                const full = join(dir, entry)
+                if (statSync(full).isDirectory()) {
+                    walk(full)
+                    continue
+                }
+                if (entry === "page.tsx") pages.push(relative(REPO_ROOT, full))
+            }
+        }
+        walk(MEET_DIR)
+        expect(pages.length, "the meet area should still have its call pages").toBeGreaterThan(0)
+        for (const p of pages) {
+            expect(p.startsWith(join("app", "app", "meet")), `${p} is a call page outside the gated layout`).toBe(true)
+        }
+    })
+
+    it("does not fail closed while the server is still answering", () => {
+        // The button gates treat "not known yet" as "no", which is right for a
+        // control and wrong for a page: it would open every call route on "calling
+        // is not available" and then replace it with the call.
+        const gate = readFileSync(join(REPO_ROOT, "components", "common", "withFeature.tsx"), "utf8")
+        expect(gate).toMatch(/if \(state === "unknown"\) return null/)
     })
 })

@@ -2,7 +2,9 @@
 
 import type React from "react"
 
-import { FEATURE_AI, useFeature } from "@/hooks/useClientConfig"
+import type { LucideIcon } from "lucide-react"
+import { FEATURE_AI, useFeature, useFeatureState } from "@/hooks/useClientConfig"
+import { EmptyState } from "@/components/ui/empty-state"
 
 /**
  * withFeature hides a component when the backend subsystem it depends on is not
@@ -66,6 +68,48 @@ export function FeatureGate({
 }) {
     const available = useFeature(feature)
     if (!available) return null
+    return <>{children}</>
+}
+
+/**
+ * FeatureRoute is the gate for a whole PAGE, which is the entry point the button
+ * gates above quietly do not cover.
+ *
+ * WHY IT IS NEEDED. Hiding a call button on a build with no LiveKit is only half
+ * the job: /app/meet/instant is still routable, and a bookmark, a link pasted in
+ * a channel, a browser back button or somebody's history all reach it. What they
+ * reached was the pre-join screen, camera permission prompt included, and the
+ * failure arrived only after the user pressed "Start meeting" — as a toast
+ * blaming guest access, which is not what went wrong.
+ *
+ * It waits rather than guessing. The button gates fail closed while the config
+ * request is in flight, which is right for a control and wrong for a page: the
+ * same rule would open every call page on "not available here" and then swap in
+ * the call, which reads as a product that is broken and then recovers. So this
+ * renders nothing at all until the server has answered, and only then decides.
+ */
+export function FeatureRoute({
+    feature,
+    icon,
+    title,
+    description,
+    children,
+}: {
+    feature: string
+    icon?: LucideIcon
+    title: string
+    description: React.ReactNode
+    children: React.ReactNode
+}) {
+    const state = useFeatureState(feature)
+    if (state === "unknown") return null
+    if (state === "unavailable") {
+        return (
+            <div className="flex h-full w-full items-center justify-center p-4">
+                <EmptyState icon={icon} title={title} description={description} tone="accent" />
+            </div>
+        )
+    }
     return <>{children}</>
 }
 
