@@ -10,6 +10,7 @@ import { useCatchUp } from "@/services/aiService"
 import { CatchUpRequest } from "@/services/catchUpService"
 import { isTTLActive, setTTL } from "@/lib/utils/helpers/ttlStorage"
 import { withAI } from "@/components/common/withFeature"
+import { ReadBoundary } from "@/components/ai/ReadBoundary"
 
 const DISMISS_PREFIX = "catchmeup_dismissed_"
 const DISMISS_TTL_MS = 60 * 60 * 1000 // 1 hour
@@ -44,6 +45,9 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
 }) => {
     const [state, setState] = useState<"idle" | "loading" | "summary" | "dismissed">("idle")
     const [summary, setSummary] = useState("")
+    // Held beside the summary, not derived from it: the recap and the boundary it
+    // was produced under are one answer, and they must appear and clear together.
+    const [scopesAllowed, setScopesAllowed] = useState<number | undefined>(undefined)
     const [error, setError] = useState<string | null>(null)
 
     const { catchUp, isLoading } = useCatchUp()
@@ -83,6 +87,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
                 return
             }
             setSummary(result.summary)
+            setScopesAllowed(result.scopes_allowed)
             setState("summary")
         } catch (err: unknown) {
             const e = err as { response?: { data?: { err?: string } }; message?: string }
@@ -195,6 +200,11 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
                         text={summary}
                         isStreaming={false}
                         className="text-sm text-foreground/85 leading-relaxed pl-11"
+                    />
+                    <ReadBoundary
+                        scope={type === "channel" ? "channel" : "chat"}
+                        scopesAllowed={scopesAllowed}
+                        className="pl-11"
                     />
                 </div>
             )}

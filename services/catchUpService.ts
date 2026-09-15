@@ -32,6 +32,12 @@ export interface CatchUpResult {
   scope_name?: string
   since?: string
   provider?: string
+  /**
+   * How many conversations the server was PERMITTED to read for this recap.
+   * Absent on a backend that predates the field, which the UI treats as "do not
+   * claim a boundary" rather than as zero. See components/ai/ReadBoundary.
+   */
+  scopes_allowed?: number
 }
 
 const EMPTY: CatchUpResult = {

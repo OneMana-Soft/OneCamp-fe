@@ -53,6 +53,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { isTTLActive, setTTL } from "@/lib/utils/helpers/ttlStorage"
 import { Sparkles, X, RefreshCw } from "@/lib/icons"
+import { ReadBoundary } from "@/components/ai/ReadBoundary"
 import { withAI } from "@/components/common/withFeature"
 
 // One dismissal key, not one per scope: this card is about the workspace, so
@@ -90,6 +91,9 @@ function WhileYouWereAwayCard({
 
   const [dismissed, setDismissed] = useState(false)
   const [summary, setSummary] = useState("")
+  // Held beside the summary, not derived from it: the recap and the boundary it
+  // was produced under are one answer, and they must appear and clear together.
+  const [scopesAllowed, setScopesAllowed] = useState<number | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -142,6 +146,7 @@ function WhileYouWereAwayCard({
         return
       }
       setSummary(result.summary)
+      setScopesAllowed(result.scopes_allowed)
     } catch (err: unknown) {
       const e = err as { response?: { data?: { err?: string } }; message?: string }
       setError(
@@ -185,7 +190,14 @@ function WhileYouWereAwayCard({
 
       <div className="px-4 py-3.5">
         {summary ? (
-          <MarkdownMessage content={summary} className="text-sm" />
+          <>
+            <MarkdownMessage content={summary} className="text-sm" />
+            <ReadBoundary
+              scope="workspace"
+              scopesAllowed={scopesAllowed}
+              className="mt-3 border-t border-border/50 pt-2.5"
+            />
+          </>
         ) : isLoading ? (
           // Shaped like the recap that replaces it, so the card does not resize
           // when the text lands.
