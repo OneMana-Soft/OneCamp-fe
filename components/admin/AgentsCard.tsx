@@ -354,12 +354,13 @@ const AgentsCard = () => {
                       onCheckedChange={(v) => handleToggle(a, v)}
                       aria-label="Toggle agent"
                     />
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(a)} title="Edit">
+                    <Button variant="ghost" size="icon" aria-label="Edit this agent" className="h-8 w-8" onClick={() => setEditing(a)} title="Edit">
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="See this agent's runs"
                       className="h-8 w-8"
                       onClick={() => setViewingRuns(a)}
                       title="Run history"
@@ -369,6 +370,7 @@ const AgentsCard = () => {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Publish this agent"
                       className="h-8 w-8"
                       onClick={() => setPublishing(a)}
                       title="Save as template"
@@ -378,6 +380,7 @@ const AgentsCard = () => {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Delete this agent"
                       className="h-8 w-8 text-destructive hover:text-destructive"
                       disabled={busyId === a.id}
                       onClick={() => handleDelete(a)}

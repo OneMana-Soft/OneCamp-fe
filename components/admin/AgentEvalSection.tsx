@@ -202,6 +202,7 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
                 <Button
                   variant="ghost"
                   size="icon"
+                  aria-label="Delete this evaluation"
                   className="h-7 w-7 text-destructive hover:text-destructive"
                   onClick={() => handleDelete(s.id)}
                   title="Delete test"

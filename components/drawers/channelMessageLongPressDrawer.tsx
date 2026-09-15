@@ -144,7 +144,7 @@ export function ChannelMessageLongPressDrawer({ drawerOpenState, copyTextToClipb
                                 preSelectedEmojis.map(( e) => {
                                     return (
 
-                                        <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-muted/50 transition-colors" key={e.emojiId} onClick={()=>{emojiClick(e.emojiId)}}>
+                                        <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-muted/50 transition-colors" key={e.emojiId} aria-label={`React with ${e.emojiName}`} onClick={()=>{emojiClick(e.emojiId)}}>
                                             <span className="text-2xl"><span className="text-2xl">{e.emojiString}</span></span>
                                         </Button>
                                     )
@@ -152,16 +152,19 @@ export function ChannelMessageLongPressDrawer({ drawerOpenState, copyTextToClipb
                             }
 
 
-                            <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-muted/50 transition-colors">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="rounded-full h-12 w-12 hover:bg-muted/50 transition-colors"
+                                aria-label="Pick another reaction"
+                                onClick={() => onAddEmoji()}
+                            >
                                 <Image
                                     src={addEmojiIconSrc || "/placeholder.svg?height=28&width=28"}
-                                    alt="Add Emoji"
+                                    alt=""
                                     width={22}
                                     height={22}
-                                    className="hover:cursor-pointer opacity-70 hover:opacity-100 transition-opacity"
-                                    onClick={() => {
-                                        onAddEmoji()
-                                    }}
+                                    className="opacity-70 transition-opacity"
                                 />
                             </Button>
                         </div>

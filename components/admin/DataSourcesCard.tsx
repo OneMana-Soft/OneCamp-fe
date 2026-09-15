@@ -163,6 +163,7 @@ const DataSourcesCard = () => {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Test this connection"
                       className="h-8 w-8"
                       disabled={testingId === s.id || !s.can_manage}
                       onClick={() => handleTest(s)}
@@ -173,6 +174,7 @@ const DataSourcesCard = () => {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Edit this data source"
                       className="h-8 w-8"
                       disabled={!s.can_manage}
                       onClick={() => setEditing(s)}
@@ -183,6 +185,7 @@ const DataSourcesCard = () => {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Delete this data source"
                       className="h-8 w-8 text-destructive hover:text-destructive"
                       disabled={busyId === s.id || !s.can_manage}
                       onClick={() => handleDelete(s)}

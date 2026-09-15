@@ -221,6 +221,7 @@ export function InCallAIPanel({
                         <Button
                             variant="ghost"
                             size="icon"
+                            aria-label="Cancel"
                             onClick={onCancel}
                             className="h-8 w-8 rounded-lg text-white/70 hover:text-white hover:bg-white/10 shrink-0"
                             title="Stop"
@@ -231,6 +232,7 @@ export function InCallAIPanel({
                         <Button
                             variant="ghost"
                             size="icon"
+                            aria-label="Send"
                             onClick={() => submit(input)}
                             disabled={!input.trim() || !aiEnabled}
                             className={cn(

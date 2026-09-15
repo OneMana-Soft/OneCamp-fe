@@ -32,6 +32,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                         <Button
                             variant="ghost"
                             size="icon"
+                            aria-label="Change who this subtask is assigned to"
                             aria-expanded={assigneePopoverOpen}
                             className="rounded-full !p-0 h-10 w-10 flex items-center justify-center"
                         >

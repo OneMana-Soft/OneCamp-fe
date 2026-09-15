@@ -79,6 +79,7 @@ export function PreJoin({ onJoin, username, nameEditable = false, joinLabel = "J
              <Button 
                 variant={audioEnabled ? "secondary" : "destructive"} 
                 size="icon" 
+                aria-label={audioEnabled ? "Mute microphone" : "Unmute microphone"}
                 className="h-10 w-10 rounded-full"
                 onClick={toggleAudio}
              >
@@ -87,6 +88,7 @@ export function PreJoin({ onJoin, username, nameEditable = false, joinLabel = "J
              <Button 
                 variant={videoEnabled ? "secondary" : "destructive"} 
                 size="icon"
+                aria-label={videoEnabled ? "Turn camera off" : "Turn camera on"}
                 className="h-10 w-10 rounded-full"
                  onClick={toggleVideo}
              >
