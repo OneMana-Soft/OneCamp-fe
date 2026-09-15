@@ -164,6 +164,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                     <FeatureGate feature={FEATURE_CALLS}>
                     <Button
                         size='icon'
+                        aria-label={chatCallActive ? "Join the call in progress" : "Start a call"}
                         variant={chatCallActive ? 'secondary' : 'ghost'}
                         className={cn(
                             "relative transition-all duration-300",
