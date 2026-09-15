@@ -337,6 +337,17 @@ const AgentsCard = () => {
                       <AgentOutcomeBadge outcome={outcomes?.data?.[a.id]} />
                       {a.last_error && <Badge variant="destructive" className="text-3xs">Last run failed</Badge>}
                     </div>
+                    {/* Whose permissions bound it. Every other badge on this row
+                        says what the agent may do; this is the only line that
+                        says who it may do it as, and that is the sentence the
+                        product is sold on. */}
+                    <p className="text-xs text-muted-foreground">
+                      {a.created_by_name ? (
+                        <>Acts as <span className="text-foreground/80">{a.created_by_name}</span>, and can do no more than they can.</>
+                      ) : (
+                        <>The person who authorised this agent is no longer in the workspace.</>
+                      )}
+                    </p>
                     {a.description && <p className="text-xs text-muted-foreground">{a.description}</p>}
                     <div className="flex flex-wrap items-center gap-1.5">
                       {tools.slice(0, 5).map((t) => (

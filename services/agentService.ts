@@ -28,6 +28,16 @@ export interface Agent {
   run_in_background?: boolean // durable, progress-reporting async runs for mentions/DMs
   ambient?: boolean // may reply in scoped channels without an @mention
   ambient_keywords?: string // comma/newline topic keywords narrowing ambient candidacy
+  /**
+   * Who authorised this agent, as a name to read.
+   *
+   * The claim the product makes about an agent is that it cannot do what this
+   * person could not, so the list that shows its tools and its autonomy has to
+   * show them too. Filled in by the server for lists; empty when the person
+   * cannot be resolved, which the interface says in words rather than falling
+   * back to an id.
+   */
+  created_by_name?: string
   run_count: number
   last_run_at?: string | null
   last_error?: string | null
