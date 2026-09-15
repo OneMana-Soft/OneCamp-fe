@@ -223,7 +223,7 @@ export default function BoardPage() {
           {(hasEditAccess || isOwner) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Board options">
+                <Button variant="ghost" size="icon" aria-label="Board options" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Board options">
                   <Ellipsis className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

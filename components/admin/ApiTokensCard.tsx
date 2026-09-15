@@ -205,6 +205,7 @@ const ApiTokensCard = () => {
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Revoke this token"
                       className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
                       disabled={busyId === t.id}
                       onClick={() => handleRevoke(t)}

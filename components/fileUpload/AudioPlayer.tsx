@@ -97,6 +97,7 @@ export const AudioPlayer = ({ url }: AudioPlayerProps) => {
                 <div className="flex items-center justify-between gap-4">
                     <Button
                         size="icon"
+                        aria-label={isPlaying ? "Pause" : "Play"}
                         variant="default"
                         className="h-12 w-12 rounded-full shadow-md hover:scale-105 transition-transform"
                         onClick={togglePlay}
@@ -124,6 +125,7 @@ export const AudioPlayer = ({ url }: AudioPlayerProps) => {
                     <div className="flex items-center gap-2 group">
                         <Button
                             size="icon"
+                            aria-label={isMuted ? "Unmute" : "Mute"}
                             variant="ghost"
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             onClick={toggleMute}

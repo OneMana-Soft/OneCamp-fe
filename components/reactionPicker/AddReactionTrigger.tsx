@@ -30,6 +30,7 @@ export const AddReactionTrigger = ({ onReactionSelect, showCustomReactions = fal
                     <Button
                         variant={variant}
                         size="icon"
+                        aria-label="Add a reaction"
                         className={cn(size === "sm" ? "h-6 w-6 mt-1 md:mt-0 rounded-full" : "h-8 w-8")}
                         onMouseLeave={onTriggerMouseLeave}
                     >

@@ -221,7 +221,7 @@ const ArchiveCard = () => {
                       <span className="text-xs text-muted-foreground font-mono">{formatDuration(job)}</span>
                       {job.status === "completed" && !UNSUPPORTED_UNDO.includes(job.entity_type) && (
                         <Button
-                          variant="ghost" size="icon" className="h-7 w-7" title="Undo this archive"
+                          variant="ghost" size="icon" aria-label="Undo this archive job" className="h-7 w-7" title="Undo this archive"
                           onClick={() => handleUndoJob(job.id)}
                           disabled={undoingJobId === job.id}
                         >

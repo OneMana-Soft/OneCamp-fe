@@ -220,21 +220,21 @@ const WebhooksCard = () => {
                   </div>
                   <div className="flex items-center gap-1 flex-wrap shrink-0 -ml-1 sm:ml-0">
                     {webhook.type === "outgoing" && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleTest(webhook.id)} title="Send test event">
+                      <Button variant="ghost" size="icon" aria-label="Send a test delivery" className="h-7 w-7" onClick={() => handleTest(webhook.id)} title="Send test event">
                         <PlayCircle className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit" onClick={() => dispatch(openUI({ key: "webhookEdit", data: {
+                    <Button variant="ghost" size="icon" aria-label="Edit this webhook" className="h-7 w-7" title="Edit" onClick={() => dispatch(openUI({ key: "webhookEdit", data: {
                       id: webhook.id, name: webhook.name, description: webhook.description,
                       type: webhook.type, target_url: webhook.target_url, channel_id: webhook.channel_id,
                       bot_name: webhook.bot_name, events: webhook.events, is_active: webhook.is_active,
                     }}))}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleFetchLogs(webhook.id)} title="View logs">
+                    <Button variant="ghost" size="icon" aria-label="Show recent deliveries" className="h-7 w-7" onClick={() => handleFetchLogs(webhook.id)} title="View logs">
                       <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showLogs === webhook.id ? "rotate-180" : ""}`} />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" title="Delete" onClick={() => dispatch(openUI({ key: "webhookDelete", data: { id: webhook.id, name: webhook.name, type: webhook.type } }))}>
+                    <Button variant="ghost" size="icon" aria-label="Delete this webhook" className="h-7 w-7 text-destructive hover:text-destructive" title="Delete" onClick={() => dispatch(openUI({ key: "webhookDelete", data: { id: webhook.id, name: webhook.name, type: webhook.type } }))}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -263,7 +263,7 @@ const WebhooksCard = () => {
                       {tokenVisible[webhook.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                     </Button>
                     <Button aria-label="Copy token" variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(webhook.token)}><Copy className="h-3 w-3" /></Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRegenerateToken(webhook.id)} title="Regenerate token"><RefreshCw className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="icon" aria-label="Regenerate the token" className="h-6 w-6" onClick={() => handleRegenerateToken(webhook.id)} title="Regenerate token"><RefreshCw className="h-3 w-3" /></Button>
                   </div>
                   {webhook.type === "outgoing" && webhook.secret && (
                     <div className="flex items-center gap-2">
@@ -275,7 +275,7 @@ const WebhooksCard = () => {
                         {secretVisible[webhook.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                       </Button>
                       <Button aria-label="Copy signing secret" variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(webhook.secret!)}><Copy className="h-3 w-3" /></Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRegenerateSecret(webhook.id)} title="Regenerate secret"><RefreshCw className="h-3 w-3" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Regenerate the signing secret" className="h-6 w-6" onClick={() => handleRegenerateSecret(webhook.id)} title="Regenerate secret"><RefreshCw className="h-3 w-3" /></Button>
                     </div>
                   )}
                   {webhook.type === "outgoing" && webhook.target_url && (

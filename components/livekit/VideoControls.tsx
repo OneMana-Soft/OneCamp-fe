@@ -317,6 +317,7 @@ function ControlBtn({ label, isActive, activeClass, className, children, ...prop
                     <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={label}
                         className={cn(
                             "h-12 w-12 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-all border border-transparent",
                             isActive && activeClass,

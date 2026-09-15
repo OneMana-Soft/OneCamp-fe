@@ -20,7 +20,7 @@ export const HoverReactionPicker = ({onReactionIdSelected, setPopupState}: hover
 
     return(
         <ReactionPicker showCustomReactions={false} onReactionSelect={onReactionSelect} setPopupState={setPopupState}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button variant="ghost" size="icon" aria-label="Pick a reaction" className="h-8 w-8">
 
                 <Image src={addEmojiIconSrc || "/placeholder.svg?height=24&width=24"} alt="Add Emoji"  className='h-4 w-4' />
             </Button>

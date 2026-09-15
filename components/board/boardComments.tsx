@@ -430,16 +430,16 @@ function CommentThread({
         <span className="text-xs font-medium">{comment.resolved ? "Resolved" : "Comment"}</span>
         <div className="flex items-center gap-1">
           {editable && (
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onResolve} title={comment.resolved ? "Reopen" : "Resolve"}>
+            <Button variant="ghost" size="icon" aria-label="Resolve this comment" className="h-6 w-6" onClick={onResolve} title={comment.resolved ? "Reopen" : "Resolve"}>
               <Check className={cn("h-3.5 w-3.5", comment.resolved && "text-success")} />
             </Button>
           )}
           {canManage && (
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onDelete} title="Delete">
+            <Button variant="ghost" size="icon" aria-label="Delete this comment" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onDelete} title="Delete">
               <Trash className="h-3.5 w-3.5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} title="Close">
+          <Button variant="ghost" size="icon" aria-label="Close comments" className="h-6 w-6" onClick={onClose} title="Close">
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>

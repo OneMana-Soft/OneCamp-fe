@@ -210,12 +210,13 @@ const WorkflowsCard = () => {
                                             onCheckedChange={(v) => handleToggle(wf, v)}
                                             aria-label="Toggle workflow"
                                         />
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(wf)} title="Edit">
+                                        <Button variant="ghost" size="icon" aria-label="Edit this workflow" className="h-8 w-8" onClick={() => setEditing(wf)} title="Edit">
                                             <Pencil className="h-3.5 w-3.5" />
                                         </Button>
                                         <Button
                                             variant="ghost"
                                             size="icon"
+                                            aria-label="Publish this workflow"
                                             className="h-8 w-8"
                                             onClick={() => setPublishing(wf)}
                                             title="Save as template"
@@ -225,6 +226,7 @@ const WorkflowsCard = () => {
                                         <Button
                                             variant="ghost"
                                             size="icon"
+                                            aria-label="Delete this workflow"
                                             className="h-8 w-8 text-destructive hover:text-destructive"
                                             disabled={busyId === wf.id}
                                             onClick={() => handleDelete(wf)}
