@@ -16,6 +16,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { Sparkles, Shield } from "@/lib/icons"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import type { AIActivityItem } from "@/services/aiActivityService"
+import { ChainPair } from "@/components/admin/ChainPair"
 
 function relativeTime(iso: string): string {
   const t = new Date(iso).getTime()
@@ -93,6 +94,11 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
           <span>·</span>
           <span>{relativeTime(it.at)}</span>
         </div>
+        {/* Where this sits in the audit log, for the rows that came from it.
+            The feed is the readable account and the log is the provable one;
+            without this they were two stories about one event, and a member,
+            who cannot open the log, had no way to check the claim at all. */}
+        <ChainPair seq={it.seq} prevHash={it.prev_hash} entryHash={it.entry_hash} className="mt-1" />
       </div>
     </li>
   )

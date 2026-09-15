@@ -39,6 +39,7 @@ import {
     ShieldCheck,
 } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { ChainPair } from "@/components/admin/ChainPair"
 import {
     getDrillStatus,
     runDrill,
@@ -55,12 +56,6 @@ import {
  * anchor scrolls past the cards above it.
  */
 const AUDIT_LOG_HREF = "/app/admin?tab=settings#audit-log"
-
-/** A hash is identified by its ends; the middle is noise at this size. */
-function shortHash(hash?: string): string {
-    if (!hash || hash.length <= 16) return hash || ""
-    return `${hash.slice(0, 8)}…${hash.slice(-8)}`
-}
 
 function formatWhen(iso: string): string {
     if (!iso) return ""
@@ -97,17 +92,10 @@ export const AuditRowLine: React.FC<{ row: DrillAuditRow }> = ({ row }) => (
             <span className="shrink-0 font-mono font-medium">{row.action}</span>
             <span className="min-w-0 flex-1 text-muted-foreground">{row.summary}</span>
         </div>
-        {/* Both hashes, never just one. A single fingerprint demonstrates nothing;
-            the LINK is the claim, so the row shows what it carried forward and what
-            it produced. */}
+        {/* The same component the activity feed uses, so one event reads the same
+            way wherever it is shown. */}
         {row.entry_hash ? (
-            <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 font-mono text-[0.7rem] text-muted-foreground">
-                <span title={row.prev_hash || "nothing: this is the first entry in the chain"}>
-                    prev {row.prev_hash ? shortHash(row.prev_hash) : "— first entry"}
-                </span>
-                <span aria-hidden>→</span>
-                <span title={row.entry_hash}>this {shortHash(row.entry_hash)}</span>
-            </div>
+            <ChainPair prevHash={row.prev_hash} entryHash={row.entry_hash} className="mt-1" />
         ) : null}
     </div>
 )

@@ -25,4 +25,20 @@ export interface AIActivityItem {
   at: string // RFC3339
   agent_id?: string
   run_id?: string
+
+  /**
+   * Where this sits in the audit chain, on the rows that came from it.
+   *
+   * The feed is the readable account of an event and the audit log is the
+   * provable one; carrying the position and the hash pair is what makes them
+   * one story rather than two. Both hashes or neither: a single fingerprint
+   * demonstrates nothing, since anyone can hash a row they just wrote. The link
+   * is the claim.
+   *
+   * Absent on an agent run, which is not a chain entry and has no position to
+   * report.
+   */
+  seq?: number
+  prev_hash?: string
+  entry_hash?: string
 }
