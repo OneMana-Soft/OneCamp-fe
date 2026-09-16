@@ -17,14 +17,19 @@ export default function AdminSetupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isChecking, setIsChecking] = useState(true)
+  // The install can name the one address allowed to claim this workspace. When it
+  // has, say so under the field, so the operator is not left to learn the rule
+  // from a refusal.
+  const [pinned, setPinned] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
 
   useEffect(() => {
-    authService.checkAdminSetupRequired().then((required) => {
+    authService.getAdminSetupStatus().then(({ required, pinned }) => {
       if (!required) {
         router.push("/")
       } else {
+        setPinned(pinned)
         setIsChecking(false)
       }
     })
@@ -120,6 +125,11 @@ export default function AdminSetupPage() {
                 className="pl-10"
               />
             </div>
+            {pinned && (
+              <p className="text-xs text-muted-foreground">
+                This server accepts only the address given when it was installed.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -140,7 +150,7 @@ export default function AdminSetupPage() {
                 className="pl-10"
               />
             </div>
-            <p className="text-xs text-muted-foreground">Optional — defaults to email prefix</p>
+            <p className="text-xs text-muted-foreground">Optional. Defaults to the part of your email before the @.</p>
           </div>
 
           <div className="space-y-2">

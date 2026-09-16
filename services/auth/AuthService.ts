@@ -216,17 +216,30 @@ class AuthService {
         }
     }
 
-    static async checkAdminSetupRequired(): Promise<boolean> {
+    /**
+     * Whether the workspace still has no admin, and whether the install named
+     * who that admin must be.
+     *
+     * `pinned` is a boolean and never the address: the endpoint answers anyone,
+     * and the admin's email is not theirs to have. The setup page uses it only to
+     * say "use the address you gave the installer" before the operator finds out
+     * from a refusal.
+     */
+    static async getAdminSetupStatus(): Promise<{ required: boolean; pinned: boolean }> {
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/admin-setup-required`,
                 { credentials: 'include' }
             );
             const data = await res.json();
-            return data.required === true;
+            return { required: data.required === true, pinned: data.pinned === true };
         } catch {
-            return false;
+            return { required: false, pinned: false };
         }
+    }
+
+    static async checkAdminSetupRequired(): Promise<boolean> {
+        return (await AuthService.getAdminSetupStatus()).required;
     }
 
     static async adminSetup(email: string, password: string, username: string): Promise<{ ok: boolean; msg: string }> {

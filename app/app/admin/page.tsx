@@ -36,7 +36,7 @@ import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } 
 import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useMedia } from "@/context/MediaQueryContext"
-import { FEATURE_AI, FEATURE_CALLS, useFeature } from "@/hooks/useClientConfig"
+import { FEATURE_AI, FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
 
 /**
  * Vertical rhythm between top-level cards on a tab that holds more than one.
@@ -79,17 +79,36 @@ const AdminPage = () => {
   const searchParams = useSearchParams()
   const {isDesktop } = useMedia();
   const { toast } = useToast()
-  const aiAvailable = useFeature(FEATURE_AI)
-  const callsAvailable = useFeature(FEATURE_CALLS)
+  // Two tabs exist only when the server has the subsystem behind them, and the
+  // page cannot know that until the config request answers. It used to read the
+  // two-state hook, which reports "no" while that request is in flight, and pick
+  // its tab ONCE from that answer: a cold load of /app/admin?tab=ai-models, which
+  // is what every link to the drill card is, therefore opened on Teams and stayed
+  // there. The setup checklist sent a new admin to see an agent refused and
+  // landed them on a list of teams.
+  const aiState = useFeatureState(FEATURE_AI)
+  const callsState = useFeatureState(FEATURE_CALLS)
+  const aiAvailable = aiState === "available"
+  const callsAvailable = callsState === "available"
   const visibleTabs = TABS.filter((tab) => {
     if (tab.value === "ai-models") return aiAvailable
     if (tab.value === "transcription") return callsAvailable
     return true
   })
   const requestedTab = searchParams.get("tab") || "teams"
-  const defaultTab = visibleTabs.some((tab) => tab.value === requestedTab)
-    ? requestedTab
-    : "teams"
+  const requestedTabVisible = visibleTabs.some((tab) => tab.value === requestedTab)
+  // The URL asked for a gated tab and the server has not said yet whether it
+  // exists. Falling back to Teams here would be answering before the question
+  // was asked, and the fallback would stick.
+  const gateForRequested =
+    requestedTab === "ai-models" ? aiState : requestedTab === "transcription" ? callsState : "available"
+  const waitingOnRequestedTab = gateForRequested === "unknown"
+  const [activeTab, setActiveTab] = useState(requestedTabVisible ? requestedTab : "teams")
+  useEffect(() => {
+    // Honour the URL the moment its tab becomes real. After that the user owns
+    // the selection: this only re-runs when the answer itself changes.
+    if (requestedTabVisible) setActiveTab(requestedTab)
+  }, [requestedTab, requestedTabVisible])
   const processed = useRef(false)
 
   // Horizontal scroll affordance for the tab strip — show fade + arrow
@@ -169,8 +188,12 @@ const AdminPage = () => {
       </header>
 
       {/* Content */}
+      {waitingOnRequestedTab ? (
+        <div role="status" aria-label="Loading admin settings" className="flex-1 min-h-0" />
+      ) : (
       <Tabs
-        defaultValue={defaultTab}
+        value={activeTab}
+        onValueChange={setActiveTab}
         className="flex-1 min-h-0 flex flex-col"
       >
         {/* Sticky tab strip — horizontally scrollable on narrow widths */}
@@ -371,6 +394,7 @@ const AdminPage = () => {
           </div>
         </div>
       </Tabs>
+      )}
     </main>
   )
 }
