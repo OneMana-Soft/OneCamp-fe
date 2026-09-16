@@ -13,6 +13,8 @@ import { AdminInvitationList } from "./AdminInvitationList"
 import { useFetch } from "@/hooks/useFetch"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
+import { toast } from "@/hooks/use-toast"
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 
 const InvitationCard = () => {
   const dispatch = useDispatch()
@@ -26,6 +28,7 @@ const InvitationCard = () => {
   const invitations = response?.data || []
   const post = usePost()
   const confirm = useConfirm()
+  const { copy } = useCopyToClipboard()
 
   // Confirmed: revoking invalidates the link already sitting in someone's inbox, so
   // the consequence lands on a person outside this screen who will just find a dead
@@ -67,16 +70,31 @@ const InvitationCard = () => {
     )
   }
 
+  // Resend answers with the link and whether an email actually went out, the
+  // same as creating one does. With mail set up the toast confirms it; without,
+  // the link is put on the clipboard, because "resent" on a server that cannot
+  // send is the same lie the create dialog used to tell.
   const handleResendInvitation = async (email: string) => {
     if (!email || resendingEmail) return
     setResendingEmail(email)
     try {
-      await post.makeRequest({
+      const answer = await post.makeRequest<{ email: string }, { invite_link?: string; email_sent?: boolean }>({
         apiEndpoint: PostEndpointUrl.ResendInvitation,
         payload: { email },
         method: "POST",
       })
       mutate()
+      if (answer?.email_sent) {
+        toast({ title: "Invitation resent", description: `A new email is on its way to ${email}.` })
+      } else if (answer?.invite_link) {
+        const ok = await copy(answer.invite_link)
+        toast({
+          title: "Invitation link ready",
+          description: ok
+            ? "This server cannot send email, so the new link is on your clipboard. Share it yourself."
+            : `This server cannot send email. Share this link yourself: ${answer.invite_link}`,
+        })
+      }
     } catch (error) {
       console.error("Failed to resend invitation:", error)
     } finally {
