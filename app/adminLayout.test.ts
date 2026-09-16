@@ -133,3 +133,32 @@ describe("admin page section spacing", () => {
     ).toEqual([])
   })
 })
+
+/**
+ * A deep link to a gated tab must land on that tab.
+ *
+ * The transcription tab exists only when the server has LiveKit behind it, and
+ * the page cannot know that until the config request answers. It used to pick
+ * its tab ONCE from the two-state hook, which reports "no" while that request is
+ * in flight, through an uncontrolled `defaultValue`. So a cold load of
+ * /app/admin?tab=transcription opened on Teams and stayed there.
+ */
+describe("admin page honours a deep link to a gated tab", () => {
+    it("does not pick the tab once from a fallback", () => {
+        expect(rawSource, "an uncontrolled Tabs cannot change its mind when the config arrives").not.toMatch(
+            /<Tabs[\s\S]{0,200}defaultValue=/,
+        )
+        expect(rawSource).toMatch(/<Tabs[\s\S]{0,200}value=\{activeTab\}/)
+    })
+
+    it("asks the three-state hook, not the two-state one, for the gated tab", () => {
+        // useFeature collapses "not known yet" into "no", which is the exact
+        // collapse that sent the deep link to Teams.
+        expect(rawSource).not.toMatch(/useFeature\(FEATURE_(AI|CALLS)\)/)
+        expect(rawSource).toMatch(/useFeatureState\(FEATURE_CALLS\)/)
+    })
+
+    it("waits for the answer rather than rendering Teams and correcting itself", () => {
+        expect(rawSource).toMatch(/waitingOnRequestedTab \?/)
+    })
+})
