@@ -61,7 +61,7 @@ export function EmailOffBanner({ isAdmin }: { isAdmin?: boolean }) {
             <p className="flex-1">
                 This workspace cannot send email, so password resets and invitations will fail
                 silently.{" "}
-                <Link href="/app/admin" className="font-medium underline underline-offset-2">
+                <Link href="/app/admin?tab=email-settings" className="font-medium underline underline-offset-2">
                     Add a sending key in Admin settings
                 </Link>
                 .
