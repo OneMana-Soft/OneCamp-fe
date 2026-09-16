@@ -99,12 +99,18 @@ async function fetchClientConfig(): Promise<ClientConfig> {
     return { ...DEFAULT_CONFIG, ...data } as ClientConfig
 }
 
-export function useClientConfig(): ClientConfig {
-    const { data } = useSWR("client-config", fetchClientConfig, {
+// One SWR key, one set of options, shared by every reader below so they cannot
+// drift into two caches of the same request.
+function useClientConfigRequest() {
+    return useSWR("client-config", fetchClientConfig, {
         revalidateOnFocus: false,
         dedupingInterval: 5 * 60 * 1000,
         fallbackData: DEFAULT_CONFIG,
     })
+}
+
+export function useClientConfig(): ClientConfig {
+    const { data } = useClientConfigRequest()
     return data ?? DEFAULT_CONFIG
 }
 
@@ -126,11 +132,7 @@ export function useClientConfig(): ClientConfig {
 export type FeatureState = "unknown" | "available" | "unavailable"
 
 export function useFeatureState(name: string): FeatureState {
-    const { data } = useSWR("client-config", fetchClientConfig, {
-        revalidateOnFocus: false,
-        dedupingInterval: 5 * 60 * 1000,
-        fallbackData: DEFAULT_CONFIG,
-    })
+    const { data } = useClientConfigRequest()
     if (!data || data === DEFAULT_CONFIG) return "unknown"
     return data.features?.[name] === true ? "available" : "unavailable"
 }
