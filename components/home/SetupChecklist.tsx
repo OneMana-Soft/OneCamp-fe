@@ -181,7 +181,11 @@ export const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                         )}
                         {/* OUTSIDE the Link, not inside it. A button nested in an
                             anchor is invalid, and the click would navigate as well
-                            as set the step aside. */}
+                            as set the step aside.
+
+                            The label names no provider. It first read "Not coming
+                            from Slack", which asked a team arriving from Jira the
+                            wrong question about a step that covers them too. */}
                         {step.skippable && !step.skipped && !step.done && (
                             <div className="-mt-1 pb-2 pl-7">
                                 <Button
@@ -190,7 +194,7 @@ export const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                                     className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
                                     onClick={() => toggleSkipped(step.id, true)}
                                 >
-                                    Not coming from Slack
+                                    Nothing to import
                                 </Button>
                             </div>
                         )}

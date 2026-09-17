@@ -65,7 +65,10 @@ const TABS: TabDef[] = [
   { value: "integrations", label: "Integrations", icon: GitBranch },
   { value: "external-users", label: "External Users", icon: UserX },
   { value: "archive", label: "Archive", icon: Archive },
-  { value: "slack-import", label: "Slack Import", icon: Database },
+  // ONE IMPORT TAB, NOT TWO. "Slack Import" and "Import" sat next to each other
+  // with the same icon and no way to tell which held what, so an admin looking
+  // for their migration had to open both and read the cards. They are one
+  // question — how do I get my existing work in — and now one place.
   { value: "import", label: "Import", icon: Database },
 ]
 
@@ -84,7 +87,13 @@ const AdminPage = () => {
     if (tab.value === "transcription") return callsAvailable
     return true
   })
-  const requestedTab = searchParams.get("tab") || "teams"
+  // ?tab=slack-import still resolves, because links to it exist in the wild: the
+  // onboarding step pointed there, and so did anything an admin bookmarked. A
+  // merged tab that broke its own old address would be a worse fix than the
+  // confusion it removed.
+  const TAB_ALIASES: Record<string, string> = { "slack-import": "import" }
+  const rawTab = searchParams.get("tab") || "teams"
+  const requestedTab = TAB_ALIASES[rawTab] ?? rawTab
   const requestedTabVisible = visibleTabs.some((tab) => tab.value === requestedTab)
   // The URL asked for a gated tab and the server has not said yet whether it
   // exists. Falling back to Teams here would be answering before the question
@@ -351,11 +360,13 @@ const AdminPage = () => {
               <TabsContent value="archive" className="mt-0 outline-none">
                 <ArchiveCard />
               </TabsContent>
-              <TabsContent value="slack-import" className="mt-0 outline-none">
-                <SlackImportCard />
-              </TabsContent>
               <TabsContent value="import" className="mt-0 outline-none">
-                <ImportCard />
+                <div className={ADMIN_SECTION_STACK}>
+                  {/* Slack first: chat history is the migration most teams arrive
+                      with, and the other providers carry projects and tasks. */}
+                  <SlackImportCard />
+                  <ImportCard />
+                </div>
               </TabsContent>
             </div>
           </div>
