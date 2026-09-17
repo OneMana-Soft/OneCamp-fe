@@ -86,6 +86,23 @@ export interface AuditVerifyResult {
     first_bad_seq?: number
     first_bad_id?: string
     message: string
+    /**
+     * Fields the SERVER HAS ALWAYS SENT and this file never declared.
+     *
+     * The audit model reports all three on both editions. Declaring none of them
+     * meant the two numbers that qualify a verification result — how much of the
+     * chain was actually walked, and how many rows were taken at their word after
+     * redaction — were dropped between the server and the screen. "The last 500
+     * entries verify", "the log has not been altered" and "I verified every row"
+     * are three different claims, and an auditor is entitled to know which one
+     * they are being given.
+     */
+    /** True when only a WINDOW of the chain was recomputed, seeded from its first row's stored hash. */
+    partial?: boolean
+    /** Where that window began, so a reader can see what was not covered. */
+    from_seq?: number
+    /** How many rows had their content cleared by retention and so could not be recomputed from. */
+    redacted?: number
 }
 
 // verifyAuditLog recomputes the server-side hash chain and reports whether the
@@ -109,15 +126,64 @@ export async function verifyAuditLog(): Promise<AuditVerifyResult | null> {
  * by leaving the fields empty.
  */
 export async function downloadEvidencePack(from?: Date, to?: Date): Promise<void> {
+    const res = await axiosInstance.get(evidencePackUrl(from, to), { responseType: "blob" })
+    downloadBlob(res.data as BlobPart, "application/json", "onecamp-evidence-pack.json")
+}
+
+/**
+ * One URL for both readers of the pack, so the document on screen and the file an
+ * auditor verifies cannot be built from different windows.
+ */
+function evidencePackUrl(from?: Date, to?: Date): string {
     const params = new URLSearchParams()
     if (from) params.set("from", from.toISOString())
     if (to) params.set("to", to.toISOString())
     const query = params.toString()
-    const res = await axiosInstance.get(
-        `${GetEndpointUrl.GetAdminAuditLog}/evidence-pack${query ? `?${query}` : ""}`,
-        { responseType: "blob" },
-    )
-    downloadBlob(res.data as BlobPart, "application/json", "onecamp-evidence-pack.json")
+    return `${GetEndpointUrl.GetAdminAuditLog}/evidence-pack${query ? `?${query}` : ""}`
+}
+
+/** One fingerprinted part of the pack. The digest is over that section's JSON. */
+export interface EvidenceManifestEntry {
+    section: string
+    rows: number
+    sha256: string
+    describes: string
+}
+
+/**
+ * The assembled pack, as the server builds it.
+ *
+ * `sections` is deliberately untyped. Sections are CONTRIBUTED by whichever
+ * packages this edition links, so the set differs between the AI and AI-free
+ * builds and grows without this file being touched. A renderer that knew the
+ * section names would silently drop a new one; the manifest is the index, and it
+ * comes from the same document.
+ */
+export interface EvidencePack {
+    pack: { generated_at: string; generated_by: string; from: string; to: string; product: string }
+    integrity: {
+        chain_verification: AuditVerifyResult | null
+        manifest: EvidenceManifestEntry[]
+        pack_fingerprint: string
+    }
+    sections: Record<string, unknown>
+    how_to_verify: string[]
+    limits: string[]
+}
+
+/**
+ * getEvidencePack reads the same document downloadEvidencePack saves, for showing
+ * on screen rather than handing over.
+ *
+ * WHY BOTH EXIST. The pack is assembled, fingerprinted and honest about its own
+ * limits, and it was only ever available as a .json file. Nobody hands an auditor
+ * a JSON file; they hand them a document. But the file is what verifies, because
+ * the fingerprint is a digest of those exact bytes, so the readable version is a
+ * READING of the pack rather than a replacement for it and has to say so.
+ */
+export async function getEvidencePack(from?: Date, to?: Date): Promise<EvidencePack | null> {
+    const res = await axiosInstance.get(evidencePackUrl(from, to))
+    return (res.data as EvidencePack) ?? null
 }
 
 /**
