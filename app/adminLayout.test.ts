@@ -166,3 +166,39 @@ describe("admin page honours a deep link to a gated tab", () => {
         expect(rawSource).toMatch(/waitingOnRequestedTab \?/)
     })
 })
+
+/**
+ * One import tab, and the old address still works.
+ *
+ * "Slack Import" and "Import" sat next to each other with the same icon and no
+ * way to tell which held what, so an admin looking for their migration had to
+ * open both and read the cards. They answer one question — how do I get my
+ * existing work in — and the pipeline behind them takes eight providers, of
+ * which Slack is one.
+ *
+ * The alias is not optional: links to ?tab=slack-import exist in the wild, and a
+ * merged tab that broke its own old address would be a worse fix than the
+ * confusion it removed.
+ */
+describe("import is one tab", () => {
+    it("does not offer two tabs for the same question", () => {
+        expect(rawSource).not.toMatch(/value: "slack-import"/)
+        expect(rawSource).toMatch(/value: "import"/)
+    })
+
+    it("keeps both cards, so nothing was dropped in the merge", () => {
+        expect(rawSource).toMatch(/<SlackImportCard \/>/)
+        expect(rawSource).toMatch(/<ImportCard \/>/)
+    })
+
+    it("still resolves the old address", () => {
+        expect(rawSource).toMatch(/"slack-import": "import"/)
+    })
+
+    it("spaces the two cards, like every other multi-card tab", () => {
+        // The bug this file already guards: a tab that gains a second card and no
+        // wrapper renders them flush and reads as one section.
+        const tab = rawSource.match(/<TabsContent value="import"[\s\S]*?<\/TabsContent>/)?.[0] ?? ""
+        expect(tab).toContain("ADMIN_SECTION_STACK")
+    })
+})
