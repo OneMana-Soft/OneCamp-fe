@@ -74,6 +74,17 @@ describe("what a receipt says about its window", () => {
         expect(receiptRows({ manifest: manifest([1, 2, 3, 4]) })).toBe(10)
     })
 
+    it("leaves out a section describing the deployment rather than the window", () => {
+        // retention_policy contributes one row to every window forever. Counting
+        // it made nine consecutive empty months read as months with something in
+        // them, each anchored with an identical fingerprint.
+        const withPolicy = [
+            { section: "audit_log", rows: 0, sha256: "x", describes: "" },
+            { section: "retention_policy", rows: 1, sha256: "y", describes: "", contextual: true },
+        ]
+        expect(receiptRows({ manifest: withPolicy })).toBe(0)
+    })
+
     it("names redacted rows rather than folding them into the verdict", () => {
         const s = receiptSummary({ chain_ok: true, chain_checked: 900, chain_redacted: 12, manifest: manifest([900]) })
         expect(s).toContain("12 taken at their word")

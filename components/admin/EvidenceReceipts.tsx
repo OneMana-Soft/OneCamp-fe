@@ -43,9 +43,15 @@ export function shortFingerprint(hash: string): string {
  * 17 rows" when it means "the log has 17 rows and they verify". The window's own
  * total comes from the manifest, and totals every section including one this
  * code has never heard of.
+ *
+ * Contextual sections are left out. retention_policy describes the deployment
+ * and contributes one row to every window forever, so counting it made nine
+ * consecutive empty months read as months with something in them.
  */
 export function receiptRows(r: Pick<EvidenceReceipt, "manifest">): number {
-    return (r.manifest ?? []).reduce((n, m) => n + (m.rows ?? 0), 0)
+    return (r.manifest ?? [])
+        .filter((m) => !m.contextual)
+        .reduce((n, m) => n + (m.rows ?? 0), 0)
 }
 
 /**

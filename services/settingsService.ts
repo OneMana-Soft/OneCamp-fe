@@ -148,6 +148,16 @@ export interface EvidenceManifestEntry {
     rows: number
     sha256: string
     describes: string
+    /**
+     * A section describing the DEPLOYMENT rather than the window: the retention
+     * policy in force, say, which is the same one row whether the month held ten
+     * thousand records or none.
+     *
+     * Declared by whichever package contributes the section and carried here, so
+     * a reader counting "what happened this month" can leave it out without
+     * knowing which sections exist.
+     */
+    contextual?: boolean
 }
 
 /**
