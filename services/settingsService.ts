@@ -196,6 +196,53 @@ export async function getEvidencePack(from?: Date, to?: Date): Promise<EvidenceP
 }
 
 /**
+ * What a completed month's pack said, at the time it said it.
+ *
+ * A pack can always be regenerated; a receipt is the only record of what the
+ * EARLIER one contained. Retention redacts row content once it passes the
+ * window, so a pack rebuilt later over the same month verified fewer rows and
+ * took more of them at their word, and says "verified" either way. The receipt
+ * is taken while the rows are intact and stores no content, only the
+ * fingerprint, the per-section digests and the counts.
+ */
+export interface EvidenceReceipt {
+    id: string
+    period_start: string
+    period_end: string
+    generated_at: string
+    pack_fingerprint: string
+    manifest: EvidenceManifestEntry[]
+    chain_ok: boolean
+    chain_checked: number
+    chain_redacted: number
+}
+
+export async function listEvidenceReceipts(): Promise<EvidenceReceipt[]> {
+    const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}/receipts`)
+    return (res.data as { data?: EvidenceReceipt[] })?.data ?? []
+}
+
+/**
+ * The address of the document for a receipt's window.
+ *
+ * Built from the receipt rather than from a date picker, so the page a reader
+ * opens covers exactly the window the fingerprint was computed over. Two
+ * different windows would produce two different fingerprints and one confused
+ * reader.
+ */
+export function evidencePageHref(r: Pick<EvidenceReceipt, "period_start" | "period_end">): string {
+    const params = new URLSearchParams({ from: r.period_start, to: r.period_end })
+    return `/app/admin/evidence?${params.toString()}`
+}
+
+/** A period as a person says it: "August 2026". */
+export function receiptLabel(r: Pick<EvidenceReceipt, "period_start">): string {
+    const d = new Date(r.period_start)
+    if (Number.isNaN(d.getTime())) return r.period_start
+    return d.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" })
+}
+
+/**
  * downloadBlob turns a response body into a saved file.
  *
  * Extracted because a second caller needed the same eight lines, and the object

@@ -6,6 +6,7 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
+import EvidenceReceipts from "@/components/admin/EvidenceReceipts"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -341,6 +342,7 @@ export default function AdminAuditLog() {
                         ))}
                     </div>
                 )}
+                            <EvidenceReceipts />
             </CardContent>
         </Card>
     )
