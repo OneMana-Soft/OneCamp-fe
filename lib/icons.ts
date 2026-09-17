@@ -67,6 +67,7 @@ export {
   Trash2,
   Save,
   Download,
+  Printer,
   Upload,
   Copy,
   Pin,

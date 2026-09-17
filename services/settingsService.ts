@@ -96,6 +96,16 @@ export interface AuditVerifyResult {
     partial?: boolean
     /** Where the window began, so a reader can see what was not covered. */
     from_seq?: number
+    /**
+     * How many rows had their content cleared by the retention policy and so
+     * could not be recomputed from it.
+     *
+     * The server has always sent this and nothing here declared it, so the one
+     * number that separates "I verified this row" from "I took this row's word
+     * for it" was dropped on the floor between the two. An auditor is entitled
+     * to both, which is why the server reports them separately.
+     */
+    redacted?: number
 }
 
 /**
@@ -125,15 +135,64 @@ export async function verifyAuditLog(scope: "recent" | "full" = "recent"): Promi
  * by leaving the fields empty.
  */
 export async function downloadEvidencePack(from?: Date, to?: Date): Promise<void> {
+    const res = await axiosInstance.get(evidencePackUrl(from, to), { responseType: "blob" })
+    downloadBlob(res.data as BlobPart, "application/json", "onecamp-evidence-pack.json")
+}
+
+/**
+ * One URL for both readers of the pack, so the document on screen and the file an
+ * auditor verifies cannot be built from different windows.
+ */
+function evidencePackUrl(from?: Date, to?: Date): string {
     const params = new URLSearchParams()
     if (from) params.set("from", from.toISOString())
     if (to) params.set("to", to.toISOString())
     const query = params.toString()
-    const res = await axiosInstance.get(
-        `${GetEndpointUrl.GetAdminAuditLog}/evidence-pack${query ? `?${query}` : ""}`,
-        { responseType: "blob" },
-    )
-    downloadBlob(res.data as BlobPart, "application/json", "onecamp-evidence-pack.json")
+    return `${GetEndpointUrl.GetAdminAuditLog}/evidence-pack${query ? `?${query}` : ""}`
+}
+
+/** One fingerprinted part of the pack. The digest is over that section's JSON. */
+export interface EvidenceManifestEntry {
+    section: string
+    rows: number
+    sha256: string
+    describes: string
+}
+
+/**
+ * The assembled pack, as the server builds it.
+ *
+ * `sections` is deliberately untyped. Sections are CONTRIBUTED by whichever
+ * packages this edition links, so the set differs between the AI and AI-free
+ * builds and grows without this file being touched. A renderer that knew the
+ * section names would silently drop a new one; the manifest is the index, and it
+ * comes from the same document.
+ */
+export interface EvidencePack {
+    pack: { generated_at: string; generated_by: string; from: string; to: string; product: string }
+    integrity: {
+        chain_verification: AuditVerifyResult | null
+        manifest: EvidenceManifestEntry[]
+        pack_fingerprint: string
+    }
+    sections: Record<string, unknown>
+    how_to_verify: string[]
+    limits: string[]
+}
+
+/**
+ * getEvidencePack reads the same document downloadEvidencePack saves, for showing
+ * on screen rather than handing over.
+ *
+ * WHY BOTH EXIST. The pack is assembled, fingerprinted and honest about its own
+ * limits, and it was only ever available as a .json file. Nobody hands an auditor
+ * a JSON file; they hand them a document. But the file is what verifies, because
+ * the fingerprint is a digest of those exact bytes, so the readable version is a
+ * READING of the pack rather than a replacement for it and has to say so.
+ */
+export async function getEvidencePack(from?: Date, to?: Date): Promise<EvidencePack | null> {
+    const res = await axiosInstance.get(evidencePackUrl(from, to))
+    return (res.data as EvidencePack) ?? null
 }
 
 /**

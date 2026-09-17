@@ -5,6 +5,7 @@
 // never recorded server-side, so this is safe to surface to any admin.
 
 import React, { useEffect, useState } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -250,16 +251,34 @@ export default function AdminAuditLog() {
                             <Download className="h-3.5 w-3.5" />
                             JSON
                         </Button>
+                        {/* READ FIRST, DOWNLOAD SECOND, and that order is the point.
+                            The pack was assembled, fingerprinted and honest about its
+                            own limits, and the only way to meet it was a .json file.
+                            Nobody hands an auditor a JSON file; the primary action is
+                            now the document, with the file beside it for the reader
+                            who is going to verify the digests. */}
+                        {/* A LINK, not a button with a push. The pack is a document
+                            somebody sends to somebody else, so open-in-new-tab and
+                            copy-link have to work, and a router push gives neither. */}
+                        <Button asChild variant="default" size="sm" className="h-8 gap-1.5 text-xs">
+                            <Link
+                                href="/app/admin/evidence"
+                                title="The log, the chain recomputation, what each agent was told, and a manifest fingerprinting every section, as one document you can read, print or send"
+                            >
+                                <FileArchive className="h-3.5 w-3.5" />
+                                Evidence pack
+                            </Link>
+                        </Button>
                         <Button
-                            variant="default"
+                            variant="outline"
                             size="sm"
                             className="h-8 gap-1.5 text-xs"
                             onClick={handleEvidencePack}
                             disabled={exporting}
-                            title="The log, the chain recomputation, what each agent was told, and a manifest fingerprinting every section, as one document"
+                            title="The same pack as a file. The fingerprint is a digest of these bytes, so verification happens against the file."
                         >
-                            <FileArchive className="h-3.5 w-3.5" />
-                            Evidence pack
+                            <Download className="h-3.5 w-3.5" />
+                            Pack file
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => load(filter)} aria-label="Refresh">
                             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
