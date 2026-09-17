@@ -32,6 +32,7 @@ import { CheckCircle2, Circle, ArrowRight, X } from "@/lib/icons"
 import {
     getOnboardingStatus,
     dismissOnboarding,
+    setStepSkipped,
     type OnboardingState,
 } from "@/services/onboardingService"
 
@@ -95,6 +96,22 @@ export const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
         })
     }, [])
 
+    // Set a step aside, or put it back.
+    //
+    // Re-read rather than patched locally: the counts and the ordering are the
+    // backend's to decide, and a card that recomputed them here would be a second
+    // implementation of the same rules waiting to disagree with the first.
+    const toggleSkipped = useCallback((id: string, skipped: boolean) => {
+        void setStepSkipped(id, skipped)
+            .then(getOnboardingStatus)
+            .then((s) => setState(s ?? null))
+            .catch(() => {
+                /* the list is re-derived on the next load anyway */
+            })
+    }, [])
+
+    const [showSkipped, setShowSkipped] = useState(false)
+
     // Checked on the client rather than server-side so the endpoint stays a plain
     // description of the workspace rather than a rendering decision.
     if (!shouldShowChecklist(isAdmin, hidden, state)) return null
@@ -124,8 +141,23 @@ export const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                 already says it. */}
             <ul className="mt-4 flex flex-col divide-y divide-border/60">
                 {state.steps.map((step) => (
-                    <li key={step.id}>
-                        {step.done ? (
+                    <li key={step.id} hidden={step.skipped && !showSkipped}>
+                        {step.skipped ? (
+                            <div className="flex items-center gap-3 py-2.5">
+                                <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+                                <span className="min-w-0 flex-1 text-sm text-muted-foreground">
+                                    {step.title}
+                                </span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 shrink-0 text-xs text-muted-foreground hover:text-foreground"
+                                    onClick={() => toggleSkipped(step.id, false)}
+                                >
+                                    Put back
+                                </Button>
+                            </div>
+                        ) : step.done ? (
                             <div className="flex items-center gap-3 py-2.5">
                                 <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
                                 <span className="text-sm text-muted-foreground line-through">
@@ -147,9 +179,38 @@ export const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                                 <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 pointer-events-none transition-opacity group-hover:opacity-100" />
                             </Link>
                         )}
+                        {/* OUTSIDE the Link, not inside it. A button nested in an
+                            anchor is invalid, and the click would navigate as well
+                            as set the step aside. */}
+                        {step.skippable && !step.skipped && !step.done && (
+                            <div className="-mt-1 pb-2 pl-7">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                                    onClick={() => toggleSkipped(step.id, true)}
+                                >
+                                    Not coming from Slack
+                                </Button>
+                            </div>
+                        )}
                     </li>
                 ))}
             </ul>
+
+            {/* The way back. A list you can hide things from has to be a list you
+                can get them back from, or "not now" is indistinguishable from
+                losing the feature. */}
+            {state.skipped > 0 && !showSkipped && (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-1 h-7 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowSkipped(true)}
+                >
+                    {state.skipped} set aside. Show
+                </Button>
+            )}
         </Card>
     )
 }

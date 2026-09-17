@@ -18,6 +18,7 @@ const state = (over: Partial<OnboardingState> = {}): OnboardingState => ({
     done: 0,
     total: 1,
     complete: false,
+    skipped: 0,
     ...over,
 })
 
@@ -77,4 +78,28 @@ describe("the Recent card's empty state", () => {
   it("says what will fill it", () => {
     expect(dashboard).toContain("appear here")
   })
+})
+
+/**
+ * A step set aside must not count as finished.
+ *
+ * The temptation is to fold a skipped step into `done`, which makes the counter
+ * read nicely and makes the card claim work that nobody did. Skipped is its own
+ * number: it leaves the total, so the card can still say when the rest is
+ * genuinely complete, and it stays visible as a count so the step can be
+ * recovered.
+ */
+describe("a step that was set aside", () => {
+    it("still lets the rest of the list complete", () => {
+        const s = state({ steps: [], done: 0, total: 0, complete: true, skipped: 1 })
+        // Complete with nothing left is the card's own vanishing condition, and a
+        // set-aside step must not hold it open.
+        expect(shouldShowChecklist(true, false, s)).toBe(false)
+    })
+
+    it("is counted separately from the work that was done", () => {
+        const s = state({ done: 1, total: 1, complete: true, skipped: 2 })
+        expect(s.done).toBe(1)
+        expect(s.skipped).toBe(2)
+    })
 })
