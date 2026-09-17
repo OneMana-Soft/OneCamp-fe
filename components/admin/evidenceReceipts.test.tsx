@@ -9,7 +9,7 @@ vi.mock("@/services/settingsService", async (orig) => {
     return { ...actual, listEvidenceReceipts: async () => receipts }
 })
 
-const { EvidenceReceipts, receiptSummary, shortFingerprint } = await import("./EvidenceReceipts")
+const { EvidenceReceipts, receiptRows, receiptSummary, shortFingerprint } = await import("./EvidenceReceipts")
 const { evidencePageHref, receiptLabel } = await import("@/services/settingsService")
 
 const receipt = (over: Partial<EvidenceReceipt> = {}): EvidenceReceipt => ({
@@ -56,23 +56,37 @@ describe("the months already fingerprinted", () => {
     })
 })
 
-describe("what a receipt says about its verification", () => {
-    it("names redacted rows rather than folding them into the verified count", () => {
-        // "I verified this row" and "I took this row's word for it" are different
-        // statements, which is why the server reports them separately.
-        expect(receiptSummary({ chain_ok: true, chain_checked: 900, chain_redacted: 12 })).toBe(
-            "900 rows verified, 12 taken at their word",
-        )
+describe("what a receipt says about its window", () => {
+    const manifest = (rows: number[]) =>
+        rows.map((n, i) => ({ section: `s${i}`, rows: n, sha256: "x", describes: "" }))
+
+    it("counts the window from the manifest, not from the chain verification", () => {
+        // The chain count walks the WHOLE log, so it is the same number on every
+        // month's receipt. Showing it per month reads as "August had 17 rows"
+        // when it means "the log has 17 rows and they verify".
+        const r = { chain_ok: true, chain_checked: 17, chain_redacted: 0, manifest: manifest([40, 2]) }
+        expect(receiptRows(r)).toBe(42)
+        expect(receiptSummary(r)).toContain("42 rows")
+        expect(receiptSummary(r)).not.toContain("17")
     })
 
-    it("does not report a count as reassurance when the chain failed", () => {
-        const s = receiptSummary({ chain_ok: false, chain_checked: 900, chain_redacted: 0 })
+    it("totals a section it has never heard of", () => {
+        expect(receiptRows({ manifest: manifest([1, 2, 3, 4]) })).toBe(10)
+    })
+
+    it("names redacted rows rather than folding them into the verdict", () => {
+        const s = receiptSummary({ chain_ok: true, chain_checked: 900, chain_redacted: 12, manifest: manifest([900]) })
+        expect(s).toContain("12 taken at their word")
+    })
+
+    it("says the chain failed rather than leading with a reassuring count", () => {
+        const s = receiptSummary({ chain_ok: false, chain_checked: 900, chain_redacted: 0, manifest: manifest([900]) })
         expect(s).toContain("did not verify")
-        expect(s).not.toContain("900")
     })
 
     it("reads as English at one row", () => {
-        expect(receiptSummary({ chain_ok: true, chain_checked: 1, chain_redacted: 0 })).toBe("1 row verified")
+        const s = receiptSummary({ chain_ok: true, chain_checked: 1, chain_redacted: 0, manifest: manifest([1]) })
+        expect(s).toBe("1 row, log verified")
     })
 })
 
