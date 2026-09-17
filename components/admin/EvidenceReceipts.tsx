@@ -36,16 +36,36 @@ export function shortFingerprint(hash: string): string {
 }
 
 /**
- * What the receipt says about its own verification, in words.
+ * How much this window actually contains, from the manifest the pack emitted.
+ *
+ * NOT the chain verification's count. That one walks the whole log and is
+ * therefore the same number on every month's receipt, which reads as "August had
+ * 17 rows" when it means "the log has 17 rows and they verify". The window's own
+ * total comes from the manifest, and totals every section including one this
+ * code has never heard of.
+ */
+export function receiptRows(r: Pick<EvidenceReceipt, "manifest">): number {
+    return (r.manifest ?? []).reduce((n, m) => n + (m.rows ?? 0), 0)
+}
+
+/**
+ * What the receipt says, in words: what was in the window, then whether the log
+ * it came from verifies.
  *
  * Redacted rows are named rather than folded in, because "I verified this row"
  * and "I took this row's word for it" are different statements and the server
  * reports them separately for that reason.
  */
-export function receiptSummary(r: Pick<EvidenceReceipt, "chain_ok" | "chain_checked" | "chain_redacted">): string {
-    if (!r.chain_ok) return "the chain did not verify"
-    const rows = `${r.chain_checked} row${r.chain_checked === 1 ? "" : "s"} verified`
-    return r.chain_redacted > 0 ? `${rows}, ${r.chain_redacted} taken at their word` : rows
+export function receiptSummary(
+    r: Pick<EvidenceReceipt, "chain_ok" | "chain_checked" | "chain_redacted" | "manifest">,
+): string {
+    const n = receiptRows(r)
+    const inWindow = `${n} row${n === 1 ? "" : "s"}`
+    if (!r.chain_ok) return `${inWindow}, and the chain did not verify`
+    const verified = r.chain_redacted > 0
+        ? `log verified, ${r.chain_redacted} taken at their word`
+        : "log verified"
+    return `${inWindow}, ${verified}`
 }
 
 export const EvidenceReceipts: React.FC = () => {
