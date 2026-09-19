@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { SkillLibraryDialog } from "@/components/admin/SkillLibraryDialog"
+import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -1155,7 +1156,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                   <div className="mb-1 flex items-center gap-1.5 text-xs font-medium">
                     Status: <span className="capitalize">{outcome.status}</span> · {outcome.steps} step{outcome.steps === 1 ? "" : "s"}
                   </div>
-                  {outcome.result && <p className="whitespace-pre-wrap text-sm text-foreground">{outcome.result}</p>}
+                  {outcome.result && <MarkdownMessage content={outcome.result} className="text-sm text-foreground" />}
                   {outcome.error && <p className="text-xs text-destructive">{outcome.error}</p>}
                 </div>
               )}

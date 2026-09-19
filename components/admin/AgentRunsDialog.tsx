@@ -15,6 +15,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import MarkdownMessage from "@/components/ai/MarkdownMessage"
 import { sha256Hex } from "@/lib/sha256"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
@@ -538,7 +539,7 @@ const RunProvenance: React.FC<{ run: AgentRun; current: Map<string, string> }> =
   )
 }
 
-const RunRow: React.FC<{ run: AgentRun; currentSkills: Map<string, string> }> = ({ run, currentSkills }) => {
+export const RunRow: React.FC<{ run: AgentRun; currentSkills: Map<string, string> }> = ({ run, currentSkills }) => {
   const [open, setOpen] = useState(false)
   const steps = parseRunSteps(run)
   return (
@@ -587,7 +588,9 @@ const RunRow: React.FC<{ run: AgentRun; currentSkills: Map<string, string> }> = 
           {run.result && (
             <div className="rounded-md border border-border/60 bg-muted/30 p-2">
               <div className="mb-1 text-2xs font-medium text-muted-foreground">Final result</div>
-              <p className="whitespace-pre-wrap text-xs text-foreground">{run.result}</p>
+              {/* The result is what the agent would have posted: markdown and any chart it
+                  drew, rendered the way a channel would render them rather than as source. */}
+              <MarkdownMessage content={run.result} className="text-xs text-foreground" />
             </div>
           )}
         </div>
