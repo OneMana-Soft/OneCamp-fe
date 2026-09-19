@@ -327,6 +327,11 @@ const AgentsCard = () => {
                       <Badge variant="outline" className="text-3xs">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</Badge>
                       {!a.is_active && <Badge variant="secondary" className="text-3xs">Paused</Badge>}
                       {a.dm_able && <Badge variant="secondary" className="text-3xs text-primary">DM</Badge>}
+                      {a.agui_endpoint && (
+                        <Badge variant="secondary" className="text-3xs" title={"Reasons at " + a.agui_endpoint + ". This workspace supplies the tools, the rules and the record."}>
+                          Remote
+                        </Badge>
+                      )}
                       {a.run_in_background && <Badge variant="secondary" className="text-3xs" title="Answers mentions & DMs as durable background runs with live status">Background</Badge>}
                       {a.autonomy === "approval" && <Badge variant="secondary" className="text-3xs text-amber-600">Approval</Badge>}
                       {a.autonomy === "plan" && <Badge variant="secondary" className="text-3xs text-amber-600">Plan-approve</Badge>}

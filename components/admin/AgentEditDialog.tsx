@@ -183,6 +183,11 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   // value is still carried so an agent saved with it stays exactly as configured —
   // one fewer decision in the builder, no behaviour change to existing agents.
   const [runInBackground, setRunInBackground] = React.useState(false)
+  // A remote brain (AG-UI). The secret field is write-only: it starts blank
+  // even when one is stored, and blank on save keeps what is stored.
+  const [aguiEndpoint, setAguiEndpoint] = React.useState("")
+  const [aguiAuthHeader, setAguiAuthHeader] = React.useState("")
+  const [aguiAuthSecret, setAguiAuthSecret] = React.useState("")
   const [ambient, setAmbient] = React.useState(false)
   const [ambientKeywords, setAmbientKeywords] = React.useState("")
   const [autonomy, setAutonomy] = React.useState<"auto" | "approval" | "plan">("auto")
@@ -268,6 +273,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setAmbient(!!agent.ambient)
       setAmbientKeywords(agent.ambient_keywords || "")
       setRunInBackground(!!agent.run_in_background)
+      setAguiEndpoint(agent.agui_endpoint || "")
+      setAguiAuthHeader(agent.agui_auth_header || "")
+      setAguiAuthSecret("")
       setAutonomy(agent.autonomy === "approval" ? "approval" : agent.autonomy === "plan" ? "plan" : "auto")
     } else {
       setName("")
@@ -293,6 +301,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setAmbient(false)
       setAmbientKeywords("")
       setRunInBackground(false)
+      setAguiEndpoint("")
+      setAguiAuthHeader("")
+      setAguiAuthSecret("")
       setAutonomy("auto")
     }
     setError(null)
@@ -460,6 +471,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       ambient_keywords: ambientKeywords.trim(),
       run_in_background: runInBackground,
       autonomy,
+      agui_endpoint: aguiEndpoint.trim(),
+      agui_auth_header: aguiAuthHeader.trim(),
+      agui_auth_secret: aguiAuthSecret,
       knowledge: Array.from(knowledgeChannelIds).map((id) => ({
         type: "channel" as const,
         id,
@@ -1057,6 +1071,63 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 <p className="-mt-1 text-xs text-muted-foreground">
                   Leave on the workspace default unless this agent needs a specific provider/model.
                   Cloud models are blocked while local-only AI mode is on.
+                  {aguiEndpoint.trim() && " Ignored while a remote agent is set below."}
+                </p>
+              </div>
+
+              {/* A remote brain. The agent's reasoning happens at an AG-UI endpoint
+                  (LangGraph, CrewAI, Mastra, an OpenBot bot, anything that speaks
+                  it); this workspace supplies the tools, the rules and the record.
+                  Every call the remote asks for passes the same checks as any
+                  agent's, which is the whole reason this is a field on an agent
+                  rather than a separate kind of thing. */}
+              <div className="grid gap-2">
+                <Label htmlFor="agent-agui-endpoint">Remote agent (AG-UI endpoint)</Label>
+                <Input
+                  id="agent-agui-endpoint"
+                  placeholder="https://bots.example.com/ag-ui"
+                  value={aguiEndpoint}
+                  onChange={(e) => setAguiEndpoint(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {aguiEndpoint.trim() !== "" && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid gap-1">
+                      <Label htmlFor="agent-agui-header" className="text-xs">Auth header</Label>
+                      <Input
+                        id="agent-agui-header"
+                        placeholder="Authorization (Bearer)"
+                        value={aguiAuthHeader}
+                        onChange={(e) => setAguiAuthHeader(e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label htmlFor="agent-agui-secret" className="text-xs">Secret</Label>
+                      <Input
+                        id="agent-agui-secret"
+                        type="password"
+                        placeholder={agent?.agui_auth_set ? "Stored. Leave blank to keep it." : "Optional"}
+                        value={aguiAuthSecret}
+                        onChange={(e) => setAguiAuthSecret(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+                )}
+                {agent?.agui_auth_unreadable && (
+                  <p className="text-xs text-destructive">
+                    The stored secret cannot be read (usually the encryption key changed). Enter it again or the agent cannot run.
+                  </p>
+                )}
+                <p className="-mt-1 text-xs text-muted-foreground">
+                  Leave empty to run on this workspace&apos;s model. With an endpoint set, the agent&apos;s reasoning happens
+                  there and this workspace supplies the tools, the rules and the record: every call it asks for passes the
+                  same permission, scope, approval and audit checks as any agent. Whatever it does on its own machine is
+                  outside those checks and is shown in the run as the remote&apos;s own account. In local-only AI mode only
+                  endpoints on your own network are reachable.
                 </p>
               </div>
 

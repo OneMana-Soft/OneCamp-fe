@@ -29,6 +29,17 @@ export interface Agent {
   ambient?: boolean // may reply in scoped channels without an @mention
   ambient_keywords?: string // comma/newline topic keywords narrowing ambient candidacy
   /**
+   * A remote brain. When agui_endpoint is set the agent's reasoning happens at
+   * that AG-UI endpoint and this workspace supplies the tools, the rules and
+   * the record. The secret is never returned; agui_auth_set says one is
+   * stored, and agui_auth_unreadable says it is stored but cannot be read and
+   * must be entered again.
+   */
+  agui_endpoint?: string
+  agui_auth_header?: string
+  agui_auth_set?: boolean
+  agui_auth_unreadable?: boolean
+  /**
    * Who authorised this agent, as a name to read.
    *
    * The claim the product makes about an agent is that it cannot do what this
@@ -59,6 +70,10 @@ export interface AgentRunStep {
     // "blocked" (refused — not permitted / out of scope). Absent for normal
     // calls; unknown values render as no special badge.
     governance?: string
+    // The remote brain answered this call itself, on its own machine. This
+    // workspace did not run it and could not have refused it; the record is
+    // the remote's own account, kept so the transcript is whole.
+    remote?: boolean
   }>
   // Instructions a person sent WHILE the run was in progress, folded in before
   // this step. Recorded so the transcript explains why the agent changed course
@@ -182,6 +197,11 @@ export interface AgentInput {
   run_in_background?: boolean
   ambient?: boolean
   ambient_keywords?: string
+  // A remote brain. Empty endpoint means none. The secret is write-only:
+  // blank on an edit keeps the stored one.
+  agui_endpoint?: string
+  agui_auth_header?: string
+  agui_auth_secret?: string
 }
 
 // KnowledgeRef is a curated grounding source attached to an agent.

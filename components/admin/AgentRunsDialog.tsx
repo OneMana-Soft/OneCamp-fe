@@ -442,6 +442,15 @@ const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
         <div key={i} className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="outline" className="text-3xs">{toolLabel(tc.tool)}</Badge>
+            {tc.remote && (
+              <Badge
+                variant="secondary"
+                className="text-3xs"
+                title="The remote agent ran this itself, on its own machine. This workspace did not run it and could not have refused it; this is the remote's own account."
+              >
+                remote
+              </Badge>
+            )}
             {gov ? (
               <Badge
                 variant="outline"
