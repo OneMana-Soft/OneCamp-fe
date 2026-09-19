@@ -132,7 +132,9 @@ const McpServersCard = () => {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium">{s.name}</span>
                       {!s.enabled && <Badge variant="secondary" className="text-3xs">Disabled</Badge>}
-                      {s.last_error ? (
+                      {s.auth_secret_unreadable ? (
+                        <Badge variant="destructive" className="text-3xs">Secret unreadable</Badge>
+                      ) : s.last_error ? (
                         <Badge variant="destructive" className="text-3xs">Connection error</Badge>
                       ) : (
                         <Badge variant="outline" className="text-3xs">{tools.length} tool{tools.length === 1 ? "" : "s"}</Badge>
@@ -149,6 +151,16 @@ const McpServersCard = () => {
                         ))}
                         {tools.length > 6 && <span className="text-2xs text-muted-foreground">+{tools.length - 6} more</span>}
                       </div>
+                    )}
+                    {/* Said here because this is where somebody is sent to fix it. The
+                        server looks healthy in every other respect: it is enabled, it has
+                        a URL, and its tool list is the one it last reported. It is
+                        contributing none of them. */}
+                    {s.auth_secret_unreadable && (
+                      <p className="text-2xs text-destructive">
+                        The stored secret cannot be decrypted, so this server is contributing no tools.
+                        This usually means the AI_CONFIG_KEK setting changed. Edit the server and enter the secret again.
+                      </p>
                     )}
                     {s.last_error && <p className="text-2xs text-destructive">{s.last_error}</p>}
                   </div>

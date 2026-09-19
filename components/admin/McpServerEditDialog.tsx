@@ -231,9 +231,23 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
                   setAuthSecret(e.target.value)
                   setSecretTouched(true)
                 }}
-                placeholder={editing && server?.has_auth_secret ? "•••••••• (leave blank to keep)" : "Secret value"}
+                placeholder={
+                  editing && server?.auth_secret_unreadable
+                    ? "Enter the secret again"
+                    : editing && server?.has_auth_secret
+                      ? "•••••••• (leave blank to keep)"
+                      : "Secret value"
+                }
                 autoComplete="new-password"
               />
+              {/* Offering to keep a secret that cannot be decrypted is the one thing
+                  this field must not do: leaving it blank would look like a save and
+                  change nothing. */}
+              {editing && server?.auth_secret_unreadable && (
+                <p className="text-2xs text-destructive">
+                  The stored secret cannot be decrypted and cannot be kept. Enter it again to make this server usable.
+                </p>
+              )}
               {!editing && prefill?.secret_hint && (
                 <p className="text-2xs text-muted-foreground">{prefill.secret_hint}</p>
               )}

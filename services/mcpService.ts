@@ -17,6 +17,18 @@ export interface McpServer {
   auth_type: McpAuthType
   auth_header_name?: string | null
   has_auth_secret: boolean
+  /**
+   * A secret IS stored but cannot be decrypted, so the server contributes no
+   * tools until it is entered again. Distinct from has_auth_secret: false,
+   * which means none was ever set.
+   *
+   * The usual cause is the AI_CONFIG_KEK environment variable changing. The
+   * server keeps working in every visible way except the one that matters, so
+   * this has to be said on screen: an admin sent here by "configured but
+   * unreachable" needs to know which server, and that keeping the stored
+   * secret is not an option.
+   */
+  auth_secret_unreadable?: boolean
   enabled: boolean
   tool_prefix: string
   tools_cache: string // raw JSON array string, exactly as the server reported it
