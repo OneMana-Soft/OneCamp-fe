@@ -74,3 +74,25 @@ describe("testing a remote agent endpoint from the editor", () => {
         expect(screen.getByText(/cannot meter it/)).toBeTruthy()
     })
 })
+
+// The rule that decides whether workspace content may leave the building is
+// stated before the save, not discovered from a failed run.
+describe("what the editor says before you save a remote endpoint", () => {
+    afterEach(() => {
+        cleanup()
+        vi.clearAllMocks()
+    })
+
+    it("says https and a secret are required off your own network", async () => {
+        openDialog()
+        fireEvent.change(await screen.findByLabelText(/Remote agent/i), {
+            target: { value: "https://bots.example.com/ag-ui" },
+        })
+        const text = document.body.textContent || ""
+        expect(text).toContain("outside your own network must use https and")
+        expect(text).toContain("must have a secret")
+        expect(text).toContain("on your own network")
+        // And what is actually at stake, rather than a rule with no reason.
+        expect(text).toMatch(/instructions, the workspace knowledge/)
+    })
+})

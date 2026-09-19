@@ -1193,8 +1193,17 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                   Leave empty to run on this workspace&apos;s model. With an endpoint set, the agent&apos;s reasoning happens
                   there and this workspace supplies the tools, the rules and the record: every call it asks for passes the
                   same permission, scope, approval and audit checks as any agent. Whatever it does on its own machine is
-                  outside those checks and is shown in the run as the remote&apos;s own account. In local-only AI mode only
-                  endpoints on your own network are reachable.
+                  outside those checks and is shown in the run as the remote&apos;s own account.
+                </p>
+                {/* Said before the save, not after the first failed run. A run sends the
+                    agent's instructions, the knowledge it was grounded in, the conversation
+                    and every tool result: workspace content, leaving the building, each step. */}
+                <p className="-mt-1 text-xs text-muted-foreground">
+                  A run sends this agent its instructions, the workspace knowledge it is grounded in, the conversation and
+                  the result of every tool run for it. So an endpoint <strong>outside your own network must use https and
+                  must have a secret</strong>, and one on your own network (a bot in the same compose file, say) needs
+                  neither. The address is checked when it is dialled, not when it is typed, so press Test connection to
+                  find out. In local-only AI mode nothing off your network is reachable at all.
                 </p>
               </div>
 
