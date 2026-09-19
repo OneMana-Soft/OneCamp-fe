@@ -17,7 +17,7 @@ import { McpServer, parseMcpTools, mcpToolFullName } from "@/services/mcpService
 import { McpToolRiskBadge, McpToolRiskLegend } from "@/components/admin/McpToolRisk"
 import { type AuthorizedModel } from "@/services/aiModelService"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, ChevronRight } from "@/lib/icons"
+import { Loader2, Sparkles, Play, AlertTriangle, Check, X, Plus, ChevronRight, Plug } from "@/lib/icons"
 import {
   Agent,
   AgentInput,
@@ -42,6 +42,8 @@ import {
   listAgentSkills,
   createAgentSkill,
   type AgentRunOutcome,
+  checkRemoteBrain,
+  type RemoteBrainResult,
 } from "@/services/agentService"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
 import { AgentEvalSection } from "@/components/admin/AgentEvalSection"
@@ -188,6 +190,34 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   const [aguiEndpoint, setAguiEndpoint] = React.useState("")
   const [aguiAuthHeader, setAguiAuthHeader] = React.useState("")
   const [aguiAuthSecret, setAguiAuthSecret] = React.useState("")
+  const [aguiChecking, setAguiChecking] = React.useState(false)
+  const [aguiCheck, setAguiCheck] = React.useState<RemoteBrainResult | null>(null)
+
+  /**
+   * Try the endpoint now, so a wrong address or a stale secret is a sentence
+   * on this screen rather than a failed run somebody finds later. An existing
+   * agent is tested without retyping its secret: the stored one is used when
+   * the field is left blank, because the client never sees it.
+   */
+  const handleCheckRemote = React.useCallback(async () => {
+    setAguiChecking(true)
+    setAguiCheck(null)
+    try {
+      setAguiCheck(
+        await checkRemoteBrain({
+          endpoint: aguiEndpoint.trim(),
+          auth_header: aguiAuthHeader.trim(),
+          auth_secret: aguiAuthSecret,
+          agent_id: agent?.id,
+        }),
+      )
+    } catch (e) {
+      const msg = (e as { response?: { data?: { msg?: string } } })?.response?.data?.msg
+      setAguiCheck({ ok: false, error: msg || "The check could not be run." })
+    } finally {
+      setAguiChecking(false)
+    }
+  }, [aguiEndpoint, aguiAuthHeader, aguiAuthSecret, agent?.id])
   const [ambient, setAmbient] = React.useState(false)
   const [ambientKeywords, setAmbientKeywords] = React.useState("")
   const [autonomy, setAutonomy] = React.useState<"auto" | "approval" | "plan">("auto")
@@ -276,6 +306,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setAguiEndpoint(agent.agui_endpoint || "")
       setAguiAuthHeader(agent.agui_auth_header || "")
       setAguiAuthSecret("")
+      setAguiCheck(null)
+      setAguiCheck(null)
       setAutonomy(agent.autonomy === "approval" ? "approval" : agent.autonomy === "plan" ? "plan" : "auto")
     } else {
       setName("")
@@ -304,6 +336,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setAguiEndpoint("")
       setAguiAuthHeader("")
       setAguiAuthSecret("")
+      setAguiCheck(null)
+      setAguiCheck(null)
       setAutonomy("auto")
     }
     setError(null)
@@ -1122,6 +1156,39 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     The stored secret cannot be read (usually the encryption key changed). Enter it again or the agent cannot run.
                   </p>
                 )}
+                {aguiEndpoint.trim() !== "" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCheckRemote}
+                      disabled={aguiChecking}
+                      className="gap-1.5"
+                    >
+                      {aguiChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plug className="h-3.5 w-3.5" />}
+                      Test connection
+                    </Button>
+                    {aguiCheck && (
+                      <span
+                        className={cn(
+                          "text-xs",
+                          aguiCheck.ok ? "text-success" : "text-destructive",
+                        )}
+                      >
+                        {aguiCheck.ok
+                          ? "The remote answered" + (aguiCheck.reply ? ": " + aguiCheck.reply : ".")
+                          : aguiCheck.error}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {aguiCheck?.ok && aguiCheck.tools_asked && aguiCheck.tools_asked.length > 0 && (
+                  <p className="-mt-1 text-xs text-muted-foreground">
+                    It asked for {aguiCheck.tools_asked.join(", ")} although this check offered none. On a real
+                    run it is offered the tools you pick above, and each call is checked before it happens.
+                  </p>
+                )}
                 <p className="-mt-1 text-xs text-muted-foreground">
                   Leave empty to run on this workspace&apos;s model. With an endpoint set, the agent&apos;s reasoning happens
                   there and this workspace supplies the tools, the rules and the record: every call it asks for passes the
@@ -1160,6 +1227,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                   Caps this teammate&apos;s own AI spend per day, billed to the agent (not its
                   owner&apos;s quota). 0 means no agent cap; the workspace limit still applies.
                   Resets at 00:00 UTC.
+                  {aguiEndpoint.trim() !== "" &&
+                    " A remote agent's model spend happens on its own account, so this workspace cannot meter it and this limit does not apply. Its step limit still does."}
                 </p>
               </div>
 

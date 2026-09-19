@@ -299,6 +299,7 @@ export enum PostEndpointUrl {
     // AI Agent Builder
     CreateAgent = "/agents",
     DraftAgent = "/agents/draft",
+    CheckRemoteBrain = "/agents/agui/check",
     UpdateAgent = "/agents",     // append /{id}/update
     DeleteAgent = "/agents",     // append /{id}/delete
     SetAgentActive = "/agents",  // append /{id}/active

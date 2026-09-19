@@ -649,6 +649,35 @@ export interface AgentDraft {
 
 // draftAgent turns a natural-language description into a starting agent
 // configuration to prefill the builder. Never creates the agent.
+/**
+ * What came back from trying an agent's remote endpoint.
+ *
+ * A remote that refuses is a result, not a thrown error: "the remote answered
+ * 401" is the answer to the question an admin asked.
+ */
+export interface RemoteBrainResult {
+    ok: boolean
+    error?: string
+    reply?: string
+    tools_asked?: string[]
+}
+
+/**
+ * Try an AG-UI endpoint once and report what came back.
+ *
+ * agentId lets an existing agent be tested without retyping a secret the
+ * client never sees: leave authSecret blank and the stored one is used.
+ */
+export async function checkRemoteBrain(input: {
+    endpoint: string
+    auth_header?: string
+    auth_secret?: string
+    agent_id?: string
+}): Promise<RemoteBrainResult> {
+  const res = await axiosInstance.post(PostEndpointUrl.CheckRemoteBrain, input)
+  return res.data?.data as RemoteBrainResult
+}
+
 export async function draftAgent(prompt: string): Promise<AgentDraft> {
   const res = await axiosInstance.post(PostEndpointUrl.DraftAgent, { prompt })
   return res.data?.data as AgentDraft
