@@ -18,8 +18,11 @@ import {
     verifyAuditLog,
     exportAuditLog,
     downloadEvidencePack,
+    entryInitiator,
+    UNATTENDED,
     type AuditEntry,
     type AuditVerifyResult,
+    type InitiatorKind,
 } from "@/services/settingsService"
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -57,9 +60,10 @@ const SEED_CATEGORIES = ["settings", "integration", "auth", "app", "security", "
  * per row. Everything else is one keystroke away in a native <details>, which is keyboard
  * and screen-reader accessible without any state of its own.
  */
-function AuditRow({ entry }: { entry: AuditEntry }) {
+function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKinds: Set<string> }) {
     const meta = parseAuditMetadata(entry.metadata)
     const reason = auditReason(entry.metadata)
+    const initiator = entryInitiator(entry)
     // Fields worth expanding for: everything except the reason, which is already shown.
     const detailFields = meta?.fields.filter((f) => !f.isReason) ?? []
     const hasDetail = Boolean(meta && (meta.malformed || detailFields.length > 0))
@@ -98,6 +102,16 @@ function AuditRow({ entry }: { entry: AuditEntry }) {
                         "human" would put an assertion into a compliance record
                         that nothing supports. */}
                     {entry.actor_kind === "agent" && <span className="text-warning">agent · </span>}
+                    {/* WHO STARTED IT, as distinct from whose authority it carried. A
+                        row whose initiator nobody watched says so in a word, because
+                        "ran on Priya's authority" and "ran while Priya was asleep" are
+                        the same actor and different facts. Omitted, not defaulted, on
+                        a row that never said. */}
+                    {initiator && (
+                        <span className={unattendedKinds.has(initiator) ? "text-warning" : ""}>
+                            {unattendedKinds.has(initiator) ? `${initiator}, nobody watching · ` : `${initiator} · `}
+                        </span>
+                    )}
                     {entry.actor_kind === "system" && <span>system · </span>}
                     {entry.actor_email || "Unknown"}
                     {entry.ip_address ? ` · ${entry.ip_address}` : ""}
@@ -150,27 +164,36 @@ export default function AdminAuditLog() {
     const [loading, setLoading] = useState(true)
     const [filter, setFilter] = useState<string>(ALL)
     const [categories, setCategories] = useState<string[]>(SEED_CATEGORIES)
+    // The one filter an auditor reaches for first: what ran on somebody's
+    // authority while they were away. A toggle rather than one chip per kind,
+    // because the question is binary and the kinds are served alongside so a
+    // row can still name its own.
+    const [unattendedOnly, setUnattendedOnly] = useState(false)
+    const [initiators, setInitiators] = useState<InitiatorKind[]>([])
+    const unattendedKinds = new Set(initiators.filter((k) => k.unattended).map((k) => k.kind))
     const { toast } = useToast()
     const [verifying, setVerifying] = useState(false)
     const [verifyResult, setVerifyResult] = useState<AuditVerifyResult | null>(null)
     const [exporting, setExporting] = useState(false)
 
-    const load = (cat: string) => {
+    const load = (cat: string, unattended: boolean = unattendedOnly) => {
         setLoading(true)
-        getAdminAuditLog(cat === ALL ? undefined : cat)
+        getAdminAuditLog(cat === ALL ? undefined : cat, 50, 0, unattended ? UNATTENDED : undefined)
             .then((page) => {
                 setEntries(page.entries)
                 // Only replace the filter list when the server actually sent one, so
                 // a partial response never removes a filter mid-session.
                 if (page.categories.length > 0) setCategories(page.categories)
+                if (page.initiators.length > 0) setInitiators(page.initiators)
             })
             .catch(() => setEntries([]))
             .finally(() => setLoading(false))
     }
 
     useEffect(() => {
-        load(filter)
-    }, [filter])
+        load(filter, unattendedOnly)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filter, unattendedOnly])
 
     const handleVerify = async () => {
         setVerifying(true)
@@ -306,6 +329,19 @@ export default function AdminAuditLog() {
                             {f}
                         </Button>
                     ))}
+                    {/* Separate from the categories because it cuts across them: an
+                        unattended run is in the agent category and the refusal it
+                        earned is too, and this asks a different question of both. */}
+                    <Button
+                        size="sm"
+                        variant={unattendedOnly ? "default" : "outline"}
+                        className="h-7 px-2.5 text-xs ml-auto"
+                        aria-pressed={unattendedOnly}
+                        title="Only what ran on somebody's authority while they were away: scheduled runs, event-triggered runs, and work one agent handed to another"
+                        onClick={() => setUnattendedOnly((v) => !v)}
+                    >
+                        Nobody watching
+                    </Button>
                 </div>
 
                 {loading && entries.length === 0 ? (
@@ -315,7 +351,7 @@ export default function AdminAuditLog() {
                 ) : (
                     <div className="divide-y divide-border/60 max-h-[28rem] overflow-y-auto -mx-2">
                         {entries.map((e) => (
-                            <AuditRow key={e.id} entry={e} />
+                            <AuditRow key={e.id} entry={e} unattendedKinds={unattendedKinds} />
                         ))}
                     </div>
                 )}
