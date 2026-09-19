@@ -553,8 +553,9 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
         </button>
       </div>
       <p className="text-2xs text-muted-foreground">
-        Works with vLLM, LM Studio, OpenRouter, llama.cpp server, Together, Groq, or any gateway that speaks the
-        OpenAI /v1 API.
+        Works with vLLM, LM Studio, OpenRouter, llama.cpp server, Together, Groq, xAI (Grok), or any gateway
+        that speaks the OpenAI /v1 API. A hosted assistant is not the same thing as its model: this is how you
+        run an agent on a vendor&apos;s model, and the agent stays yours.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
