@@ -59,24 +59,65 @@ export interface AuditEntry {
  * could only be seen under "all". Taking the list from the response means a new
  * category shows up in the UI with nothing to remember.
  */
+/**
+ * One kind of thing that can start an agent run, as the server writes it.
+ *
+ * `unattended` is the server's own judgement of whether anybody was there, so
+ * the client never re-derives which kinds count. "person" and "eval" are not;
+ * "schedule", "event" and "handoff" are.
+ */
+export interface InitiatorKind {
+    kind: string
+    unattended: boolean
+}
+
 export interface AuditLogPage {
     entries: AuditEntry[]
     categories: string[]
+    /** Served for the same reason categories are: so the filter shows what the log writes. */
+    initiators: InitiatorKind[]
 }
 
-export async function getAdminAuditLog(category?: string, limit = 50, offset = 0): Promise<AuditLogPage> {
+/** The one-word filter the server accepts: a kind, or this for every kind nobody watched. */
+export const UNATTENDED = "unattended"
+
+export async function getAdminAuditLog(
+    category?: string,
+    limit = 50,
+    offset = 0,
+    initiator?: string,
+): Promise<AuditLogPage> {
     const params = new URLSearchParams()
     if (category) params.set("category", category)
+    if (initiator) params.set("initiator", initiator)
     params.set("limit", String(limit))
     params.set("offset", String(offset))
     const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}?${params.toString()}`)
-    const data = (res.data as { data?: { entries?: AuditEntry[]; categories?: string[] } })?.data
+    const data = (res.data as {
+        data?: { entries?: AuditEntry[]; categories?: string[]; initiators?: InitiatorKind[] }
+    })?.data
     return {
         entries: data?.entries ?? [],
         // Empty rather than a guessed default: the component keeps whatever list it
         // already has, so a partial response cannot silently remove a filter an
         // admin was using.
         categories: data?.categories ?? [],
+        initiators: data?.initiators ?? [],
+    }
+}
+
+/**
+ * Who started the run a row belongs to, read off its metadata. "" when the row
+ * never said, which is a person's own action or a row written before the key
+ * existed, and must not be shown as "person".
+ */
+export function entryInitiator(entry: Pick<AuditEntry, "metadata">): string {
+    if (!entry.metadata) return ""
+    try {
+        const m = JSON.parse(entry.metadata) as { initiator?: unknown }
+        return typeof m.initiator === "string" ? m.initiator : ""
+    } catch {
+        return ""
     }
 }
 

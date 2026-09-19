@@ -15,7 +15,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Sparkles, Shield } from "@/lib/icons"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
-import type { AIActivityItem } from "@/services/aiActivityService"
+import { initiatorLabel, UNATTENDED_INITIATORS, type AIActivityItem } from "@/services/aiActivityService"
 import { ChainPair } from "@/components/admin/ChainPair"
 
 function relativeTime(iso: string): string {
@@ -93,6 +93,17 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
           {it.actor && <span>{it.actor}</span>}
           <span>·</span>
           <span>{relativeTime(it.at)}</span>
+          {/* "Ran on your authority" and "ran while you were asleep" are the
+              same actor and different facts. For the person whose agent it is,
+              the second is the one they most need to see. */}
+          {initiatorLabel(it.initiator) && (
+            <>
+              <span>·</span>
+              <span className={UNATTENDED_INITIATORS.has(it.initiator ?? "") ? "text-warning" : ""}>
+                {initiatorLabel(it.initiator)}
+              </span>
+            </>
+          )}
         </div>
         {/* Where this sits in the audit log, for the rows that came from it.
             The feed is the readable account and the log is the provable one;

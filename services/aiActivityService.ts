@@ -41,4 +41,20 @@ export interface AIActivityItem {
   seq?: number
   prev_hash?: string
   entry_hash?: string
+  /**
+   * Who started the run, as distinct from whose authority it carried:
+   * "person", "schedule", "event", "handoff" or "eval". Read from the same
+   * audit row an auditor reads, so a member's feed and the log agree about
+   * whether anybody was there. Absent when the row never said.
+   */
+  initiator?: string
+}
+
+/** The kinds the server counts as nobody watching. Mirrors Initiator.Unattended on the server. */
+export const UNATTENDED_INITIATORS = new Set(["schedule", "event", "handoff"])
+
+/** A short, honest phrase for a row's initiator, or "" for a row that never said. */
+export function initiatorLabel(initiator?: string): string {
+  if (!initiator) return ""
+  return UNATTENDED_INITIATORS.has(initiator) ? `${initiator}, nobody watching` : initiator
 }

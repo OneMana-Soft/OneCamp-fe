@@ -82,3 +82,29 @@ describe("the activity feed and the audit log", () => {
         expect(container.textContent, "an agent run is showing a chain position").not.toContain("→")
     })
 })
+
+describe("who started it, on a feed row", () => {
+    it("says in a word when nobody was there", () => {
+        const item: AIActivityItem = {
+            kind: "audit", title: "agent.run", summary: "Triage ran", at: new Date().toISOString(),
+            initiator: "schedule",
+        } as AIActivityItem
+        const { container } = render(<AIActivityRow item={item} />)
+        expect(container.textContent).toContain("schedule, nobody watching")
+    })
+
+    it("does not call a person's presence unattended, and says nothing when the row never said", () => {
+        const present: AIActivityItem = {
+            kind: "audit", title: "agent.run", summary: "x", at: new Date().toISOString(), initiator: "person",
+        } as AIActivityItem
+        const { container: c1 } = render(<AIActivityRow item={present} />)
+        expect(c1.textContent).not.toContain("nobody watching")
+        expect(c1.textContent).toContain("person")
+
+        const silent: AIActivityItem = {
+            kind: "audit", title: "agent.run", summary: "x", at: new Date().toISOString(),
+        } as AIActivityItem
+        const { container: c2 } = render(<AIActivityRow item={silent} />)
+        expect(c2.textContent).not.toMatch(/person|schedule|nobody watching/)
+    })
+})
