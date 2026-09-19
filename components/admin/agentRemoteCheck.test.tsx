@@ -83,16 +83,35 @@ describe("what the editor says before you save a remote endpoint", () => {
         vi.clearAllMocks()
     })
 
-    it("says https and a secret are required off your own network", async () => {
+    // Asserted as facts rather than as sentences, so the copy can be rewritten
+    // without the test having an opinion about the wording.
+    it("says https and a secret are required, and what is at stake", async () => {
         openDialog()
         fireEvent.change(await screen.findByLabelText(/Remote agent/i), {
             target: { value: "https://bots.example.com/ag-ui" },
         })
         const text = document.body.textContent || ""
-        expect(text).toContain("outside your own network must use https and")
-        expect(text).toContain("must have a secret")
-        expect(text).toContain("on your own network")
-        // And what is actually at stake, rather than a rule with no reason.
-        expect(text).toMatch(/instructions, the workspace knowledge/)
+        expect(text).toMatch(/https/)
+        expect(text).toMatch(/secret/)
+        expect(text).toMatch(/own network/)
+        // The reason, not just the rule: what a run actually sends there.
+        expect(text).toMatch(/instructions/)
+        expect(text).toMatch(/tool result/)
+        // And that the workspace still governs the calls it asks for.
+        expect(text).toMatch(/permission, approval and audit/)
+    })
+
+    // The whole point of the rewrite: it has to be readable at a glance.
+    it("keeps the guidance short enough to read", async () => {
+        openDialog()
+        const before = (document.body.textContent || "").length
+        fireEvent.change(await screen.findByLabelText(/Remote agent/i), {
+            target: { value: "https://bots.example.com/ag-ui" },
+        })
+        const added = (document.body.textContent || "").length - before
+        // Two short lines plus the auth labels and the button. This was three
+        // paragraphs once, which is the regression the bound exists to catch;
+        // it is set with room for a rewording, not for another paragraph.
+        expect(added).toBeLessThan(600)
     })
 })
