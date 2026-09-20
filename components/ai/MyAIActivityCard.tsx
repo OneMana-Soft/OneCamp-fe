@@ -25,12 +25,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { Loader2, Play, ShieldCheck } from "@/lib/icons"
+import { Download, Loader2, Play, ShieldCheck } from "@/lib/icons"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { AIActivityRow } from "@/components/admin/AIActivityCard"
 import { StepRow, AuditRowLine } from "@/components/admin/GovernanceDrillCard"
 import type { AIActivityItem } from "@/services/aiActivityService"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { downloadMyAIRecord } from "@/services/aiActivityService"
 import {
   getMyDrillStatus,
   runMyDrill,
@@ -45,6 +46,7 @@ function MyAIActivityCard() {
   )
   const items = data?.data ?? []
 
+
   /* The drill, offered to the person rather than only to an admin. Status is
      read once: it answers whether the fixture exists, which changes about as
      often as a workspace is set up. */
@@ -52,6 +54,23 @@ function MyAIActivityCard() {
   const [result, setResult] = React.useState<DrillResult>()
   const [running, setRunning] = React.useState(false)
   const [error, setError] = React.useState("")
+
+  // Saving the record is a fetch, so it can fail, and failing silently on a
+  // button labelled "download" is the worst version of this. Reported inline
+  // beside the drill's errors rather than as a toast, because this card
+  // already has one place where it says what went wrong.
+  const [saving, setSaving] = React.useState(false)
+  const saveRecord = React.useCallback(async () => {
+    setSaving(true)
+    setError("")
+    try {
+      await downloadMyAIRecord()
+    } catch (e) {
+      setError(apiErrorMessage(e, "The record could not be saved."))
+    } finally {
+      setSaving(false)
+    }
+  }, [])
 
   React.useEffect(() => {
     let live = true
@@ -97,16 +116,33 @@ function MyAIActivityCard() {
               record: an admin sees the whole workspace, you see yourself.
             </CardDescription>
           </div>
-          {status?.seeded ? (
-            <Button size="sm" variant="outline" onClick={run} disabled={running} className="shrink-0">
-              {running ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Play className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              {running ? "Running" : "Prove it"}
-            </Button>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {/* The record, as a file. A row on a screen is something this
+                workspace is telling you; the same row with the recipe for
+                recomputing its hash is something you can check, and check
+                somewhere else, which is the difference between a claim and
+                evidence. */}
+            {items.length > 0 && (
+              <Button size="sm" variant="outline" onClick={saveRecord} disabled={saving}>
+                {saving ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Download the record
+              </Button>
+            )}
+            {status?.seeded ? (
+              <Button size="sm" variant="outline" onClick={run} disabled={running}>
+                {running ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Play className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                {running ? "Running" : "Prove it"}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

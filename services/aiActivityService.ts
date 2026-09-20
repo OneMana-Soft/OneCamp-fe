@@ -6,6 +6,10 @@
  * tool calls, AI config changes). Admin governance + debugging surface.
  */
 
+import axiosInstance from "@/lib/axiosInstance"
+import { GetEndpointUrl } from "@/services/endPoints"
+import { downloadBlob } from "@/lib/utils/download"
+
 export type AIActivityKind = "agent_run" | "audit"
 
 export interface AIActivityItem {
@@ -57,4 +61,20 @@ export const UNATTENDED_INITIATORS = new Set(["schedule", "event", "handoff"])
 export function initiatorLabel(initiator?: string): string {
   if (!initiator) return ""
   return UNATTENDED_INITIATORS.has(initiator) ? `${initiator}, nobody watching` : initiator
+}
+
+/**
+ * downloadMyAIRecord saves the caller's own AI record as a file.
+ *
+ * Fetched through the authed client and saved locally rather than linked
+ * directly, so it works wherever the session does and does not depend on a
+ * cross-origin download carrying a cookie.
+ *
+ * What lands on disk is the rows, the recipe for recomputing each row's hash,
+ * and what that does and does not prove. The point of the file is that it
+ * still means something away from this workspace.
+ */
+export async function downloadMyAIRecord(): Promise<void> {
+    const res = await axiosInstance.get(GetEndpointUrl.MyAIActivityProof, { responseType: "blob" })
+    downloadBlob(res.data as BlobPart, "application/json", "onecamp-ai-record.json")
 }

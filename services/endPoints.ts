@@ -118,6 +118,12 @@ export enum GetEndpointUrl {
      * should be visible at the call site.
      */
     MyAIActivity = "/ai/activity",
+    /**
+     * The same record as a file you can keep. Served as a download carrying the
+     * rows, the recipe for recomputing each row's hash, and what that does and
+     * does not prove, so it still means something outside this workspace.
+     */
+    MyAIActivityProof = "/ai/activity/proof",
     AgentWorkForEntity = "/ai/agent-work/for", // append /{entityId}
     GetAgent = "/agents",       // append /{id}
     GetAgentRuns = "/agents",   // append /{id}/runs

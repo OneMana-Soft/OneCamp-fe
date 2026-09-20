@@ -1,6 +1,7 @@
 // Admin workspace-settings service. All routes are admin-gated server-side.
 
 import axiosInstance from "@/lib/axiosInstance"
+import { downloadBlob } from "@/lib/utils/download"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 export interface WorkspaceSettings {
@@ -291,24 +292,6 @@ export function receiptLabel(r: Pick<EvidenceReceipt, "period_start">): string {
     const d = new Date(r.period_start)
     if (Number.isNaN(d.getTime())) return r.period_start
     return d.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" })
-}
-
-/**
- * downloadBlob turns a response body into a saved file.
- *
- * Extracted because a second caller needed the same eight lines, and the object
- * URL has to be revoked either way: a copy that forgets leaks the whole file for
- * the life of the tab.
- */
-function downloadBlob(data: BlobPart, type: string, filename: string): void {
-    const url = URL.createObjectURL(new Blob([data], { type }))
-    const a = document.createElement("a")
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
 }
 
 // exportAuditLog downloads the audit entries (chain order, with per-row hashes
