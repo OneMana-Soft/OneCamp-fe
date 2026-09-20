@@ -113,7 +113,8 @@ function MyAIActivityCard() {
             </CardTitle>
             <CardDescription>
               Every action an agent took as you, and every one it was refused. Your own
-              record: an admin sees the whole workspace, you see yourself.
+              record: an admin sees the whole workspace, you see yourself. Download it and
+              anyone can check it at onemana.dev/verify, without OneCamp.
             </CardDescription>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -122,6 +123,10 @@ function MyAIActivityCard() {
                 recomputing its hash is something you can check, and check
                 somewhere else, which is the difference between a claim and
                 evidence. */}
+            {/* Where to check it. A file nobody can check is a claim, and the
+                page that checks it needs no account and no OneCamp, which is
+                the whole reason to name it here rather than assume somebody
+                will write a SHA-256 script. */}
             {items.length > 0 && (
               <Button size="sm" variant="outline" onClick={saveRecord} disabled={saving}>
                 {saving ? (
