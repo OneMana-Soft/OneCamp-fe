@@ -3,7 +3,7 @@
 import { LoaderCircle, Rocket, AlertCircle, Mail, Lock, Eye, EyeOff } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
 import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
-import {useEffect, useRef, useState, useCallback, Suspense} from "react";
+import {useEffect, useState, useCallback, Suspense} from "react";
 import authService from "@/services/auth/AuthService";
 import { assertUnreachable } from "@/lib/utils/assertUnreachable";
 import { TwoFactorPrompt } from "@/components/auth/TwoFactorPrompt";
@@ -11,32 +11,6 @@ import {app_home_path} from "@/types/paths";
 import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
 import { Input } from "@/components/ui/input"
-import { reportDemoStep } from "@/services/demoFunnel"
-
-// The marketing site appends this to its demo links. Named for what it does
-// rather than "demo=1", so a reader of a URL can tell it starts something.
-const DEMO_START_PARAM = "start_demo";
-
-/**
- * Where a demo link asks to land.
- *
- * The marketing site had one button reading "Run the drill in the demo" that
- * signed a visitor in and dropped them on the home screen, several clicks from
- * the drill, with nothing saying where to go. The claim on that page is that
- * the guarantee can be checked in an afternoon, and the button that was meant
- * to prove it proved the opposite.
- *
- * So the parameter carries a destination rather than a boolean. An unknown
- * value, or the old `start_demo=1`, still means the home screen, so every link
- * ever published keeps working.
- *
- * An allow-list of paths WE wrote, not a redirect target from the URL: a
- * parameter that can name any path is an open redirect, and this one is
- * reachable by anybody who can get a link in front of a visitor.
- */
-const DEMO_DESTINATIONS: Record<string, string> = {
-  drill: "/app/activity?tab=ai&run=drill",
-};
 
 // Build-time defaults. These are fallbacks ONLY — the runtime
 // /auth/providers endpoint is the source of truth, so admins can flip a
@@ -338,87 +312,26 @@ export default function SignUp() {
     }
   };
 
-  const handleDemoLogin = async (destination?: string) => {
+  const handleDemoLogin = async () => {
     setIsDemoLoading(true);
     setDemoError("");
     try {
       const result = await authService.loginAsDemo();
       if (result.ok) {
-        // The two outcomes are recorded separately because they are the same
-        // number from outside: somebody who arrives and leaves looks identical
-        // whether they were bored or whether the demo would not let them in.
-        // A broken auto-login bounces EVERY visitor and, until now, reported
-        // exactly nothing.
-        reportDemoStep("signed-in");
-        router.push(destination || app_home_path);
+        router.push(app_home_path);
       } else {
-        reportDemoStep("signin-refused");
         setDemoError(result.msg || "Demo login is currently unavailable. Please try again later.");
       }
     } catch (error) {
       console.error('Demo login error:', error);
-      reportDemoStep("signin-failed");
       setDemoError("Something went wrong. Please try again.");
     } finally {
       setIsDemoLoading(false);
     }
   };
 
-  // Arriving from a "Try the demo" link starts the demo, instead of showing a
-  // login page with the demo as its fifth option.
-  //
-  // WHY. 19 people clicked through from the marketing site and 13 never came
-  // back. What they were sent to is a sign-in screen: Google, GitHub, email,
-  // LDAP, a divider, and only then the demo button. Somebody who clicked "try
-  // the demo" has already answered the question that screen asks, and being
-  // asked it again at the moment of most interest is where they left.
-  //
-  // THIS REPOSITORY BUILDS THE DEMO, which is why the mechanism lives here and
-  // not in the public frontend customers self-host. Same call as
-  // components/banner/DemoLeadPrompt.tsx: only our demo host has any use for it,
-  // and a URL parameter that starts a login is a thing a reader of the audited
-  // repository would have to trace a gate to dismiss. The button itself is in
-  // both; only the auto-start is here.
-  //
-  // GATED ON THE SERVER, NOT THE URL. isDemoEnabled comes from /auth/providers,
-  // so this is inert on a customer's own install: the parameter is a request to
-  // use a demo login that a self-hosted server does not offer, and it is refused
-  // by not existing. The parameter alone can never mint a session.
-  //
-  // Only after the session probe has finished, so it cannot race a real session
-  // and log an existing user into the shared demo account. A live session
-  // redirects before isChecking is ever cleared.
-  //
-  // Read off window rather than useSearchParams: this runs in an effect, which
-  // is client-only already, and useSearchParams would impose a Suspense boundary
-  // on the whole page for a value one effect wants.
-  const autoDemoStarted = useRef(false);
-  const [autoDemo, setAutoDemo] = useState(false);
-  useEffect(() => {
-    if (isChecking || !isDemoEnabled || autoDemoStarted.current) return;
-    const asked = new URLSearchParams(window.location.search).get(DEMO_START_PARAM);
-    if (asked === null) return;
-    autoDemoStarted.current = true;
-    setAutoDemo(true);
-    void handleDemoLogin(DEMO_DESTINATIONS[asked]);
-    // handleDemoLogin is intentionally not a dependency: the ref makes this
-    // one-shot, and adding it would re-run the effect on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isChecking, isDemoEnabled]);
-
   if (isChecking) {
     return null;
-  }
-
-  if (autoDemo && isDemoLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center" role="status" aria-live="polite">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <LoaderCircle className="h-5 w-5 animate-spin" />
-          <span className="text-sm">Starting the demo</span>
-        </div>
-      </div>
-    );
   }
 
   if (!hasAnyAuthMethod && !isDemoEnabled) {
@@ -747,7 +660,7 @@ export default function SignUp() {
               <Button
                 className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200"
                 disabled={isLoading || isDemoLoading}
-                onClick={() => void handleDemoLogin()}
+                onClick={handleDemoLogin}
               >
                 {isDemoLoading ? (
                   <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>
