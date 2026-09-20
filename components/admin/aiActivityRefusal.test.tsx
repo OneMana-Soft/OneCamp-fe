@@ -48,3 +48,57 @@ describe("a refusal in the activity feed", () => {
     expect(el?.className).toContain("text-success")
   })
 })
+
+// WHICH LINE IS THE SENTENCE. The two kinds of row carry different things in
+// `title`: an agent run carries the agent's name, an audit row carries a
+// dotted action like agent.drill.refused. The action used to be the boldest
+// text on the line while the sentence explaining what happened sat underneath
+// in small muted grey, which is the wrong way round for everyone who reads
+// this feed and especially for a member, who cannot open the log at all.
+describe("what a row leads with", () => {
+  it("leads an audit row with the sentence, not the action name", () => {
+    const { container } = render(
+      <AIActivityRow
+        item={item({
+          kind: "audit",
+          title: "agent.drill.refused",
+          summary: "Drill: post in #drill-finance refused (you are not a member of this channel)",
+          status: "refused",
+        })}
+      />,
+    )
+    const headline = container.querySelector("span.text-sm.font-medium")
+    expect(headline?.textContent).toContain("you are not a member of this channel")
+    expect(headline?.textContent).not.toContain("agent.drill.refused")
+  })
+
+  it("still carries the exact action, for anybody matching it against the log", () => {
+    const { container } = render(
+      <AIActivityRow
+        item={item({ kind: "audit", title: "agent.drill.refused", summary: "Drill: post refused", status: "refused" })}
+      />,
+    )
+    const ref = Array.from(container.querySelectorAll("p")).find((p) =>
+      p.className.includes("font-mono"),
+    )
+    expect(ref?.textContent).toBe("agent.drill.refused")
+  })
+
+  it("leaves an agent run alone, because its title is a name a person chose", () => {
+    const { container } = render(
+      <AIActivityRow
+        item={item({ kind: "agent_run", title: "Weekly digest", summary: "Posted to #engineering", status: "succeeded" })}
+      />,
+    )
+    const headline = container.querySelector("span.text-sm.font-medium")
+    expect(headline?.textContent).toBe("Weekly digest")
+    expect(container.textContent).toContain("Posted to #engineering")
+  })
+
+  it("falls back to the action when a row has no sentence", () => {
+    const { container } = render(
+      <AIActivityRow item={item({ kind: "audit", title: "ai.config.changed", summary: "", status: "" })} />,
+    )
+    expect(container.querySelector("span.text-sm.font-medium")?.textContent).toBe("ai.config.changed")
+  })
+})

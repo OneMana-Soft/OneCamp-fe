@@ -71,6 +71,28 @@ function statusLabel(status?: string): string {
  */
 export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) => {
   const Icon = it.kind === "agent_run" ? Sparkles : Shield
+  /**
+   * What goes on the top line.
+   *
+   * The two kinds of row carry different things in `title`. An agent run
+   * carries the agent's NAME, which is what a person calls it and belongs at
+   * the top. An audit row carries the ACTION, which is a dotted identifier
+   * like agent.drill.refused, and it was the boldest text on the line while
+   * the sentence explaining what actually happened sat underneath in small
+   * muted grey.
+   *
+   * That is the wrong way round for everyone who reads this feed. Members
+   * cannot open the audit log at all, so this is the only account of it they
+   * get, and a prospect running the drill met a machine identifier as the
+   * headline of the thing they came to see.
+   *
+   * The action is not hidden: an auditor cross-referencing the log needs the
+   * exact string, so it stays on the line as a badge beside the source. What
+   * changes is which one is the sentence and which one is the reference.
+   */
+  const isAuditRow = it.kind !== "agent_run"
+  const headline = (isAuditRow && it.summary) || it.title || "AI action"
+  const detail = isAuditRow && it.summary ? "" : it.summary
   return (
     <li className="flex items-start gap-3 py-2.5">
       <span className="mt-0.5 shrink-0 rounded-lg bg-muted p-1.5 text-muted-foreground">
@@ -78,17 +100,21 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">{it.title || "AI action"}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{headline}</span>
           {it.status && (
-            <span className={`text-2xs font-medium ${statusTone(it.status)}`}>{statusLabel(it.status)}</span>
+            <span className={`shrink-0 text-2xs font-medium ${statusTone(it.status)}`}>{statusLabel(it.status)}</span>
           )}
           {it.source && (
-            <Badge variant="outline" className="text-3xs font-normal text-muted-foreground">
+            <Badge variant="outline" className="shrink-0 text-3xs font-normal text-muted-foreground">
               {it.source}
             </Badge>
           )}
         </div>
-        {it.summary && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{it.summary}</p>}
+        {detail && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{detail}</p>}
+        {/* The exact action, kept for anybody matching this against the log. */}
+        {isAuditRow && it.summary && it.title && (
+          <p className="mt-0.5 font-mono text-2xs text-muted-foreground/70">{it.title}</p>
+        )}
         <div className="mt-0.5 flex items-center gap-2 text-2xs text-muted-foreground/70">
           {it.actor && <span>{it.actor}</span>}
           <span>·</span>
