@@ -86,6 +86,24 @@ function MyAIActivityCard() {
     }
   }, [])
 
+  /**
+   * Arriving from the marketing site's "Run the drill" link.
+   *
+   * That button used to sign a visitor in and leave them on the home screen,
+   * several clicks from the thing it named. The link now lands here and says
+   * what it came for, and this runs it once so the promise on the button is
+   * the thing that happens.
+   *
+   * GATED ON THE FIXTURE, not on the parameter. status.seeded comes from the
+   * server and is only true where the drill's demo fixture exists, so a
+   * customer's own install ignores the parameter entirely and a link cannot
+   * make somebody's workspace do work by being clicked.
+   *
+   * One shot, and the parameter is cleared, so a refresh does not run it
+   * again and a copied URL is just a link to this card.
+   */
+  const autoRan = React.useRef(false)
+
   const run = React.useCallback(async () => {
     setRunning(true)
     setError("")
@@ -101,6 +119,21 @@ function MyAIActivityCard() {
       setRunning(false)
     }
   }, [mutate])
+
+  React.useEffect(() => {
+    if (autoRan.current || running) return
+    if (!status?.seeded) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get("run") !== "drill") return
+    autoRan.current = true
+    // Clear it first: a refresh mid-run must not start a second one, and a URL
+    // somebody copies out of the bar should be a link, not an instruction.
+    params.delete("run")
+    const qs = params.toString()
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""))
+    void run()
+  }, [status?.seeded, running, run])
+
 
   return (
     <Card>
