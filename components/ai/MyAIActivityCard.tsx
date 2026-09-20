@@ -103,6 +103,17 @@ function MyAIActivityCard() {
    * again and a copied URL is just a link to this card.
    */
   const autoRan = React.useRef(false)
+  /**
+   * Whether this visit asked for the drill.
+   *
+   * Somebody arriving from the marketing button pressed something called "run
+   * the drill" and lands on a card titled "What the AI did for you", written
+   * for an employee of a company already using this. Nothing connected the two,
+   * and the run itself is a small button briefly reading "Running": fast
+   * enough that a visitor can meet the finished result without seeing anything
+   * happen, which is the opposite of what they came to watch.
+   */
+  const [asked, setAsked] = React.useState(false)
 
   const run = React.useCallback(async () => {
     setRunning(true)
@@ -126,6 +137,7 @@ function MyAIActivityCard() {
     const params = new URLSearchParams(window.location.search)
     if (params.get("run") !== "drill") return
     autoRan.current = true
+    setAsked(true)
     // Clear it first: a refresh mid-run must not start a second one, and a URL
     // somebody copies out of the bar should be a link, not an instruction.
     params.delete("run")
@@ -186,6 +198,21 @@ function MyAIActivityCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {asked ? (
+          <p className="rounded-lg border border-border bg-muted/30 p-3 text-sm" role="status" aria-live="polite">
+            {running ? (
+              "Running the governance drill you asked for. An agent acting as you is about to try something you are not allowed to do."
+            ) : result?.passed ? (
+              <>
+                That is the drill you asked for, and the refusal is on the record below with its position in
+                the chain. Download it and anyone can check it without this workspace.
+              </>
+            ) : (
+              "The governance drill you asked for is below."
+            )}
+          </p>
+        ) : null}
+
         {error ? (
           <p className="text-sm text-destructive" role="alert">
             {error}
