@@ -22,7 +22,14 @@
 
 ## What is OneCamp?
 
-OneCamp is an open-source, self-hosted workspace that replaces Slack + Notion + Zoom, without per-seat pricing and without your conversations living on somebody else's machine. You run it on your own infrastructure, and the data stays there.
+OneCamp is a self-hosted workspace that replaces Slack + Notion + Zoom, without per-seat pricing and without your conversations living on somebody else's machine. You run it on your own infrastructure, and the data stays there.
+
+**What is open, precisely.** This repository, the frontend, is MIT and complete. The Go backend is
+not published today, so OneCamp is not open source and this README will not call it that. The
+AI-free edition of the backend is being prepared for release under Apache-2.0, which will make it
+open core: an open server you can read and run, and a commercial edition for the AI teammates. Until
+that lands, the honest description is self-hosted, source-available on the frontend, and a licensed
+backend.
 
 It also has AI teammates that live in your channels, bounded by the live permissions of the person who authorised them, running through your choice of model.
 
