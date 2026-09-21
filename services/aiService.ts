@@ -1,5 +1,6 @@
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
 import axiosInstance from "@/lib/axiosInstance";
+import { stopAnswer } from "@/services/answerRecovery";
 import { usePost } from "@/hooks/usePost";
 import { useCallback, useEffect, useState, useRef } from "react";
 import { authedStreamFetch } from "@/lib/utils/streamFetch";
@@ -247,6 +248,9 @@ export const useAskAIStream = () => {
     const [streamNotice, setStreamNotice] = useState("");
     const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
+    // The session the current answer belongs to, so a Stop can name it. Set
+    // from the first event of the stream, which is where the id arrives.
+    const liveSessionRef = useRef<string | undefined>(undefined);
 
     const askStream = useCallback(
         async (question: string, sessionId?: string): Promise<AskStreamResult | null> => {
@@ -257,6 +261,7 @@ export const useAskAIStream = () => {
             setError(null);
 
             abortRef.current = new AbortController();
+            liveSessionRef.current = sessionId;
 
             // Track final values synchronously inside this closure — these are
             // the ground truth, immune to React batching / useEffect timing.
@@ -339,6 +344,7 @@ export const useAskAIStream = () => {
                                 // it even if the answer is cut short.
                                 if (data.session_id) {
                                     streamedSessionId = data.session_id;
+                                    liveSessionRef.current = data.session_id;
                                 }
                                 // Server sends parsed tool call actions
                                 if (data.actions) {
@@ -385,9 +391,14 @@ export const useAskAIStream = () => {
         []
     );
 
+    // Stop is a message before it is an abort. The server lets an answer
+    // outlive its connection, so an abort on its own would just mean the
+    // answer finishes without us; telling the server first is what makes it
+    // stop, and it keeps what was written so far. See services/answerRecovery.
     const cancelStream = useCallback(() => {
-        abortRef.current?.abort();
+        const sid = liveSessionRef.current;
         setIsStreaming(false);
+        void stopAnswer(sid).finally(() => abortRef.current?.abort());
     }, []);
 
     // Abort any in-flight stream when the consuming component unmounts
@@ -395,6 +406,10 @@ export const useAskAIStream = () => {
     // leaves the fetch reading the response body, calling setState on
     // an unmounted component (React 19 swallows the warning, but the
     // network and CPU work continue).
+    //
+    // DELIBERATELY NO stopAnswer HERE. Leaving the screen is not a request to
+    // stop; the answer finishes on the server and is in the conversation when
+    // the person comes back.
     useEffect(() => () => {
         abortRef.current?.abort();
     }, []);
@@ -767,8 +782,22 @@ export async function listChatSessions(): Promise<ChatSessionSummary[]> {
 
 /** Replays one conversation so it can be resumed where it was left. */
 export async function getChatSession(sessionId: string): Promise<ChatSessionMessage[]> {
+    return (await getChatSessionState(sessionId)).messages
+}
+
+/** A conversation and whether its last answer is still being written on the server. */
+export interface ChatSessionState {
+    messages: ChatSessionMessage[]
+    /** True while an answer for this session is being generated; the exchange lands in messages when it finishes. */
+    live: boolean
+}
+
+export async function getChatSessionState(sessionId: string): Promise<ChatSessionState> {
     const res = await axiosInstance.get(`${GetEndpointUrl.AIChatSessions}/${sessionId}`)
-    return (res.data?.data as ChatSessionMessage[]) || []
+    return {
+        messages: (res.data?.data as ChatSessionMessage[]) || [],
+        live: Boolean(res.data?.live),
+    }
 }
 
 /** Removes a conversation from the list. */

@@ -13,7 +13,8 @@ import { AgentTeammatesMenuItem } from "@/components/ai/AgentTeammatesMenuItem";
 import { ChatHistoryMenu, type ResumedConversation } from "@/components/ai/ChatHistoryMenu";
 import SocialComposeDialog from "@/components/ai/SocialComposeDialog";
 import AiScheduleDialog from "@/components/ai/AiScheduleDialog";
-import { ProposedAction, getChatSession } from "@/services/aiService";
+import { ProposedAction, getChatSessionState } from "@/services/aiService";
+import { ANSWER_POLL_MS, STILL_WRITING, nextRecoveryStep } from "@/services/answerRecovery";
 import { forgetConversation, readLastConversation, rememberConversation } from "@/lib/ai/lastConversation";
 import { sendTarget } from "@/lib/ai/sendTarget";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -289,6 +290,14 @@ const AiChatPanel: React.FC = () => {
     const [input, setInput] = useState("");
     const { toast } = useToast();
     const [sessionId, setSessionId] = useState<string | null>(null);
+    // True while a restored conversation's last answer is still being written
+    // on the server, so the screen can say why the last question has no
+    // answer yet instead of looking as if it was never asked.
+    const [awaitingAnswer, setAwaitingAnswer] = useState(false);
+    // Set when the person sends something while the recovery loop is still
+    // polling: from then on whatever it fetches is stale and must not replace
+    // what is on screen. A ref, because the loop reads it between awaits.
+    const recoverySuperseded = useRef(false);
     const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
     const [socialOpen, setSocialOpen] = useState(false);
     const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -324,16 +333,35 @@ const AiChatPanel: React.FC = () => {
         let cancelled = false;
         (async () => {
             try {
-                const stored = await getChatSession(last);
-                if (cancelled || stored.length === 0) return;
-                handleResume({
-                    sessionId: last,
-                    messages: stored.map((m) => ({ role: m.role, content: m.content })),
-                });
+                // The answer to the last question may still be being written:
+                // the server lets it outlive the connection that asked. Show
+                // what is recorded now, say so, and keep asking until the
+                // exchange lands or the server's own ceiling has passed.
+                const startedAt = Date.now();
+                for (;;) {
+                    const state = await getChatSessionState(last);
+                    if (cancelled || recoverySuperseded.current) return;
+                    const adopt = (msgs: typeof state.messages) =>
+                        handleResume({
+                            sessionId: last,
+                            messages: msgs.map((m) => ({ role: m.role, content: m.content })),
+                        });
+                    const step = nextRecoveryStep(state.live, Date.now() - startedAt);
+                    if (step !== "wait") {
+                        setAwaitingAnswer(false);
+                        if (state.messages.length > 0) adopt(state.messages);
+                        return;
+                    }
+                    if (state.messages.length > 0) adopt(state.messages);
+                    setAwaitingAnswer(true);
+                    await new Promise((r) => setTimeout(r, ANSWER_POLL_MS));
+                    if (cancelled || recoverySuperseded.current) return;
+                }
             } catch {
                 // Deleted, expired, or someone else's. Start clean and stop
                 // asking for it, rather than showing an error for something
                 // the person did not ask to happen.
+                setAwaitingAnswer(false);
                 forgetConversation();
             }
         })();
@@ -405,6 +433,10 @@ const AiChatPanel: React.FC = () => {
     const handleSend = useCallback(async (text?: string) => {
         const { text: q, clearDraft } = sendTarget(text, input);
         if (!q || isStreaming) return;
+        // A new question outranks an answer still being recovered: the loop
+        // must not paste an older record over this exchange when it lands.
+        recoverySuperseded.current = true;
+        setAwaitingAnswer(false);
 
         const userMsg: ChatMessage = {
             id: `user-${Date.now()}`,
@@ -710,6 +742,21 @@ const AiChatPanel: React.FC = () => {
                         </div>
                     </div>
                 ))}
+
+                {/* An answer being written on the server for a question asked before this screen was opened */}
+                {awaitingAnswer && !isStreaming && (
+                    <div className="flex gap-2 min-w-0 animate-msg-fade-in" role="status" aria-live="polite">
+                        <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                            <Sparkles size={14} />
+                        </div>
+                        <div className="min-w-0 max-w-[92%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed bg-muted text-muted-foreground border border-border rounded-bl-sm">
+                            <div className="flex items-center gap-2 py-1">
+                                <Loader2 size={14} className="animate-spin" />
+                                <span>{STILL_WRITING}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Streaming in progress */}
                 {isStreaming && (

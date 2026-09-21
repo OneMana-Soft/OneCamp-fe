@@ -559,6 +559,7 @@ export enum PostEndpointUrl {
     AIAnalyzeDocument = "/ai/analyze-document",
     AITranslate = "/ai/translate",
     AIAskStream = "/ai/ask/stream",
+    AIAskStop = "/ai/ask/stop",
     AICatchUp = "/ai/catch-up",
     AIDocComplete = "/ai/doc/complete",
     AIDocCompleteStream = "/ai/doc/complete/stream",
