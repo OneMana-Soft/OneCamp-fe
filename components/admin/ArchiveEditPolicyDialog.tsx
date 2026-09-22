@@ -10,6 +10,7 @@ import { RefreshCw } from "@/lib/icons";
 import { usePost } from "@/hooks/usePost"
 import { useToast } from "@/hooks/use-toast"
 import { PostEndpointUrl } from "@/services/endPoints"
+import { PURGEABLE } from "@/lib/purgeLine"
 
 interface PolicyData {
   id: string
@@ -19,6 +20,8 @@ interface PolicyData {
   archive_completed_tasks: boolean
   archive_inactive_channels_days: number
   compress_attachments: boolean
+  /** Days after archiving before files or recordings are removed for good; 0 keeps them. */
+  purge_after_days?: number
 }
 
 interface Props {
@@ -42,6 +45,8 @@ export default function ArchiveEditPolicyDialog({ open, onOpenChange, onSuccess,
   const [completedTasks, setCompletedTasks] = useState(true)
   const [inactiveDays, setInactiveDays] = useState(90)
   const [compressAttachments, setCompressAttachments] = useState(false)
+  const [purgeAfterDays, setPurgeAfterDays] = useState(0)
+  const canPurge = !!policy && PURGEABLE.includes(policy.entity_type)
 
   useEffect(() => {
     if (open && policy) {
@@ -50,6 +55,7 @@ export default function ArchiveEditPolicyDialog({ open, onOpenChange, onSuccess,
       setCompletedTasks(policy.archive_completed_tasks)
       setInactiveDays(policy.archive_inactive_channels_days)
       setCompressAttachments(policy.compress_attachments)
+      setPurgeAfterDays(policy.purge_after_days ?? 0)
     }
   }, [open, policy])
 
@@ -57,6 +63,10 @@ export default function ArchiveEditPolicyDialog({ open, onOpenChange, onSuccess,
     if (!policy) return
     if (retentionDays < 7 || retentionDays > 3650) {
       toast({ title: "Validation Error", description: "Retention days must be between 7 and 3650", variant: "destructive" })
+      return
+    }
+    if (canPurge && purgeAfterDays !== 0 && (purgeAfterDays < 7 || purgeAfterDays > 3650)) {
+      toast({ title: "Validation Error", description: "Remove for good after 0 (keep) or 7 to 3650 days", variant: "destructive" })
       return
     }
     try {
@@ -70,6 +80,7 @@ export default function ArchiveEditPolicyDialog({ open, onOpenChange, onSuccess,
           archive_completed_tasks: completedTasks,
           archive_inactive_channels_days: inactiveDays,
           compress_attachments: compressAttachments,
+          ...(canPurge ? { purge_after_days: purgeAfterDays } : {}),
         },
         showToast: true,
       })
@@ -113,6 +124,18 @@ export default function ArchiveEditPolicyDialog({ open, onOpenChange, onSuccess,
             <div><Label>Compress Attachments</Label><p className="text-xs text-muted-foreground mt-0.5">Compress files before archiving</p></div>
             <Switch checked={compressAttachments} onCheckedChange={setCompressAttachments} />
           </div>
+          {canPurge && (
+            <div className="grid gap-2 border-t border-border/50 pt-4">
+              <Label htmlFor="purge-days">Remove for good after</Label>
+              <Input id="purge-days" type="number" min={0} max={3650} value={purgeAfterDays}
+                onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setPurgeAfterDays(v) }} />
+              <p className="text-xs text-muted-foreground">
+                {purgeAfterDays === 0
+                  ? "0: archived items are kept and can be restored. Set 7 to 3,650 days to delete them from storage that long after archiving. This frees disk and cannot be undone."
+                  : `Archived ${ENTITY_LABELS[policy?.entity_type ?? ""]?.toLowerCase() ?? "items"} are deleted from storage ${purgeAfterDays} days after archiving. Frees disk; cannot be undone.`}
+              </p>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
