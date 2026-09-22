@@ -12,6 +12,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useToast } from "@/hooks/use-toast"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { purgeLine } from "@/lib/purgeLine"
 import { openUI } from "@/store/slice/uiSlice"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
 import axiosInstance from "@/lib/axiosInstance"
@@ -19,6 +20,7 @@ import axiosInstance from "@/lib/axiosInstance"
 interface ArchivePolicy {
   id: string; entity_type: string; retention_days: number; auto_archive: boolean
   archive_completed_tasks: boolean; archive_inactive_channels_days: number; compress_attachments: boolean
+  purge_after_days?: number; purged_count?: number; purged_bytes?: number
   created_at: string; updated_at: string
 }
 
@@ -175,6 +177,7 @@ const ArchiveCard = () => {
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-xs text-muted-foreground">Retain for <span className="font-semibold text-foreground">{policy.retention_days}</span> days</span>
                         {policy.auto_archive ? <Badge className="text-3xs bg-success/10 text-success border-success/20 gap-1"><CheckCircle2 className="h-2.5 w-2.5" />Auto</Badge> : <Badge variant="outline" className="text-3xs">Manual only</Badge>}
+                        {purgeLine(policy) && <span className="text-xs text-muted-foreground">{purgeLine(policy)}</span>}
                       </div>
                     </div>
                   </div>
