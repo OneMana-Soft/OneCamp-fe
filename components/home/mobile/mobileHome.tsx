@@ -1,5 +1,6 @@
 "use client"
 
+import { homeGreeting } from "@/lib/utils/homeGreeting"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store/store"
@@ -200,7 +201,11 @@ export function MobileHome() {
         { revalidateOnFocus: false, dedupingInterval: 30000 },
     )
 
-    const userName = selfProfile.data?.data?.user_name || "there"
+    const greetingLine = homeGreeting(
+        new Date().getHours(),
+        selfProfile.data?.data?.user_full_name,
+        selfProfile.data?.data?.user_name,
+    )
     const totalDMUnread = (userSidebar.userChats || []).reduce(
         (acc, chat) => acc + (chat.dm_unread || 0),
         0,
@@ -212,19 +217,13 @@ export function MobileHome() {
         selfProfile.data?.data?.user_incomplete_task_count ?? 0
     const overdueTasks = selfProfile.data?.data?.user_overdue_task_count || 0
 
-    const greeting = (() => {
-        const hour = new Date().getHours()
-        if (hour < 12) return "Good morning"
-        if (hour < 18) return "Good afternoon"
-        return "Good evening"
-    })()
 
     return (
         <div className="flex flex-col gap-6 p-4">
             {/* Header */}
             <div className="space-y-0.5">
                 <h1 className="text-xl font-semibold tracking-tight text-foreground">
-                    {greeting}, {userName}
+                    {greetingLine}
                 </h1>
                 <p className="text-sm text-muted-foreground">
                     Here&apos;s what&apos;s happening
