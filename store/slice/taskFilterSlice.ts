@@ -1,10 +1,17 @@
 import {createSlice} from "@reduxjs/toolkit";
 import {TaskInfoInterface} from "@/types/task";
 
+/**
+ * No sorting and no filters. A factory rather than `{}`: an empty object is
+ * truthy, so readers' `|| default` fallbacks never applied and
+ * `.filters.length` crashed My Tasks on phones, whose list reads it directly.
+ */
+export const emptySortFilter = (): sortingAndFilterOptionInterface => ({ sort: [], filters: [] })
+
 const initialState  = {
     projectsSortingAndFilter: {} as ExtendedSortingAndFilterOptionInterface,
     projectsTaskList: {} as ExtendedProjectTaskListInterface,
-    myTaskSortingAndFilter: {} as sortingAndFilterOptionInterface,
+    myTaskSortingAndFilter: emptySortFilter(),
     myTaskList: [] as TaskInfoInterface[]
 };
 
@@ -86,13 +93,13 @@ export const taskFilterSlice = createSlice({
         clearProjectSortingFilteringAndTask(state, action: {payload: inputClearProjectSortingAndFilterOptionInterface}) {
             const {projectId} = action.payload;
 
-            state.projectsSortingAndFilter[projectId] = {} as sortingAndFilterOptionInterface;
+            state.projectsSortingAndFilter[projectId] = emptySortFilter();
             state.projectsTaskList[projectId] = [] as TaskInfoInterface[];
         },
 
         clearMyTaskSortingFilteringAndTask(state) {
 
-            state.myTaskSortingAndFilter = {} as sortingAndFilterOptionInterface;
+            state.myTaskSortingAndFilter = emptySortFilter();
             state.myTaskList = [] as TaskInfoInterface[];
         },
 
