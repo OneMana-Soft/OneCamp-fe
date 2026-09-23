@@ -63,13 +63,17 @@ export function DesktopNavigationBar({
 
     // Section open state is remembered across reloads: focus mode folds
     // destinations away by default, so re-opening one has to stick.
-    const [isProjectOpen, setIsProjectOpen] = useSidebarDisclosure("projects", false);
+    // Projects, channels and docs start open: they are where the work is,
+    // and nothing else on the screen leads to them, so a first visit with
+    // all three folded showed headings with nothing under them. Closing
+    // one is remembered like any other choice.
+    const [isProjectOpen, setIsProjectOpen] = useSidebarDisclosure("projects", true);
     const [isTeamOpen, setIsTeamOpen] = useSidebarDisclosure("teams", false);
-    const [isChannelOpen, setIsChannelOpen] = useSidebarDisclosure("channels", false);
+    const [isChannelOpen, setIsChannelOpen] = useSidebarDisclosure("channels", true);
     const [isChatOpen, setIsChatOpen] = useSidebarDisclosure("chats", false);
     const [isRecentOpen, setIsRecentOpen] = useSidebarDisclosure("recent", true);
     const [isFavOpen, setIsFavOpen] = useSidebarDisclosure("favorites", true);
-    const [isDocsOpen, setIsDocsOpen] = useSidebarDisclosure("docs", false);
+    const [isDocsOpen, setIsDocsOpen] = useSidebarDisclosure("docs", true);
     const [isBoardsOpen, setIsBoardsOpen] = useSidebarDisclosure("boards", false);
     const [isMoreOpen, setIsMoreOpen] = useSidebarDisclosure(FOCUS_SECTION_KEY, false);
     const [isDocCreatorOpen, setIsDocCreatorOpen] = useState(false);

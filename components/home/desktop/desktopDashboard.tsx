@@ -1,5 +1,6 @@
 "use client"
 
+import { homeGreeting } from "@/lib/utils/homeGreeting"
 import { useDispatch, useSelector } from "react-redux"
 import { RootState } from "@/store/store"
 import Link from "next/link"
@@ -147,7 +148,11 @@ export function DesktopDashboard() {
     )
     const isAiOpen = rightPanelState.isOpen && rightPanelState.data.aiChatOpen
 
-    const userName = selfProfile.data?.data?.user_full_name || "there"
+    const greetingLine = homeGreeting(
+        new Date().getHours(),
+        selfProfile.data?.data?.user_full_name,
+        selfProfile.data?.data?.user_name,
+    )
     const totalDMUnread = (userSidebar.userChats || []).reduce(
         (acc, chat) => acc + (chat.dm_unread || 0),
         0,
@@ -159,12 +164,6 @@ export function DesktopDashboard() {
         selfProfile.data?.data?.user_incomplete_task_count ?? 0
     const overdueTasks = selfProfile.data?.data?.user_overdue_task_count || 0
 
-    const greeting = (() => {
-        const hour = new Date().getHours()
-        if (hour < 12) return "Good morning"
-        if (hour < 18) return "Good afternoon"
-        return "Good evening"
-    })()
 
     const handleAiToggle = () => {
         if (isAiOpen) dispatch(closeRightPanel())
@@ -177,7 +176,7 @@ export function DesktopDashboard() {
                 {/* Welcome */}
                 <div className="space-y-1">
                     <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                        {greeting}, {userName}
+                        {greetingLine}
                     </h1>
                     <p className="text-sm text-muted-foreground">
                         Here&apos;s what&apos;s happening in your workspace
