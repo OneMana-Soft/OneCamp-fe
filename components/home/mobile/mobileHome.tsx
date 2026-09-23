@@ -1,6 +1,8 @@
 "use client"
 
 import { homeGreeting } from "@/lib/utils/homeGreeting"
+import { useHydrateUserSidebar } from "@/hooks/useHydrateUserSidebar"
+import SetupChecklist from "@/components/home/SetupChecklist"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store/store"
@@ -208,6 +210,8 @@ export function MobileHome() {
         { revalidateOnFocus: false, dedupingInterval: 30000 },
     )
 
+    // Already fetched and deduped by the layout; a cache read, as on desktop.
+    const isAdmin = useHydrateUserSidebar().data?.data?.user_is_admin
     const greetingLine = homeGreeting(
         new Date().getHours(),
         selfProfile.data?.data?.user_full_name,
@@ -239,6 +243,11 @@ export function MobileHome() {
 
             {/* Search */}
             <MobileHomeSearchBar />
+
+            {/* Setup, while there is any left, as on desktop. A new owner often
+                opens the "your workspace is ready" email on a phone, and this
+                is the only screen that tells them what to do next. */}
+            <SetupChecklist isAdmin={isAdmin} />
 
             {/* What needs me now — cross-surface action queue; self-hides when empty */}
             <AttentionCard />
