@@ -930,10 +930,17 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                       otherwise the input text would overflow the
                       ghost-sized container on mobile.
                     */}
+                    {/* A label that is set is a solid badge. An empty one is a quiet
+                        dashed prompt, and only for someone who can set it: it used to
+                        be a solid orange "add label", the loudest thing above the
+                        title, shown even to people who could not use it. */}
+                    {(isAdmin || taskLabel.trim() !== "") && (
                     <label
                         className={cn(
                             "inline-flex items-center h-7 rounded-md text-sm font-medium",
-                            "bg-primary text-primary-foreground",
+                            taskLabel.trim() !== ""
+                                ? "bg-primary text-primary-foreground"
+                                : "border border-dashed border-border text-muted-foreground hover:border-foreground/40",
                             "max-w-full overflow-hidden",
                             !isAdmin && "cursor-default",
                         )}
@@ -954,8 +961,9 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                                 aria-label="Task label"
                                 className={cn(
                                     "absolute inset-0 h-full w-full px-3 py-1",
-                                    "text-sm font-medium text-primary-foreground",
-                                    "placeholder:font-medium placeholder:text-primary-foreground/80",
+                                    "text-sm font-medium",
+                                    taskLabel.trim() !== "" ? "text-primary-foreground" : "text-foreground",
+                                    "placeholder:font-medium placeholder:text-muted-foreground",
                                     "bg-transparent border-0 outline-none ring-0",
                                     "focus:outline-none focus:ring-0",
                                     "cursor-pointer focus:cursor-text",
@@ -964,6 +972,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                             />
                         </span>
                     </label>
+                    )}
 
                     <div className="mt-4 mb-4">
                         <ResizeableTextInput
