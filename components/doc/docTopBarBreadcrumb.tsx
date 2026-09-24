@@ -80,7 +80,10 @@ export function DocTopBarBreadcrumb({ doc, canEdit = false }: DocTopBarBreadcrum
 
     return (
         <div className="flex items-center justify-between w-full pr-4">
-            <Breadcrumb>
+            {/* Not on phones: the app bar already names the document and the
+                title in the page renames it, so the breadcrumb was the third
+                copy of the same words. */}
+            <Breadcrumb className="hidden md:block">
                 <BreadcrumbList>
                     <BreadcrumbItem>
                         <BreadcrumbLink href="/app/doc">Home</BreadcrumbLink>
@@ -125,7 +128,7 @@ export function DocTopBarBreadcrumb({ doc, canEdit = false }: DocTopBarBreadcrum
             <Button 
                 variant="outline" 
                 size="sm" 
-                className="h-8 gap-2 ml-4"
+                className="h-8 gap-2 ml-auto md:ml-4"
                 disabled={!canEdit}
                 onClick={() => {
                     if (canEdit && doc) {
