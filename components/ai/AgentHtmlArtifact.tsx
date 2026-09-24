@@ -76,7 +76,7 @@ const AgentHtmlArtifact: React.FC<{ html: string }> = ({ html }) => {
       {tooLarge && (
         <div className="flex items-center gap-1.5 border-t border-border/50 px-2.5 py-1.5 text-2xs text-muted-foreground">
           <Eye className="h-3.5 w-3.5" />
-          This preview is too large to run safely — showing the code only.
+          This preview is too large to run safely: showing the code only.
         </div>
       )}
     </div>

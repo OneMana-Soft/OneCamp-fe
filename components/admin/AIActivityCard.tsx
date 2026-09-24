@@ -152,7 +152,7 @@ const AIActivityCard = () => {
           <Sparkles className="h-4 w-4 text-primary" /> AI activity
         </CardTitle>
         <CardDescription>
-          What the AI did across the workspace — agent runs and AI-attributable actions (search, API/MCP
+          What the AI did across the workspace: agent runs and AI-attributable actions (search, API/MCP
           tool calls, config changes), newest first.
         </CardDescription>
       </CardHeader>

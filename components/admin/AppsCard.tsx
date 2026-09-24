@@ -357,7 +357,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
 
                     {isBuiltin && (
                         <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
-                            This is a built-in OneCamp app. It runs in-process — no handler URL or
+                            This is a built-in OneCamp app. It runs in-process, no handler URL or
                             signing secret needed. Just add any required credential below.
                         </div>
                     )}
@@ -368,12 +368,12 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                         </Field>
                     )}
 
-                    <Field label="API key" hint={app?.has_api_key ? "configured — leave blank to keep, or paste a new key to replace" : "stored encrypted (e.g. Giphy key)"}>
+                    <Field label="API key" hint={app?.has_api_key ? "configured: leave blank to keep, or paste a new key to replace" : "stored encrypted (e.g. Giphy key)"}>
                         <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={app?.has_api_key ? "•••••••• (saved)" : "••••••••"} />
                     </Field>
 
                     {!isBuiltin && (
-                        <Field label="Signing secret" hint="HMAC for outbound dispatch — leave blank to auto-generate">
+                        <Field label="Signing secret" hint="HMAC for outbound dispatch: leave blank to auto-generate">
                             <Input type="password" value={signingSecret} onChange={(e) => setSigningSecret(e.target.value)} placeholder="auto-generated if blank" />
                         </Field>
                     )}

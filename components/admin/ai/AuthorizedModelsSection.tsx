@@ -132,7 +132,7 @@ const ModelLimitsEditor: React.FC<{
       <p className="text-xs text-muted-foreground">
         Leave blank to inherit the workspace context window ({formatTokens(workspaceWindow)}). Set these when this
         model&apos;s
-        window differs from that — otherwise long threads are trimmed to the wrong size, and on local models the
+        window differs from that: otherwise long threads are trimmed to the wrong size, and on local models the
         model is also <em>run</em> at the wrong size.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">

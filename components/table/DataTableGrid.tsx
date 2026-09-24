@@ -512,7 +512,7 @@ function ColumnHeader({
                   />
                   <span>
                     <span className="font-medium text-violet-600 dark:text-violet-400">Autofill on change</span>
-                    {" — recompute each cell automatically when a row is added or edited."}
+                    {": recompute each cell automatically when a row is added or edited."}
                   </span>
                 </label>
                 {savedAiPrompt && (

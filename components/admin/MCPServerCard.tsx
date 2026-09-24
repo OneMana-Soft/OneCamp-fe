@@ -73,7 +73,7 @@ const GROUP_LABELS: Record<string, string> = {
  * under the group list says what still bounds it.
  */
 const GROUP_HINTS: Record<string, string> = {
-    tasks: "Read tasks, and change status, assignee and due dates — in projects the token's owner belongs to.",
+    tasks: "Read tasks, and change status, assignee and due dates, in projects the token's owner belongs to.",
     projects: "Read projects and teams that person is a member of, and create new projects.",
     docs: "Read documents that person can already open, and create new ones.",
     messages: "Summarise channels and conversations that person is in, and post messages, DMs and group messages as them.",
@@ -208,7 +208,7 @@ export function MCPServerCard() {
                     ) : null}
                 </CardTitle>
                 <CardDescription>
-                    Let outside AI clients — Claude, Cursor, your own agents — work in this
+                    Let outside AI clients (Claude, Cursor, your own agents) work in this
                     workspace over the Model Context Protocol. Every call runs as the person whose
                     API token it uses, so an agent can never reach something its owner
                     couldn&apos;t open themselves, and every call is recorded in the audit log
@@ -247,7 +247,7 @@ export function MCPServerCard() {
                     <p className="text-xs text-muted-foreground">
                         Start with one group, watch the agent activity in the audit log, then widen.
                         Nothing is exposed until you choose at least one. A group covers both
-                        reading and writing in that area — a token still needs the matching write
+                        reading and writing in that area: a token still needs the matching write
                         scope to change anything, so a read-only token stays read-only.
                     </p>
 
@@ -383,7 +383,7 @@ export function MCPServerCard() {
                                     <CopyableCode value={curlExample} label="test command" />
                                     <p className="text-xs text-muted-foreground">
                                         An empty tool list means the token holds no scopes, or no
-                                        group above is enabled — not that the connection failed.
+                                        group above is enabled, not that the connection failed.
                                     </p>
                                 </div>
                             </>

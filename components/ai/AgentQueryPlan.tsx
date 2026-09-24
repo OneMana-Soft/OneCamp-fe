@@ -373,7 +373,7 @@ export function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
                         </button>
                     )}
                     <span className="ml-auto text-3xs text-muted-foreground">
-                        {dirty ? "Edited — runs the same method, your inputs" : "Runs exactly what the agent ran"}
+                        {dirty ? "Edited: runs the same method, your inputs" : "Runs exactly what the agent ran"}
                     </span>
                 </div>
             )}

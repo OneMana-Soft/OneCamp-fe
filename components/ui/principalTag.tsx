@@ -53,7 +53,7 @@ const PRINCIPAL_KINDS: Record<PrincipalKind, PrincipalKindSpec> = {
   ai: { label: "AI", spoken: "AI agent", title: "AI agent", variant: "soft" },
   // Neutral, because "outside the company" is a fact about scope rather than a
   // problem; colouring it as a warning would editorialise every guest's name.
-  guest: { label: "Guest", spoken: "Guest user", title: "Guest — outside this workspace", variant: "secondary" },
+  guest: { label: "Guest", spoken: "Guest user", title: "Guest: outside this workspace", variant: "secondary" },
 }
 
 export function PrincipalTag({

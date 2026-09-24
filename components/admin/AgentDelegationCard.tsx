@@ -106,7 +106,7 @@ export function AgentDelegationCard() {
           Agent collaboration
         </CardTitle>
         <CardDescription>
-          Let one AI teammate hand work to another — a triage agent asking a coding agent to
+          Let one AI teammate hand work to another: a triage agent asking a coding agent to
           open a pull request, for example. Every hop is attributed to the person who started
           the chain, and an agent can never reach a teammate that person couldn&apos;t have
           asked themselves.

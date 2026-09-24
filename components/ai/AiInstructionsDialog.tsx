@@ -73,7 +73,7 @@ const AiInstructionsDialog: React.FC<{
             Custom instructions
           </DialogTitle>
           <DialogDescription>
-            Tell the assistant how you&apos;d like it to respond — your role, preferred tone, default
+            Tell the assistant how you&apos;d like it to respond: your role, preferred tone, default
             language, or anything to always keep in mind. Applies to your AI only.
           </DialogDescription>
         </DialogHeader>

@@ -221,7 +221,7 @@ export default function TranscriptionSettingsCard() {
                 </div>
                 <CardDescription>
                     Controls live captions and the searchable transcripts attached to recordings. Applies to new calls
-                    immediately — no redeploy. Secrets are encrypted at rest and never shown again.
+                    immediately, no redeploy. Secrets are encrypted at rest and never shown again.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -325,7 +325,7 @@ export default function TranscriptionSettingsCard() {
                                 <Input
                                     value={language}
                                     onChange={(e) => setLanguage(e.target.value)}
-                                    placeholder="auto-detect — e.g. en, es, fr"
+                                    placeholder="auto-detect: e.g. en, es, fr"
                                     disabled={loading}
                                     className="w-full sm:w-48"
                                 />

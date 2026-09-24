@@ -665,7 +665,7 @@ export const AgentRunsDialog: React.FC<{
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5 text-primary" />
-            Run history — {agentName}
+            Run history: {agentName}
           </DialogTitle>
           <DialogDescription>
             Every run this agent made: what triggered it, the tools it called, and what it changed.

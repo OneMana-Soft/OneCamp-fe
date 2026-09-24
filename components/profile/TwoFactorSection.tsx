@@ -179,7 +179,7 @@ export function TwoFactorSection() {
     const lowOnCodes = enrolled && status.unusedRecoveryCodes <= LOW_RECOVERY_CODE_THRESHOLD
 
     const description = enrolled
-        ? `On — a code from your authenticator app is required to sign in. ${status.unusedRecoveryCodes} recovery ${
+        ? `On: a code from your authenticator app is required to sign in. ${status.unusedRecoveryCodes} recovery ${
               status.unusedRecoveryCodes === 1 ? "code" : "codes"
           } left.`
         : "Require a code from your phone as well as your password"

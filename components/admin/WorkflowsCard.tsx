@@ -120,7 +120,7 @@ const WorkflowsCard = () => {
                     </CardTitle>
                     <CardDescription className="max-w-xl">
                         Automate the busywork. When a message matches your rule, OneCamp can
-                        reply automatically or turn it into a task — no code, runs forever.
+                        reply automatically or turn it into a task, no code, runs forever.
                     </CardDescription>
                 </div>
                 <Button onClick={() => setCreating(true)} className="shrink-0">
@@ -143,7 +143,7 @@ const WorkflowsCard = () => {
                             <p className="text-sm font-medium">No workflows yet</p>
                             <p className="text-sm text-muted-foreground">
                                 Try: when a message containing “bug” is posted in #support, create a
-                                task and reply “Thanks — we’re on it.”
+                                task and reply “Thanks: we’re on it.”
                             </p>
                         </div>
                         <Button variant="outline" onClick={() => setCreating(true)}>

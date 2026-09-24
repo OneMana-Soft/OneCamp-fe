@@ -53,7 +53,7 @@ interface McpToolRiskBadgeProps {
 export function McpToolRiskBadge({ tool, compact, className }: McpToolRiskBadgeProps) {
   const risk = mcpToolRisk(tool)
   const { label, hint, tone, Icon } = RISK_UI[risk]
-  const title = `${label} — ${hint}`
+  const title = `${label}: ${hint}`
 
   if (compact) {
     return (
@@ -92,7 +92,7 @@ export function McpToolRiskLegend({ className }: { className?: string }) {
         )
       })}
       <span className="text-muted-foreground/80">
-        OneCamp decides this from the tool itself — not from what the external server claims.
+        OneCamp decides this from the tool itself, not from what the external server claims.
       </span>
     </p>
   )

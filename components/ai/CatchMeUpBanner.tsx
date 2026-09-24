@@ -184,7 +184,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
                             <Sparkles className="h-4 w-4" />
                         </div>
                         <span className="flex-1 text-sm font-semibold text-foreground truncate">
-                            AI summary — {subjectLabel}
+                            AI summary: {subjectLabel}
                         </span>
                         <Button
                             variant="ghost"

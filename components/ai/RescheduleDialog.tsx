@@ -129,7 +129,7 @@ const RescheduleDialog: React.FC<{
                 </div>
               ) : (
                 <div className="text-2xs text-success">
-                  No conflicts right now — but you can still move it.
+                  No conflicts right now, but you can still move it.
                 </div>
               )}
             </div>

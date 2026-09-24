@@ -129,8 +129,8 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
             <Select value={form.type} onValueChange={(v: "incoming" | "outgoing") => setForm(f => ({ ...f, type: v }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="incoming"><div className="flex items-center gap-2"><ArrowDownToLine className="h-3.5 w-3.5" /> Incoming — receive messages from external services</div></SelectItem>
-                <SelectItem value="outgoing"><div className="flex items-center gap-2"><ArrowUpFromLine className="h-3.5 w-3.5" /> Outgoing — send events to external services</div></SelectItem>
+                <SelectItem value="incoming"><div className="flex items-center gap-2"><ArrowDownToLine className="h-3.5 w-3.5" /> Incoming: receive messages from external services</div></SelectItem>
+                <SelectItem value="outgoing"><div className="flex items-center gap-2"><ArrowUpFromLine className="h-3.5 w-3.5" /> Outgoing: send events to external services</div></SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -172,7 +172,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
                   )}
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_CHANNEL_VALUE}>— None —</SelectItem>
+                  <SelectItem value={NO_CHANNEL_VALUE}>— None:</SelectItem>
                   {channelsError && (
                     <div className="text-sm text-destructive px-2 py-2 text-center">Failed to load channels</div>
                   )}
@@ -213,7 +213,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
                   >{ev}</Badge>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">{form.events.length === 0 ? "No events selected — webhook will receive ALL events" : `${form.events.length} event(s) selected`}</p>
+              <p className="text-xs text-muted-foreground">{form.events.length === 0 ? "No events selected: webhook will receive ALL events" : `${form.events.length} event(s) selected`}</p>
             </div>
           )}
         </div>

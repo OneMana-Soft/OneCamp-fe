@@ -534,7 +534,7 @@ const AIModelsCard = () => {
                 <h4 className="text-sm font-semibold">Reasoning mode</h4>
                 <p className="text-xs text-muted-foreground">
                   Let reasoning models (gemma4, DeepSeek-R1, Qwen3, …) think before answering.
-                  Better answers on hard questions, but noticeably slower — especially on CPU-only
+                  Better answers on hard questions, but noticeably slower: especially on CPU-only
                   servers. Leave off for fastest responses. Other models ignore this.
                 </p>
               </div>
@@ -796,7 +796,7 @@ const AIModelsCard = () => {
                     {backfill?.state === "running"
                       ? `Scanning… ${backfill.scopes_done ?? 0}/${backfill.scopes_total ?? 0} scopes · ${backfill.items_extracted ?? 0} items`
                       : backfill?.state === "completed"
-                        ? `Last rebuild: ${backfill.items_extracted ?? 0} items from ${backfill.scopes_done ?? 0} scopes${backfill.error ? " (partial — re-run to continue)" : ""}`
+                        ? `Last rebuild: ${backfill.items_extracted ?? 0} items from ${backfill.scopes_done ?? 0} scopes${backfill.error ? " (partial: re-run to continue)" : ""}`
                         : backfill?.state === "failed"
                           ? `Last rebuild failed: ${backfill.error || "unknown error"}`
                           : "Extract knowledge from existing channels, DMs, and projects (one-time)."}
@@ -859,7 +859,7 @@ const AIModelsCard = () => {
             </div>
             <p className="mt-2 text-2xs text-muted-foreground">
               The report posts into channels (not email). The only email is the per-user open-items digest, which
-              each member opts into under their notification settings — &quot;Email me a test digest&quot; sends one to you now.
+              each member opts into under their notification settings: &quot;Email me a test digest&quot; sends one to you now.
             </p>
           </div>
 
@@ -867,7 +867,7 @@ const AIModelsCard = () => {
             <div className="pr-4">
               <h4 className="text-sm font-medium">Proactive Nudges</h4>
               <p className="text-xs text-muted-foreground">
-                Surface short, actionable nudges to the right person without being asked — overdue commitments
+                Surface short, actionable nudges to the right person without being asked: overdue commitments
                 and stale open questions appear in their bell in real time. The &quot;push&quot; arm of the
                 workspace AI. Requires Workspace Memory.
               </p>
@@ -1943,7 +1943,7 @@ function WebSearchSection({
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={config.has_web_search_key ? "•••••••• (stored — leave blank to keep)" : "Enter the provider API key"}
+            placeholder={config.has_web_search_key ? "•••••••• (stored: leave blank to keep)" : "Enter the provider API key"}
           />
         </div>
       )}
@@ -2091,7 +2091,7 @@ function SandboxSection({
             value={runnerToken}
             onChange={(e) => setRunnerToken(e.target.value)}
             placeholder={
-              config.has_sandbox_runner_token ? "•••••••• (stored — leave blank to keep)" : "Shared auth token"
+              config.has_sandbox_runner_token ? "•••••••• (stored: leave blank to keep)" : "Shared auth token"
             }
           />
         </div>
@@ -2352,7 +2352,7 @@ function CodePRSection({
           <h4 className="text-sm font-medium">Code pull requests</h4>
           <p className="text-xs text-muted-foreground">
             Let an @mentioned (or task-assigned) agent make a change to a linked repository and open a verified,
-            reviewable pull request — inside an isolated code-runner sidecar whose only network access is your git
+            reviewable pull request, inside an isolated code-runner sidecar whose only network access is your git
             host. The agent never merges; every PR goes through your normal review + CI. Off until you deploy a
             coding runner and point this at it. Metered against the budgets below.
           </p>
@@ -2376,7 +2376,7 @@ function CodePRSection({
             value={runnerToken}
             onChange={(e) => setRunnerToken(e.target.value)}
             placeholder={
-              config.has_code_pr_runner_token ? "•••••••• (stored — leave blank to keep)" : "Shared auth token"
+              config.has_code_pr_runner_token ? "•••••••• (stored: leave blank to keep)" : "Shared auth token"
             }
           />
         </div>
@@ -2424,7 +2424,7 @@ function CodePRSection({
           <Label className="text-xs">Allow any repository the agent can access</Label>
           <p className="text-2xs text-muted-foreground">
             When on, the agent can open a PR on any repo the connected GitHub account can reach (access is verified
-            per run), not only repos linked to a project. Leave off to restrict it to linked repositories — the safer
+            per run), not only repos linked to a project. Leave off to restrict it to linked repositories: the safer
             default when the connected account can see repos beyond this workspace.
           </p>
         </div>
@@ -2484,7 +2484,7 @@ function CodePRSection({
           className="w-32"
         />
         <p id="code-pr-wall-hint" className="text-2xs text-muted-foreground">
-          How long one coding run may work before it wraps up and hands back whatever it finished — partial work is
+          How long one coding run may work before it wraps up and hands back whatever it finished: partial work is
           still pushed to a branch. Use 0 for the default, or {CODE_PR_MIN_WALL_MINUTES}–{CODE_PR_MAX_WALL_MINUTES}{" "}
           minutes. In force now: {config.code_pr_effective_wall_minutes} min.
         </p>
@@ -2600,7 +2600,7 @@ function CodePRReliabilityCard() {
         <div className="pr-4">
           <h4 className="text-sm font-medium">Coding agent reliability</h4>
           <p className="text-xs text-muted-foreground">
-            How the coding agent actually performs — open, verify, in-scope, and draft rates, plus the ground-truth
+            How the coding agent actually performs: open, verify, in-scope, and draft rates, plus the ground-truth
             merge rate from your review decisions. Graded conservatively: it reads &quot;unproven&quot; until there
             are enough runs to judge, so the number never over-claims.
           </p>

@@ -85,7 +85,7 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
                     // greyscale print of an audit export.
                     <p className="mt-1 text-xs">
                         {meta?.refused && (
-                            <span className="font-medium text-destructive">Refused — </span>
+                            <span className="font-medium text-destructive">Refused: </span>
                         )}
                         <span className={meta?.refused ? "text-destructive/90" : "text-muted-foreground"}>
                             {reason}
@@ -312,7 +312,7 @@ export default function AdminAuditLog() {
                     </div>
                 </div>
                 <CardDescription>
-                    Configuration changes by admins, tamper-evident (hash-chained). Secret values are never recorded — only that a change occurred. Verify the chain or export it for an auditor.
+                    Configuration changes by admins, tamper-evident (hash-chained). Secret values are never recorded, only that a change occurred. Verify the chain or export it for an auditor.
                 </CardDescription>
                 {/* Offered only AFTER a windowed check comes back, and only when it
                     passed. Verify is bounded by default because the log only grows

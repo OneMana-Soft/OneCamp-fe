@@ -83,7 +83,7 @@ const MyAgentWorkDialog: React.FC<{ open: boolean; onOpenChange: (v: boolean) =>
           </DialogTitle>
           <DialogDescription>
             What your AI teammates are doing for you right now
-            {blockedCount > 0 ? ` — ${blockedCount} waiting on you` : ""}.
+            {blockedCount > 0 ? `: ${blockedCount} waiting on you` : ""}.
           </DialogDescription>
         </DialogHeader>
 

@@ -91,7 +91,7 @@ const DataSourcesCard = () => {
             Data sources
           </CardTitle>
           <CardDescription className="max-w-xl">
-            Connect a read-only external database so agents can answer questions from it — the same
+            Connect a read-only external database so agents can answer questions from it: the same
             deterministic way they query native tables. Connections are opened read-only and the
             password is encrypted at rest.
           </CardDescription>

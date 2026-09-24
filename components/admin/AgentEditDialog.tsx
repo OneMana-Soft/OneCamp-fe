@@ -857,7 +857,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                   "Post the check-in to channels",
                   mentionChannelIds.size > 0
                     ? "Its scheduled update is posted to the selected channels (as the agent, badged AI)."
-                    : "Pick channels to post its scheduled update there. Leave empty and it runs silently — it can still act via its tools but posts nothing.",
+                    : "Pick channels to post its scheduled update there. Leave empty and it runs silently: it can still act via its tools but posts nothing.",
                 )}
               </div>
             )}
@@ -904,7 +904,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 {renderChannelPicker(
                   "Limit to channels (optional)",
                   mentionChannelIds.size > 0
-                    ? "The agent only answers @mentions in the selected channels, and can only act in them — including through an API token bound to it."
+                    ? "The agent only answers @mentions in the selected channels, and can only act in them: including through an API token bound to it."
                     : "Leave empty and the agent answers @mentions anywhere it's added, and can act wherever you can. Pick channels to keep it from being pulled into others.",
                 )}
               </div>

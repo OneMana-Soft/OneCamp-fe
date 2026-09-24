@@ -23,7 +23,7 @@ export default function ArchiveRunJobDialog({ open, onOpenChange, onConfirm, ent
     try {
       await onConfirm()
     } catch (err: any) {
-      const msg = err?.response?.status === 429 ? "Rate limit exceeded — try again later" : err?.response?.data?.error || "Failed to start archive job"
+      const msg = err?.response?.status === 429 ? "Rate limit exceeded: try again later" : err?.response?.data?.error || "Failed to start archive job"
       toast({ title: "Error", description: msg, variant: "destructive" })
     } finally {
       setIsRunning(false)

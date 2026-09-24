@@ -109,7 +109,7 @@ const ArchiveCard = () => {
       mutateJobs()
       mutatePolicies()
     } catch (err: any) {
-      const msg = err?.response?.status === 429 ? "Rate limit exceeded — try again later" : "Failed to undo archive job"
+      const msg = err?.response?.status === 429 ? "Rate limit exceeded: try again later" : "Failed to undo archive job"
       toast({ title: "Error", description: msg, variant: "destructive" })
     } finally {
       setUndoingJobId(null)

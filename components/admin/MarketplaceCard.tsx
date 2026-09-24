@@ -80,7 +80,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             if ((item.setup?.some((s) => s.required) ?? false)) {
                 toast({
                     title: `${item.name} installed`,
-                    description: "One more step — add the required credential to finish setup.",
+                    description: "One more step: add the required credential to finish setup.",
                 })
                 if (app?.id) onConfigure(app.id)
             } else {
