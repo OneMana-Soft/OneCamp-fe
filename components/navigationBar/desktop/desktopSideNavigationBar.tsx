@@ -162,7 +162,9 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
             data-collapsed={isCollapsed}
             className="group flex flex-col gap-1 py-2 data-[collapsed=true]:py-2"
         >
-            <nav className="grid gap-0.5 px-2 group-[[data-collapsed=true]]:justify-center group-[[data-collapsed=true]]:px-2">
+            {/* minmax(0,1fr): a grid column otherwise grows to its longest unbreakable
+                name, and every row, unread badge and all, then runs past the panel. */}
+            <nav className="grid grid-cols-[minmax(0,1fr)] gap-0.5 px-2 group-[[data-collapsed=true]]:justify-center group-[[data-collapsed=true]]:px-2">
                 {links.map((link, index) =>
                         isCollapsed ? !link.children && (
                             <CollapsedNavItem key={index} link={link} />

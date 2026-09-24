@@ -1,4 +1,5 @@
 "use client"
+import { useTranslation } from "react-i18next";
 
 import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
@@ -25,6 +26,7 @@ const VALID_TABS = ["list", "kanban", "attachments"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
+    const { t } = useTranslation()
     const projectInfo = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectInfo + "/" + projectId)
     const [projectNotification, setProjectNotificationType] = useState<string>(NotificationType.NotificationAll)
 
@@ -121,21 +123,21 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                 className="gap-2 px-4 py-2 rounded-md transition-all duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
                             >
                                 <List className="h-4 w-4" />
-                                {"list"}
+                                {t("list", { defaultValue: "List" })}
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="kanban"
                                 className="gap-2 px-4 py-2 rounded-md transition-all duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
                             >
                                 <Kanban className="h-4 w-4" />
-                                {"board"}
+                                {t("board", { defaultValue: "Board" })}
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="attachments"
                                 className="gap-2 px-4 py-2 rounded-md transition-all duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
                             >
                                 <Paperclip className="h-4 w-4" />
-                                {"attachments"}
+                                {t("attachments", { defaultValue: "Attachments" })}
                             </TabsTrigger>
                         </TabsList>
 
