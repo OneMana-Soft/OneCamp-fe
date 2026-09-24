@@ -178,6 +178,8 @@ export interface AttentionItem {
   subtitle?: string
   url?: string
   due_at?: string
+  due_time?: string // exact due moment, RFC 3339 UTC; see dueLabel
+  context?: string // what the row belongs to (a task's project), no date
   priority: number // lower = more urgent
   ref_id?: string // source entity id (e.g. a pending-action id)
 }

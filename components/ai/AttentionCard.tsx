@@ -35,6 +35,7 @@ import {
   Loader2,
 } from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
+import { dueLabel } from "@/lib/utils/dueLabel"
 
 // Per-source icon + tint so each row's origin is recognizable at a glance.
 const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -172,6 +173,9 @@ function AttentionCard() {
           const tint = SOURCE_TINT[it.source] || "text-muted-foreground"
           const clickable = !!it.url
           const overdue = it.kind.toLowerCase().startsWith("overdue")
+          // Said once and in the reader's zone when the exact moment is known;
+          // older backends send only kind and subtitle, which still render.
+          const due = dueLabel(it.due_time, new Date())
           const isApproval = it.source === "approval" && !!it.ref_id
           const rowBusy = it.ref_id ? !!busy[it.ref_id] : false
           const Row = (
@@ -186,11 +190,11 @@ function AttentionCard() {
                     }`}
                   >
                     {overdue && <Clock className="h-3 w-3" />}
-                    {it.kind}
+                    {due || it.kind}
                   </span>
-                  {it.subtitle && (
+                  {(due ? it.context : it.subtitle) && (
                     <span className="text-2xs text-muted-foreground/80 truncate max-w-[220px]">
-                      {it.subtitle}
+                      {due ? it.context : it.subtitle}
                     </span>
                   )}
                 </span>
