@@ -215,5 +215,7 @@
   "addedTaskAttachment": "Added attachment(s) to task",
   "subTaskDelete": "Deleted sub task",
   "subTaskUnDelete": "Undeleted sub task",
-  "onlineLabel": "Online"
+  "onlineLabel": "Online",
+  "of": "of",
+  "inReview": "In Review"
 }
