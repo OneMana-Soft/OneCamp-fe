@@ -431,32 +431,10 @@ export default function Page() {
             {!focusMode && isMobile && (
                 <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b bg-background/80 backdrop-blur-sm">
                     <DocTopBarBreadcrumb doc={displayDocInfo!} canEdit={hasEditAccess} />
-                    <div className="flex items-center gap-1">
-                        <ActiveUsersBar users={awarenessUsers} maxShown={3} />
-                        <Button variant='ghost' size="sm" onClick={handleCommentClick} className="gap-1 px-2">
-                            <MessageCircle className='h-4 w-4'/>
-                            <span className="text-sm">{docCommentCount || 0}</span>
-                        </Button>
-                        {hasEditAccess && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="px-2 text-muted-foreground hover:text-foreground" title="More">
-                                        <Ellipsis className='h-4 w-4'/>
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docViewers", data: { docId } }))}>
-                                        <Eye className="mr-2 h-4 w-4" />
-                                        Viewed by
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docVersionHistory", data: { docId } }))}>
-                                        <History className="mr-2 h-4 w-4" />
-                                        Version history
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
-                    </div>
+                    {/* Comments and the document menu live in the phone's top bar
+                        (mobileTopNavigationBarThirdDoc and its drawer); repeating
+                        them here put two of each on screen. */}
+                    <ActiveUsersBar users={awarenessUsers} maxShown={3} />
                 </div>
             )}
 
