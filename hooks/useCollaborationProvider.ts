@@ -8,12 +8,8 @@
 import * as React from 'react'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { IndexeddbPersistence } from 'y-indexeddb'
-import axiosInstance from '@/lib/axiosInstance'
+import { memberCollabToken, forgetCollabToken } from '@/lib/collabToken'
 
-interface TokenResponse {
-  data?: { token?: string }
-  token?: string
-}
 export interface CollaborationConfig {
   enabled: boolean
   documentId: string
@@ -99,11 +95,8 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
         return ''
       }
     }
-    const url = `${(process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/+$/, '')}/auth/token`
     try {
-      const res = await axiosInstance.get<TokenResponse>(url)
-      const raw = res.data?.data?.token || res.data?.token || ''
-      return raw.startsWith('Bearer ') ? raw.slice(7) : raw
+      return await memberCollabToken()
     } catch (err) {
       console.error('[Collab] Failed to fetch collab token:', err)
       return ''
@@ -146,6 +139,8 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
         // reconnect on its own and call `fetchCollabToken` again for a fresh
         // token. Tearing down here is exactly what caused the storm.
         console.error(`[Collab] Auth failed for ${config.documentId}:`, reason)
+        // The next attempt must not be handed the token just refused.
+        if (!config.tokenFetcher) forgetCollabToken()
       },
       onSynced: () => {
         setSynced(true)

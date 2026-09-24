@@ -34,15 +34,10 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
     const latestMsg = useFetch<CreatePostPaginationResRaw>(postId ? '' : GetEndpointUrl.GetChannelLatestPost + '/' + channelId)
     const getNewPostsWithCurrentPost = useFetch<CreatePostPaginationResRaw>(postId ? GetEndpointUrl.GetNewPostIncludingCurrentPost + '/' + channelId + '/' + postId: '')
 
-    // Revalidate the latest window on open/switch so a revisited channel picks
-    // up posts that arrived while away (notification deep-link). The merge
-    // effect reconciles without clobbering optimistic sends.
-    useEffect(() => {
-        if (!postId && channelId) {
-            void latestMsg.mutate()
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [channelId, postId])
+    // A revisited channel picks up posts that arrived while away because SWR
+    // revalidates a cached key on mount and on switch (revalidateIfStale). An
+    // explicit mutate() here used to do it a second time, so every channel
+    // opened with two identical requests for its latest posts.
 
     const rawChannelTyping = useSelector((state: RootState) => state.typing.channelTyping[channelId] || EMPTY_TYPING_LIST);
     const channelTypingState = useMemo(() => rawChannelTyping.map(item => item.user), [rawChannelTyping]);
