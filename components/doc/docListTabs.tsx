@@ -8,9 +8,12 @@ import { DocListTabContent } from "@/components/doc/docListTabContent";
 import { SectionTabs } from "@/components/ui/sectionTabs";
 import { Button } from "@/components/ui/button";
 import { openUI } from "@/store/slice/uiSlice";
+import { useFetch } from "@/hooks/useFetch";
+import { GetEndpointUrl } from "@/services/endPoints";
+import type { DocInfoListInterfaceResp } from "@/types/doc";
+import { defaultDocTab, isDocTab, type DocTab } from "@/lib/utils/docTab";
 
-const VALID_TABS = ["private", "public"] as const
-type TabValue = (typeof VALID_TABS)[number]
+type TabValue = DocTab
 
 const TABS = [
     { value: "private", label: "Private" },
@@ -23,24 +26,40 @@ export function DocListTabs() {
     const router = useRouter()
     const dispatch = useDispatch()
 
-    const [selectedTab, setSelectedTab] = useState<TabValue>(() => {
-        const tabFromUrl = searchParams.get("tab")
-        return VALID_TABS.includes(tabFromUrl as TabValue) ? (tabFromUrl as TabValue) : "private"
-    })
+    // The tab the URL asked for, read once: a tab chosen later by the viewer
+    // is written back to the URL and must not be second-guessed.
+    const [urlTab] = useState(() => searchParams.get("tab"))
+    const [selectedTab, setSelectedTab] = useState<TabValue>(() => defaultDocTab(urlTab, undefined))
+    const [chosen, setChosen] = useState(isDocTab(urlTab))
+
+    // The same first page the Private list asks for, so SWR serves both from
+    // one request. Only asked when no tab was named.
+    const { data: firstPrivate } = useFetch<DocInfoListInterfaceResp>(
+        chosen ? "" : `${GetEndpointUrl.GetUserPrivateDocList}?pageIndex=0&pageSize=20`
+    )
+    useEffect(() => {
+        if (chosen || !firstPrivate) return
+        setSelectedTab(defaultDocTab(null, (firstPrivate.data?.docs ?? []).length))
+        setChosen(true)
+    }, [chosen, firstPrivate])
 
     const handleTabChange = useCallback((value: string) => {
-        if (VALID_TABS.includes(value as TabValue)) {
-            setSelectedTab(value as TabValue)
+        if (isDocTab(value)) {
+            setChosen(true)
+            setSelectedTab(value)
         }
     }, [])
 
     useEffect(() => {
+        // Not before the default is settled, or "private" would be written
+        // first and read back later as a choice.
+        if (!chosen) return
         if (pathname === "/app/doc" && searchParams.get("tab") !== selectedTab) {
             const params = new URLSearchParams(searchParams.toString())
             params.set("tab", selectedTab)
             router.replace(`${pathname}?${params.toString()}`, { scroll: false })
         }
-    }, [selectedTab, pathname, router, searchParams])
+    }, [chosen, selectedTab, pathname, router, searchParams])
 
     return (
         <SectionTabs
