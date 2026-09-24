@@ -1,9 +1,10 @@
+import { useTranslation } from "react-i18next";
 import {prioritiesInterface} from "@/types/table";
-import {Badge} from "@/components/ui/badge";
 import {cn} from "@/lib/utils/helpers/cn";
-import {Button} from "@/components/ui/button";
 
 export const TaskStatusCell = ({status}: {status: prioritiesInterface}) => {
+    // The label, in the reader's language; never the stored value ("inReview").
+    const { t } = useTranslation()
 
 
     return (
@@ -15,7 +16,7 @@ export const TaskStatusCell = ({status}: {status: prioritiesInterface}) => {
         >            {status.icon && (
                 <status.icon className=" h-4 w-4 text-muted-foreground" />
             )}
-            <div>{(status.value)}</div>
+            <div>{t(status.value, { defaultValue: status.label })}</div>
         </div>
     )
 }
