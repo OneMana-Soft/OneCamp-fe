@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs"
+import { pageOwnsBottomEdge } from "@/lib/utils/mobileBottomNav"
 import { join } from "node:path"
 
 import { describe, expect, it } from "vitest"
@@ -48,11 +49,11 @@ describe("mobile navigation covers every route", () => {
         const src = navSource("mobileBottomNavigationBar.tsx")
         // The rule must stay a named list rather than a depth heuristic. Depth is
         // what silently removed navigation from pages that merely happened to nest.
-        expect(src).toContain("BOTTOM_OWNED_BY_PAGE")
+        // The list lives in lib/utils/mobileBottomNav.ts, shared with the layout.
+        expect(src).toContain("pageOwnsBottomEdge(pathname)")
         expect(src).not.toContain("pathLength")
 
         // Settings is the case that broke, so it is the case worth pinning.
-        const rules = src.slice(src.indexOf("BOTTOM_OWNED_BY_PAGE"), src.indexOf("const isVisible"))
-        expect(rules).not.toContain("settings")
+        expect(pageOwnsBottomEdge("/app/settings/agents")).toBe(false)
     })
 })

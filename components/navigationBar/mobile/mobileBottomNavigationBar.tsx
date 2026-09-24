@@ -1,5 +1,6 @@
 "use client"
 
+import { pageOwnsBottomEdge } from "@/lib/utils/mobileBottomNav"
 import { Bell, Hash, Home, MessageCircle, MoreHorizontal } from "@/lib/icons"
 import { usePathname, useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
@@ -53,19 +54,8 @@ export function MobileBottomNavigationBar() {
     // page added later keeps its navigation unless somebody decides otherwise.
     // That is the safer of the two defaults, because the failure mode of this
     // one is a redundant bar rather than a dead end.
-    const BOTTOM_OWNED_BY_PAGE = [
-        /^\/app\/channel\/[^/]+/,     // message composer
-        /^\/app\/chat\/[^/]+/,        // message composer, DM and group
-        /^\/app\/doc\/[^/]+/,         // editor toolbar
-        /^\/app\/board\/[^/]+/,       // canvas
-        /^\/app\/task\/[^/]+/,        // detail view with its own action row
-        /^\/app\/tables\/[^/]+/,      // grid that scrolls both ways
-        /^\/app\/calendar\/event\//, // detail view
-        /^\/app\/meet\//,             // a call owns the whole screen
-        /^\/app\/create\//,           // form with a submit bar
-        /^\/app\/forward\//,          // send bar
-    ]
-    const isVisible = !BOTTOM_OWNED_BY_PAGE.some((r) => r.test(pathname))
+    // The list, and why each entry is on it: lib/utils/mobileBottomNav.ts.
+    const isVisible = !pageOwnsBottomEdge(pathname)
 
     const userSidebarState = useSelector((state: RootState) => state.users.userSidebar)
 
