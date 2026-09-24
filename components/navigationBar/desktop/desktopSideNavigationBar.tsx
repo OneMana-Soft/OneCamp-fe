@@ -31,6 +31,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
     return (
         <Link
             href={`${ch.path}`}
+            prefetch
             scroll={false}
             aria-current={isActive ? "page" : undefined}
             className={cn(
@@ -133,6 +134,7 @@ const CollapsedNavItem = memo(({ link }: { link: DesktopNavType }) => {
                 ) : (
                     <Link
                         href={`${link.path}`}
+                        prefetch
                         scroll={false}
                         aria-current={link.variant === "sidebarActive" ? "page" : undefined}
                         className={itemClass}
@@ -232,6 +234,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                 <div key={index} className="group/nav flex items-center gap-0.5">
                                     <Link
                                         href={`${link.path}`}
+                                        prefetch
                                         scroll={false}
                                         aria-current={link.variant === "sidebarActive" ? "page" : undefined}
                                         className={cn(

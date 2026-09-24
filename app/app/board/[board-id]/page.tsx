@@ -8,6 +8,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
 import { BoardInfoResponse } from "@/types/board";
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider";
+import { warmCollabToken } from "@/lib/collabToken";
 import { usePost } from "@/hooks/usePost";
 import { generateColorFromUUID } from "@/lib/utils/generateColorFromUUID";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -78,6 +79,9 @@ export default function BoardPage() {
     };
   }, [boardId, userProfile.data?.data]);
 
+  // Ask for the collaboration token while the board's details load, so the
+  // websocket finds it ready instead of waiting another round trip.
+  React.useEffect(() => { warmCollabToken() }, []);
   const { provider, status: collabStatus, synced, awarenessUsers } =
     useCollaborationProvider(collaborationConfig);
 

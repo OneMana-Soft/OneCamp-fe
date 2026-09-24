@@ -35,6 +35,7 @@ import { DocPageSkeleton } from "@/components/doc/DocPageSkeleton";
 import { useDocMessageHandlers } from "@/hooks/useDocMessageHandlers";
 import { usePost } from "@/hooks/usePost";
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider";
+import { warmCollabToken } from "@/lib/collabToken";
 import { useDocAutoSave } from "@/hooks/useDocAutoSave";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { htmlToMarkdown, downloadMarkdown } from "@/lib/utils/exportToMarkdown";
@@ -169,6 +170,10 @@ export default function Page() {
             profileKey: userProfile.data.data.user_profile_object_key,
         };
     }, [docId, userProfile.data?.data, hasEditAccess]);
+
+    // Ask for the collaboration token while the doc's details load, so the
+    // websocket finds it ready instead of waiting another round trip.
+    useEffect(() => { warmCollabToken() }, []);
 
     // Collaboration provider
     const { provider, status: collabStatus, synced: collabSynced, activeUsers, awarenessUsers } = useCollaborationProvider(collaborationConfig);
