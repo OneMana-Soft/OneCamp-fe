@@ -22,6 +22,7 @@ import AgentDelegationCard from "@/components/admin/AgentDelegationCard"
 import GovernanceDrillCard from "@/components/admin/GovernanceDrillCard"
 import MCPServerCard from "@/components/admin/MCPServerCard"
 import AIActivityCard from "@/components/admin/AIActivityCard"
+import { SectionJumps } from "@/components/admin/SectionJumps"
 import AppsCard from "@/components/admin/AppsCard"
 import WorkspaceSettingsCard from "@/components/admin/WorkspaceSettingsCard"
 import GuestAccessCard from "@/components/admin/GuestAccessCard"
@@ -113,6 +114,15 @@ const TAB_GROUPS: TabGroup[] = [
 ]
 
 const TABS: TabDef[] = TAB_GROUPS.flatMap((g) => g.tabs)
+
+// The cards of AI & agents, in page order, for its jump row.
+const AI_JUMPS = [
+  { id: "ai-models-models", label: "Models" },
+  { id: "ai-models-delegation", label: "Agent permissions" },
+  { id: "ai-models-drill", label: "Governance drill" },
+  { id: "ai-models-mcp", label: "MCP servers" },
+  { id: "ai-models-activity", label: "Activity" },
+]
 
 const AdminPage = () => {
   const searchParams = useSearchParams()
@@ -386,16 +396,17 @@ const AdminPage = () => {
               {aiAvailable && (
               <TabsContent value="ai-models" className="mt-0 outline-none">
                 <div className={ADMIN_SECTION_STACK}>
-                  <AIModelsCard />
-                  <AgentDelegationCard />
+                  <SectionJumps jumps={AI_JUMPS} />
+                  <section id="ai-models-models" className="scroll-mt-4"><AIModelsCard /></section>
+                  <section id="ai-models-delegation" className="scroll-mt-4"><AgentDelegationCard /></section>
                   {/* Straight after delegation, because delegation says what an agent MAY
                       do and this proves the limit actually holds on this install. */}
-                  <GovernanceDrillCard />
+                  <section id="ai-models-drill" className="scroll-mt-4"><GovernanceDrillCard /></section>
                   {/* Beside agent collaboration because they are the same kind of decision:
                       who may cause an agent to act here. Delegation governs agents inside
                       the workspace; this governs clients outside it. */}
-                  <MCPServerCard />
-                  <AIActivityCard />
+                  <section id="ai-models-mcp" className="scroll-mt-4"><MCPServerCard /></section>
+                  <section id="ai-models-activity" className="scroll-mt-4"><AIActivityCard /></section>
                 </div>
               </TabsContent>
               )}
