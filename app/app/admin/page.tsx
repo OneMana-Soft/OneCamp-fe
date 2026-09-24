@@ -28,7 +28,7 @@ import RetentionCard from "@/components/admin/RetentionCard"
 import PushNotificationsCard from "@/components/admin/PushNotificationsCard"
 import SystemCheckCard from "@/components/admin/SystemCheckCard"
 import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
-import { Users2, Webhook, Archive, UserX, Database, ChevronLeft, ChevronRight, Plug, SlidersHorizontal, Zap, KeyRound } from "lucide-react"
+import { Users2, Webhook, Archive, UserX, Database, Plug, SlidersHorizontal, Zap, KeyRound, Lock, ScrollText } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useMedia } from "@/context/MediaQueryContext"
 import { FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
@@ -49,38 +49,75 @@ type TabDef = {
   icon: React.ComponentType<{ className?: string }>
 }
 
-const TABS: TabDef[] = [
-  { value: "teams", label: "Teams", icon: Users },
-  { value: "users", label: "Users", icon: Users2 },
-  { value: "admins", label: "Admins", icon: ShieldAlert },
-  { value: "invitations", label: "Invitations", icon: Mail },
-  { value: "email-settings", label: "Email Config", icon: Settings },
-  { value: "settings", label: "Settings", icon: SlidersHorizontal },
-  { value: "health", label: "Health", icon: Activity },
-  { value: "permissions", label: "Permissions", icon: KeyRound },
-  { value: "transcription", label: "Transcription", icon: Mic },
-  { value: "webhooks", label: "Webhooks", icon: Webhook },
-  { value: "workflows", label: "Workflows", icon: Zap },
-  { value: "apps", label: "Apps", icon: Plug },
-  { value: "integrations", label: "Integrations", icon: GitBranch },
-  { value: "external-users", label: "External Users", icon: UserX },
-  { value: "archive", label: "Archive", icon: Archive },
-  // ONE IMPORT TAB, NOT TWO. "Slack Import" and "Import" sat next to each other
-  // with the same icon and no way to tell which held what, so an admin looking
-  // for their migration had to open both and read the cards. They are one
-  // question — how do I get my existing work in — and now one place.
-  { value: "import", label: "Import", icon: Database },
+// GROUPED, IN A SIDE MENU. This was seventeen tabs in one strip that scrolled
+// sideways: on a laptop most sat off-screen behind a fade, and related ones were
+// scattered (Users, Admins, Teams, Invitations and External users were five
+// tabs apart). Admin consoles people already know (Slack, Linear, GitHub) group
+// settings under a few headings in a column, so an admin scans a short list for
+// the right heading instead of scrolling a strip for the right word.
+type TabGroup = { label: string; tabs: TabDef[] }
+
+const TAB_GROUPS: TabGroup[] = [
+  {
+    label: "People",
+    tabs: [
+      { value: "users", label: "Users", icon: Users2 },
+      { value: "admins", label: "Admins", icon: ShieldAlert },
+      { value: "teams", label: "Teams", icon: Users },
+      { value: "invitations", label: "Invitations", icon: Mail },
+      { value: "external-users", label: "External users", icon: UserX },
+    ],
+  },
+  {
+    label: "Workspace",
+    tabs: [
+      { value: "settings", label: "General", icon: SlidersHorizontal },
+      { value: "security", label: "Security", icon: Lock },
+      { value: "permissions", label: "Permissions", icon: KeyRound },
+      { value: "email-settings", label: "Email", icon: Settings },
+      { value: "audit", label: "Audit log", icon: ScrollText },
+      { value: "archive", label: "Archive", icon: Archive },
+      // ONE IMPORT TAB, NOT TWO. "Slack Import" and "Import" sat next to each other
+      // with the same icon and no way to tell which held what, so an admin looking
+      // for their migration had to open both and read the cards. They are one
+      // question — how do I get my existing work in — and now one place.
+      { value: "import", label: "Import", icon: Database },
+    ],
+  },
+  {
+    label: "AI and automation",
+    tabs: [
+      { value: "workflows", label: "Workflows", icon: Zap },
+      { value: "transcription", label: "Transcription", icon: Mic },
+    ],
+  },
+  {
+    label: "Connections",
+    tabs: [
+      { value: "integrations", label: "Integrations", icon: GitBranch },
+      { value: "apps", label: "Apps", icon: Plug },
+      { value: "webhooks", label: "Webhooks", icon: Webhook },
+    ],
+  },
+  {
+    label: "System",
+    tabs: [{ value: "health", label: "Health", icon: Activity }],
+  },
 ]
+
+const TABS: TabDef[] = TAB_GROUPS.flatMap((g) => g.tabs)
 
 const AdminPage = () => {
   const searchParams = useSearchParams()
   const {isDesktop } = useMedia();
   const { toast } = useToast()
-  // The transcription tab exists only when the server has LiveKit behind it,
-  // and the page cannot know that until the config request answers. It used to
-  // read the two-state hook, which reports "no" while that request is in
-  // flight, and pick its tab ONCE from that answer: a cold load of
-  // /app/admin?tab=transcription therefore opened on Teams and stayed there.
+  // Two tabs exist only when the server has the subsystem behind them, and the
+  // page cannot know that until the config request answers. It used to read the
+  // two-state hook, which reports "no" while that request is in flight, and pick
+  // its tab ONCE from that answer: a cold load of /app/admin?tab=ai-models, which
+  // is what every link to the drill card is, therefore opened on Teams and stayed
+  // there. The setup checklist sent a new admin to see an agent refused and
+  // landed them on a list of teams.
   const callsState = useFeatureState(FEATURE_CALLS)
   const callsAvailable = callsState === "available"
   const visibleTabs = TABS.filter((tab) => {
@@ -92,47 +129,43 @@ const AdminPage = () => {
   // merged tab that broke its own old address would be a worse fix than the
   // confusion it removed.
   const TAB_ALIASES: Record<string, string> = { "slack-import": "import" }
-  const rawTab = searchParams.get("tab") || "teams"
-  const requestedTab = TAB_ALIASES[rawTab] ?? rawTab
+  const rawTab = searchParams.get("tab") || "users"
+  // The audit log moved out of General into its own section. Links to
+  // ?tab=settings#audit-log, the governance drill's among them, still land on it.
+  const hash = typeof window !== "undefined" ? window.location.hash : ""
+  const requestedTab =
+    rawTab === "settings" && hash === "#audit-log" ? "audit" : TAB_ALIASES[rawTab] ?? rawTab
   const requestedTabVisible = visibleTabs.some((tab) => tab.value === requestedTab)
   // The URL asked for a gated tab and the server has not said yet whether it
   // exists. Falling back to Teams here would be answering before the question
   // was asked, and the fallback would stick.
-  const gateForRequested = requestedTab === "transcription" ? callsState : "available"
+  const gateForRequested =
+    requestedTab === "transcription" ? callsState : "available"
   const waitingOnRequestedTab = gateForRequested === "unknown"
-  const [activeTab, setActiveTab] = useState(requestedTabVisible ? requestedTab : "teams")
+  const [activeTab, setActiveTab] = useState(requestedTabVisible ? requestedTab : "users")
   useEffect(() => {
     // Honour the URL the moment its tab becomes real. After that the user owns
     // the selection: this only re-runs when the answer itself changes.
     if (requestedTabVisible) setActiveTab(requestedTab)
   }, [requestedTab, requestedTabVisible])
   const processed = useRef(false)
+  // Groups with at least one tab this server offers, in menu order.
+  const visibleGroups = TAB_GROUPS.map((g) => ({
+    ...g,
+    tabs: g.tabs.filter((t) => visibleTabs.some((v) => v.value === t.value)),
+  })).filter((g) => g.tabs.length > 0)
 
-  // Horizontal scroll affordance for the tab strip — show fade + arrow
-  // buttons only when there is actually overflow on the current viewport.
-  const tabsScrollRef = useRef<HTMLDivElement>(null)
-  const [overflow, setOverflow] = useState({ left: false, right: false })
-
-  const updateOverflow = () => {
-    const el = tabsScrollRef.current
-    if (!el) return
-    const left = el.scrollLeft > 4
-    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
-    setOverflow((prev) => (prev.left === left && prev.right === right ? prev : { left, right }))
-  }
-
-  useEffect(() => {
-    updateOverflow()
-    const el = tabsScrollRef.current
-    if (!el) return
-    el.addEventListener("scroll", updateOverflow, { passive: true })
-    const ro = new ResizeObserver(updateOverflow)
-    ro.observe(el)
-    return () => {
-      el.removeEventListener("scroll", updateOverflow)
-      ro.disconnect()
+  // Choosing a section updates the address, so a refresh or Back returns here.
+  // replaceState rather than the router: the page is already showing the tab.
+  const chooseTab = (value: string) => {
+    setActiveTab(value)
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href)
+      url.searchParams.set("tab", value)
+      url.hash = ""
+      window.history.replaceState(window.history.state, "", url.toString())
     }
-  }, [])
+  }
 
   useEffect(() => {
     if (processed.current) return
@@ -156,33 +189,30 @@ const AdminPage = () => {
     }
   }, [searchParams, toast])
 
-  const scrollTabs = (dir: "left" | "right") => {
-    const el = tabsScrollRef.current
-    if (!el) return
-    el.scrollBy({ left: dir === "left" ? -240 : 240, behavior: "smooth" })
-  }
-
   return (
     <main
       id="main-content"
       className="flex flex-col h-full min-h-0 bg-background"
     >
-      {/* Header */}
+      {/* Header: desktop only. A phone's top bar already says Admin, and the
+          section picker below is the first thing that is needed there. */}
+      {isDesktop && (
       <header className="shrink-0 border-b border-border/60 bg-card/30 backdrop-blur-md">
-        <div className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
-          {isDesktop && <div className="flex items-center gap-2.5">
+        <div className="px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center gap-2.5">
             <div className="bg-primary/10 p-1.5 rounded-md">
               <Shield className="h-4 w-4 text-primary" />
             </div>
             <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
               Admin Dashboard
             </h1>
-          </div>}
-          <p className="text-sm text-muted-foreground mt-1.5 max-w-2xl">
-            Manage your organization&apos;s teams, users, integrations and administrative permissions.
+          </div>
+          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+            People, workspace settings, AI and connections, in one place.
           </p>
         </div>
       </header>
+      )}
 
       {/* Content */}
       {waitingOnRequestedTab ? (
@@ -190,82 +220,10 @@ const AdminPage = () => {
       ) : (
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={chooseTab}
+        orientation={isDesktop ? "vertical" : "horizontal"}
         className="flex-1 min-h-0 flex flex-col"
       >
-        {/* Sticky tab strip — horizontally scrollable on narrow widths */}
-        <div className="shrink-0 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="relative px-4 sm:px-6 lg:px-8">
-            {/* Left fade + arrow */}
-            <div
-              aria-hidden="true"
-              className={cn(
-                "pointer-events-none absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-background to-transparent transition-opacity",
-                overflow.left ? "opacity-100" : "opacity-0"
-              )}
-            />
-            {overflow.left && (
-              <button
-                type="button"
-                aria-label="Scroll tabs left"
-                onClick={() => scrollTabs("left")}
-                className="absolute left-1 top-1/2 -translate-y-1/2 z-10 h-7 w-7 rounded-full bg-background/90 border border-border/60 shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-            )}
-
-            <div
-              ref={tabsScrollRef}
-              className="overflow-x-auto no-scrollbar -mx-1"
-              role="presentation"
-            >
-              <TabsList
-                className={cn(
-                  "inline-flex h-auto items-stretch gap-1 bg-transparent p-1",
-                  "rounded-none w-max"
-                )}
-              >
-                {visibleTabs.map(({ value, label, icon: Icon }) => (
-                  <TabsTrigger
-                    key={value}
-                    value={value}
-                    className={cn(
-                      "gap-2 px-3 py-2 rounded-md whitespace-nowrap text-sm font-medium",
-                      "text-muted-foreground hover:text-foreground hover:bg-accent/40",
-                      "transition-colors",
-                      "data-[state=active]:bg-accent data-[state=active]:text-foreground",
-                      "data-[state=active]:shadow-none"
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-
-            {/* Right fade + arrow */}
-            <div
-              aria-hidden="true"
-              className={cn(
-                "pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-background to-transparent transition-opacity",
-                overflow.right ? "opacity-100" : "opacity-0"
-              )}
-            />
-            {overflow.right && (
-              <button
-                type="button"
-                aria-label="Scroll tabs right"
-                onClick={() => scrollTabs("right")}
-                className="absolute right-1 top-1/2 -translate-y-1/2 z-10 h-7 w-7 rounded-full bg-background/90 border border-border/60 shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
         {/* Per-tab content. THIS IS THE ONLY SCROLL CONTAINER ON THE PAGE.
             
             It used to be "each card owns its own internal scrolling", which works for a tab holding
@@ -286,7 +244,66 @@ const AdminPage = () => {
             their content and this box scrolls. adminLayout.test.ts holds that line. */}
         <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
           <div className="px-4 sm:px-6 lg:px-8 py-6">
-            <div className="mx-auto w-full max-w-6xl">
+            <div className="mx-auto w-full max-w-6xl lg:flex lg:items-start lg:gap-8">
+              {isDesktop ? (
+                // Sticky within the one scroller rather than a second scroller of
+                // its own: the whole menu fits, and one scrollbar keeps one meaning.
+                <TabsList
+                  aria-label="Admin sections"
+                  className="sticky top-0 flex h-auto w-52 shrink-0 flex-col items-stretch gap-0.5 rounded-none bg-transparent p-0"
+                >
+                  {visibleGroups.map((group, gi) => (
+                    <React.Fragment key={group.label}>
+                      <p
+                        role="presentation"
+                        className={cn(
+                          "px-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground/80",
+                          gi === 0 ? "pt-0" : "pt-5",
+                        )}
+                      >
+                        {group.label}
+                      </p>
+                      {group.tabs.map(({ value, label, icon: Icon }) => (
+                        <TabsTrigger
+                          key={value}
+                          value={value}
+                          className={cn(
+                            "justify-start gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium",
+                            "text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors",
+                            "data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none",
+                          )}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" />
+                          {label}
+                        </TabsTrigger>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </TabsList>
+              ) : (
+                // A phone gets the platform's own picker, grouped the same way:
+                // seventeen tabs do not fit a strip at this width, and a native
+                // select is the control every phone already knows.
+                <label className="mb-5 block">
+                  <span className="sr-only">Admin section</span>
+                  <select
+                    value={activeTab}
+                    onChange={(e) => chooseTab(e.target.value)}
+                    className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-medium"
+                  >
+                    {visibleGroups.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.tabs.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <div className="min-w-0 flex-1">
               <TabsContent value="teams" className="mt-0 outline-none">
                 <TeamsCard />
               </TabsContent>
@@ -310,19 +327,27 @@ const AdminPage = () => {
                   between subsections inside one of them, which reads as though the cards belong
                   together. Separation has to grow with level, not shrink. */}
               <TabsContent value="settings" className="mt-0 outline-none">
-                {/* SCIM sits between guest access and the audit log because the three are one
-                    progression: who may get in from outside, how members are provisioned, and what
-                    was done. The audit log stays last — it is a viewer over the others, not a
-                    setting alongside them. */}
+                {/* General was six unrelated cards. Access and provisioning moved to
+                    Security, and the audit log with its retention policy to Audit
+                    log, so each section answers one question. */}
                 <div className={ADMIN_SECTION_STACK}>
                   <WorkspaceSettingsCard />
+                  <PushNotificationsCard />
+                </div>
+              </TabsContent>
+              <TabsContent value="security" className="mt-0 outline-none">
+                {/* Who may get in from outside, then how members are provisioned. */}
+                <div className={ADMIN_SECTION_STACK}>
                   <GuestAccessCard />
                   <ScimProvisioningCard />
+                </div>
+              </TabsContent>
+              <TabsContent value="audit" className="mt-0 outline-none">
+                {/* Retention beside the log, because it is the policy that explains
+                    why an old entry has no content. */}
+                <div className={ADMIN_SECTION_STACK}>
                   <AdminAuditLog />
-                  {/* Beside the audit log, because retention is the policy that
-                      explains why an old entry has no content. */}
                   <RetentionCard />
-                  <PushNotificationsCard />
                 </div>
               </TabsContent>
               {/* Its own tab rather than a card under Settings: this is a diagnostic, not a
@@ -368,6 +393,7 @@ const AdminPage = () => {
                   <ImportCard />
                 </div>
               </TabsContent>
+              </div>
             </div>
           </div>
         </div>

@@ -27,7 +27,7 @@ export default function ChatLayout({
     }
 
     if (!selfProfile.data?.data.user_is_admin) {
-        return <ErrorState errorTitle={"Not authorised"} errorMessage={"only org admin will be access this page"}/>
+        return <ErrorState errorTitle={"Admins only"} errorMessage={"Only workspace admins can open this page. Ask an admin if you need a change made here."}/>
     }
 
     return (

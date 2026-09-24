@@ -198,3 +198,39 @@ describe("import is one tab", () => {
         expect(tab).toContain("ADMIN_SECTION_STACK")
     })
 })
+
+/**
+ * The sections are grouped in a side menu, not a strip of seventeen tabs.
+ *
+ * The strip scrolled sideways, hid most tabs on a laptop, and scattered related
+ * ones. These pin the parts of the fix that are easy to undo in a later edit.
+ */
+describe("admin sections are grouped", () => {
+    const groupsBlock = rawSource.slice(rawSource.indexOf("const TAB_GROUPS"), rawSource.indexOf("const TABS"))
+    const values = [...groupsBlock.matchAll(/value: "([^"]+)"/g)].map((m) => m[1])
+
+    it("puts every section in exactly one group", () => {
+        expect(values.length).toBeGreaterThan(15)
+        expect(new Set(values).size, "a section listed twice appears twice in the menu").toBe(values.length)
+    })
+
+    it("has a TabsContent for every section in the menu, and none without one", () => {
+        const contents = [...rawSource.matchAll(/<TabsContent\s+value="([^"]+)"/g)].map((m) => m[1]).sort()
+        expect(contents).toEqual([...values].sort())
+    })
+
+    it("keeps General to the workspace, with access and the audit log in their own sections", () => {
+        const general = rawSource.match(/<TabsContent value="settings"[\s\S]*?<\/TabsContent>/)?.[0] ?? ""
+        expect(general).not.toMatch(/<GuestAccessCard|<ScimProvisioningCard|<AdminAuditLog|<RetentionCard/)
+        expect(rawSource).toMatch(/<TabsContent value="security"[\s\S]*?<GuestAccessCard \/>[\s\S]*?<\/TabsContent>/)
+        expect(rawSource).toMatch(/<TabsContent value="audit"[\s\S]*?<AdminAuditLog \/>[\s\S]*?<\/TabsContent>/)
+    })
+
+    it("still sends the old audit log address to the audit log", () => {
+        expect(rawSource).toMatch(/rawTab === "settings" && hash === "#audit-log" \? "audit"/)
+    })
+
+    it("no longer scrolls a strip of tabs sideways", () => {
+        expect(pageSource).not.toMatch(/scrollTabs|tabsScrollRef/)
+    })
+})
