@@ -125,7 +125,7 @@ export default function WorkspaceSettingsCard() {
                         </Button>
                     </div>
                     <p className="text-2xs text-muted-foreground">
-                        Users see an instant message if they pick a file larger than this — before any upload starts.
+                        Users see an instant message if they pick a file larger than this: before any upload starts.
                     </p>
                 </div>
 

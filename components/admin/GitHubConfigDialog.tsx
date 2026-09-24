@@ -131,7 +131,7 @@ export default function GitHubConfigDialog({
                         <Label className="text-xs font-medium">
                             Client Secret
                             {status?.has_client_secret && (
-                                <span className="text-muted-foreground font-normal ml-1.5">· set — leave blank to keep</span>
+                                <span className="text-muted-foreground font-normal ml-1.5">· set: leave blank to keep</span>
                             )}
                         </Label>
                         <Input
@@ -146,7 +146,7 @@ export default function GitHubConfigDialog({
                         <Label className="text-xs font-medium">
                             Webhook Secret
                             {status?.has_webhook_secret && (
-                                <span className="text-muted-foreground font-normal ml-1.5">· set — leave blank to keep</span>
+                                <span className="text-muted-foreground font-normal ml-1.5">· set: leave blank to keep</span>
                             )}
                         </Label>
                         <Input

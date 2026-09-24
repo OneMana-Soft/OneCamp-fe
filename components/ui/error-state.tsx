@@ -54,7 +54,7 @@ export function ErrorState({
       title={`Couldn't load ${subject}`}
       // Names the likely cause and rules out the frightening one, because the
       // question a user actually has is "is my work gone?".
-      description="Nothing has been lost. This is usually a connection problem — try again in a moment."
+      description="Nothing has been lost. This is usually a connection problem: try again in a moment."
       className={className}
       action={
         onRetry ? (

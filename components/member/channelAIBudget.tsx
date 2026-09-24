@@ -132,7 +132,7 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
             </Select>
           </div>
           <p className="text-2xs text-muted-foreground">
-            Which model AI uses in this channel — summaries, @mention answers, and agent
+            Which model AI uses in this channel: summaries, @mention answers, and agent
             runs. An agent that pins its own model overrides this.
           </p>
         </div>
@@ -162,7 +162,7 @@ export default function ChannelAIBudget({ channelId }: ChannelAIBudgetProps) {
           <p className="text-2xs text-muted-foreground">
             {cap > 0
               ? `Used today: ${fmtTokens(usedToday)} / ${fmtTokens(cap)} (${pct}%). Caps all AI in this channel; resets 00:00 UTC.`
-              : `Used today: ${fmtTokens(usedToday)}. No channel cap set — the workspace limit still applies. Resets 00:00 UTC.`}
+              : `Used today: ${fmtTokens(usedToday)}. No channel cap set: the workspace limit still applies. Resets 00:00 UTC.`}
           </p>
         </div>
       </div>

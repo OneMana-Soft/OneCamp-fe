@@ -138,7 +138,7 @@ export function InCallAIPanel({
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-white/90">Ask about the call</p>
                             <p className="text-xs text-white/50 leading-relaxed">
-                                I answer from what&apos;s been said so far — decisions, action
+                                I answer from what&apos;s been said so far: decisions, action
                                 items, or a quick recap. Everyone in the call sees the answer.
                             </p>
                         </div>

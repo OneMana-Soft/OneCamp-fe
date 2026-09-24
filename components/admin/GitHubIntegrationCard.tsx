@@ -214,7 +214,7 @@ const GitHubIntegrationCard = () => {
         toast({ title: "Import scheduled", description: "Import will run in the background." })
         return
       }
-      toast({ title: "Import scheduled", description: "Importing issues — this may take a moment." })
+      toast({ title: "Import scheduled", description: "Importing issues: this may take a moment." })
       await pollImportJob(jobId, "issues")
     } catch {} finally { setImportingIssuesLink(null) }
   }
@@ -232,7 +232,7 @@ const GitHubIntegrationCard = () => {
         toast({ title: "Import scheduled", description: "Import will run in the background." })
         return
       }
-      toast({ title: "Import scheduled", description: "Importing PRs — this may take a moment." })
+      toast({ title: "Import scheduled", description: "Importing PRs: this may take a moment." })
       await pollImportJob(jobId, "PRs")
     } catch {} finally { setImportingPRsLink(null) }
   }

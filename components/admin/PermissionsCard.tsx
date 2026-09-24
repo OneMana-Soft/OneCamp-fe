@@ -76,7 +76,7 @@ export default function PermissionsCard() {
                 </CardTitle>
                 <CardDescription className="max-w-xl">
                     Choose which capabilities members can use on their own. Off means
-                    admins only. Members always act within their own access — opening a
+                    admins only. Members always act within their own access: opening a
                     capability never lets anyone exceed what they could already do.
                 </CardDescription>
             </CardHeader>

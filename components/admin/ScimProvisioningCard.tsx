@@ -126,7 +126,7 @@ const ScimProvisioningCard = () => {
           </CardTitle>
           <CardDescription className="max-w-xl">
             Let Okta, Azure AD, or another identity provider create accounts for joiners and deactivate
-            leavers automatically. The credential belongs to this workspace, not to you — so it keeps
+            leavers automatically. The credential belongs to this workspace, not to you, so it keeps
             working after the person who set it up has gone.
           </CardDescription>
         </div>
@@ -179,7 +179,7 @@ const ScimProvisioningCard = () => {
                           stopped, and the difference matters. */}
                       {t.last_used_at
                         ? `Last used ${new Date(t.last_used_at).toLocaleString()}`
-                        : "Never used — your identity provider has not connected yet"}
+                        : "Never used: your identity provider has not connected yet"}
                       {t.expires_at ? ` · expires ${new Date(t.expires_at).toLocaleDateString()}` : ""}
                     </p>
                   </div>
@@ -260,7 +260,7 @@ const ScimProvisioningCard = () => {
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                 <p className="text-muted-foreground">
                   Paste this into your identity provider before closing. It cannot be retrieved
-                  afterwards — you would have to create another and reconfigure the connection.
+                  afterwards: you would have to create another and reconfigure the connection.
                 </p>
               </div>
 

@@ -204,7 +204,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
           </DialogTitle>
           <DialogDescription>
             A read-only connection to an external SQL database. Use a least-privilege,
-            read-only account — connections are opened read-only, but a scoped account is safest.
+            read-only account: connections are opened read-only, but a scoped account is safest.
           </DialogDescription>
         </DialogHeader>
 
@@ -305,7 +305,7 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
               <AlertTriangle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
               <span>
                 A workspace-visible source is queryable by every member (and their agents) using this
-                one stored credential — the external DB can&apos;t enforce per-user access. Prefer a
+                one stored credential: the external DB can&apos;t enforce per-user access. Prefer a
                 read-only, least-privilege account.
               </span>
             </div>
