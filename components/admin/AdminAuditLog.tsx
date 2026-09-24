@@ -246,7 +246,8 @@ export default function AdminAuditLog() {
     return (
         <Card className="border-border/60">
             <CardHeader>
-                <div className="flex items-center justify-between">
+                {/* Wraps: on a phone the title and its actions do not fit one row. */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-primary" />
                         <CardTitle className="text-lg font-semibold">Audit log</CardTitle>
@@ -260,7 +261,7 @@ export default function AdminAuditLog() {
                             </Badge>
                         )}
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleVerify} disabled={verifying}>
                             <ShieldCheck className={`h-3.5 w-3.5 ${verifying ? "animate-pulse" : ""}`} />
                             Verify
