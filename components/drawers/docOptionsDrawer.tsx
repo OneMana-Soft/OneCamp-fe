@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CircleUser, Forward, Link, MessageCircle, MessageSquareText, Pencil, Share2, Trash2, Type, Users } from "@/lib/icons";
+import { CircleUser, Eye, Forward, History, Link, MessageCircle, MessageSquareText, Pencil, Share2, Trash2, Type, Users } from "@/lib/icons";
 
 import {
     Drawer,
@@ -65,8 +65,19 @@ export function DocOptionsDrawer({drawerOpenState, setOpenState, docId, isOwner,
         }))
     }
 
+    // /comment, the route that exists. This said /comments, so Comments in the
+    // phone's document menu opened a page that did not exist.
     const handleCommentClick = () => {
-        router.push(app_doc_path + '/'+ docId +'/'+"comments");
+        closeDrawer()
+        router.push(`${app_doc_path}/${docId}/comment`);
+    }
+
+    // The same rule as the desktop menu: the owner, or anyone granted edit.
+    const canEdit = isOwner || (docInfo.data?.data?.doc_edit_access ?? 0) > 0
+
+    const openPanel = (key: "docViewers" | "docVersionHistory") => {
+        closeDrawer()
+        dispatch(openUI({ key, data: { docId } }))
     }
 
     return (
@@ -99,6 +110,19 @@ export function DocOptionsDrawer({drawerOpenState, setOpenState, docId, isOwner,
                                 linkText={'Comments'}
                                 Icon={MessageCircle}
                             />
+
+                            {/* Here rather than in a second menu on the page: the
+                                phone showed two comment buttons and two menus. */}
+                            {canEdit && <DrawerActionLink
+                                onLinkClick={() => openPanel("docViewers")}
+                                linkText={'Viewed by'}
+                                Icon={Eye}
+                            />}
+                            {canEdit && <DrawerActionLink
+                                onLinkClick={() => openPanel("docVersionHistory")}
+                                linkText={'Version history'}
+                                Icon={History}
+                            />}
 
                         </div>
 
