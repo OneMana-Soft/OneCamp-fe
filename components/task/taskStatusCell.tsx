@@ -3,7 +3,7 @@ import {prioritiesInterface} from "@/types/table";
 import {cn} from "@/lib/utils/helpers/cn";
 
 export const TaskStatusCell = ({status}: {status: prioritiesInterface}) => {
-    // The label, in the reader's language; never the stored value ("inReview").
+    // The label, in the reader's language; never the stored value such as inReview.
     const { t } = useTranslation()
 
 
