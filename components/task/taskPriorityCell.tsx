@@ -4,7 +4,7 @@ import {Badge} from "@/components/ui/badge";
 import {cn} from "@/lib/utils/helpers/cn";
 
 export const TaskPriorityCell = ({priority}: {priority: prioritiesInterface}) => {
-    // The label, in the reader's language; never the stored value ("inReview").
+    // The label, in the reader's language; never the stored value such as inReview.
     const { t } = useTranslation()
 
     return (
