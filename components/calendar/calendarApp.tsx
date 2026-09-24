@@ -658,7 +658,10 @@ export function CalendarApp() {
                         </div>
                     ) : shownView === "agenda" ? (
                         <CalendarAgenda
-                            days={agendaDays(monthStart, monthEnd, getEventsForDay)}
+                            // A task sits on its due day in a list; drawn on every day it
+                            // spans, one task filled a week of the agenda.
+                            days={agendaDays(startDate, endDate, (day) =>
+                                getEventsForDay(day).filter((item) => !item.isTask || isSameDay(parseISO(item.event_end_time), day)))}
                             onOpen={(item) => router.push(item.isTask ? `/app/task/${item.event_uuid}` : `/app/calendar/event/${item.event_uuid}`)}
                             onCreate={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}
                         />
