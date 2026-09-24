@@ -1,3 +1,4 @@
+import { errorToastCopy, shownRecently } from "@/lib/utils/errorToast";
 import axios from 'axios'
 import store from "@/store/store"
 import {updateRefreshTokenStatus} from "@/store/slice/refreshSlice";
@@ -209,11 +210,10 @@ axiosInstance.interceptors.response.use(
         // table whose target was deleted renders its own friendly fallback).
         // @ts-ignore
         if (error.response && error.response.status !== 401 && !error.config?.suppressErrorToast) {
-            toast({
-                variant: "destructive",
-                title: "In-App Error",
-                description: error.response.data?.msg || error.message || "An unexpected error occurred",
-            });
+            const copy = errorToastCopy(error.response.status, error.response.data?.msg)
+            if (!shownRecently(copy)) {
+                toast({ variant: "destructive", ...copy });
+            }
         }
 
         if (error.response && error.response.status === 401 && !originalRequest._retry) {

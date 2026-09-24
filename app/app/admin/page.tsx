@@ -203,22 +203,25 @@ const AdminPage = () => {
       id="main-content"
       className="flex flex-col h-full min-h-0 bg-background"
     >
-      {/* Header */}
+      {/* Header: desktop only. A phone's top bar already says Admin, and the
+          section picker below is the first thing that is needed there. */}
+      {isDesktop && (
       <header className="shrink-0 border-b border-border/60 bg-card/30 backdrop-blur-md">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
-          {isDesktop && <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5">
             <div className="bg-primary/10 p-1.5 rounded-md">
               <Shield className="h-4 w-4 text-primary" />
             </div>
             <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
               Admin Dashboard
             </h1>
-          </div>}
+          </div>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             People, workspace settings, AI and connections, in one place.
           </p>
         </div>
       </header>
+      )}
 
       {/* Content */}
       {waitingOnRequestedTab ? (
