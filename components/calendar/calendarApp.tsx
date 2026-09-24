@@ -33,6 +33,8 @@ import { useDispatch } from "react-redux";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { CreateCalendarEventDialog } from "@/components/calendar/createCalendarEventDialog";
 import { WeekView } from "@/components/calendar/weekView";
+import { CalendarAgenda } from "@/components/calendar/calendarAgenda";
+import { agendaDays } from "@/lib/utils/calendarAgenda";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
@@ -49,7 +51,10 @@ export function CalendarApp() {
     const router = useRouter();
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [miniCalendarMonth, setMiniCalendarMonth] = useState(new Date());
-    const [view, setView] = useState<"month" | "week">("month");
+    const [view, setView] = useState<"month" | "week" | "agenda">("month");
+    // Phones open on the agenda until the person picks a view themselves.
+    const [viewChosen, setViewChosen] = useState(false);
+    const shownView = !viewChosen && isMobile ? "agenda" : view;
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [defaultDate, setDefaultDate] = useState<Date | undefined>(undefined);
     
@@ -415,8 +420,9 @@ export function CalendarApp() {
                                             }
                                         }}
                                         style={{
-                                            left: `${(event.colStart / 7) * 100}%`,
-                                            width: `${(event.colSpan / 7) * 100}%`
+                                            // The 4px insets are inside the span; added to it, a bar filling the week ran past the grid.
+                                            left: `calc(${(event.colStart / 7) * 100}% + ${isStartOfWeek ? 4 : 0}px)`,
+                                            width: `calc(${(event.colSpan / 7) * 100}% - ${(isStartOfWeek ? 4 : 0) + (isEndOfWeek ? 4 : 0)}px)`
                                         }}
                                         className={cn(
                                             "absolute h-5 px-1.5 py-0 text-3xs font-medium truncate cursor-pointer transition-all flex items-center z-20",
@@ -425,8 +431,8 @@ export function CalendarApp() {
                                                 ? (isHovered ? calendarColors.task.solidHover : calendarColors.task.solidOpacity)
                                                 : (isHovered ? calendarColors.event.solidHover : calendarColors.event.solidOpacity),
                                             "text-white",
-                                            isStartOfWeek ? "rounded-l-[4px] ml-1" : "",
-                                            isEndOfWeek ? "rounded-r-[4px] mr-1" : (event.isTask ? "border-r " + calendarColors.task.border : "border-r " + calendarColors.event.border)
+                                            isStartOfWeek ? "rounded-l-[4px]" : "",
+                                            isEndOfWeek ? "rounded-r-[4px]" : (event.isTask ? "border-r " + calendarColors.task.border : "border-r " + calendarColors.event.border)
                                         )}
                                     >
                                         <span className="truncate leading-none">
@@ -555,7 +561,7 @@ export function CalendarApp() {
                             <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                             Calendar
                         </h1>
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -590,15 +596,15 @@ export function CalendarApp() {
                                     : format(currentMonth, "MMMM yyyy")}
                             </span>
                             <div className="ml-1 flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
-                                {(["month", "week"] as const).map((v) => (
+                                {(isMobile ? (["agenda", "month"] as const) : (["month", "week"] as const)).map((v) => (
                                     <button
                                         key={v}
                                         type="button"
-                                        onClick={() => setView(v)}
-                                        aria-pressed={view === v}
+                                        onClick={() => { setView(v); setViewChosen(true); }}
+                                        aria-pressed={shownView === v}
                                         className={cn(
                                             "rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors",
-                                            view === v
+                                            shownView === v
                                                 ? "bg-background text-foreground shadow-sm"
                                                 : "text-muted-foreground hover:text-foreground",
                                         )}
@@ -650,6 +656,12 @@ export function CalendarApp() {
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             <p>Syncing calendar...</p>
                         </div>
+                    ) : shownView === "agenda" ? (
+                        <CalendarAgenda
+                            days={agendaDays(monthStart, monthEnd, getEventsForDay)}
+                            onOpen={(item) => router.push(item.isTask ? `/app/task/${item.event_uuid}` : `/app/calendar/event/${item.event_uuid}`)}
+                            onCreate={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}
+                        />
                     ) : view === "week" ? (
                         <div className="min-w-[760px] h-full">
                             <WeekView
