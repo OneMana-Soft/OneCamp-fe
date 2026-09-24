@@ -55,7 +55,7 @@ import {
  * the tab cannot drift apart: the log is a card inside the Settings tab, and the
  * anchor scrolls past the cards above it.
  */
-const AUDIT_LOG_HREF = "/app/admin?tab=settings#audit-log"
+const AUDIT_LOG_HREF = "/app/admin?tab=audit#audit-log"
 
 function formatWhen(iso: string): string {
     if (!iso) return ""

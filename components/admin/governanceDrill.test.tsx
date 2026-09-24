@@ -187,7 +187,8 @@ describe("governance drill card", () => {
 
     const link = container.querySelector('a[href*="audit-log"]') as HTMLAnchorElement | null
     expect(link, "no link to the audit log").toBeTruthy()
-    expect(link?.getAttribute("href")).toContain("tab=settings")
+    // The audit log has its own admin section; ?tab=settings#audit-log still resolves to it.
+    expect(link?.getAttribute("href")).toContain("tab=audit")
   })
 
   // A passing step must not carry a failure detail; that was a real bug in the
