@@ -5,7 +5,8 @@ import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, RotateCcw, ShieldAlert } from "@/lib/icons"
+import { RotateCcw, ShieldAlert } from "@/lib/icons"
+import { UserMinus } from "lucide-react"
 import { Users2 } from "lucide-react"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
@@ -271,7 +272,9 @@ function AdminUserRow({
                 disabled={isSubmitting}
                 aria-label={`Deactivate ${seed}`}
               >
-                <Trash2 className="h-4 w-4" />
+                {/* Not a trash can: deactivation is reversible (Reactivate sits in
+                    the same place), and a bin reads as deleting the person. */}
+                <UserMinus className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Deactivate user</TooltipContent>
