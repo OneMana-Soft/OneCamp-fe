@@ -7,7 +7,6 @@
 
 import * as React from 'react'
 import { HocuspocusProvider } from '@hocuspocus/provider'
-import { IndexeddbPersistence } from 'y-indexeddb'
 import { memberCollabToken, forgetCollabToken } from '@/lib/collabToken'
 
 export interface CollaborationConfig {
@@ -43,6 +42,17 @@ export type CollabStatus = 'connecting' | 'connected' | 'disconnected' | 'synced
 
 const DEV = process.env.NODE_ENV !== 'production'
 const log = (...args: unknown[]) => { if (DEV) console.log(...args) }
+
+// discardLocalCopy deletes the IndexedDB copy the old cache kept for a
+// document, named by its id. Best effort: private mode or a blocked database
+// leaves nothing to delete.
+function discardLocalCopy(documentId: string) {
+  try {
+    if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase(documentId)
+  } catch {
+    // nothing to remove
+  }
+}
 
 export function useCollaborationProvider(config: CollaborationConfig | undefined) {
   // The provider lives in state (not a ref) so that its creation triggers a
@@ -171,23 +181,16 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
     providerRef.current = provider
     setProvider(provider)
 
-    // Local-first cache: persist this document to IndexedDB so a refresh
-    // hydrates the canvas/editor instantly from disk and the websocket only
-    // syncs the delta, instead of transferring the whole document every load.
-    // Load time stops scaling with document size for returning users. Yjs CRDT
-    // merge reconciles the cached copy with the server on connect. Best-effort:
-    // private mode / disabled IndexedDB simply falls back to network-only.
-    let idbProvider: IndexeddbPersistence | null = null
-    try {
-      idbProvider = new IndexeddbPersistence(config.documentId, provider.document)
-    } catch (err) {
-      console.error('[Collab] IndexedDB persistence unavailable:', err)
-    }
+    // NO LOCAL COPY OF THE SHARED DOCUMENT. This used to persist it to
+    // IndexedDB so a refresh could hydrate from disk. But the collaboration
+    // server keeps no Yjs state: it rebuilds the document from the stored HTML
+    // on every load, as new, unrelated items. A cached copy from an earlier load
+    // therefore does not reconcile with it, it merges alongside it, and every
+    // block appears twice; that doubled document is then saved back as the HTML.
+    // Copies left by the old cache are removed so they can never be merged.
+    discardLocalCopy(config.documentId)
 
     return () => {
-      if (idbProvider) {
-        idbProvider.destroy().catch(() => {})
-      }
       provider.destroy()
       providerRef.current = null
       setProvider(null)

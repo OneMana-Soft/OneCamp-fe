@@ -465,7 +465,6 @@ export const useMinimalTiptapEditor = ({
   const onSubmitRef = React.useRef(onSubmit)
   const placeholderRef = React.useRef(placeholder)
   const providerRef = React.useRef(externalProvider)
-  const hasSeededRef = React.useRef(false)
 
   React.useLayoutEffect(() => {
     onUpdateRef.current = onUpdate
@@ -515,23 +514,13 @@ export const useMinimalTiptapEditor = ({
         return
       }
 
-      // Collaborative mode: Yjs should provide content via sync.
-      // If the editor is still empty after a short delay, seed it from
-      // the API value as a fallback (prevents blank docs when Hocuspocus
-      // load fails or doc_body was empty on first creation).
-      // Only seed if provider hasn't synced yet to avoid overwriting Yjs content.
-      if (value && editor.isEmpty && !hasSeededRef.current && !providerSynced) {
-        hasSeededRef.current = true
-        window.setTimeout(() => {
-          if (editor.isDestroyed) return
-          // Only seed if still empty — Yjs may have synced by now
-          if (editor.isEmpty) {
-            editor.commands.setContent(value)
-          }
-        }, 800)
-      }
+      // Collaborative mode: never seed from the prop. The collaboration server
+      // builds the document from its stored HTML when it loads it, so content
+      // always arrives through sync. Seeding here as well, which a timer used to
+      // do when sync took longer than 800 ms, inserted an unrelated second copy
+      // that merged with the server's: every block twice, then saved that way.
     },
-    [value, collaboration?.enabled, providerSynced]
+    [value, collaboration?.enabled]
   )
 
   const handleBlur = React.useCallback((editor: Editor) => onBlurRef.current?.(getOutput(editor, output)), [output])
