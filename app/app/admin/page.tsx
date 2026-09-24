@@ -9,6 +9,7 @@ import UserCard from "@/components/admin/userCard"
 import AdminCard from "@/components/admin/adminCard"
 import InvitationCard from "@/components/admin/invitationCard"
 import EmailSettingsCard from "@/components/admin/EmailSettingsCard"
+import EmailProviderCard from "@/components/admin/EmailProviderCard"
 import WebhooksCard from "@/components/admin/WebhooksCard"
 import GitHubIntegrationCard from "@/components/admin/GitHubIntegrationCard"
 import OAuthConfigCard from "@/components/admin/OAuthConfigCard"
@@ -326,7 +327,11 @@ const AdminPage = () => {
                 <InvitationCard />
               </TabsContent>
               <TabsContent value="email-settings" className="mt-0 outline-none">
-                <EmailSettingsCard />
+                {/* The key first: nothing below it sends until it is set. */}
+                <div className={ADMIN_SECTION_STACK}>
+                  <EmailProviderCard />
+                  <EmailSettingsCard />
+                </div>
               </TabsContent>
               {/* A tab holding more than one card wraps them in ADMIN_SECTION_STACK.
                   

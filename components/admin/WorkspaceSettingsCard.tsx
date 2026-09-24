@@ -2,8 +2,8 @@
 
 // WorkspaceSettingsCard — admin UI for operational settings that previously
 // required editing env files + redeploying: per-file upload limit, the sign-up
-// allow-list, and the transactional-email (Resend) API key. DB-first with env
-// fallback; the secret is write-only (only has_* + source shown). Changes apply
+// allow-list. The email key moved to the Email section (EmailProviderCard), so
+// email is configured in one place. DB-first with env fallback. Changes apply
 // without a restart.
 
 import React, { useEffect, useState } from "react"
@@ -11,11 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { Settings, CheckCircle2, AlertTriangle } from "@/lib/icons"
+import { Settings } from "@/lib/icons"
 import { getWorkspaceSettings, updateWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 import { mutate as globalMutate } from "swr"
 
@@ -33,10 +32,8 @@ export default function WorkspaceSettingsCard() {
 
     const [uploadLimit, setUploadLimit] = useState("")
     const [allowedUsers, setAllowedUsers] = useState("")
-    const [resendKey, setResendKey] = useState("")
     const [savingUpload, setSavingUpload] = useState(false)
     const [savingAccess, setSavingAccess] = useState(false)
-    const [savingEmail, setSavingEmail] = useState(false)
 
     const load = () => {
         setLoading(true)
@@ -45,7 +42,6 @@ export default function WorkspaceSettingsCard() {
                 setSettings(s)
                 setUploadLimit(s ? String(s.upload_limit_mb) : "")
                 setAllowedUsers(s?.allowed_users?.join(", ") ?? "")
-                setResendKey("")
             })
             .catch(() => toast({ title: "Couldn't load settings", variant: "destructive" }))
             .finally(() => setLoading(false))
@@ -90,20 +86,6 @@ export default function WorkspaceSettingsCard() {
         }
     }
 
-    const saveEmail = async () => {
-        setSavingEmail(true)
-        try {
-            const s = await updateWorkspaceSettings({ resend_api_key: resendKey })
-            setSettings(s)
-            setResendKey("")
-            toast({ title: "Email API key saved" })
-        } catch {
-            toast({ title: "Failed to save email key", variant: "destructive" })
-        } finally {
-            setSavingEmail(false)
-        }
-    }
-
     const SourceBadge = ({ source }: { source: string }) => (
         <span className="text-2xs text-muted-foreground">Source: {SOURCE_LABEL[source] ?? source}</span>
     )
@@ -116,7 +98,7 @@ export default function WorkspaceSettingsCard() {
                     <CardTitle className="text-lg font-semibold">Workspace settings</CardTitle>
                 </div>
                 <CardDescription>
-                    Operational settings that apply immediately — no redeploy. Stored in the database; secrets encrypted at rest.
+                    Settings that apply at once, with no redeploy.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -168,40 +150,6 @@ export default function WorkspaceSettingsCard() {
                     </Button>
                 </div>
 
-                <Separator />
-
-                {/* Email */}
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium">Transactional email (Resend)</h3>
-                        <div className="flex items-center gap-2">
-                            {settings?.has_resend_api_key ? (
-                                <Badge className="gap-1 bg-success/10 text-success border-success/20">
-                                    <CheckCircle2 className="h-3 w-3" /> Configured
-                                </Badge>
-                            ) : (
-                                <Badge variant="outline" className="gap-1"><AlertTriangle className="h-3 w-3" /> Not configured</Badge>
-                            )}
-                            {settings && <SourceBadge source={settings.resend_source} />}
-                        </div>
-                    </div>
-                    <Label className="text-xs">
-                        API key {settings?.has_resend_api_key && <span className="text-muted-foreground font-normal">· leave blank to keep</span>}
-                    </Label>
-                    <Input
-                        type="password"
-                        value={resendKey}
-                        onChange={(e) => setResendKey(e.target.value)}
-                        placeholder={settings?.has_resend_api_key ? "••••••••" : "re_…"}
-                        disabled={loading}
-                    />
-                    <p className="text-2xs text-muted-foreground">
-                        Enables invitation, password-reset, and notification emails. Verify your domain in Resend first.
-                    </p>
-                    <Button size="sm" onClick={saveEmail} disabled={savingEmail || loading || !resendKey}>
-                        {savingEmail ? "Saving…" : "Save email key"}
-                    </Button>
-                </div>
             </CardContent>
         </Card>
     )
