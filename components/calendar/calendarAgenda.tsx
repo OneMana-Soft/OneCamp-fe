@@ -27,9 +27,8 @@ function dayLabel(day: Date): string {
 function itemDetail(item: AgendaItem, day: Date): string {
   const start = parseISO(item.event_start_time);
   const end = parseISO(item.event_end_time);
-  if (item.isTask) {
-    return isSameDay(end, day) ? "Task · due today" : `Task · due ${format(end, "d MMM")}`;
-  }
+  // A task sits under its due day, so the heading already says when.
+  if (item.isTask) return isSameDay(end, day) ? "Task due" : `Task · due ${format(end, "d MMM")}`;
   if (!isSameDay(start, day)) return "Continues";
   return `${format(start, "h:mm a")} – ${format(end, "h:mm a")}`;
 }
