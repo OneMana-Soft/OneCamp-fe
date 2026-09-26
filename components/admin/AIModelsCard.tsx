@@ -534,7 +534,7 @@ const AIModelsCard = () => {
                 <h4 className="text-sm font-semibold">Reasoning mode</h4>
                 <p className="text-xs text-muted-foreground">
                   Let reasoning models (gemma4, DeepSeek-R1, Qwen3, …) think before answering.
-                  Better answers on hard questions, but noticeably slower: especially on CPU-only
+                  Better answers on hard questions, but noticeably slower, especially on CPU-only
                   servers. Leave off for fastest responses. Other models ignore this.
                 </p>
               </div>
