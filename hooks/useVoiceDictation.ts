@@ -67,7 +67,7 @@ export function useVoiceDictation({ onText, onError }: UseVoiceDictationOptions)
         try {
           const text = (await transcribeAudio(blob, "clip.webm")).trim()
           if (text) onText(text)
-          else onError?.("Didn't catch that — try again.")
+          else onError?.("Didn't catch that. Try again.")
         } catch {
           onError?.("Transcription failed.")
         } finally {
@@ -78,7 +78,7 @@ export function useVoiceDictation({ onText, onError }: UseVoiceDictationOptions)
       rec.start()
       setRecording(true)
     } catch {
-      onError?.("Microphone unavailable — allow mic access to dictate.")
+      onError?.("Microphone unavailable. Allow mic access to dictate.")
     }
   }, [onText, onError])
 

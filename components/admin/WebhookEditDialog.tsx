@@ -181,7 +181,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
                   )}
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_CHANNEL_VALUE}>— None:</SelectItem>
+                  <SelectItem value={NO_CHANNEL_VALUE}>No channel</SelectItem>
                   {channelsError && (
                     <div className="text-sm text-destructive px-2 py-2 text-center">Failed to load channels</div>
                   )}

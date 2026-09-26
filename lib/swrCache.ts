@@ -22,6 +22,8 @@
 
 import type { Cache } from "swr"
 
+import { onSessionEnd } from "@/lib/sessionEnd"
+
 const CACHE_KEY = "onecamp-app-cache"
 const CACHE_VERSION = 2 // bump when the serialised shape changes
 const MAX_CACHE_BYTES = 5 * 1024 * 1024 // 5 MB
@@ -114,7 +116,15 @@ function rehydrate(): Map<string, unknown> {
   }
 }
 
+// The map SWR is using now, which is the one written down. Null once the
+// session has ended, so a response that lands while the page is on its way out
+// is never kept for whoever signs in next.
+let current: Map<string, unknown> | null = null
 let registered = false
+
+function flush(): void {
+  if (current) persist(current)
+}
 
 /**
  * SWR cache provider. Returns a Map that mirrors localStorage.
@@ -134,6 +144,7 @@ export function localStorageProvider(): Cache<unknown> {
   if (typeof window === "undefined") return new Map() as unknown as Cache<unknown>
 
   const map = rehydrate()
+  current = map
 
   if (!registered) {
     registered = true
@@ -142,7 +153,6 @@ export function localStorageProvider(): Cache<unknown> {
     // visibilitychange "hidden" gives us a flush on tab-switch so the
     // most recent data survives even if the tab is later killed by the
     // OS without firing the unload events.
-    const flush = () => persist(map)
     window.addEventListener("pagehide", flush)
     window.addEventListener("beforeunload", flush)
     document.addEventListener("visibilitychange", () => {
@@ -152,3 +162,17 @@ export function localStorageProvider(): Cache<unknown> {
 
   return map as unknown as Cache<unknown>
 }
+
+/** Drop the member's cached responses, in memory and in storage, and stop
+ *  writing them down until the next session's provider starts. */
+export function forgetCache(): void {
+  current?.clear()
+  current = null
+  try {
+    localStorage.removeItem(CACHE_KEY)
+  } catch {
+    /* storage unavailable: nothing was written either */
+  }
+}
+
+onSessionEnd(forgetCache)

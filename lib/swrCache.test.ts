@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { localStorageProvider } from "./swrCache"
+import { endSession } from "./sessionEnd"
 
 // Tests for the SWR cache provider's persistence + safety logic.
 // We don't try to test the listener wiring (jsdom doesn't reliably
@@ -62,5 +63,35 @@ describe("localStorageProvider", () => {
     localStorage.setItem("onecamp-app-cache", JSON.stringify({ random: "junk" }))
     const map = provider()
     expect(map.size).toBe(0)
+  })
+
+  it("writes the cache down when the page is left", () => {
+    const map = provider()
+    map.set("/api/foo", { data: 1 })
+    window.dispatchEvent(new Event("pagehide"))
+    expect(JSON.parse(localStorage.getItem("onecamp-app-cache") || "{}").entries).toEqual([["/api/foo", { data: 1 }]])
+  })
+
+  it("keeps nothing for the next person once the session has ended", async () => {
+    const map = provider()
+    map.set("/user/profile", { data: { name: "Sam" } })
+    window.dispatchEvent(new Event("pagehide"))
+    await endSession()
+    expect(localStorage.getItem("onecamp-app-cache")).toBeNull()
+    // A response that lands on the way out, then the page is left.
+    map.set("/user/sidebarNav", { data: [1] })
+    window.dispatchEvent(new Event("pagehide"))
+    window.dispatchEvent(new Event("beforeunload"))
+    expect(localStorage.getItem("onecamp-app-cache")).toBeNull()
+  })
+
+  it("writes down the next session's cache, not the one before it", async () => {
+    const first = provider()
+    first.set("/old", { data: "first member" })
+    await endSession()
+    const second = provider()
+    second.set("/new", { data: "second member" })
+    window.dispatchEvent(new Event("pagehide"))
+    expect(JSON.parse(localStorage.getItem("onecamp-app-cache") || "{}").entries).toEqual([["/new", { data: "second member" }]])
   })
 })
