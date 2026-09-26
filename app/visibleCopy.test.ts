@@ -21,7 +21,7 @@ import { describe, expect, it } from "vitest"
 
 const ROOT = process.cwd()
 const SOURCE_DIRS = ["app", "components", "hooks", "lib", "services", "store", "context"]
-const DASH = /—|\s--\s/
+const DASH = /\u2014|\s--\s/
 
 function sourceFiles(dir: string): string[] {
   let out: string[] = []
@@ -50,7 +50,7 @@ export function dashedCopy(file: string, src: string): string[] {
     if (ts.isJsxText(n)) text = n.text
     else if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) text = n.text
     else if (ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) text = n.text
-    if (text !== null && text.trim() !== "—" && DASH.test(text)) {
+    if (text !== null && text.trim() !== "\u2014" && DASH.test(text)) {
       const line = sf.getLineAndCharacterOfPosition(n.getStart()).line + 1
       found.push(`${relative(ROOT, file)}:${line}: ${text.trim().slice(0, 100)}`)
     }
