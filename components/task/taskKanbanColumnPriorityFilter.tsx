@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {CheckIcon, PlusCircledIcon} from "@radix-ui/react-icons";
@@ -22,6 +23,7 @@ type TaskCardProps = {
 };
 
 export function TaskKanbanColumnPriorityFilter({ activeList, updateList}: TaskCardProps) {
+    const { t } = useTranslation()
 
 
     return (
@@ -29,7 +31,7 @@ export function TaskKanbanColumnPriorityFilter({ activeList, updateList}: TaskCa
             <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 border-dashed">
                     <PlusCircledIcon className="mr-2 h-4 w-4" />
-                    {('priorities')}
+                    {t('priority')}
                     {activeList.length > 0 && (
                         <>
                             <Separator orientation="vertical" className="mx-2 h-4" />
@@ -67,7 +69,7 @@ export function TaskKanbanColumnPriorityFilter({ activeList, updateList}: TaskCa
             </PopoverTrigger>
             <PopoverContent className="w-[200px] p-0" align="start">
                 <Command>
-                    <CommandInput placeholder={'priorities'} />
+                    <CommandInput placeholder={t('priority')} />
                     <CommandList>
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
@@ -114,7 +116,7 @@ export function TaskKanbanColumnPriorityFilter({ activeList, updateList}: TaskCa
                                         onSelect={() => updateList([])}
                                         className="justify-center text-center"
                                     >
-                                        {('clearFilters')}
+                                        {t('clearFilters')}
                                     </CommandItem>
                                 </CommandGroup>
                             </>

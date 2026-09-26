@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { useState } from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ interface SubTaskAssigneeProps {
 }
 
 export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskProjectMembers }: SubTaskAssigneeProps) {
+    const { t } = useTranslation()
     const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false)
 
 
@@ -55,14 +57,14 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
 
                 </TooltipTrigger>
                 <TooltipContent>
-                    <p>{('assignee')}</p>
+                    <p>{t('assignee')}</p>
                 </TooltipContent>
             </Tooltip>
             <PopoverContent className="w-[200px] p-0">
                 <Command>
-                    <CommandInput placeholder={('searchMemberPlaceholder')}/>
+                    <CommandInput placeholder={t('searchMemberPlaceholder')}/>
                     <CommandList>
-                        <CommandEmpty>{('noMemberFound')}</CommandEmpty>
+                        <CommandEmpty>{t('noMemberFound')}</CommandEmpty>
                         <CommandGroup>
                             {taskProjectMembers?.map((member: UserProfileDataInterface) => (
                                 <CommandItem

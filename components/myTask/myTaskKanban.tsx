@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslation } from "react-i18next"
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
     CancelDrop,
@@ -183,6 +184,7 @@ export const MyTaskKanban = ({
                                  vertical = false,
                                  scrollable = true,
                              }: KanbanProps) => {
+    const { t } = useTranslation()
     const dispatch = useDispatch();
     const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate();
     const post = usePost();
@@ -511,7 +513,7 @@ export const MyTaskKanban = ({
                         className="ml-auto hidden h-8 lg:flex"
                         onClick={()=>{dispatch(openUI({ key: 'createTask' }))}}
                     >
-                        <CirclePlus className='h-4 w-4'/>{" "}{('createTask')}
+                        <CirclePlus className='h-4 w-4'/>{" "}{t('createTask')}
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -521,11 +523,11 @@ export const MyTaskKanban = ({
                                 className="ml-auto hidden h-8 lg:flex"
                             >
                                 <MixerHorizontalIcon className="mr-2 h-4 w-4" />
-                                {('view')}
+                                {t('view')}
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-[150px]">
-                            <DropdownMenuLabel>{('toggleColumns')}</DropdownMenuLabel>
+                            <DropdownMenuLabel>{t('toggleColumns')}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             {taskStatuses.map((column) => (
                                 <DropdownMenuCheckboxItem
