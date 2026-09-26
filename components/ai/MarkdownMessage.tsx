@@ -184,6 +184,26 @@ function tableStartsAt(lines: string[], i: number): boolean {
     );
 }
 
+/** The lines of one cell. A cell is a single line of markdown, but models put
+ *  several points in one, with <br> or with bullets run together ("• one.•
+ *  two."), and those read as one run-on sentence. Each becomes its own line. */
+export function cellLines(text: string): string[] {
+    return text
+        .split(/<br\s*\/?>/i)
+        .flatMap((part) => part.replace(/\s*\u2022\s*/g, "\n\u2022 ").split("\n"))
+        .map((line) => line.trim())
+        .filter(Boolean);
+}
+
+function renderCell(text: string, keyPrefix: string): React.ReactNode[] {
+    const out: React.ReactNode[] = [];
+    cellLines(text).forEach((line, i) => {
+        if (i > 0) out.push(<br key={`${keyPrefix}-br${i}`} />);
+        out.push(...parseInline(line, `${keyPrefix}-${i}`));
+    });
+    return out;
+}
+
 function alignOf(delimCell: string): Align {
     const left = delimCell.startsWith(":");
     const right = delimCell.endsWith(":");
@@ -276,8 +296,11 @@ function parseBlocks(src: string): React.ReactNode[] {
             }
             const k = key++;
             blocks.push(
+                // break-word, not the message's "anywhere": that one lets a column
+                // shrink to a letter's width, so "#engineering" wrapped mid-word.
+                // A table too wide for the bubble scrolls inside its own box.
                 <div key={k} className="max-w-full overflow-x-auto rounded-lg border border-border/60">
-                    <table className="w-full border-collapse text-left">
+                    <table className="w-full border-collapse text-left [overflow-wrap:break-word]">
                         <thead className="bg-foreground/[0.04]">
                             <tr>
                                 {header.map((cell, c) => (
@@ -286,7 +309,7 @@ function parseBlocks(src: string): React.ReactNode[] {
                                         style={{ textAlign: aligns[c] }}
                                         className="border-b border-border/60 px-2.5 py-1.5 align-bottom font-semibold"
                                     >
-                                        {parseInline(cell, `th${k}-${c}`)}
+                                        {renderCell(cell, `th${k}-${c}`)}
                                     </th>
                                 ))}
                             </tr>
@@ -298,9 +321,9 @@ function parseBlocks(src: string): React.ReactNode[] {
                                         <td
                                             key={c}
                                             style={{ textAlign: aligns[c] }}
-                                            className="px-2.5 py-1.5 align-top [overflow-wrap:anywhere]"
+                                            className="px-2.5 py-1.5 align-top"
                                         >
-                                            {parseInline(row[c] ?? "", `td${k}-${r}-${c}`)}
+                                            {renderCell(row[c] ?? "", `td${k}-${r}-${c}`)}
                                         </td>
                                     ))}
                                 </tr>

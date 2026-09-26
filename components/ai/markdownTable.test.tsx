@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, render } from "@testing-library/react"
 
-import MarkdownMessage, { splitTableRow } from "@/components/ai/MarkdownMessage"
+import MarkdownMessage, { cellLines, splitTableRow } from "@/components/ai/MarkdownMessage"
 
 afterEach(cleanup)
 
@@ -61,5 +61,22 @@ describe("a table in an answer", () => {
         expect(container.querySelector("table")).toBeNull()
         expect(container.querySelector("hr")).not.toBeNull()
         expect(container.querySelectorAll("li")).toHaveLength(2)
+    })
+
+    it("gives each point in a cell its own line", () => {
+        expect(cellLines("Sam noted the date.\u2022 Jonas asked for rollback steps.")).toEqual([
+            "Sam noted the date.",
+            "\u2022 Jonas asked for rollback steps.",
+        ])
+        expect(cellLines("\u2022 one<br>\u2022 two<br/>three")).toEqual(["\u2022 one", "\u2022 two", "three"])
+        expect(cellLines("plain")).toEqual(["plain"])
+        const { container } = render(<MarkdownMessage content={"| a |\n|---|\n| one<br>two |"} />)
+        expect(container.querySelectorAll("td br")).toHaveLength(1)
+        expect(container.textContent).not.toContain("<br>")
+    })
+
+    it("keeps a word whole in a narrow column", () => {
+        const { container } = render(<MarkdownMessage content={"| Channel | Points |\n|---|---|\n| #engineering | x |"} />)
+        expect(container.querySelector("table")?.className).toContain("[overflow-wrap:break-word]")
     })
 })
