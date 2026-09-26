@@ -43,7 +43,7 @@ export const ChainPair: React.FC<{
         >
             {seq ? <span className="tabular-nums">#{seq}</span> : null}
             <span title={prevHash || "nothing: this is the first entry in the chain"}>
-                prev {prevHash ? shortHash(prevHash) : "— first entry"}
+                {prevHash ? `prev ${shortHash(prevHash)}` : "first entry"}
             </span>
             <span aria-hidden>→</span>
             <span title={entryHash}>this {shortHash(entryHash)}</span>

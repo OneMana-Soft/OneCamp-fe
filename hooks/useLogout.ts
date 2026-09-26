@@ -2,7 +2,10 @@
 
 import { usePost } from "@/hooks/usePost";
 import { PostEndpointUrl } from "@/services/endPoints";
-import store, { persistor, RESET_STORE_ACTION } from "@/store/store";
+import { endSession } from "@/lib/sessionEnd";
+// The store registers its own reset for endSession; importing it makes sure
+// that registration has run on every page that can sign out.
+import "@/store/store";
 
 export const useLogout = () => {
     const { makeRequest, isSubmitting } = usePost();
@@ -16,23 +19,14 @@ export const useLogout = () => {
         } catch (error) {
             console.error("Logout failed:", error);
         } finally {
-            // Order matters to prevent cross-user state leakage:
-            // 1. Reset all Redux slices to their initial state (in-memory).
-            // 2. Purge the redux-persist store so the persisted blob (e.g. the
-            //    "recentItems" slice that backs the sidebar "Recent" section)
-            //    is removed AND the persistor stops auto-flushing the old
-            //    in-memory state back to storage.
-            // 3. Clear local/session storage for anything outside redux-persist.
-            // Without (1)+(2), localStorage.clear() alone races the persistor,
-            // which re-writes the previous user's Recent items before the next
-            // user logs in.
-            try {
-                store.dispatch({ type: RESET_STORE_ACTION });
-                await persistor.purge();
-                await persistor.flush();
-            } catch (e) {
-                console.error("Failed to purge persisted store on logout:", e);
-            }
+            // Order matters to prevent cross-user state leakage: first
+            // everything kept for this member lets go (Redux and its persisted
+            // blob, the response cache, the collaboration token), so nothing
+            // writes itself back; only then is storage cleared. Without the
+            // first step, localStorage.clear() races the persistor and the
+            // response cache, which re-write the previous member's data
+            // before the next person signs in.
+            await endSession();
             localStorage.clear();
             sessionStorage.clear();
             // Full reload to the login page guarantees a clean slate.

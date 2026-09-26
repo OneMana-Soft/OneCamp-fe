@@ -127,7 +127,7 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
       return
     }
 
-    log('[Collab] Connecting — docId:', config.documentId)
+    log('[Collab] Connecting, docId:', config.documentId)
 
     const provider = new HocuspocusProvider({
       // No fallback. This used to default to OUR collaboration server, so an

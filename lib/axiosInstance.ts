@@ -1,4 +1,5 @@
 import { errorToastCopy, shownRecently } from "@/lib/utils/errorToast";
+import { endSession } from "@/lib/sessionEnd";
 import axios from 'axios'
 import store from "@/store/store"
 import {updateRefreshTokenStatus} from "@/store/slice/refreshSlice";
@@ -99,6 +100,9 @@ const performLogout = async () => {
     } catch {
         // Logout call failed, still clear client state
     }
+    // Let go of everything kept for the member before storage is cleared,
+    // so nothing writes itself back on the way out (see lib/sessionEnd).
+    await endSession();
     clearClientCookies();
     localStorage.clear();
     sessionStorage.clear();

@@ -130,7 +130,7 @@ export const getFCMToken = async (): Promise<string | null> => {
     if (token) {
       console.log('[FCM] Token obtained successfully');
     } else {
-      console.warn('[FCM] getToken returned null — check VAPID key and Firebase project config');
+      console.warn('[FCM] getToken returned null: check VAPID key and Firebase project config');
     }
 
     return token;

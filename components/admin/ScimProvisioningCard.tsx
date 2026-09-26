@@ -219,7 +219,7 @@ const ScimProvisioningCard = () => {
             <p className="text-xs font-medium">Point your identity provider here</p>
             <CopyableCode value={baseUrl} label="SCIM base URL" />
             <p className="text-2xs text-muted-foreground">
-              Authentication is <span className="font-medium">OAuth Bearer Token</span> — paste the
+              Authentication is <span className="font-medium">OAuth Bearer Token</span>: paste the
               credential as the token. Map your users&apos; email address to{" "}
               <code className="rounded bg-muted px-1">userName</code>; OneCamp treats it as the account&apos;s
               identity and refuses a value that is not an email address.

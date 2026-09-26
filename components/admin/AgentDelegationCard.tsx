@@ -156,7 +156,7 @@ export function AgentDelegationCard() {
             value={surfaces}
             disabled={vetoed || saving}
             onChange={(e) => setSurfaces(e.target.value)}
-            placeholder="channel-uuid, task:task-uuid   —   or *  for everywhere"
+            placeholder="channel-uuid, task:task-uuid, or * for everywhere"
           />
           <p className="text-xs text-muted-foreground">
             Comma-separated. A channel is its id; a task is <code className="text-2xs">task:</code>

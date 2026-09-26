@@ -5,6 +5,8 @@
 // problem. The server's message, written for people, still wins when there is
 // one; otherwise the status decides the words.
 
+import { recentKeys } from "./recentKeys"
+
 export interface ErrorCopy {
   title: string
   description: string
@@ -31,14 +33,9 @@ export function errorToastCopy(status: number | undefined, serverMsg: unknown): 
 
 // One screen can make several requests that fail the same way at once (a page
 // of admin cards, say) and each used to raise its own identical toast.
-const DEDUPE_MS = 4000
-const lastShown = new Map<string, number>()
+const shown = recentKeys(4000)
 
 /** Whether this copy was already shown moments ago. Records it when not. */
 export function shownRecently(copy: ErrorCopy, now: number = Date.now()): boolean {
-  const key = `${copy.title}\n${copy.description}`
-  const at = lastShown.get(key)
-  if (at !== undefined && now - at < DEDUPE_MS) return true
-  lastShown.set(key, now)
-  return false
+  return shown.seen(`${copy.title}\n${copy.description}`, now)
 }

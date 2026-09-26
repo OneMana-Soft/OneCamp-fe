@@ -136,7 +136,7 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
         try {
           const text = (await transcribeAudio(blob, "clip.webm")).trim()
           if (!text) {
-            toast({ title: "Didn't catch that: try again", variant: "destructive" })
+            toast({ title: "Didn't catch that", description: "Try again.", variant: "destructive" })
             return
           }
           // Append to whatever is already in the composer, so dictation adds to

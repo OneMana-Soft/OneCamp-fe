@@ -379,19 +379,19 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
       { name: "list_tables", label: "List tables", write: false },
       { name: "read_table", label: "Read a table", write: false },
       { name: "query_table", label: "Analyze a table (totals & charts)", write: false },
-      { name: "query_plan", label: "Analyze a table — multi-step (top-N, %, having)", write: false },
+      { name: "query_plan", label: "Analyze a table in several steps (top-N, %, having)", write: false },
       { name: "create_table_row", label: "Add a table row", write: true },
       { name: "update_table_row", label: "Update a table row", write: true },
     ],
   },
   {
     group: "External data sources",
-    note: "Query a connected read-only external database/warehouse the way the agent queries native tables. Deterministic and read-only — the agent describes the query, never SQL. Only sources the agent's owner can access are reachable.",
+    note: "Query a connected read-only external database/warehouse the way the agent queries native tables. Deterministic and read-only: the agent describes the query, never SQL. Only sources the agent's owner can access are reachable.",
     tools: [
       { name: "list_data_sources", label: "List data sources", write: false },
       { name: "read_data_source", label: "Read a data source's schema", write: false },
       { name: "query_data_source", label: "Analyze a data source (totals & charts)", write: false },
-      { name: "query_data_source_plan", label: "Analyze a data source — multi-step (top-N, %, having)", write: false },
+      { name: "query_data_source_plan", label: "Analyze a data source in several steps (top-N, %, having)", write: false },
     ],
   },
   {
@@ -410,7 +410,7 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
   },
   {
     group: "Code (GitHub, read-only)",
-    note: "Read + understand the workspace's connected GitHub repo. Read-only — safe to grant broadly.",
+    note: "Read + understand the workspace's connected GitHub repo. Read-only, so safe to grant broadly.",
     tools: [
       { name: "repo_summary", label: "Summarize the repo", write: false },
       { name: "search_repo_code", label: "Search code", write: false },
@@ -435,14 +435,14 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
   },
   {
     group: "Code analysis (sandboxed)",
-    note: "Runs short Python in a locked-down sandbox — no network, ephemeral filesystem, hard limits — over data the agent can already see, to compute results and draw charts. Available only when an admin has enabled the code sandbox.",
+    note: "Runs short Python in a locked-down sandbox (no network, ephemeral filesystem, hard limits) over data the agent can already see, to compute results and draw charts. Available only when an admin has enabled the code sandbox.",
     tools: [
       { name: "run_analysis", label: "Run a data analysis", write: false },
     ],
   },
   {
     group: "Code changes (open a PR)",
-    note: "Lets the agent WRITE code and open a pull request for a human to review. The change is made in an isolated, network-locked runner, verified against the repo's own build/tests, and opened as a reviewable PR on a fresh branch — never merged automatically. Available only when an admin has enabled code PRs and deployed a coding runner.",
+    note: "Lets the agent WRITE code and open a pull request for a human to review. The change is made in an isolated, network-locked runner, verified against the repo's own build/tests, and opened as a reviewable PR on a fresh branch, never merged automatically. Available only when an admin has enabled code PRs and deployed a coding runner.",
     tools: [
       { name: "code_pr", label: "Open a pull request", write: true },
     ],

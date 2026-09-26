@@ -121,7 +121,7 @@ export function OllamaUpdateSteps({
       </p>
       {showSharedHostNote && (
         <p>
-          If one engine serves several workspaces on this host, it belongs to the shared stack instead —
+          If one engine serves several workspaces on this host, it belongs to the shared stack instead:
           set the version in <span className="font-mono">shared.env</span> and run{" "}
           <span className="font-mono">make shared_ollama_update</span>. That restarts inference for every
           workspace on the host at once.

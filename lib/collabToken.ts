@@ -1,4 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance"
+import { onSessionEnd } from "@/lib/sessionEnd"
 
 // The member's collaboration token, fetched once and reused until it is about
 // to expire.
@@ -17,6 +18,9 @@ const MARGIN_SEC = 60
 
 let cached = ""
 let inflight: Promise<string> | null = null
+// Bumped whenever the token is dropped, so a request already on its way cannot
+// put back a token that was just let go of.
+let generation = 0
 
 /** Seconds since the epoch at which a JWT expires, or 0 when it cannot be read. */
 export function jwtExpiry(token: string): number {
@@ -49,14 +53,16 @@ async function fetchToken(): Promise<string> {
 export function memberCollabToken(): Promise<string> {
   if (tokenStillFresh(cached, Date.now() / 1000)) return Promise.resolve(cached)
   if (!inflight) {
-    inflight = fetchToken()
+    const gen = generation
+    const req: Promise<string> = fetchToken()
       .then((t) => {
-        cached = t
+        if (gen === generation) cached = t
         return t
       })
       .finally(() => {
-        inflight = null
+        if (inflight === req) inflight = null
       })
+    inflight = req
   }
   return inflight
 }
@@ -66,7 +72,11 @@ export function warmCollabToken(): void {
   memberCollabToken().catch(() => {})
 }
 
-/** Drop the cached token, after the server refused it. */
+/** Drop the cached token: the server refused it, or the session ended. */
 export function forgetCollabToken(): void {
   cached = ""
+  inflight = null
+  generation++
 }
+
+onSessionEnd(forgetCollabToken)

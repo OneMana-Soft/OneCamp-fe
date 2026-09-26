@@ -1,5 +1,6 @@
 import { configureStore} from "@reduxjs/toolkit";
 import storage from "@/lib/utils/storage";
+import { onSessionEnd } from "@/lib/sessionEnd";
 import { persistReducer, persistStore } from "redux-persist";
 import refreshSlice from "@/store/slice/refreshSlice";
 import reactionSlice from "@/store/slice/reactionSlice";
@@ -40,8 +41,8 @@ const rootPersistConfig = {
 // each slice's initial state. Without this, the redux-persist singleton keeps
 // the previous user's persisted slice(s) (e.g. recentItems) in memory and can
 // re-flush them after a naive localStorage.clear(), leaking one user's Recent
-// items / state into the next user's session. Pairs with persistor.purge() in
-// useLogout.
+// items / state into the next user's session. Pairs with persistor.purge(),
+// both run by the session-end hook at the bottom of this file.
 export const RESET_STORE_ACTION = "store/RESET"
 
 // Manually compose root reducer to avoid combineReducers type complexity
@@ -153,5 +154,14 @@ const store = configureStore({
 })
 
 export const persistor = persistStore(store);
+
+// When a session ends: 1. reset every slice in memory, 2. purge the persisted
+// blob and flush, so the persistor stops writing the old state back. Storage
+// is cleared only after this, by the caller of endSession.
+onSessionEnd(async () => {
+    store.dispatch({ type: RESET_STORE_ACTION });
+    await persistor.purge();
+    await persistor.flush();
+});
 
 export default store;

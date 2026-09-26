@@ -332,7 +332,7 @@ export default function AdminAuditLog() {
                         >
                             Check the whole chain
                         </button>{" "}
-                        — slower, and it starts from the first entry ever written.
+                        (slower, because it starts from the first entry ever written).
                     </p>
                 )}
             </CardHeader>

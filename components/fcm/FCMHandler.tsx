@@ -54,7 +54,7 @@ export function FCMHandler() {
       try {
         const token = await getFCMToken()
         if (!token) {
-          console.warn("[FCM] Token was null — permission denied or config issue")
+          console.warn("[FCM] Token was null: permission denied or config issue")
           return // Don't retry if token is null (likely a permanent issue like permission denied or missing VAPID key)
         }
 
