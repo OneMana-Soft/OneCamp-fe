@@ -180,7 +180,7 @@ function AdminUserRow({
   const isDeactivated = !isZeroEpoch(user.user_deleted_at || "")
 
   return (
-    <li className="group flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-card transition-colors hover:bg-accent/40">
+    <li className="group flex flex-wrap items-center gap-x-3 gap-y-2 p-3 rounded-lg border border-border/60 bg-card transition-colors hover:bg-accent/40">
       <button
         type="button"
         className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -205,7 +205,10 @@ function AdminUserRow({
         </div>
       </button>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* On a phone the actions take their own line with words under them: there
+          is no hover to show a tooltip, and three bare icons said nothing. From
+          sm up they sit beside the name as icons, labels kept for screen readers. */}
+      <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto sm:shrink-0">
         {isDeactivated ? (
           <Badge variant="destructive" className="text-3xs h-5 hidden xs:inline-flex sm:inline-flex">
             Deactivated
@@ -233,12 +236,13 @@ function AdminUserRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                className="h-8 w-auto gap-1 px-2 text-muted-foreground hover:text-foreground hover:bg-muted sm:w-8 sm:px-0"
                 onClick={() => onResetTwoFactor(user.user_email_id!, user.user_uuid)}
                 disabled={isSubmitting}
                 aria-label={`Reset two-factor authentication for ${seed}`}
               >
                 <ShieldAlert className="h-4 w-4" />
+                <span className="text-2xs sm:sr-only">Reset 2FA</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>Reset two-factor authentication</TooltipContent>
@@ -251,12 +255,13 @@ function AdminUserRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-success hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-success/10 dark:text-emerald-400"
+                className="h-8 w-auto gap-1 px-2 sm:w-8 sm:px-0 text-success hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-success/10 dark:text-emerald-400"
                 onClick={() => onActivate(user.user_email_id!, user.user_uuid)}
                 disabled={isSubmitting}
                 aria-label={`Reactivate ${seed}`}
               >
                 <RotateCcw className="h-4 w-4" />
+                <span className="text-2xs sm:sr-only">Reactivate</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>Reactivate user</TooltipContent>
@@ -267,7 +272,7 @@ function AdminUserRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                className="h-8 w-auto gap-1 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 sm:w-8 sm:px-0"
                 onClick={() => onDeactivate(user.user_email_id!, user.user_uuid)}
                 disabled={isSubmitting}
                 aria-label={`Deactivate ${seed}`}
@@ -275,6 +280,7 @@ function AdminUserRow({
                 {/* Not a trash can: deactivation is reversible (Reactivate sits in
                     the same place), and a bin reads as deleting the person. */}
                 <UserMinus className="h-4 w-4" />
+                <span className="text-2xs sm:sr-only">Deactivate</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>Deactivate user</TooltipContent>

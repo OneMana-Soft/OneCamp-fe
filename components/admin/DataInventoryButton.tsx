@@ -78,10 +78,12 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted"
+                            className="h-8 w-auto gap-1 px-2 text-muted-foreground hover:text-foreground hover:bg-muted sm:w-8 sm:px-0"
                             aria-label={`Show where data for ${displayName} is stored`}
                         >
                             <Database className="h-4 w-4" />
+                            {/* Seen on a phone, where the tooltip cannot be. */}
+                            <span className="text-2xs sm:sr-only">Data</span>
                         </Button>
                     </DialogTrigger>
                 </TooltipTrigger>

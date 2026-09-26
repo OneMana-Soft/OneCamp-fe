@@ -163,9 +163,11 @@ export const SystemCheckCard: React.FC = () => {
     return (
         <Card>
             <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
+                {/* Wraps: on a phone the title, the verdict and the button do not fit
+                    one row, and the title was squeezed onto two lines. */}
+                <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                     <Activity className="h-4 w-4" />
-                    Installation health
+                    <span className="whitespace-nowrap">Installation health</span>
                     <span className="ml-auto flex items-center gap-2">
                         {summary}
                         <Button
