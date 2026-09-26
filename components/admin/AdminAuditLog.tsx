@@ -131,11 +131,11 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
                                 {meta.raw}
                             </pre>
                         ) : (
-                            <dl className="mt-1.5 grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-1 rounded bg-muted/40 p-2 text-2xs">
+                            <dl className="mt-1.5 grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-x-3 gap-y-1 rounded bg-muted/40 p-2 text-2xs">
                                 {detailFields.map((f) => (
                                     <React.Fragment key={f.key}>
                                         <dt className="text-muted-foreground">{f.label}</dt>
-                                        <dd className="break-words font-mono text-foreground">{f.value}</dd>
+                                        <dd className="font-mono text-foreground [overflow-wrap:anywhere]">{f.value}</dd>
                                     </React.Fragment>
                                 ))}
                             </dl>
