@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { CheckIcon, PlusCircledIcon } from "@radix-ui/react-icons";
 
 import { cn } from "@/lib/utils/helpers/cn";
@@ -34,6 +35,7 @@ export function TaskKanbanProjectFilter({
                                                 updateList,
 
 }: KanbanProjectFilterProps) {
+  const { t } = useTranslation()
   const selfUserProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
 
@@ -42,7 +44,7 @@ export function TaskKanbanProjectFilter({
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 border-dashed">
           <PlusCircledIcon className="mr-2 h-4 w-4" />
-          {('project')}
+          {t('project')}
           {activeList.length > 0 && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />
@@ -80,9 +82,9 @@ export function TaskKanbanProjectFilter({
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="start">
         <Command>
-          <CommandInput placeholder={('project')} />
+          <CommandInput placeholder={t('project')} />
           <CommandList>
-            <CommandEmpty>{('noResultFound')}</CommandEmpty>
+            <CommandEmpty>{t('noResultFound')}</CommandEmpty>
             <CommandGroup>
               {selfUserProfile.data?.data.user_projects && selfUserProfile.data?.data.user_projects.map((option) => {
                 const isSelected = activeList.includes(option.uid);
@@ -129,7 +131,7 @@ export function TaskKanbanProjectFilter({
                     onSelect={() => updateList([])}
                     className="justify-center text-center"
                   >
-                    {('clearFilters')}
+                    {t('clearFilters')}
                   </CommandItem>
                 </CommandGroup>
               </>

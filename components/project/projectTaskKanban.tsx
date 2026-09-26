@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import {useCallback, useEffect, useRef, useState} from 'react';
 
 import { VList } from "virtua"
@@ -76,6 +77,7 @@ export const ProjectTaskKanban = ({
                                       scrollable = true,
                                         projectId=''
                                   }: KanbanProps) => {
+    const { t } = useTranslation()
     const dispatch = useDispatch();
     const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate();
 
@@ -406,7 +408,7 @@ export const ProjectTaskKanban = ({
                         className="ml-auto hidden h-8 lg:flex"
                         onClick={()=>{dispatch(openUI({ key: 'createTask' }))}}
                     >
-                        <CirclePlus className='h-4 w-4'/>{" "}{('createTask')}
+                        <CirclePlus className='h-4 w-4'/>{" "}{t('createTask')}
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -416,7 +418,7 @@ export const ProjectTaskKanban = ({
                                 className="ml-auto hidden h-8 lg:flex"
                             >
                                 <MixerHorizontalIcon className="mr-2 h-4 w-4" />
-                                {('view')}
+                                {t('view')}
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-[150px]">

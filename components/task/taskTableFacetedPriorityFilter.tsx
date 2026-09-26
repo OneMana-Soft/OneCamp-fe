@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import * as React from "react";
 import { CheckIcon, PlusCircledIcon } from "@radix-ui/react-icons";
 import { Column } from "@tanstack/react-table";
@@ -33,6 +34,7 @@ export function TaskTableFacetedPriorityFilter<TData, TValue>({
                                                           column,
                                                           title,
                                                       }: DataTableFacetedFilterProps<TData, TValue>) {
+    const { t } = useTranslation()
     const selectedValues = new Set(column?.getFilterValue() as string[]);
 
     return (
@@ -56,7 +58,7 @@ export function TaskTableFacetedPriorityFilter<TData, TValue>({
                                         variant="secondary"
                                         className="rounded-sm px-1 font-normal"
                                     >
-                                        {selectedValues.size} {('selected')}
+                                        {selectedValues.size} {t('selected')}
                                     </Badge>
                                 ) : (
                                     priorities
@@ -80,7 +82,7 @@ export function TaskTableFacetedPriorityFilter<TData, TValue>({
                 <Command>
                     <CommandInput placeholder={title} />
                     <CommandList>
-                        <CommandEmpty>{('noResultFound')}</CommandEmpty>
+                        <CommandEmpty>{t('noResultFound')}</CommandEmpty>
                         <CommandGroup>
                             {priorities.map((option) => {
                                 const isSelected = selectedValues.has(option.value);
@@ -128,7 +130,7 @@ export function TaskTableFacetedPriorityFilter<TData, TValue>({
                                         onSelect={() => column?.setFilterValue(undefined)}
                                         className="justify-center text-center"
                                     >
-                                        {('clearFilters')}
+                                        {t('clearFilters')}
                                     </CommandItem>
                                 </CommandGroup>
                             </>

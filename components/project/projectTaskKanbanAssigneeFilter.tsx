@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { CheckIcon, PlusCircledIcon } from "@radix-ui/react-icons";
 
 import { cn } from "@/lib/utils/helpers/cn";
@@ -35,6 +36,7 @@ export function ProjectTaskKanbanAssigneeFilter({
                                                 members
 
 }: KanbanProjectFilterProps) {
+    const { t } = useTranslation()
 
     return (
     <Popover>
@@ -57,7 +59,7 @@ export function ProjectTaskKanbanAssigneeFilter({
                     variant="secondary"
                     className="rounded-sm px-1 font-normal"
                   >
-                    {activeList.length} {('selected')}
+                    {activeList.length} {t('selected')}
                   </Badge>
                 ) : members && (
                     members

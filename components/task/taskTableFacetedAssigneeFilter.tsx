@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { CheckIcon, PlusCircledIcon } from "@radix-ui/react-icons";
 import { Column } from "@tanstack/react-table";
 
@@ -35,6 +36,7 @@ export function TaskTableFacetedAssigneeFilter<TData, TValue>({
                                                                   title,
                                                                   projectId
                                                               }: DataTableFacetedFilterProps<TData, TValue>) {
+    const { t } = useTranslation()
     const selectedValues = new Set(column?.getFilterValue() as string[]);
     const projectInfo = useFetch<ProjectInfoRawInterface>(projectId ? GetEndpointUrl.GetProjectMemberInfo + '/' + projectId : '')
 
@@ -134,7 +136,7 @@ export function TaskTableFacetedAssigneeFilter<TData, TValue>({
                                         onSelect={() => column?.setFilterValue(undefined)}
                                         className="justify-center text-center"
                                     >
-                                        {('clearFilters')}
+                                        {t('clearFilters')}
                                     </CommandItem>
                                 </CommandGroup>
                             </>
