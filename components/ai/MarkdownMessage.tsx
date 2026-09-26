@@ -16,7 +16,7 @@ import AgentQueryPlan from "@/components/ai/AgentQueryPlan";
  * that arrives mid-stream (unmatched tokens simply render as literal text).
  *
  * Supported: headings, bold, italic, inline code, fenced code blocks, links,
- * bare URLs, unordered/ordered lists, blockquotes and horizontal rules.
+ * bare URLs, unordered/ordered lists, blockquotes, horizontal rules and tables.
  */
 
 // Only allow hrefs we trust — http(s), mailto, and in-app relative links.
@@ -135,6 +135,64 @@ const HEADING_SIZES = [
 
 const HR_RE = /^\s*([-*_])\s*(\1\s*){2,}$/;
 
+// Tables, as GitHub writes them: a header row, a delimiter row, body rows.
+//
+// Models answer "compare", "summarise by channel" and the like with a table
+// more often than not, and before this every one arrived as raw pipes and
+// dashes. A header whose delimiter has not streamed in yet stays a paragraph
+// for that moment, the same way an unclosed ** stays literal.
+const TABLE_DELIM_CELL = /^:?-+:?$/;
+
+type Align = "left" | "center" | "right" | undefined;
+
+/** The cells of one table row. Outer pipes are optional; a pipe inside `code`
+ *  or written as \| belongs to the cell. */
+export function splitTableRow(line: string): string[] {
+    let row = line.trim();
+    if (row.startsWith("|")) row = row.slice(1);
+    if (row.endsWith("|") && !row.endsWith("\\|")) row = row.slice(0, -1);
+    const cells: string[] = [];
+    let cell = "";
+    let inCode = false;
+    for (let k = 0; k < row.length; k++) {
+        const ch = row[k];
+        if (ch === "\\" && row[k + 1] === "|") {
+            cell += "|";
+            k++;
+            continue;
+        }
+        if (ch === "`") inCode = !inCode;
+        if (ch === "|" && !inCode) {
+            cells.push(cell.trim());
+            cell = "";
+            continue;
+        }
+        cell += ch;
+    }
+    cells.push(cell.trim());
+    return cells;
+}
+
+/** Whether a table starts at line i: a row with pipes, then a delimiter row
+ *  with the same number of cells. */
+function tableStartsAt(lines: string[], i: number): boolean {
+    if (i + 1 >= lines.length || !lines[i].includes("|") || !lines[i + 1].includes("-")) return false;
+    const delim = splitTableRow(lines[i + 1]);
+    return (
+        delim.every((c) => TABLE_DELIM_CELL.test(c)) &&
+        delim.length === splitTableRow(lines[i]).length
+    );
+}
+
+function alignOf(delimCell: string): Align {
+    const left = delimCell.startsWith(":");
+    const right = delimCell.endsWith(":");
+    if (left && right) return "center";
+    if (right) return "right";
+    if (left) return "left";
+    return undefined;
+}
+
 function parseBlocks(src: string): React.ReactNode[] {
     const lines = src.replace(/\r\n/g, "\n").split("\n");
     const blocks: React.ReactNode[] = [];
@@ -202,6 +260,54 @@ function parseBlocks(src: string): React.ReactNode[] {
                 >
                     <code>{code.join("\n")}</code>
                 </pre>
+            );
+            continue;
+        }
+
+        // Table
+        if (tableStartsAt(lines, i)) {
+            const header = splitTableRow(lines[i]);
+            const aligns = splitTableRow(lines[i + 1]).map(alignOf);
+            i += 2;
+            const rows: string[][] = [];
+            while (i < lines.length && lines[i].trim() !== "" && lines[i].includes("|")) {
+                rows.push(splitTableRow(lines[i]));
+                i++;
+            }
+            const k = key++;
+            blocks.push(
+                <div key={k} className="max-w-full overflow-x-auto rounded-lg border border-border/60">
+                    <table className="w-full border-collapse text-left">
+                        <thead className="bg-foreground/[0.04]">
+                            <tr>
+                                {header.map((cell, c) => (
+                                    <th
+                                        key={c}
+                                        style={{ textAlign: aligns[c] }}
+                                        className="border-b border-border/60 px-2.5 py-1.5 align-bottom font-semibold"
+                                    >
+                                        {parseInline(cell, `th${k}-${c}`)}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, r) => (
+                                <tr key={r} className="border-b border-border/40 last:border-b-0">
+                                    {header.map((_, c) => (
+                                        <td
+                                            key={c}
+                                            style={{ textAlign: aligns[c] }}
+                                            className="px-2.5 py-1.5 align-top [overflow-wrap:anywhere]"
+                                        >
+                                            {parseInline(row[c] ?? "", `td${k}-${r}-${c}`)}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             );
             continue;
         }
@@ -303,7 +409,8 @@ function parseBlocks(src: string): React.ReactNode[] {
             !/^>\s?/.test(lines[i]) &&
             !/^\s*[-*+]\s+/.test(lines[i]) &&
             !/^\s*\d+\.\s+/.test(lines[i]) &&
-            !HR_RE.test(lines[i])
+            !HR_RE.test(lines[i]) &&
+            !tableStartsAt(lines, i)
         ) {
             para.push(lines[i]);
             i++;
