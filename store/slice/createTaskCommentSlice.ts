@@ -433,11 +433,6 @@ export const createTaskCommentSlice = createSlice({
 
         },
 
-        // SYNC: Clear all loaded task comments to force API refetch after stale reconnection
-        invalidateTaskComments: (state) => {
-            state.taskComments = {} as ExtendedComments
-        },
-
 
     }
 });
@@ -462,7 +457,6 @@ export const {
     createTaskCommentReaction,
     createTaskCommentReactionByCommentId,
     removeTaskCommentReaction,
-    removeTaskCommentReactionByReactionId,
-    invalidateTaskComments
+    removeTaskCommentReactionByReactionId
 
 } =createTaskCommentSlice.actions

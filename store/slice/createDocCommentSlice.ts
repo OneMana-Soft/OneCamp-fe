@@ -444,12 +444,6 @@ export const createDocCommentSlice = createSlice({
             state.docCommentCount[docId] = newCount
         },
 
-        // SYNC: Clear all loaded doc comments to force API refetch after stale reconnection
-        invalidateDocComments: (state) => {
-            state.docComments = {} as ExtendedComments
-            state.docCommentCount = {} as ExtendedCommentCount
-        },
-
     }
 });
 
@@ -476,7 +470,6 @@ export const {
     removeDocCommentByCommentUUID,
     updateDocCommentReactionByCommentId,
     createDocCommentReactionByCommentId,
-    removeDocCommentReactionByReactionId,
-    invalidateDocComments
+    removeDocCommentReactionByReactionId
 
 } =createDocCommentSlice.actions

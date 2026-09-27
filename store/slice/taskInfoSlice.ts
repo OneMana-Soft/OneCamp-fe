@@ -152,12 +152,6 @@ export const taskInfoSlice = createSlice({
 
         },
 
-        addTasksToTaskInfoList: (state, action: {payload: AddTaskToTaskInfoInterface}) => {
-            const { tasksInfo } = action.payload;
-            state.taskListVisibleInfo.push(...tasksInfo);
-
-        },
-
         updateTaskLabelInTaskList: (state, action: {payload: UpdateTaskNameORLabelInterface}) => {
             const { taskId, value } = action.payload;
             state.taskListVisibleInfo = state.taskListVisibleInfo.map((task)=>{
@@ -281,7 +275,6 @@ export const {
     updateTaskPRStateInTaskList,
     updateTaskPRIsDraftInTaskList,
     createListForTaskInfo,
-    addTasksToTaskInfoList,
     clearTaskListVisibleInfo
 
 } =taskInfoSlice.actions

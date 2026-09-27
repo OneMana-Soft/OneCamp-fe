@@ -109,12 +109,6 @@ const fwdMsgSlice = createSlice({
             state.fwdMsgInputInputState.filesUploaded.push(filesUploaded);
         },
 
-        removeFwdMsgUploadedFiles: (state, action: {payload: RemoveUploadedFile}) => {
-            const { key } = action.payload;
-
-            state.fwdMsgInputInputState.filesUploaded = state.fwdMsgInputInputState.filesUploaded.filter((media) => media.attachment_obj_key !== key);
-        },
-
         clearFwdMsgInputState: (state) => {
 
             state.fwdMsgInputInputState = { fwdMsgBody: '', filesUploaded: [] , filesPreview: [], mobileViewSendClicked: false};
@@ -134,7 +128,6 @@ export const {
     deleteFwdMsgPreviewFiles,
     updateFwdMsgPreviewFiles,
     addFwdMsgUploadedFiles,
-    removeFwdMsgUploadedFiles,
     clearFwdMsgInputState,
     updateFwdMsgPreviewFilesUUID,
     clickedMobileFwdMsgSend,

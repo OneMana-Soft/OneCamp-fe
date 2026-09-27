@@ -37,7 +37,6 @@ export {
   Search,
   PanelLeftClose,
   PanelLeftOpen,
-  PanelRight,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -47,7 +46,6 @@ export {
   ArrowRight,
   ArrowUpRight,
   ArrowRightToLine,
-  ArrowUpDown,
   Kanban,
 } from "lucide-react";
 
@@ -88,7 +86,6 @@ export {
   Circle,
   CircleDot,
   XCircle,
-  CheckCircle as CheckCircleIcon,
 } from "lucide-react";
 
 // ─── Communication ──────────────────────────────────────────
@@ -126,7 +123,6 @@ export {
   ListOrdered,
   ListTodo,
   ClipboardList,
-  CheckSquare as CheckSquareIcon,
   CircleCheck,
   Quote,
   Code,
@@ -152,22 +148,18 @@ export {
   Smartphone,
   Command,
   Eraser,
-  Underline as UnderlineIcon,
   Activity,
 } from "lucide-react";
 
 // ─── Media / Files ──────────────────────────────────────────
 export {
   File,
-  FileText as FileTextIcon,
   FileImage,
   FileVideo,
   FileAudio2,
   FileCode,
   FileSpreadsheet,
-  FileBox,
   FileArchive,
-  Folder as FolderIcon,
   FolderKanban,
   Image,
   Play,

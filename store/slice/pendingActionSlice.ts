@@ -60,9 +60,6 @@ const pendingActionSlice = createSlice({
         removePendingAction: (state, action: PayloadAction<string>) => {
             state.actions = state.actions.filter((a) => a.id !== action.payload)
         },
-        clearAllPendingActions: (state) => {
-            state.actions = []
-        },
     },
 })
 
@@ -71,6 +68,5 @@ export const {
     upsertPendingAction,
     markPendingActionStatus,
     removePendingAction,
-    clearAllPendingActions,
 } = pendingActionSlice.actions
 export default pendingActionSlice

@@ -65,11 +65,6 @@ export interface GenericSearchTextInterface {
     page_size?: number
 }
 
-export enum UserStatus {
-    online = "online",
-    offline = "offline",
-}
-
 export const USER_STATUS_ONLINE = "online"
 export const USER_STATUS_OFFLINE = "offline"
 
@@ -188,11 +183,6 @@ export interface UserEmojiStatus {
     status_user_emoji_desc: string
     status_user_emoji_expiry_at?: string
     status_user_emoji_expiry_in?: StatusTime
-}
-
-export interface UserEmojiStatusResp {
-    data: UserEmojiStatus
-    msg: string
 }
 
 export interface UserInfoRawInterface {

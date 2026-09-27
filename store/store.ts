@@ -17,7 +17,6 @@ import typingSlice from "@/store/slice/typingSlice";
 import {createTaskDialogSlice} from "@/store/slice/createTaskDailogSlice";
 import {createTaskCommentSlice} from "@/store/slice/createTaskCommentSlice";
 import taskFilterSlice from "@/store/slice/taskFilterSlice";
-import currentTaskSlice from "@/store/slice/currentTaskSlice";
 import groupChatSlice from "@/store/slice/groupChatSlice";
 import {createDocCommentSlice} from "@/store/slice/createDocCommentSlice";
 import uiSlice from "@/store/slice/uiSlice";
@@ -73,7 +72,6 @@ const rootReducer = (
             [desktopRightPanelSlice.name]: desktopRightPanelSlice.reducer(undefined, action),
             [typingSlice.name]: typingSlice.reducer(undefined, action),
             [taskFilterSlice.name]: taskFilterSlice.reducer(undefined, action),
-            [currentTaskSlice.name]: currentTaskSlice.reducer(undefined, action),
             [createDocCommentSlice.name]: createDocCommentSlice.reducer(undefined, action),
             [channelCommentSlice.name]: channelCommentSlice.reducer(undefined, action),
             [chatCommentSlice.name]: chatCommentSlice.reducer(undefined, action),
@@ -102,7 +100,6 @@ const rootReducer = (
         [desktopRightPanelSlice.name]: desktopRightPanelSlice.reducer(state[desktopRightPanelSlice.name], action),
         [typingSlice.name]: typingSlice.reducer(state[typingSlice.name], action),
         [taskFilterSlice.name]: taskFilterSlice.reducer(state[taskFilterSlice.name], action),
-        [currentTaskSlice.name]: currentTaskSlice.reducer(state[currentTaskSlice.name], action),
         [createDocCommentSlice.name]: createDocCommentSlice.reducer(state[createDocCommentSlice.name], action),
         [channelCommentSlice.name]: channelCommentSlice.reducer(state[channelCommentSlice.name], action),
         [chatCommentSlice.name]: chatCommentSlice.reducer(state[chatCommentSlice.name], action),
@@ -131,7 +128,6 @@ export type RootState = {
     [desktopRightPanelSlice.name]: ReturnType<typeof desktopRightPanelSlice.reducer>
     [typingSlice.name]: ReturnType<typeof typingSlice.reducer>
     [taskFilterSlice.name]: ReturnType<typeof taskFilterSlice.reducer>
-    [currentTaskSlice.name]: ReturnType<typeof currentTaskSlice.reducer>
     [createDocCommentSlice.name]: ReturnType<typeof createDocCommentSlice.reducer>
     [channelCommentSlice.name]: ReturnType<typeof channelCommentSlice.reducer>
     [chatCommentSlice.name]: ReturnType<typeof chatCommentSlice.reducer>

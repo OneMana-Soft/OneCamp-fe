@@ -58,13 +58,8 @@ const commandSlice = createSlice({
             if (!list) return
             state.cards[surface_key] = list.filter((c) => c.trigger_id !== trigger_id)
         },
-        // Clear all cards for a surface (e.g. on conversation change).
-        clearSurface: (state, action: PayloadAction<{ surface_key: string }>) => {
-            delete state.cards[action.payload.surface_key]
-        },
     },
 })
 
-export const { upsertCard, dismissCard, clearSurface } = commandSlice.actions
+export const { upsertCard, dismissCard } = commandSlice.actions
 export { commandSlice }
-export default commandSlice.reducer

@@ -17,7 +17,7 @@ import {
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-import { LoaderCircle } from "@/lib/icons";
+import { TableRowsSkeleton } from "@/components/ui/tableRowsSkeleton";
 import { useDebounce } from "@/hooks/useDebounce"
 import { TaskTablePagination } from "@/components/task/taskTablePagination"
 import { TaskTableToolbar } from "@/components/task/taskTableToolbar"
@@ -259,16 +259,12 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                                     ))}
                                 </TableRow>
                             ))
+                        ) : projectInfo.isLoading ? (
+                            <TableRowsSkeleton columns={table.getVisibleLeafColumns().length} />
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                                    {projectInfo.isLoading ? (
-                                        <div className="flex items-center justify-center">
-                                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                                        </div>
-                                    ) : (
-                                        t("noResultFound")
-                                    )}
+                                    {t("noResultFound")}
                                 </TableCell>
                             </TableRow>
                         )}

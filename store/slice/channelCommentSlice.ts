@@ -414,11 +414,6 @@ const channelCommentSlice = createSlice({
             }
         },
 
-        // SYNC: Clear all loaded channel comments to force API refetch after stale reconnection
-        invalidateChannelComments: (state) => {
-            state.postComments = {} as ExtendedComments
-        },
-
     }
 })
 
@@ -444,8 +439,7 @@ export const {
     createChannelCommentReactionByCommentId,
     removeChannelCommentReaction,
     removeChannelCommentReactionByReactionId,
-    updateChannelCommentReactionId,
-    invalidateChannelComments
+    updateChannelCommentReactionId
 } = channelCommentSlice.actions
 
 export default channelCommentSlice;

@@ -62,13 +62,6 @@ export interface ChannelMemberUpdateInterface {
     user_id: string
 }
 
-export interface UpdateChannelInfoInterface {
-    channel_name: string,
-    channel_private: string,
-    channel_archived: string,
-    channel_uuid: string
-}
-
 export interface GetChannelCallInterface {
     channel_uuid: string,
     audio_enabled?: boolean,

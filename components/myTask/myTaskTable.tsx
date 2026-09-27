@@ -26,7 +26,6 @@ import {
     TableRow,
 } from "@/components/ui/table";
 
-import { LoaderCircle } from "@/lib/icons";
 import {TaskTableToolbar} from "@/components/task/taskTableToolbar";
 import {TaskTablePagination} from "@/components/task/taskTablePagination";
 import {useMyTaskColumn} from "@/hooks/useMyTaskColumn";
@@ -39,6 +38,7 @@ import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import {useTranslation} from "react-i18next";
+import { TableRowsSkeleton } from "@/components/ui/tableRowsSkeleton";
 
 // <CHANGE> Helper function for safe JSON parsing
 const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
@@ -280,17 +280,12 @@ export const MyTaskTable = () => {
                                     ))}
                                 </TableRow>
                             ))
+                        ) : userInfo.isLoading ? (
+                            <TableRowsSkeleton columns={table.getVisibleLeafColumns().length} />
                         ) : (
                             <TableRow>
-                                <TableCell
-                                    colSpan={columns.length}
-                                    className="h-24 text-center items-center"
-                                >
-                                    {userInfo.isLoading ? (
-                                        <div className="flex items-center justify-center">
-                                            <LoaderCircle className="h-4 w-4 animate-spin"/>
-                                        </div>
-                                    ) : (t('noResultFound'))}
+                                <TableCell colSpan={columns.length} className="h-24 text-center items-center">
+                                    {t('noResultFound')}
                                 </TableCell>
                             </TableRow>
                         )}

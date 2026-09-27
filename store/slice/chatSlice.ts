@@ -106,11 +106,6 @@ interface UpdateChatByChatId {
     htmlText: string
 }
 
-interface RemoveChat {
-    dmId: string
-    chatIndex: number
-}
-
 interface UpdateScrollToBottom {
     chatId: string
     scrollToBottom: boolean
@@ -149,20 +144,9 @@ interface UpdateChatReactionId {
     newReactionId: string
 }
 
-interface UpdateChat {
-    dmId: string
-    chatIndex: number
-    htmlText: string
-}
-
 interface UpdateChats extends LatestWindowAuthority {
     chatId: string,
     chats: ChatInfo[]
-}
-
-interface UpdateChatCommentCount {
-    chatId: string
-    dmId: string
 }
 
 interface UpdateReplyCountInterface {
@@ -388,14 +372,6 @@ const chatSlice = createSlice({
             })
         },
 
-        removeChat: (state, action: {payload: RemoveChat}) => {
-            const { dmId, chatIndex } = action.payload;
-            if (!state.chatMessages[dmId]) return
-            if (chatIndex > -1 && chatIndex < state.chatMessages[dmId].length) {
-                state.chatMessages[dmId].splice(chatIndex, 1);
-            }
-        },
-
         removeChatByChatId: (state, action: {payload: RemoveChatByChatId}) => {
             const { messageId, chatId } = action.payload;
             // Tombstone first so a merge from a pre-delete window can't re-add it.
@@ -418,30 +394,6 @@ const chatSlice = createSlice({
                 }
                 return chat
             })
-        },
-
-        decrementChatCommentCountByChatID: (state, action: {payload: UpdateChatCommentCount}) => {
-            const {chatId , dmId} = action.payload;
-            if (!state.chatMessages[dmId]) return
-
-            state.chatMessages[dmId].map((post)=> {
-                if(post.chat_uuid == chatId) {
-                    // Guard: counter may be undefined or 0 if MQTT delivery
-                    // races the initial fetch. undefined-- is NaN.
-                    post.chat_comment_count = Math.max(0, (post.chat_comment_count || 0) - 1)
-                }
-                return post
-            })
-
-        },
-
-        updateChat: (state, action: {payload: UpdateChat}) => {
-            const { dmId, chatIndex, htmlText } = action.payload;
-            if (!state.chatMessages[dmId]) return
-            if (chatIndex > -1 && chatIndex < state.chatMessages[dmId].length) {
-                state.chatMessages[dmId][chatIndex].chat_body_text = htmlText
-            }
-
         },
 
         updateChats: (state, action: {payload: UpdateChats}) => {
@@ -793,8 +745,6 @@ export const {
     removeChatUploadedFiles,
     clearChatInputState,
     updateChatByChatId,
-    removeChat,
-    updateChat,
     updateChats,
     removeChatByChatId,
     createChat,
@@ -803,7 +753,6 @@ export const {
     removeChatReactionByChatId,
     updateChatPreviewFilesUUID,
     UpdateMessageInChatList,
-    decrementChatCommentCountByChatID,
     updateChatReactionByChatId,
     createChatReactionChatId,
     updateChatScrollToBottom,

@@ -16,7 +16,7 @@ export function localDay(d: Date = new Date()): string {
 }
 
 /** The device's IANA time zone, so the note says due times as its clock shows them. */
-export function localZone(): string {
+function localZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || ""
   } catch {

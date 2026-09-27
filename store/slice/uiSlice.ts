@@ -238,21 +238,9 @@ const uiSlice = createSlice({
         }
       }
     },
-    toggleUI: (state, action: PayloadAction<GlobalUIType>) => {
-      const key = action.payload;
-      if (state[key]) {
-        state[key].isOpen = !state[key].isOpen;
-      }
-    },
-    // Batch close for navigation or global resets
-    closeAllUI: (state) => {
-      Object.keys(state).forEach((key) => {
-        (state as any)[key].isOpen = false;
-      });
-    },
   },
 });
 
-export const { openUI, closeUI, toggleUI, closeAllUI } = uiSlice.actions;
+export const { openUI, closeUI,} = uiSlice.actions;
 
 export default uiSlice;
