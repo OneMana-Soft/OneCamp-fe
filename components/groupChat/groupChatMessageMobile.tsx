@@ -27,6 +27,7 @@ import {setGroupChatReplyTarget} from "@/store/slice/groupChatSlice";
 import {htmlToPreviewText} from "@/lib/utils/htmlToPreviewText";
 import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
+import { messageAuthorName } from "@/lib/utils/userDisplayName"
 
 interface ChatMessageProps {
     chatInfo: ChatInfo
@@ -188,7 +189,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
 
             <div className='h-9 w-9 mt-0.5 flex-shrink-0' onClick={handleUserClick}>
                 <ChannelMessageAvatar
-                    userName={userInfoState?.userName || chatInfo.chat_from.user_name}
+                    userName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)}
                     userProfileKey={userInfoState?.profileKey ?? chatInfo.chat_from.user_profile_object_key}
                 />
 
@@ -196,7 +197,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
             <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-2'>
                     <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
-                        {userInfoState?.userName || chatInfo.chat_from.user_name}
+                        {messageAuthorName(chatInfo.chat_from, userInfoState?.userName)}
                     </div>
                     <div className='text-2xs tabular-nums text-muted-foreground shrink-0'>
                         {formatTimeForPostOrComment(chatInfo.chat_created_at, true)}

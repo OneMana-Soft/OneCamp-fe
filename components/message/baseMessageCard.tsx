@@ -50,6 +50,7 @@ import type { GroupedReaction } from "@/types/reaction"
 import type { CommentInfoInterface } from "@/types/comment"
 import type { ChatInfo } from "@/types/chat"
 import type { PostsRes } from "@/types/post"
+import { messageAuthorName } from "@/lib/utils/userDisplayName"
 
 interface NormalizedForwardMessage {
   from: UserProfileDataInterface
@@ -385,7 +386,7 @@ export const BaseMessageCard = React.memo(({
         )}
         <div className="h-9 w-9 shrink-0 mt-0.5" onClick={onAvatarClick}>
           <ChannelMessageAvatar
-            userName={userInfoState?.userName || message.from.user_name}
+            userName={messageAuthorName(message.from, userInfoState?.userName)}
             userProfileKey={userInfoState?.profileKey ?? message.from.user_profile_object_key}
           />
         </div>
@@ -397,7 +398,7 @@ export const BaseMessageCard = React.memo(({
                 onClick={handleUserClick}
                 className="text-sm font-semibold text-foreground hover:underline truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded"
               >
-                {userInfoState?.userName || message.from.user_name}
+                {messageAuthorName(message.from, userInfoState?.userName)}
               </button>
               {message.from.is_bot && (
                 <PrincipalTag kind="ai" />
