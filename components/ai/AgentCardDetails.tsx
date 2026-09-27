@@ -59,7 +59,7 @@ export function AgentCardDetails({ botUserId, fallback }: { botUserId: string; f
           <span className="text-muted-foreground">. It can only do what {sponsor} can.</span>
         </>
       ) : (
-        <span className="text-muted-foreground">A person no longer in this workspace</span>
+        <span className="text-muted-foreground">Its sponsor, whose name could not be shown</span>
       ),
     },
     { label: "How it works", value: autonomyPhrase(card.autonomy) },
