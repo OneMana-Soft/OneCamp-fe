@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { A2ACardSummary } from "@/components/admin/A2ACardSummary"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
@@ -44,6 +46,7 @@ import {
   type AgentRunOutcome,
   checkRemoteBrain,
   type RemoteBrainResult,
+  type RemoteProtocol,
 } from "@/services/agentService"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
 import { AgentEvalSection } from "@/components/admin/AgentEvalSection"
@@ -188,6 +191,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   // A remote brain (AG-UI). The secret field is write-only: it starts blank
   // even when one is stored, and blank on save keeps what is stored.
   const [aguiEndpoint, setAguiEndpoint] = React.useState("")
+  const [remoteProtocol, setRemoteProtocol] = React.useState<RemoteProtocol>("agui")
   const [aguiAuthHeader, setAguiAuthHeader] = React.useState("")
   const [aguiAuthSecret, setAguiAuthSecret] = React.useState("")
   const [aguiChecking, setAguiChecking] = React.useState(false)
@@ -209,6 +213,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           auth_header: aguiAuthHeader.trim(),
           auth_secret: aguiAuthSecret,
           agent_id: agent?.id,
+          protocol: remoteProtocol,
         }),
       )
     } catch (e) {
@@ -217,7 +222,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
     } finally {
       setAguiChecking(false)
     }
-  }, [aguiEndpoint, aguiAuthHeader, aguiAuthSecret, agent?.id])
+  }, [aguiEndpoint, aguiAuthHeader, aguiAuthSecret, agent?.id, remoteProtocol])
   const [ambient, setAmbient] = React.useState(false)
   const [ambientKeywords, setAmbientKeywords] = React.useState("")
   const [autonomy, setAutonomy] = React.useState<"auto" | "approval" | "plan">("auto")
@@ -304,9 +309,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setAmbientKeywords(agent.ambient_keywords || "")
       setRunInBackground(!!agent.run_in_background)
       setAguiEndpoint(agent.agui_endpoint || "")
+      setRemoteProtocol(agent.remote_protocol === "a2a" ? "a2a" : "agui")
       setAguiAuthHeader(agent.agui_auth_header || "")
       setAguiAuthSecret("")
-      setAguiCheck(null)
       setAguiCheck(null)
       setAutonomy(agent.autonomy === "approval" ? "approval" : agent.autonomy === "plan" ? "plan" : "auto")
     } else {
@@ -334,9 +339,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setAmbientKeywords("")
       setRunInBackground(false)
       setAguiEndpoint("")
+      setRemoteProtocol("agui")
       setAguiAuthHeader("")
       setAguiAuthSecret("")
-      setAguiCheck(null)
       setAguiCheck(null)
       setAutonomy("auto")
     }
@@ -506,6 +511,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       run_in_background: runInBackground,
       autonomy,
       agui_endpoint: aguiEndpoint.trim(),
+      remote_protocol: remoteProtocol,
       agui_auth_header: aguiAuthHeader.trim(),
       agui_auth_secret: aguiAuthSecret,
       knowledge: Array.from(knowledgeChannelIds).map((id) => ({
@@ -1111,15 +1117,41 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
 
               {/* A remote brain. The agent's reasoning happens at an AG-UI endpoint
                   (LangGraph, CrewAI, Mastra, an OpenBot bot, anything that speaks
-                  it); this workspace supplies the tools, the rules and the record.
+                  it) or at another organisation's A2A agent; this workspace
+                  supplies the identity, the reach, the rules and the record.
                   Every call the remote asks for passes the same checks as any
                   agent's, which is the whole reason this is a field on an agent
                   rather than a separate kind of thing. */}
               <div className="grid gap-2">
-                <Label htmlFor="agent-agui-endpoint">Remote agent (AG-UI endpoint)</Label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="agent-agui-endpoint">Remote agent</Label>
+                  {/* Two ways in. AG-UI: the remote reasons and this workspace runs
+                      its tools. A2A: another organisation's agent takes the whole
+                      task and answers; it is given no tools here. */}
+                  <ToggleGroup
+                    type="single"
+                    size="sm"
+                    variant="outline"
+                    value={remoteProtocol}
+                    onValueChange={(v) => {
+                      if (v === "agui" || v === "a2a") {
+                        setRemoteProtocol(v)
+                        setAguiCheck(null)
+                      }
+                    }}
+                    aria-label="Protocol"
+                  >
+                    <ToggleGroupItem value="agui" className="h-7 px-2.5 text-xs">AG-UI</ToggleGroupItem>
+                    <ToggleGroupItem value="a2a" className="h-7 px-2.5 text-xs">A2A</ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
                 <Input
                   id="agent-agui-endpoint"
-                  placeholder="https://bots.example.com/ag-ui"
+                  placeholder={
+                    remoteProtocol === "a2a"
+                      ? "https://agents.example.com (or its agent card URL)"
+                      : "https://bots.example.com/ag-ui"
+                  }
                   value={aguiEndpoint}
                   onChange={(e) => setAguiEndpoint(e.target.value)}
                   autoComplete="off"
@@ -1156,8 +1188,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                      it, and one sentence because the Test connection error below carries
                      the detail (which address, which half of the rule) when it matters. */
                   <p className="-mt-1 text-xs text-muted-foreground">
-                    Off your own network: https and a secret required. Runs send it this agent&apos;s
-                    instructions, knowledge and tool results.
+                    Off your own network: https and a secret required.{" "}
+                    {remoteProtocol === "a2a"
+                      ? "Runs send it the conversation it is asked about, not this agent's instructions or knowledge."
+                      : "Runs send it this agent's instructions, knowledge and tool results."}
                   </p>
                 )}
                 {agent?.agui_auth_unreadable && (
@@ -1192,6 +1226,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     )}
                   </div>
                 )}
+                {aguiCheck?.card && <A2ACardSummary card={aguiCheck.card} />}
+                {!aguiCheck?.card && remoteProtocol === "a2a" && agent?.remote_card && (
+                  <A2ACardSummary card={agent.remote_card} />
+                )}
                 {aguiCheck?.ok && aguiCheck.tools_asked && aguiCheck.tools_asked.length > 0 && (
                   <p className="-mt-1 text-xs text-muted-foreground">
                     It asked for {aguiCheck.tools_asked.join(", ")} although this check offered none. On a real
@@ -1201,7 +1239,9 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                 <p className="-mt-1 text-xs text-muted-foreground">
                   Leave empty to run on this workspace&apos;s model.
                   {aguiEndpoint.trim() !== "" &&
-                    " Its tool calls still pass this workspace's permission, approval and audit checks. What it does on its own machine does not."}
+                    (remoteProtocol === "a2a"
+                      ? " It answers in this agent's name, only where this agent may speak, and every run is recorded. It is given no tools here, so it cannot change anything in this workspace."
+                      : " Its tool calls still pass this workspace's permission, approval and audit checks. What it does on its own machine does not.")}
                 </p>
               </div>
 

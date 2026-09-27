@@ -36,6 +36,10 @@ export interface Agent {
    * must be entered again.
    */
   agui_endpoint?: string
+  // How the remote brain is spoken to. Absent means AG-UI.
+  remote_protocol?: RemoteProtocol
+  // What an A2A agent's card said about it when the agent was last saved.
+  remote_card?: A2ACard
   agui_auth_header?: string
   agui_auth_set?: boolean
   agui_auth_unreadable?: boolean
@@ -200,6 +204,7 @@ export interface AgentInput {
   // A remote brain. Empty endpoint means none. The secret is write-only:
   // blank on an edit keeps the stored one.
   agui_endpoint?: string
+  remote_protocol?: RemoteProtocol
   agui_auth_header?: string
   agui_auth_secret?: string
 }
@@ -660,6 +665,26 @@ export interface RemoteBrainResult {
     error?: string
     reply?: string
     tools_asked?: string[]
+    // An A2A agent's own description of itself.
+    card?: A2ACard
+}
+
+/**
+ * How a remote brain is reached. AG-UI streams a run and asks this workspace
+ * to call tools; A2A hands a whole task to another organisation's agent.
+ */
+export type RemoteProtocol = "agui" | "a2a"
+
+/** What an A2A agent publishes about itself at /.well-known/agent-card.json. */
+export interface A2ACard {
+    name: string
+    description?: string
+    version?: string
+    protocol_version?: string
+    provider?: string
+    endpoint: string
+    skills?: { id?: string; name: string; description?: string }[]
+    streaming?: boolean
 }
 
 /**
@@ -673,6 +698,7 @@ export async function checkRemoteBrain(input: {
     auth_header?: string
     auth_secret?: string
     agent_id?: string
+    protocol?: RemoteProtocol
 }): Promise<RemoteBrainResult> {
   const res = await axiosInstance.post(PostEndpointUrl.CheckRemoteBrain, input)
   return res.data?.data as RemoteBrainResult
@@ -1205,4 +1231,60 @@ export interface LearningReview {
 export async function reviewAgentLearning(agentId: string): Promise<LearningReview> {
   const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/${agentId}/learning`)
   return res.data?.data as LearningReview
+}
+
+/** One agent as the Admin inventory shows it. Counts cover window_days. */
+export interface InventoryAgent {
+  id: string
+  name: string
+  is_active: boolean
+  sponsor_id: string
+  /** Empty when the person cannot be resolved. */
+  sponsor: string
+  /** "workspace", or "agui:host" / "a2a:host" for a remote brain. */
+  brain: string
+  autonomy: string
+  trigger: string
+  /** Channels it is scoped to; 0 means wherever it is mentioned. */
+  channels: number
+  tools: number
+  credentials: number
+  runs_7d: number
+  last_run_at?: string | null
+  actions_7d: number
+  refusals_7d: number
+  last_refusal_at?: string | null
+}
+
+/** One credential that can still be used. */
+export interface InventoryCredential {
+  id: string
+  name: string
+  token_prefix: string
+  scopes: string[]
+  sponsor_id: string
+  sponsor: string
+  agent_id?: string | null
+  agent_name?: string
+  created_at: string
+  last_used_at?: string | null
+  expires_at?: string | null
+  refusals_7d: number
+}
+
+export interface AgentInventory {
+  agents: InventoryAgent[]
+  credentials: InventoryCredential[]
+  window_days: number
+}
+
+/** Everything that can act here without being a person, and who answers for it. */
+export async function getAgentInventory(): Promise<AgentInventory> {
+  const res = await axiosInstance.get(GetEndpointUrl.GetAgentInventory)
+  return res.data?.data as AgentInventory
+}
+
+/** An admin revokes any live credential. Takes effect on its next request. */
+export async function revokeInventoryCredential(id: string): Promise<void> {
+  await axiosInstance.post(`${PostEndpointUrl.RevokeInventoryCredential}/${id}/revoke`)
 }

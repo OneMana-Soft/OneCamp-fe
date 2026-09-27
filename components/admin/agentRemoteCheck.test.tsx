@@ -115,3 +115,51 @@ describe("what the editor says before you save a remote endpoint", () => {
         expect(added).toBeLessThan(600)
     })
 })
+
+// Bringing another organisation's agent in: the admin names the protocol, the
+// check reads its card, and the editor says plainly that it gets no tools here.
+describe("an A2A agent as the remote", () => {
+    afterEach(() => {
+        cleanup()
+        vi.clearAllMocks()
+    })
+
+    async function chooseA2A() {
+        openDialog()
+        fireEvent.change(await screen.findByLabelText(/^Remote agent$/i), {
+            target: { value: "https://agents.example.com" },
+        })
+        const a2a = screen.getByRole("radio", { name: "A2A" })
+        fireEvent.click(a2a)
+        return a2a
+    }
+
+    it("checks with the A2A protocol and shows who runs it and what it can do", async () => {
+        vi.mocked(checkRemoteBrain).mockResolvedValue({
+            ok: true,
+            reply: "Ready.",
+            card: {
+                name: "Contracts Reviewer",
+                provider: "Acme Legal",
+                endpoint: "https://agents.example.com/a2a",
+                skills: [{ id: "nda", name: "Review an NDA" }],
+            },
+        })
+        await chooseA2A()
+        fireEvent.click(screen.getByText("Test connection"))
+
+        await waitFor(() => expect(screen.getByText("Contracts Reviewer")).toBeTruthy())
+        expect(vi.mocked(checkRemoteBrain).mock.calls[0][0]).toMatchObject({ protocol: "a2a" })
+        expect(screen.getByText(/by Acme Legal/)).toBeTruthy()
+        expect(screen.getByText("Review an NDA")).toBeTruthy()
+        expect(screen.getByText(/agents\.example\.com\/a2a/)).toBeTruthy()
+    })
+
+    it("says what leaves the workspace and that it cannot change anything", async () => {
+        await chooseA2A()
+        const text = document.body.textContent || ""
+        expect(text).toMatch(/not this agent's instructions or knowledge/)
+        expect(text).toMatch(/given no tools here/)
+        expect(text).not.toMatch(/permission, approval and audit/)
+    })
+})
