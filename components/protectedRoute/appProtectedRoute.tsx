@@ -4,7 +4,7 @@ import { Loader2 } from "@/lib/icons";
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserEmojiStatus, UserProfileInterface} from "@/types/user";
 import {app_login_path} from "@/types/paths";
 import { takePendingConnect } from "@/lib/pendingConnect";

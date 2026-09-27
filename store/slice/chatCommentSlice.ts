@@ -7,7 +7,7 @@ import {UserProfileDataInterface} from "@/types/user";
 import {GroupedReaction} from "@/types/reaction";
 
 
-export interface ChatCommentInputState {
+interface ChatCommentInputState {
     commentBody: string,
     filesUploaded: AttachmentMediaReq[],
     filesPreview: FilePreview[]
@@ -98,7 +98,7 @@ interface UpdateChatCommentReactionId {
     newReactionId: string
 }
 
-export interface ExtendedChatCommentInputState {
+interface ExtendedChatCommentInputState {
     [key: string]:  ChatCommentInputState;
 }
 

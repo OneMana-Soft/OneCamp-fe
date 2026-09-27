@@ -9,7 +9,7 @@ const initialState = {
     exist: true
 }
 
-export const refreshSlice = createSlice({
+const refreshSlice = createSlice({
     name: 'refresh',
     initialState,
     reducers: {

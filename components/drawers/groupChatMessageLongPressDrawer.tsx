@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type, Users } from "@/lib/icons";
+import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type } from "@/lib/icons";
 import { useTranslateText } from "@/services/aiService";
 
 import {

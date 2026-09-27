@@ -102,7 +102,7 @@ export interface UserProfileUpdateInterface {
 
 export type StatusTime = '30m' | '1h' | '4h' | 'today' | 'this_week' | 'custom';
 
-export type CustomNotificationSchedule = {
+type CustomNotificationSchedule = {
     days: ('Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday')[]
     start_time: string
     end_time: string
@@ -119,11 +119,6 @@ export interface UserStatusRespInterface {
 
 export interface UserListInterfaceResp {
     users: UserProfileDataInterface[],
-    msg: string
-}
-
-export interface UserListInterfaceRawResp {
-    data: UserProfileDataInterface[],
     msg: string
 }
 
@@ -225,7 +220,6 @@ export interface CallTokenResponseInterface {
 }
 
 export const chat_forward_type = "chat"
-export const channel_forward_type = "channel"
 
 interface langInterface {
     name: string

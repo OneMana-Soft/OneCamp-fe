@@ -6,7 +6,7 @@
 // life of the tab, so keys are dropped once their window has passed and the
 // memory never holds more than one window's worth.
 
-export interface RecentKeys {
+interface RecentKeys {
   /** Whether key was already seen within the window. Records it when not. */
   seen(key: string, now?: number): boolean
   /** How many keys are remembered now. */

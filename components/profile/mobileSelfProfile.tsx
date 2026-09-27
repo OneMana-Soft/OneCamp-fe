@@ -5,7 +5,6 @@ import { Eyebrow, eyebrowClass } from "@/components/ui/eyebrow"
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { useConfirm } from "@/hooks/useConfirm";
-import { openUI } from "@/store/slice/uiSlice";
 import { updateUserInfoStatus } from "@/store/slice/userSlice";
 
 import { useForm } from "react-hook-form";
@@ -27,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { AppLanguageCombobox } from "@/components/dialog/appLanguageCombobox";
-import { ArrowLeft, Trash, Calendar, Moon, Sun } from "@/lib/icons";
+import { Trash, Calendar, Moon, Sun } from "@/lib/icons";
 import { Camera } from "@/lib/icons";
 import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
@@ -38,7 +37,7 @@ import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
 
-export const profileFormSchema = z.object({
+const profileFormSchema = z.object({
     fullName: z
         .string()
         .trim()
@@ -67,7 +66,7 @@ export const profileFormSchema = z.object({
     status: z.boolean({})
 });
 
-export type ProfileFormValues = z.infer<typeof profileFormSchema>;
+type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 export function MobileSelfProfile() {
     const router = useRouter();

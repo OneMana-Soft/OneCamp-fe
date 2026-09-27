@@ -39,7 +39,6 @@ import {
   parseScope,
   parseKnowledge,
   parseSkillIds,
-  type KnowledgeRef,
   type AgentSkill,
   listAgentSkills,
   createAgentSkill,
@@ -1368,4 +1367,3 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   )
 }
 
-export default AgentEditDialog

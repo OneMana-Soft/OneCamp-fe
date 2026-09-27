@@ -1,7 +1,6 @@
 import { NotificationType } from "@/types/channel"
 import { Bell, BellOff, LoaderCircle } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
-import * as React from "react"
 import { useMedia } from "@/context/MediaQueryContext"
 import { cn } from "@/lib/utils/helpers/cn"
 

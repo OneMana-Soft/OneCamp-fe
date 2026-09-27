@@ -1,5 +1,4 @@
 import {USER_STATUS_ONLINE,  UserProfileDataInterface} from "@/types/user";
-import React from "react";
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import {useUserAvatar} from "@/hooks/useUserAvatar";
 import {getNameInitials} from "@/lib/utils/format/getNameIntials";

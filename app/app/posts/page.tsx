@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll";
 import { PostCard } from "@/components/posts/PostCard";
 import { PostsRes, CreatePostPaginationResRaw } from "@/types/post";
@@ -15,7 +15,6 @@ import { useMedia } from "@/context/MediaQueryContext";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import { useRouter } from "next/navigation";
 import {Separator} from "@/components/ui/separator";
-import {ChannelListChannel} from "@/components/channel/channelListChannel";
 
 const PostsPage = () => {
     const [pageIndex, setPageIndex] = useState(0);

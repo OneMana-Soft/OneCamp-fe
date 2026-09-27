@@ -188,7 +188,7 @@ const ReferenceList = forwardRef<ReferenceListRef, ReferenceListProps>((props, r
 })
 ReferenceList.displayName = "ReferenceList"
 
-export interface MakeReferenceSuggestionArgs {
+interface MakeReferenceSuggestionArgs {
   char: string
   types: ReferenceType[]
   pluginKey: PluginKey

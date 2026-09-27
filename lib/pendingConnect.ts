@@ -17,7 +17,7 @@ export function isConnectRequestId(id: string | null | undefined): id is string 
   return !!id && UUID.test(id)
 }
 
-export function connectPath(id: string): string {
+function connectPath(id: string): string {
   return `/connect/authorize?request=${encodeURIComponent(id)}`
 }
 

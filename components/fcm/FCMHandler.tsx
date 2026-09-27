@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef } from "react"
+import { useEffect, useRef } from "react"
 import { getFCMToken, isFirebaseConfigured, messaging } from "@/lib/firebase"
 import { onMessage } from "firebase/messaging"
 import { usePost } from "@/hooks/usePost"

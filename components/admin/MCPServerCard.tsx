@@ -20,7 +20,7 @@
  * can never be offered. The same reason the audit log serves its own categories.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -97,7 +97,7 @@ function parseGroups(csv: string): string[] {
         .filter((g) => g !== "")
 }
 
-export function MCPServerCard() {
+function MCPServerCard() {
     const { toast } = useToast()
     const [stored, setStored] = useState<MCPServerSettings | undefined>()
     const [enabled, setEnabled] = useState(false)

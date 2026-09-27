@@ -90,7 +90,7 @@ export function uploadLimitMessage(bytes: number, limitMb: number, label?: strin
 // testable and reusable by an editor extension, an importer, or a migration.
 
 /** ParsedDataURL is the decoded content of a `data:` URL. */
-export interface ParsedDataURL {
+interface ParsedDataURL {
   mimeType: string
   bytes: Uint8Array
 }

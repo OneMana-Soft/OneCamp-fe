@@ -26,7 +26,7 @@ function sortOpen(actions: PendingAction[]): PendingAction[] {
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 }
 
-export const pendingActionSlice = createSlice({
+const pendingActionSlice = createSlice({
     name: "pendingAction",
     initialState,
     reducers: {

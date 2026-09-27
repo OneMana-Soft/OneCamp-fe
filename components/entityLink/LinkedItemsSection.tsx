@@ -138,4 +138,3 @@ function LinkedChip({ icon: Icon, accent, title, locked, canEdit, onOpen, onRemo
   )
 }
 
-export default LinkedItemsSection

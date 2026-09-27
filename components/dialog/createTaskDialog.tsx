@@ -1,33 +1,12 @@
 import React, {useEffect, useRef, useState} from "react";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { format } from "date-fns";
-import MinimalTiptapTask from "@/components/textInput/textInput";
-import { cn } from "@/lib/utils/helpers/cn";
-import { Content } from "@tiptap/react";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import {
@@ -39,9 +18,6 @@ import {
   updateCreateTaskDialogProjectUUIDInputText,
   updateCreateTaskDialogUserUUIDInputText,
 } from "@/store/slice/createTaskDailogSlice";
-import { Calendar } from "@/components/ui/calendar";
-import { X } from "@/lib/icons";
-import { Calendar as CalenderIcon } from "@/lib/icons";
 import { priorities, prioritiesInterface } from "@/types/table";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -53,7 +29,6 @@ import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { usePost } from "@/hooks/usePost";
 import {CreateTaskFormData, createTaskFormSchema, CreateTaskInterface} from "@/types/task";
-import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon";
 import TaskCreateForm from "@/components/task/taskCreateForm";
 
 interface createTaskDialogProps {

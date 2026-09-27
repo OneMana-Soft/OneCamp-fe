@@ -169,4 +169,3 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
   )
 }
 
-export default GuestDocComments

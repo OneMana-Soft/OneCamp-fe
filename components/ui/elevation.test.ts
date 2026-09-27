@@ -46,7 +46,6 @@ const INLINE_PRIMITIVES = [
   "toggle.tsx",
   "tabs.tsx",
   "select.tsx",
-  "input-group.tsx",
   "listRow.tsx",
 ]
 

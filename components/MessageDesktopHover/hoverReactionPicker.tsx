@@ -2,8 +2,7 @@ import {Button} from "@/components/ui/button";
 import Image from "next/image";
 import addEmojiIconSrc from "@/assets/addEmoji.svg";
 import {ReactionPicker} from "@/components/reactionPicker/reactionPicker";
-import {ReactionDataInterface, StandardReaction, SyncCustomReaction} from "@/types/reaction";
-import {SearchIndex} from "emoji-mart";
+import {StandardReaction, SyncCustomReaction} from "@/types/reaction";
 
 interface hoverReactionPickerProps {
     onReactionIdSelected: (reactionId: string) => void;

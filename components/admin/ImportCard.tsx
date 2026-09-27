@@ -31,7 +31,6 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
-import { mutate as swrMutate } from "swr"
 import {
   CheckCircle2,
   Clock,

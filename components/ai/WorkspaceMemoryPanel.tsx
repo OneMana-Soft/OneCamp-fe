@@ -199,7 +199,7 @@ function toDateInputValue(due?: string): string {
 // Named rather than inline because the props flow through withAI(), and a default
 // parameter (`= {}`) on an inline object type makes TypeScript infer the wrapper's
 // props as `object` — which then rejects every caller that passes a channel.
-export type WorkspaceMemoryPanelProps = {
+type WorkspaceMemoryPanelProps = {
   channelUUID?: string
   channelName?: string
 }

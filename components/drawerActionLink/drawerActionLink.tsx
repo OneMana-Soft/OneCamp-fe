@@ -1,4 +1,3 @@
-import * as React from "react"
 import { LucideIcon } from "lucide-react"
 import { DrawerItem } from "@/components/drawers/drawerItem"
 

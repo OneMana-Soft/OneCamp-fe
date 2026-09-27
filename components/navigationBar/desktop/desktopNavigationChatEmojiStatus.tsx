@@ -1,10 +1,3 @@
-import {USER_STATUS_ONLINE, UserEmojiStatus, UserProfileDataInterface} from "@/types/user";
-import {useMediaFetch} from "@/hooks/useFetch";
-import {GetMediaURLRes} from "@/types/file";
-import {GetEndpointUrl} from "@/services/endPoints";
-import {getNameInitials} from "@/lib/utils/format/getNameIntials";
-import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
-import React from "react";
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {useSelector} from "react-redux";
 import {RootState} from "@/store/store";

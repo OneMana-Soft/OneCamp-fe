@@ -71,7 +71,7 @@ interface BoardCommentsProps {
   onCommentModeChange: (on: boolean) => void
 }
 
-export function BoardComments({ provider, api, user, boardId, editable, commentMode, onCommentModeChange }: BoardCommentsProps) {
+function BoardComments({ provider, api, user, boardId, editable, commentMode, onCommentModeChange }: BoardCommentsProps) {
   const yDoc = provider.document
   const yComments = React.useMemo(() => yDoc.getMap<Record<string, unknown>>("comments"), [yDoc])
 

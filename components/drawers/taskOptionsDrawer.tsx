@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import { CircleUser, Users } from "@/lib/icons";
 
 import {

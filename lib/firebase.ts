@@ -1,5 +1,5 @@
 import { FirebaseApp, initializeApp } from "firebase/app";
-import { getMessaging, getToken, Messaging, onMessage } from "firebase/messaging";
+import { getMessaging, getToken, Messaging } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -140,4 +140,3 @@ export const getFCMToken = async (): Promise<string | null> => {
   }
 };
 
-export default app;

@@ -2,9 +2,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {Separator} from "@/components/ui/separator"
 import {Label} from "@/components/ui/label"
-import {Input} from "@/components/ui/input"
 import {Button} from "@/components/ui/button"
-import {Badge} from "@/components/ui/badge"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import type {Content} from "@tiptap/core"
 import {useDispatch, useSelector} from "react-redux"
@@ -32,7 +30,7 @@ import {
 } from "@/store/slice/taskInfoSlice"
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs"
 import {cn} from "@/lib/utils/helpers/cn"
-import { MessageSquare, Trash2, X, Github } from "@/lib/icons";
+import { MessageSquare, Trash2, Github } from "@/lib/icons";
 import { Activity } from "@/lib/icons";
 import {TaskGitHubSection} from "@/components/task/taskGitHubSection"
 import {TaskAttachmentsSection} from "@/components/task/taskAttachmentsSection"

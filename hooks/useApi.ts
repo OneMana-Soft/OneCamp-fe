@@ -3,7 +3,6 @@
 import useSWR, { SWRConfiguration } from 'swr';
 import axiosInstance from "@/lib/axiosInstance";
 import { z } from 'zod';
-import { toast } from '@/hooks/use-toast';
 
 /**
  * useApi: The ultimate enterprise data fetching hook.

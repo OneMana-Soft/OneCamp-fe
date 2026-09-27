@@ -21,7 +21,7 @@ export interface PersonalDataInventory {
 
 // One definition of the path, so the SWR cache key and the request target cannot
 // drift apart.
-export const personalDataInventoryUrl = (userUUID: string) =>
+const personalDataInventoryUrl = (userUUID: string) =>
     `/admin/data-subject/${encodeURIComponent(userUUID)}/inventory`
 
 export async function getPersonalDataInventory(userUUID: string): Promise<PersonalDataInventory | undefined> {

@@ -1,10 +1,9 @@
 "use client"
 
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
-import {  PostsRes} from "@/types/post";
 import {useCallback, useEffect, useMemo, useState} from "react";
 
 import {ChatMessages} from "@/components/chat/chatMessages";
@@ -12,9 +11,6 @@ import {ChatInfo, CreateChatPaginationResRaw} from "@/types/chat";
 import {updateChats, updateChatScrollToBottom, mergeChats} from "@/store/slice/chatSlice";
 import {useMessageResync} from "@/hooks/useMessageResync";
 import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
-import {updateChannelPosts, updateChannelScrollToBottom} from "@/store/slice/channelSlice";
-import {UserProfileInterface} from "@/types/user";
-import { LoaderCircle } from "@/lib/icons";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";

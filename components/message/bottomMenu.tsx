@@ -1,11 +1,5 @@
 
 import {ReactionPill} from "@/components/message/reactionPill";
-import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
-import {Button} from "@/components/ui/button";
-import addEmojiIconSrc from "@/assets/addEmoji.svg";
-import Image from "next/image";
-import {HoverReactionPicker} from "@/components/MessageDesktopHover/hoverReactionPicker";
-import {ReactionPicker} from "@/components/reactionPicker/reactionPicker";
 import {useState} from "react";
 import {AddReactionTrigger} from "@/components/reactionPicker/AddReactionTrigger";
 

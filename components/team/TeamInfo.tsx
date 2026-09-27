@@ -1,4 +1,3 @@
-import { Users } from "@/lib/icons";
 import { TeamInfoInterface } from "@/types/team";
 import { ListRow } from "@/components/ui/listRow";
 import { ColorIcon } from "@/components/colorIcon/colorIcon";

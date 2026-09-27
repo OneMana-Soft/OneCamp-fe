@@ -7,9 +7,8 @@
 // links: the address holds which section is open, and a #fragment there is
 // already read as a deep link (?tab=settings#audit-log).
 
-import React from "react"
 
-export interface Jump {
+interface Jump {
   id: string
   label: string
 }

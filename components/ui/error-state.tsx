@@ -1,5 +1,4 @@
 "use client"
-import * as React from "react"
 import { AlertCircle, RefreshCw } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -68,4 +67,3 @@ export function ErrorState({
   )
 }
 
-export default ErrorState

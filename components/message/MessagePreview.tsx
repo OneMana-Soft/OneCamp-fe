@@ -1,7 +1,6 @@
 import {UserProfileDataInterface} from "@/types/user";
 import {cn} from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
-import { ExternalLink } from "lucide-react";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {MessagePreviewAvatar} from "@/components/message/MessagePreviewAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";

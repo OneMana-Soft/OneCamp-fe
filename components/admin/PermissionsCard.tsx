@@ -4,7 +4,7 @@
 // Each delegatable capability (create workflows, invite members, …) can be
 // kept admins-only or opened to all members. Mirrors Slack's Permissions page.
 
-import React, { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { mutate } from "swr"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"

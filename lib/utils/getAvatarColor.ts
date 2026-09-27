@@ -37,7 +37,7 @@ function hashIndex(input: string, modulo: number): number {
  * Get a stable avatar fallback Tailwind classnames pair for a given seed
  * (typically the user's full name or UUID).
  */
-export function getAvatarColor(seed: string | undefined | null): { bg: string; text: string } {
+function getAvatarColor(seed: string | undefined | null): { bg: string; text: string } {
     if (!seed) return PALETTE[0]
     return PALETTE[hashIndex(seed, PALETTE.length)]
 }

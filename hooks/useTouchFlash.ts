@@ -30,20 +30,20 @@ import { useCallback, useEffect, useRef, useState } from "react"
  *   transition-colors duration-150
  */
 
-export interface UseTouchFlashOptions {
+interface UseTouchFlashOptions {
     /** How long to hold the pressed state after release. Default 150ms. */
     holdMs?: number
     /** Disable the flash entirely (e.g. on desktop). */
     disabled?: boolean
 }
 
-export interface UseTouchFlashBindings {
+interface UseTouchFlashBindings {
     onTouchStart: (e: React.TouchEvent) => void
     onTouchEnd: (e: React.TouchEvent) => void
     onTouchCancel: (e: React.TouchEvent) => void
 }
 
-export interface UseTouchFlashResult {
+interface UseTouchFlashResult {
     pressed: boolean
     bind: UseTouchFlashBindings
 }

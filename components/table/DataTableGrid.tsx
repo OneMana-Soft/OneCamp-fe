@@ -698,4 +698,3 @@ function TextCell({
   )
 }
 
-export default DataTableGrid

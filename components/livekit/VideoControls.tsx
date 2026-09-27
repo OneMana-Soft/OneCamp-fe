@@ -2,9 +2,7 @@ import * as React from "react";
 import {
   useLocalParticipant,
   useRoomContext,
-  useTracks,
 } from "@livekit/components-react";
-import { Track } from "livekit-client";
 import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, MoreVertical, LayoutGrid, Loader2, Sparkles } from "@/lib/icons";
 import { MonitorUp, MonitorOff, SquareUser, Disc } from "@/lib/icons";
 

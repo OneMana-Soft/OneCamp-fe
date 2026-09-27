@@ -2,10 +2,7 @@
 
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
-import React from "react";
-import { MoreVertical } from "@/lib/icons";
 import {RawUserDMInterface} from "@/types/user";
-import {Button} from "@/components/ui/button";
 
 import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {useDispatch, useSelector} from "react-redux";

@@ -65,7 +65,7 @@ export interface CatalogModelView {
   fit_reason?: string
 }
 
-export interface OllamaCatalog {
+interface OllamaCatalog {
   provider_id: string
   models: CatalogModelView[]
 }
@@ -171,7 +171,7 @@ export interface ReindexStatus {
   message?: string
 }
 
-export interface TestConnectionResult {
+interface TestConnectionResult {
   ok: boolean
   message: string
   models?: ModelView[]
@@ -191,7 +191,7 @@ export interface PullProgress {
 // must key their success/failure UI off — a closed stream alone does NOT mean
 // the model installed (Ollama returns HTTP 200 then streams an error frame for
 // an invalid tag, and an unreachable daemon produces an error frame too).
-export interface PullResult {
+interface PullResult {
   ok: boolean // true ONLY when Ollama emitted a terminal success
   error?: string // populated when ok=false
   updateRequired?: boolean // Ollama server too old for this model
@@ -248,7 +248,7 @@ export interface AIUserUsageRow {
   name: string
   used: number
 }
-export interface AIUserUsage {
+interface AIUserUsage {
   day: string
   users: AIUserUsageRow[]
 }
@@ -265,7 +265,7 @@ export interface AIChannelUsageRow {
   name: string
   used: number
 }
-export interface AIChannelUsage {
+interface AIChannelUsage {
   day: string
   channels: AIChannelUsageRow[]
 }
@@ -309,7 +309,7 @@ export async function getOllamaCatalog(providerId: string, refresh = false): Pro
 
 // ─── Provider mutations ─────────────────────────────────────────────────
 
-export interface CreateProviderInput {
+interface CreateProviderInput {
   label: string
   base_url: string
   api_key?: string
@@ -321,7 +321,7 @@ export async function createProvider(input: CreateProviderInput): Promise<Provid
   return res.data?.data
 }
 
-export interface UpdateProviderInput {
+interface UpdateProviderInput {
   label?: string
   base_url?: string
   enabled?: boolean
@@ -341,7 +341,7 @@ export async function deleteProvider(providerId: string): Promise<void> {
   await axiosInstance.delete(`${PostEndpointUrl.DeleteAIProvider}/${encodeURIComponent(providerId)}`)
 }
 
-export interface TestConnectionInput {
+interface TestConnectionInput {
   provider_id?: string
   kind?: ProviderKind
   base_url?: string
@@ -484,7 +484,7 @@ export async function setMyAIInstructions(instructions: string): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetMyAIInstructions, { instructions })
 }
 
-export interface WebSearchInput {
+interface WebSearchInput {
   provider: string // "" | searxng | tavily | brave
   base_url: string
   api_key?: string
@@ -498,7 +498,7 @@ export async function setWebSearch(input: WebSearchInput): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAIWebSearch, input)
 }
 
-export interface SandboxConfigInput {
+interface SandboxConfigInput {
   enabled: boolean
   runner_url: string
   runner_token?: string
@@ -523,7 +523,7 @@ export async function setSandboxEnabled(enabled: boolean): Promise<void> {
   await axiosInstance.post(PostEndpointUrl.SetAISandboxEnabled, { enabled })
 }
 
-export interface SandboxTestResult {
+interface SandboxTestResult {
   ok: boolean
   status: string
   message: string
@@ -537,7 +537,7 @@ export async function testSandbox(): Promise<SandboxTestResult> {
   return res.data.result as SandboxTestResult
 }
 
-export interface CodePRConfigInput {
+interface CodePRConfigInput {
   enabled: boolean
   runner_url: string
   runner_token?: string
@@ -609,7 +609,7 @@ export async function getCodePRScorecard(days?: number): Promise<CodePRScorecard
 
 // CodePRTestResult is the coding-runner deployment self-test: reachability of
 // the configured runner endpoint + whether an auth token is set.
-export interface CodePRTestResult {
+interface CodePRTestResult {
   ok: boolean
   status: string
   message: string
@@ -741,7 +741,7 @@ export async function revokeAuthorizedModel(id: string): Promise<void> {
 
 /** What a provider says about a model's own limits. 0 means the provider did not report
  *  it — which for OpenAI is always, since its API publishes no context windows. */
-export interface DiscoveredModelLimits {
+interface DiscoveredModelLimits {
   context_window_tokens: number
   max_output_tokens: number
   /** The field the number came from (e.g. "context_length", "llama.context_length"), so
@@ -790,7 +790,7 @@ export interface UserModelOption {
   provider_kind: string
 }
 
-export interface UserModelsResponse {
+interface UserModelsResponse {
   models: UserModelOption[]
   selected_model_id: string
 }
@@ -845,7 +845,7 @@ export interface CodeAnalysisResult {
   partial: boolean
 }
 
-export interface AnalyzeCodeInput {
+interface AnalyzeCodeInput {
   owner: string
   repo: string
   title: string

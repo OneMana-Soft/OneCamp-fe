@@ -6,7 +6,6 @@ import { SkipBack, SkipForward } from "@/lib/icons";
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Portal } from "@radix-ui/react-portal";
 
 
 interface VideoPlayerProps {

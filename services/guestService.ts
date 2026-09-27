@@ -3,7 +3,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 // --- Member: start an instant meeting (authed) ---
 
-export interface InstantMeetingResponse {
+interface InstantMeetingResponse {
     room: string
     host_token: string
     guest_token: string // raw link token, shown once
@@ -33,7 +33,7 @@ export function guestMeetingLink(rawToken: string): string {
 
 const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "")
 
-export type GuestMeetingStatus = "available" | "unavailable"
+type GuestMeetingStatus = "available" | "unavailable"
 
 export async function getGuestMeetingStatus(token: string): Promise<GuestMeetingStatus> {
     try {
@@ -47,7 +47,7 @@ export async function getGuestMeetingStatus(token: string): Promise<GuestMeeting
     }
 }
 
-export interface GuestJoinResult {
+interface GuestJoinResult {
     ok: boolean
     token?: string
     room?: string
@@ -84,7 +84,7 @@ export async function joinGuestMeeting(
 
 // --- Member: create a scoped, read-only external share link for a doc/board ---
 
-export interface GuestLinkResponse {
+interface GuestLinkResponse {
     token: string // raw link token, shown once
     grant_id: string
     resource_type: string
@@ -121,7 +121,7 @@ export function guestResourceLink(resourceType: "doc" | "board" | "table", rawTo
 // --- Public (no auth): exchange a share-link token for a short-lived,
 //     read-only collab session (JWT + Hocuspocus document name). ---
 
-export interface GuestCollabSession {
+interface GuestCollabSession {
     collab_token: string
     document_name: string
     resource_type: "doc" | "board"
@@ -172,7 +172,7 @@ export interface GuestDocComment {
     created_at: string
 }
 
-export interface GuestDocCommentsResult {
+interface GuestDocCommentsResult {
     capability: "view" | "comment"
     comments: GuestDocComment[]
 }
@@ -191,7 +191,7 @@ export async function listGuestDocComments(token: string): Promise<GuestDocComme
     }
 }
 
-export type GuestCommentResult =
+type GuestCommentResult =
     | { ok: true; comment: GuestDocComment }
     | { ok: false; error: "view_only" | "empty" | "unavailable" }
 

@@ -54,19 +54,6 @@ export function markTombstone(
 }
 
 /**
- * Forget the tombstone for `id` in `containerId`. Call when an item is
- * legitimately (re)created or restored so the restore/unarchive flow is
- * honoured immediately and never suppressed by a stale deletion marker.
- */
-export function clearTombstone(map: TombstoneMap, containerId: string, id: string): void {
-    if (!map || !containerId || !id) return
-    const bucket = map[containerId]
-    if (!bucket) return
-    delete bucket[id]
-    if (Object.keys(bucket).length === 0) delete map[containerId]
-}
-
-/**
  * Report whether `id` is currently tombstoned in `containerId`. Pure: never
  * mutates the map (expiry is handled by pruneTombstones so reads stay
  * side-effect free and safe to call from selectors/merges).

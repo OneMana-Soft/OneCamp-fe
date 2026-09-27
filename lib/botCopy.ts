@@ -19,7 +19,7 @@
 
 export type BotKind = "assistant" | "agent" | "automation" | "bot"
 
-export interface BotProfileCopy {
+interface BotProfileCopy {
     /** Dialog title and mobile sheet heading. */
     title: string
     /** The short badge beside the name. Kept to one word so it does not wrap. */

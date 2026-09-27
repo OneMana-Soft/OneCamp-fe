@@ -51,4 +51,3 @@ export const ChainPair: React.FC<{
     )
 }
 
-export default ChainPair

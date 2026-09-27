@@ -448,4 +448,3 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
 // export covers every place this is rendered, desktop and mobile, rather than asking
 // each of them to remember.
 export const DocAiAssistantPanel = withAI(DocAiAssistantPanelUngated)
-export default DocAiAssistantPanel

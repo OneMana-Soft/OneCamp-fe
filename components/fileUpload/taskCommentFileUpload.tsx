@@ -8,10 +8,6 @@ import UploadingAttachmentIcon from "@/components/attachmentIcon/uploadingAttach
 import {openUI} from "@/store/slice/uiSlice";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {AttachmentMediaReq} from "@/types/attachment";
-import {deleteChatCommentPreviewFiles, removeChatCommentUploadedFiles} from "@/store/slice/chatCommentSlice";
-import {getGroupingId} from "@/lib/utils/getGroupingId";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {UserProfileInterface} from "@/types/user";
 import {deleteTaskCommentPreviewFiles, removeTaskCommentUploadedFiles} from "@/store/slice/createTaskCommentSlice";
 
 interface ProjectFileUploadProps {

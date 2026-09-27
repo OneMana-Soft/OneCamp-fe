@@ -126,4 +126,3 @@ export const RecordingEmbedView: React.FC<NodeViewProps> = ({ node }) => {
   )
 }
 
-export default RecordingEmbedView

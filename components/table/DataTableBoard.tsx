@@ -195,4 +195,3 @@ export function DataTableBoard({
   )
 }
 
-export default DataTableBoard

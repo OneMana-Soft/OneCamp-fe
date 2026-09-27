@@ -1,4 +1,3 @@
-import {CancelTokenSource} from "axios";
 import {createSlice} from "@reduxjs/toolkit";
 import {FilePreview} from "@/store/slice/channelSlice";
 import {AttachmentMediaReq} from "@/types/attachment";
@@ -16,7 +15,7 @@ export interface TaskCommentInputState {
     filesPreview: FilePreview[]
 }
 
-export interface ExtendedTaskCommentInputState {
+interface ExtendedTaskCommentInputState {
     [key: string]:  TaskCommentInputState;
 }
 

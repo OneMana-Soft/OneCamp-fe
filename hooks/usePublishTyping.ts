@@ -7,7 +7,7 @@ import { useCallback, useMemo } from 'react';
 import axiosInstance from '@/lib/axiosInstance';
 import { PostEndpointUrl } from '@/services/endPoints';
 
-export type PublishTypingTargetType = 'channel' | 'chat' | 'groupChat';
+type PublishTypingTargetType = 'channel' | 'chat' | 'groupChat';
 
 interface PublishTypingProps {
     targetType: PublishTypingTargetType;

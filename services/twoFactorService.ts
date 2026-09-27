@@ -41,14 +41,14 @@ export interface TwoFactorStatus {
 }
 
 /** A started-but-unconfirmed enrolment. */
-export interface TwoFactorEnrollment {
+interface TwoFactorEnrollment {
     /** Base32, for the "enter it manually" path when a camera is unavailable. */
     secret: string
     /** otpauth:// URI — what the QR code encodes. */
     uri: string
 }
 
-export type TwoFactorResult<T> =
+type TwoFactorResult<T> =
     | { ok: true; data: T }
     | { ok: false; msg: string; code: string }
 

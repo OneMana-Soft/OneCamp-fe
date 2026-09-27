@@ -1,11 +1,11 @@
 "use client"
 
-import React, { useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { Invitation, InvitationListResponseInterface } from "@/types/user"
+import { InvitationListResponseInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
 import { Mail, Plus, Search } from "@/lib/icons"

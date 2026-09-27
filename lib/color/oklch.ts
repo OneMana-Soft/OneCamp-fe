@@ -12,7 +12,7 @@
  * contains a single hex value.
  */
 
-export interface RGB {
+interface RGB {
   r: number
   g: number
   b: number

@@ -35,7 +35,7 @@ export const ANSWER_WAIT_MAX_MS = 10 * 60 * 1000
 /** The words shown while waiting, so a returning person knows why the last question has no answer yet. */
 export const STILL_WRITING = "Still writing the answer to your last question. It will appear here when it is done."
 
-export type RecoveryStep = "wait" | "adopt" | "give-up"
+type RecoveryStep = "wait" | "adopt" | "give-up"
 
 /**
  * nextRecoveryStep decides what a restored conversation does with the session

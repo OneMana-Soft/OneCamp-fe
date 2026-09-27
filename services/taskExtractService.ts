@@ -22,7 +22,7 @@ export interface ProposedTask {
   priority?: string // low | medium | high
 }
 
-export interface ExtractTasksResult {
+interface ExtractTasksResult {
   enabled: boolean
   tasks: ProposedTask[]
   note?: string
@@ -32,7 +32,7 @@ export interface ExtractTasksResult {
   scanned_count?: number
 }
 
-export interface ExtractTasksInput {
+interface ExtractTasksInput {
   source_type: ExtractSourceType
   source_id?: string
   text?: string
@@ -43,7 +43,7 @@ export async function extractTasks(input: ExtractTasksInput): Promise<ExtractTas
   return res.data?.data ?? { enabled: false, tasks: [] }
 }
 
-export interface CreateTasksResult {
+interface CreateTasksResult {
   created: number
   failed: number
 }

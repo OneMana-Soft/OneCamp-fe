@@ -175,7 +175,7 @@ export async function deleteRow(tableId: string, rowId: string): Promise<void> {
 
 export type AggregateOp = "count" | "sum" | "avg" | "min" | "max"
 
-export type FilterOp =
+type FilterOp =
   | "eq" | "ne" | "contains" | "gt" | "gte" | "lt" | "lte" | "empty" | "not_empty"
 
 // A single row-level predicate. `field` is a column id or name.
@@ -187,7 +187,7 @@ export interface AggregateFilter {
 
 // Describes an aggregation. group_by/value_field/filter.field may each be a
 // column id or a case-insensitive column name (server resolves either).
-export interface AggregateQuery {
+interface AggregateQuery {
   group_by?: string
   aggregate?: AggregateOp
   value_field?: string
@@ -262,14 +262,14 @@ export interface QueryPlanSpec {
 
 // One group's row in the result: its label, every metric's value, the matched
 // row count, and (when share_of is set) that metric's share of the grand total.
-export interface PlanBucket {
+interface PlanBucket {
   label: string
   metrics: Record<string, number>
   count: number
   share_pct?: number
 }
 
-export interface PlanResult {
+interface PlanResult {
   group_by?: string
   group_by_type?: string
   metrics: string[]
@@ -336,29 +336,4 @@ export async function fillTableAIColumn(
     rowIds && rowIds.length ? { row_ids: rowIds } : {},
   )
   return (res.data?.data as { filled: number; skipped: number }) || { filled: 0, skipped: 0 }
-}
-
-// ───────────── views ─────────────
-
-export async function createView(
-  tableId: string,
-  input: { name: string; type: ViewType; config?: Record<string, unknown>; position?: number },
-): Promise<TableView> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.CreateTableView}/${tableId}/views`, input)
-  return res.data?.data as TableView
-}
-
-export async function updateView(
-  tableId: string,
-  viewId: string,
-  input: { name: string; type: ViewType; config?: Record<string, unknown>; position?: number },
-): Promise<void> {
-  await axiosInstance.post(
-    `${PostEndpointUrl.UpdateTableView}/${tableId}/views/${viewId}/update`,
-    input,
-  )
-}
-
-export async function deleteView(tableId: string, viewId: string): Promise<void> {
-  await axiosInstance.post(`${PostEndpointUrl.DeleteTableView}/${tableId}/views/${viewId}/delete`)
 }

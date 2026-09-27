@@ -3,8 +3,8 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey, NodeSelection } from '@tiptap/pm/state'
 
-export const BlockHandlePluginKey = new PluginKey('block-handle')
-export const BlockFocusPluginKey = new PluginKey('block-focus')
+const BlockHandlePluginKey = new PluginKey('block-handle')
+const BlockFocusPluginKey = new PluginKey('block-focus')
 
 // ── Floating handle (Notion-style) ──────────────────────────────
 // A single DOM element that repositions itself next to the hovered
@@ -36,46 +36,6 @@ function createFloatingHandle(): HTMLElement {
     pointer-events: auto;
   `
   return handle
-}
-
-/**
- * Resolve the top-level block position for a DOM element inside the editor.
- */
-function resolveBlockPos(view: any, dom: HTMLElement): number | null {
-  const pos = view.posAtDOM(dom, 0)
-  if (pos == null) return null
-  const resolved = view.state.doc.resolve(pos)
-  let depth = resolved.depth
-  while (depth > 1) depth--
-  if (depth < 1) return null
-  return resolved.before(depth)
-}
-
-/**
- * Find the top-level block element that contains a given DOM element.
- * Walks up from the target until reaching a direct child of ProseMirror.
- */
-function findBlockFromTarget(view: any, target: HTMLElement): { dom: HTMLElement; pos: number } | null {
-  const pmEl = view.dom as HTMLElement
-
-  // Walk up from the target to find a direct child of ProseMirror
-  let current: HTMLElement | null = target
-  while (current && current !== pmEl) {
-    if (current.parentElement === pmEl) {
-      // Skip non-content elements
-      if (current.classList.contains('block-handle-floating')) return null
-      if (current.classList.contains('collaboration-cursor__caret')) return null
-
-      const pos = resolveBlockPos(view, current)
-      if (pos != null) {
-        return { dom: current, pos }
-      }
-      return null
-    }
-    current = current.parentElement
-  }
-
-  return null
 }
 
 // ── Extension ──────────────────────────────────────────────────

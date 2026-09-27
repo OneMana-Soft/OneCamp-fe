@@ -5,7 +5,6 @@ import { useMedia } from "@/context/MediaQueryContext";
 import { Video, Loader2 } from "@/lib/icons";
 import { statusColors } from "@/lib/colors";
 import { subDays } from "date-fns";
-import {RecordingListResult} from "@/components/recording/recordingListResult";
 import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {RecordingInfoInterface, RecordingPaginationResRaw} from "@/types/recording";

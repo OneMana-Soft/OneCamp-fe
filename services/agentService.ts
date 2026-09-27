@@ -155,7 +155,7 @@ export interface AgentRun {
 }
 
 /** One skill as it stood when a run was given it. */
-export interface RunSkillFingerprint {
+interface RunSkillFingerprint {
   id: string
   name: string
   sha256: string
@@ -264,7 +264,7 @@ export function parseSkillIds(a: Agent): string[] {
 
 // Parsed trigger configuration. Only the fields relevant to the agent's
 // trigger_type are meaningful; mirrors the backend triggerConfig struct.
-export interface TriggerConfig {
+interface TriggerConfig {
   interval_minutes?: number // schedule (fixed-interval mode)
   recurrence?: string // schedule (cron mode): RRULE-lite, e.g. FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
   at_minute_utc?: number // schedule (cron mode): fire time, minutes past UTC midnight
@@ -320,12 +320,12 @@ export function parseRunSteps(r: AgentRun): AgentRunStep[] {
 
 // Tool catalog shown in the builder, grouped by domain. Mirrors the backend
 // ai.ToolRegistry. `write` flags a side-effecting tool (shown with a warning).
-export interface ToolCatalogEntry {
+interface ToolCatalogEntry {
   name: string
   label: string
   write: boolean
 }
-export interface ToolCatalogGroup {
+interface ToolCatalogGroup {
   group: string
   tools: ToolCatalogEntry[]
   // Optional helper line shown under the group header in the builder.
@@ -587,7 +587,7 @@ export interface ActiveWorkItem {
 // StopAgentWorkResult reports what a stop actually did, so the UI can say
 // something true: "stopped" (it hadn't started), "requested" (its worker is
 // wrapping up), or "noop" (it had already finished).
-export interface StopAgentWorkResult {
+interface StopAgentWorkResult {
   outcome: "stopped" | "requested" | "noop"
   state: ActiveWorkState
   message: string
@@ -641,7 +641,7 @@ export async function listMyAgentWork(limit = 100): Promise<ActiveWorkItem[]> {
 // AgentDraft is an AI-proposed starting configuration for a new agent. It maps
 // onto the subset of the builder form the AI can sensibly fill; the human
 // reviews and saves via the normal create flow.
-export interface AgentDraft {
+interface AgentDraft {
   name: string
   description: string
   instructions: string
@@ -789,14 +789,6 @@ export interface WorkspaceAgentStats {
   last_7d_tokens: number
 }
 
-export async function getWorkspaceAgentStats(): Promise<WorkspaceAgentStats | null> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/overview`, {
-    // @ts-expect-error — suppress the global loading bar for this background fetch
-    silent: true,
-  })
-  return (res.data?.data as WorkspaceAgentStats) || null
-}
-
 // AgentHealth is the compact per-agent reliability signal for the agents list:
 // just enough to render an at-a-glance status dot + tooltip per row. Success
 // rate is computed on the client over the terminal (completed) runs.
@@ -809,17 +801,6 @@ export interface AgentHealth {
   running: number
   last_7d_runs: number
   last_run_at?: string | null
-}
-
-// getAgentHealthBatch fetches the per-agent health signal for every agent the
-// caller may see, keyed by agent id, in one request (no N+1). Agents with no
-// runs yet are simply absent from the map.
-export async function getAgentHealthBatch(): Promise<Record<string, AgentHealth>> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/health`, {
-    // @ts-expect-error — suppress the global loading bar for this background fetch
-    silent: true,
-  })
-  return (res.data?.data as Record<string, AgentHealth>) || {}
 }
 
 // ─── In-channel "AI teammates" ──────────────────────────────────────────────
@@ -857,7 +838,7 @@ export async function setChannelAITeammate(
 // ChannelAIBudget is a channel's per-day AI token cap (0 = no cap), today's
 // spend across all AI in the channel (the shared coworker + every agent), and
 // the channel's pinned default AI model id ("" = no override).
-export interface ChannelAIBudget {
+interface ChannelAIBudget {
   max_daily_tokens: number
   tokens_today: number
   ai_model_id?: string
@@ -907,7 +888,7 @@ export interface EvalScenario {
   updated_at: string
 }
 
-export interface EvalScenarioInput {
+interface EvalScenarioInput {
   name: string
   prompt: string
   expectations: EvalExpectations
@@ -929,14 +910,14 @@ export interface EvalScore {
   checks: EvalCheck[]
 }
 
-export interface ScenarioRunResult {
+interface ScenarioRunResult {
   scenario_id: string
   name: string
   run_id: string
   result: EvalScore
 }
 
-export interface SuiteRunResult {
+interface SuiteRunResult {
   agent_id: string
   total: number
   passed: number
@@ -967,11 +948,6 @@ export async function createEvalScenario(agentId: string, input: EvalScenarioInp
   return res.data?.data as EvalScenario
 }
 
-export async function updateEvalScenario(scenarioId: string, input: EvalScenarioInput): Promise<EvalScenario> {
-  const res = await axiosInstance.post(`${GetEndpointUrl.GetAgents}/eval/scenarios/${scenarioId}/update`, input)
-  return res.data?.data as EvalScenario
-}
-
 export async function deleteEvalScenario(scenarioId: string): Promise<void> {
   await axiosInstance.post(`${GetEndpointUrl.GetAgents}/eval/scenarios/${scenarioId}/delete`)
 }
@@ -984,25 +960,6 @@ export async function runEvalScenario(scenarioId: string): Promise<ScenarioRunRe
 export async function runEvalSuite(agentId: string): Promise<SuiteRunResult> {
   const res = await axiosInstance.post(`${GetEndpointUrl.GetAgents}/${agentId}/eval/run`)
   return res.data?.data as SuiteRunResult
-}
-
-export async function getAgentEvalSummary(agentId: string): Promise<AgentEvalSummary | null> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/${agentId}/eval/summary`, {
-    // @ts-expect-error — suppress the global loading bar for this background fetch
-    silent: true,
-  })
-  return (res.data?.data as AgentEvalSummary) || null
-}
-
-// getAgentEvalSummaryBatch fetches the per-agent eval rollup for the whole list
-// in one request (no N+1), keyed by agent id. Agents with no active tests are
-// simply absent from the map.
-export async function getAgentEvalSummaryBatch(): Promise<Record<string, AgentEvalSummary>> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/eval/summary`, {
-    // @ts-expect-error — suppress the global loading bar for this background fetch
-    silent: true,
-  })
-  return (res.data?.data as Record<string, AgentEvalSummary>) || {}
 }
 
 // ─── Agent outcomes: what people did with what an agent proposed ─────────────
@@ -1041,7 +998,7 @@ export function outcomeMeasured(o: AgentOutcome | undefined | null): boolean {
 }
 
 /** Which of the three things the outcome badge can say. */
-export type OutcomeBadgeState = "none" | "ignored" | "scored"
+type OutcomeBadgeState = "none" | "ignored" | "scored"
 
 /**
  * The badge's decision, exported so the component and its test share one copy.
@@ -1088,25 +1045,6 @@ export function sumOutcomes(byAgent: Record<string, AgentOutcome> | undefined | 
   return total
 }
 
-export async function getAgentOutcome(agentId: string): Promise<AgentOutcome | null> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/${agentId}/outcome`, {
-    // @ts-expect-error — suppress the global loading bar for this background fetch
-    silent: true,
-  })
-  return (res.data?.data as AgentOutcome) || null
-}
-
-// One request for the whole list (no N+1), keyed by agent id. Every visible
-// agent is present, including one with nothing decided yet, so an absent key
-// means "not visible to you" rather than "no data".
-export async function getAgentOutcomeBatch(): Promise<Record<string, AgentOutcome>> {
-  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgents}/outcomes`, {
-    // @ts-expect-error — suppress the global loading bar for this background fetch
-    silent: true,
-  })
-  return (res.data?.data as Record<string, AgentOutcome>) || {}
-}
-
 // ─── Reusable agent skills (workspace library) ───────────────────────────────
 
 export interface AgentSkill {
@@ -1123,23 +1061,11 @@ export interface AgentSkill {
   agent_count: number
 }
 
-export interface SkillInput {
+interface SkillInput {
   name: string
   instructions: string
   /** Why this edit was made, stored with the revision. Optional. */
   note?: string
-}
-
-/**
- * Which agents a skill is attached to: the blast radius of editing it.
- *
- * A skill is one text shared by many agents, so a change reaches all of them on
- * their next run. This exists to be read BEFORE an edit rather than discovered
- * after one.
- */
-export interface SkillUsage {
-  agent_count: number
-  agents: string[]
 }
 
 /** One version of a skill's text, with who wrote it and why. */
@@ -1151,14 +1077,6 @@ export interface SkillRevision {
   note: string
   edited_by_name?: string
   created_at: string
-}
-
-export async function getAgentSkillUsage(id: string): Promise<SkillUsage> {
-  const res = await axiosInstance.get(`/agent-skills/${id}/usage`, {
-    // @ts-expect-error — suppress the global loading bar for this background fetch
-    silent: true,
-  })
-  return (res.data?.data as SkillUsage) || { agent_count: 0, agents: [] }
 }
 
 export async function listAgentSkillRevisions(id: string): Promise<SkillRevision[]> {

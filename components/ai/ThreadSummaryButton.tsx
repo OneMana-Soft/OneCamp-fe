@@ -103,4 +103,3 @@ const ThreadSummaryButtonUngated: React.FC<ThreadSummaryButtonProps> = ({ getTex
 // export covers every place this is rendered, desktop and mobile, rather than asking
 // each of them to remember.
 export const ThreadSummaryButton = withAI(ThreadSummaryButtonUngated)
-export default ThreadSummaryButton

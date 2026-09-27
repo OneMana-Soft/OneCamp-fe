@@ -4,7 +4,6 @@ import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } f
 import tippy, { Instance as TippyInstance } from "tippy.js"
 import { Heading1, Heading2, Heading3, List, ListOrdered, Quote, Code, Minus, CheckSquare, Image, Sparkles, MessageSquare, ChevronRight, Bold, Italic, Strikethrough, Zap } from "@/lib/icons";
 import { Lightbulb, Command, Underline as UnderlineIcon, Eraser, Table as TableIcon } from "@/lib/icons";
-import { createTable } from "@/services/tableService";
 
 export interface SlashCommandItem {
   id: string
@@ -284,9 +283,9 @@ export const DOC_SLASH_COMMANDS: SlashCommandItem[] = [
 ]
 
 /** Legacy export — keep for backward compatibility */
-export const COMMANDS: SlashCommandItem[] = DOC_SLASH_COMMANDS
-export const BASE_COMMANDS: SlashCommandItem[] = CHAT_COMMANDS
-export const DOC_COMMANDS: SlashCommandItem[] = DOC_BLOCK_COMMANDS
+const COMMANDS: SlashCommandItem[] = DOC_SLASH_COMMANDS
+const BASE_COMMANDS: SlashCommandItem[] = CHAT_COMMANDS
+const DOC_COMMANDS: SlashCommandItem[] = DOC_BLOCK_COMMANDS
 
 // ─── Backend command provider (Slack-style app/core commands) ───
 //
@@ -382,7 +381,7 @@ function commandNeedsArgs(usageHint?: string): boolean {
  * null otherwise. Used by the composer's send-time interception to decide
  * whether a leading-slash message is a command to run vs plain text to post.
  */
-export function resolveBackendCommandName(query: string): string | null {
+function resolveBackendCommandName(query: string): string | null {
   if (!backendCommandProvider) return null
   const name = (query || "").trim().toLowerCase()
   if (!name) return null
@@ -680,4 +679,3 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
 })
 
 SlashCommandList.displayName = "SlashCommandList"
-export default SlashCommandList

@@ -1,42 +1,36 @@
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import {useFetch} from "@/hooks/useFetch";
 import {
     ChannelInfoInterfaceResp,
     ChannelJoinInterface,
     ChannelNotificationInterface,
-    NotificationType, UpdateChannelInfoInterface
-} from "@/types/channel";
+    NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { ChevronLeft, ChevronRight, Hash, LoaderCircle, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X } from "@/lib/icons";
+import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import React, {useEffect, useState, useMemo} from "react";
+import {useEffect, useState, useMemo} from "react";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {openUI} from "@/store/slice/uiSlice";
 import { toggleUserChannelFavorite } from "@/store/slice/userSlice";
 import {ChannelFileUpload} from "@/components/fileUpload/channelFileUpload";
 import {ComposerAIButton} from "@/components/ai/ComposerAIButton";
 import {
-    addUUIDToLocallyCreatedPost, clearChannelInputState,
-    createPostLocally, updateChannelInputText, MessageInputState, updateChannelCallStatus, clearChannelReplyTarget
+    
+    updateChannelInputText, MessageInputState, clearChannelReplyTarget
 } from "@/store/slice/channelSlice";
 
 import {GenericResponse} from "@/types/genericRes";
 import {ChannelMessageList} from "@/components/channel/channelMessageList";
-import {UserEmojiStatus} from "@/types/user";
-import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
-import {MobileChannelTextInput} from "@/components/textInput/mobileChannelTextInput";
-import {updateUserChannelName} from "@/store/slice/userSlice";
-import {app_channel_call, app_grp_call} from "@/types/paths";
+import {app_channel_call} from "@/types/paths";
 import Link from "next/link";
-import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {ChatSkeleton} from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";

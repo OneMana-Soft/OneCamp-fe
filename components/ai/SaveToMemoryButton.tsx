@@ -234,4 +234,3 @@ const SaveToMemoryButtonUngated: React.FC<SaveToMemoryButtonProps> = ({
 // export covers every place this is rendered, desktop and mobile, rather than asking
 // each of them to remember.
 export const SaveToMemoryButton = withAI(SaveToMemoryButtonUngated)
-export default SaveToMemoryButton

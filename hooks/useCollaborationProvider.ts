@@ -9,7 +9,7 @@ import * as React from 'react'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import { memberCollabToken, forgetCollabToken } from '@/lib/collabToken'
 
-export interface CollaborationConfig {
+interface CollaborationConfig {
   enabled: boolean
   documentId: string
   /**
@@ -31,14 +31,14 @@ export interface CollaborationConfig {
   profileKey?: string
 }
 
-export interface AwarenessUser {
+interface AwarenessUser {
   id: string
   name: string
   color: string
   profileKey?: string
 }
 
-export type CollabStatus = 'connecting' | 'connected' | 'disconnected' | 'synced' | 'offline'
+type CollabStatus = 'connecting' | 'connected' | 'disconnected' | 'synced' | 'offline'
 
 const DEV = process.env.NODE_ENV !== 'production'
 const log = (...args: unknown[]) => { if (DEV) console.log(...args) }

@@ -1,7 +1,5 @@
 import {UserProfileDataInterface} from "@/types/user";
-import {AttachmentMediaReq} from "@/types/attachment";
 import {PostsRes} from "@/types/post";
-import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {RecordingInfoInterface} from "@/types/recording";
 
 export interface ChannelInfoInterface {

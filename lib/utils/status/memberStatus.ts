@@ -22,7 +22,7 @@ function getRelativeTime(time: number) {
     return parts.join(' ')
 }
 
-export function getExpiration(expiresIn: StatusTime) {
+function getExpiration(expiresIn: StatusTime) {
     switch (expiresIn) {
         case '30m': {
             return new Date(Date.now() + 30 * 60 * 1000)

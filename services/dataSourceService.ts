@@ -63,47 +63,14 @@ export interface DataSourceTable {
 }
 
 // Aggregation types mirror the native table aggregate for a consistent UX.
-export type DataSourceAggregateOp = "count" | "sum" | "avg" | "min" | "max"
-export type DataSourceFilterOp =
+type DataSourceAggregateOp = "count" | "sum" | "avg" | "min" | "max"
+type DataSourceFilterOp =
   | "eq" | "ne" | "contains" | "gt" | "gte" | "lt" | "lte" | "empty" | "not_empty"
 
 export interface DataSourceFilter {
   field: string
   op: DataSourceFilterOp
   value?: string
-}
-
-export interface DataSourceAggregateQuery {
-  table: string
-  group_by?: string
-  aggregate?: DataSourceAggregateOp
-  value_field?: string
-  filters?: DataSourceFilter[]
-  limit?: number
-  ascending?: boolean
-}
-
-export interface DataSourceAggregateBucket {
-  label: string
-  value: number
-  count: number
-}
-
-export interface DataSourceAggregateResult {
-  table: string
-  group_by?: string
-  group_by_type?: string
-  aggregate: DataSourceAggregateOp
-  value_field?: string
-  buckets: DataSourceAggregateBucket[]
-  truncated: boolean
-}
-
-// ───────────── management (agent.manage gated) ─────────────
-
-export async function listDataSources(): Promise<DataSource[]> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetDataSources)
-  return (res.data?.data as DataSource[]) || []
 }
 
 export async function createDataSource(input: DataSourceInput): Promise<DataSource> {
@@ -156,26 +123,9 @@ export async function testDataSourceConfig(
   }
 }
 
-// ───────────── query / browse (per-source visibility) ─────────────
-
-export async function listQueryableDataSources(): Promise<DataSource[]> {
-  const res = await axiosInstance.get(GetEndpointUrl.GetQueryableDataSources)
-  return (res.data?.data as DataSource[]) || []
-}
-
 export async function getDataSourceSchema(id: string): Promise<DataSourceTable[]> {
   const res = await axiosInstance.get(`${GetEndpointUrl.GetDataSourceSchema}/${id}/schema`)
   return (res.data?.data as DataSourceTable[]) || []
-}
-
-// aggregateDataSource runs a deterministic, read-only aggregation pushed down to
-// the external DB. Reuses the exact engine the AI query_data_source tool uses.
-export async function aggregateDataSource(
-  id: string,
-  query: DataSourceAggregateQuery,
-): Promise<DataSourceAggregateResult> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.AggregateDataSource}/${id}/aggregate`, query)
-  return res.data?.data as DataSourceAggregateResult
 }
 
 // Multi-step query plan (several metrics, having, share-of-total) — the external
@@ -204,14 +154,14 @@ export interface DataSourceQueryPlan {
   share_of?: string
 }
 
-export interface DataSourcePlanBucket {
+interface DataSourcePlanBucket {
   label: string
   metrics: Record<string, number>
   count: number
   share_pct?: number
 }
 
-export interface DataSourcePlanResult {
+interface DataSourcePlanResult {
   table: string
   group_by?: string
   group_by_type?: string

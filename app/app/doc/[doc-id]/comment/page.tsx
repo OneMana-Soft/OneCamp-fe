@@ -2,7 +2,6 @@
 
 
 import {useMedia} from "@/context/MediaQueryContext";
-import {DocCommentList} from "@/components/rightPanel/docCommentList";
 import {useParams} from "next/navigation";
 import {DocMobileCommentList} from "@/components/rightPanel/docMobileCommentList";
 

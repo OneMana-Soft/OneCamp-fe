@@ -1,17 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { Check, ChevronsUpDown } from "@/lib/icons";
-import { UserPlus } from "lucide-react";
+import { ChevronsUpDown } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils/helpers/cn";
-import { getNameInitials } from "@/lib/utils/format/getNameIntials";
 import { usePost } from "@/hooks/usePost";
-import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
+import { PostEndpointUrl } from "@/services/endPoints";
 import { UserProfileDataInterface } from "@/types/user";
 import { UserComboboxItem } from "@/components/combobox/userComboboxItem";
 

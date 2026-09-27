@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DateRangeField } from "@/components/dateRangePicker/dateRangeField";
 import { DateRange } from "react-day-picker";
 import { subDays } from "date-fns";

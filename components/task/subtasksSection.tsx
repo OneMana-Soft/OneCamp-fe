@@ -5,12 +5,11 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Plus, CheckCircle2, ChevronRight, Link2, Download } from "@/lib/icons";
+import { Plus, CheckCircle2, ChevronRight, Link2 } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
-import { statusColors } from "@/lib/colors"
 import { DateField } from "./taskDateField"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
-import type {UserProfileDataInterface, UserProfileInterface} from "@/types/user"
+import type {UserProfileDataInterface} from "@/types/user"
 import TaskSubTaskAssignee from "@/components/task/taskSubTaskAssignee";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {NewSubTaskDraft, TaskInfoInterface} from "@/types/task";

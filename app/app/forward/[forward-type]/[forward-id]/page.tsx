@@ -2,9 +2,6 @@
 
 
 import {useParams, useRouter} from "next/navigation";
-import {useMedia} from "@/context/MediaQueryContext";
-import {ChannelIdMobile} from "@/components/channel/channelIdMobile";
-import {ChannelIdDesktop} from "@/components/channel/chanelIdDesktop";
 import {useFetch} from "@/hooks/useFetch";
 import {ChatInfoRes} from "@/types/chat";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
@@ -19,7 +16,6 @@ import {ForwardMessageDropdown} from "@/components/searchDropdown/fwdMsgToDropdo
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
 import {MessagePreview} from "@/components/message/MessagePreview";
-import * as React from "react";
 import { LoaderCircle } from "@/lib/icons";
 
 export default function Page() {

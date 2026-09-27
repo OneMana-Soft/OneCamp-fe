@@ -93,6 +93,3 @@ export const colName: Record<ColumnId, string> = {
     task_created_at: "created at",
     task_assignee_name: "assignee"
 };
-
-
-export type TaskStatusType = 'todo' | 'inProgress' | 'done';

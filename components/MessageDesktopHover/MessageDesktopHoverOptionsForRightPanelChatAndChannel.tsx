@@ -1,11 +1,7 @@
 import {Button} from "@/components/ui/button";
-import { ArrowRight, Bookmark, Forward, Hash, MessageSquareText, MoreVertical } from "@/lib/icons";
+import { Forward, Hash } from "@/lib/icons";
 import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
-import {useDispatch} from "react-redux";
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
-import {ReactionPicker} from "@/components/reactionPicker/reactionPicker";
-import Image from "next/image";
-import addEmojiIconSrc from "@/assets/addEmoji.svg";
 import {useState, type ReactNode} from "react";
 import {AddReactionTrigger} from "@/components/reactionPicker/AddReactionTrigger";
 

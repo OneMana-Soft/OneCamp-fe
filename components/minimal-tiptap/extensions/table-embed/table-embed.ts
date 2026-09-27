@@ -4,7 +4,7 @@ import { Node, mergeAttributes } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
 import { TableEmbedView } from "./components/table-embed-view"
 
-export interface TableEmbedOptions {
+interface TableEmbedOptions {
   HTMLAttributes: Record<string, any>
 }
 
@@ -79,4 +79,3 @@ export const TableEmbed = Node.create<TableEmbedOptions>({
   },
 })
 
-export default TableEmbed

@@ -28,7 +28,7 @@ const STALE_THRESHOLD_MS = 30_000
  * Deliberately prefixes, not exact keys: these endpoints are all
  * `<prefix>/<id>`, and a gap invalidates every id, not just the one on screen.
  */
-export const STREAM_BACKED_KEY_PREFIXES: readonly string[] = [
+const STREAM_BACKED_KEY_PREFIXES: readonly string[] = [
     // Conversations: previews + unread counts (bodies are reconciled by the
     // resync nonce, which preserves local/optimistic state).
     GetEndpointUrl.GetUserLatestChatList,
@@ -53,7 +53,7 @@ export const STREAM_BACKED_KEY_PREFIXES: readonly string[] = [
  * revalidateStreamBackedKeys asks SWR to refetch every stream-backed cache once.
  * Pure fan-out over the list above — no component needs to know it exists.
  */
-export function revalidateStreamBackedKeys(): void {
+function revalidateStreamBackedKeys(): void {
     void mutate(
         (key: unknown) =>
             typeof key === "string" && STREAM_BACKED_KEY_PREFIXES.some((prefix) => key.includes(prefix)),

@@ -24,7 +24,7 @@ export function chatContentDiffers(a: ChatInfo, b: ChatInfo): boolean {
 }
 
 
-export interface ChatInputState {
+interface ChatInputState {
     chatBody: string,
     filesUploaded: AttachmentMediaReq[],
     filesPreview: FilePreview[]
@@ -60,7 +60,7 @@ interface SetChatReplyTarget {
 }
 
 
-export interface ExtendedChatInputState {
+interface ExtendedChatInputState {
     [key: string]:  ChatInputState;
 }
 
@@ -149,11 +149,6 @@ interface UpdateChatReactionId {
     newReactionId: string
 }
 
-interface UpdateChannelCallStatus {
-    channelId: string
-    callStatus: boolean
-}
-
 interface UpdateChat {
     dmId: string
     chatIndex: number
@@ -219,7 +214,7 @@ export interface  ExtendedChats {
     [key: string]:  ChatInfo[];
 }
 
-export interface ChatScrollPosition {
+interface ChatScrollPosition {
     [key: string]: { key: string, offset: number };
 }
 
@@ -236,7 +231,7 @@ const initialState = {
 
 }
 
-export const chatSlice = createSlice({
+const chatSlice = createSlice({
     name: 'chat',
     initialState,
     reducers: {

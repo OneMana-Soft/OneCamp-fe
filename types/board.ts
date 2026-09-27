@@ -111,11 +111,6 @@ export interface BoardGenerateResult {
     components?: BoardLaidComponent[];
 }
 
-export interface BoardGenerateResponse {
-    msg: string;
-    data: BoardGenerateResult;
-}
-
 // Board snapshot (version history). The blob lives in object storage; this is
 // the metadata surfaced in the version-history UI.
 export interface BoardSnapshotContributor {
@@ -148,10 +143,4 @@ export interface ResourceViewer {
     user_profile_object_key?: string;
     first_viewed_at: string;
     last_viewed_at: string;
-}
-
-export interface ResourceViewersResponse {
-    msg: string;
-    data: ResourceViewer[] | null;
-    count: number;
 }

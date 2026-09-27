@@ -18,7 +18,7 @@ export interface SearchResult {
     highlight?: Record<string, string[]>;
 }
 
-export interface SearchResponse {
+interface SearchResponse {
     page: SearchResult[];
     has_more: boolean;
 }

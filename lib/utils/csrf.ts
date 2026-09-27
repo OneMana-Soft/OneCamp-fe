@@ -18,7 +18,7 @@ const CSRF_COOKIE_NAME = "X-CSRF-Token"
 const CSRF_HEADER_NAME = "X-CSRF-Token"
 
 /** Read the CSRF token the BE wrote into document.cookie. */
-export function getCsrfToken(): string {
+function getCsrfToken(): string {
   if (typeof document === "undefined") return ""
   const match = document.cookie.match(
     new RegExp("(?:^|; )" + CSRF_COOKIE_NAME + "=([^;]*)"),

@@ -37,7 +37,7 @@ export interface SystemCheckReport {
 
 // One definition of the path, so the request target and any cache key cannot
 // drift apart.
-export const systemCheckUrl = "/admin/system-check"
+const systemCheckUrl = "/admin/system-check"
 
 export async function runSystemCheck(): Promise<SystemCheckReport | undefined> {
     const res = await axiosInstance.get(systemCheckUrl)

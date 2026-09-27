@@ -26,7 +26,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import {useDispatch, useSelector} from "react-redux";
-import {createListForTaskInfo, clearTaskListVisibleInfo, TaskInfoInputState} from "@/store/slice/taskInfoSlice";
+import {createListForTaskInfo, clearTaskListVisibleInfo} from "@/store/slice/taskInfoSlice";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import {useTranslation} from "react-i18next";

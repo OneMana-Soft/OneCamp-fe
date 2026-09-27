@@ -7,13 +7,13 @@ import { withCsrfHeader } from "@/lib/utils/csrf";
  * It arrives as HTTP 200 with no cookies, so any shape that reduces this to a boolean reports it as
  * success — see loginWithEmail for what that cost.
  */
-export type LoginOutcome =
+type LoginOutcome =
     | { status: 'success' }
     | { status: 'totp_required'; challenge: string; msg: string }
     | { status: 'failed'; msg: string; auth_method?: string };
 
 /** The outcome of answering a second-factor challenge. */
-export type TOTPLoginOutcome =
+type TOTPLoginOutcome =
     | { status: 'success' }
     /**
      * `reason` separates the two failures that need different things from the user. A wrong code means

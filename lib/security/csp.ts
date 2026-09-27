@@ -29,7 +29,7 @@ import { mediaOriginFromEnv } from "./mediaOrigin"
 import { parseOrigin } from "./origin"
 
 /** The env values the policy is derived from. Passed in so the builder is pure. */
-export interface CspOrigins {
+interface CspOrigins {
     backendUrl?: string
     /** Object store serving avatars and attachments. See mediaOrigin.ts. */
     mediaUrl?: string

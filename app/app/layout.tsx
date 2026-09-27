@@ -1,11 +1,6 @@
 "use client"
 
 import { AppProtectedRoute } from "@/components/protectedRoute/appProtectedRoute";
-import { DesktopNavigationBar } from "@/components/navigationBar/desktop/desktopNavigationBar";
-import { MobileNavigationBar } from "@/components/navigationBar/mobile/mobileNavigationBar";
-import { RightPanel } from "@/components/rightPanel/rightPanel";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { cn } from "@/lib/utils/helpers/cn";
 import ClientProviders from "./ClientProviders";
 import { UnifiedUIManager } from "@/components/ui/UnifiedUIManager";
 import { CommandPaletteLoader } from "@/components/ui/CommandPaletteLoader";

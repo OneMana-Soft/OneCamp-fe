@@ -23,7 +23,6 @@ import {
   Loader2,
   Smartphone,
   Monitor,
-  Copy,
   Download,
   Check,
   Code,
@@ -94,7 +93,7 @@ function dataUrlToDownload(name: string, dataUrl: string) {
   a.remove()
 }
 
-export function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }: BoardUIStudioProps) {
+function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }: BoardUIStudioProps) {
   const { makeRequest, isSubmitting } = usePost()
   const { toast } = useToast()
 

@@ -5,21 +5,16 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
 import { useEffect, useRef, useState } from "react";
-import { ChannelFileUpload } from "@/components/fileUpload/channelFileUpload";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch, useSelector} from "react-redux";
 import {
-    addUUIDToLocallyCreatedPost,
-    clearChannelInputState,
-    createPostLocally,
-    updateChannelInputText, updateChannelMessageReplyIncrement
+    updateChannelMessageReplyIncrement
 } from "@/store/slice/channelSlice";
-import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
-import {CreateOrUpdatePostsReq, CreatePostsRes, PostsResRaw} from "@/types/post";
+import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
 import {RootState} from "@/store/store";
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {CreateCommentResInterface, CreateUpdateCommentReqInterface} from "@/types/comment";
 import {
     clearChannelCommentMsgInputState,

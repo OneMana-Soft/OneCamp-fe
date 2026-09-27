@@ -5,7 +5,7 @@ import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
 import { MessageCircle } from "@/lib/icons";
 import { Ellipsis } from "@/lib/icons";
-import React, {useCallback, useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {useRouter} from "next/navigation";

@@ -15,7 +15,6 @@ import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "
 import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
-import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 import { UserProfileInterface} from "@/types/user";
 import {useEffect} from "react";

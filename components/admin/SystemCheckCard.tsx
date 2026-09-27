@@ -106,7 +106,7 @@ const CheckRow: React.FC<{ check: SystemCheckResult }> = ({ check }) => (
     </div>
 )
 
-export const SystemCheckCard: React.FC = () => {
+const SystemCheckCard: React.FC = () => {
     const [report, setReport] = useState<SystemCheckReport | null>(null)
     const [loading, setLoading] = useState(false)
     // Held inline rather than thrown at a toast. A failure to REACH the checker is

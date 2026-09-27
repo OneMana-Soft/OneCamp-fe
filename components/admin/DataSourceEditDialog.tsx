@@ -365,4 +365,3 @@ export function DataSourceEditDialog({ source, open, onClose, onSaved }: DataSou
   )
 }
 
-export default DataSourceEditDialog

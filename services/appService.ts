@@ -64,7 +64,7 @@ export async function uninstallTemplate(slug: string): Promise<void> {
     await axiosInstance.post(PostEndpointUrl.UninstallTemplate, { slug })
 }
 
-export interface AppTestResult {
+interface AppTestResult {
     success: boolean
     message: string
 }

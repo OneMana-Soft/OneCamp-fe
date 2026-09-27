@@ -29,7 +29,7 @@ interface removeGroupChatTypingInterface {
     grpId: string
 }
 
-export interface userTypingInfoInterface {
+interface userTypingInfoInterface {
     user: UserProfileDataInterface
     userId: string
     /**
@@ -46,7 +46,7 @@ export interface userTypingInfoInterface {
      */
     lastSeenAt: number
 }
-export interface ExtendedTypingState {
+interface ExtendedTypingState {
     [key: string]:  userTypingInfoInterface[];
 }
 
@@ -56,7 +56,7 @@ const initialState = {
     groupChatTyping: {} as ExtendedTypingState,
 }
 
-export const typingSlice = createSlice({
+const typingSlice = createSlice({
     name: 'typing',
     initialState,
     reducers: {

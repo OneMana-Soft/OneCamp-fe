@@ -315,4 +315,3 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
   )
 }
 
-export default McpServerEditDialog

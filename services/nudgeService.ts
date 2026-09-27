@@ -26,7 +26,7 @@ export interface Nudge {
     updated_at: string
 }
 
-export interface NudgeListResponse {
+interface NudgeListResponse {
     nudges: Nudge[]
     open_count: number
 }
@@ -48,11 +48,6 @@ export async function getNudges(): Promise<NudgeListResponse> {
 
 export async function dismissNudge(id: string): Promise<number> {
     const res = await axiosInstance.post(`/ai/nudges/${id}/dismiss`, {})
-    return (res.data as { data?: { open_count: number } })?.data?.open_count ?? 0
-}
-
-export async function actOnNudge(id: string): Promise<number> {
-    const res = await axiosInstance.post(`/ai/nudges/${id}/act`, {})
     return (res.data as { data?: { open_count: number } })?.data?.open_count ?? 0
 }
 

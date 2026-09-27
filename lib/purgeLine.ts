@@ -6,7 +6,7 @@
  * the card has to say two things plainly: whether that is on, and what has
  * gone so far, because "cannot be undone" deserves a running total next to it.
  */
-export type PurgeSummary = {
+type PurgeSummary = {
   entity_type: string
   purge_after_days?: number
   purged_count?: number

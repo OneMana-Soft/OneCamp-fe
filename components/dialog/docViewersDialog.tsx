@@ -3,7 +3,6 @@
 // DocViewersDialog: "Viewed by" for a document. Thin wrapper over the generic,
 // paginated ResourceViewersDialog.
 
-import * as React from "react"
 import { GetEndpointUrl } from "@/services/endPoints"
 import ResourceViewersDialog from "@/components/dialog/resourceViewersDialog"
 

@@ -39,7 +39,7 @@ export interface MemoryItem {
   project_name?: string
 }
 
-export interface MemoryListResult {
+interface MemoryListResult {
   items: MemoryItem[]
   counts: Record<string, number> // open count per kind
 }
@@ -94,7 +94,7 @@ export async function updateMemoryDue(id: string, due: string): Promise<void> {
 
 // ─── Agentic actions on memory ────────────────────────────────────────────
 
-export interface MemoryActionResult {
+interface MemoryActionResult {
   success: boolean
   message: string
   action_data?: Record<string, string>

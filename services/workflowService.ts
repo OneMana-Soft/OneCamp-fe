@@ -1,5 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance";
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { PostEndpointUrl } from "@/services/endPoints";
 
 /**
  * Workflow Builder admin client. Workflows are event-triggered automation
@@ -80,11 +80,6 @@ export function parseWorkflow(w: Workflow): {
     return { keywords, actions };
 }
 
-export async function listWorkflows(): Promise<Workflow[]> {
-    const res = await axiosInstance.get(GetEndpointUrl.GetAllWorkflows);
-    return (res.data?.data as Workflow[]) || [];
-}
-
 export async function createWorkflow(values: WorkflowFormValues): Promise<Workflow> {
     const res = await axiosInstance.post(PostEndpointUrl.CreateWorkflow, values);
     return res.data?.data as Workflow;
@@ -105,7 +100,7 @@ export async function deleteWorkflow(id: string): Promise<void> {
 
 // A draft workflow generated from a natural-language prompt. Ids are
 // intentionally absent (the user selects channels/projects in the form).
-export interface WorkflowDraft {
+interface WorkflowDraft {
     name: string;
     trigger_type: WorkflowTriggerType;
     keywords: string[];

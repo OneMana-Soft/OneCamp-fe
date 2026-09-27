@@ -23,9 +23,9 @@
 import { useEffect, useRef } from "react"
 import type { msgAgentWorkInterface } from "@/services/mqttService"
 
-export const AGENT_WORK_EVENT = "agent-work-changed"
+const AGENT_WORK_EVENT = "agent-work-changed"
 
-export interface UseAgentWorkEventsOptions {
+interface UseAgentWorkEventsOptions {
     /**
      * When set, only events for this surface entity (channel post / chat message
      * / task uuid) are delivered. Omit to receive every event the client sees —
@@ -54,4 +54,3 @@ export function useAgentWorkEvents({ entityId, onChange }: UseAgentWorkEventsOpt
     }, [entityId])
 }
 
-export default useAgentWorkEvents

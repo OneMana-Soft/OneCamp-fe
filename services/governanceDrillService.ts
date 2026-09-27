@@ -63,9 +63,9 @@ export interface DrillStatus {
 }
 
 // One definition of each path, so the request target cannot drift from the route.
-export const drillStatusUrl = "/admin/governance-drill"
-export const drillSetupUrl = "/admin/governance-drill/setup"
-export const drillRunUrl = "/admin/governance-drill/run"
+const drillStatusUrl = "/admin/governance-drill"
+const drillSetupUrl = "/admin/governance-drill/setup"
+const drillRunUrl = "/admin/governance-drill/run"
 
 // The same drill, run by whoever is asking.
 //
@@ -73,8 +73,8 @@ export const drillRunUrl = "/admin/governance-drill/run"
 // admins, and on the public demo nobody is: a visitor could read that agents are
 // bounded by permissions and had no way to make one try. There is no member
 // setup route, because setup creates channels.
-export const myDrillStatusUrl = "/ai/governance-drill"
-export const myDrillRunUrl = "/ai/governance-drill/run"
+const myDrillStatusUrl = "/ai/governance-drill"
+const myDrillRunUrl = "/ai/governance-drill/run"
 
 export async function getDrillStatus(): Promise<DrillStatus | undefined> {
     const res = await axiosInstance.get(drillStatusUrl)

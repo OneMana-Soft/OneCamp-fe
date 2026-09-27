@@ -35,17 +35,15 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { useMedia } from "@/context/MediaQueryContext"
 import { Drawer } from 'vaul'
 import { Image as ImageIcon, Users, Loader2, Check } from "@/lib/icons";
-import { Cloud, CloudOff } from "lucide-react";
+import { CloudOff } from "lucide-react";
 import { DocAiAssistantPanel } from '@/components/ai/DocAiAssistantPanel'
-import { PostFileUploadURL, GetEndpointUrl } from "@/services/endPoints"
-import axiosInstance from "@/lib/axiosInstance"
-import { UploadFileInterfaceRes } from "@/types/file"
+import { GetEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
 import { useUploadFile } from '@/hooks/useUploadFile'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import type { SaveStatus } from '@/hooks/useDocAutoSave'
 
-export interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
+interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
     value?: Content
     onChange?: (value: Content) => void
     className?: string
@@ -185,7 +183,7 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
     }
 }
 
-export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
+const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
     ({ value, onChange, className, editorContentClassName, docId, provider, providerSynced, title, onTitleChange, onTitleBlur, editableTitle = true, collaboration, saveStatus, lastSavedAt, lastEditedAt, lastEditedRelative, focusMode, ...props }, ref) => {
         const { toast } = useToast()
         const uploadFile = useUploadFile()

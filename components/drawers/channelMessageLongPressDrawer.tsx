@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Bell, Bookmark, CircleUser, Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type, Users } from "@/lib/icons";
+import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type } from "@/lib/icons";
 import { useTranslateText } from "@/services/aiService";
 
 import {
@@ -20,7 +20,7 @@ import {preSelectedEmojis} from "@/components/drawers/consts/preSelectedEmojiCon
 import {DrawerActionCard} from "@/components/drawerActionCard/drawerActionCard";
 import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
 import {DrawerDestructiveActionLink} from "@/components/drawerActionLink/drawerDestructiveActionLink";
-import {app_channel_path, app_home_path, app_message_forward_path} from "@/types/paths";
+import {app_channel_path, app_message_forward_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
 

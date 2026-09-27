@@ -8,7 +8,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import type { CommandResponse } from "@/types/command"
 
-export interface EphemeralCard {
+interface EphemeralCard {
     trigger_id: string
     surface_key: string // channel uuid or dm grouping id ("" for global)
     command: string // originating command name, needed for interaction round-trips

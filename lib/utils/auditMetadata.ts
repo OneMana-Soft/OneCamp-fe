@@ -17,7 +17,7 @@
  */
 
 /** One metadata field, ready to render. */
-export interface AuditMetadataField {
+interface AuditMetadataField {
     /** The raw key, kept so callers can key React lists and test precisely. */
     key: string
     /** Human label for the key. */
@@ -28,7 +28,7 @@ export interface AuditMetadataField {
     isReason: boolean
 }
 
-export interface AuditMetadata {
+interface AuditMetadata {
     fields: AuditMetadataField[]
     /**
      * True when the row records something that was REFUSED.

@@ -29,7 +29,7 @@ interface UpdatePreviewFilesUUID {
 }
 
 
-export interface FwdMsgInputState {
+interface FwdMsgInputState {
     fwdMsgBody: string,
     filesUploaded: AttachmentMediaReq[],
     filesPreview: FilePreview[],
@@ -46,7 +46,7 @@ const initialState: {fwdMsgInputInputState: FwdMsgInputState} = {
     }
 }
 
-export const fwdMsgSlice = createSlice({
+const fwdMsgSlice = createSlice({
     name: 'fwdMsg',
     initialState,
     reducers: {

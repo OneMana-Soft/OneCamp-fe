@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Bell, Bookmark, CircleUser, Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type, Users } from "@/lib/icons";
+import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type } from "@/lib/icons";
 import { useTranslateText } from "@/services/aiService";
 
 import {
@@ -11,17 +11,15 @@ import {
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
-import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import addEmojiIconSrc from "@/assets/addEmoji.svg"
-import { Card, CardContent } from "@/components/ui/card"
 import {Separator} from "@/components/ui/separator";
 import {preSelectedEmojis} from "@/components/drawers/consts/preSelectedEmojiConst";
 import {DrawerActionCard} from "@/components/drawerActionCard/drawerActionCard";
 import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
 import {DrawerDestructiveActionLink} from "@/components/drawerActionLink/drawerDestructiveActionLink";
-import {app_channel_path, app_chat_path, app_home_path, app_message_forward_path} from "@/types/paths";
+import {app_channel_path, app_chat_path, app_message_forward_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import {chat_forward_type} from "@/types/user";
 import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";

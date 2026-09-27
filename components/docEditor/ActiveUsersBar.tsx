@@ -16,7 +16,7 @@ import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 
-export interface ActiveUser {
+interface ActiveUser {
     id: string
     name: string
     color: string

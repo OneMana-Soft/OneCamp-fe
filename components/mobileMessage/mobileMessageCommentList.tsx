@@ -2,9 +2,7 @@
 
 import {CommentInfoInterface} from "@/types/comment";
 import {MobileMessage} from "@/components/mobileMessage/mobileMessage";
-import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {GetEndpointUrl} from "@/services/endPoints";
+import {UserProfileDataInterface} from "@/types/user";
 
 interface CommentsListProps {
     comments: CommentInfoInterface[]

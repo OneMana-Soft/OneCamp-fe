@@ -8,7 +8,7 @@ interface openedRecentlyStateInterface {
     openedRecently: boolean
 }
 
-export const mentionSlice = createSlice({
+const mentionSlice = createSlice({
     name: 'mention',
     initialState,
     reducers: {

@@ -82,4 +82,3 @@ export function LinkedFromSection({ refType, refUUID, className }: LinkedFromSec
   )
 }
 
-export default LinkedFromSection

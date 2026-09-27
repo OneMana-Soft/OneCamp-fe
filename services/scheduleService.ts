@@ -32,7 +32,7 @@ export interface ScheduleProposeResult {
   note?: string
 }
 
-export interface ScheduleProposeInput {
+interface ScheduleProposeInput {
   title?: string
   participants: string[] // names or uuids
   duration_mins?: number
@@ -60,7 +60,7 @@ export async function proposeSchedule(input: ScheduleProposeInput): Promise<Sche
   )
 }
 
-export interface ScheduleConfirmInput {
+interface ScheduleConfirmInput {
   title: string
   description?: string
   start: string // RFC3339
@@ -69,7 +69,7 @@ export interface ScheduleConfirmInput {
   sync_to_google?: boolean
 }
 
-export interface ScheduleConfirmResult {
+interface ScheduleConfirmResult {
   event_uuid: string
   title: string
   start: string
@@ -97,7 +97,7 @@ export interface RescheduleResult {
   note?: string
 }
 
-export interface RescheduleInput {
+interface RescheduleInput {
   window_days?: number
   business_start?: number
   business_end?: number
@@ -132,7 +132,7 @@ export async function proposeReschedule(
   )
 }
 
-export interface ConfirmRescheduleInput {
+interface ConfirmRescheduleInput {
   event_uuid: string
   start: string // RFC3339
   end: string // RFC3339

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface LoadingContextType {
@@ -28,12 +28,6 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       <GlobalProgressBar active={active} />
     </LoadingContext.Provider>
   );
-};
-
-export const useLoading = () => {
-  const context = useContext(LoadingContext);
-  if (!context) throw new Error('useLoading must be used within LoadingProvider');
-  return context;
 };
 
 const GlobalProgressBar: React.FC<{ active: boolean }> = ({ active }) => {

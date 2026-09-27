@@ -4,7 +4,7 @@ import { DocPreview } from "@/components/doc/docPreview";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
-import { FileText, MoreVertical } from "@/lib/icons";
+import { FileText } from "@/lib/icons";
 
 interface DocCardProps {
     doc: DocInfoInterface;

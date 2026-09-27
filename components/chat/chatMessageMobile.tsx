@@ -23,7 +23,6 @@ import {MessageReplyCount} from "@/components/message/messageReplyCount";
 import {ChatInfo} from "@/types/chat";
 import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
 import {removeHtmlTags} from "@/lib/utils/removeHtmlTags";
-import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import {setChatReplyTarget} from "@/store/slice/chatSlice";
 import {htmlToPreviewText} from "@/lib/utils/htmlToPreviewText";
 import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";

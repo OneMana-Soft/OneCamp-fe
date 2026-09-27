@@ -19,7 +19,7 @@ import {
 } from "@/types/channel"
 import { GroupedAvatar } from "@/components/groupedAvatar/groupedAvatar"
 import { NotificationBell } from "@/components/Notification/notificationBell"
-import React, { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { getNextNotification } from "@/lib/utils/getNextNotification"
 import { usePost } from "@/hooks/usePost"
 import { useDispatch } from "react-redux"

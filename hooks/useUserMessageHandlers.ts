@@ -1,11 +1,7 @@
 import {useDispatch} from "react-redux";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {UserProfileInterface} from "@/types/user";
-import {GetEndpointUrl} from "@/services/endPoints";
 import {useCallback} from "react";
 import mqttService, {MqttActionType} from "@/services/mqttService";
 import {clearUserEmojiStatus, updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus} from "@/store/slice/userSlice";
-import {undefined} from "zod";
 
 interface UseUserMessageHandlersProps {
     userUuid?: string

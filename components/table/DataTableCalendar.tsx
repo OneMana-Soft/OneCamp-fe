@@ -212,4 +212,3 @@ export function DataTableCalendar({
   )
 }
 
-export default DataTableCalendar

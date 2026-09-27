@@ -38,7 +38,7 @@ export interface OnboardingState {
 
 // One definition of the path, because the reader's SWR cache key and the writer's
 // target have to be the same string.
-export const onboardingUrl = "/admin/onboarding"
+const onboardingUrl = "/admin/onboarding"
 
 export async function getOnboardingStatus(): Promise<OnboardingState | undefined> {
     const res = await axiosInstance.get(onboardingUrl)

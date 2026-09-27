@@ -1,16 +1,8 @@
 "use client"
 
-import {useMedia} from "@/context/MediaQueryContext";
-import {Button} from "@/components/ui/button";
-import {openUI} from "@/store/slice/uiSlice";
-import { Plus } from "@/lib/icons";
-import {useDispatch} from "react-redux";
-import {ChatUserList} from "@/components/chat/chatUserList";
-import {usePathname} from "next/navigation";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {LoadingProvider} from "@/context/LoadingContext";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 

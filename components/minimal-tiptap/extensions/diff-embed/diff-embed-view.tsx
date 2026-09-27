@@ -154,4 +154,3 @@ export const DiffEmbedView: React.FC<{ node: { attrs: { diff?: string } } }> = (
     )
 }
 
-export default DiffEmbedView

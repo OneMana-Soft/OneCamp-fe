@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label"
 import { FileArchive, Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 
-export const RetentionCard: React.FC = () => {
+const RetentionCard: React.FC = () => {
     const [policy, setPolicy] = useState<RetentionPolicy | null>(null)
     const [draft, setDraft] = useState("")
     const [saving, setSaving] = useState(false)

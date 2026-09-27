@@ -42,7 +42,7 @@ export interface UnifiedSearchGroup {
   note?: string
 }
 
-export interface UnifiedSearchResponse {
+interface UnifiedSearchResponse {
   enabled: boolean
   query: string
   groups: UnifiedSearchGroup[]

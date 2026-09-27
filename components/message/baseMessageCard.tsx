@@ -51,7 +51,7 @@ import type { CommentInfoInterface } from "@/types/comment"
 import type { ChatInfo } from "@/types/chat"
 import type { PostsRes } from "@/types/post"
 
-export interface NormalizedForwardMessage {
+interface NormalizedForwardMessage {
   from: UserProfileDataInterface
   text: string
   channelName?: string
@@ -60,7 +60,7 @@ export interface NormalizedForwardMessage {
   createdAt: string
 }
 
-export interface BaseMessage {
+interface BaseMessage {
   uuid: string
   bodyText: string
   from: UserProfileDataInterface
@@ -154,7 +154,7 @@ export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
   }
 }
 
-export interface BaseMessageCardProps {
+interface BaseMessageCardProps {
   message: BaseMessage
   mediaGetUrl: string
   // Optional source context that enables the "Analyze with AI" action in the

@@ -70,4 +70,3 @@ export function Eyebrow({
   )
 }
 
-export default Eyebrow

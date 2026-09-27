@@ -98,4 +98,3 @@ export function McpToolRiskLegend({ className }: { className?: string }) {
   )
 }
 
-export default McpToolRiskBadge

@@ -18,14 +18,13 @@ import {
     startOfDay,
     endOfDay
 } from "date-fns";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Loader2, Search, Filter } from "@/lib/icons";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Loader2, Search } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useFetch } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { UserInfoRawInterface } from "@/types/user";
-import { GetEventsResponse, CalendarEventInterface } from "@/types/calendar";
+import { GetEventsResponse } from "@/types/calendar";
 import { TaskInfoInterface } from "@/types/task";
 import { cn } from "@/lib/utils/helpers/cn";
 import { calendarColors } from "@/lib/colors";
@@ -41,9 +40,6 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useRouter } from "next/navigation";
-
-// Constants for UI Rendering
-const MAX_EVENTS_PER_CELL = 3;
 
 export function CalendarApp() {
     const dispatch = useDispatch();

@@ -149,4 +149,3 @@ const ChatHistoryMenuUngated: React.FC<Props> = ({ onResume }) => {
 // AI edition whenever an admin has switched AI off. Wrapping the export covers
 // every render site rather than asking each one to remember.
 export const ChatHistoryMenu = withAI(ChatHistoryMenuUngated)
-export default ChatHistoryMenu

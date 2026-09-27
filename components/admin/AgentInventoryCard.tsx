@@ -71,7 +71,7 @@ function Sponsor({ name }: { name: string }) {
  * and what it was stopped from doing; a refusal is the permission system
  * working, so it takes the brand colour, never the error colour.
  */
-export function InventoryAgentRow({
+function InventoryAgentRow({
   agent: a,
   busy,
   onToggle,
@@ -118,7 +118,7 @@ export function InventoryAgentRow({
 }
 
 /** One live credential. */
-export function InventoryCredentialRow({
+function InventoryCredentialRow({
   credential: c,
   busy,
   onRevoke,

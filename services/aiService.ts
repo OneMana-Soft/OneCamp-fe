@@ -6,15 +6,6 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { authedStreamFetch } from "@/lib/utils/streamFetch";
 import { getCatchUp, CatchUpRequest, CatchUpResult } from "@/services/catchUpService";
 
-// --- Response Types ---
-
-export interface SummarizeResponse {
-    summary: string;
-    message_count: number;
-    channel_name?: string;
-    provider: string;
-}
-
 export interface SourceRef {
     content_type: "post" | "chat" | "doc" | "task" | "comment";
     content_uuid: string;
@@ -34,14 +25,6 @@ export interface SourceRef {
     doc_uuid?: string;
 }
 
-export interface AskAIResponse {
-    answer: string;
-    sources?: SourceRef[];
-    proposed_actions?: ProposedAction[];
-    session_id: string;
-    provider: string;
-}
-
 export interface AIStatusResponse {
     enabled: boolean;
     provider: string;
@@ -50,92 +33,6 @@ export interface AIStatusResponse {
     circuit_state: string;
     rate_limit_remaining: number;
 }
-
-// --- Hooks ---
-
-/**
- * Hook for channel/chat summarization ("Catch Me Up" feature).
- */
-export const useSummarizeChannel = () => {
-    const { makeRequest, isSubmitting } = usePost();
-
-    const summarize = useCallback(
-        async (channelUUID: string, messageCount?: number): Promise<SummarizeResponse | undefined> => {
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const localTime = new Date().toISOString();
-
-            return makeRequest<{ channel_uuid: string; message_count?: number; timezone?: string; local_time?: string }, SummarizeResponse>({
-                apiEndpoint: PostEndpointUrl.AISummarizeChannel,
-                payload: { 
-                    channel_uuid: channelUUID, 
-                    message_count: messageCount,
-                    timezone,
-                    local_time: localTime,
-                },
-                showToast: false,
-            });
-        },
-        [makeRequest]
-    );
-
-    return { summarize, isSubmitting };
-};
-
-/**
- * Hook for 1:1 DM summarization.
- */
-export const useSummarizeDM = () => {
-    const { makeRequest, isSubmitting } = usePost();
-
-    const summarize = useCallback(
-        async (toUserUUID: string, messageCount?: number): Promise<SummarizeResponse | undefined> => {
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const localTime = new Date().toISOString();
-
-            return makeRequest<{ to_user_uuid: string; message_count?: number; timezone?: string; local_time?: string }, SummarizeResponse>({
-                apiEndpoint: PostEndpointUrl.AISummarizeDM,
-                payload: { 
-                    to_user_uuid: toUserUUID, 
-                    message_count: messageCount,
-                    timezone,
-                    local_time: localTime,
-                },
-                showToast: false,
-            });
-        },
-        [makeRequest]
-    );
-
-    return { summarize, isSubmitting };
-};
-
-/**
- * Hook for Group Chat summarization.
- */
-export const useSummarizeGroup = () => {
-    const { makeRequest, isSubmitting } = usePost();
-
-    const summarize = useCallback(
-        async (chatGrpID: string, messageCount?: number): Promise<SummarizeResponse | undefined> => {
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const localTime = new Date().toISOString();
-
-            return makeRequest<{ chat_grp_id: string; message_count?: number; timezone?: string; local_time?: string }, SummarizeResponse>({
-                apiEndpoint: PostEndpointUrl.AISummarizeGroup,
-                payload: { 
-                    chat_grp_id: chatGrpID, 
-                    message_count: messageCount,
-                    timezone,
-                    local_time: localTime,
-                },
-                showToast: false,
-            });
-        },
-        [makeRequest]
-    );
-
-    return { summarize, isSubmitting };
-};
 
 /**
  * Hook for "Catch me up" — an AI recap of exactly what the user missed in a
@@ -159,48 +56,6 @@ export const useCatchUp = () => {
     );
 
     return { catchUp, isLoading };
-};
-
-/**
- * Hook for AI Q&A with multi-turn conversation support.
- * Tracks session_id across requests for conversation continuity.
- */
-export const useAskAI = () => {
-    const { makeRequest, isSubmitting } = usePost();
-    const [sessionId, setSessionId] = useState<string | null>(null);
-
-    const ask = useCallback(
-        async (question: string): Promise<AskAIResponse | undefined> => {
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const localTime = new Date().toISOString();
-
-            const result = await makeRequest<{ question: string; session_id?: string; timezone?: string; local_time?: string }, AskAIResponse>({
-                apiEndpoint: PostEndpointUrl.AIAsk,
-                payload: { 
-                    question, 
-                    session_id: sessionId || undefined,
-                    timezone,
-                    local_time: localTime,
-                },
-                showToast: false,
-            });
-
-            // Track session_id from response for conversation continuity
-            if (result?.session_id) {
-                setSessionId(result.session_id);
-            }
-
-            return result;
-        },
-        [makeRequest, sessionId]
-    );
-
-    // Clear the session to start a new conversation
-    const clearSession = useCallback(() => {
-        setSessionId(null);
-    }, []);
-
-    return { ask, isSubmitting, sessionId, clearSession };
 };
 
 /**
@@ -447,7 +302,7 @@ export const useAIStatus = () => {
 
 export type DocAIAction = 'write' | 'expand' | 'summarize' | 'fix_grammar' | 'shorten' | 'rewrite';
 
-export interface DocAIResponse {
+interface DocAIResponse {
     result: string;
     action: string;
     provider: string;
@@ -603,7 +458,7 @@ export interface ProposedAction {
     description: string;
 }
 
-export interface ExecuteActionResponse {
+interface ExecuteActionResponse {
     success: boolean;
     message: string;
     result_uuid?: string;
@@ -632,7 +487,7 @@ export const useExecuteAction = () => {
     return { executeAction, isSubmitting };
 };
 
-export interface AnalyzeImageResponse {
+interface AnalyzeImageResponse {
     description: string;
 }
 
@@ -699,7 +554,7 @@ export const useAnalyzeDocument = () => {
     return { analyzeDocument, isSubmitting };
 };
 
-export interface TranslateResponse {
+interface TranslateResponse {
     translation: string;
 }
 
@@ -768,7 +623,7 @@ export interface ChatSessionSummary {
     message_count: number
 }
 
-export interface ChatSessionMessage {
+interface ChatSessionMessage {
     role: "user" | "assistant"
     content: string
     created_at: string
@@ -786,7 +641,7 @@ export async function getChatSession(sessionId: string): Promise<ChatSessionMess
 }
 
 /** A conversation and whether its last answer is still being written on the server. */
-export interface ChatSessionState {
+interface ChatSessionState {
     messages: ChatSessionMessage[]
     /** True while an answer for this session is being generated; the exchange lands in messages when it finishes. */
     live: boolean

@@ -58,7 +58,7 @@ function isDownMove(e: React.KeyboardEvent) {
   return e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'j')
 }
 
-export interface DesktopReactionPickerProps {
+interface DesktopReactionPickerProps {
   showCustomReactions?: boolean
   onReactionSelect: (reaction: StandardReaction | SyncCustomReaction) => void
 }

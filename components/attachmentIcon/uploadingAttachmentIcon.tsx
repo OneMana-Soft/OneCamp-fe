@@ -1,13 +1,7 @@
 'use client';
 
-import { FileImage, FileText, FileVideo, File, X, Play } from "@/lib/icons";
-import { FileAudio2 } from "lucide-react";
-import Image from 'next/image';
-import {useEffect, useState} from "react";
+import { X } from "@/lib/icons";
 import { AttachmentType} from "@/types/attachment";
-import {getVideoThumbnail} from "@/lib/utils/file/getVideoThumbnail";
-import { useMediaFetch} from "@/hooks/useFetch";
-import {GetMediaURLRes} from "@/types/file";
 import {useMedia} from "@/context/MediaQueryContext";
 import {AttachmentIcon} from "@/components/attachments/attachmentIcon";
 

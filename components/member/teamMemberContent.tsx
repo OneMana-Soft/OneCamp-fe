@@ -1,15 +1,11 @@
 "use client"
 import MembersList from "@/components/member/membersList";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
-import {ChannelInfoInterfaceResp, ChannelMemberUpdateInterface} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
-import AddChannelMemberCombobox from "@/components/combobox/addChannelMemberCombobox";
 import {UserListInterfaceResp, type UserProfileInterface} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
-import {ProjectInfoRawInterface, ProjectMemberAddOrRemoveInterface} from "@/types/project";
-import AddProjectMemberCombobox from "@/components/combobox/addProjectMemberCombobox";
 import {TeamInfoRawInterface, TeamMemberAddOrRemoveInterface} from "@/types/team";
 import AddTeamMemberCombobox from "@/components/combobox/addTeamMemberCombobox";
 

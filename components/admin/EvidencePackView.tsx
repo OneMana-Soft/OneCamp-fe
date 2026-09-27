@@ -79,7 +79,7 @@ function Meta({ label, value }: { label: string; value: React.ReactNode }) {
     )
 }
 
-export const EvidencePackView: React.FC<{
+const EvidencePackView: React.FC<{
     pack: EvidencePack
     /** Saves the JSON the fingerprint belongs to. */
     onDownload?: () => void

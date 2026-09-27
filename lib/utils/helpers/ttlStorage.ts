@@ -84,18 +84,6 @@ export function setTTL(prefix: string, id: string, ttlMs: number): void {
 }
 
 /**
- * Removes a TTL entry — useful for "undo dismiss" flows.
- */
-export function clearTTL(prefix: string, id: string): void {
-    if (typeof window === "undefined") return
-    try {
-        localStorage.removeItem(prefix + id)
-    } catch {
-        /* ignore */
-    }
-}
-
-/**
  * sweepTTLKeys — global cleaner. Iterates every localStorage key under
  * the given prefix and removes the expired ones. Cheap (O(N) on the
  * keys, only on app boot or rare focus events) and bounded by the

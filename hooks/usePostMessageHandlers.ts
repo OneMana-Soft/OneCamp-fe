@@ -19,8 +19,6 @@ import {
 } from "@/store/slice/channelCommentSlice";
 import {incrementUserChannelUnread} from "@/store/slice/userSlice";
 import { RemoveChannelTyping } from "@/store/slice/typingSlice";
-import {usePathname} from "next/navigation";
-import {updateChatCallStatus} from "@/store/slice/chatSlice";
 interface UsePostMessageHandlersProps {
     userUuid?: string
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Github, GitBranch, Link2, RefreshCw, Download, Copy, AlertCircle, CheckCircle2, Sparkles, Loader2 } from "@/lib/icons";
+import { Github, GitBranch, RefreshCw, Download, Copy, AlertCircle, CheckCircle2, Sparkles, Loader2 } from "@/lib/icons";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button"
 import type { TaskInfoInterface } from "@/types/task"

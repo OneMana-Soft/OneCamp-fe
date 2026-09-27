@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
@@ -9,7 +8,7 @@ import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
 import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, MessageSquare } from "@/lib/icons";
+import { MessageSquare } from "@/lib/icons";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {USER_STATUS_ONLINE} from "@/types/user";
 import { Button } from "@/components/ui/button";

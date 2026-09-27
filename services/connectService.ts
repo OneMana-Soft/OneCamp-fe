@@ -30,7 +30,7 @@ export interface ConsentView {
   expires_at: string
 }
 
-export interface ApproveResult {
+interface ApproveResult {
   redirect: string
   agent_id: string
   agent_name: string

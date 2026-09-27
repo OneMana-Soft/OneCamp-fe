@@ -7,11 +7,6 @@ import {useUploadFile} from "@/hooks/useUploadFile";
 import UploadingAttachmentIcon from "@/components/attachmentIcon/uploadingAttachmentIcon";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {AttachmentMediaReq} from "@/types/attachment";
-import {deleteChatCommentPreviewFiles, removeChatCommentUploadedFiles} from "@/store/slice/chatCommentSlice";
-import {getGroupingId} from "@/lib/utils/getGroupingId";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {UserProfileInterface} from "@/types/user";
-import {deleteTaskCommentPreviewFiles, removeTaskCommentUploadedFiles} from "@/store/slice/createTaskCommentSlice";
 import {deleteDocCommentPreviewFiles, removeDocCommentUploadedFiles} from "@/store/slice/createDocCommentSlice";
 import {selectDocCommentInputState} from "@/store/selectors/createDocCommentSelectors";
 

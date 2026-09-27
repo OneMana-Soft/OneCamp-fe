@@ -1,6 +1,6 @@
 "use client"
 
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -10,8 +10,6 @@ import {updateChannelPosts, updateChannelScrollToBottom, mergeChannelPosts} from
 import {ChannelMessages} from "@/components/channel/channelMessages";
 import {useMessageResync} from "@/hooks/useMessageResync";
 import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
-import {UserProfileInterface} from "@/types/user";
-import { LoaderCircle } from "@/lib/icons";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";

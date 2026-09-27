@@ -13,7 +13,7 @@ export interface DocCommentInputState {
     filesPreview: FilePreview[]
 }
 
-export interface ExtendedDocCommentInputState {
+interface ExtendedDocCommentInputState {
     [key: string]:  DocCommentInputState;
 }
 
@@ -134,7 +134,7 @@ interface CreateCommentReaction {
     addedBy: UserProfileDataInterface
 }
 
-export interface  ExtendedCommentCount {
+interface  ExtendedCommentCount {
     [key: string]:  number;
 }
 

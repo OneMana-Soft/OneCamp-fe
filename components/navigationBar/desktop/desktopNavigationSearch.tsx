@@ -6,7 +6,6 @@ import { useRef, memo, useCallback } from "react"
 import { X, Search, Eye } from "@/lib/icons";
 import { SearchResult } from "@/services/searchService"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/ui/empty-state"

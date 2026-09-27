@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import {UserDMInterface, UserEmojiStatus, UserProfileDataInterface, UserStatus} from "@/types/user";
+import {UserDMInterface, UserEmojiStatus, UserProfileDataInterface} from "@/types/user";
 import {ChannelInfoInterface} from "@/types/channel";
 import {TeamInfoInterface} from "@/types/team";
 import {ProjectInfoInterface} from "@/types/project";
@@ -141,7 +141,7 @@ const initialState = {
   } as UserSidebarInterface
 };
 
-export const userSlice = createSlice({
+const userSlice = createSlice({
   name: "users",
   initialState,
   reducers: {

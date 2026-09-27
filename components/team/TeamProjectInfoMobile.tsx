@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { ColorIcon } from "@/components/colorIcon/colorIcon";
 import { openUI } from "@/store/slice/uiSlice";
 import { useDispatch } from "react-redux";
-import * as React from "react";
 import { useMedia } from "@/context/MediaQueryContext";
 import { statusColors } from "@/lib/colors";
 import { cn } from "@/lib/utils/helpers/cn";

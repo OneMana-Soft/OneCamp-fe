@@ -20,14 +20,14 @@ import { Badge } from "@/components/ui/badge"
  *    visually merges with the content area below.
  */
 
-export interface SectionTabItem {
+interface SectionTabItem {
     value: string
     label: string
     /** Optional unread / count badge to display next to label */
     count?: number | string
 }
 
-export interface SectionTabsProps {
+interface SectionTabsProps {
     /** Tab values, labels, optional counts */
     tabs: SectionTabItem[]
     /** Currently active tab */

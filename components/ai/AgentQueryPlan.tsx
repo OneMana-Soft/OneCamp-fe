@@ -141,7 +141,7 @@ function trimNum(n: number): string {
     return parseFloat(n.toFixed(4)).toString();
 }
 
-export function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
+function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
     // A stable signature of the incoming plan: when it changes (e.g. a new
     // message, or a streamed block finally closing) we reset local edits so the
     // card always reflects what the agent actually ran.

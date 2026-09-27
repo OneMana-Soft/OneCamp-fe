@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import { Clapperboard, Pencil, Users, Video } from "@/lib/icons"
 import {
     Drawer,

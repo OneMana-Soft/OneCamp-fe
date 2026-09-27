@@ -154,4 +154,3 @@ export function RelationCell({
   )
 }
 
-export default RelationCell

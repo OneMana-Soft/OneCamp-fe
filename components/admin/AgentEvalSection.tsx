@@ -232,4 +232,3 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
   )
 }
 
-export default AgentEvalSection

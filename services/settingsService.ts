@@ -14,7 +14,7 @@ export interface WorkspaceSettings {
     guest_access_enabled: boolean
 }
 
-export interface UpdateSettingsRequest {
+interface UpdateSettingsRequest {
     upload_limit_mb?: number
     allowed_users?: string[]
     resend_api_key?: string
@@ -332,7 +332,7 @@ export interface TranscriptionConfig {
     google_source: ConfigSource
 }
 
-export interface UpdateTranscriptionConfigRequest {
+interface UpdateTranscriptionConfigRequest {
     mode?: TranscriptionMode
     stt_provider?: STTProvider
     stt_model?: string

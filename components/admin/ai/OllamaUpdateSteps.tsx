@@ -1,6 +1,5 @@
 "use client"
 
-import React from "react"
 
 import { CopyableCode } from "@/components/ui/copyable-code"
 import { AlertTriangle } from "@/lib/icons"

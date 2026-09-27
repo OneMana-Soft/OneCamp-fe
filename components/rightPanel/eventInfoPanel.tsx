@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -10,7 +10,6 @@ import { Calendar, Clock, AlignLeft, User, X, Check, Users, Plus, Trash2, Calend
 import { Edit2, ArrowRightToLine } from "@/lib/icons";
 import RescheduleDialog from "@/components/ai/RescheduleDialog";
 import MeetingPrepDialog from "@/components/ai/MeetingPrepDialog";
-import { statusColors } from "@/lib/colors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,7 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList } from "@/components/ui/command";
 import { UserComboboxItem } from "@/components/combobox/userComboboxItem";
-import { cn } from "@/lib/utils/helpers/cn";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useSWRConfig } from "swr";
 import {closeRightPanel} from "@/store/slice/desktopRightPanelSlice";

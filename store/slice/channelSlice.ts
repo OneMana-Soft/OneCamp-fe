@@ -44,13 +44,13 @@ export interface MessageInputState {
     replyToText?: string
 }
 
-export interface ChannelScrollPosition {
+interface ChannelScrollPosition {
     [key: string]:  number;
 }
-export interface  ExtendedPosts {
+interface  ExtendedPosts {
     [key: string]:  PostsRes[];
 }
-export interface ExtendedInputState {
+interface ExtendedInputState {
     [key: string]:  MessageInputState;
 }
 
@@ -166,11 +166,6 @@ interface UpdatePost {
     htmlText: string
 }
 
-interface UpdatePostCommentCount {
-    postId: string
-    channelId: string
-}
-
 interface UpdatePostByPostId {
     channelId: string
     postId: string
@@ -258,7 +253,7 @@ const initialState = {
     deletedPosts: {} as TombstoneMap,
 }
 
-export const channelSlice = createSlice({
+const channelSlice = createSlice({
     name: 'channel',
     initialState,
     reducers: {

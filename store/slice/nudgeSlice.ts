@@ -20,7 +20,7 @@ const initialState: NudgeState = {
     hydrated: false,
 }
 
-export const nudgeSlice = createSlice({
+const nudgeSlice = createSlice({
     name: "nudge",
     initialState,
     reducers: {

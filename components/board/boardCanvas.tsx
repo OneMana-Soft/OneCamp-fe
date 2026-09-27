@@ -124,7 +124,7 @@ function cloneElement<T>(el: T): T {
 // is enforced by AI generation (which refuses to push a board past it). These
 // keep very large boards from degrading interactivity.
 export const BOARD_MAX_ELEMENTS = 5000
-export const BOARD_WARN_ELEMENTS = 4000
+const BOARD_WARN_ELEMENTS = 4000
 
 // boardAttachmentURL builds the backend image URL for a stored object. The
 // endpoint enforces board access and 307-redirects to a presigned MinIO URL,
@@ -170,7 +170,7 @@ interface BoardCanvasProps {
   onApiReady?: (api: ExcalidrawImperativeAPI) => void
 }
 
-export function BoardCanvas({
+function BoardCanvas({
   provider,
   boardId,
   synced,

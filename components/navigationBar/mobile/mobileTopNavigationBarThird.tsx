@@ -1,25 +1,18 @@
 "use client"
 
 import {usePathname, useRouter} from "next/navigation";
-import NextLink from "next/link";
 import {UserStatusNav} from "@/components/navigationBar/userStatusNav";
 import {UserAvatarNav} from "@/components/navigationBar/userAvatarNav";
 import {useDispatch, useSelector} from "react-redux";
 import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
-import { ArrowLeft, Clapperboard, Filter, Link, PanelRight, Plus, SendHorizontal, Users, Video } from "@/lib/icons";
-import { ArrowUpDown, CircleCheck, Ellipsis } from "@/lib/icons";
+import { Filter, Plus, SendHorizontal } from "@/lib/icons";
+import { Ellipsis } from "@/lib/icons";
 import {RootState} from "@/store/store";
 import {clickedMobileFwdMsgSend} from "@/store/slice/fwdMessageSlice";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import React, {useEffect} from "react";
-import {updateUserEmojiStatus} from "@/store/slice/userSlice";
-import {app_channel_call, app_channel_path, app_chat_call, app_grp_call} from "@/types/paths";
-import {
-    MobileTopNavigationBarSecondGroupChat
-} from "@/components/navigationBar/mobile/mobileTopNavigationBarSecondGroupChat";
 import {MobileTopNavigationBarThirdDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarThirdDoc";
 import {MobileBoardCreateButton} from "@/components/navigationBar/mobile/mobileBoardCreateButton";
 import NudgeBell from "@/components/ai/NudgeBell";

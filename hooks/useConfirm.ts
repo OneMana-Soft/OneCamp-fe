@@ -12,7 +12,7 @@ import { openUI } from "@/store/slice/uiSlice"
 // Why: window.confirm is synchronous, unstyled, blocks the main thread, is
 // suppressed in some embedded/PWA contexts, and breaks the Notion-like feel.
 // This routes every confirmation through one accessible, on-brand dialog.
-export interface ConfirmOptions {
+interface ConfirmOptions {
   title: string
   description: string
   confirmText?: string

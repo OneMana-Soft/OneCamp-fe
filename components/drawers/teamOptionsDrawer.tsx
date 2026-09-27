@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import { Pencil, Users } from "@/lib/icons"
 import {
     Drawer,

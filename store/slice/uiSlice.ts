@@ -1,13 +1,8 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { AttachmentMediaReq } from "@/types/attachment";
-import { UserEmojiStatus } from "@/types/user";
-
-// --- Types for UI Components ---
-
-export type UIType = 'dialog' | 'drawer' | 'sheet' | 'popover';
 
 // Re-using types from fragmented slices
-export interface RecordingPlayerInterface {
+interface RecordingPlayerInterface {
   egressId: string;
   mediaGetUrl: string;
   transcriptGetUrl: string;
@@ -16,17 +11,17 @@ export interface RecordingPlayerInterface {
   recordedAt: string;
 }
 
-export interface SingleUIState<T = any> {
+interface SingleUIState<T = any> {
   isOpen: boolean;
   data: T;
 }
 
-export interface DocShareUIState {
+interface DocShareUIState {
   isOpen: boolean;
   docId: string;
 }
 
-export interface RootUIState {
+interface RootUIState {
   // Dialogs
   createChannel: SingleUIState;
   createProject: SingleUIState;
@@ -210,9 +205,9 @@ const initialState: RootUIState = {
   // Popovers
 };
 
-export type GlobalUIType = keyof RootUIState;
+type GlobalUIType = keyof RootUIState;
 
-export const uiSlice = createSlice({
+const uiSlice = createSlice({
   name: "ui",
   initialState,
   reducers: {

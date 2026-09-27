@@ -162,7 +162,7 @@ function uiComponentSkeleton(c: BoardLaidComponent): Record<string, unknown> | n
   }
 }
 
-export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
+function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
   const [open, setOpen] = React.useState(false)
   const [mode, setMode] = React.useState<"compose" | "refine">("compose")
   const [prompt, setPrompt] = React.useState("")

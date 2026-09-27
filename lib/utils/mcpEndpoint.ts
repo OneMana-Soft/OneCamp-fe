@@ -88,7 +88,7 @@ export function mcpCurlExample(
  * September 2026; kept here, next to the URL they use, so a changed path is
  * one edit.
  */
-export interface MCPConnectRecipe {
+interface MCPConnectRecipe {
   id: string
   name: string
   steps: string[]

@@ -66,4 +66,3 @@ const ChannelMemoryIndicatorUngated: React.FC<{ channelUUID: string; isMember?: 
 // export covers every place this is rendered, desktop and mobile, rather than asking
 // each of them to remember.
 export const ChannelMemoryIndicator = withAI(ChannelMemoryIndicatorUngated)
-export default ChannelMemoryIndicator

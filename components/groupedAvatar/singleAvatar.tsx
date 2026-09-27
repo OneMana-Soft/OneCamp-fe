@@ -1,4 +1,3 @@
-import type * as React from "react"
 import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useUserAvatar } from "@/hooks/useUserAvatar"

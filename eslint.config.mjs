@@ -27,8 +27,6 @@ const eslintConfig = [
       "public/firebase-messaging-sw.js",
       // Generated config from tooling.
       "next-env.d.ts",
-      // Standalone debug scripts not part of the prod tree.
-      "reproduce_issue.js",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),

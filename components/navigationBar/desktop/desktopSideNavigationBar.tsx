@@ -15,7 +15,7 @@ import {DesktopNavType} from "@/types/nav";
 import {Badge} from "@/components/ui/badge";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
 import {DesktopNavigationEmojiStatus} from "@/components/navigationBar/desktop/desktopNavigationChatEmojiStatus";
-import React, { memo } from "react";
+import { memo } from "react";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
 import {formatCount} from "@/lib/utils/helpers/formatCount";
 import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";

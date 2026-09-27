@@ -96,4 +96,3 @@ export const CalloutView: React.FC<NodeViewProps> = ({ node, updateAttributes, e
   )
 }
 
-export default CalloutView

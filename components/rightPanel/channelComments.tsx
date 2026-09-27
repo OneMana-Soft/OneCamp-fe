@@ -50,7 +50,7 @@ import {
     updatePostByPostId,
     updatePostReactionPostId
 } from "@/store/slice/channelSlice";
-import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
+import {UserProfileInterface} from "@/types/user";
 import {useUploadFile} from "@/hooks/useUploadFile";
 
 export const ChannelComments = () => {

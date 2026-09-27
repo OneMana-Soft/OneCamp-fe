@@ -8,7 +8,6 @@ import { TeamInfoInterface, TeamListResponseInterface } from "@/types/team";
 import { TeamInfo } from "@/components/team/TeamInfo";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
 import { ErrorState } from "@/components/ui/error-state"
-import { LoadingStateCircle } from "@/components/loading/loadingStateCircle";
 import { ListSkeleton } from "@/components/ui/ListSkeleton";
 
 export const TeamList = () => {

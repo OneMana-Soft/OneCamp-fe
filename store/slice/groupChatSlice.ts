@@ -42,7 +42,7 @@ interface SetGroupChatReplyTarget {
 }
 
 
-export interface ExtendedChatInputState {
+interface ExtendedChatInputState {
     [key: string]:  ChatInputState;
 }
 
@@ -183,7 +183,7 @@ const initialState = {
     deletedChats: {} as TombstoneMap,
 }
 
-export const groupChatSlice = createSlice({
+const groupChatSlice = createSlice({
     name: 'groupChat',
     initialState,
     reducers: {

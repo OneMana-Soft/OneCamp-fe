@@ -121,4 +121,3 @@ export function PublishTemplateDialog({
   )
 }
 
-export default PublishTemplateDialog

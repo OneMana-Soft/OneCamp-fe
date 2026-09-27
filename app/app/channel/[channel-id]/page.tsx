@@ -2,7 +2,6 @@
 
 import { useRef, useEffect } from "react";
 import { useMedia } from "@/context/MediaQueryContext";
-import { MobileTextInput } from "@/components/textInput/mobileTextInput";
 import { ChannelIdDesktop } from "@/components/channel/chanelIdDesktop";
 import {useParams} from "next/navigation";
 import {ChannelIdMobile} from "@/components/channel/channelIdMobile";

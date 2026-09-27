@@ -1,10 +1,10 @@
 import { AttachmentType } from "@/types/attachment"
 
-export const ATTACHMENT_TYPE_IMAGE = "image"
-export const ATTACHMENT_TYPE_DOC = "document"
-export const ATTACHMENT_TYPE_AUDIO = "audio"
-export const ATTACHMENT_TYPE_VIDEO = "video"
-export const ATTACHMENT_TYPE_OTHER = "other"
+const ATTACHMENT_TYPE_IMAGE = "image"
+const ATTACHMENT_TYPE_DOC = "document"
+const ATTACHMENT_TYPE_AUDIO = "audio"
+const ATTACHMENT_TYPE_VIDEO = "video"
+const ATTACHMENT_TYPE_OTHER = "other"
 
 /**
  * Extension → AttachmentType lookup.

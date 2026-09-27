@@ -2,7 +2,7 @@ import axiosInstance from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 /** What leaving today's note did. */
-export interface AgentNoteResult {
+interface AgentNoteResult {
   posted: boolean
   /** The DM to open: /app/chat/{bot_uuid}. */
   bot_uuid?: string

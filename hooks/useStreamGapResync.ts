@@ -45,4 +45,3 @@ export function useStreamGapResync(onResync: () => void, enabled = true): void {
     }, [nonce, enabled])
 }
 
-export default useStreamGapResync

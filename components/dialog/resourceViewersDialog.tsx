@@ -39,7 +39,7 @@ interface ResourceViewersDialogProps {
   noun?: string
 }
 
-export function ResourceViewersDialog({
+function ResourceViewersDialog({
   open,
   onOpenChange,
   viewersEndpoint,

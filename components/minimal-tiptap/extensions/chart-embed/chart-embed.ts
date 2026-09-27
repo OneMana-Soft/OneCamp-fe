@@ -4,7 +4,7 @@ import { Node, mergeAttributes } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
 import { ChartEmbedView } from "./chart-embed-view"
 
-export interface ChartEmbedOptions {
+interface ChartEmbedOptions {
   HTMLAttributes: Record<string, any>
 }
 
@@ -56,4 +56,3 @@ export const ChartEmbed = Node.create<ChartEmbedOptions>({
   },
 })
 
-export default ChartEmbed

@@ -28,7 +28,7 @@ export interface PwaPromptEnv {
 }
 
 export const PWA_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000
-export const PWA_MIN_VISITS = 2
+const PWA_MIN_VISITS = 2
 
 export function pwaPromptKind(e: PwaPromptEnv): PwaPromptKind {
   if (!e.mobile || e.standalone || e.demo) return null

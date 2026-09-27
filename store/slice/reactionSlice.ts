@@ -11,7 +11,7 @@ interface FrequentReactionsState {
     frequentReactionIdsMap: Record<string, number> | null
 }
 
-export const reactionSlice = createSlice({
+const reactionSlice = createSlice({
     name: "reaction",
     initialState,
     reducers: {

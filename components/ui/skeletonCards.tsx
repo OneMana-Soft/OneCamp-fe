@@ -56,4 +56,3 @@ export const SkeletonCards: React.FC<{
   </div>
 )
 
-export default SkeletonCards

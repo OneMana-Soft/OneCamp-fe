@@ -4,7 +4,6 @@ import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import type * as React from "react"
 
 interface MessagePreviewAvatarProps {
     userInfo?: UserProfileDataInterface

@@ -170,4 +170,3 @@ export const AgentLearningSection: React.FC<{ agentId: string }> = ({ agentId })
     )
 }
 
-export default AgentLearningSection

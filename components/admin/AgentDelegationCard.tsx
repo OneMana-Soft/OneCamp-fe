@@ -15,7 +15,7 @@
  * something actually differs from what is stored — no "did that apply?" ambiguity.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,7 +34,7 @@ import { getAIConfig, setAIAgentDelegation, type AIConfig } from "@/services/aiM
  *  value the server will clamp — a silently-corrected setting is a lie. */
 const HOP_CHOICES = [1, 2, 3, 4, 5] as const
 
-export function AgentDelegationCard() {
+function AgentDelegationCard() {
   const { toast } = useToast()
   const [settings, setSettings] = useState<AIConfig | undefined>()
   const vetoed = !!settings?.agent_delegation_vetoed_by_env

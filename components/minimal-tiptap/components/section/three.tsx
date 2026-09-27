@@ -191,4 +191,3 @@ export const SectionThree: React.FC<SectionThreeProps> = ({ editor, size, varian
 
 SectionThree.displayName = 'SectionThree'
 
-export default SectionThree

@@ -275,4 +275,3 @@ const ComposerAIButtonUngated: React.FC<ComposerAIButtonProps> = ({
 // whenever an admin has switched AI off. Wrapping the export covers every place this
 // is rendered, desktop and mobile, instead of asking each of them to remember.
 export const ComposerAIButton = withAI(ComposerAIButtonUngated)
-export default ComposerAIButton

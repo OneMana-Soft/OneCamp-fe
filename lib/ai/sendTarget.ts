@@ -14,7 +14,7 @@
  * question, and clearing the box then would throw away whatever the person had
  * half-typed before they clicked it.
  */
-export interface SendTarget {
+interface SendTarget {
     /** The question to ask. Empty means there is nothing to send. */
     text: string
     /** Whether the composer should be emptied and reset after sending. */

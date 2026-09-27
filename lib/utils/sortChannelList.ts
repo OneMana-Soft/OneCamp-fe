@@ -1,4 +1,3 @@
-import {Channel} from "node:diagnostics_channel";
 import {ChannelInfoInterface} from "@/types/channel";
 
 export const sortChannelList = (channels: ChannelInfoInterface[], favUUIDs?: Set<string>) => {

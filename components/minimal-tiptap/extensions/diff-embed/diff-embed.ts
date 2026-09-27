@@ -4,7 +4,7 @@ import { Node, mergeAttributes } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
 import { DiffEmbedView } from "./diff-embed-view"
 
-export interface DiffEmbedOptions {
+interface DiffEmbedOptions {
   HTMLAttributes: Record<string, any>
 }
 
@@ -58,4 +58,3 @@ export const DiffEmbed = Node.create<DiffEmbedOptions>({
   },
 })
 
-export default DiffEmbed

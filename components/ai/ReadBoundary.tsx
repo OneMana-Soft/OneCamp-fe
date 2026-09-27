@@ -78,4 +78,3 @@ export const ReadBoundary: React.FC<{
     )
 }
 
-export default ReadBoundary

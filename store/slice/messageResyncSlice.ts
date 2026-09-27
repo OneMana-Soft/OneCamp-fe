@@ -32,7 +32,7 @@ const initialState: MessageResyncState = {
     nonce: 0,
 }
 
-export const messageResyncSlice = createSlice({
+const messageResyncSlice = createSlice({
     name: "messageResync",
     initialState,
     reducers: {

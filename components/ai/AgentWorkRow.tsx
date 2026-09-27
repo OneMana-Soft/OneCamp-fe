@@ -28,7 +28,7 @@ import { withAI } from "@/components/common/withFeature"
 // State presentation in one place: order (blocked first — it needs the viewer),
 // the human label, and whether it draws attention. Unknown states degrade to a
 // calm queued-like row rather than rendering blank.
-export const AGENT_WORK_STATE_META: Record<ActiveWorkState, { order: number; label: string; attention: boolean }> = {
+const AGENT_WORK_STATE_META: Record<ActiveWorkState, { order: number; label: string; attention: boolean }> = {
   blocked: { order: 0, label: "Waiting on you", attention: true },
   working: { order: 1, label: "Working", attention: false },
   stopping: { order: 2, label: "Stopping…", attention: false },
@@ -48,7 +48,7 @@ export function sortAgentWork(items: ActiveWorkItem[]): ActiveWorkItem[] {
   })
 }
 
-export const AgentWorkStateIcon: React.FC<{ state: ActiveWorkState }> = ({ state }) => {
+const AgentWorkStateIcon: React.FC<{ state: ActiveWorkState }> = ({ state }) => {
   if (state === "working") return <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" />
   if (state === "stopping") return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
   if (state === "blocked") return <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
@@ -178,4 +178,3 @@ const AgentWorkRowUngated: React.FC<{
 // export covers every place this is rendered, desktop and mobile, rather than asking
 // each of them to remember.
 export const AgentWorkRow = withAI(AgentWorkRowUngated)
-export default AgentWorkRow

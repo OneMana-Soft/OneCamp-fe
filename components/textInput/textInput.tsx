@@ -30,7 +30,7 @@ import {Toggle} from "@/components/ui/toggle";
 import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
 import { CHAT_COMMANDS, maybeDispatchSlashCommand, extractSlashCommandFromEditor } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
 
-export interface MinimalTiptapProps
+interface MinimalTiptapProps
     extends Omit<UseMinimalTiptapEditorProps, "onUpdate"> {
   value?: Content;
   isOutputText?: boolean;
@@ -479,7 +479,7 @@ const StaticRichText = React.forwardRef<HTMLDivElement, { html: string; classNam
 );
 StaticRichText.displayName = "StaticRichText";
 
-export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>((props, ref) => {
+const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>((props, ref) => {
     if (props.isOutputText && !props.editable && canRenderStatically(props.content)) {
         return <StaticRichText ref={ref} html={props.content} className={props.className} contentClassName={props.editorContentClassName} />;
     }

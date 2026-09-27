@@ -53,25 +53,3 @@ export const ChatSkeleton = () => {
         </div>
     )
 }
-
-/**
- * GenericSkeleton — generic page-level placeholder. Used by detail pages
- * that don't have a chat-specific layout. Matches PageContainer density.
- */
-export const GenericSkeleton = () => {
-    return (
-        <div className="p-4 md:p-6 space-y-6">
-            <Skeleton className="h-7 w-48" />
-            <div className="space-y-2">
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-[92%]" />
-                <Skeleton className="h-3 w-[80%]" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                <Skeleton className="h-28 rounded-lg" />
-                <Skeleton className="h-28 rounded-lg" />
-                <Skeleton className="h-28 rounded-lg" />
-            </div>
-        </div>
-    )
-}

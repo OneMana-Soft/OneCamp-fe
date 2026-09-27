@@ -8,7 +8,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import ChannelMemberContent from "@/components/member/channelMemberContent";
 import {ProjectMemberContent} from "@/components/member/projectMemberContent";
 
 

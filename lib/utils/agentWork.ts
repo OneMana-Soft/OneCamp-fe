@@ -18,7 +18,7 @@
 import type { ActiveWorkItem, ActiveWorkState } from "@/services/agentService"
 import type { msgAgentWorkInterface } from "@/services/mqttService"
 
-export interface AgentWorkEventOutcome {
+interface AgentWorkEventOutcome {
     /** The list to render now. Reference-equal to the input when nothing changed. */
     items: ActiveWorkItem[]
     /**

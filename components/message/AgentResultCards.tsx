@@ -27,12 +27,12 @@ import { GitBranch, GitPullRequest, GitMerge, ExternalLink } from "@/lib/icons"
 
 // The small set of visual treatments a card can request. Kept as a closed union
 // (not arbitrary classes) so every provider stays on-brand and consistent.
-export type ResultCardIcon = "pr" | "merge" | "branch" | "external"
-export type ResultCardAccent = "success" | "primary" | "muted"
+type ResultCardIcon = "pr" | "merge" | "branch" | "external"
+type ResultCardAccent = "success" | "primary" | "muted"
 
 // ResultCard is the provider-agnostic descriptor the chrome renders. `key` is a
 // stable de-dupe id (usually the href). `priority` orders cards (lower first).
-export interface ResultCard {
+interface ResultCard {
   key: string
   href: string
   icon: ResultCardIcon
@@ -46,7 +46,7 @@ export interface ResultCard {
 // A provider inspects the raw (HTML or plain-text) message body and returns any
 // result cards it recognizes. MUST be pure, fast, and never throw for bad input
 // (extractResultCards guards, but providers should still be defensive).
-export type ResultCardProvider = (raw: string) => ResultCard[]
+type ResultCardProvider = (raw: string) => ResultCard[]
 
 // ── Registry (the single extension point) ─────────────────────────────────────
 
@@ -55,14 +55,14 @@ const providers: ResultCardProvider[] = []
 // registerResultProvider adds a provider to the global registry. Adding a new
 // agent result type is exactly this one call (see the built-ins at the bottom):
 // no message component ever changes. Append-only + module-scoped.
-export function registerResultProvider(p: ResultCardProvider): void {
+function registerResultProvider(p: ResultCardProvider): void {
   if (typeof p === "function") providers.push(p)
 }
 
 // extractResultCards runs every registered provider over the message, de-dupes
 // by key (first match wins), orders by priority, and caps the count. Bounded +
 // resilient (a throwing provider is skipped), so it's safe on every render.
-export function extractResultCards(raw: string, max = 4): ResultCard[] {
+function extractResultCards(raw: string, max = 4): ResultCard[] {
   if (!raw) return []
   const byKey = new Map<string, ResultCard>()
   for (const provider of providers) {
@@ -229,4 +229,3 @@ function gitlabProvider(raw: string): ResultCard[] {
 registerResultProvider(githubProvider)
 registerResultProvider(gitlabProvider)
 
-export default AgentResultCards

@@ -6,9 +6,7 @@ import { Video, Loader2 } from "@/lib/icons";
 import { statusColors } from "@/lib/colors";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { subDays } from "date-fns";
-import {RecordingListResult} from "@/components/recording/recordingListResult";
 import {useFetch} from "@/hooks/useFetch";
-import {UserListInterfaceResp} from "@/types/user";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {ChannelInfoInterfaceResp} from "@/types/channel";
 import {RecordingInfoInterface, RecordingPaginationResRaw} from "@/types/recording";
