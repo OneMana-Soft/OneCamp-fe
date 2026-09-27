@@ -168,7 +168,7 @@ export function NotificationPreferencesCard() {
 
       <CardContent className="px-0 space-y-6">
         {!supported && !isLoading && (
-          <div className="text-sm rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-900/40 p-3 text-amber-900 dark:text-amber-100">
+          <div className="text-sm rounded-md border border-warning/30 bg-warning/10 p-3 text-amber-900 dark:text-amber-100">
             Your workspace admin hasn't enabled email yet. Push and in-app
             notifications still work as expected.
           </div>

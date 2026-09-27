@@ -483,7 +483,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
         {/* Recording Banner */}
         {isRecording && recordingUser && (
             <div className="absolute top-0 left-0 w-full flex justify-center z-20 pointer-events-none">
-                <div className="bg-red-500/90 backdrop-blur text-white text-xs font-medium px-4 py-1 rounded-b-lg shadow-lg animate-in slide-in-from-top-full duration-300">
+                <div className="bg-destructive/90 backdrop-blur text-white text-xs font-medium px-4 py-1 rounded-b-lg shadow-lg animate-in slide-in-from-top-full duration-300">
                     {recordingUser} is recording
                 </div>
             </div>

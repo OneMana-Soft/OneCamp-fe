@@ -115,7 +115,7 @@ export default function ConnectorsCard() {
                                 <div className="flex items-center gap-2">
                                     <span className="font-medium text-sm">{c.name}</span>
                                     {c.connected && (
-                                        <Badge className="text-3xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                        <Badge className="text-3xs bg-success/10 text-success">
                                             <Check className="h-3 w-3 mr-0.5" />Connected
                                         </Badge>
                                     )}
@@ -125,7 +125,7 @@ export default function ConnectorsCard() {
                                     {c.permissions.map((p, i) => (
                                         <li key={i} className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                                             {p.capability === "write"
-                                                ? <ShieldCheck className="h-3 w-3 text-amber-500" />
+                                                ? <ShieldCheck className="h-3 w-3 text-warning" />
                                                 : <Eye className="h-3 w-3 text-muted-foreground" />}
                                             {p.description}
                                         </li>

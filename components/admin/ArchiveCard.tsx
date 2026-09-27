@@ -49,10 +49,10 @@ const UNSUPPORTED: string[] = []
 const UNSUPPORTED_UNDO: string[] = ["docs", "recordings"]
 
 const STATUS_STYLES: Record<string, { icon: React.ReactNode; color: string }> = {
-  pending: { icon: <Clock className="h-3.5 w-3.5" />, color: "bg-yellow-500/10 text-warning border-yellow-500/20" },
+  pending: { icon: <Clock className="h-3.5 w-3.5" />, color: "bg-warning/10 text-warning border-warning/20" },
   running: { icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" />, color: "bg-blue-500/10 text-info border-blue-500/20" },
   completed: { icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: "bg-success/10 text-success border-success/20" },
-  failed: { icon: <XCircle className="h-3.5 w-3.5" />, color: "bg-red-500/10 text-destructive border-red-500/20" },
+  failed: { icon: <XCircle className="h-3.5 w-3.5" />, color: "bg-destructive/10 text-destructive border-destructive/20" },
   cancelled: { icon: <AlertTriangle className="h-3.5 w-3.5" />, color: "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20" },
 }
 
@@ -215,9 +215,9 @@ const ArchiveCard = () => {
                           <span>{new Date(job.created_at).toLocaleString()}</span>
                           {job.items_processed > 0 && <span>{job.items_processed} processed</span>}
                           {job.items_archived > 0 && <span className="text-success">{job.items_archived} archived</span>}
-                          {job.items_failed > 0 && <span className="text-red-500">{job.items_failed} failed</span>}
+                          {job.items_failed > 0 && <span className="text-destructive">{job.items_failed} failed</span>}
                         </div>
-                        {job.error_message && <p className="text-xs text-red-500 mt-1 break-words">{job.error_message}</p>}
+                        {job.error_message && <p className="text-xs text-destructive mt-1 break-words">{job.error_message}</p>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

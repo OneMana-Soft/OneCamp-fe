@@ -340,7 +340,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
                           ) : isPR ? (
                             <GitPullRequest className="h-4 w-4 text-purple-500" />
                           ) : (
-                            <CircleDot className="h-4 w-4 text-green-500" />
+                            <CircleDot className="h-4 w-4 text-success" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">

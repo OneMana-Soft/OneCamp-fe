@@ -240,8 +240,8 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
             </div>
           )}
 
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs flex gap-2">
-            <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs flex gap-2">
+            <AlertCircle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
             <p className="text-muted-foreground">
               Workspace exports include public channels only. DMs and private channels
               require a Corporate (Plus/Enterprise) export. The plan step will tell

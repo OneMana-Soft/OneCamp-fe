@@ -82,7 +82,7 @@ function AuthErrorMessage() {
   const msg = knownErrorMessages[error] || "Sign-in failed. Please try again or contact your administrator.";
 
   return (
-    <div className="bg-red-500/10 border-l-4 border-red-500 text-red-500 p-4 rounded-md shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+    <div className="bg-destructive/10 border-l-4 border-red-500 text-destructive p-4 rounded-md shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
       <div className="flex items-start">
         <AlertCircle className="h-5 w-5 mr-3 mt-0.5 shrink-0" />
         <div>
@@ -633,7 +633,7 @@ export default function SignUp() {
                     disabled={isLoading || isDemoLoading} 
                     onClick={() => authService.loginWithSAML()}
                   >
-                    <svg className="w-4 h-4 mr-1.5 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg className="w-4 h-4 mr-1.5 text-success shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor"/>
                     </svg>
                     SAML 2.0

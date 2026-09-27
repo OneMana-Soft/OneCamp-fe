@@ -268,7 +268,7 @@ export default function BoardPage() {
           className={cn(
             "flex shrink-0 items-center justify-center gap-2 px-4 py-1.5 text-xs font-medium",
             collabStatus === "offline"
-              ? "border-b border-amber-500/20 bg-amber-500/10 text-amber-600"
+              ? "border-b border-warning/20 bg-warning/10 text-warning"
               : "border-b bg-muted/50 text-muted-foreground",
           )}
         >

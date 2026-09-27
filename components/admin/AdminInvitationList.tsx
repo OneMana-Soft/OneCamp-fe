@@ -35,7 +35,7 @@ function getStatusBadge(status: string) {
       )
     case "expired":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-red-500/10 text-destructive">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-destructive/10 text-destructive">
           <XCircle className="h-3 w-3" />
           Expired
         </span>
@@ -43,7 +43,7 @@ function getStatusBadge(status: string) {
     case "pending":
     default:
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-yellow-500/10 text-warning">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-warning/10 text-warning">
           <AlertCircle className="h-3 w-3" />
           Pending
         </span>

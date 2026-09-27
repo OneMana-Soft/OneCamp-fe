@@ -21,10 +21,10 @@ export function ConnectionStatusIndicator({ compact = false }: ConnectionStatusI
   let statusText = "Offline"
 
   if (isConnected) {
-    statusColor = "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]"
+    statusColor = "bg-success shadow-[0_0_10px_rgba(16,185,129,0.8)]"
     statusText = "Connected"
   } else if (isConnecting) {
-    statusColor = "bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+    statusColor = "bg-warning animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]"
     statusText = "Connecting…"
   }
 

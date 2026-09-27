@@ -64,7 +64,7 @@ const GitHubCallbackPage = () => {
 
         {status === "success" && (
           <>
-            <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-3" />
+            <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-3" />
             <h2 className="text-lg font-semibold mb-1">GitHub Connected!</h2>
             <p className="text-sm text-muted-foreground">Redirecting you back to the admin dashboard…</p>
           </>

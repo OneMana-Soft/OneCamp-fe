@@ -205,11 +205,11 @@ function AppRow({
                     <Badge variant="secondary" className="text-3xs">{KIND_LABELS[app.kind] || app.kind}</Badge>
                     {app.kind === "oauth" && (
                         app.is_connected
-                            ? <Badge className="text-3xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><Check className="h-3 w-3 mr-0.5" />Connected</Badge>
+                            ? <Badge className="text-3xs bg-success/10 text-success"><Check className="h-3 w-3 mr-0.5" />Connected</Badge>
                             : <Badge variant="outline" className="text-3xs"><X className="h-3 w-3 mr-0.5" />Not connected</Badge>
                     )}
                     {app.has_api_key && (
-                        <Badge className="text-3xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"><Check className="h-3 w-3 mr-0.5" />Key set</Badge>
+                        <Badge className="text-3xs bg-success/10 text-success"><Check className="h-3 w-3 mr-0.5" />Key set</Badge>
                     )}
                 </div>
                 {app.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{app.description}</p>}
@@ -438,7 +438,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                     <div
                         className={`mb-2 rounded-lg border p-2.5 text-xs ${
                             testResult.success
-                                ? "border-emerald-400/50 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400"
+                                ? "border-emerald-400/50 bg-success/10 text-success"
                                 : "border-destructive/50 bg-destructive/10 text-destructive"
                         }`}
                     >

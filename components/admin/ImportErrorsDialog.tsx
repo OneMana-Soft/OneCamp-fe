@@ -27,9 +27,9 @@ interface Props {
 }
 
 const SEVERITY_ICON: Record<string, React.ReactNode> = {
-  warning: <AlertTriangle className="h-4 w-4 text-amber-500" />,
-  error: <AlertCircle className="h-4 w-4 text-red-500" />,
-  fatal: <XCircle className="h-4 w-4 text-red-700" />,
+  warning: <AlertTriangle className="h-4 w-4 text-warning" />,
+  error: <AlertCircle className="h-4 w-4 text-destructive" />,
+  fatal: <XCircle className="h-4 w-4 text-destructive" />,
 }
 
 export const ImportErrorsDialog: React.FC<Props> = ({ jobId, open, onOpenChange }) => {

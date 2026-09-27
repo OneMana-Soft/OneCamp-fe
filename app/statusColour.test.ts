@@ -108,7 +108,7 @@ describe("status colour tokens", () => {
     // while a colour is a claim about meaning and a warning amber is indistinguishable
     // from a decorative one at the level of a regex. Surface by surface, with eyes on
     // the screen, not in a blind sweep.
-const BASELINE = 387
+const BASELINE = 32
     const total = files.reduce(
       (n, f) => n + (readFileSync(f, "utf8").match(RAW_HUE_UTILITY)?.length ?? 0),
       0,

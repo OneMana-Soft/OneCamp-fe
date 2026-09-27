@@ -65,7 +65,7 @@ export function TaskGitHubSection({
               )}
               {syncStatus?.status === "pending" && (
                 <div className="flex items-center gap-1 text-warning">
-                  <div className="h-2 w-2 animate-pulse rounded-full bg-amber-600" />
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-warning" />
                   <span className="text-3xs font-medium">Syncing…</span>
                 </div>
               )}

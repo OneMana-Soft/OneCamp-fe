@@ -402,7 +402,7 @@ export default function TranscriptionSettingsCard() {
                                         "flex items-start gap-2 rounded-md border px-3 py-2 text-xs",
                                         testResult.ok
                                             ? "border-success/20 bg-success/10 text-success"
-                                            : "border-red-500/20 bg-red-500/10 text-destructive",
+                                            : "border-destructive/20 bg-destructive/10 text-destructive",
                                     )}
                                     role="status"
                                 >

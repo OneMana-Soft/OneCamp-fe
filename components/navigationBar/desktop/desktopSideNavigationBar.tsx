@@ -83,7 +83,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
                 <CallActiveIndicator size="sm" pulse={false} className="shrink-0" />
             )}
             {ch.isFavorite && (
-                <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />
+                <Star className="h-3 w-3 text-warning fill-amber-500 shrink-0" />
             )}
             {hasUnread ? (
                 <Badge variant="sidebar" className="ml-auto pointer-events-none shrink-0">

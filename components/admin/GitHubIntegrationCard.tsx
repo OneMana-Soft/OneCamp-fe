@@ -303,7 +303,7 @@ const GitHubIntegrationCard = () => {
             </div>
 
             {isConnected && rateLimitData?.connected && (rateLimitData.percent || 100) < 20 && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-warning">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/20 text-warning">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
                 <div className="text-xs">
                   <span className="font-medium">GitHub API rate limit low:</span> {rateLimitData.remaining} / {rateLimitData.limit} requests remaining. Sync operations may fail until the limit resets.

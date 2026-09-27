@@ -452,7 +452,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                                                 ? "bg-warning animate-pulse"
                                                 : collabStatus === 'offline'
                                                 ? "bg-warning"
-                                                : "bg-red-500"
+                                                : "bg-destructive"
                                         )} />
                                         <span className="capitalize opacity-80 text-3xs font-medium tracking-tight">
                                             {collabStatus === 'synced' ? 'connected' : collabStatus}

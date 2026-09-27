@@ -28,9 +28,9 @@ import {
 const CATEGORY_STYLES: Record<string, string> = {
     settings: "bg-blue-500/10 text-info border-blue-500/20",
     integration: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20",
-    auth: "bg-amber-500/10 text-warning border-amber-500/20",
+    auth: "bg-warning/10 text-warning border-warning/20",
     app: "bg-success/10 text-success border-success/20",
-    security: "bg-red-500/10 text-destructive border-red-500/20",
+    security: "bg-destructive/10 text-destructive border-destructive/20",
     // Agent activity: an agent acting for a person, including calls arriving over
     // MCP from outside the workspace. Visually distinct because "was this a human
     // or an agent on their behalf" is the first thing an auditor scans for.
@@ -254,7 +254,7 @@ export default function AdminAuditLog() {
                         {verifyResult && (
                             <Badge
                                 variant="outline"
-                                className={`text-3xs ${verifyResult.ok ? "text-success border-success/30" : "text-red-600 border-red-500/30"}`}
+                                className={`text-3xs ${verifyResult.ok ? "text-success border-success/30" : "text-destructive border-destructive/30"}`}
                                 title={verifyResult.message}
                             >
                                 {verifyResult.ok ? `Verified · ${verifyResult.checked}` : "Tampering detected"}
