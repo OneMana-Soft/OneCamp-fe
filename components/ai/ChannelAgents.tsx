@@ -38,11 +38,12 @@ function ChannelAgents({ channelId, isMember }: { channelId: string; isMember: b
 
   return (
     <span className="inline-flex min-w-0 items-center gap-1">
-      <span aria-hidden="true"> · </span>
+      {/* Margins, not spaces: a flex row drops the whitespace around the dot. */}
+      <span aria-hidden="true" className="mx-1">·</span>
       <Sparkles className="h-3 w-3 shrink-0 text-brand" aria-hidden="true" />
       {agents.slice(0, SHOWN).map((a, i) => (
         <span key={a.bot_user_id} className="inline-flex min-w-0 items-center">
-          {i > 0 && <span aria-hidden="true">,&nbsp;</span>}
+          {i > 0 && <span aria-hidden="true" className="mr-1">,</span>}
           <button
             type="button"
             onClick={() => open(a.bot_user_id)}
@@ -53,7 +54,7 @@ function ChannelAgents({ channelId, isMember }: { channelId: string; isMember: b
           </button>
         </span>
       ))}
-      {rest > 0 && <span className="shrink-0">+{rest}</span>}
+      {rest > 0 && <span className="ml-1 shrink-0">+{rest}</span>}
     </span>
   )
 }
