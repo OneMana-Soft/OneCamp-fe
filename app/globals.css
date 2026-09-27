@@ -910,3 +910,9 @@ html[data-media-collapsed="true"] [data-message-media] {
     color: var(--foreground);
   }
 }
+
+/* Native checkboxes, radios and ranges take the accent, not the browser's
+   blue. --brand is the user's chosen accent theme. */
+:root {
+  accent-color: var(--brand);
+}
