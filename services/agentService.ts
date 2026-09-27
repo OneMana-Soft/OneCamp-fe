@@ -500,7 +500,11 @@ export interface AgentCard {
 }
 
 export function toolLabel(name: string): string {
-  return TOOL_LABELS[name] || name
+  if (TOOL_LABELS[name]) return TOOL_LABELS[name]
+  // A tool this build has no label for still reads as words, not as an
+  // identifier: "search_messages" -> "Search messages".
+  const words = name.replace(/[_-]+/g, " ").trim()
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : name
 }
 
 export async function createAgent(input: AgentInput): Promise<Agent> {

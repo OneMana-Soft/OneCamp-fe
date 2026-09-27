@@ -29,3 +29,11 @@ describe("agent card copy", () => {
     expect(weekPhrase({ runs: 0, actions: 0, refusals: 0, window_days: 7 })).toBe("Has not run in the last 7 days")
   })
 })
+
+describe("toolLabel", () => {
+  it("labels an unknown tool as words", async () => {
+    const { toolLabel } = await import("@/services/agentService")
+    expect(toolLabel("search_messages")).toBe("Search messages")
+    expect(toolLabel("")).toBe("")
+  })
+})
