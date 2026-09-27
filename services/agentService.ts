@@ -476,6 +476,29 @@ const TOOL_LABELS: Record<string, string> = TOOL_CATALOG.flatMap((g) => g.tools)
   {} as Record<string, string>,
 )
 
+/**
+ * What any member may know about an agent they meet (GET /agent-card/{botUserId}).
+ * Mirrors business/AIAgent/agentCard.go; nothing here is private to its sponsor.
+ */
+export interface AgentCard {
+  agent_id: string
+  name: string
+  description?: string
+  sponsor?: string
+  active: boolean
+  dm_able: boolean
+  autonomy: "auto" | "approval" | "plan" | string
+  tools: string[]
+  scoped_channels: number
+  scoped_projects: number
+  runs: number
+  actions: number
+  refusals: number
+  last_run_at?: string
+  window_days: number
+  can_manage: boolean
+}
+
 export function toolLabel(name: string): string {
   return TOOL_LABELS[name] || name
 }

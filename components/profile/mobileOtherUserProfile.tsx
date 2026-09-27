@@ -20,6 +20,7 @@ import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
 import { botProfileCopy } from "@/lib/botCopy";
+import { AgentCardDetails } from "@/components/ai/AgentCardDetails";
 
 export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const router = useRouter();
@@ -132,31 +133,41 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
 
                     {/* Details Section */}
                     {isBot ? (
-                        <div className="bg-muted/10 p-5 rounded-2xl border space-y-2 ">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">About</p>
-                            <p className="text-base text-foreground leading-relaxed">
-                                {profileInfo.data?.data?.user_name || botCopy.defaultName} {botCopy.bio}
-                            </p>
+                        <div className="rounded-2xl border p-5">
+                            {(() => {
+                                const about = (
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-medium text-muted-foreground">About</p>
+                                        <p className="text-base text-foreground leading-relaxed">
+                                            {profileInfo.data?.data?.user_name || botCopy.defaultName} {botCopy.bio}
+                                        </p>
+                                    </div>
+                                )
+                                // Same card as the desktop dialog for an agent.
+                                return profileInfo.data?.data?.user_bot_kind === "agent" && userUUID
+                                    ? <AgentCardDetails botUserId={userUUID} fallback={about} />
+                                    : about
+                            })()}
                         </div>
                     ) : (
-                    <div className="bg-muted/10 p-5 rounded-2xl border space-y-5 ">
+                    <div className="rounded-2xl border p-5 space-y-5">
                         <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Full Name</p>
+                            <p className="text-xs font-medium text-muted-foreground">Full name</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_full_name || "—"}</p>
                         </div>
                         
                         <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Display Name</p>
+                            <p className="text-xs font-medium text-muted-foreground">Display name</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
                         </div>
                         
                         <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Job Title</p>
+                            <p className="text-xs font-medium text-muted-foreground">Job title</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_job_title || "—"}</p>
                         </div>
                         
                         <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Hobbies</p>
+                            <p className="text-xs font-medium text-muted-foreground">Hobbies</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_hobbies || "—"}</p>
                         </div>
                     </div>

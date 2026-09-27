@@ -27,7 +27,7 @@ const root = resolve(__dirname, "..")
 /** An uppercase label written by hand, in either class order. */
 const HAND_WRITTEN =
   /className="[^"]*(?:uppercase[^"]*tracking-wider|tracking-wider[^"]*uppercase)[^"]*"/g
-const BASELINE = 44
+const BASELINE = 39
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)

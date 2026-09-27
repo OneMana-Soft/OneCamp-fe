@@ -126,6 +126,7 @@ export enum GetEndpointUrl {
     MyAIActivityProof = "/ai/activity/proof",
     AgentWorkForEntity = "/ai/agent-work/for", // append /{entityId}
     GetAgent = "/agents",       // append /{id}
+    GetAgentCard = "/agent-card", // append /{botUserId}; any member may read it
     GetAgentRuns = "/agents",   // append /{id}/runs
     GetAgentActivity = "/agents/activity",
     GetAgentInventory = "/agents/inventory",
