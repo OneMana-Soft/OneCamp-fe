@@ -27,6 +27,7 @@ import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { Search } from "@/lib/icons"
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 export const ChatUserList = ({ chatId }: { chatId: string }) => {
     const dispatch = useDispatch()
@@ -147,7 +148,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                         const lastChat = dmData.dm_chats?.[0]
                         const lastMessageTime = lastChat?.chat_created_at || ""
                         const lastUserMessage = lastChat?.chat_body_text || ""
-                        const lastUsername = lastChat?.chat_from?.user_name || ""
+                        const lastUsername = userDisplayName(lastChat?.chat_from)
                         const attachmentCount = lastChat?.chat_attachments?.length || 0
                         const lastAttachments = lastChat?.chat_attachments
                         const isSelected =

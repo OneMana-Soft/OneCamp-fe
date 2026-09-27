@@ -37,6 +37,7 @@ import CommandSurface from "@/components/command/CommandSurface";
 import PendingActionsTray from "@/components/ai/PendingActionsTray";
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 
 export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
@@ -140,13 +141,13 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
             <header className='flex items-center justify-between gap-2 h-12 md:h-14 px-3 md:px-4 border-b border-border/60 bg-background sticky top-0 z-[var(--z-sticky)]'>
                 <div className='flex items-center gap-2.5 min-w-0'>
                     <div className='relative shrink-0'>
-                        <ChatUserAvatar userName={otherUserInfo.data?.data.user_name ?? undefined}
+                        <ChatUserAvatar userName={userDisplayName(otherUserInfo.data?.data) || undefined}
                                         userProfileObjKey={otherUserInfo.data?.data.user_profile_object_key ?? undefined}/>
                         {isOnline && <span aria-hidden className={`h-2.5 w-2.5 ring-2 ring-background rounded-full ${statusColors.online.solid} absolute bottom-0 right-0`}/>}
 
                     </div>
                     <div className='flex flex-col min-w-0'>
-                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>{otherUserInfo.data?.data.user_name}</span>
+                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>{userDisplayName(otherUserInfo.data?.data)}</span>
                         {isOnline && <span className='text-2xs text-muted-foreground leading-tight'>Active now</span>}
                     </div>
                 </div>
@@ -191,7 +192,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                 <CatchMeUpBanner
                     channelUUID={chatId}
                     unreadCount={unreadCount || 0}
-                    channelName={otherUserInfo.data?.data.user_name}
+                    channelName={userDisplayName(otherUserInfo.data?.data)}
                     isChannel={false}
                     type="dm"
                 />

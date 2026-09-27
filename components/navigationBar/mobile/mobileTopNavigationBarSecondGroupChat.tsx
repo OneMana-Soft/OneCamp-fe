@@ -9,6 +9,7 @@ import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {LocallyCreatedGrpInfoInterface} from "@/store/slice/groupChatSlice";
 import {openUI} from "@/store/slice/uiSlice";
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
 
@@ -31,7 +32,7 @@ export function MobileTopNavigationBarSecondGroupChat({grpId}:{grpId: string}) {
                 <div className="text-ellipsis truncate max-w-40 text-foreground">
                     {participants.map((item, index) => (
                         <span key={index}>
-                                {item.user_name}
+                                {userDisplayName(item)}
                             {index < (participants.length || 0) - 1 && ', '}
                             </span>
                     ))}

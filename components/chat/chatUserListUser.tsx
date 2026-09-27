@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
 import { ListRow, UnreadBadge } from "@/components/ui/listRow";
 import { AttachmentMediaReq } from "@/types/attachment";
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 interface DmItemProps {
     lastUsername: string;
@@ -42,7 +43,7 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
         () =>
             isSelfDm
                 ? selfProfile.user_name
-                : dmParticipants.map((t) => t.user_name).join(", ") || selfProfile?.user_name,
+                : dmParticipants.map((t) => userDisplayName(t)).join(", ") || selfProfile?.user_name,
         [dmParticipants, isSelfDm, selfProfile],
     );
 

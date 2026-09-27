@@ -12,6 +12,7 @@ import { getGroupingId } from "@/lib/utils/getGroupingId";
 import { Sparkles } from "@/lib/icons";
 import { clearChatReplyTarget } from "@/store/slice/chatSlice";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
+import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number }) => {
     const dispatch = useDispatch();
@@ -39,7 +40,7 @@ export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string,
             <CatchMeUpBanner
                 channelUUID={chatId}
                 unreadCount={unreadCount || 0}
-                channelName={otherUserInfo.data?.data.user_name}
+                channelName={userDisplayName(otherUserInfo.data?.data)}
                 isChannel={false}
                 type="dm"
             />
