@@ -67,8 +67,8 @@ export default function SearchPage() {
                         <Input
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
-                            className="pl-9 pr-10 h-10 md:h-11 w-full bg-background border-muted focus-visible:ring-primary focus-visible:ring-offset-0 transition-all font-medium"
-                            placeholder="Search for chats, posts, docs, or people..."
+                            className="pl-9 pr-10 h-10 md:h-11 w-full bg-background border-muted focus-visible:ring-primary focus-visible:ring-offset-0 transition font-medium"
+                            placeholder="Search for chats, posts, docs, or people…"
                         />
                         {inputValue && (
                             <button
@@ -107,7 +107,7 @@ export default function SearchPage() {
                                 className="group flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl border bg-card hover:bg-accent/40 cursor-pointer transition-colors duration-150 border-transparent hover:border-border"
                             >
                                 <div className={cn(
-                                    "shrink-0 transition-all duration-200",
+                                    "shrink-0 transition duration-200",
                                     result.type === "user" ? "" : "mt-1 p-2 rounded-lg bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10"
                                 )}>
                                     {getIcon(result, "h-5 w-5")}
@@ -137,7 +137,7 @@ export default function SearchPage() {
                                             handlePreview(result)
                                         }}
                                         aria-label="Preview attachment"
-                                        className="h-8 w-8 md:h-10 md:w-10 rounded-full opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                        className="h-8 w-8 md:h-10 md:w-10 rounded-full opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition text-muted-foreground hover:text-primary hover:bg-primary/10"
                                     >
                                         <Eye className="h-5 w-5" />
                                     </Button>

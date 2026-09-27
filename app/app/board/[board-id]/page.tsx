@@ -280,7 +280,7 @@ export default function BoardPage() {
           ) : (
             <>
               <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Reconnecting to collaboration server...</span>
+              <span>Reconnecting to collaboration server…</span>
             </>
           )}
         </div>
@@ -309,7 +309,7 @@ export default function BoardPage() {
           <div className="flex h-full w-full items-center justify-center">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Connecting to live canvas...</span>
+              <span>Connecting to live canvas…</span>
             </div>
           </div>
         )}

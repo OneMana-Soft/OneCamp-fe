@@ -674,7 +674,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                       onClick={() => setType(t.value)}
                       aria-pressed={selected}
                       className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-150",
+                        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition duration-150",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1 focus-visible:ring-offset-background",
                         selected
                           ? "border-transparent bg-primary text-primary-foreground shadow-sm"
@@ -769,7 +769,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
               if (plan) setPlan(null)
             }}
             onKeyDown={handleKeyDown}
-            placeholder={PROMPT_PLACEHOLDERS[type] || "Describe what you want to draw..."}
+            placeholder={PROMPT_PLACEHOLDERS[type] || "Describe what you want to draw…"}
             className="min-h-[72px] resize-none text-sm"
             maxLength={2000}
             disabled={isStreaming}
@@ -838,7 +838,7 @@ export function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
                     ? detailed
                       ? "Detailed takes longer"
                       : "Cmd/Ctrl + Enter"
-                    : "Connecting..."}
+                    : "Connecting…"}
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">

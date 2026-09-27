@@ -476,7 +476,7 @@ export const ChatComments = () => {
                     className={cn("max-w-full rounded-xl h-auto border p-2 bg-muted/30")}
                     editorContentClassName="overflow-auto"
                     output="html"
-                    placeholder={"Add a message, if you'd like..."}
+                    placeholder={"Add a message, if you'd like…"}
                     editable={true}
                     toggleToolbar={true}
                     editorClassName="focus:outline-none"

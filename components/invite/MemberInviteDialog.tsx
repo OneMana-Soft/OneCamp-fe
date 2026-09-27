@@ -82,7 +82,7 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                             Cancel
                         </Button>
                         <Button type="submit" disabled={!email || post.isSubmitting}>
-                            {post.isSubmitting ? "Inviting..." : "Send invitation"}
+                            {post.isSubmitting ? "Inviting…" : "Send invitation"}
                         </Button>
                     </DialogFooter>
                 </form>

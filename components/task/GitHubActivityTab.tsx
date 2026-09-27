@@ -93,7 +93,7 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
   const activities = activitiesRes.data?.activities || []
 
   if (activitiesRes.isLoading) {
-    return <div className="text-xs text-muted-foreground py-4">Loading GitHub activity...</div>
+    return <div className="text-xs text-muted-foreground py-4">Loading GitHub activity…</div>
   }
 
   if (activitiesRes.isError) {

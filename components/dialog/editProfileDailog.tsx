@@ -302,7 +302,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                             </Avatar>
                             <label
                                 htmlFor="imageUpload"
-                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto rounded-full cursor-pointer transition-all duration-300 backdrop-blur-[2px]"
+                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto rounded-full cursor-pointer transition duration-300 backdrop-blur-[2px]"
                             >
                                 <Camera className="text-white h-8 w-8" />
                             </label>
@@ -461,7 +461,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                             <div className="space-y-4">
                                 <h3 className="text-3xs font-bold uppercase tracking-[0.2em] text-muted-foreground">{t('integrations') || 'Integrations'}</h3>
                                 
-                                <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition-all hover:bg-muted/20">
+                                <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition hover:bg-muted/20">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center space-x-3">
                                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
@@ -512,7 +512,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                 form="profile-edit-form"
                                 disabled={uploadFile.isSubmitting || post.isSubmitting} 
                                 type="submit"
-                                className="w-full h-11 rounded-xl font-medium text-sm transition-all hover:translate-y-[-1px]"
+                                className="w-full h-11 rounded-xl font-medium text-sm transition hover:translate-y-[-1px]"
                             >
                                 {t('update')} Profile
                             </Button>

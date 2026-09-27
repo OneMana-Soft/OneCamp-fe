@@ -114,7 +114,7 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
             authFailureCountRef.current,
             "of",
             MAX_AUTH_RETRIES,
-            ")...",
+            ")…",
         )
         mqttConfigRes.mutate?.()
     }, [mqttConfigRes.mutate])

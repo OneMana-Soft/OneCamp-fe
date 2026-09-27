@@ -175,7 +175,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
               >
                 <SelectTrigger id="edit-channel">
                   {channelsLoading ? (
-                    <span className="text-muted-foreground animate-pulse">Loading channels...</span>
+                    <span className="text-muted-foreground animate-pulse">Loading channels…</span>
                   ) : (
                     <SelectValue placeholder="Select a channel (optional)" />
                   )}

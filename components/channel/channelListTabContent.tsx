@@ -43,7 +43,7 @@ export const ChannelListTabContent = ({ selectedTab }: { selectedTab: string }) 
                 <SearchField
                     onChange={handleChSearchOnChange}
                     value={inputValue}
-                    placeholder="Search channels..."
+                    placeholder="Search channels…"
                 />
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">{renderTabs}</div>

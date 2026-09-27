@@ -839,3 +839,27 @@ body {
 html[data-media-collapsed="true"] [data-message-media] {
   display: none !important;
 }
+/*
+ * Interaction and motion defaults, from the Vercel Web Interface Guidelines.
+ *  - Controls respond to a tap at once: no 300 ms double-tap wait, no zoom.
+ *  - The native tap flash does not fight our own pressed states.
+ *  - Scrollbars and form controls follow the theme (color-scheme).
+ *  - Someone who asks the OS for less motion gets it everywhere, including
+ *    animations a component forgot to guard.
+ */
+@layer base {
+  :root { color-scheme: light; }
+  .dark { color-scheme: dark; }
+  a, button, input, label, select, summary, textarea, [role="button"], [role="tab"], [role="menuitem"] {
+    touch-action: manipulation;
+  }
+  html { -webkit-tap-highlight-color: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

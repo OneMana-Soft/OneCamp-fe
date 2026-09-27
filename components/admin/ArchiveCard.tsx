@@ -163,7 +163,7 @@ const ArchiveCard = () => {
 
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Retention Policies</h3>
-            {policiesLoading ? <div className="text-sm text-muted-foreground animate-pulse">Loading policies...</div> :
+            {policiesLoading ? <div className="text-sm text-muted-foreground animate-pulse">Loading policies…</div> :
             policies.length === 0 ? <div className="text-center py-8 text-sm text-muted-foreground">No archive policies configured.</div> :
             <div className="space-y-3">
               {policies.map(policy => (
@@ -200,7 +200,7 @@ const ArchiveCard = () => {
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Job History</h3>
               <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => mutateJobs()}><RefreshCw className="h-3 w-3" />Refresh</Button>
             </div>
-            {jobsLoading ? <div className="text-sm text-muted-foreground animate-pulse">Loading jobs...</div> :
+            {jobsLoading ? <div className="text-sm text-muted-foreground animate-pulse">Loading jobs…</div> :
             jobs.length === 0 ? <div className="text-center py-8 text-sm text-muted-foreground">No archive jobs have been run yet.</div> :
             <div className="space-y-2">
               {jobs.slice(0, 20).map(job => {

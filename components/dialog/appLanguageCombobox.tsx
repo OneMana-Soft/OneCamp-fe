@@ -45,7 +45,7 @@ export function AppLanguageCombobox({ userLang, onLangChange }: AppLanguageCombo
                 </PopoverTrigger>
                 <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 shadow-xl border-border/50 rounded-xl overflow-hidden" align="start">
                     <Command className="bg-popover">
-                        <CommandInput placeholder="Search language..." className="h-9 border-none focus:ring-0 shadow-none" />
+                        <CommandInput placeholder="Search language…" className="h-9 border-none focus:ring-0 shadow-none" />
                         <CommandList className="max-h-[200px] overflow-y-auto">
                             <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">No language found.</CommandEmpty>
                             <CommandGroup>

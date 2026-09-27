@@ -84,7 +84,7 @@ export const ExternalUserList: React.FC<ExternalUserListProps> = ({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="search"
-            placeholder="Search by name, GitHub login, or email..."
+            placeholder="Search by name, GitHub login, or email…"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="pl-9 bg-background/50"
@@ -142,7 +142,7 @@ export const ExternalUserList: React.FC<ExternalUserListProps> = ({
                 {isLoading && (
                   <div className="flex items-center gap-2 text-muted-foreground text-xs">
                     <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    <span>Loading more...</span>
+                    <span>Loading more…</span>
                   </div>
                 )}
               </div>

@@ -28,7 +28,7 @@ export function ColorThemePicker() {
                         type="button"
                         onClick={() => setActiveTheme(color)}
                         className={cn(
-                            "w-7 h-7 rounded-full transition-all duration-150",
+                            "w-7 h-7 rounded-full transition duration-150",
                             `theme-${color} bg-brand`,
                             activeTheme === color
                                 ? "ring-2 ring-offset-2 ring-primary scale-110"

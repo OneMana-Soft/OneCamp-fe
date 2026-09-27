@@ -75,7 +75,7 @@ export function LinkedItemsSection({ sourceType, sourceUUID, canEdit }: LinkedIt
         )}
         {isLoading && total === 0 && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading...
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
           </div>
         )}
 

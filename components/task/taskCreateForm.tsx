@@ -328,7 +328,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                     </PopoverTrigger>
                     <PopoverContent className="p-0" side="bottom" portalled={false}>
                       <Command>
-                        <CommandInput placeholder="Select project..." />
+                        <CommandInput placeholder="Select project…" />
                         <CommandList>
                           <CommandEmpty>No project found</CommandEmpty>
                           <CommandGroup>
@@ -481,7 +481,7 @@ export const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "C
                     editorContentClassName="overflow-auto h-full"
                     output="html"
                     content={field.value}
-                    placeholder="Enter description..."
+                    placeholder="Enter description…"
                     editable={true}
                     editorClassName="focus:outline-none px-2 py-2"
                     onChange={(content: Content) => {

@@ -229,7 +229,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                             editorContentClassName={cn("overflow-auto ")}
                             output="html"
                             content={chatInfo.chat_body_text}
-                            placeholder={"Edit message..."}
+                            placeholder={"Edit message…"}
                             editable={isMessageEditEnabled}
                             PrimaryButtonIcon={Check}
                             buttonOnclick={()=>{

@@ -344,7 +344,7 @@ export function NotificationPreferencesCard() {
             className="gap-2"
           >
             {post.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {post.isSubmitting ? "Saving..." : "Save changes"}
+            {post.isSubmitting ? "Saving…" : "Save changes"}
           </Button>
         </div>
       </CardContent>

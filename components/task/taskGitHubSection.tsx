@@ -67,7 +67,7 @@ export function TaskGitHubSection({
               {syncStatus?.status === "pending" && (
                 <div className="flex items-center gap-1 text-warning">
                   <div className="h-2 w-2 animate-pulse rounded-full bg-amber-600" />
-                  <span className="text-3xs font-medium">Syncing...</span>
+                  <span className="text-3xs font-medium">Syncing…</span>
                 </div>
               )}
               {syncStatus?.status === "synced" && (
@@ -124,7 +124,7 @@ export function TaskGitHubSection({
                     })()}
                   </span>
                 </div>
-                <span className="text-3xs uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition-all shrink-0 hidden sm:flex">
+                <span className="text-3xs uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition shrink-0 hidden sm:flex">
                   View Issue <ExternalLink className="h-3 w-3" />
                 </span>
                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 sm:hidden" />
@@ -146,7 +146,7 @@ export function TaskGitHubSection({
                     })()}
                   </span>
                 </div>
-                <span className="text-3xs uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition-all shrink-0 hidden sm:flex">
+                <span className="text-3xs uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition shrink-0 hidden sm:flex">
                   View PR <ExternalLink className="h-3 w-3" />
                 </span>
                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 sm:hidden" />

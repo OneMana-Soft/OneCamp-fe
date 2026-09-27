@@ -30,7 +30,7 @@ export const ProjectListContent = () => {
             <SearchField
                 onChange={handleSearchChange}
                 value={inputValue}
-                placeholder={"Search project..."}
+                placeholder={"Search project…"}
             />
             <div className="flex-1 overflow-y-auto">
                 <ProjectList searchQuery={searchQuery} />

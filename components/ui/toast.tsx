@@ -44,7 +44,7 @@ const toastVariants = cva(
     "data-[swipe=end]:animate-out data-[state=closed]:fade-out-80",
     "data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-bottom-full",
     "sm:data-[state=open]:slide-in-from-right-full",
-    "transition-all",
+    "transition",
   ),
   {
     variants: {

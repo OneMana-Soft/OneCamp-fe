@@ -26,7 +26,7 @@ export const MyTaskMobile = ()=>{
 
     return (
         <div className="flex flex-col h-full">
-            <SearchField onChange={handleSearchStringChange} value={inputValue} placeholder={"Search tasks..."}/>
+            <SearchField onChange={handleSearchStringChange} value={inputValue} placeholder={"Search tasks…"}/>
 
             <div className="flex-1 overflow-hidden">
                 <MyTaskList searchQuery={searchQuery}/>

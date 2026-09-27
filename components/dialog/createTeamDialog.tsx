@@ -131,7 +131,7 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
                                 onClick={() => checkChannelNameAvailability(field.value)}
                                 disabled={!field.value || isSubmitting || isCheckingAvailability || !isValid}
                             >
-                              {isCheckingAvailability ? "Checking..." : "Check Availability"}
+                              {isCheckingAvailability ? "Checking…" : "Check Availability"}
                             </Button>
                           </div>
                           <div>
@@ -157,7 +157,7 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
             </div>
             <DialogFooter>
             <Button type="submit" disabled={!isValid || isSubmitting || teamNameToCheck !== team_name ||  isTeamNameAvailable?.exists}>
-                {isSubmitting ? "Creating..." : "Create Team"}
+                {isSubmitting ? "Creating…" : "Create Team"}
               </Button>
             </DialogFooter>
           </form>

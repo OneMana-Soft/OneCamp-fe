@@ -165,7 +165,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         aria-label={chatCallActive ? "Join the call in progress" : "Start a call"}
                         variant={chatCallActive ? 'secondary' : 'ghost'}
                         className={cn(
-                            "relative transition-all duration-300",
+                            "relative transition duration-300",
                             chatCallActive && "bg-success/10 text-success hover:bg-emerald-500/20"
                         )}
                         onClick={clickVideoCall}
@@ -228,7 +228,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatState.chatBody}
-                        placeholder={"Type a message..."}
+                        placeholder={"Type a message…"}
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={handleSend}

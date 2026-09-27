@@ -51,7 +51,7 @@ export const CollapsibleView: React.FC<NodeViewProps> = ({ node, updateAttribute
             value={localTitle}
             onChange={handleTitleChange}
             disabled={!editor.isEditable}
-            placeholder="Toggle title..."
+            placeholder="Toggle title…"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
@@ -63,7 +63,7 @@ export const CollapsibleView: React.FC<NodeViewProps> = ({ node, updateAttribute
 
           {/* Collapsible content */}
           <div
-            className={`overflow-hidden transition-all duration-200 ${isOpen ? 'max-h-[2000px] opacity-100 mt-2' : 'max-h-0 opacity-0'}`}
+            className={`overflow-hidden transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200 ${isOpen ? 'max-h-[2000px] opacity-100 mt-2' : 'max-h-0 opacity-0'}`}
           >
             <NodeViewContent className="collapsible-content" />
           </div>

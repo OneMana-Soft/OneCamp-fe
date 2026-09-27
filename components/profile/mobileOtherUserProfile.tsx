@@ -93,7 +93,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                         </div>
                         <div className="flex items-center gap-2">
                             <h2 className="text-xl font-semibold text-foreground text-center truncate max-w-[60vw]">
-                                {profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "Loading..."}
+                                {profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "Loading…"}
                             </h2>
                             {isBot ? (
                                 <Badge variant="secondary" className="text-3xs h-5 shrink-0">{botCopy.badge}</Badge>

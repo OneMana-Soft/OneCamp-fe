@@ -120,21 +120,21 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                         <TabsList className="w-full sm:w-fit grid grid-cols-3 sm:flex bg-muted/50 p-1 border border-border/50 backdrop-blur-sm h-auto overflow-hidden">
                             <TabsTrigger 
                                 value="list"
-                                className="gap-2 px-4 py-2 rounded-md transition-all duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
                             >
                                 <List className="h-4 w-4" />
                                 {t("list", { defaultValue: "List" })}
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="kanban"
-                                className="gap-2 px-4 py-2 rounded-md transition-all duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
                             >
                                 <Kanban className="h-4 w-4" />
                                 {t("board", { defaultValue: "Board" })}
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="attachments"
-                                className="gap-2 px-4 py-2 rounded-md transition-all duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm"
                             >
                                 <Paperclip className="h-4 w-4" />
                                 {t("attachments", { defaultValue: "Attachments" })}

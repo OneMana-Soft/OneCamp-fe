@@ -137,7 +137,7 @@ export function VirtualInfiniteScroll<T>({
                         {loadingComponent || (
                             <div className="flex items-center gap-2 text-muted-foreground">
                                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                <span>Loading more...</span>
+                                <span>Loading more…</span>
                             </div>
                         )}
                     </div>

@@ -272,7 +272,7 @@ const GitHubIntegrationCard = () => {
 
       <CardContent className="px-0 flex-1 overflow-y-auto pr-4 custom-scrollbar pb-10 min-h-0">
         {isLoading ? (
-          <div className="text-sm text-muted-foreground animate-pulse">Loading integration status...</div>
+          <div className="text-sm text-muted-foreground animate-pulse">Loading integration status…</div>
         ) : (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -417,7 +417,7 @@ const GitHubIntegrationCard = () => {
                 <label className="text-sm font-medium">Target Project *</label>
                 <Select value={selectedProjectId} onValueChange={setSelectedProjectId} disabled={projectsLoading}>
                   <SelectTrigger>
-                    {projectsLoading ? <span className="text-muted-foreground animate-pulse">Loading projects...</span> : <SelectValue placeholder="Select a project..." />}
+                    {projectsLoading ? <span className="text-muted-foreground animate-pulse">Loading projects…</span> : <SelectValue placeholder="Select a project…" />}
                   </SelectTrigger>
                   <SelectContent>
                     {projects.length === 0 && !projectsLoading ? (
@@ -479,7 +479,7 @@ const GitHubIntegrationCard = () => {
                       means it tracks the design system instead of a stale copy. */}
                   <Input
                     type="text"
-                    placeholder="Search repositories..."
+                    placeholder="Search repositories…"
                     value={repoSearch}
                     onChange={(e) => setRepoSearch(e.target.value)}
                     disabled={!selectedProjectId || reposLoading || repos.length === 0}

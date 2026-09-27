@@ -166,7 +166,7 @@ export default function WebhookCreateDialog({ open, onOpenChange, onSuccess }: P
               >
                 <SelectTrigger id="wh-channel">
                   {channelsLoading ? (
-                    <span className="text-muted-foreground animate-pulse">Loading channels...</span>
+                    <span className="text-muted-foreground animate-pulse">Loading channels…</span>
                   ) : (
                     <SelectValue placeholder="Select a channel (optional)" />
                   )}

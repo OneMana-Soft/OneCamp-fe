@@ -98,7 +98,7 @@ export function MobileHomeSearchBar() {
                 <Input
                     ref={searchRef}
                     type="search"
-                    placeholder="Search..."
+                    placeholder="Search…"
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDownCapture}

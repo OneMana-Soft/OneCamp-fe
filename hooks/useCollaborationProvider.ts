@@ -211,7 +211,7 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
       if (document.visibilityState === 'visible') {
         const currentStatus = statusRef.current
         if (currentStatus === 'disconnected' || currentStatus === 'offline') {
-          log('[Collab] Tab visible, reconnecting...')
+          log('[Collab] Tab visible, reconnecting…')
           provider.connect()
         } else if (currentStatus === 'synced') {
           // -----------------------------------------------------------------
@@ -240,7 +240,7 @@ export function useCollaborationProvider(config: CollaborationConfig | undefined
 
       const currentStatus = statusRef.current
       if (currentStatus === 'disconnected' || currentStatus === 'offline') {
-        log('[Collab] Network online, reconnecting...')
+        log('[Collab] Network online, reconnecting…')
         setStatus('connecting')
         provider.connect()
       }

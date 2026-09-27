@@ -357,7 +357,7 @@ export default function Page() {
         : undefined;
 
     return (
-        <div className={cn('flex flex-col h-full transition-all duration-300', focusMode && 'bg-background')}>
+        <div className={cn('flex flex-col h-full transition duration-300', focusMode && 'bg-background')}>
             {/* Desktop top bar — hidden in focus mode */}
             {!focusMode && isDesktop && (
                 <div className='h-14 items-center flex justify-between p-2 pl-4 pr-4 border-b shrink-0 bg-background/80 backdrop-blur-sm z-10'>
@@ -454,7 +454,7 @@ export default function Page() {
                     ) : (
                         <>
                             <Loader2 className="h-3 w-3 animate-spin" />
-                            <span>Reconnecting to collaboration server...</span>
+                            <span>Reconnecting to collaboration server…</span>
                         </>
                     )}
                 </div>

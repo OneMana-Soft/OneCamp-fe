@@ -111,7 +111,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                 <SearchField
                     onChange={handleDmSearchOnChange}
                     value={dmSearchText}
-                    placeholder="Search messages..."
+                    placeholder="Search messages…"
                 />
             </div>
 

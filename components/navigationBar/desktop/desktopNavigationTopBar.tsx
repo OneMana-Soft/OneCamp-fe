@@ -45,7 +45,7 @@ export default function DesktopNavigationTopBar() {
                             onClick={handleAiToggle}
                             aria-label={isAiOpen ? "Close AI Assistant" : "Open AI Assistant"}
                             className={cn(
-                                "h-9 w-9 flex items-center justify-center rounded-md transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                                "h-9 w-9 flex items-center justify-center rounded-md transition duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                                 isAiOpen
                                     ? "bg-primary/15 text-primary"
                                     : "text-muted-foreground hover:text-foreground hover:bg-accent"

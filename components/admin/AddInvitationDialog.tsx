@@ -208,7 +208,7 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
               Cancel
             </Button>
             <Button type="submit" disabled={!email || post.isSubmitting}>
-              {post.isSubmitting ? "Inviting..." : email_enabled ? "Send invitation" : "Create invitation"}
+              {post.isSubmitting ? "Inviting…" : email_enabled ? "Send invitation" : "Create invitation"}
             </Button>
           </DialogFooter>
         </form>

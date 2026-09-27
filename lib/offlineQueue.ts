@@ -38,7 +38,7 @@ class OfflineQueue {
     if (this.isProcessing || this.queue.length === 0) return;
     
     this.isProcessing = true;
-    console.log(`[OfflineQueue] Flushing ${this.queue.length} requests...`);
+    console.log(`[OfflineQueue] Flushing ${this.queue.length} requests…`);
     
     const remaining: QueuedRequest[] = [];
     

@@ -188,7 +188,7 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
             {isLoading && (
               <div className="flex items-center gap-2 text-muted-foreground text-xs">
                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                <span>Loading more...</span>
+                <span>Loading more…</span>
               </div>
             )}
           </div>

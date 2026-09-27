@@ -1065,7 +1065,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                             output="html"
                             content={taskInfo.data?.data.task_description || ""}
                             value={taskInfo.data?.data.task_description || ""}
-                            placeholder="Add a description..."
+                            placeholder="Add a description…"
                             editable={isAdmin}
                             editorClassName="focus:outline-none"
                             onChange={handleDescriptionChange}

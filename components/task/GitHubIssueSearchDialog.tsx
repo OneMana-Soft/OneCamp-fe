@@ -251,7 +251,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder={`Search by ${searchType === "prs" ? "PR" : "issue"} title...`}
+                  placeholder={`Search by ${searchType === "prs" ? "PR" : "issue"} title…`}
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value)

@@ -82,7 +82,7 @@ const AddDocMemberCombobox: React.FC<AddDocMemberComboboxProps> = ({ docId, hand
                             <span className="truncate text-sm font-medium">
                                 {selectedUser
                                     ? selectedUser.user_name
-                                    : "Search members..."}
+                                    : "Search members…"}
                             </span>
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
                         </Button>
@@ -90,7 +90,7 @@ const AddDocMemberCombobox: React.FC<AddDocMemberComboboxProps> = ({ docId, hand
                     <PopoverContent portalled={false} className="w-[240px] p-0 shadow-xl border-border/50">
                         <Command shouldFilter={false}>
                             <CommandInput
-                                placeholder="Search user..."
+                                placeholder="Search user…"
                                 className="h-9"
                                 value={searchQuery}
                                 onValueChange={(val) => {
@@ -99,7 +99,7 @@ const AddDocMemberCombobox: React.FC<AddDocMemberComboboxProps> = ({ docId, hand
                                 }}
                             />
                             <CommandList>
-                                <CommandEmpty>{searchQuery.length < 2 ? "Type to search..." : "No user found"}</CommandEmpty>
+                                <CommandEmpty>{searchQuery.length < 2 ? "Type to search…" : "No user found"}</CommandEmpty>
                                 <CommandGroup>
                                     {searchResults.map((user) => (
                                         <UserComboboxItem

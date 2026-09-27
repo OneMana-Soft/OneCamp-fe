@@ -48,7 +48,7 @@ const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForU
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                     type="text"
-                    placeholder="Search members..."
+                    placeholder="Search members…"
                     className="pl-9 bg-muted/50 border-border/50 focus-visible:ring-primary/20"
                     onChange={(event) => setQuery(event.target.value)}
                 />
@@ -81,7 +81,7 @@ const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForU
                     }
 
                     return (
-                        <div key={user.user_uuid} className="group transition-all duration-200">
+                        <div key={user.user_uuid} className="group transition duration-200">
                             <MemberInfo 
                                 userInfo={user} 
                                 isAdmin={isAdmin} 

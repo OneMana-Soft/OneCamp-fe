@@ -92,6 +92,9 @@ export function sanitizeRichHtml(html: string): string {
         ALLOWED_ATTR: [
             "href", "src", "alt", "title", "class",
             "data-id", "data-checked",
+            // A mention's kind and name, so a message shown without an editor
+            // can style it and open the person's profile on click.
+            "data-type", "data-label",
             // Provenance, not behaviour: marks a body as machine-written so the
             // content itself says so, which the AI Act requires of generated
             // content from 2 August 2026. Inert, like every data-* here, and

@@ -22,7 +22,7 @@ interface ForwardMessageDropdownProps {
 
 export function SelectUserToMessageDropdown({
                                            onSelect,
-                                           placeholder = "Search users...",
+                                           placeholder = "Search users…",
                                        }: ForwardMessageDropdownProps) {
 
     const [searchQuery, setSearchQuery] = useState("")

@@ -68,7 +68,7 @@ export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
             {/*<DocCommentPopover/>*/}
             {/* 44px, matching the other mobile top-bar actions: a thumb reaching
                 the top of a phone one-handed is at its least accurate. */}
-            <Link href={commentHref}><Button variant='ghost' className="h-11 min-w-11" aria-label="Comments"><MessageCircle className='h-5'/>{docCommentCount || ''}</Button></Link>
+            <Button variant='ghost' className="h-11 min-w-11" asChild><Link href={commentHref} aria-label="Comments"><MessageCircle className='h-5'/>{docCommentCount || ''}</Link></Button>
 
             <Button variant='ghost' size='icon' className="h-11 w-11" aria-label="Document options" onClick={() => dispatch(openUI({ key: 'docOptionsDrawer', data: { docId: docId, isOwner: isOwner, deleteDoc: deleteDoc } }))}><Ellipsis className='h-5'/></Button>
 

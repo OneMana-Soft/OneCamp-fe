@@ -464,7 +464,7 @@ function CommentThread({
             onChange={setReply}
             onMentionedUsersChange={setReplyMentions}
             onSubmit={submitReply}
-            placeholder="Reply... (use @ to mention)"
+            placeholder="Reply… (use @ to mention)"
             className="min-h-[44px] resize-none text-sm"
           />
           <div className="mt-1.5 flex justify-end">
@@ -587,7 +587,7 @@ function NewCommentComposer({ onSubmit, onCancel }: { onSubmit: (body: string, m
         onSubmit={submit}
         onCancel={onCancel}
         autoFocus
-        placeholder="Add a comment... (use @ to mention)"
+        placeholder="Add a comment… (use @ to mention)"
         className="min-h-[60px] resize-none text-sm"
       />
       <div className="mt-2 flex justify-end gap-2">
