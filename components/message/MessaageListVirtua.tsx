@@ -209,6 +209,17 @@ export const MessageListVirtua = <T,>({
                     {getDateHeading(dateKeys[visibleDateIndex])}
                 </SeparatorPill>
             )}
+            {/* Older messages loading: floats over the list rather than being
+                inserted into it. Inside the list it pushed every row down 40 px
+                and back when it went, a layout shift on every channel open, and
+                the virtualiser counted it as an item. */}
+            {olderMessageLoading && (
+                <div className="pointer-events-none sticky top-2 z-[var(--z-sticky)] flex h-0 justify-center overflow-visible" role="status" aria-label="Loading older messages">
+                    <span className="rounded-full bg-background/90 p-1.5 shadow-overlay">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </span>
+                </div>
+            )}
             <Virtualizer
                 ref={ref}
                 shift={virtualShift}
@@ -257,13 +268,6 @@ export const MessageListVirtua = <T,>({
                     }
                 }}
             >
-                {/* Loading indicator for older messages */}
-                {olderMessageLoading && (
-                    <div className="flex justify-center py-2.5">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                )}
-
                 {items.map((item, index) => {
                     return (
                         <div key={item.key}>
