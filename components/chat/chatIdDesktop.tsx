@@ -141,15 +141,10 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                     {/* Calls need a LiveKit server, which the shipped stack does not include.
                         Hidden rather than shown-and-failing when the operator has not run one. */}
                     <FeatureGate feature={FEATURE_CALLS}>
-                    <Link href={chatCallHref} aria-label={chatCallStatusActive ? "Join active call" : "Start video call"}>
-                    <Button
-                        size='icon'
-                        variant={chatCallStatusActive ? 'secondary' : 'ghost'}
-                        className={cn(
-                            "relative transition-all duration-300",
+                    <Button size='icon' variant={chatCallStatusActive ? 'secondary' : 'ghost'} className={cn(
+                            "relative transition duration-300",
                             chatCallStatusActive && "bg-emerald-100 dark:bg-emerald-900/30 text-success hover:bg-emerald-200 dark:hover:bg-emerald-800/40"
-                        )}
-                    >
+                        )} asChild><Link href={chatCallHref} aria-label={chatCallStatusActive ? "Join active call" : "Start video call"}>
                         <Video size={18} />
                         {chatCallStatusActive && (
                             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
@@ -157,10 +152,9 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                                 <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${statusColors.online.solid}`}></span>
                             </span>
                         )}
-                    </Button>
-                    </Link>
+                    </Link></Button>
                     </FeatureGate>
-                    <Link href={chatRecordingHref} aria-label="View recordings"><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
+                    <Button size='icon' variant='ghost' asChild><Link href={chatRecordingHref} aria-label="View recordings"> <Clapperboard /></Link></Button>
                 </div>
             </header>
             <div className="flex-1 overflow-y-auto">
@@ -210,7 +204,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatState.chatBody}
-                        placeholder={"Type a message..."}
+                        placeholder={"Type a message…"}
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={handleSend}

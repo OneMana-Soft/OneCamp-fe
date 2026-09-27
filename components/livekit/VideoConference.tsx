@@ -540,7 +540,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
                     {Object.entries(activeTranscripts).map(([pIdentity, data]) => (
                         <div 
                             key={pIdentity} 
-                            className="bg-black/70 backdrop-blur-md text-white px-6 py-4 rounded-2xl text-left shadow-lg transform transition-all duration-200 ease-out animate-in slide-in-from-bottom-4 fade-in w-auto min-w-[320px] max-w-full border border-white/10"
+                            className="bg-black/70 backdrop-blur-md text-white px-6 py-4 rounded-2xl text-left shadow-lg transform transition duration-200 ease-out animate-in slide-in-from-bottom-4 fade-in w-auto min-w-[320px] max-w-full border border-white/10"
                         >
                              <div className="flex items-center gap-2 mb-1">
                                 <span className="text-xs font-bold text-blue-400 uppercase tracking-wide opacity-90">{data.name}</span>
@@ -696,7 +696,7 @@ function FocusedTile({ trackRef, isPinned, onTileClick }: FocusedTileProps) {
             
             {/* Pin State Indicator Overlay - Now the ONLY clickable trigger */}
             <div 
-                className="absolute top-4 right-4 p-2 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 text-white/70 hover:text-white transition-all z-10 cursor-pointer pointer-events-auto hover:bg-black/70"
+                className="absolute top-4 right-4 p-2 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 text-white/70 hover:text-white transition z-10 cursor-pointer pointer-events-auto hover:bg-black/70"
                 onClick={(e) => {
                     e.stopPropagation();
                     onTileClick();
