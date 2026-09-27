@@ -25,7 +25,7 @@ const stateConfig: Record<string, { label: string; icon: React.ReactNode; classN
   open: {
     label: "Open",
     icon: <GitPullRequest className="h-3 w-3" />,
-    className: "bg-success/10 text-green-700 border-success/20 dark:bg-success/10 dark:text-green-400",
+    className: "bg-success/10 text-success border-success/20 dark:bg-success/10",
   },
   merged: {
     label: "Merged",
@@ -35,17 +35,17 @@ const stateConfig: Record<string, { label: string; icon: React.ReactNode; classN
   closed: {
     label: "Closed",
     icon: <GitPullRequestClosed className="h-3 w-3" />,
-    className: "bg-red-500/10 text-red-700 border-red-500/20 dark:bg-red-500/10 dark:text-red-400",
+    className: "bg-destructive/10 text-destructive border-destructive/20",
   },
 }
 
 const checkStatusConfig: Record<string, { dotClass: string; tooltip: string }> = {
-  success: { dotClass: "bg-green-500", tooltip: "Checks passing" },
-  failure: { dotClass: "bg-red-500", tooltip: "Checks failing" },
+  success: { dotClass: "bg-success", tooltip: "Checks passing" },
+  failure: { dotClass: "bg-destructive", tooltip: "Checks failing" },
   neutral: { dotClass: "bg-gray-500", tooltip: "Checks neutral" },
   cancelled: { dotClass: "bg-gray-400", tooltip: "Checks cancelled" },
   timed_out: { dotClass: "bg-warning", tooltip: "Checks timed out" },
-  action_required: { dotClass: "bg-red-600", tooltip: "Action required" },
+  action_required: { dotClass: "bg-destructive", tooltip: "Action required" },
   skipped: { dotClass: "bg-gray-400", tooltip: "Checks skipped" },
   in_progress: { dotClass: "bg-warning animate-pulse", tooltip: "Checks running" },
   queued: { dotClass: "bg-warning animate-pulse", tooltip: "Checks queued" },

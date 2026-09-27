@@ -433,7 +433,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
         </AnimatePresence>
 
          {hookError && (
-          <div className="mt-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex justify-between items-center text-destructive">
+          <div className="mt-4 bg-destructive/10 border border-destructive/20 rounded-xl p-3 flex justify-between items-center text-destructive">
             <span className="text-xs">⚠️ {hookError}</span>
             <Button variant="ghost" onClick={resetState} className="h-auto p-0 text-3xs underline hover:bg-transparent">Dismiss</Button>
           </div>

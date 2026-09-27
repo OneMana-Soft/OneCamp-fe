@@ -146,7 +146,7 @@ const KIND_META: Record<
 > = {
   decision: { label: "Decision", Icon: Zap, dot: "bg-violet-500", tint: "text-violet-600 dark:text-violet-400" },
   commitment: { label: "Commitment", Icon: CheckCircle2, dot: "bg-blue-500", tint: "text-info" },
-  question: { label: "Open question", Icon: HelpCircle, dot: "bg-amber-500", tint: "text-warning" },
+  question: { label: "Open question", Icon: HelpCircle, dot: "bg-warning", tint: "text-warning" },
   glossary: { label: "Glossary", Icon: Sparkles, dot: "bg-slate-400", tint: "text-slate-500" },
 }
 
@@ -576,12 +576,12 @@ function WorkspaceMemoryPanel({
             disabled={excludeBusy}
             className={`mt-2 inline-flex items-center gap-1.5 text-xs rounded-md px-2 py-1 border transition-colors ${
               excluded
-                ? "border-amber-500/40 text-warning bg-amber-500/5"
+                ? "border-warning/40 text-warning bg-warning/5"
                 : "border-border text-muted-foreground hover:text-foreground"
             }`}
             title={excluded ? "AI memory is paused for this channel" : "Pause AI memory capture for this channel"}
           >
-            <span className={`h-1.5 w-1.5 rounded-full ${excluded ? "bg-amber-500" : "bg-emerald-500"}`} />
+            <span className={`h-1.5 w-1.5 rounded-full ${excluded ? "bg-warning" : "bg-success"}`} />
             {excluded ? "Memory paused for this channel" : "Capturing memory · click to pause"}
           </button>
         )}
@@ -840,7 +840,7 @@ function MemoryRow({
             onSelect={handlePickDue}
             onClear={() => onSetDue("")}
             onOpenChange={setActionsPinned}
-            className={cn(due?.overdue && "border-red-500/40 text-destructive")}
+            className={cn(due?.overdue && "border-destructive/40 text-destructive")}
           />
         )}
         {isClosed ? (
@@ -862,7 +862,7 @@ function MemoryRow({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 gap-1 px-2 text-success hover:text-emerald-700 hover:bg-success/10"
+            className="h-7 gap-1 px-2 text-success hover:text-success hover:bg-success/10"
             disabled={busy}
             onClick={onResolve}
             title="Resolve"

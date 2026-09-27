@@ -93,7 +93,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 className={cn(
                                     "absolute -top-0.5 -right-0.5",
                                     "flex h-4 w-4 items-center justify-center rounded-full",
-                                    "bg-amber-500 text-white ring-2 ring-background",
+                                    "bg-warning text-white ring-2 ring-background",
                                 )}
                                 aria-label="Admin"
                             >
@@ -136,7 +136,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 className={cn(
                                     "h-8 w-8 transition-colors",
                                     userInfo.user_is_admin
-                                        ? "text-amber-500 hover:text-amber-600"
+                                        ? "text-warning hover:text-warning"
                                         : "text-muted-foreground hover:text-foreground",
                                 )}
                                 onClick={handleCrownClick}

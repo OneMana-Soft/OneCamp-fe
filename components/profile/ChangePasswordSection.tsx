@@ -90,7 +90,7 @@ export function ChangePasswordSection() {
         <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                    <div className="bg-amber-500/10 p-2 rounded-full">
+                    <div className="bg-warning/10 p-2 rounded-full">
                         <Shield className="h-5 w-5 text-warning" />
                     </div>
                     <div>

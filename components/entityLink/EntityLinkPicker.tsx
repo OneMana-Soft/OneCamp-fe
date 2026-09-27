@@ -133,7 +133,7 @@ export function EntityLinkPicker({ onPick, isLinked, disabled }: EntityLinkPicke
                     <Icon className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                  {linked && <Check className="h-4 w-4 shrink-0 text-emerald-500" />}
+                  {linked && <Check className="h-4 w-4 shrink-0 text-success" />}
                 </button>
               )
             })}

@@ -177,7 +177,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                         return (
                             <div key={index} className={cn(
                                 "p-4 bg-muted/40 border border-border rounded-xl transition duration-200 hover:border-primary/40",
-                                executed?.success && "border-green-500/40 bg-green-500/5",
+                                executed?.success && "border-success/40 bg-success/5",
                                 executed && !executed.success && "border-destructive/40 bg-destructive/5"
                             )}>
                                 <div className="flex items-center gap-2 mb-2">

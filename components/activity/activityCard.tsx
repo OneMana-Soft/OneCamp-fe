@@ -97,7 +97,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                 </span>
             );
             badgeClass =
-                "bg-amber-500/10 text-warning border border-amber-500/20";
+                "bg-warning/10 text-warning border border-warning/20";
             time = activity.reaction.reaction_added_at;
             title = "reacted to your content";
             content = "";

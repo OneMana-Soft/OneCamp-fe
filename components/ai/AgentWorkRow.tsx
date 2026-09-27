@@ -49,9 +49,9 @@ export function sortAgentWork(items: ActiveWorkItem[]): ActiveWorkItem[] {
 }
 
 const AgentWorkStateIcon: React.FC<{ state: ActiveWorkState }> = ({ state }) => {
-  if (state === "working") return <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" />
+  if (state === "working") return <Loader2 className="h-3.5 w-3.5 animate-spin text-warning" />
   if (state === "stopping") return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-  if (state === "blocked") return <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+  if (state === "blocked") return <AlertTriangle className="h-3.5 w-3.5 text-warning" />
   return <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />
 }
 
@@ -91,7 +91,7 @@ const AgentWorkRowUngated: React.FC<{
     <li
       className={cn(
         "group flex items-start gap-2.5 py-2.5",
-        state === "blocked" && "bg-amber-500/5",
+        state === "blocked" && "bg-warning/5",
         className,
       )}
     >
@@ -101,7 +101,7 @@ const AgentWorkRowUngated: React.FC<{
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-1.5">
           <span className="truncate text-sm font-medium">{item.agent_name}</span>
-          <span className={cn("text-2xs", meta.attention ? "font-medium text-amber-600" : "text-muted-foreground")}>
+          <span className={cn("text-2xs", meta.attention ? "font-medium text-warning" : "text-muted-foreground")}>
             · {meta.label}
           </span>
           {!hideWhere && <span className="text-2xs text-muted-foreground/70">· {item.where}</span>}
@@ -135,7 +135,7 @@ const AgentWorkRowUngated: React.FC<{
             {item.options.map((o) => (
               <span
                 key={o}
-                className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-2xs text-foreground/80"
+                className="rounded border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-2xs text-foreground/80"
               >
                 {o}
               </span>

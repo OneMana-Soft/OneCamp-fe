@@ -262,7 +262,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                 <div className='flex items-center gap-0.5 shrink-0'>
                     <WithTooltip label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
                         <Button size='icon' variant='ghost' onClick={toggleFavourite} aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}>
-                            <Star className={isFavorite ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground'}/>
+                            <Star className={isFavorite ? 'text-warning fill-amber-500' : 'text-muted-foreground'}/>
                         </Button>
                     </WithTooltip>
 
@@ -281,7 +281,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                     <WithTooltip label={channelCallActive ? "Join the call in progress" : "Start a call"}>
                     <Button size='icon' variant={channelCallActive ? 'secondary' : 'ghost'} className={cn(
                             "relative transition duration-300",
-                            channelCallActive && "bg-success/10 text-success hover:bg-emerald-500/20"
+                            channelCallActive && "bg-success/10 text-success hover:bg-success/20"
                         )} asChild><Link href={channelCallHref} aria-label={channelCallActive ? "Join the call in progress" : "Start a call"}>
                         <Video size={18} />
                         {channelCallActive && (

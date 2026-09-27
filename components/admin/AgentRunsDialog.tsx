@@ -195,14 +195,14 @@ const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
       {done > 0 && (
         <div>
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="bg-emerald-500" style={{ width: `${pct(stats.succeeded)}%` }} title={`${stats.succeeded} succeeded`} />
+            <div className="bg-success" style={{ width: `${pct(stats.succeeded)}%` }} title={`${stats.succeeded} succeeded`} />
             <div className="bg-destructive" style={{ width: `${pct(stats.failed)}%` }} title={`${stats.failed} failed`} />
-            <div className="bg-amber-500" style={{ width: `${pct(stats.stopped)}%` }} title={`${stats.stopped} stopped`} />
+            <div className="bg-warning" style={{ width: `${pct(stats.stopped)}%` }} title={`${stats.stopped} stopped`} />
           </div>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> {stats.succeeded} succeeded</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-success" /> {stats.succeeded} succeeded</span>
             <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-destructive" /> {stats.failed} failed</span>
-            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> {stats.stopped} stopped</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-warning" /> {stats.stopped} stopped</span>
           </div>
         </div>
       )}
@@ -375,7 +375,7 @@ const RoutinesPanel: React.FC<{
 // problem — unless it was a rescue after the provider refused the prompt, which
 // reads in amber so an operator can spot a chronically oversized agent.
 const CompactionDivider: React.FC<{ compaction: AgentRunCompaction }> = ({ compaction }) => {
-  const rule = "h-px flex-1 " + (compaction.rescue ? "bg-amber-500/40" : "bg-border/60")
+  const rule = "h-px flex-1 " + (compaction.rescue ? "bg-warning/40" : "bg-border/60")
   return (
     // The detail is a tooltip on a pointer device and a tap-to-open line on
     // touch: a title attribute alone is unreadable on a phone, and this
@@ -454,7 +454,7 @@ const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
             {gov ? (
               <Badge
                 variant="outline"
-                className="gap-1 border-amber-500/40 bg-amber-500/10 text-3xs text-warning"
+                className="gap-1 border-warning/40 bg-warning/10 text-3xs text-warning"
               >
                 {gov.tone === "approval" ? <AlertTriangle size={10} /> : <ShieldAlert size={10} />}
                 {gov.label}

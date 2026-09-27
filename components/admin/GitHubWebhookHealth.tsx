@@ -73,15 +73,15 @@ const GitHubWebhookHealth: React.FC = () => {
   const isDegraded = !!h && h.failed_24h > 0
   const headlineBadge = (() => {
     if (isLoading) return <Badge variant="outline">Loading…</Badge>
-    if (isError) return <Badge variant="outline" className="text-amber-600 border-amber-300">Unavailable</Badge>
+    if (isError) return <Badge variant="outline" className="text-warning border-warning/30">Unavailable</Badge>
     if (isDegraded) return (
-      <Badge className="bg-red-500/10 text-red-700 border-red-200 dark:text-red-300">
+      <Badge className="bg-destructive/10 text-destructive border-destructive/30">
         <AlertTriangle className="mr-1 h-3.5 w-3.5" />
         {h!.failed_24h} failed in 24h
       </Badge>
     )
     if (isHealthy) return (
-      <Badge className="bg-success/10 text-green-700 border-green-200 dark:text-green-400">
+      <Badge className="bg-success/10 text-success border-success/30">
         <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
         Healthy
       </Badge>
@@ -151,7 +151,7 @@ const GitHubWebhookHealth: React.FC = () => {
           // Single-line clip with full text in the title attr so a
           // long stack trace doesn't bloat the card. Operators can
           // hover or pull from the DB for the full message.
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <div className="font-semibold mb-0.5">Last error</div>
             <div className="truncate" title={h.last_error_message}>
               {h.last_error_message}

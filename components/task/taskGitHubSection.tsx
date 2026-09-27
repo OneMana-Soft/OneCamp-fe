@@ -68,7 +68,7 @@ export function TaskGitHubSection({
               )}
               {syncStatus?.status === "pending" && (
                 <div className="flex items-center gap-1 text-warning">
-                  <div className="h-2 w-2 animate-pulse rounded-full bg-amber-600" />
+                  <div className="h-2 w-2 animate-pulse rounded-full bg-warning" />
                   <span className="text-3xs font-medium">Syncing…</span>
                 </div>
               )}
@@ -281,7 +281,7 @@ const CodeAnalysisPanel: React.FC<{ issueUrl: string; title: string; body: strin
           )}
 
           {result.partial && (
-            <div className="flex flex-col gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
+            <div className="flex flex-col gap-1.5 rounded-md border border-warning/30 bg-warning/10 p-2">
               <div className="flex items-center gap-1.5 text-2xs text-warning">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                 This is a large repo, so the agent could only see part of it. The fix may be incomplete.

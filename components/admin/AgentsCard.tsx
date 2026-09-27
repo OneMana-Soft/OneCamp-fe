@@ -105,7 +105,7 @@ const AgentHealthDot: React.FC<{ health?: AgentHealth }> = ({ health }) => {
   let color = "bg-muted-foreground/30"
   let label = `${health.total_runs} run${health.total_runs === 1 ? "" : "s"}, none completed yet`
   if (rate !== null) {
-    color = rate >= 90 ? "bg-emerald-500" : rate >= 70 ? "bg-amber-500" : "bg-red-500"
+    color = rate >= 90 ? "bg-success" : rate >= 70 ? "bg-warning" : "bg-destructive"
     label = `${rate}% success over ${completed} completed run${completed === 1 ? "" : "s"}`
   }
   return (
@@ -151,7 +151,7 @@ const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) =
     )
   }
 
-  const tone = rate >= 90 ? "text-success" : rate >= 70 ? "text-amber-600" : "text-red-600"
+  const tone = rate >= 90 ? "text-success" : rate >= 70 ? "text-warning" : "text-destructive"
   return (
     <Badge variant="secondary" className={cn("text-3xs", tone)} title={`${summary.passed}/${summary.scored} tests passing`}>
       {rate}% tests
@@ -332,8 +332,8 @@ const AgentsCard = () => {
                         </Badge>
                       )}
                       {a.run_in_background && <Badge variant="secondary" className="text-3xs" title="Answers mentions & DMs as durable background runs with live status">Background</Badge>}
-                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-3xs text-amber-600">Approval</Badge>}
-                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-3xs text-amber-600">Plan-approve</Badge>}
+                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-3xs text-warning">Approval</Badge>}
+                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-3xs text-warning">Plan-approve</Badge>}
                       {(a.max_daily_tokens ?? 0) > 0 && (
                         <Badge variant="secondary" className="text-3xs">{fmtTokens(a.max_daily_tokens as number)}/day</Badge>
                       )}

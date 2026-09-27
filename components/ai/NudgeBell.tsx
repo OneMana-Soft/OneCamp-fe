@@ -178,7 +178,7 @@ function NudgeBell() {
                                     >
                                         <div className={cn(
                                             "shrink-0 h-8 w-8 rounded-md flex items-center justify-center",
-                                            n.priority > 0 ? "bg-amber-500/15 text-warning" : "bg-primary/10 text-primary",
+                                            n.priority > 0 ? "bg-warning/15 text-warning" : "bg-primary/10 text-primary",
                                         )}>
                                             <Icon className="h-4 w-4" />
                                         </div>

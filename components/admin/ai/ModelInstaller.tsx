@@ -175,7 +175,7 @@ export const ModelInstaller: React.FC<{
       )}
 
       {progress?.done && progress.status === "success" && !pulling && (
-        <p className="text-xs text-success dark:text-emerald-500 flex items-center gap-1">
+        <p className="text-xs text-success flex items-center gap-1">
           <CheckCircle2 className="h-3.5 w-3.5" /> Installed.
         </p>
       )}

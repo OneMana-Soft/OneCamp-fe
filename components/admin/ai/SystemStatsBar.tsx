@@ -18,7 +18,7 @@ import { SystemStats, formatBytes } from "@/services/aiModelService"
 
 const Bar: React.FC<{ pct: number }> = ({ pct }) => {
   const clamped = Math.max(0, Math.min(100, pct))
-  const color = clamped > 90 ? "bg-red-500" : clamped > 75 ? "bg-amber-500" : "bg-emerald-500"
+  const color = clamped > 90 ? "bg-destructive" : clamped > 75 ? "bg-warning" : "bg-success"
   return (
     <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
       <div className={`h-full ${color}`} style={{ width: `${clamped}%` }} />

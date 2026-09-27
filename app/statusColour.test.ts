@@ -114,7 +114,7 @@ describe("status colour tokens", () => {
     // excluded outright now, because it is the brand hue and an orange here may be
     // identity rather than a state. These come off surface by surface, with eyes on
     // the screen, not in one blind sweep.
-    const BASELINE = 313
+    const BASELINE = 36
     const total = files.reduce(
       (n, f) => n + (readFileSync(f, "utf8").match(RAW_HUE_UTILITY)?.length ?? 0),
       0,

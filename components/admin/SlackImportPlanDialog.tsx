@@ -152,9 +152,9 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
             </div>
 
             {plan.warnings && plan.warnings.length > 0 && (
-              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+              <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs">
                 <div className="flex items-center gap-2 font-medium mb-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  <AlertTriangle className="h-4 w-4 text-warning" />
                   {plan.warnings.length} warning{plan.warnings.length === 1 ? "" : "s"}
                 </div>
                 <ul className="list-disc pl-5 space-y-1 text-muted-foreground max-h-40 overflow-auto">
@@ -259,7 +259,7 @@ const PlanStat: React.FC<{ label: string; value: React.ReactNode; positive?: boo
     <div className="text-3xs uppercase tracking-wider text-muted-foreground">{label}</div>
     <div
       className={`text-lg font-semibold mt-0.5 ${
-        warn ? "text-amber-500" : positive ? "text-success" : ""
+        warn ? "text-warning" : positive ? "text-success" : ""
       }`}
     >
       {value}

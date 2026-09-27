@@ -37,7 +37,7 @@ const ScoreBadge: React.FC<{ score?: EvalScore }> = ({ score }) => {
       </Badge>
     )
   }
-  const cls = score.passed ? "text-success" : "text-red-600"
+  const cls = score.passed ? "text-success" : "text-destructive"
   return (
     <span className={cn("inline-flex items-center gap-1 text-2xs font-medium", cls)} title={`${score.score}% of checks met`}>
       {score.passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}

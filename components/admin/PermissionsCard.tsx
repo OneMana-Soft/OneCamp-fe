@@ -71,7 +71,7 @@ export default function PermissionsCard() {
         <Card className="border-border/60">
             <CardHeader className="space-y-1">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                    <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                    <ShieldCheck className="h-5 w-5 text-success" />
                     Member permissions
                 </CardTitle>
                 <CardDescription className="max-w-xl">

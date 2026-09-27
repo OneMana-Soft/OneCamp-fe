@@ -14,9 +14,9 @@ import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCoun
 import { listAgentActivity, type AgentActivityItem } from "@/services/agentService"
 
 const STATUS_DOT: Record<string, string> = {
-  succeeded: "bg-emerald-500",
-  failed: "bg-red-500",
-  running: "bg-amber-500",
+  succeeded: "bg-success",
+  failed: "bg-destructive",
+  running: "bg-warning",
   stopped: "bg-muted-foreground/50",
 }
 

@@ -257,8 +257,8 @@ export function WeekView({
                   className="pointer-events-none absolute inset-x-0 z-20"
                   style={{ top: `${(nowTopMin / 60) * HOUR_HEIGHT}px` }}
                 >
-                  <div className="relative h-px bg-rose-500">
-                    <span className="absolute -left-1 -top-[3px] h-1.5 w-1.5 rounded-full bg-rose-500" />
+                  <div className="relative h-px bg-destructive">
+                    <span className="absolute -left-1 -top-[3px] h-1.5 w-1.5 rounded-full bg-destructive" />
                   </div>
                 </div>
               )}

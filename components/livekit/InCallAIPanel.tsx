@@ -118,7 +118,7 @@ export function InCallAIPanel({
                 {/* AI disabled — explain why and how to fix, no dead composer. */}
                 {!statusLoading && !aiEnabled && (
                     <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-2">
-                        <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-amber-500/10">
+                        <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-warning/10">
                             <AlertCircle className="h-6 w-6 text-amber-400" />
                         </div>
                         <div className="space-y-1">

@@ -312,7 +312,7 @@ const CatalogCard: React.FC<{
           <p className="text-2xs font-mono text-muted-foreground truncate">{model.tag}</p>
         </div>
         {model.installed ? (
-          <Badge variant="outline" className="shrink-0 gap-1 border-emerald-500/40 text-success dark:text-emerald-500">
+          <Badge variant="outline" className="shrink-0 gap-1 border-success/40 text-success">
             <Check className="h-3 w-3" /> Installed
           </Badge>
         ) : null}
@@ -370,7 +370,7 @@ const CatalogCard: React.FC<{
           </div>
         </div>
       ) : model.installed ? (
-        <Button variant="ghost" size="sm" disabled className="h-7 justify-start px-0 text-success dark:text-emerald-500">
+        <Button variant="ghost" size="sm" disabled className="h-7 justify-start px-0 text-success">
           <Check className="h-3.5 w-3.5 mr-1" /> Ready to use
         </Button>
       ) : (

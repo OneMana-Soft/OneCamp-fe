@@ -395,7 +395,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
           {/* Export toolbar */}
           <div className="flex h-12 shrink-0 items-center justify-end gap-2 border-b px-4">
             <Button variant="outline" size="sm" onClick={handleCopy} disabled={!html} className="gap-1.5">
-              {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Code className="h-3.5 w-3.5" />}
+              {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Code className="h-3.5 w-3.5" />}
               {copied ? "Copied" : "Copy HTML"}
             </Button>
             <Button variant="outline" size="sm" onClick={handleDownloadHtml} disabled={!html} className="gap-1.5">

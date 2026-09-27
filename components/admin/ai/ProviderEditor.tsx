@@ -265,7 +265,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
           {kindBadge(provider.kind)}
           {provider.has_api_key && <Badge variant="outline" className="gap-1"><KeyRound className="h-3 w-3" /> key set</Badge>}
           {needsKey && (
-            <Badge variant="outline" className="gap-1 border-amber-500/40 text-warning">
+            <Badge variant="outline" className="gap-1 border-warning/40 text-warning">
               <KeyRound className="h-3 w-3" /> key required
             </Badge>
           )}

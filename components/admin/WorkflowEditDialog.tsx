@@ -506,7 +506,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                                 </SelectContent>
                                             </Select>
                                             {projects.length === 0 && (
-                                                <p className="text-2xs text-amber-600">
+                                                <p className="text-2xs text-warning">
                                                     You can only create tasks in projects you administer.
                                                 </p>
                                             )}

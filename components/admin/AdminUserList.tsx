@@ -216,7 +216,7 @@ function AdminUserRow({
         ) : (
           <Badge
             variant="outline"
-            className="text-3xs h-5 hidden xs:inline-flex sm:inline-flex border-success/30 text-success bg-emerald-500/5"
+            className="text-3xs h-5 hidden xs:inline-flex sm:inline-flex border-success/30 text-success bg-success/5"
           >
             Active
           </Badge>
@@ -255,7 +255,7 @@ function AdminUserRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-auto gap-1 px-2 sm:w-8 sm:px-0 text-success hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-success/10 dark:text-emerald-400"
+                className="h-8 w-auto gap-1 px-2 sm:w-8 sm:px-0 text-success hover:text-success dark:hover:text-emerald-300 hover:bg-success/10"
                 onClick={() => onActivate(user.user_email_id!, user.user_uuid)}
                 disabled={isSubmitting}
                 aria-label={`Reactivate ${seed}`}

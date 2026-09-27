@@ -45,7 +45,7 @@ export default function ForgotPasswordPage() {
       <div className="w-full max-w-sm space-y-6">
         {isSent ? (
           <div className="space-y-4 text-center animate-in fade-in duration-300">
-            <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+            <CheckCircle className="h-12 w-12 text-success mx-auto" />
             <h1 className="text-2xl font-semibold tracking-tight">Check your email</h1>
             <p className="text-sm text-muted-foreground">
               If an account with <span className="font-medium text-foreground">{email}</span> exists, we&apos;ve sent a password reset link.

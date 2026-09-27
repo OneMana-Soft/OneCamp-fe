@@ -133,7 +133,7 @@ export function VideoControls({
         label={isMicrophoneEnabled ? "Mute" : "Unmute"}
         onClick={toggleMic}
         isActive={!isMicrophoneEnabled} // Red when muted
-        activeClass="bg-red-500/20 text-red-500 hover:bg-red-500/30 border-red-500/50"
+        activeClass="bg-destructive/20 text-destructive hover:bg-destructive/30 border-destructive/50"
       >
         {isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
       </ControlBtn>
@@ -142,7 +142,7 @@ export function VideoControls({
         label={isCameraEnabled ? "Stop Video" : "Start Video"}
         onClick={toggleCamera}
         isActive={!isCameraEnabled}
-        activeClass="bg-red-500/20 text-red-500 hover:bg-red-500/30 border-red-500/50"
+        activeClass="bg-destructive/20 text-destructive hover:bg-destructive/30 border-destructive/50"
       >
         {isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
       </ControlBtn>
@@ -167,7 +167,7 @@ export function VideoControls({
             onClick={onToggleRecording}
             isActive={isRecording}
             disabled={isRecordingLoading}
-            activeClass="bg-red-500/20 text-red-500 hover:bg-red-500/30 border-red-500/50 animate-pulse"
+            activeClass="bg-destructive/20 text-destructive hover:bg-destructive/30 border-destructive/50 animate-pulse"
         >
             {isRecordingLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Disc className="h-5 w-5" />}
         </ControlBtn>

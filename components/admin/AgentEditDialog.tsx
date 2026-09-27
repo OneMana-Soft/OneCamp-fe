@@ -660,7 +660,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                         >
                           {on ? <Check className="h-3 w-3" /> : null}
                           {t.label}
-                          {t.write && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                          {t.write && <AlertTriangle className="h-3 w-3 text-warning" />}
                         </button>
                       )
                     })}
@@ -710,8 +710,8 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
           )}
 
           {showMultiSourceNote && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
+            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning" />
               <span>
                 This agent uses tools from multiple sources
                 {(() => {
@@ -1032,7 +1032,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
 
           <div className="grid gap-2 rounded-xl border bg-muted/30 p-3">
             <Label className="flex items-center gap-1.5">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Autonomy for write actions
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" /> Autonomy for write actions
             </Label>
             <p className="text-xs text-muted-foreground -mt-1">
               How much this agent may do on its own. Reading and thinking always run automatically;

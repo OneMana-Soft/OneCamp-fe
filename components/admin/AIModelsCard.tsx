@@ -952,7 +952,7 @@ const AIModelsCard = () => {
 const ReindexBanner: React.FC<{ status: ReindexStatus }> = ({ status }) => {
   const pct = status.total > 0 ? Math.round(((status.processed + status.failed) / status.total) * 100) : 0
   return (
-    <section className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 space-y-2">
+    <section className="rounded-lg border border-warning/30 bg-warning/10 p-4 space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-warning">
           {status.running ? "Rebuilding AI search index…" : "AI search index rebuilt"}
@@ -962,7 +962,7 @@ const ReindexBanner: React.FC<{ status: ReindexStatus }> = ({ status }) => {
         </span>
       </div>
       <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-        <div className="h-full bg-amber-500 transition-[width,height]" style={{ width: `${pct}%` }} />
+        <div className="h-full bg-warning transition-[width,height]" style={{ width: `${pct}%` }} />
       </div>
       <p className="text-xs text-muted-foreground">
         {status.running
@@ -996,7 +996,7 @@ const UsageMeterBar: React.FC<{ label: string; used: number; limit: number }> = 
       {l > 0 && (
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className={`h-full rounded-full transition ${near ? "bg-amber-500" : "bg-primary"}`}
+            className={`h-full rounded-full transition ${near ? "bg-warning" : "bg-primary"}`}
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -2586,9 +2586,9 @@ function CodePRReliabilityCard() {
   const gradeBadge = (grade: string) => {
     switch (grade) {
       case "healthy":
-        return { label: "Healthy", cls: "bg-emerald-500/15 text-success" }
+        return { label: "Healthy", cls: "bg-success/15 text-success" }
       case "needs_attention":
-        return { label: "Needs attention", cls: "bg-amber-500/15 text-warning" }
+        return { label: "Needs attention", cls: "bg-warning/15 text-warning" }
       default:
         return { label: "Unproven", cls: "bg-muted text-muted-foreground" }
     }
@@ -2694,10 +2694,10 @@ function CodePRReliabilityCard() {
 function CodePRRunRow({ run }: { run: CodePRRunView }) {
   const badge = (() => {
     if (run.outcome === "merged" || run.outcome === "merged_with_edits") {
-      return { label: "Merged", cls: "bg-emerald-500/15 text-success" }
+      return { label: "Merged", cls: "bg-success/15 text-success" }
     }
     if (run.outcome === "closed_unmerged") {
-      return { label: "Closed", cls: "bg-red-500/15 text-destructive" }
+      return { label: "Closed", cls: "bg-destructive/15 text-destructive" }
     }
     switch (run.status) {
       case "ok":
@@ -2706,9 +2706,9 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
           cls: "bg-blue-500/15 text-info",
         }
       case "blocked":
-        return { label: "Needs input", cls: "bg-amber-500/15 text-warning" }
+        return { label: "Needs input", cls: "bg-warning/15 text-warning" }
       case "no_green":
-        return { label: "Unverified", cls: "bg-amber-500/15 text-warning" }
+        return { label: "Unverified", cls: "bg-warning/15 text-warning" }
       default:
         return { label: run.status || "—", cls: "bg-muted text-muted-foreground" }
     }

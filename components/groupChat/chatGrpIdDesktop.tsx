@@ -165,7 +165,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         variant={chatCallActive ? 'secondary' : 'ghost'}
                         className={cn(
                             "relative transition duration-300",
-                            chatCallActive && "bg-success/10 text-success hover:bg-emerald-500/20"
+                            chatCallActive && "bg-success/10 text-success hover:bg-success/20"
                         )}
                         onClick={clickVideoCall}
                     >

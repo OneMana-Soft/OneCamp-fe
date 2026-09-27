@@ -139,7 +139,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                         className={
                             "rounded-xl border backdrop-blur-sm px-3.5 py-3 shadow-sm " +
                             (destructive
-                                ? "border-amber-500/40 bg-amber-500/[0.06]"
+                                ? "border-warning/40 bg-warning/[0.06]"
                                 : "border-border bg-card/80")
                         }
                     >
@@ -148,7 +148,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                                 className={
                                     "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full " +
                                     (destructive
-                                        ? "bg-amber-500/15 text-warning"
+                                        ? "bg-warning/15 text-warning"
                                         : "bg-primary/10 text-primary")
                                 }
                             >
@@ -198,7 +198,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                                 className={
                                     "h-8 gap-1.5 " +
                                     (destructive
-                                        ? "bg-amber-600 text-white hover:bg-amber-700 focus-visible:ring-amber-500"
+                                        ? "bg-warning text-white hover:bg-warning/90 focus-visible:ring-warning/50"
                                         : "")
                                 }
                             >
