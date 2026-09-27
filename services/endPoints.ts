@@ -129,6 +129,8 @@ export enum GetEndpointUrl {
     GetAgentRuns = "/agents",   // append /{id}/runs
     GetAgentActivity = "/agents/activity",
     GetAgentInventory = "/agents/inventory",
+    GetOAuthRequest = "/oauth/requests", // append /{id}
+    AgentNotePreference = "/ai/agent-note/preference",
     // MCP servers (external tool providers)
     GetMcpServers = "/mcp/servers",
     GetMcpCatalog = "/mcp/catalog",
@@ -308,6 +310,9 @@ export enum PostEndpointUrl {
     DraftAgent = "/agents/draft",
     CheckRemoteBrain = "/agents/agui/check",
     RevokeInventoryCredential = "/agents/inventory/credentials", // append /{id}/revoke
+    AnswerOAuthRequest = "/oauth/requests", // append /{id}/approve or /{id}/deny
+    LeaveAgentNote = "/ai/agent-note",
+    SetAgentNotePreference = "/ai/agent-note/preference",
     UpdateAgent = "/agents",     // append /{id}/update
     DeleteAgent = "/agents",     // append /{id}/delete
     SetAgentActive = "/agents",  // append /{id}/active

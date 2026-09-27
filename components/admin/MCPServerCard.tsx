@@ -30,9 +30,11 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Plug, ShieldAlert } from "@/lib/icons"
 import { CopyableCode } from "@/components/ui/copyable-code"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
     MCP_TOKEN_PLACEHOLDER,
     mcpClientConfig,
+    mcpConnectRecipes,
     mcpCurlExample,
     mcpEndpointUrl,
 } from "@/lib/utils/mcpEndpoint"
@@ -109,6 +111,7 @@ export function MCPServerCard() {
     const endpoint = useMemo(() => mcpEndpointUrl(), [])
     const clientConfig = useMemo(() => mcpClientConfig(), [])
     const curlExample = useMemo(() => mcpCurlExample(), [])
+    const recipes = useMemo(() => mcpConnectRecipes(), [])
 
     // Self-contained, like every sibling admin card: it fetches its own state so the
     // settings page does not have to know this card exists beyond rendering it.
@@ -208,9 +211,9 @@ export function MCPServerCard() {
                     ) : null}
                 </CardTitle>
                 <CardDescription>
-                    Let outside AI clients (Claude, Cursor, your own agents) work in this
-                    workspace over the Model Context Protocol. Every call runs as the person whose
-                    API token it uses, so an agent can never reach something its owner
+                    Let outside agents (Claude, Cowork, ChatGPT, Grok Bot, Cursor, your own) work in
+                    this workspace over the Model Context Protocol. They sign in by URL, and every
+                    call runs as the person who approved it, so an agent can never reach something its owner
                     couldn&apos;t open themselves, and every call is recorded in the audit log
                     whether it succeeded or was refused. Most tools are additionally re-checked
                     against that person&apos;s live permission on the specific channel, document or
@@ -347,45 +350,67 @@ export function MCPServerCard() {
                 {stored?.enabled && (
                     <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
                         <div className="space-y-1">
-                            <p className="text-sm font-medium">Connecting a client</p>
+                            <p className="text-sm font-medium">Connecting an agent</p>
                             <p className="text-xs text-muted-foreground">
-                                Streamable-HTTP MCP: one endpoint, JSON-RPC 2.0, protocol{" "}
-                                <code className="rounded bg-muted px-1">2024-11-05</code>. Stateless,
-                                so there is no session to establish or reconnect.
+                                Paste the address into the agent and sign in. Whoever approves it
+                                picks the agent it acts as, so it arrives with a sponsor, shows up
+                                in the agent inventory, and stops when that agent is paused.
                             </p>
                         </div>
 
                         {endpoint ? (
                             <>
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs">Endpoint</Label>
-                                    <CopyableCode value={endpoint} label="endpoint URL" />
+                                    <Label className="text-xs">Address</Label>
+                                    <CopyableCode value={endpoint} label="MCP address" />
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">
-                                        Client config (Claude Desktop, Cursor, …)
-                                    </Label>
-                                    <CopyableCode value={clientConfig} label="client config" />
-                                    <p className="text-xs text-muted-foreground">
-                                        Replace{" "}
-                                        <code className="rounded bg-muted px-1">
-                                            {MCP_TOKEN_PLACEHOLDER}
-                                        </code>{" "}
-                                        with a token from{" "}
-                                        <span className="font-medium">Settings → API tokens</span>.
-                                        Tokens are shown once, so paste it straight in here.
-                                    </p>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Check it works</Label>
-                                    <CopyableCode value={curlExample} label="test command" />
-                                    <p className="text-xs text-muted-foreground">
-                                        An empty tool list means the token holds no scopes, or no
-                                        group above is enabled, not that the connection failed.
-                                    </p>
-                                </div>
+                                <Tabs defaultValue={recipes[0].id} className="space-y-2">
+                                    <TabsList className="h-auto flex-wrap justify-start">
+                                        {recipes.map((r) => (
+                                            <TabsTrigger key={r.id} value={r.id} className="text-xs">
+                                                {r.name}
+                                            </TabsTrigger>
+                                        ))}
+                                        <TabsTrigger value="token" className="text-xs">
+                                            Scripts & other clients
+                                        </TabsTrigger>
+                                    </TabsList>
+                                    {recipes.map((r) => (
+                                        <TabsContent key={r.id} value={r.id} className="mt-0 space-y-2">
+                                            <ol className="list-decimal space-y-1 pl-4 text-xs text-muted-foreground">
+                                                {r.steps.map((step) => (
+                                                    <li key={step}>{step}</li>
+                                                ))}
+                                            </ol>
+                                            {r.snippet && r.snippet !== endpoint && (
+                                                <CopyableCode value={r.snippet} label={`${r.name} setup`} />
+                                            )}
+                                        </TabsContent>
+                                    ))}
+                                    <TabsContent value="token" className="mt-0 space-y-3">
+                                        <div className="space-y-1.5">
+                                            <CopyableCode value={clientConfig} label="client config" />
+                                            <p className="text-xs text-muted-foreground">
+                                                For a client that cannot sign in: replace{" "}
+                                                <code className="rounded bg-muted px-1">
+                                                    {MCP_TOKEN_PLACEHOLDER}
+                                                </code>{" "}
+                                                with a token from{" "}
+                                                <span className="font-medium">Settings → API tokens</span>,
+                                                ideally bound to an agent. Tokens are shown once.
+                                            </p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs">Check it works</Label>
+                                            <CopyableCode value={curlExample} label="test command" />
+                                            <p className="text-xs text-muted-foreground">
+                                                An empty tool list means the token holds no scopes, or no
+                                                group above is enabled, not that the connection failed.
+                                            </p>
+                                        </div>
+                                    </TabsContent>
+                                </Tabs>
                             </>
                         ) : (
                             /*

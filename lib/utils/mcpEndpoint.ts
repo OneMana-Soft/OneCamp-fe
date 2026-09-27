@@ -78,3 +78,67 @@ export function mcpCurlExample(
     `  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`,
   ].join("\n")
 }
+
+/**
+ * How to connect each agent people actually use, by URL and sign-in.
+ *
+ * Since the server speaks OAuth, none of these needs a token: the client
+ * signs the person in, and they approve it in OneCamp as an agent they
+ * sponsor. Menu paths checked against each vendor's own documentation in
+ * September 2026; kept here, next to the URL they use, so a changed path is
+ * one edit.
+ */
+export interface MCPConnectRecipe {
+  id: string
+  name: string
+  steps: string[]
+  /** Something to paste, when the client takes one. */
+  snippet?: string
+}
+
+export function mcpConnectRecipes(base?: string): MCPConnectRecipe[] {
+  const url = mcpEndpointUrl(base)
+  return [
+    {
+      id: "claude",
+      name: "Claude & Cowork",
+      steps: [
+        "In Claude, open Customize, then Connectors, then + and Add custom connector. On Team and Enterprise an Owner adds it once under Organization settings, Connectors.",
+        "Name it OneCamp and paste the URL below. Leave the OAuth fields empty.",
+        "Click Connect and approve it in OneCamp. Claude, Cowork and the desktop app share it.",
+      ],
+      snippet: url,
+    },
+    {
+      id: "chatgpt",
+      name: "ChatGPT",
+      steps: [
+        "In Settings, Apps & Connectors, Advanced settings, turn on Developer mode. On Business and Enterprise an admin enables custom connectors first.",
+        "In Settings, Apps & Connectors, choose Create. Name it OneCamp, paste the URL below and pick OAuth.",
+        "Sign in when asked and approve it in OneCamp.",
+      ],
+      snippet: url,
+    },
+    {
+      id: "grok",
+      name: "Grok Bot",
+      steps: [
+        "Message your bot the line below, or add a Custom connector at grok.com/connectors.",
+        "Confirm the name and address, then sign in from the connect card and approve it in OneCamp. Every bot on your account can use it.",
+      ],
+      snippet: `Add a custom MCP server called OneCamp at ${url}`,
+    },
+    {
+      id: "claude-code",
+      name: "Claude Code",
+      steps: ["Run the line below, then /mcp in Claude Code to sign in and approve it in OneCamp."],
+      snippet: `claude mcp add --transport http onecamp ${url}`,
+    },
+    {
+      id: "cursor",
+      name: "Cursor",
+      steps: ["Add this to .cursor/mcp.json (or your global mcp.json). Cursor asks you to sign in the first time a tool is used."],
+      snippet: `${JSON.stringify({ mcpServers: { onecamp: { url } } }, null, 2)}\n`,
+    },
+  ]
+}

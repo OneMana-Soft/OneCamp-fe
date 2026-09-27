@@ -105,3 +105,15 @@ describe("mcpCurlExample", () => {
     expect(mcpCurlExample("oc_deadbeef", BETA)).not.toMatch(/Authorization: Bearer [^\n]*'/)
   })
 })
+
+describe("connect recipes", () => {
+  it("every recipe uses this instance's address, and none asks for a token", async () => {
+    const { mcpConnectRecipes } = await import("@/lib/utils/mcpEndpoint")
+    const recipes = mcpConnectRecipes("https://api.acme.test/")
+    expect(recipes.map((r) => r.id)).toEqual(["claude", "chatgpt", "grok", "claude-code", "cursor"])
+    for (const r of recipes) {
+      expect(r.snippet).toContain("https://api.acme.test/v1/mcp")
+      expect(JSON.stringify(r)).not.toMatch(/oc_|Bearer/)
+    }
+  })
+})

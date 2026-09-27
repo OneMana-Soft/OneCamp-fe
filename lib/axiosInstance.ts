@@ -107,7 +107,9 @@ const performLogout = async () => {
     localStorage.clear();
     sessionStorage.clear();
     // Only redirect if not already on a public page to avoid reload loops
-    const publicPaths = ['/', '/signup', '/forgot-password', '/reset-password', '/admin-setup'];
+    // /connect/authorize answers a signed-out visitor itself (a sign-in button that
+    // brings them back), so it must not be bounced from.
+    const publicPaths = ['/', '/signup', '/forgot-password', '/reset-password', '/admin-setup', '/connect/authorize'];
     if (!publicPaths.includes(window.location.pathname)) {
         window.location.href = '/';
     } else {

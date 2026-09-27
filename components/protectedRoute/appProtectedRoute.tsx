@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserEmojiStatus, UserProfileInterface} from "@/types/user";
 import {app_login_path} from "@/types/paths";
+import { takePendingConnect } from "@/lib/pendingConnect";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus} from "@/store/slice/userSlice";
@@ -93,6 +94,11 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
             dispatch(updateUserStatus({userUUID: userProfile.data?.data.user_uuid, status:userProfile.data.data.user_status || 'online'}));
             dispatch(updateUserConnectedDeviceCount({userUUID: userProfile.data?.data.user_uuid, deviceConnected:userProfile.data?.data.user_device_connected || 0}));
 
+            // An outside agent's sign-in that was waiting for this login (see
+            // lib/pendingConnect). Every login method lands here, so this is
+            // the one place that can take the person back to approve it.
+            const resume = takePendingConnect();
+            if (resume) router.replace(resume);
         }
 
     }, [userProfile.isError, userProfile.isLoading, userProfile.data?.data, router, dispatch]);
