@@ -6,7 +6,6 @@ import { RootState } from "@/store/store"
 import Link from "next/link"
 import {
     ArrowRight,
-    Bell,
     CheckSquare,
     Clock,
     FileText,
@@ -22,72 +21,12 @@ import { UserProfileInterface } from "@/types/user"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { formatDistanceToNow } from "date-fns"
 import { openUI } from "@/store/slice/uiSlice"
-import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
 import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { useHydrateUserSidebar } from "@/hooks/useHydrateUserSidebar"
 import SetupChecklist from "@/components/home/SetupChecklist"
-
-function StatCard({
-    icon: Icon,
-    label,
-    value,
-    href,
-    badge,
-    category,
-}: {
-    icon: React.ElementType
-    label: string
-    value: number | string
-    href: string
-    badge?: { label: string; tone: "destructive" | "muted" }
-    category: CategoryKey
-}) {
-    const colors = categoryColors[category]
-    return (
-        <Link
-            href={href}
-            scroll={false}
-            className={cn(
-                "group flex items-center gap-3 rounded-xl border border-border/50 bg-card/40",
-                "px-4 py-3.5 transition-colors duration-150",
-                "hover:bg-accent/40 hover:border-border",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-            )}
-        >
-            <div
-                className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                    colors.bg,
-                )}
-            >
-                <Icon className={cn("h-5 w-5", colors.text)} />
-            </div>
-            <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                    <span className="text-lg font-semibold tabular-nums leading-none">
-                        {value}
-                    </span>
-                    {badge && (
-                        <span
-                            className={cn(
-                                "inline-flex items-center rounded-full px-1.5 py-0.5 text-3xs font-medium",
-                                badge.tone === "destructive"
-                                    ? "bg-destructive/10 text-destructive"
-                                    : "bg-muted text-muted-foreground",
-                            )}
-                        >
-                            {badge.label}
-                        </span>
-                    )}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1 truncate">
-                    {label}
-                </div>
-            </div>
-        </Link>
-    )
-}
+import { GlanceLine, todayEyebrow } from "@/components/home/GlanceLine"
+import { PageHeader } from "@/components/ui/pageHeader"
 
 function SectionHeader({
     title,
@@ -100,7 +39,7 @@ function SectionHeader({
 }) {
     return (
         <div className="flex items-center justify-between mb-2.5">
-            <h2 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="text-xs font-medium text-muted-foreground">
                 {title}
             </h2>
             {actionLabel && href && (
@@ -161,55 +100,26 @@ export function DesktopDashboard() {
         <PageContainer className="overflow-y-auto py-8" bounded={false}>
             <div className="max-w-5xl mx-auto flex flex-col gap-8">
                 {/* Welcome */}
-                <div className="space-y-1">
-                    <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                        {greetingLine}
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                        Here&apos;s what&apos;s happening in your workspace
-                    </p>
-                </div>
+                <PageHeader eyebrow={todayEyebrow()} title={greetingLine} size="lg">
+                    <GlanceLine
+                        items={[
+                            { count: unreadChannels, one: "unread channel", many: "unread channels", href: "/app/channel" },
+                            { count: totalDMUnread, one: "unread message", many: "unread messages", href: "/app/chat" },
+                            { count: userSidebar.totalUnreadActivityCount || 0, one: "notification", many: "notifications", href: "/app/activity" },
+                            {
+                                count: incompleteTasks,
+                                one: "open task",
+                                many: "open tasks",
+                                href: "/app/myTask",
+                                flag: overdueTasks > 0 ? `${overdueTasks} overdue` : undefined,
+                            },
+                        ]}
+                    />
+                </PageHeader>
 
                 {/* Setup, while there is any left. Self-hides when the workspace
                     is actually configured, not when somebody ticks a box. */}
                 <SetupChecklist isAdmin={isAdmin} />
-
-                {/* Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <StatCard
-                        icon={MessageCircle}
-                        label="Unread DMs"
-                        value={totalDMUnread}
-                        category="chat"
-                        href="/app/chat"
-                    />
-                    <StatCard
-                        icon={Bell}
-                        label="Notifications"
-                        value={userSidebar.totalUnreadActivityCount || 0}
-                        category="notification"
-                        href="/app/activity"
-                    />
-                    <StatCard
-                        icon={Hash}
-                        label="Unread channels"
-                        value={unreadChannels}
-                        category="channel"
-                        href="/app/channel"
-                    />
-                    <StatCard
-                        icon={CheckSquare}
-                        label="Incomplete tasks"
-                        value={incompleteTasks}
-                        category="task"
-                        badge={
-                            overdueTasks > 0
-                                ? { label: `${overdueTasks} overdue`, tone: "destructive" }
-                                : undefined
-                        }
-                        href="/app/myTask"
-                    />
-                </div>
 
                 {/* Two-column body */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -222,59 +132,39 @@ export function DesktopDashboard() {
                                 href="/app/search"
                             />
                             {recentItems.length > 0 ? (
-                                <div className="rounded-xl border border-border/50 bg-card/30 overflow-hidden">
+                                <div className="-mx-2">
                                     {recentItems.slice(0, 8).map((item) => {
                                         const Icon = TYPE_ICON[item.type] || Clock
-                                        const colors = getCategoryColor(item.type)
                                         return (
                                             <Link
                                                 key={`${item.type}-${item.id}`}
                                                 href={item.path}
                                                 scroll={false}
-                                                className="block focus:outline-none [&:not(:last-child)]:border-b border-border/40"
+                                                className="block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                                             >
                                                 <ListRow
                                                     density="default"
-                                                    leading={
-                                                        <div
-                                                            className={cn(
-                                                                "flex h-7 w-7 items-center justify-center rounded-md",
-                                                                colors.bg,
-                                                            )}
-                                                        >
-                                                            <Icon
-                                                                className={cn(
-                                                                    "h-3.5 w-3.5",
-                                                                    colors.text,
-                                                                )}
-                                                            />
-                                                        </div>
-                                                    }
+                                                    leading={<Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />}
                                                     title={item.title}
-                                                    meta={formatDistanceToNow(item.timestamp)}
-                                                    className="rounded-none border-0 hover:bg-accent/40"
+                                                    meta={formatDistanceToNow(item.timestamp, { addSuffix: true })}
+                                                    className="rounded-md border-0 px-2 hover:bg-foreground/[0.04]"
                                                 />
                                             </Link>
                                         )
                                     })}
                                 </div>
                             ) : (
-                                <div className="rounded-xl border border-border/50 bg-card/30 p-10 text-center">
-                                    <div className="flex flex-col items-center gap-3">
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                                            <Clock className="h-5 w-5 text-muted-foreground" />
-                                        </div>
-                                        {/* "No recent activity yet" sat directly
+                                <div className="py-2">
+                                    {/* "No recent activity yet" sat directly
                                             under the morning's activity, so the
                                             page contradicted itself on a first
                                             visit. This list is what YOU opened,
                                             not what happened, and saying so is
                                             both true and the thing that stops it
                                             reading as a broken feed. */}
-                                        <p className="text-sm text-muted-foreground">
+                                    <p className="text-sm text-muted-foreground">
                                             Nothing opened yet. Channels, docs and tasks you visit appear here.
                                         </p>
-                                    </div>
                                 </div>
                             )}
                         </div>
@@ -282,74 +172,54 @@ export function DesktopDashboard() {
                         {userSidebar.userChannels && userSidebar.userChannels.length > 0 && (
                             <div>
                                 <SectionHeader
-                                    title="Your Channels"
+                                    title="Your channels"
                                     actionLabel="Browse"
                                     href="/app/channel"
                                 />
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {userSidebar.userChannels.slice(0, 6).map((channel) => (
-                                        <Link
-                                            key={channel.ch_uuid}
-                                            href={`/app/channel/${channel.ch_uuid}`}
-                                            scroll={false}
-                                            className={cn(
-                                                "group flex items-center gap-3 rounded-lg border border-border/50 bg-card/30 px-3 py-2.5",
-                                                "transition-colors duration-150",
-                                                "hover:bg-accent/40 hover:border-border",
-                                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                                            )}
-                                        >
-                                            {/* Channel icon — tinted when there are unreads */}
-                                            <div className={cn(
-                                                "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
-                                                channel.unread_post_count > 0
-                                                    ? "bg-primary/15"
-                                                    : "bg-muted/40 group-hover:bg-muted/60",
-                                            )}>
-                                                <Hash className={cn(
-                                                    "h-3.5 w-3.5",
-                                                    channel.unread_post_count > 0
-                                                        ? "text-primary"
-                                                        : "text-muted-foreground",
-                                                )} />
-                                            </div>
-
-                                            <div className="min-w-0 flex-1">
-                                                {/* Name row: private lock + name + active-call dot */}
-                                                <div className="flex items-center gap-1.5">
-                                                    {channel.ch_private && (
-                                                        <Lock className="h-3 w-3 shrink-0 text-muted-foreground/60" />
-                                                    )}
-                                                    <span className="truncate text-sm font-medium text-foreground">
+                                <div className="-mx-2 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+                                    {userSidebar.userChannels.slice(0, 6).map((channel) => {
+                                        const unread = channel.unread_post_count > 0
+                                        const ChannelIcon = channel.ch_private ? Lock : Hash
+                                        return (
+                                            <Link
+                                                key={channel.ch_uuid}
+                                                href={`/app/channel/${channel.ch_uuid}`}
+                                                scroll={false}
+                                                className={cn(
+                                                    "flex items-center gap-2.5 rounded-md px-2 py-2",
+                                                    "transition-colors duration-100 hover:bg-foreground/[0.04]",
+                                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                                                )}
+                                            >
+                                                <ChannelIcon className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+                                                {/* Unread is weight and a count, not a tinted tile:
+                                                    the page has one accent and it marks what is new. */}
+                                                <div className="min-w-0 flex-1">
+                                                    <span className={cn("block truncate text-sm", unread ? "font-semibold text-foreground" : "text-foreground/90")}>
                                                         {channel.ch_name}
                                                     </span>
-                                                    {channel.ch_call_active && (
-                                                        <span className="ml-auto shrink-0 flex items-center gap-1 text-3xs font-medium text-success dark:text-emerald-500">
-                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                                            Live
+                                                    {/* The sidebar payload carries no member count, so a
+                                                        count here read "0 members" on every channel. */}
+                                                    {channel.ch_about && (
+                                                        <span className="block truncate text-xs text-muted-foreground">
+                                                            {channel.ch_about}
                                                         </span>
                                                     )}
                                                 </div>
-
-                                                {/* Subtitle: description when set, otherwise member count */}
-                                                <div className="flex items-center justify-between gap-2 mt-0.5">
-                                                    <span className="text-2xs text-muted-foreground truncate">
-                                                        {channel.ch_about
-                                                            ? channel.ch_about
-                                                            : channel.ch_member_count > 0
-                                                                ? `${channel.ch_member_count} member${channel.ch_member_count === 1 ? "" : "s"}`
-                                                                : ""}
+                                                {channel.ch_call_active && (
+                                                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-success">
+                                                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
+                                                        Live
                                                     </span>
-                                                    {/* Unread badge — only when there are unreads */}
-                                                    {channel.unread_post_count > 0 && (
-                                                        <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground text-3xs font-semibold flex items-center justify-center px-1">
-                                                            {channel.unread_post_count > 99 ? "99+" : channel.unread_post_count}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))}
+                                                )}
+                                                {unread && (
+                                                    <span className="shrink-0 font-mono text-xs tabular-nums text-brand">
+                                                        {channel.unread_post_count > 99 ? "99+" : channel.unread_post_count}
+                                                    </span>
+                                                )}
+                                            </Link>
+                                        )
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -359,54 +229,29 @@ export function DesktopDashboard() {
                     <div className="flex flex-col gap-8">
                         <div>
                             <SectionHeader title="Quick actions" />
-                            <div className="space-y-2">
+                            <div className="-mx-2 space-y-0.5">
                                 <button
                                     type="button"
                                     onClick={() => dispatch(openUI({ key: 'createDoc' }))}
-                                    className="w-full text-left group flex items-center gap-3 rounded-lg border border-border/50 bg-card/30 px-3 py-2.5 transition-colors hover:bg-accent/40 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                    className="w-full text-left group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                                 >
-                                    <div
-                                        className={cn(
-                                            "flex h-7 w-7 items-center justify-center rounded-md",
-                                            categoryColors.doc.bg,
-                                        )}
-                                    >
-                                        <FileText
-                                            className={cn(
-                                                "h-3.5 w-3.5",
-                                                categoryColors.doc.text,
-                                            )}
-                                        />
-                                    </div>
+                                    <FileText className="h-4 w-4 text-muted-foreground group-hover:text-foreground" strokeWidth={1.75} />
                                     <span className="text-sm font-medium">New document</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => dispatch(openUI({ key: 'createTask' }))}
-                                    className="w-full text-left group flex items-center gap-3 rounded-lg border border-border/50 bg-card/30 px-3 py-2.5 transition-colors hover:bg-accent/40 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                    className="w-full text-left group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                                 >
-                                    <div
-                                        className={cn(
-                                            "flex h-7 w-7 items-center justify-center rounded-md",
-                                            categoryColors.task.bg,
-                                        )}
-                                    >
-                                        <CheckSquare
-                                            className={cn(
-                                                "h-3.5 w-3.5",
-                                                categoryColors.task.text,
-                                            )}
-                                        />
-                                    </div>
+                                    <CheckSquare className="h-4 w-4 text-muted-foreground group-hover:text-foreground" strokeWidth={1.75} />
                                     <span className="text-sm font-medium">New task</span>
-                                </button>
-                            </div>
+                                </button>                            </div>
                         </div>
 
                         {userSidebar.userTeams && userSidebar.userTeams.length > 0 && (
                             <div>
                                 <SectionHeader
-                                    title="Your Teams"
+                                    title="Your teams"
                                     actionLabel="View all"
                                     href="/app/team"
                                 />
@@ -419,7 +264,7 @@ export function DesktopDashboard() {
                                             className={cn(
                                                 "flex items-center gap-2.5 rounded-md px-2 py-1.5",
                                                 "transition-colors duration-100",
-                                                "hover:bg-accent/40",
+                                                "hover:bg-foreground/[0.04]",
                                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                                             )}
                                         >

@@ -38,9 +38,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
                 "group/nav flex items-center gap-2 w-full h-7 px-2 rounded-md",
                 "text-sm transition-colors duration-100",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                isActive
-                    ? "bg-accent text-accent-foreground font-medium"
-                    : "text-foreground/80 hover:bg-accent/60 hover:text-foreground",
+                isActive ? "nav-active font-medium" : "nav-idle",
             )}
         >
             {ch.userProfile && <DesktopNavigationChatAvatar userInfo={ch.userProfile}/>}
@@ -112,9 +110,7 @@ const CollapsedNavItem = memo(({ link }: { link: DesktopNavType }) => {
     const itemClass = cn(
         "flex items-center justify-center h-9 w-9 rounded-md transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-        link.variant === "sidebarActive"
-            ? "bg-accent text-accent-foreground"
-            : "text-foreground/80 hover:bg-accent/60 hover:text-foreground",
+        link.variant === "sidebarActive" ? "nav-active" : "nav-idle",
     )
 
     const body = (
@@ -183,8 +179,8 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                                 <button
                                                     className={cn(
                                                         "flex-1 flex items-center gap-1.5 h-6 px-1.5 rounded-md",
-                                                        "text-2xs font-semibold uppercase tracking-wide",
-                                                        "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                                                        "text-xs font-medium capitalize",
+                                                        "text-muted-foreground hover:text-foreground",
                                                         "transition-colors duration-100 cursor-pointer text-left",
                                                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                                                     )}
@@ -241,9 +237,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                             "flex-1 flex items-center gap-2 h-7 px-2 rounded-md",
                                             "text-sm transition-colors duration-100",
                                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                                            link.variant === "sidebarActive"
-                                                ? "bg-accent text-accent-foreground font-medium"
-                                                : "text-foreground/80 hover:bg-accent/60 hover:text-foreground",
+                                            link.variant === "sidebarActive" ? "nav-active font-medium" : "nav-idle",
                                         )}
                                     >
                                         {link.icon && (

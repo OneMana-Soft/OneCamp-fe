@@ -72,6 +72,35 @@ author could" says nothing the sentence has not already said. Twelve chips in
 twelve colours assigned by position are decoration wearing the costume of
 meaning.
 
+**The app frame is paper on a desk.** The sidebar and top bar sit on
+`--canvas`, a warm grey one step darker than the page; the page itself is one
+sheet (`.app-sheet`, `--background`) with a hairline and a soft shadow in light
+mode, and no shadow in dark. There is no border between sidebar and top bar:
+the canvas is one surface in an inverted L. Text on the canvas is measured
+against it in `paletteContrast.test.ts`, so a darker canvas cannot quietly drop
+muted text below 4.5:1.
+
+**Navigation state is a sheet, not a colour.** The current item is a small
+piece of the same paper (`.nav-active`); idle items are foreground at 80% with
+a faint hover tint (`.nav-idle`). Group labels are sentence case at `text-xs`,
+never uppercase: the sidebar is read constantly, and shouting labels is noise.
+
+**Every page opens with `PageHeader`.** A mono kicker that places the page
+(today's date, "Assigned to you", "Project · Launch"), a title in the display
+face, and at most one line underneath that says something the title does not.
+"Here is a list of your tasks" and "Manage your team" are not that line; leave
+it out.
+
+**Counts are sentences.** Home says "3 unread channels · 2 notifications · 3
+open tasks, 1 overdue" (`GlanceLine`), not four tiles of which three read 0.
+Zeros are dropped; all zeros reads "All caught up."
+
+**Lists are rows, not cards.** Monochrome icon, title, meta; hover tints the
+row. Unread is weight plus a count in the accent, not a tinted tile.
+`categoryColors` is for a type marker where the type is the information (a
+search result that could be a doc or a task), never for decorating a list
+whose items are all one type.
+
 **Asymmetry over symmetry.** A centred pill badge above a centred headline with
 one word in the accent colour above a centred subhead above two centred buttons
 is the template. Left-align, and let one side carry the argument.

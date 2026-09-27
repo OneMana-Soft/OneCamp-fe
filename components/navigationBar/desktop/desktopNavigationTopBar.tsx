@@ -34,7 +34,7 @@ export default function DesktopNavigationTopBar() {
     };
 
     return (
-        <div className="w-full h-14 flex px-4 justify-between items-center bg-background/80 backdrop-blur-xl border-b border-border/40 sticky top-0 z-[var(--z-sticky)]">
+        <div className="w-full h-12 flex px-3 justify-between items-center bg-canvas sticky top-0 z-[var(--z-sticky)]">
             <DesktopNavigationOrgProfile/>
             <DesktopNavigationSearch/>
             <div className="flex items-center gap-3">

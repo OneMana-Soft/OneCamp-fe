@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { PageHeader } from "@/components/ui/pageHeader"
 import { useRouter } from "next/navigation"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -90,13 +91,11 @@ export default function TemplatesPage() {
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-1 flex items-center gap-2">
-        <Sparkles className="h-6 w-6 text-primary" />
-        <h1 className="text-xl font-semibold">Templates</h1>
-      </div>
-      <p className="mb-6 text-sm text-muted-foreground">
-        Reusable agents, automations, and tables your team has shared. Install a copy in one click.
-      </p>
+      <PageHeader eyebrow="Shared by your team" title="Templates" className="mb-6">
+        <p className="text-sm text-muted-foreground">
+          Agents, automations and tables, ready to install as your own copy.
+        </p>
+      </PageHeader>
 
       <div className="mb-5 flex flex-wrap gap-1.5">
         {FILTERS.map((f) => (

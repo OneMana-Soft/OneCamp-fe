@@ -95,20 +95,18 @@ const Toolbar = ({ editor, toggledTextEditor, setToggledTextEditor, toggleToolba
                   tooltip="Text format"
                   aria-label="Text format"
                   className="w-12"
-                  variant={"outline"}
                   onClick={()=>{setToggledTextEditor(true)}}
               >
                 <LetterCaseCapitalizeIcon className="size-5"/>
 
               </ToolbarButton>
 
-                  <Separator orientation="vertical" className="mx-2 h-7"/>
+                  <Separator orientation="vertical" className="mx-1.5 h-4"/>
 
                   <SectionFour
                   editor={editor}
                   activeActions={SECTION_4_ACTIONS}
                   mainActionCount={2}
-                  variant="outline"
               />
               <EmojiReactionPicker editor={editor} />
               </>
@@ -121,25 +119,22 @@ const Toolbar = ({ editor, toggledTextEditor, setToggledTextEditor, toggleToolba
                     editor={editor}
                     activeActions={SECTION_2_ACTIONS}
                     mainActionCount={4}
-                    variant="outline"
                 />
-                {!toggleToolbar && <><Separator orientation="vertical" className="mx-2 h-7"/>
+                {!toggleToolbar && <><Separator orientation="vertical" className="mx-1.5 h-4"/>
                 <SectionFour
                     editor={editor}
                     activeActions={SECTION_4_ACTIONS}
                     mainActionCount={2}
-                    variant="outline"
                 />
                 <EmojiReactionPicker editor={editor} />
                 </>}
 
 
-                {isDesktop && <><Separator orientation="vertical" className="mx-2 h-7"/>
+                {isDesktop && <><Separator orientation="vertical" className="mx-1.5 h-4"/>
                 <SectionFive
                     editor={editor}
                     activeActions={SECTION_5_ACTIONS}
                     mainActionCount={3}
-                    variant="outline"
                 /></>}
 
 

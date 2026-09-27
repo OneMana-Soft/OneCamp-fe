@@ -79,7 +79,7 @@ describe("the folded section in the icon rail", () => {
     it("marks itself current when the page you are on is folded inside it", () => {
         draw([{ title: FOCUS_SECTION_TITLE, icon: MoreHorizontal, variant: "sidebarActive", path: "#", action: () => {} }], true)
         const button = screen.getByText(FOCUS_SECTION_TITLE).closest("button")
-        expect(button?.className).toContain("bg-accent")
+        expect(button?.className).toContain("nav-active")
     })
 })
 
