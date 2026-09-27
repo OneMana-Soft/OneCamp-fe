@@ -166,7 +166,7 @@ export const MessageContent = ({
                     userProfileKey={isGuest ? undefined : (userStatusState?.userName ? userStatusState?.profileKey : userInfo?.user_profile_object_key)}
                 />
             </div>
-            <div className="flex-1 mb-4">
+            <div className="flex-1 min-w-0 mb-4">
                 <div className="flex items-baseline space-x-2 mb-1">
                     <div
                         className="font-medium text-sm"

@@ -84,3 +84,21 @@
     @apply font-bold;
   }
 }
+
+/* A long line in a code block scrolls inside the block. Without a width limit
+   on the editor and on the block, a flex parent sizes itself to the code's
+   longest line and every other line of the message is clipped at the panel's
+   edge: an agent's numbered list in a thread lost the end of each item. */
+.minimal-tiptap-editor,
+.minimal-tiptap-editor .ProseMirror,
+.ProseMirror.static-rich {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.minimal-tiptap-editor .ProseMirror pre,
+.ProseMirror.static-rich pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
