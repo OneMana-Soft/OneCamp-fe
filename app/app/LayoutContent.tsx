@@ -16,6 +16,7 @@ import { EmailOffBanner } from "@/components/banner/EmailOffBanner";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
+import { AgentNoteOnOpen } from "@/components/ai/AgentNoteOnOpen";
 
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
       <MobileNavigationBar disableBottomPadding={isTaskPage}>
         <EmailOffBanner isAdmin={isAdmin} />
         {children}
+        <AgentNoteOnOpen />
       </MobileNavigationBar>
     );
   }
@@ -64,6 +66,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <DesktopNavigationBar>
       <EmailOffBanner isAdmin={isAdmin} />
+        <AgentNoteOnOpen />
       <ResizablePanelGroup
         direction="horizontal"
         onLayout={(sizes) => {
