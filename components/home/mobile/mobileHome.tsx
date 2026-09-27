@@ -11,7 +11,6 @@ import { UserProfileInterface } from "@/types/user"
 import { GetEndpointUrl } from "@/services/endPoints"
 import {
     ArrowRight,
-    Bell,
     CheckSquare,
     Clock,
     FileText,
@@ -30,7 +29,8 @@ import WhileYouWereAwayCard from "@/components/ai/WhileYouWereAwayCard"
 import { AgentWorkCard } from "@/components/ai/AgentWorkCard"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatDistanceToNow } from "date-fns"
-import { categoryColors, CategoryKey, getCategoryColor } from "@/lib/colors"
+import { GlanceLine, todayEyebrow } from "@/components/home/GlanceLine"
+import { PageHeader } from "@/components/ui/pageHeader"
 import { useTouchFlash } from "@/hooks/useTouchFlash"
 import { ListRow } from "@/components/ui/listRow"
 
@@ -72,92 +72,20 @@ function TapSurface({
 function QuickActionTile({
     icon: Icon,
     label,
-    category,
     onClick,
 }: {
     icon: React.ElementType
     label: string
-    category: CategoryKey
     onClick: () => void
 }) {
-    const colors = categoryColors[category]
     return (
         <TapSurface
             ariaLabel={label}
             onClick={onClick}
-            className={cn(
-                "flex flex-col items-center justify-center gap-2 rounded-xl",
-                "border border-border/50 bg-card/40 p-3 aspect-square",
-            )}
+            className="flex flex-col items-center justify-center gap-1.5 rounded-lg py-2.5"
         >
-            <div
-                className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-xl",
-                    colors.bg,
-                )}
-            >
-                <Icon className={cn("h-5 w-5", colors.text)} />
-            </div>
-            <span className="text-xs font-medium text-foreground">{label}</span>
-        </TapSurface>
-    )
-}
-
-function StatTile({
-    icon: Icon,
-    label,
-    value,
-    category,
-    onClick,
-    badge,
-}: {
-    icon: React.ElementType
-    label: string
-    value: number | string
-    category: CategoryKey
-    onClick: () => void
-    badge?: { label: string; tone: "destructive" | "muted" }
-}) {
-    const colors = categoryColors[category]
-    return (
-        <TapSurface
-            ariaLabel={label}
-            onClick={onClick}
-            className={cn(
-                "flex items-center gap-3 rounded-xl p-3.5",
-                "border border-border/50 bg-card/40",
-            )}
-        >
-            <div
-                className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-                    colors.bg,
-                )}
-            >
-                <Icon className={cn("h-5 w-5", colors.text)} />
-            </div>
-            <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                    <span className="text-base font-semibold tabular-nums leading-none">
-                        {value}
-                    </span>
-                    {badge && (
-                        <span
-                            className={cn(
-                                "inline-flex items-center rounded-full px-1.5 py-0.5 text-3xs font-medium",
-                                badge.tone === "destructive"
-                                    ? "bg-destructive/10 text-destructive"
-                                    : "bg-muted text-muted-foreground",
-                            )}
-                        >
-                            {badge.label}
-                        </span>
-                    )}
-                </div>
-                <div className="text-2xs text-muted-foreground mt-1 truncate">
-                    {label}
-                </div>
-            </div>
+            <Icon className="h-5 w-5 text-foreground/80" strokeWidth={1.75} />
+            <span className="text-xs text-muted-foreground">{label}</span>
         </TapSurface>
     )
 }
@@ -173,7 +101,7 @@ function SectionHeader({
 }) {
     return (
         <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="text-xs font-medium text-muted-foreground">
                 {title}
             </h2>
             {actionLabel && onAction && (
@@ -231,15 +159,22 @@ export function MobileHome() {
 
     return (
         <div className="flex flex-col gap-6 p-4">
-            {/* Header */}
-            <div className="space-y-0.5">
-                <h1 className="text-xl font-semibold tracking-tight text-foreground">
-                    {greetingLine}
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                    Here&apos;s what&apos;s happening
-                </p>
-            </div>
+            <PageHeader eyebrow={todayEyebrow()} title={greetingLine}>
+                <GlanceLine
+                    items={[
+                        { count: unreadChannels, one: "unread channel", many: "unread channels", href: "/app/channel" },
+                        { count: totalDMUnread, one: "unread message", many: "unread messages", href: "/app/chat" },
+                        { count: userSidebar.totalUnreadActivityCount || 0, one: "notification", many: "notifications", href: "/app/activity" },
+                        {
+                            count: incompleteTasks,
+                            one: "open task",
+                            many: "open tasks",
+                            href: "/app/myTask",
+                            flag: overdueTasks > 0 ? `${overdueTasks} overdue` : undefined,
+                        },
+                    ]}
+                />
+            </PageHeader>
 
             {/* Search */}
             <MobileHomeSearchBar />
@@ -258,67 +193,26 @@ export function MobileHome() {
             <AgentWorkCard />
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-4 gap-2.5">
+            <div className="-mx-1 grid grid-cols-4 gap-1">
                 <QuickActionTile
                     icon={MessageCircle}
                     label="DMs"
-                    category="chat"
                     onClick={() => router.push("/app/chat")}
                 />
                 <QuickActionTile
                     icon={Hash}
                     label="Channels"
-                    category="channel"
                     onClick={() => router.push("/app/channel")}
                 />
                 <QuickActionTile
                     icon={FileText}
                     label="Docs"
-                    category="doc"
                     onClick={() => router.push("/app/doc")}
                 />
                 <QuickActionTile
                     icon={CheckSquare}
                     label="Tasks"
-                    category="task"
                     onClick={() => router.push("/app/myTask")}
-                />
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-2.5">
-                <StatTile
-                    icon={MessageCircle}
-                    label="Unread DMs"
-                    value={totalDMUnread}
-                    category="chat"
-                    onClick={() => router.push("/app/chat")}
-                />
-                <StatTile
-                    icon={Bell}
-                    label="Notifications"
-                    value={userSidebar.totalUnreadActivityCount || 0}
-                    category="notification"
-                    onClick={() => router.push("/app/activity")}
-                />
-                <StatTile
-                    icon={Hash}
-                    label="Unread channels"
-                    value={unreadChannels}
-                    category="channel"
-                    onClick={() => router.push("/app/channel")}
-                />
-                <StatTile
-                    icon={CheckSquare}
-                    label="Incomplete tasks"
-                    value={incompleteTasks}
-                    category="task"
-                    onClick={() => router.push("/app/myTask")}
-                    badge={
-                        overdueTasks > 0
-                            ? { label: `${overdueTasks} overdue`, tone: "destructive" }
-                            : undefined
-                    }
                 />
             </div>
 
@@ -329,24 +223,14 @@ export function MobileHome() {
                     <div className="space-y-px">
                         {recentItems.slice(0, 5).map((item) => {
                             const Icon = TYPE_ICON[item.type] || Clock
-                            const colors = getCategoryColor(item.type)
                             return (
                                 <ListRow
                                     key={`${item.type}-${item.id}`}
                                     density="default"
                                     onClick={() => router.push(item.path)}
-                                    leading={
-                                        <div
-                                            className={cn(
-                                                "flex h-8 w-8 items-center justify-center rounded-md",
-                                                colors.bg,
-                                            )}
-                                        >
-                                            <Icon className={cn("h-4 w-4", colors.text)} />
-                                        </div>
-                                    }
+                                    leading={<Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />}
                                     title={item.title}
-                                    subtitle={formatDistanceToNow(item.timestamp)}
+                                    subtitle={formatDistanceToNow(item.timestamp, { addSuffix: true })}
                                 />
                             )
                         })}
@@ -370,11 +254,7 @@ export function MobileHome() {
                                 onClick={() =>
                                     router.push(`/app/channel/${channel.ch_uuid}`)
                                 }
-                                leading={
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted/40">
-                                        <Hash className="h-4 w-4 text-muted-foreground" />
-                                    </div>
-                                }
+                                leading={<Hash className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />}
                                 title={channel.ch_name}
                                 subtitle={
                                     channel.unread_post_count > 0
@@ -395,22 +275,12 @@ export function MobileHome() {
             <TapSurface
                 ariaLabel="Open AI Assistant"
                 onClick={() => router.push("/app/ai")}
-                className={cn(
-                    "flex items-center gap-3 rounded-xl border p-3.5",
-                    "border-violet-500/20 bg-violet-500/5",
-                )}
+                className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-3"
             >
-                <div
-                    className={cn(
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-                        categoryColors.ai.bg,
-                    )}
-                >
-                    <Sparkles className={cn("h-5 w-5", categoryColors.ai.text)} />
-                </div>
+                <Sparkles className="h-5 w-5 shrink-0 text-brand" strokeWidth={1.75} />
                 <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-foreground">
-                        AI Assistant
+                        Ask OneCamp AI
                     </div>
                     <div className="text-xs text-muted-foreground truncate">
                         Ask questions, summarize docs, and more

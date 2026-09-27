@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { PageHeader } from "@/components/ui/pageHeader"
 import { useRouter } from "next/navigation"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -74,16 +75,16 @@ export default function TablesPage() {
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <TableIcon className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-semibold">Tables</h1>
-        </div>
-        <Button onClick={handleCreate} disabled={creating} className="gap-1.5">
-          {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          New table
-        </Button>
-      </div>
+      <PageHeader
+        title="Tables"
+        className="mb-6"
+        actions={
+          <Button onClick={handleCreate} disabled={creating} className="gap-1.5">
+            {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            New table
+          </Button>
+        }
+      />
 
       <div className="mb-6 flex items-center gap-2 rounded-xl border border-border/60 bg-muted/20 p-2">
         <Sparkles className="ml-1 h-4 w-4 shrink-0 text-primary" />

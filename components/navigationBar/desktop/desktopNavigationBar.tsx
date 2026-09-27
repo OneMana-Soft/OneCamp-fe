@@ -535,7 +535,7 @@ export function DesktopNavigationBar({
     };
 
     return (
-        <div className="flex flex-col h-dvh overflow-hidden">
+        <div className="flex flex-col h-dvh overflow-hidden bg-canvas">
             <DesktopNavigationTopBar />
             <div className="flex-1 overflow-hidden">
                 <ResizablePanelGroup
@@ -563,7 +563,7 @@ export function DesktopNavigationBar({
                             }, 0)
                         }}
                         className={cn(
-                            "flex flex-col overflow-hidden bg-sidebar will-change-[flex-basis]",
+                            "flex flex-col overflow-hidden will-change-[flex-basis]",
                             // Disable transitions only when actively dragging AND fully expanded, 
                             // to ensure the snap animation to/from collapsed state is smooth.
                             isDragging && !isCollapsed ? "transition-none" : "transition-[flex-basis] duration-100 ease-out",
@@ -572,19 +572,19 @@ export function DesktopNavigationBar({
                     >
                         <DesktopSideNavigationBar isCollapsed={isCollapsed} links={primaryNavLinks} />
                         {favNavLinks.length > 0 && (
-                            <div className="border-t border-border/30 pt-2">
+                            <div className="pt-1">
                                 <DesktopSideNavigationBar isCollapsed={isCollapsed} links={favNavLinks} />
                             </div>
                         )}
                         {recentNavLinks.length > 0 && (
-                            <div className="border-t border-border/30 pt-2">
+                            <div className="pt-1">
                                 <DesktopSideNavigationBar isCollapsed={isCollapsed} links={recentNavLinks} />
                             </div>
                         )}
-                        <div className="flex-1 border-t border-border/40 overflow-y-scroll pb-4">
+                        <div className="flex-1 overflow-y-scroll pb-4">
                             <DesktopSideNavigationBar isCollapsed={isCollapsed} links={secondaryNavLinks} />
                         </div>
-                        <div className="h-8 border-t flex items-center justify-center px-1">
+                        <div className="h-9 flex items-center justify-start px-3">
                             {isCollapsed ? (
                                 <button
                                     onClick={() => {
@@ -609,9 +609,10 @@ export function DesktopNavigationBar({
                             )}
                         </div>
                     </ResizablePanel>
-                    <ResizableHandle withHandle onDragging={setIsDragging} />
-                    <ResizablePanel defaultSize={panelSizes[1]} minSize={20} className="overflow-hidden w-full min-w-0">
-                        {children}
+                    <ResizableHandle onDragging={setIsDragging} className="w-2 bg-transparent" />
+                    <ResizablePanel defaultSize={panelSizes[1]} minSize={20} className="overflow-hidden w-full min-w-0 pb-2 pr-2">
+                        {/* The work sits on the sheet; the canvas around it is the chrome. */}
+                        <div className="app-sheet h-full overflow-hidden">{children}</div>
                     </ResizablePanel>
                 </ResizablePanelGroup>
             </div>

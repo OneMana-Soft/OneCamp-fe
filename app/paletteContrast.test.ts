@@ -71,6 +71,8 @@ const PAIRS: Array<[string, string, number, string]> = [
   ["destructive-foreground", "destructive", 4.5, "the label on a destructive button"],
   ["ring", "background", 3.0, "the focus ring, which is how a keyboard user knows where they are"],
   ["border", "background", 1.2, "a hairline has to be visible at all"],
+  ["foreground", "canvas", 4.5, "navigation text on the canvas"],
+  ["muted-foreground", "canvas", 4.5, "section labels and counts on the canvas"],
 ]
 
 describe.each(["light", "dark"] as const)("%s palette meets WCAG AA", (mode) => {

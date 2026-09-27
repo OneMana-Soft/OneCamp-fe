@@ -79,6 +79,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-canvas: var(--canvas);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -170,7 +171,7 @@
   --secondary: oklch(0.968 0.004 75);
   --secondary-foreground: oklch(0.22 0.01 75);
   --muted: oklch(0.968 0.004 75);
-  --muted-foreground: oklch(0.545 0.012 75);
+  --muted-foreground: oklch(0.525 0.012 75);
   --accent: oklch(0.965 0.005 70);
   --accent-foreground: oklch(0.22 0.01 75);
   --destructive: oklch(0.577 0.245 27.325);
@@ -205,7 +206,11 @@
   --chart-3: var(--color-blue-600);
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.978 0.004 75);
+  /* The canvas is the frame the work sits on: the sidebar, the top bar and the
+     gutter around the sheet share it, so the chrome reads as one quiet L and
+     the page is the brightest thing on screen. */
+  --canvas: oklch(0.962 0.006 75);
+  --sidebar: var(--canvas);
   --sidebar-foreground: oklch(0.19 0.008 75);
   --sidebar-accent: oklch(0.955 0.006 70);
   --sidebar-accent-foreground: oklch(0.22 0.01 75);
@@ -262,7 +267,9 @@
   --chart-3: var(--color-blue-600);
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
-  --sidebar: oklch(0.187 0.008 70);
+  /* Darker than the page in dark mode, so the sheet lifts off it. */
+  --canvas: oklch(0.142 0.007 70);
+  --sidebar: var(--canvas);
   --sidebar-foreground: oklch(0.975 0.003 85);
   --sidebar-accent: oklch(0.27 0.008 70);
   --sidebar-accent-foreground: oklch(0.975 0.003 85);
@@ -861,5 +868,45 @@ html[data-media-collapsed="true"] [data-message-media] {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* The sheet: the one raised surface in the app, where the work is. The canvas
+   around it carries the navigation, so the page is always the brightest,
+   nearest thing on screen (the inverted-L frame). A hairline and a soft shadow
+   in light; the border alone in dark, where shadows do not read. */
+@layer components {
+  .app-sheet {
+    background: var(--background);
+    border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+    border-radius: calc(var(--radius) + 4px);
+    box-shadow:
+      0 1px 2px oklch(0.2 0.01 70 / 0.04),
+      0 8px 24px -12px oklch(0.2 0.01 70 / 0.10);
+  }
+  .dark .app-sheet {
+    box-shadow: none;
+  }
+
+  /* Navigation on the canvas. The current place is a small piece of the sheet
+     (same ground, same hairline), so where you are and where you work read as
+     one material. Hover is a faint tint of the ink, which works on either
+     ground. */
+  .nav-active {
+    background: var(--background);
+    color: var(--foreground);
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--border) 70%, transparent),
+      0 1px 2px oklch(0.2 0.01 70 / 0.05);
+  }
+  .dark .nav-active {
+    background: var(--accent);
+    box-shadow: none;
+  }
+  .nav-idle {
+    color: color-mix(in oklch, var(--foreground) 80%, transparent);
+  }
+  .nav-idle:hover {
+    background: color-mix(in oklch, var(--foreground) 5%, transparent);
+    color: var(--foreground);
   }
 }

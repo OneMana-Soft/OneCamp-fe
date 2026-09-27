@@ -1,6 +1,7 @@
 "use client"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PageHeader } from "@/components/ui/pageHeader"
 import { List } from "@/lib/icons";
 import { Kanban } from "@/lib/icons";
 import { MyTaskTable } from "@/components/myTask/myTaskTable"
@@ -41,19 +42,10 @@ export const MyTaskDesktop = () => {
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-8 py-6 border-b border-border/50">
-                <div>
-                    <h1 className="text-2xl font-medium tracking-tight">
-                        {t("myTasks")}
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        {t("hereAListOfYourTask")}
-                    </p>
-                </div>
-            </div>
+            <PageHeader eyebrow="Assigned to you" title={t("myTasks")} className="px-8 pt-8" />
 
             {/* Content */}
-            <div className="flex-1 overflow-hidden p-8">
+            <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">
                 <Tabs value={selectedTab} onValueChange={handleTabChange} className="h-full flex flex-col gap-6">
                     <TabsList className="w-full sm:w-fit grid grid-cols-2 sm:flex bg-muted/50 p-1 border border-border/50 h-auto overflow-hidden">
                         <TabsTrigger 
