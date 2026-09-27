@@ -17,20 +17,7 @@ import { Sparkles, Shield } from "@/lib/icons"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { initiatorLabel, UNATTENDED_INITIATORS, type AIActivityItem } from "@/services/aiActivityService"
 import { ChainPair } from "@/components/admin/ChainPair"
-
-function relativeTime(iso: string): string {
-  const t = new Date(iso).getTime()
-  if (isNaN(t)) return ""
-  const diff = Date.now() - t
-  const m = Math.round(diff / 60000)
-  if (m < 1) return "just now"
-  if (m < 60) return `${m}m ago`
-  const h = Math.round(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.round(h / 24)
-  if (d < 7) return `${d}d ago`
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-}
+import { relativeTime } from "@/lib/utils/relativeTime"
 
 /**
  * A REFUSAL IS NOT A FAILURE, and this is the one place the difference has to be
