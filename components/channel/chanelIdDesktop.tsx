@@ -1,4 +1,5 @@
 import {useFetch} from "@/hooks/useFetch";
+import ChannelAgents from "@/components/ai/ChannelAgents";
 import {
     ChannelInfoInterfaceResp,
     ChannelJoinInterface,
@@ -251,10 +252,13 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                         {/* The second line keeps this header the same height as a
                             DM's, and a member count is the thing people actually
                             want to know about a channel they just opened. */}
-                        <span className='text-2xs text-muted-foreground leading-tight'>
-                            {memberCount > 0
-                                ? `${memberCount} ${memberCount === 1 ? "member" : "members"}`
-                                : channelInfo.data?.channel_info.ch_private ? "Private channel" : "Channel"}
+                        <span className='flex min-w-0 items-center text-2xs text-muted-foreground leading-tight'>
+                            <span className='shrink-0'>
+                                {memberCount > 0
+                                    ? `${memberCount} ${memberCount === 1 ? "member" : "members"}`
+                                    : channelInfo.data?.channel_info.ch_private ? "Private channel" : "Channel"}
+                            </span>
+                            <ChannelAgents channelId={channelId} isMember={!!channelInfo.data?.channel_info.ch_is_member} />
                         </span>
                     </div>
                     <ChannelMemoryIndicator channelUUID={channelId} isMember={!!channelInfo.data?.channel_info.ch_is_member} />
