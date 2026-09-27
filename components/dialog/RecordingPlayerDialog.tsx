@@ -224,7 +224,7 @@ export const RecordingPlayerDialog = () => {
                         )}
 
                         {!isMobile && (
-                            <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="h-8 w-8">
+                            <Button aria-label={isFullscreen ? "Exit full screen" : "Full screen"} variant="ghost" size="icon" onClick={toggleFullscreen} className="h-8 w-8">
                                 {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                             </Button>
                         )}
@@ -255,14 +255,14 @@ export const RecordingPlayerDialog = () => {
                         ) : (
                             <div className="flex gap-2 items-center text-white/70">
                                 <LoaderCircle className="animate-spin h-5 w-5"/> 
-                                <span className="text-sm">Loading Video...</span>
+                                <span className="text-sm">Loading Video…</span>
                             </div>
                         )}
                     </div>
 
                     {/* Transcript Area */}
                     <div className={cn(
-                        "flex flex-col border-l border-border bg-background transition-all duration-300",
+                        "flex flex-col border-l border-border bg-background transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-300",
                         isFullscreen && !isMobile ? "w-[350px]" : "w-full md:w-[350px] h-[40vh] md:h-full"
                     )}>
                         <div className="p-3 border-b font-medium text-sm bg-muted/10 flex justify-between items-center">
@@ -277,7 +277,7 @@ export const RecordingPlayerDialog = () => {
                         <div className="flex-1 overflow-hidden p-2 relative"> 
                              {transcriptList.length === 0 && transcriptInfo.isLoading ? (
                                 <div className="absolute inset-0 flex justify-center items-center text-muted-foreground text-sm">
-                                    <LoaderCircle className="animate-spin h-4 w-4 mr-2" /> Loading transcript...
+                                    <LoaderCircle className="animate-spin h-4 w-4 mr-2" /> Loading transcript…
                                 </div>
                              ) : transcriptList.length === 0 ? (
                                 <div className="absolute inset-0 flex justify-center items-center text-muted-foreground text-sm">

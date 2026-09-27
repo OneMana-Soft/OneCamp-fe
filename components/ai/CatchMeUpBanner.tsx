@@ -166,7 +166,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
                             <Sparkles className="h-4 w-4 animate-pulse" />
                         </div>
                         <span className="flex-1 text-sm text-muted-foreground">
-                            Reading {unreadCount} messages...
+                            Reading {unreadCount} messages…
                         </span>
                     </div>
                     <div className="flex flex-col gap-2 pl-11">

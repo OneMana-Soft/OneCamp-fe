@@ -96,7 +96,7 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
                                                     onUrlLoaded={(url) => setLoadedUrls(prev => ({ ...prev, [attachment.attachment_uuid]: url }))}
                                                 />
                                                 {overflow && (
-                                                    <div className="absolute inset-0 z-[var(--z-base)] bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition-all duration-150 group-hover:bg-black/50 pointer-events-none">
+                                                    <div className="absolute inset-0 z-[var(--z-base)] bg-black/40 backdrop-blur-[2px] flex items-center justify-center transition duration-150 group-hover:bg-black/50 pointer-events-none">
                                                         <div className='text-xl font-medium text-white'>
                                                             +{renderables.length - (ATTACHMENT_MAX_IMAGE_GRID_SIZE - 1)}
                                                         </div>
@@ -144,7 +144,7 @@ export function NonRenderableAttachment({ attachment, attachmentLength, mediaGet
             onClick={download}
             data-no-ripple="true"
             className={cn(
-                'group flex items-center gap-2.5 rounded-lg border border-border/40 bg-card/50 px-3 py-2 transition-all duration-150',
+                'group flex items-center gap-2.5 rounded-lg border border-border/40 bg-card/50 px-3 py-2 transition duration-150',
                 'hover:bg-accent/40 hover:border-border/80 cursor-pointer relative overflow-hidden w-full'
             )}
         >
@@ -175,7 +175,7 @@ export function NonRenderableAttachment({ attachment, attachmentLength, mediaGet
             <button
                 onClick={download}
                 className={cn(
-                    "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-150",
+                    "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition duration-150",
                     "p-1.5 hover:bg-background rounded-full shadow-sm border border-border/50 shrink-0",
                     "translate-x-2 group-hover:translate-x-0"
                 )}

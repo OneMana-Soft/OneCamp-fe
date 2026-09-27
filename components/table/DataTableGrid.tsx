@@ -528,7 +528,7 @@ function ColumnHeader({
                     ) : (
                       <Sparkles className="h-3.5 w-3.5" />
                     )}
-                    {filling ? "Filling..." : "Fill column with AI"}
+                    {filling ? "Filling…" : "Fill column with AI"}
                   </Button>
                 )}
               </div>

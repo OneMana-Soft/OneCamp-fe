@@ -50,9 +50,9 @@
   "selectPriority": "प्राथमिकता चुनें...",
   "noPriorityFound": "कोई प्राथमिकता नहीं मिली।",
   "label": "लेबल",
-  "labelPlaceHolder": "लेबल...",
+  "labelPlaceHolder": "लेबल…",
   "description": "विवरण",
-  "descriptionPlaceholder": "विवरण...",
+  "descriptionPlaceholder": "विवरण…",
   "attachFiles": "फाइलें संलग्न करें",
   "startDate": "शुरुआत तिथि",
   "dueDate": "नियत तिथि",
@@ -214,5 +214,4 @@
   "addedTaskAttachment": "कार्य में अटैचमेंट जोड़े गए",
   "subTaskDelete": "उप-कार्य हटाया गया",
   "subTaskUnDelete": "उप-कार्य पुनर्स्थापित किया गया"
-
 }

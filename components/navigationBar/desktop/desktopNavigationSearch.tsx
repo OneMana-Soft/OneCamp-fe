@@ -19,10 +19,10 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
     return (
         <div
             onClick={() => onClick(result)}
-            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/60 cursor-pointer group transition-all"
+            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/60 cursor-pointer group transition"
         >
             <div className={cn(
-                "shrink-0 transition-all",
+                "shrink-0 transition",
                 result.type === "user" ? "" : "mt-1 p-1.5 rounded-md bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10"
             )}>
                 {getIcon(result)}
@@ -46,7 +46,7 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
                         e.stopPropagation()
                         onPreview(result)
                     }}
-                    className="p-2 rounded-full hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                    className="p-2 rounded-full hover:bg-primary/10 text-muted-foreground hover:text-primary transition opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
                     title="Preview Attachment"
                 >
                     <Eye className="h-4 w-4" />
@@ -94,7 +94,7 @@ export default function DesktopNavigationSearch() {
                         <Input
                             ref={searchRef}
                             type="search"
-                            placeholder="Global Search..."
+                            placeholder="Global Search…"
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={handleKeyDownCapture}
@@ -104,7 +104,7 @@ export default function DesktopNavigationSearch() {
                                 "text-sm placeholder:text-muted-foreground/60",
                                 "rounded-xl border-border bg-muted/20",
                                 "focus-visible:ring-1 focus-visible:ring-primary focus-visible:bg-background",
-                                "transition-all duration-150",
+                                "transition duration-150",
                                 "[&::-webkit-search-cancel-button]:appearance-none"
                             )}
                         />

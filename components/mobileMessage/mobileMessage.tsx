@@ -321,7 +321,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                             editorContentClassName="overflow-auto "
                             output="html"
                             content={content}
-                            placeholder={"Edit message..."}
+                            placeholder={"Edit message…"}
                             editable={isMessageEditEnabled}
                             PrimaryButtonIcon={Check}
                             buttonOnclick={()=>{

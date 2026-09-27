@@ -107,7 +107,7 @@ export default function Page() {
                 className={cn("max-w-full rounded-xl h-auto border bg-secondary/20 mb-2")}
                 editorContentClassName="overflow-auto"
                 output="html"
-                placeholder={"Add a message, if you'd like..."}
+                placeholder={"Add a message, if you'd like…"}
                 editable={true}
                 editorClassName="focus:outline-none px-2 py-2"
                 onChange={(content ) => {

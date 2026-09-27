@@ -132,7 +132,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [eventId]);
 
-    if (isLoading) return <div className="p-6 text-sm text-muted-foreground animate-pulse">Loading event details...</div>;
+    if (isLoading) return <div className="p-6 text-sm text-muted-foreground animate-pulse">Loading event details…</div>;
     if (!event) return <div className="p-6 text-sm text-muted-foreground">Event not found.</div>;
 
     const start = parseISO(event.event_start_time);
@@ -336,7 +336,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     as="div"
                                     sanitizer={sanitizeRichHtml}
                                     html={event.event_description}
-                                    className="text-sm leading-relaxed text-muted-foreground pl-5 transition-all prose prose-sm dark:prose-invert max-w-none [&_a]:text-primary [&_a]:underline [&_a]:break-all"
+                                    className="text-sm leading-relaxed text-muted-foreground pl-5 transition prose prose-sm dark:prose-invert max-w-none [&_a]:text-primary [&_a]:underline [&_a]:break-all"
                                 />
                             ) : (
                                 <p className="text-xs text-muted-foreground italic pl-5">No additional notes.</p>
@@ -454,13 +454,13 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                         <PopoverContent portalled={false} className="w-[240px] p-0 shadow-xl border-border/50" align="end">
                                             <Command shouldFilter={false}>
                                                 <CommandInput
-                                                    placeholder="Search user..."
+                                                    placeholder="Search user…"
                                                     className="h-9"
                                                     value={searchQuery}
                                                     onValueChange={setSearchQuery}
                                                 />
                                                 <CommandList>
-                                                    <CommandEmpty>{searchQuery.length < 2 ? "Type to search..." : "No user found"}</CommandEmpty>
+                                                    <CommandEmpty>{searchQuery.length < 2 ? "Type to search…" : "No user found"}</CommandEmpty>
                                                     <CommandGroup>
                                                         {searchResults.map((user) => (
                                                             <UserComboboxItem

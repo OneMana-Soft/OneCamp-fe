@@ -36,7 +36,7 @@ export const MobileTextInput = () => {
                     editorContentClassName="overflow-auto mb-2"
                     output="html"
                     content={""}
-                    placeholder={"Type a message..."}
+                    placeholder={"Type a message…"}
                     editable={true}
                     ButtonIcon={SendHorizontal}
                     buttonOnclick={() => {

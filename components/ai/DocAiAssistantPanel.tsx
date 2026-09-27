@@ -277,10 +277,10 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                   <Button
                     variant="ghost"
                     onClick={() => setShowPromptInput(true)}
-                    className="w-full py-6 px-4 rounded-xl border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/20 transition-all text-xs flex items-center justify-center gap-2 group"
+                    className="w-full py-6 px-4 rounded-xl border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/20 transition text-xs flex items-center justify-center gap-2 group"
                   >
                     <MessageSquarePlus className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                    Custom Instruction...
+                    Custom Instruction…
                   </Button>
                 ) : (
                     <div className="bg-background p-1">
@@ -296,7 +296,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                       <Button
                         onClick={() => executeAction('write', customPrompt)}
                         disabled={!customPrompt.trim()}
-                        className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium transition-all duration-200 hover:bg-primary/90"
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium transition duration-200 hover:bg-primary/90"
                       >
                         <Send className="h-3 w-3" />
                         Generate
@@ -327,7 +327,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                     <div className="flex items-center gap-2">
                        <button
                          onClick={handleBack}
-                         className="p-1.5 rounded-lg text-muted-foreground transition-all duration-200 hover:bg-accent/10 hover:text-foreground"
+                         className="p-1.5 rounded-lg text-muted-foreground transition duration-200 hover:bg-accent/10 hover:text-foreground"
                          title="Go Back"
                        >
                          <ArrowLeft className="h-3 w-3" />
@@ -335,10 +335,10 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                        <span className="text-3xs uppercase font-medium text-primary tracking-widest">AI Result</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground transition-all duration-200 hover:bg-accent/10 hover:text-foreground" title="Copy to clipboard">
+                      <button onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200 hover:bg-accent/10 hover:text-foreground" title="Copy to clipboard">
                         {copied ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
                       </button>
-                      <button onClick={resetState} className="p-1.5 rounded-lg text-muted-foreground transition-all duration-200 hover:bg-accent/10 hover:text-foreground" title="Reset All">
+                      <button onClick={resetState} className="p-1.5 rounded-lg text-muted-foreground transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200 hover:bg-accent/10 hover:text-foreground" title="Reset All">
                         <RotateCcw className="h-3 w-3" />
                       </button>
                     </div>
@@ -391,7 +391,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                                     handleRefine()
                                 }
                             }}
-                            placeholder="Ask to refine (e.g., 'Make it formal')..."
+                            placeholder="Ask to refine (e.g., 'Make it formal')…"
                             className="w-full bg-transparent border-none px-3.5 py-2.5 text-foreground text-sm outline-none shadow-none ring-0 focus-visible:ring-0"
                           />
                           <Button
@@ -409,18 +409,18 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                         <div className="flex flex-col gap-2">
                         {state.hasJustReplaced ? (
                           <Button
-                            className="w-full h-auto p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl font-medium text-sm flex items-center justify-center transition-all duration-200 hover:bg-destructive/20 hover:border-destructive/40"
+                            className="w-full h-auto p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl font-medium text-sm flex items-center justify-center transition duration-200 hover:bg-destructive/20 hover:border-destructive/40"
                             onClick={handleUndo}
                           >
                             <RotateCcw className="h-4 w-4 mr-2" />
                             Undo Change
                           </Button>
                         ) : (
-                          <Button className="w-full h-auto p-3 bg-primary text-primary-foreground rounded-xl font-medium text-sm transition-all duration-200 hover:bg-primary/90" onClick={handleReplace}>
+                          <Button className="w-full h-auto p-3 bg-primary text-primary-foreground rounded-xl font-medium text-sm transition duration-200 hover:bg-primary/90" onClick={handleReplace}>
                             Replace Selection
                           </Button>
                         )}
-                        <Button variant="ghost" className="w-full h-auto p-3 bg-muted text-muted-foreground rounded-xl font-medium text-sm transition-all duration-200 hover:bg-accent hover:text-foreground" onClick={handleInsert}>
+                        <Button variant="ghost" className="w-full h-auto p-3 bg-muted text-muted-foreground rounded-xl font-medium text-sm transition duration-200 hover:bg-accent hover:text-foreground" onClick={handleInsert}>
                           Insert Below
                         </Button>
                       </div>

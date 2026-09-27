@@ -67,7 +67,7 @@ function BoardsPage() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search boards..."
+          placeholder="Search boards…"
           className="h-9 pl-9"
           aria-label="Search boards"
         />

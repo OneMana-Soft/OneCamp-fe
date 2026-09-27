@@ -45,14 +45,14 @@ export const FwdMessageToChannelOrUser = (message: string) => {
                     <span className="truncate text-sm font-medium">
                         {value
                             ? frameworks.find((framework) => framework.value === value)?.label
-                            : "Select framework..."}
+                            : "Select framework…"}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[240px] p-0 shadow-xl border-border/50 rounded-xl overflow-hidden">
                 <Command className="bg-popover">
-                    <CommandInput placeholder="Search framework..." className="h-9 border-none focus:ring-0 shadow-none" />
+                    <CommandInput placeholder="Search framework…" className="h-9 border-none focus:ring-0 shadow-none" />
                     <CommandList className="max-h-[200px] overflow-y-auto">
                         <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">No framework found.</CommandEmpty>
                         <CommandGroup>

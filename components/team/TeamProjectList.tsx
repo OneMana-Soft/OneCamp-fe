@@ -102,7 +102,7 @@ export const TeamProjectList = ({teamId}:{teamId: string}) => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                     type="text"
-                    placeholder="Search projects..."
+                    placeholder="Search projects…"
                     onChange={(event) => setQuery(event.target.value)}
                     className="pl-9 bg-muted/30 border-border/50 focus-visible:ring-primary/20"
                 />

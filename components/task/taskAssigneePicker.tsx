@@ -69,7 +69,7 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                     </PopoverTrigger>
                     <PopoverContent className="w-[240px] p-0 shadow-xl border-border/50 rounded-xl overflow-hidden">
                         <Command className="bg-popover">
-                            <CommandInput placeholder="Search member..." className="h-9 border-none focus:ring-0 shadow-none"/>
+                            <CommandInput placeholder="Search member…" className="h-9 border-none focus:ring-0 shadow-none"/>
                             <CommandList className="max-h-[200px] overflow-y-auto">
                                 <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">No member found.</CommandEmpty>
                                 <CommandGroup>

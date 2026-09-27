@@ -203,7 +203,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                                 }
                             >
                                 {isBusy ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-                                {isBusy ? "Running..." : destructive ? "Approve anyway" : "Approve"}
+                                {isBusy ? "Running…" : destructive ? "Approve anyway" : "Approve"}
                             </Button>
                         </div>
                     </div>

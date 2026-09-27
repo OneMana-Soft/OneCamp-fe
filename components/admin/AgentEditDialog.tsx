@@ -1285,7 +1285,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
               <Textarea
                 value={testPrompt}
                 onChange={(e) => setTestPrompt(e.target.value)}
-                placeholder="Optional prompt for this test run..."
+                placeholder="Optional prompt for this test run…"
                 className="min-h-[60px] resize-none bg-background text-sm"
               />
               <div className="flex items-center justify-between gap-2">

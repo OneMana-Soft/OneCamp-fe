@@ -250,7 +250,7 @@ const ChannelMessageMobileComponent = ({
                             editorContentClassName={cn("overflow-auto")}
                             output="html"
                             content={postInfo.post_text}
-                            placeholder={"Edit message..."}
+                            placeholder={"Edit message…"}
                             editable={isMessageEditEnabled}
                             PrimaryButtonIcon={Check}
                             buttonOnclick={() => {

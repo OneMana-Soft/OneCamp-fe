@@ -53,7 +53,7 @@ export default function ArchiveRunJobDialog({ open, onOpenChange, onConfirm, ent
           <AlertDialogCancel disabled={isRunning}>Cancel</AlertDialogCancel>
           <AlertDialogAction onClick={handleConfirm} disabled={isRunning} className="gap-1.5">
             {isRunning ? <RefreshCw className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-            {isRunning ? "Running..." : "Run Archive"}
+            {isRunning ? "Running…" : "Run Archive"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

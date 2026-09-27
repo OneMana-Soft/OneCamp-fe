@@ -91,7 +91,7 @@ function SignupForm() {
     return (
       <div className="flex flex-col items-center gap-4">
         <LoaderCircle className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Validating invitation...</p>
+        <p className="text-sm text-muted-foreground">Validating invitation…</p>
       </div>
     )
   }
@@ -104,9 +104,7 @@ function SignupForm() {
         <p className="text-sm text-muted-foreground">
           {error || "This invitation link is invalid or has expired. Please contact your administrator for a new invitation."}
         </p>
-        <Link href="/">
-          <Button variant="outline" className="mt-4">Back to Login</Button>
-        </Link>
+        <Button variant="outline" className="mt-4" asChild><Link href="/">Back to Login</Link></Button>
       </div>
     )
   }

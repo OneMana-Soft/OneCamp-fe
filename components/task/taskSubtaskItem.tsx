@@ -66,7 +66,7 @@ export function TaskSubtaskItem({
                         content={subTask.task_name}
                         textUpdate={(s: string) => onRename(subTask.task_uuid, s)}
                         textUpdateOnEnter={(s: string) => onRename(subTask.task_uuid, s)}
-                        placeholder="Enter sub task name..."
+                        placeholder="Enter sub task name…"
                     />
                 </div>
                 <div className="flex items-center gap-4">

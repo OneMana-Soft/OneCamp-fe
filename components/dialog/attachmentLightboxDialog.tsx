@@ -487,7 +487,7 @@ export function MediaLightboxDialog({
                                                 priority
                                                 sizes="100vw"
                                                 className={cn(
-                                                    "object-contain transition-all duration-200",
+                                                    "object-contain transition duration-200",
                                                     (mediaReq.isLoading || mediaReq.isValidating) &&
                                                         !mediaReq.data?.url &&
                                                         !currentMedia.initial_url
@@ -561,7 +561,7 @@ export function MediaLightboxDialog({
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
             <DialogContent
                 className={cn(
-                    "max-w-[95vw] md:max-w-[85vw] lg:max-w-[80vw] transition-all duration-300 p-0 overflow-hidden bg-background border [&>button]:hidden",
+                    "max-w-[95vw] md:max-w-[85vw] lg:max-w-[80vw] transition duration-300 p-0 overflow-hidden bg-background border [&>button]:hidden",
                     isFullscreen && "!max-w-none !w-screen !h-screen !rounded-none",
                 )}
             >

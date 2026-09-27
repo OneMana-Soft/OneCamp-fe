@@ -58,7 +58,7 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                             {isLoading && (
                                 <span className="flex items-center gap-2 text-sm text-primary">
                                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                    Loading...
+                                    Loading…
                                 </span>
                             )}
                              {!hasMore && docList.length > 0 && (
@@ -74,7 +74,7 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                             <div 
                                 onClick={onCreate}
                                 className={cn(
-                                    "group relative flex flex-col items-center justify-center border border-dashed border-border rounded-lg bg-transparent hover:border-primary/40 hover:bg-accent/30 transition-all duration-150 cursor-pointer h-64 md:h-72"
+                                    "group relative flex flex-col items-center justify-center border border-dashed border-border rounded-lg bg-transparent hover:border-primary/40 hover:bg-accent/30 transition duration-150 cursor-pointer h-64 md:h-72"
                                 )}
                             >
                                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors">

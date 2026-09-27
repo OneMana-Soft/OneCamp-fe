@@ -90,14 +90,14 @@ export function EntityLinkPicker({ onPick, isLinked, disabled }: EntityLinkPicke
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search docs and boards..."
+            placeholder="Search docs and boards…"
             className="h-8 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
           />
         </div>
         <div className="max-h-[16rem] overflow-y-auto p-1">
           {loading && (
             <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Searching...
+              <Loader2 className="h-4 w-4 animate-spin" /> Searching…
             </div>
           )}
           {!loading && query.trim() && items.length === 0 && (

@@ -53,12 +53,10 @@ export default function ForgotPasswordPage() {
             <p className="text-xs text-muted-foreground">
               The link expires in 1 hour. Don&apos;t forget to check your spam folder.
             </p>
-            <Link href="/">
-              <Button variant="outline" className="mt-4">
+            <Button variant="outline" className="mt-4" asChild><Link href="/">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Login
-              </Button>
-            </Link>
+              </Link></Button>
           </div>
         ) : (
           <>

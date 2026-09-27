@@ -259,7 +259,7 @@ const WebhooksCard = () => {
                     <code className="text-xs bg-muted/50 px-2 py-1 rounded flex-1 truncate font-mono">
                       {tokenVisible[webhook.id] ? webhook.token : "••••••••••••••••"}
                     </code>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setTokenVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
+                    <Button aria-label={tokenVisible[webhook.id] ? "Hide token" : "Show token"} variant="ghost" size="icon" className="h-6 w-6" onClick={() => setTokenVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
                       {tokenVisible[webhook.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                     </Button>
                     <Button aria-label="Copy token" variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(webhook.token)}><Copy className="h-3 w-3" /></Button>
@@ -271,7 +271,7 @@ const WebhooksCard = () => {
                       <code className="text-xs bg-muted/50 px-2 py-1 rounded flex-1 truncate font-mono">
                         {secretVisible[webhook.id] ? webhook.secret : "••••••••••••••••"}
                       </code>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSecretVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
+                      <Button aria-label={secretVisible[webhook.id] ? "Hide secret" : "Show secret"} variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSecretVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
                         {secretVisible[webhook.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                       </Button>
                       <Button aria-label="Copy signing secret" variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(webhook.secret!)}><Copy className="h-3 w-3" /></Button>
@@ -291,7 +291,7 @@ const WebhooksCard = () => {
                   <div className="border-t border-border/50 bg-muted/20 px-4 py-3">
                     <h4 className="text-xs font-semibold text-muted-foreground mb-2">Recent Logs</h4>
                     {logsLoading && logs.length === 0 ? (
-                      <div className="text-xs text-muted-foreground animate-pulse">Loading logs...</div>
+                      <div className="text-xs text-muted-foreground animate-pulse">Loading logs…</div>
                     ) : logs.length === 0 ? (
                       <div className="text-xs text-muted-foreground">No logs yet</div>
                     ) : (

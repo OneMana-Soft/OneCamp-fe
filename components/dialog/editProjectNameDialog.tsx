@@ -151,7 +151,7 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
                                 (p_name == originalTeamName)
                             }
                         >
-                            {isSubmitting ? "Updating..." : "Update Project name"}
+                            {isSubmitting ? "Updating…" : "Update Project name"}
                         </Button>
                     </DialogFooter>
                 </form>

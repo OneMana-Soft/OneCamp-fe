@@ -962,7 +962,7 @@ const ReindexBanner: React.FC<{ status: ReindexStatus }> = ({ status }) => {
         </span>
       </div>
       <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-        <div className="h-full bg-amber-500 transition-all" style={{ width: `${pct}%` }} />
+        <div className="h-full bg-amber-500 transition-[width,height]" style={{ width: `${pct}%` }} />
       </div>
       <p className="text-xs text-muted-foreground">
         {status.running
@@ -996,7 +996,7 @@ const UsageMeterBar: React.FC<{ label: string; used: number; limit: number }> = 
       {l > 0 && (
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className={`h-full rounded-full transition-all ${near ? "bg-amber-500" : "bg-primary"}`}
+            className={`h-full rounded-full transition ${near ? "bg-amber-500" : "bg-primary"}`}
             style={{ width: `${pct}%` }}
           />
         </div>

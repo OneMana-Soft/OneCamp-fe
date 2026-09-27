@@ -216,7 +216,7 @@ export const MessageContent = ({
                         editorContentClassName="overflow-auto mb-2 text-sm"
                         output="html"
                         content={content}
-                        placeholder="Edit message..."
+                        placeholder="Edit message…"
                         editable={isMessageEditEnabled}
 
                         editorClassName="focus:outline-none"

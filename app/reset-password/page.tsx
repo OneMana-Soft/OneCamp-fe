@@ -28,9 +28,7 @@ function ResetPasswordForm() {
         <p className="text-sm text-muted-foreground">
           This password reset link is invalid. Please request a new one.
         </p>
-        <Link href="/forgot-password">
-          <Button variant="outline" className="mt-4">Request New Link</Button>
-        </Link>
+        <Button variant="outline" className="mt-4" asChild><Link href="/forgot-password">Request New Link</Link></Button>
       </div>
     )
   }
@@ -77,9 +75,7 @@ function ResetPasswordForm() {
         <p className="text-sm text-muted-foreground">
           Your password has been successfully reset. You can now sign in with your new password.
         </p>
-        <Link href="/">
-          <Button className="mt-4">Go to Login</Button>
-        </Link>
+        <Button className="mt-4" asChild><Link href="/">Go to Login</Link></Button>
       </div>
     )
   }

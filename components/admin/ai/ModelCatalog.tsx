@@ -366,7 +366,7 @@ const CatalogCard: React.FC<{
             </button>
           </div>
           <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <div className="h-full bg-primary transition-all" style={{ width: pct != null ? `${pct}%` : "33%" }} />
+            <div className="h-full bg-primary transition-[width,height]" style={{ width: pct != null ? `${pct}%` : "33%" }} />
           </div>
         </div>
       ) : model.installed ? (

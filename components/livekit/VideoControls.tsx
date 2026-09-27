@@ -129,7 +129,7 @@ export function VideoControls({
   };
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 md:gap-4 p-2 md:p-3 rounded-2xl bg-black/80 md:bg-black/40 backdrop-blur-md border border-white/10 shadow-xl z-[var(--z-fixed)] transition-all hover:bg-black/90 md:hover:bg-black/50 w-[95%] md:w-auto overflow-x-auto md:overflow-visible justify-center md:justify-start">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 md:gap-4 p-2 md:p-3 rounded-2xl bg-black/80 md:bg-black/40 backdrop-blur-md border border-white/10 shadow-xl z-[var(--z-fixed)] transition hover:bg-black/90 md:hover:bg-black/50 w-[95%] md:w-auto overflow-x-auto md:overflow-visible justify-center md:justify-start">
       
       <ControlBtn
         label={isMicrophoneEnabled ? "Mute" : "Unmute"}
@@ -319,7 +319,7 @@ function ControlBtn({ label, isActive, activeClass, className, children, ...prop
                         size="icon"
                         aria-label={label}
                         className={cn(
-                            "h-12 w-12 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition-all border border-transparent",
+                            "h-12 w-12 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition border border-transparent",
                             isActive && activeClass,
                             className
                         )}

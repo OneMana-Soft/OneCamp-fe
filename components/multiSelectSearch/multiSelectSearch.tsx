@@ -28,7 +28,7 @@ export function MultiSelectSearch<T extends SearchableItem>({
                                                                 onSelect,
                                                                 onSearch,
                                                                 renderItem,
-                                                                placeholder = "Search...",
+                                                                placeholder = "Search…",
                                                                 maxItems,
                                                                 debounceTime = 300,
                                                                 className,

@@ -245,7 +245,7 @@ export default function VideoPlayer({ url, fileName}: VideoPlayerProps) {
                                     {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                                 </Button>
 
-                                <div className="w-20 hidden group-hover:block transition-all duration-150">
+                                <div className="w-20 hidden group-hover:block transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-150">
                                     <Slider
                                         value={[isMuted ? 0 : volume]}
                                         min={0}

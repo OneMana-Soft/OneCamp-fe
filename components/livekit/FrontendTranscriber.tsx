@@ -203,7 +203,7 @@ export function FrontendTranscriber({ onTranscript, onStatus }: FrontendTranscri
           if (lastErrorRef.current === 'network') {
                // Exponential backoff: 1s, 2s, 4s... max 30s
                delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000);
-               console.warn(`Transcription network error. Retrying in ${delay}ms...`);
+               console.warn(`Transcription network error. Retrying in ${delay}ms…`);
                retryCountRef.current++;
           } else {
                // If it stopped cleanly or other non-fatal error, reset retry if we had a successful run?

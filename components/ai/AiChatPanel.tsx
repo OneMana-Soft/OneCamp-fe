@@ -476,7 +476,7 @@ const AiChatPanel: React.FC = () => {
             if (!finalText && finalActions && finalActions.length > 0) {
                 finalText = finalActions.length === 1 
                     ? `I'll ${finalActions[0].description.toLowerCase()}...`
-                    : "I have a few actions prepared for you...";
+                    : "I have a few actions prepared for you…";
             }
 
             const assistantMsg: ChatMessage = {
@@ -646,7 +646,7 @@ const AiChatPanel: React.FC = () => {
                                 <Button
                                     key={suggestion}
                                     variant="outline"
-                                    className="h-auto px-3.5 py-2.5 bg-card text-foreground text-xs text-left transition-all duration-150 leading-[1.4] hover:border-primary hover:bg-primary/5 whitespace-normal justify-start"
+                                    className="h-auto px-3.5 py-2.5 bg-card text-foreground text-xs text-left transition duration-150 leading-[1.4] hover:border-primary hover:bg-primary/5 whitespace-normal justify-start"
                                     /* Ask it. Filling the box and stopping there
                                        made every suggestion a two-step
                                        instruction nobody asked for. */
@@ -768,7 +768,7 @@ const AiChatPanel: React.FC = () => {
                             {sanitizedStreamText.length === 0 ? (
                                 <div className="flex items-center gap-2 py-1 text-muted-foreground text-sm">
                                     <Loader2 size={14} className="animate-spin" />
-                                    <span>Thinking...</span>
+                                    <span>Thinking…</span>
                                 </div>
                             ) : (
                                 <div className="min-w-0">
@@ -805,7 +805,7 @@ const AiChatPanel: React.FC = () => {
                         value={input}
                         onChange={handleTextareaInput}
                         onKeyDown={handleKeyDown}
-                        placeholder="Ask your workspace anything..."
+                        placeholder="Ask your workspace anything…"
                         className={cn(
                             "flex-1 min-w-0 border-0 bg-transparent shadow-none",
                             "text-sm leading-relaxed text-foreground",

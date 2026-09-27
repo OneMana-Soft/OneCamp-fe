@@ -213,7 +213,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                 <FormItem>
                                     <FormLabel>Description</FormLabel>
                                     <FormControl>
-                                        <Textarea placeholder="Event details..." className="resize-none" {...field} />
+                                        <Textarea placeholder="Event details…" className="resize-none" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -250,7 +250,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                 Cancel
                             </Button>
                             <Button type="submit" disabled={submitting}>
-                                {submitting ? "Creating..." : "Create Event"}
+                                {submitting ? "Creating…" : "Create Event"}
                             </Button>
                         </DialogFooter>
                     </form>

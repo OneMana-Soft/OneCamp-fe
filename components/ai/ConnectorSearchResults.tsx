@@ -153,7 +153,7 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
                         href={h.url || "#"}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="group flex items-start gap-3 rounded-xl border border-transparent bg-card p-3 transition-all duration-200 hover:border-border hover:bg-accent/40"
+                        className="group flex items-start gap-3 rounded-xl border border-transparent bg-card p-3 transition duration-200 hover:border-border hover:bg-accent/40"
                       >
                         <div className="mt-0.5 shrink-0 rounded-lg bg-muted p-2 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary">
                           <Icon className="h-4 w-4" />

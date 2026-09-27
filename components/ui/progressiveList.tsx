@@ -66,7 +66,7 @@ function ProgressiveListInner<T>({
                     {loadingIndicator ?? (
                         <div className="flex items-center text-xs text-muted-foreground">
                             <LoadingStateCircle />
-                            <span>Loading more...</span>
+                            <span>Loading more…</span>
                         </div>
                     )}
                 </div>

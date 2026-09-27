@@ -176,7 +176,7 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                         const executed = executedActions[index];
                         return (
                             <div key={index} className={cn(
-                                "p-4 bg-muted/40 border border-border rounded-xl transition-all duration-200 hover:border-primary/40",
+                                "p-4 bg-muted/40 border border-border rounded-xl transition duration-200 hover:border-primary/40",
                                 executed?.success && "border-green-500/40 bg-green-500/5",
                                 executed && !executed.success && "border-destructive/40 bg-destructive/5"
                             )}>
@@ -203,15 +203,15 @@ const ActionConfirmation: React.FC<ActionConfirmationProps> = ({
                                 {!executed ? (
                                     <div className="flex gap-2">
                                         <Button
-                                            className="flex-1 bg-primary text-primary-foreground font-medium transition-all duration-150 hover:bg-primary/90"
+                                            className="flex-1 bg-primary text-primary-foreground font-medium transition duration-150 hover:bg-primary/90"
                                             onClick={() => handleConfirm(action, index)}
                                             disabled={submittingIndex !== null}
                                         >
-                                            {submittingIndex === index ? 'Executing...' : 'Confirm'}
+                                            {submittingIndex === index ? 'Executing…' : 'Confirm'}
                                         </Button>
                                         <Button 
                                             variant="outline"
-                                            className="bg-transparent border-border text-muted-foreground font-medium transition-all duration-150 hover:border-primary/20 hover:text-foreground" 
+                                            className="bg-transparent border-border text-muted-foreground font-medium transition duration-150 hover:border-primary/20 hover:text-foreground" 
                                             onClick={onClose}
                                         >
                                             Dismiss

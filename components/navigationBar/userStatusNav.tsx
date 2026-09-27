@@ -67,7 +67,7 @@ export function UserStatusNav({userUUID}: {userUUID: string}) {
         <div className='flex'>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Button
+                    <Button aria-label="Set your status"
                         variant='ghost'
                         // accessibilityLabel='Update status emoji'
                         className='group/emoji'

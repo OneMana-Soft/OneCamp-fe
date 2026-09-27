@@ -80,7 +80,7 @@ const PostsPage = () => {
                 {isLoading && (
                     <div className="flex items-center gap-2 text-3xs md:text-xs text-muted-foreground animate-in fade-in">
                         <Loader2 className="h-3 w-3 animate-spin" />
-                        <span className="hidden sm:inline">Refreshing...</span>
+                        <span className="hidden sm:inline">Refreshing…</span>
                     </div>
                 )}
             </div>}

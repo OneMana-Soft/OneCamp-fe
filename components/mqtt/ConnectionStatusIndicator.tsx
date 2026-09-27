@@ -26,7 +26,7 @@ export function ConnectionStatusIndicator({ compact = false }: ConnectionStatusI
     statusText = "Connected"
   } else if (isConnecting) {
     statusColor = "bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]"
-    statusText = "Connecting..."
+    statusText = "Connecting…"
   }
 
   return (

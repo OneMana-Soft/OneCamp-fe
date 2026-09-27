@@ -154,7 +154,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                                 align="start"
                               >
                                 <Command>
-                                  <CommandInput placeholder="Change team..." />
+                                  <CommandInput placeholder="Change team…" />
                                   <CommandList>
                                     <CommandEmpty>No results found.</CommandEmpty>
                                     <CommandGroup>
@@ -193,7 +193,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
             </div>
             <DialogFooter>
               <Button variant="default" type="submit" disabled={!isValid || isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Project"}
+                {isSubmitting ? "Creating…" : "Create Project"}
               </Button>
             </DialogFooter>
           </form>

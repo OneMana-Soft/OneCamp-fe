@@ -48,7 +48,7 @@ export const TeamList = () => {
             <SearchField
                 onChange={handleSearchChange}
                 value={teamSearchText}
-                placeholder={"Search teams..."}
+                placeholder={"Search teams…"}
             />
 
             <div className="flex-1 overflow-y-auto px-1 py-1.5 sidebar-extended-channels">

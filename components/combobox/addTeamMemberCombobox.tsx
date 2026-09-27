@@ -44,7 +44,7 @@ const AddTeamMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({ha
                         <span className="truncate text-sm font-medium">
                             {value
                                 ? usersList.data?.users?.find((u) => u.user_uuid === value)?.user_name
-                                : "Search members to add..."
+                                : "Search members to add…"
                             }
                         </span>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
@@ -52,7 +52,7 @@ const AddTeamMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({ha
                 </PopoverTrigger>
                 <PopoverContent className="w-[240px] p-0 shadow-xl border-border/50">
                     <Command className="bg-popover">
-                        <CommandInput placeholder="Search users..." className="h-9" />
+                        <CommandInput placeholder="Search users…" className="h-9" />
                         <CommandList className="max-h-[200px] overflow-y-auto">
                             <CommandEmpty>No user found.</CommandEmpty>
                             <CommandGroup>

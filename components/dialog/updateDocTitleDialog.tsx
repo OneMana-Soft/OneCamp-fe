@@ -118,7 +118,7 @@ const UpdateDocTitleDialog: React.FC<UpdateDocDialogProps> = ({
                             type="submit"
                             disabled={!isValid || isSubmitting}
                         >
-                            {isSubmitting ? "Updating..." : "Update Title"}
+                            {isSubmitting ? "Updating…" : "Update Title"}
                         </Button>
                     </DialogFooter>
                 </form>

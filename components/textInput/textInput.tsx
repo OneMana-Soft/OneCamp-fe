@@ -16,6 +16,10 @@ import {
   UseMinimalTiptapEditorProps,
 } from "@/components/minimal-tiptap/hooks/use-minimal-tiptap";
 
+import { sanitizeRichHtml } from "@/lib/sanitizeHtml";
+import { canRenderStatically, mentionUserUUID } from "@/lib/utils/staticRichText";
+import { useDispatch } from "react-redux";
+import { openUI } from "@/store/slice/uiSlice";
 import "@/components/minimal-tiptap/styles/index.css";
 import { LetterCaseCapitalizeIcon} from "@radix-ui/react-icons";
 import ToolbarButton from "@/components/minimal-tiptap/components/toolbar-button";
@@ -151,7 +155,7 @@ const Toolbar = ({ editor, toggledTextEditor, setToggledTextEditor, toggleToolba
 
 };
 
-export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
+const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
     (
         {
           value,
@@ -299,7 +303,7 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
         onActionFiles,
         allowedMimeTypes: DEFAULT_ALLOWED_MIME_TYPES,
         onSubmit: handleSubmit,
-        placeholder: "Write a message...",
+        placeholder: "Write a message…",
         slashCommands,
         output,
         throttleRef,
@@ -391,7 +395,7 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
           <div
               ref={ref}
               className={cn(
-                  "flex w-full flex-col overflow-hidden transition-all duration-200",
+                  "flex w-full flex-col overflow-hidden transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200",
                   !isOutputText && !props.noBorder && "rounded-xl border border-input bg-background shadow-sm focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20",
                   (isOutputText? '': 'max-h-[85vh]'),
                   className
@@ -447,6 +451,40 @@ export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTi
     }
 );
 
+LiveTextInput.displayName = "LiveTextInput";
+
+// A read-only body that needs no live node view is shown as its sanitised HTML:
+// no editor is built, and the text is there on the first paint. Editing, or
+// content that needs the editor, gets the live component.
+const StaticRichText = React.forwardRef<HTMLDivElement, { html: string; className?: string; contentClassName?: string }>(
+    ({ html, className, contentClassName }, ref) => {
+        const dispatch = useDispatch();
+        const safe = React.useMemo(() => sanitizeRichHtml(html), [html]);
+        const onClick = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+            const mention = (e.target as HTMLElement).closest<HTMLElement>('span[data-type="mention"]');
+            if (!mention) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const userUUID = mentionUserUUID(mention.dataset.id);
+            if (userUUID) dispatch(openUI({ key: "otherUserProfile", data: { userUUID } }));
+        }, [dispatch]);
+        return (
+            <div ref={ref} className={cn("flex w-full flex-col overflow-hidden", className)}>
+                <div className={cn("minimal-tiptap-editor overflow-y-auto outline-none prose-sm sm:prose-base", contentClassName)}>
+                    <div className="ProseMirror static-rich focus:outline-none" onClick={onClick} dangerouslySetInnerHTML={{ __html: safe }} />
+                </div>
+            </div>
+        );
+    }
+);
+StaticRichText.displayName = "StaticRichText";
+
+export const MinimalTiptapTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>((props, ref) => {
+    if (props.isOutputText && !props.editable && canRenderStatically(props.content)) {
+        return <StaticRichText ref={ref} html={props.content} className={props.className} contentClassName={props.editorContentClassName} />;
+    }
+    return <LiveTextInput ref={ref} {...props} />;
+});
 MinimalTiptapTextInput.displayName = "MinimalTiptapTask";
 
 export default MinimalTiptapTextInput;

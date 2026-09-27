@@ -35,12 +35,9 @@ const NAME_ATTRS = ["aria-label", "aria-labelledby", "title="]
  * Known and intentional. Each entry is a file plus the count it may contribute,
  * so a NEW unnamed button in one of these files still fails.
  */
-const ALLOWED: Record<string, number> = {
-  // Button nested inside a <Link aria-label="View recordings">. The link is the
-  // element the reader announces, and it is named.
-  "components/channel/chanelIdDesktop.tsx": 1,
-  "components/chat/chatIdDesktop.tsx": 1,
-}
+// Empty. The last two were buttons nested inside named links; those are now a
+// single element (Button asChild around the Link), named by the link.
+const ALLOWED: Record<string, number> = {}
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)

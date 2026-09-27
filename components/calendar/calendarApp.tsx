@@ -425,7 +425,7 @@ export function CalendarApp() {
                                             width: `calc(${(event.colSpan / 7) * 100}% - ${(isStartOfWeek ? 4 : 0) + (isEndOfWeek ? 4 : 0)}px)`
                                         }}
                                         className={cn(
-                                            "absolute h-5 px-1.5 py-0 text-3xs font-medium truncate cursor-pointer transition-all flex items-center z-20",
+                                            "absolute h-5 px-1.5 py-0 text-3xs font-medium truncate cursor-pointer transition flex items-center z-20",
                                             isHovered && "scale-[1.02] z-30 shadow-md",
                                             event.isTask
                                                 ? (isHovered ? calendarColors.task.solidHover : calendarColors.task.solidOpacity)
@@ -518,7 +518,7 @@ export function CalendarApp() {
                     <Search className="h-4 w-4 text-muted-foreground" />
                     <input 
                         className="bg-transparent text-sm w-full outline-none placeholder:text-muted-foreground" 
-                        placeholder="Search events..." 
+                        placeholder="Search events…" 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
@@ -654,7 +654,7 @@ export function CalendarApp() {
                     {(isLoadingEvents || isLoadingTasks) ? (
                         <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] text-muted-foreground gap-4">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <p>Syncing calendar...</p>
+                            <p>Syncing calendar…</p>
                         </div>
                     ) : shownView === "agenda" ? (
                         <CalendarAgenda

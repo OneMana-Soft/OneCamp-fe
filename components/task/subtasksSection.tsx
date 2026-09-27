@@ -162,7 +162,7 @@ export function SubtasksSection({
                                     content={newSubtask.task_name}
                                     textUpdate={(name) => setNewSubtask(prev => ({ ...prev, task_name: name }))}
                                     textUpdateOnEnter={handleCreateSubtask}
-                                    placeholder="Enter subtask name..."
+                                    placeholder="Enter subtask name…"
                                     className="flex-1 !px-1 !pt-0.5"
                                 />
 
@@ -309,7 +309,7 @@ const SubtaskItem = React.memo(function SubtaskItem({
                             content={subtask.task_name}
                             textUpdate={(s: string) => onRename(subtask.task_uuid, s)}
                             textUpdateOnEnter={(s: string) => onRename(subtask.task_uuid, s)}
-                            placeholder="Enter subtask name..."
+                            placeholder="Enter subtask name…"
                             className='!text-sm font-medium truncate !px-1 !pt-0.5'
                         />
                     ) : (

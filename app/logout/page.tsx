@@ -24,7 +24,7 @@ export default function Logout(){
                 className="block md:hidden w-16"
             />
             <div className="text-center md:text-left">
-                Logging you out...
+                Logging you out…
             </div>
             <Button onClick={() => window.location.href = '/'}>
                 Go to login page

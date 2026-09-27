@@ -167,7 +167,7 @@ export const ModelInstaller: React.FC<{
           </div>
           <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
             <div
-              className="h-full bg-primary transition-all"
+              className="h-full bg-primary transition-[width,height]"
               style={{ width: pct != null ? `${pct}%` : "33%" }}
             />
           </div>

@@ -132,7 +132,7 @@ export const AudioPlayer = ({ url }: AudioPlayerProps) => {
                         >
                             {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                         </Button>
-                        <div className="w-20 hidden group-hover:block transition-all">
+                        <div className="w-20 hidden group-hover:block transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow]">
                             <Slider
                                 value={[isMuted ? 0 : volume]}
                                 max={1}

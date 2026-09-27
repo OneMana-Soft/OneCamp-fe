@@ -106,7 +106,7 @@ export function InlineDocCreator({ className, isOpen: controlledIsOpen, onOpenCh
           value={title}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Doc title..."
+          placeholder="Doc title…"
           className={cn(
             "h-7 text-xs px-2 py-0.5 flex-1",
             error && "border-destructive focus-visible:ring-destructive"

@@ -45,7 +45,7 @@ const AddProjectMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = (
                         <span className="truncate text-sm font-medium">
                             {value
                                 ? usersList.data?.users?.find((framework) => framework.user_uuid === value)?.user_name
-                                : "Search members..."
+                                : "Search members…"
                             }
                         </span>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
@@ -53,7 +53,7 @@ const AddProjectMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = (
                 </PopoverTrigger>
                 <PopoverContent className="w-[240px] p-0 shadow-xl border-border/50">
                     <Command>
-                        <CommandInput placeholder="Search user..." className="h-9" />
+                        <CommandInput placeholder="Search user…" className="h-9" />
                         <CommandList>
                             <CommandEmpty>{"No user found"}</CommandEmpty>
                             <CommandGroup>

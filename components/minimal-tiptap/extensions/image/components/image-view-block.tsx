@@ -419,7 +419,7 @@ export const ImageViewBlock: React.FC<NodeViewProps> = ({ editor, node, selected
             <div className="w-full mt-1.5">
               <input
                 type="text"
-                placeholder="Add caption..."
+                placeholder="Add caption…"
                 defaultValue={node.attrs.caption || ''}
                 onBlur={(e) => updateAttributes({ caption: e.target.value })}
                 onKeyDown={(e) => {

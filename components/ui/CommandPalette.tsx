@@ -633,7 +633,7 @@ export function CommandPalette() {
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
-        placeholder="Search or jump to... (Ctrl+K)"
+        placeholder="Search or jump to… (Ctrl+K)"
         value={inputValue}
         onValueChange={setInputValue}
       />
@@ -642,7 +642,7 @@ export function CommandPalette() {
           {isSearching ? (
             <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              Searching...
+              Searching…
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-center">

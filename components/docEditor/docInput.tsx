@@ -111,7 +111,7 @@ const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClic
                     editor.chain().focus().toggleImage().run();
                 }}
                 className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     "bg-background border border-border hover:border-primary/40 hover:bg-accent",
                     "text-muted-foreground hover:text-foreground"
                 )}
@@ -130,7 +130,7 @@ const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClic
                     onAIClick();
                 }}
                 className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     "bg-primary/10 border border-primary/20 hover:border-primary/40",
                     "text-primary hover:text-primary/80",
                     "hover:bg-primary/20"
@@ -154,7 +154,7 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
             return (
                 <span className="flex items-center gap-1 text-muted-foreground">
                     <Loader2 className="size-3 animate-spin" />
-                    <span className="text-3xs font-medium">Saving...</span>
+                    <span className="text-3xs font-medium">Saving…</span>
                 </span>
             )
         case 'saved':

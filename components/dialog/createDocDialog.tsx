@@ -134,7 +134,7 @@ const CreateDocDialog: React.FC<CreateDocDialogProps> = ({
                             type="submit"
                             disabled={!isValid || isSubmitting}
                         >
-                            {isSubmitting ? "Creating..." : "Create Document"}
+                            {isSubmitting ? "Creating…" : "Create Document"}
                         </Button>
                     </DialogFooter>
                 </form>

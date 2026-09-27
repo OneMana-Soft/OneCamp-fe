@@ -148,7 +148,7 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search by name or ID..."
+                  placeholder="Search by name or ID…"
                   className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -173,7 +173,7 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
 
             <div className="border rounded-md max-h-52 overflow-y-auto">
               {loading ? (
-                <div className="text-sm text-muted-foreground animate-pulse p-4 text-center">Loading archived items...</div>
+                <div className="text-sm text-muted-foreground animate-pulse p-4 text-center">Loading archived items…</div>
               ) : filteredItems.length === 0 ? (
                 <div className="text-sm text-muted-foreground p-4 text-center">
                   {searchQuery.trim() ? "No items match your search." : `No recently archived ${ENTITY_LABELS[entityType]?.toLowerCase() || entityType} found.`}

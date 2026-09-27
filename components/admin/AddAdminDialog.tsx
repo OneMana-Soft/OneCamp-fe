@@ -124,7 +124,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name or email..."
+              placeholder="Search by name or email…"
               className="pl-9"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -135,7 +135,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
             <div className="space-y-2">
               {isLoading ? (
                 <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-                  Loading users...
+                  Loading users…
                 </div>
               ) : filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
@@ -148,7 +148,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
                 ))
               ) : (
                 <div className="text-center py-8 text-sm text-muted-foreground italic">
-                  {searchTerm ? "No matching users found." : "Start typing to search..."}
+                  {searchTerm ? "No matching users found." : "Start typing to search…"}
                 </div>
               )}
             </div>
@@ -167,7 +167,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
             onClick={handleAddAdmin}
             disabled={!selectedUser || post.isSubmitting}
           >
-            {post.isSubmitting ? "Promoting..." : "Promote to Admin"}
+            {post.isSubmitting ? "Promoting…" : "Promote to Admin"}
           </Button>
         </DialogFooter>
       </DialogContent>

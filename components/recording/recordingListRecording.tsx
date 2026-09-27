@@ -32,7 +32,7 @@ export const RecordingListRecording = ({
     }
 
     return (
-        <div className="group flex items-center gap-4 p-4 hover:bg-primary/5 cursor-pointer transition-all duration-150 border-b border-border/40 last:border-0 relative overflow-hidden">
+        <div className="group flex items-center gap-4 p-4 hover:bg-primary/5 cursor-pointer transition duration-150 border-b border-border/40 last:border-0 relative overflow-hidden">
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity" />
             
             <div className="relative">

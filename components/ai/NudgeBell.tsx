@@ -110,7 +110,7 @@ function NudgeBell() {
                         <button
                             aria-label="Nudges"
                             className={cn(
-                                "relative h-9 w-9 flex items-center justify-center rounded-md transition-all duration-100",
+                                "relative h-9 w-9 flex items-center justify-center rounded-md transition duration-100",
                                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                                 open
                                     ? "bg-primary/15 text-primary"

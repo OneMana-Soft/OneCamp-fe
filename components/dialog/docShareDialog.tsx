@@ -264,7 +264,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                          <Button 
                             variant="outline" 
                             size="sm"
-                            className={cn("rounded-full gap-2 transition-all", copied ? "border-green-500 text-success bg-success/10" : "text-primary border-primary/20 hover:bg-primary/5")}
+                            className={cn("rounded-full gap-2 transition", copied ? "border-green-500 text-success bg-success/10" : "text-primary border-primary/20 hover:bg-primary/5")}
                             onClick={() => {
                                 navigator.clipboard.writeText(window.location.href);
                                 setCopied(true);

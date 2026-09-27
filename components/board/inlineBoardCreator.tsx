@@ -100,7 +100,7 @@ export function InlineBoardCreator({ className, isOpen: controlledIsOpen, onOpen
           value={title}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Board title..."
+          placeholder="Board title…"
           className={cn(
             "h-7 text-xs px-2 py-0.5 flex-1",
             error && "border-destructive focus-visible:ring-destructive"

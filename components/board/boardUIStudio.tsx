@@ -299,7 +299,7 @@ export function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDe
                 generate(prompt, device)
               }
             }}
-            placeholder="Describe the screen you want to design..."
+            placeholder="Describe the screen you want to design…"
             className="min-h-[96px] resize-none text-sm"
             maxLength={2000}
             disabled={busy}
@@ -314,7 +314,7 @@ export function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDe
           <Button onClick={() => generate(prompt, device)} disabled={busy} className="w-full gap-1.5">
             {busy ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Designing...
+                <Loader2 className="h-4 w-4 animate-spin" /> Designing…
               </>
             ) : (
               <>
@@ -340,7 +340,7 @@ export function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDe
                     refine(refinePrompt)
                   }
                 }}
-                placeholder="Describe a change (e.g. use a green accent, make the header sticky)..."
+                placeholder="Describe a change (e.g. use a green accent, make the header sticky)…"
                 className="min-h-[60px] resize-none bg-background text-sm"
                 maxLength={2000}
                 disabled={busy || refining}
@@ -415,7 +415,7 @@ export function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDe
             {busy && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/60 backdrop-blur-sm">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Designing your {device} screen...</p>
+                <p className="text-sm text-muted-foreground">Designing your {device} screen…</p>
               </div>
             )}
 

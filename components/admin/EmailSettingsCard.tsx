@@ -193,7 +193,7 @@ const EmailSettingsCard = () => {
       
       <CardContent className="px-0 flex-1 overflow-y-auto pr-4 custom-scrollbar pb-10 min-h-0">
         {isLoading ? (
-          <div className="text-sm text-muted-foreground animate-pulse">Loading configuration...</div>
+          <div className="text-sm text-muted-foreground animate-pulse">Loading configuration…</div>
         ) : (
           <div className="flex flex-col xl:flex-row gap-8 lg:gap-12 h-full">
             {/* Form Section */}
@@ -293,7 +293,7 @@ const EmailSettingsCard = () => {
                       className="font-mono text-xs min-h-[250px]"
                       value={formData.template}
                       onChange={(e) => setFormData({...formData, template: e.target.value})}
-                      placeholder="HTML goes here..."
+                      placeholder="HTML goes here…"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       Available variables: <code className="bg-muted px-1 rounded">{"{{signup_link}}"}</code>, <code className="bg-muted px-1 rounded">{"{{logo_image}}"}</code>
@@ -353,7 +353,7 @@ const EmailSettingsCard = () => {
                   <SafeHtml
                     as="div"
                     className="p-8 prose prose-sm max-w-none flex-1 bg-white break-words"
-                    html={previewHtml || "<div class='text-gray-400 italic'>Template is empty...</div>"}
+                    html={previewHtml || "<div class='text-gray-400 italic'>Template is empty…</div>"}
                     sanitizer={sanitizeImportedDocument}
                   />
                 </div>

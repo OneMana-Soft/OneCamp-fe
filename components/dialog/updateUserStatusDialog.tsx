@@ -262,7 +262,7 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
                   }}
                   showCustomReactions={false}
               >
-                <Button
+                <Button aria-label="Choose a status emoji"
                     variant='ghost'
                     // accessibilityLabel='Update status emoji'
                     className='group/emoji'

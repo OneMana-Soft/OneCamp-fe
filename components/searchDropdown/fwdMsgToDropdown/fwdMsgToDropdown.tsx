@@ -31,7 +31,7 @@ interface ForwardMessageSearchItem extends SearchableItem {
 
 export function ForwardMessageDropdown({
                                            onSelect,
-                                           placeholder = "Search users, channels or groups...",
+                                           placeholder = "Search users, channels or groups…",
                                            maxItems,
                                            className,
                                        }: ForwardMessageDropdownProps) {

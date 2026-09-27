@@ -377,7 +377,7 @@ export default function SignUp() {
               <button
                 type="button"
                 onClick={() => setActiveTab("standard")}
-                className={`flex-1 text-center py-2 text-xs font-semibold rounded-md transition-all duration-200 ${
+                className={`flex-1 text-center py-2 text-xs font-semibold rounded-md transition duration-200 ${
                   activeTab === "standard"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -388,7 +388,7 @@ export default function SignUp() {
               <button
                 type="button"
                 onClick={() => setActiveTab("directory")}
-                className={`flex-1 text-center py-2 text-xs font-semibold rounded-md transition-all duration-200 ${
+                className={`flex-1 text-center py-2 text-xs font-semibold rounded-md transition duration-200 ${
                   activeTab === "directory"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -616,7 +616,7 @@ export default function SignUp() {
                 {isOidcEnabled && (
                   <Button 
                     variant="outline" 
-                    className="w-full text-xs py-2 h-9 border-border/50 hover:bg-muted/50 transition-all duration-200" 
+                    className="w-full text-xs py-2 h-9 border-border/50 hover:bg-muted/50 transition duration-200" 
                     disabled={isLoading || isDemoLoading} 
                     onClick={() => authService.loginWithOIDC()}
                   >
@@ -629,7 +629,7 @@ export default function SignUp() {
                 {isSamlEnabled && (
                   <Button 
                     variant="outline" 
-                    className="w-full text-xs py-2 h-9 border-border/50 hover:bg-muted/50 transition-all duration-200" 
+                    className="w-full text-xs py-2 h-9 border-border/50 hover:bg-muted/50 transition duration-200" 
                     disabled={isLoading || isDemoLoading} 
                     onClick={() => authService.loginWithSAML()}
                   >
@@ -658,7 +658,7 @@ export default function SignUp() {
               )}
 
               <Button
-                className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-md hover:shadow-lg transition-all duration-200"
+                className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-md hover:shadow-lg transition duration-200"
                 disabled={isLoading || isDemoLoading}
                 onClick={handleDemoLogin}
               >

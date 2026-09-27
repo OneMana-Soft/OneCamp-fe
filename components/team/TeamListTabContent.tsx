@@ -25,7 +25,7 @@ export const TeamListTabContent = ({ teamId }: { teamId: string }) => {
             <SearchField
                 onChange={handleSearchChange}
                 value={inputValue}
-                placeholder={"Search project..."}
+                placeholder={"Search project…"}
             />
             <div className="flex-1 overflow-y-auto">
                 <TeamListTabProject searchQuery={searchQuery} teamId={teamId} />

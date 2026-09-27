@@ -75,7 +75,7 @@ const AiSearchMode: React.FC<AiSearchModeProps> = ({
             <Button
                 variant="outline"
                 className={cn(
-                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-border bg-muted/60 text-muted-foreground text-xs transition-all duration-200 self-end hover:border-primary/40 hover:text-foreground",
+                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-border bg-muted/60 text-muted-foreground text-xs transition duration-200 self-end hover:border-primary/40 hover:text-foreground",
                     isAIMode && "bg-primary/10 border-primary/40 text-primary"
                 )}
                 onClick={handleToggle}
@@ -92,11 +92,11 @@ const AiSearchMode: React.FC<AiSearchModeProps> = ({
                         <Input
                             ref={inputRef}
                             type="text"
-                            placeholder="Ask your workspace anything..."
+                            placeholder="Ask your workspace anything…"
                             value={question}
                             onChange={(e) => setQuestion(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            className="flex-1 px-3.5 py-2.5 rounded-xl border border-border bg-background/80 text-foreground text-sm outline-none transition-all focus:border-primary/50 focus:ring-4 focus:ring-primary/10 placeholder:text-muted-foreground"
+                            className="flex-1 px-3.5 py-2.5 rounded-xl border border-border bg-background/80 text-foreground text-sm outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-primary/10 placeholder:text-muted-foreground"
                             disabled={isStreaming}
                         />
                         {isStreaming ? (
@@ -104,7 +104,7 @@ const AiSearchMode: React.FC<AiSearchModeProps> = ({
                                 type="button"
                                 variant="outline"
                                 onClick={cancelStream}
-                                className="px-5 py-2.5 rounded-xl bg-destructive/15 text-destructive border border-destructive/20 text-sm font-semibold transition-all hover:bg-destructive/25"
+                                className="px-5 py-2.5 rounded-xl bg-destructive/15 text-destructive border border-destructive/20 text-sm font-semibold transition hover:bg-destructive/25"
                             >
                                 Stop
                             </Button>

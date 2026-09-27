@@ -285,15 +285,10 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                         Hidden rather than shown-and-failing when the operator has not run one. */}
                     <FeatureGate feature={FEATURE_CALLS}>
                     <WithTooltip label={channelCallActive ? "Join the call in progress" : "Start a call"}>
-                    <Link href={channelCallHref} aria-label={channelCallActive ? "Join the call in progress" : "Start a call"}>
-                    <Button
-                        size='icon'
-                        variant={channelCallActive ? 'secondary' : 'ghost'}
-                        className={cn(
-                            "relative transition-all duration-300",
+                    <Button size='icon' variant={channelCallActive ? 'secondary' : 'ghost'} className={cn(
+                            "relative transition duration-300",
                             channelCallActive && "bg-success/10 text-success hover:bg-emerald-500/20"
-                        )}
-                    >
+                        )} asChild><Link href={channelCallHref} aria-label={channelCallActive ? "Join the call in progress" : "Start a call"}>
                         <Video size={18} />
                         {channelCallActive && (
                             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
@@ -301,25 +296,20 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                                 <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${statusColors.online.solid}`}></span>
                             </span>
                         )}
-                    </Button>
-                    </Link>
+                    </Link></Button>
                     </WithTooltip>
                     </FeatureGate>
                     <WithTooltip label="Recordings">
-                        <Link href={channelRecordingHref} aria-label="Recordings"><Button size='icon' variant='ghost'> <Clapperboard /></Button></Link>
+                        <Button size='icon' variant='ghost' asChild><Link href={channelRecordingHref} aria-label="Recordings"> <Clapperboard /></Link></Button>
                     </WithTooltip>
                     <FeatureGate feature={FEATURE_AI}>
                     {/* The two least guessable icons in the row, and the two the
                         product is actually about. They say what they do now. */}
                     <WithTooltip label="Channel memory: decisions, commitments and open questions">
-                    <Link
-                        href={`/app/ai/memory?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channelDisplayName)}`}
-                        aria-label="Channel memory"
-                    >
-                        <Button size='icon' variant='ghost' aria-label="Channel memory">
+                    <Button size='icon' variant='ghost' asChild><Link href={`/app/ai/memory?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channelDisplayName)}`}
+                        aria-label="Channel memory">
                             <Lightbulb className="text-muted-foreground" />
-                        </Button>
-                    </Link>
+                        </Link></Button>
                     </WithTooltip>
                     <WithTooltip label="Create tasks from this conversation">
                     <Button

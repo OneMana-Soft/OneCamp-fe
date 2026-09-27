@@ -193,7 +193,7 @@ const RecordingsPage = () => {
                                 <div className="h-14 w-14 rounded-2xl bg-muted animate-pulse" />
                                 <Loader2 className="absolute inset-0 m-auto h-6 w-6 animate-spin text-primary/40" />
                             </div>
-                            <span className="text-sm font-medium tracking-wide">Gathering your recordings...</span>
+                            <span className="text-sm font-medium tracking-wide">Gathering your recordings…</span>
                         </div>
                     </div>
                 )}
