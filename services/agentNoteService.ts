@@ -15,8 +15,17 @@ export function localDay(d: Date = new Date()): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-export async function leaveDailyNote(day: string): Promise<AgentNoteResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.LeaveAgentNote, { day })
+/** The device's IANA time zone, so the note says due times as its clock shows them. */
+export function localZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+  } catch {
+    return ""
+  }
+}
+
+export async function leaveDailyNote(day: string, zone: string = localZone()): Promise<AgentNoteResult> {
+  const res = await axiosInstance.post(PostEndpointUrl.LeaveAgentNote, { day, zone })
   return res.data?.data as AgentNoteResult
 }
 

@@ -257,9 +257,6 @@ export function MobileHome() {
             <WhileYouWereAwayCard />
             <AgentWorkCard />
 
-            {/* AI briefing — self-hides when AI/memory is off or empty */}
-            <BriefingCard />
-
             {/* Quick Actions */}
             <div className="grid grid-cols-4 gap-2.5">
                 <QuickActionTile
@@ -422,6 +419,10 @@ export function MobileHome() {
                 <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </TapSurface>
             </FeatureGate>
+
+            {/* AI briefing, last, as on desktop: below the tiles the thumb reaches
+                for, so its late arrival cannot push them away. */}
+            <BriefingCard />
         </div>
     )
 }

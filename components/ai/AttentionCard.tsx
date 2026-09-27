@@ -35,6 +35,7 @@ import {
   Loader2,
 } from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
+import { Skeleton } from "@/components/ui/skeleton"
 import { dueLabel } from "@/lib/utils/dueLabel"
 
 // Per-source icon + tint so each row's origin is recognizable at a glance.
@@ -137,8 +138,11 @@ function AttentionCard() {
     }
   }
 
-  // No skeleton flash for a non-critical card; hide until there's signal.
-  if (loading) return null
+  // While loading, hold the card's place with its own chrome and one row.
+  // Returning nothing here and then appearing pushed the whole Home page down
+  // under the reader's eyes (layout shift 0.18 on the demo). This card only
+  // mounts where AI is available, so an AI-free install never sees the frame.
+  if (loading) return <AttentionCardSkeleton />
   if (!data || !data.enabled) return null
   // Guard the collection defensively: the service normalizes it to an array,
   // but never assume — a null/omitted items slice must hide the card, not
@@ -259,3 +263,23 @@ function AttentionCard() {
 // whenever an admin has switched AI off. Wrapping the export covers every place this
 // is rendered, desktop and mobile, instead of asking each of them to remember.
 export default withAI(AttentionCard)
+
+function AttentionCardSkeleton() {
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/40 overflow-hidden" role="status" aria-label="Loading what needs you">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
+        <div className="bg-primary/10 p-1 rounded-md">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+        </div>
+        <h2 className="text-sm font-semibold tracking-tight">What needs me now</h2>
+      </div>
+      <div className="flex items-start gap-2.5 px-4 py-2.5">
+        <Skeleton className="h-4 w-4 mt-0.5 rounded-full" />
+        <span className="flex-1 space-y-1.5">
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-3 w-1/3" />
+        </span>
+      </div>
+    </div>
+  )
+}

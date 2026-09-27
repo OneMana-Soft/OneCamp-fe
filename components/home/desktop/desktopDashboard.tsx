@@ -195,9 +195,6 @@ export function DesktopDashboard() {
                 <WhileYouWereAwayCard />
                 <AgentWorkCard />
 
-                {/* AI briefing — self-hides when AI/memory is off or empty */}
-                <BriefingCard />
-
                 {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <StatCard
@@ -494,6 +491,11 @@ export function DesktopDashboard() {
                         )}
                     </div>
                 </div>
+
+                {/* AI briefing, last: it is reading, not an action, and it is the
+                    tallest card with the least predictable height. Above the stats
+                    it arrived after them and pushed the whole page down. */}
+                <BriefingCard />
             </div>
         </PageContainer>
     )
