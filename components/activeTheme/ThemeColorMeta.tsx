@@ -16,7 +16,8 @@ import { useEffect } from "react"
  *
  * Two decisions worth stating:
  *
- *  1. It tracks the BACKGROUND, not the accent. The accents only override
+ *  1. It tracks the CANVAS (the warm grey the top bar and sidebar sit on), not
+ *     the accent; before the canvas existed it tracked the background. The accents only override
  *     --primary and the chart ramp; --background changes with light/dark alone.
  *     Chrome that matched the accent would paint the address bar bright orange
  *     above a white app — the loud look this app isn't. Matching the background
@@ -52,7 +53,11 @@ function toHexColor(value: string): string | null {
 export function ThemeColorMeta() {
   useEffect(() => {
     const apply = () => {
-      const background = getComputedStyle(document.body).backgroundColor
+      // The app's chrome (top bar, sidebar, the mobile header) is the canvas,
+      // so that is what the browser bar continues. Pages without the app frame
+      // leave --canvas as the same token, and body is the fallback.
+      const canvas = getComputedStyle(document.documentElement).getPropertyValue("--canvas").trim()
+      const background = canvas || getComputedStyle(document.body).backgroundColor
       if (!background) return
       const hex = toHexColor(background)
       if (!hex) return

@@ -12,13 +12,14 @@ import { oklchToRgb, parseOklch, rgbToHex } from "@/lib/color/oklch"
  * reason. Computing it means the test enforces the invariant it actually cares
  * about: the manifest equals --background, whatever --background becomes.
  */
-function lightShell(): string {
+/** A light-theme token from globals.css, resolved to #rrggbb. */
+function lightToken(name: "background" | "canvas"): string {
   const css = readFileSync(resolve(__dirname, "..", "..", "app", "globals.css"), "utf8")
   const root = css.slice(css.indexOf(":root {"))
-  const m = /--background:\s*([^;]+);/.exec(root)
-  if (!m) throw new Error("could not find --background in the light theme")
+  const m = new RegExp(`--${name}:\\s*([^;]+);`).exec(root)
+  if (!m) throw new Error(`could not find --${name} in the light theme`)
   const parsed = parseOklch(m[1].trim())
-  if (!parsed) throw new Error(`--background is not oklch: ${m[1]}`)
+  if (!parsed) throw new Error(`--${name} is not oklch: ${m[1]}`)
   return rgbToHex(oklchToRgb(parsed.l, parsed.c, parsed.h))
 }
 
@@ -107,13 +108,12 @@ describe("PWA manifest icons", () => {
     expect(sizes).toContain("512x512")
   })
 
-  it("keeps the splash colours equal to the light app shell", () => {
-    // Matching both keeps the install splash from flashing a colour the app
-    // never shows. The expected value comes from --background itself, so this
-    // stays true through a palette change instead of needing one more edit.
-    const shell = lightShell()
-    expect(manifest.theme_color.toLowerCase()).toBe(shell)
-    expect(manifest.background_color.toLowerCase()).toBe(shell)
+  it("keeps the splash and chrome colours equal to the light app shell", () => {
+    // The splash is the page (--background); the browser chrome continues the
+    // top bar, which sits on the canvas (--canvas). Both are read from the
+    // tokens, so a palette change cannot leave the manifest behind.
+    expect(manifest.background_color.toLowerCase()).toBe(lightToken("background"))
+    expect(manifest.theme_color.toLowerCase()).toBe(lightToken("canvas"))
   })
 
   it("ships an opaque apple-touch-icon PNG, since iOS ignores SVG", () => {

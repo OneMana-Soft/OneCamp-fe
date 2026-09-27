@@ -70,9 +70,9 @@ export const viewport: Viewport = {
   // matches the manifest's theme_color and background_color, so the install
   // splash doesn't flash a different colour into the app shell. ThemeColorMeta
   // then keeps the tag equal to the background the user actually chose.
-  // Matches --background in the light theme. The manifest carries the same value,
-  // so the install splash does not flash a different white into the app shell.
-  themeColor: "#fefdfc",
+  // Matches --canvas in the light theme, the colour of the top bar the browser
+  // chrome continues. The manifest carries the same value.
+  themeColor: "#f5f2ee",
 };
 
 export default function RootLayout({
