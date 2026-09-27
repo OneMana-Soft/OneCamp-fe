@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils/helpers/cn";
 // The phone calendar: the days that have something on them, one row per event
 // or task, each a full-width tap target. See agendaDays for which days.
 
-export interface AgendaItem {
+interface AgendaItem {
   event_uuid: string;
   event_title: string;
   event_start_time: string;

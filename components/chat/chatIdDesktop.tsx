@@ -9,7 +9,7 @@ import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import React, {useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 
 import {openUI} from "@/store/slice/uiSlice";
@@ -24,7 +24,7 @@ import {createOrUpdateChatBody, clearChatReplyTarget} from "@/store/slice/chatSl
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus, UserEmojiInterface} from "@/store/slice/userSlice";
 import {ChatUserEmojiStatus} from "@/components/chat/chatUserEmojiStatus";
 import {Button} from "@/components/ui/button";
-import {app_channel_call, app_chat_call} from "@/types/paths";
+import {app_chat_call} from "@/types/paths";
 import Link from "next/link";
 import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import {usePublishTyping} from "@/hooks/usePublishTyping";

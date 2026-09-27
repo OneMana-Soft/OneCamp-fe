@@ -25,7 +25,6 @@ import {
 import {ChatInfo, CreateOrUpdateChatsReq} from "@/types/chat";
 import {ChatMessageMobile} from "@/components/chat/chatMessageMobile";
 import {ChatMessage} from "@/components/chat/chatMessage";
-import {toast} from "@/hooks/use-toast";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";

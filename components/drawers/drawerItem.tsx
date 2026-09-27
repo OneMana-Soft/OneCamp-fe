@@ -4,7 +4,7 @@ import * as React from "react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 
-export interface DrawerItemProps {
+interface DrawerItemProps {
     icon?: LucideIcon
     label: string
     description?: string

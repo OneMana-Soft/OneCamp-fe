@@ -10,7 +10,7 @@ import { updateMentionOpenedRecently } from "@/store/slice/mentionSlice";
 import axiosInstance from "@/lib/axiosInstance";
 import { GetEndpointUrl } from "@/services/endPoints";
 
-export type MentionSuggestion = {
+type MentionSuggestion = {
   id: string;
   mentionLabel: string;
   label: string
@@ -233,4 +233,3 @@ const MentionList = forwardRef<MentionRef, MentionProps>((props, ref) => {
 });
 
 MentionList.displayName = "MentionList";
-export default MentionList;

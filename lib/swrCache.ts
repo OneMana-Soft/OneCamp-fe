@@ -165,7 +165,7 @@ export function localStorageProvider(): Cache<unknown> {
 
 /** Drop the member's cached responses, in memory and in storage, and stop
  *  writing them down until the next session's provider starts. */
-export function forgetCache(): void {
+function forgetCache(): void {
   current?.clear()
   current = null
   try {

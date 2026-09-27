@@ -5,7 +5,7 @@
  * Solid variants are reserved for badges, indicators, and urgency only.
  */
 
-export interface CategoryColorSet {
+interface CategoryColorSet {
   /** Background tint class, e.g. "bg-sky-500/10" */
   bg: string;
   /** Text/icon tint class, e.g. "text-sky-600" */

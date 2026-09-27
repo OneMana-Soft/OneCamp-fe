@@ -7,7 +7,7 @@ import { useDispatch, useSelector } from "react-redux"
 import { useCallback, useEffect, useState } from "react"
 import type { UserProfileInterface } from "@/types/user"
 import type { RootState } from "@/store/store"
-import type { CommentInfoInterface, CreateCommentResInterface } from "@/types/comment"
+import type { CreateCommentResInterface } from "@/types/comment"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { MessageSquare } from "@/lib/icons";

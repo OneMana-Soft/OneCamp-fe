@@ -52,7 +52,7 @@ const Toolbar = ({ editor }: { editor: Editor }) => (
   </div>
 )
 
-export const MinimalTiptapEditor = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
+const MinimalTiptapEditor = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
   ({ value, onChange, className, editorContentClassName, ...props }, ref) => {
     const editor = useMinimalTiptapEditor({
       value,
@@ -84,4 +84,3 @@ export const MinimalTiptapEditor = React.forwardRef<HTMLDivElement, MinimalTipta
 
 MinimalTiptapEditor.displayName = 'MinimalTiptapEditor'
 
-export default MinimalTiptapEditor

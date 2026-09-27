@@ -34,12 +34,8 @@ export const recentItemsSlice = createSlice({
       if (state.items.length > MAX_RECENT) {
         state.items = state.items.slice(0, MAX_RECENT)
       }
-    },
-    clearRecentItems: (state) => {
-      state.items = []
     }
   }
 })
 
-export const { addRecentItem, clearRecentItems } = recentItemsSlice.actions
-export default recentItemsSlice.reducer
+export const { addRecentItem } = recentItemsSlice.actions

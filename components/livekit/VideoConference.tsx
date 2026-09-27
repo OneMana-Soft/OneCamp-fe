@@ -5,8 +5,6 @@ import "@livekit/components-styles";
 import {
   LiveKitRoom,
   GridLayout,
-  FocusLayout,
-  CarouselLayout,
   RoomAudioRenderer,
   useTracks,
   useLocalParticipant,
@@ -21,12 +19,11 @@ import {
   ParticipantName,
   ConnectionQualityIndicator,
 } from "@livekit/components-react";
-import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind, LocalAudioTrack } from "livekit-client";
+import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind } from "livekit-client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Loader2, Pin, PinOff } from "@/lib/icons";
 import { VideoControls } from "./VideoControls";
 import { FrontendTranscriber } from "./FrontendTranscriber";
-import { KrispNoiseFilter, isKrispNoiseFilterSupported } from "@livekit/krisp-noise-filter";
 
 interface VideoConferenceProps {
   token: string;

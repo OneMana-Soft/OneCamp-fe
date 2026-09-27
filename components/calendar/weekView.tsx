@@ -28,7 +28,7 @@ interface AllDayItem {
   isTask: boolean;
 }
 
-export interface WeekViewProps {
+interface WeekViewProps {
   weekStart: Date;
   events: CalendarEventInterface[];
   tasks: TaskInfoInterface[];

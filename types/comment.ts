@@ -1,4 +1,4 @@
-import {UserDMInterface, UserProfileDataInterface} from "@/types/user";
+import {UserProfileDataInterface} from "@/types/user";
 import {AttachmentMediaReq} from "@/types/attachment";
 import { GroupedReaction} from "@/types/reaction";
 import {PostsRes} from "@/types/post";

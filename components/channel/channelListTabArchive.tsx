@@ -1,11 +1,9 @@
-import {ChannelListTabs} from "@/components/channel/channelListTabs";
 import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {ChannelInfoInterface, ChannelInfoListInterfaceResp} from "@/types/channel";
 import {useEffect, useState} from "react";
-import {GenericSearchTextInterface, UserDMSearchTextInterface, UserProfileDataInterface} from "@/types/user";
+import {GenericSearchTextInterface} from "@/types/user";
 import {usePost} from "@/hooks/usePost";
-import {ChannelListChannel} from "@/components/channel/channelListChannel";
 import {ChannelListResult} from "@/components/channel/chnnelListResult";
 import {sortChannelList} from "@/lib/utils/sortChannelList";
 import {StatePlaceholder} from "@/components/ui/StatePlaceholder";

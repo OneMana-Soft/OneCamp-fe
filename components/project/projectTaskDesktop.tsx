@@ -16,9 +16,9 @@ import { openUI } from "@/store/slice/uiSlice"
 import { ColorIcon } from "@/components/colorIcon/colorIcon"
 import { ProjectTaskKanban } from "@/components/project/projectTaskKanban"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import React, { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {NotificationBell} from "@/components/Notification/notificationBell";
-import {ChannelNotificationInterface, NotificationType} from "@/types/channel";
+import {NotificationType} from "@/types/channel";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {usePost} from "@/hooks/usePost";
 

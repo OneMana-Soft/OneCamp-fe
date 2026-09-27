@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import { Plus, Users } from "@/lib/icons"
 import { ClipboardList } from "lucide-react"
 import {

@@ -46,7 +46,7 @@ const densityClasses: Record<Density, { row: string; gap: string }> = {
     },
 }
 
-export interface ListRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
+interface ListRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
     leading?: React.ReactNode
     title: React.ReactNode
     subtitle?: React.ReactNode
@@ -195,20 +195,5 @@ export function UnreadBadge({ count, className }: { count: number; className?: s
         >
             {formatCount(count)}
         </span>
-    )
-}
-
-/**
- * Compact unread dot for use when count is unknown or you only want presence.
- */
-export function UnreadDot({ className }: { className?: string }) {
-    return (
-        <span
-            aria-hidden
-            className={cn(
-                "inline-block h-2 w-2 rounded-full bg-primary ring-2 ring-background",
-                className,
-            )}
-        />
     )
 }

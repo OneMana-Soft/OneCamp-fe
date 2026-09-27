@@ -41,7 +41,7 @@ const initialState = {
     },
 };
 
-export const rightPanelSlice = createSlice({
+const rightPanelSlice = createSlice({
     name: "rightPanel",
     initialState,
     reducers: {

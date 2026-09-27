@@ -39,4 +39,3 @@ export const Selection = Extension.create({
   }
 })
 
-export default Selection

@@ -100,7 +100,7 @@ export function mediaOriginWarning(
 }
 
 /** One entry of next.config's images.remotePatterns. */
-export interface RemotePattern {
+interface RemotePattern {
     protocol: "http" | "https"
     hostname: string
     port?: string

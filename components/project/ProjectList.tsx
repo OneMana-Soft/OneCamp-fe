@@ -1,5 +1,5 @@
 import {useFetch} from "@/hooks/useFetch";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import {GetEndpointUrl} from "@/services/endPoints";
 import {useEffect, useState} from "react";
 import {TeamProjectListResult} from "@/components/team/TeamProjectListResult";
 import {ProjectInfoInterface} from "@/types/project";

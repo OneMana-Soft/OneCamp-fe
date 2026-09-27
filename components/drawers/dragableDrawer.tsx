@@ -3,7 +3,6 @@
 import type React from "react"
 import { useEffect } from "react"
 import { motion, useAnimation, useDragControls, type PanInfo } from "framer-motion"
-import { cn } from "@/lib/utils/helpers/cn"
 
 interface DraggableDrawerProps {
     children: React.ReactNode

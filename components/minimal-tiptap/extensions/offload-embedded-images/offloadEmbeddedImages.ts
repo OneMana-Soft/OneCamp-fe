@@ -37,7 +37,7 @@ import { approxDataUrlBytes, dataURLToFile, isDataURL } from '@/lib/utils/upload
 //     pixel or a tiny SVG marker), which keeps ordinary rich text untouched.
 
 /** OffloadEmbeddedImagesOptions configures the extension. */
-export interface OffloadEmbeddedImagesOptions {
+interface OffloadEmbeddedImagesOptions {
   /**
    * upload receives the decoded file and returns the hosted URL to use instead.
    * Rejecting leaves the image untouched. Null disables the extension entirely,
@@ -69,7 +69,7 @@ export function shouldOffloadSrc(src: unknown, minBytes: number, attempted: Read
   return approxDataUrlBytes(src) >= minBytes
 }
 
-export const OffloadEmbeddedImagesPluginKey = new PluginKey('offloadEmbeddedImages')
+const OffloadEmbeddedImagesPluginKey = new PluginKey('offloadEmbeddedImages')
 
 export const OffloadEmbeddedImages = Extension.create<OffloadEmbeddedImagesOptions>({
   name: 'offloadEmbeddedImages',

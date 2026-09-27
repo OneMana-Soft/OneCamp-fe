@@ -27,7 +27,7 @@ export interface UseProgressiveListOptions {
     enabled?: boolean
 }
 
-export interface UseProgressiveListReturn<T> {
+interface UseProgressiveListReturn<T> {
     /** Currently visible items */
     visibleItems: T[]
     /** Whether there are more items to load */

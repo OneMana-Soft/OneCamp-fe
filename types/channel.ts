@@ -1,7 +1,5 @@
 import {UserProfileDataInterface} from "@/types/user";
-import {AttachmentMediaReq} from "@/types/attachment";
 import {PostsRes} from "@/types/post";
-import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {RecordingInfoInterface} from "@/types/recording";
 
 export interface ChannelInfoInterface {
@@ -62,13 +60,6 @@ export enum NotificationType {
 export interface ChannelMemberUpdateInterface {
     channel_id: string,
     user_id: string
-}
-
-export interface UpdateChannelInfoInterface {
-    channel_name: string,
-    channel_private: string,
-    channel_archived: string,
-    channel_uuid: string
 }
 
 export interface GetChannelCallInterface {

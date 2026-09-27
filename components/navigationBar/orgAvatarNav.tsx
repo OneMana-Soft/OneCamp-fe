@@ -1,7 +1,6 @@
 "use client"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import * as React from "react"
 import { memo } from "react"
 import { getNameInitials } from "@/lib/utils/format/getNameIntials"
 import { cn } from "@/lib/utils/helpers/cn"

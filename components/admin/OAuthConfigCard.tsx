@@ -5,7 +5,7 @@
 // the API returns only has_* booleans and a source indicator, never the value.
 // Saving reloads the providers server-side, so changes take effect immediately.
 
-import React, { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

@@ -1,7 +1,6 @@
 import {PostsRes} from "@/types/post";
 import {ChatInfo} from "@/types/chat";
 import {ForwardedMessageData, MainMessageData} from "@/types/rightPanel";
-import {CommentInfoInterface} from "@/types/comment";
 
 function isPostData(data: PostsRes | ChatInfo | undefined): data is PostsRes {
     if(!data) return false;

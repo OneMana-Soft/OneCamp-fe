@@ -280,4 +280,3 @@ const Control: React.FC<{ label: string; children: React.ReactNode }> = ({ label
     </label>
 )
 
-export default DataTableChart

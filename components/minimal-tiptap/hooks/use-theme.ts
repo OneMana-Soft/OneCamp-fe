@@ -24,4 +24,3 @@ export const useTheme = () => {
   return isDarkMode
 }
 
-export default useTheme

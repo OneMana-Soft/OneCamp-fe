@@ -2,17 +2,11 @@ import {CancelTokenSource} from "axios";
 import {createSlice} from "@reduxjs/toolkit";
 import {AttachmentMediaReq, AttachmentType} from "@/types/attachment";
 
-export interface FileUploaded {
-    key: number,
-    fileName: string,
-    url: string,
-}
-
-export interface ExtendedFileUploaded {
+interface ExtendedFileUploaded {
     [key: string]:  AttachmentMediaReq[];
 }
 
-export interface FilePreview {
+interface FilePreview {
     key: string,
     fileName: string,
     progress: number,
@@ -21,17 +15,8 @@ export interface FilePreview {
     uuid?: string,
 }
 
-export interface ExtendedFilePreview {
+interface ExtendedFilePreview {
     [key: string]:  FilePreview[];
-}
-
-export interface TaskInputState {
-    taskDescription: string,
-    taskName: string,
-    projectUUID: string,
-    assigneeUUID: string,
-    filesUploaded: ExtendedFileUploaded,
-    filePreview: ExtendedFilePreview
 }
 interface AddPreviewFiles {
     fileUploaded: FilePreview

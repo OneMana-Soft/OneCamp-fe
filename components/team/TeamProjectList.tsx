@@ -3,7 +3,7 @@ import {Separator} from "@/components/ui/separator";
 import {ListSkeleton} from "@/components/ui/ListSkeleton";
 import { Search } from "@/lib/icons";
 import {useFetch} from "@/hooks/useFetch";
-import {TeamInfoInterface, TeamInfoRawInterface} from "@/types/team";
+import {TeamInfoRawInterface} from "@/types/team";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {ProjectAddOrRemoveInterface, ProjectInfoInterface} from "@/types/project";
 import {useState} from "react";

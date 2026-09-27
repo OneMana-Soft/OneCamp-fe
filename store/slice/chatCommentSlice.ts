@@ -7,7 +7,7 @@ import {UserProfileDataInterface} from "@/types/user";
 import {GroupedReaction} from "@/types/reaction";
 
 
-export interface ChatCommentInputState {
+interface ChatCommentInputState {
     commentBody: string,
     filesUploaded: AttachmentMediaReq[],
     filesPreview: FilePreview[]
@@ -98,7 +98,7 @@ interface UpdateChatCommentReactionId {
     newReactionId: string
 }
 
-export interface ExtendedChatCommentInputState {
+interface ExtendedChatCommentInputState {
     [key: string]:  ChatCommentInputState;
 }
 
@@ -419,11 +419,6 @@ export const chatCommentSlice = createSlice({
             }
         },
 
-        // SYNC: Clear all loaded chat comments to force API refetch after stale reconnection
-        invalidateChatComments: (state) => {
-            state.chatComments = {} as ExtendedComments
-        },
-
     }
 });
 
@@ -448,6 +443,5 @@ export const {
     removeChatCommentReactionByCommentId,
     removeChatCommentByCommentId,
     updateChatCommentByCommentId,
-    updateChatCommentReactionId,
-    invalidateChatComments
+    updateChatCommentReactionId
 } =chatCommentSlice.actions

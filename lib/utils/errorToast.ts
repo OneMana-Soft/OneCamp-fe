@@ -7,7 +7,7 @@
 
 import { recentKeys } from "./recentKeys"
 
-export interface ErrorCopy {
+interface ErrorCopy {
   title: string
   description: string
 }

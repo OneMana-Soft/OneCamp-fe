@@ -11,7 +11,6 @@ import {MobileMessage} from "@/components/mobileMessage/mobileMessage";
 import {getForwardedMessageData, getMainMessageData, getReplyMessageData} from "@/lib/utils/rightPanelHelper";
 import {MobileMessageCommentList} from "@/components/mobileMessage/mobileMessageCommentList";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
-import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {ErrorState} from "@/components/error/errorState";
 import {ChatInfoRes, CreateOrUpdateChatsReq} from "@/types/chat";
 import type {RootState} from "@/store/store";
@@ -34,7 +33,7 @@ import {
 } from "@/store/slice/groupChatSlice";
 import {RemoveMessageFromChatList, UpdateMessageTextInChatList} from "@/store/slice/chatSlice";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
-import {app_chat_path, app_grp_chat_path} from "@/types/paths";
+import {app_grp_chat_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 

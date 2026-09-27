@@ -1,6 +1,6 @@
 "use client"
 
-import React, {useCallback, useEffect, useLayoutEffect, useMemo, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useState} from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
@@ -18,7 +18,6 @@ import { TaskListTask } from "@/components/task/taskListTask"
 import {usePost} from "@/hooks/usePost";
 import {useAnimationState} from "@/hooks/useAnimationState";
 import {UserInfoRawInterface} from "@/types/user";
-import {mutate} from "swr";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
 import { ErrorState } from "@/components/ui/error-state"

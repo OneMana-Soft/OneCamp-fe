@@ -16,7 +16,7 @@ import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {
   StatusTime,
   UpdateUserEmojiStatusReq,
-  UserEmojiStatus, UserEmojiStatusResp, UserProfileInterface,
+  UserEmojiStatus, UserProfileInterface,
   UserStatusRespInterface
 } from "@/types/user";
 import { uniqueBy } from 'remeda'

@@ -1,5 +1,5 @@
 "use client";
-import React, {useEffect} from "react";
+import {useEffect} from "react";
 import {useLogout} from "@/hooks/useLogout";
 import {Separator} from "@/components/ui/separator";
 import {Button} from "@/components/ui/button";

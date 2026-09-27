@@ -23,7 +23,6 @@ import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {clearFwdMsgInputState, createOrUpdateFwdMsg} from "@/store/slice/fwdMessageSlice";
 import { LoaderCircle } from "@/lib/icons";
-import * as React from "react";
 import {Skeleton} from "@/components/ui/skeleton";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 

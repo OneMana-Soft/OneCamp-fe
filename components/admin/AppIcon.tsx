@@ -6,7 +6,7 @@
 // a broken-image box and the console fills with 404 noise. The onError handler
 // flips to the fallback exactly once (guarded so a failing fallback can't loop).
 
-import React, { useState } from "react"
+import { useState } from "react"
 import { Plug } from "lucide-react"
 
 export default function AppIcon({

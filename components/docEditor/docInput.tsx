@@ -29,20 +29,15 @@ import { TaskList } from '@tiptap/extension-task-list'
 import { TaskItem } from '@tiptap/extension-task-item'
 import { DOC_SLASH_COMMANDS } from '@/components/minimal-tiptap/extensions/slash-command/slashCommand'
 import { MeasuredContainer } from '@/components/minimal-tiptap/components/measured-container'
-import { useDispatch, useSelector } from "react-redux"
-import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
-import { useMedia } from "@/context/MediaQueryContext"
 import { Image as ImageIcon, Users, Loader2, Check } from "@/lib/icons";
-import { Cloud, CloudOff } from "lucide-react";
+import { CloudOff } from "lucide-react";
 import { GetEndpointUrl } from "@/services/endPoints"
-import axiosInstance from "@/lib/axiosInstance"
-import { UploadFileInterfaceRes } from "@/types/file"
 import { useToast } from "@/hooks/use-toast"
 import { useUploadFile } from '@/hooks/useUploadFile'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import type { SaveStatus } from '@/hooks/useDocAutoSave'
 
-export interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
+interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
     value?: Content
     onChange?: (value: Content) => void
     className?: string
@@ -163,7 +158,7 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
     }
 }
 
-export const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
+const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
     ({ value, onChange, className, editorContentClassName, docId, provider, providerSynced, title, onTitleChange, onTitleBlur, editableTitle = true, collaboration, saveStatus, lastSavedAt, lastEditedAt, lastEditedRelative, focusMode, ...props }, ref) => {
         const { toast } = useToast()
         const uploadFile = useUploadFile()

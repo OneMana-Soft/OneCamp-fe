@@ -1,7 +1,6 @@
 "use client"
 
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
-import * as React from "react";
 import { memo } from "react";
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {useUserAvatar} from "@/hooks/useUserAvatar";

@@ -2,7 +2,7 @@
 
 import React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
-import { GitBranch, GitPullRequest, GitPullRequestDraft, GitMerge, GitPullRequestClosed, CheckCircle2, XCircle, Clock, AlertCircle, CircleDot } from "@/lib/icons";
+import { GitPullRequest, GitPullRequestDraft, GitMerge, GitPullRequestClosed, CircleDot } from "@/lib/icons";
 import type { TaskInfoInterface } from "@/types/task"
 
 interface PRStatusBadgeProps {
@@ -90,7 +90,7 @@ export default function PRStatusBadge({ task, size = "sm" }: PRStatusBadgeProps)
   )
 }
 
-export function IssueStatusBadge({ task, size = "sm" }: PRStatusBadgeProps) {
+function IssueStatusBadge({ task, size = "sm" }: PRStatusBadgeProps) {
   if (!task.task_github_issue_url) return null
 
   const isSmall = size === "sm"

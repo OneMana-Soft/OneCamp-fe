@@ -1,4 +1,3 @@
-import * as React from "react";
 import {useRouter} from "next/navigation";
 import {ConditionalWrap} from "@/components/conditionalWrap/conditionalWrap";
 import {useMedia} from "@/context/MediaQueryContext";

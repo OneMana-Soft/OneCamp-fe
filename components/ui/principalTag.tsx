@@ -1,4 +1,3 @@
-import * as React from "react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -31,7 +30,7 @@ import { cn } from "@/lib/utils/helpers/cn"
  * this exists to remove.
  */
 
-export type PrincipalKind = "ai" | "guest"
+type PrincipalKind = "ai" | "guest"
 
 interface PrincipalKindSpec {
   /** Short form, what the eye reads. */

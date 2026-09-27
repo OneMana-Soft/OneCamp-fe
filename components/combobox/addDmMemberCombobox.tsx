@@ -1,11 +1,10 @@
 "use client"
 
 import {useState} from "react";
-import { Check, ChevronsUpDown } from "@/lib/icons";
+import { ChevronsUpDown } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
-import {Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList} from "@/components/ui/command";
-import {cn} from "@/lib/utils/helpers/cn";
+import {Command, CommandEmpty, CommandGroup, CommandInput, CommandList} from "@/components/ui/command";
 import {useFetch} from "@/hooks/useFetch";
 import {UserProfileDataInterface, UserListInterfaceResp} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";

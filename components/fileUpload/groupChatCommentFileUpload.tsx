@@ -11,9 +11,6 @@ import UploadingAttachmentIcon from "@/components/attachmentIcon/uploadingAttach
 import {GetEndpointUrl} from "@/services/endPoints";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {deleteChatCommentPreviewFiles, removeChatCommentUploadedFiles} from "@/store/slice/chatCommentSlice";
-import {getGroupingId} from "@/lib/utils/getGroupingId";
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {UserProfileInterface} from "@/types/user";
 
 interface ChatFileUploadProps {
     chatMessageUUID: string;

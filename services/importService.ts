@@ -107,7 +107,7 @@ export async function listImportConnections(): Promise<ConnectionView[]> {
   return res.data?.connections ?? []
 }
 
-export interface ConnectInput {
+interface ConnectInput {
   access_token: string
   refresh_token?: string
   scopes?: string
@@ -126,7 +126,7 @@ export async function disconnectImport(provider: ImportProvider): Promise<void> 
   await axiosInstance.post(`/admin/import/${encodeURIComponent(provider)}/disconnect`)
 }
 
-export interface CreateJobInput {
+interface CreateJobInput {
   source_workspace_name: string
   source?: string
   options?: Record<string, unknown>
@@ -164,60 +164,15 @@ export async function presignImportUpload(
   return res.data
 }
 
-function uploadToPresignedURL(
-  url: string,
-  file: File,
-  headers: Record<string, string>,
-  onProgress?: (percent: number) => void,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open("PUT", url, true)
-    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v))
-    xhr.upload.onprogress = (evt) => {
-      if (!onProgress || !evt.lengthComputable) return
-      onProgress(Math.round((evt.loaded / evt.total) * 100))
-    }
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve()
-      else reject(new Error(`MinIO PUT failed: ${xhr.status} ${xhr.statusText}`))
-    }
-    xhr.onerror = () => reject(new Error("network error during upload"))
-    xhr.onabort = () => reject(new Error("upload aborted"))
-    xhr.send(file)
-  })
-}
-
 export async function finalizeImportUpload(provider: ImportProvider, jobId: string): Promise<void> {
   await axiosInstance.post(
     `/admin/import/${encodeURIComponent(provider)}/finalize/${encodeURIComponent(jobId)}`,
   )
 }
 
-/**
- * One-shot upload (presign → PUT → finalize). Use for any ZIP / JSON
- * upload to a non-Slack provider.
- */
-export async function uploadImportFile(
-  provider: ImportProvider,
-  file: File,
-  workspaceName: string,
-  source: string = "export_zip",
-  onUploadProgress?: (percent: number) => void,
-): Promise<{ job_id: string; source_workspace_name: string; raw_object_key: string }> {
-  const presign = await presignImportUpload(provider, workspaceName, file.size, source)
-  await uploadToPresignedURL(presign.upload_url, file, presign.headers, onUploadProgress)
-  await finalizeImportUpload(provider, presign.job_id)
-  return {
-    job_id: presign.job_id,
-    source_workspace_name: presign.source_workspace_name,
-    raw_object_key: presign.raw_object_key,
-  }
-}
-
 // ─── Plan / Run / Cancel / Rollback / Errors ────────────────────────
 
-export interface PlanInput {
+interface PlanInput {
   options?: Record<string, unknown>
   status_mappings?: Record<string, string>
   priority_mappings?: Record<string, string>

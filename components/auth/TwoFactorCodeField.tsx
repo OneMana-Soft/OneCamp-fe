@@ -59,7 +59,7 @@ export function isCompleteAuthenticatorCode(value: string, usingRecoveryCode: bo
     return !usingRecoveryCode && value.length === AUTHENTICATOR_CODE_LENGTH
 }
 
-export interface TwoFactorCodeFieldProps {
+interface TwoFactorCodeFieldProps {
     /** Unique per instance; two of these can be on one page. */
     id: string
     value: string

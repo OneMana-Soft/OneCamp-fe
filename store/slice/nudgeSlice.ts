@@ -20,18 +20,10 @@ const initialState: NudgeState = {
     hydrated: false,
 }
 
-export const nudgeSlice = createSlice({
+const nudgeSlice = createSlice({
     name: "nudge",
     initialState,
     reducers: {
-        // Full replace from the REST list endpoint.
-        setNudges: (state, action: PayloadAction<{ nudges: Nudge[]; openCount: number }>) => {
-            // Defensive: never store a non-array (a null list would crash every
-            // `nudges.length`/`nudges.map` read in the globally-mounted bell).
-            state.nudges = Array.isArray(action.payload.nudges) ? action.payload.nudges : []
-            state.openCount = action.payload.openCount || 0
-            state.hydrated = true
-        },
         // A live "new nudge" arrived over MQTT. Dedup by id (the engine may
         // refresh-and-republish the same nudge), newest/highest-priority first.
         upsertNudge: (state, action: PayloadAction<Nudge>) => {
@@ -57,23 +49,8 @@ export const nudgeSlice = createSlice({
                 state.nudges = []
             }
         },
-        // Optimistic local removal on dismiss/act. Decrement the count rather
-        // than tie it to list length: the list is capped (e.g. 50) while the
-        // true open count can be higher, so `count = length` would under-count
-        // for users with many open nudges.
-        removeNudge: (state, action: PayloadAction<string>) => {
-            const before = state.nudges.length
-            state.nudges = state.nudges.filter((n) => n.id !== action.payload)
-            if (state.nudges.length < before) {
-                state.openCount = Math.max(0, state.openCount - 1)
-            }
-        },
-        clearAllNudges: (state) => {
-            state.nudges = []
-            state.openCount = 0
-        },
     },
 })
 
-export const { setNudges, upsertNudge, setOpenCount, removeNudge, clearAllNudges } = nudgeSlice.actions
+export const { upsertNudge, setOpenCount,} = nudgeSlice.actions
 export default nudgeSlice

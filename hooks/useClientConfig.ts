@@ -9,7 +9,7 @@ import useSWR from "swr"
 import axiosInstance from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
 
-export interface ClientConfig {
+interface ClientConfig {
     upload_limit_mb: number
     upload_limit_bytes: number
     // Runtime transcription mode. Drives whether the browser Web-Speech
@@ -129,7 +129,7 @@ export function useClientConfig(): ClientConfig {
  * identity against the fallback: SWR hands back that exact object until the
  * request resolves, and every real reply is a new one.
  */
-export type FeatureState = "unknown" | "available" | "unavailable"
+type FeatureState = "unknown" | "available" | "unavailable"
 
 export function useFeatureState(name: string): FeatureState {
     const { data } = useClientConfigRequest()
@@ -155,29 +155,4 @@ export function useFeatureState(name: string): FeatureState {
 export function useFeature(name: string): boolean {
     const { features } = useClientConfig()
     return features?.[name] === true
-}
-
-/**
- * useAIAvailable is the AI-specific reading of useFeature, and the hook every AI
- * entry point should call.
- *
- * It exists so that the string "ai" appears in ONE place on the frontend. It is
- * false on the AI-free v1 edition, whose build has no AI routes, and also on v2
- * whenever an admin has turned AI off or has not configured a provider.
- */
-export function useAIAvailable(): boolean {
-    return useFeature(FEATURE_AI)
-}
-
-// formatBytes renders a human-friendly size for messages ("12.4 MB").
-export function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`
-    const units = ["KB", "MB", "GB"]
-    let val = bytes / 1024
-    let i = 0
-    while (val >= 1024 && i < units.length - 1) {
-        val /= 1024
-        i++
-    }
-    return `${val.toFixed(val < 10 ? 1 : 0)} ${units[i]}`
 }

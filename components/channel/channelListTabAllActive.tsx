@@ -1,16 +1,14 @@
 "use client"
 
-import {useCallback, useMemo, useState} from "react";
-import {SearchField} from "@/components/search/searchField";
+import {useMemo} from "react";
 import {useApi} from "@/hooks/useApi";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import {GetEndpointUrl} from "@/services/endPoints";
 import type {ChannelInfoInterface} from "@/types/channel";
 import {ChannelListResult} from "@/components/channel/chnnelListResult";
 import {ChannelInfoListSchema} from "@/lib/validations/schemas";
 import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
 import {LocalizedErrorBoundary} from "@/components/error/LocalizedErrorBoundary";
 import {ListSkeleton} from "@/components/ui/ListSkeleton";
-import {z} from "zod";
 
 export const ChannelListTabAllActive = ({searchQuery}:{searchQuery: string}) => {
     // GetAllActiveChannelList returns an object with channels_list array

@@ -6,7 +6,7 @@ import {TaskInfoInterface} from "@/types/task";
  * truthy, so readers' `|| default` fallbacks never applied and
  * `.filters.length` crashed My Tasks on phones, whose list reads it directly.
  */
-export const emptySortFilter = (): sortingAndFilterOptionInterface => ({ sort: [], filters: [] })
+const emptySortFilter = (): sortingAndFilterOptionInterface => ({ sort: [], filters: [] })
 
 const initialState  = {
     projectsSortingAndFilter: {} as ExtendedSortingAndFilterOptionInterface,
@@ -15,11 +15,11 @@ const initialState  = {
     myTaskList: [] as TaskInfoInterface[]
 };
 
-export interface ExtendedSortingAndFilterOptionInterface {
+interface ExtendedSortingAndFilterOptionInterface {
     [key: string]:  sortingAndFilterOptionInterface;
 }
 
-export interface ExtendedProjectTaskListInterface {
+interface ExtendedProjectTaskListInterface {
     [key: string]:  TaskInfoInterface[];
 }
 
@@ -75,7 +75,7 @@ interface inputClearProjectSortingAndFilterOptionInterface {
     projectId: string
 }
 
-export const taskFilterSlice = createSlice({
+const taskFilterSlice = createSlice({
     name: "taskFilter",
     initialState,
     reducers: {

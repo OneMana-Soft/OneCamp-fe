@@ -2,7 +2,7 @@
 
 import { useRef, useCallback } from 'react'
 
-export interface ThrottledFn<T extends (...args: any[]) => void> {
+interface ThrottledFn<T extends (...args: any[]) => void> {
     (...args: Parameters<T>): void
     /**
      * Synchronously invoke the most recently scheduled trailing-edge call,

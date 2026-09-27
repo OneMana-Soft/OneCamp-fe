@@ -14,9 +14,8 @@ import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
 import type { StandardReaction, SyncCustomReaction } from "@/types/reaction"
 import { MessagePreview } from "@/components/message/MessagePreview"
-import {app_channel_path, app_chat_path, app_user} from "@/types/paths"
+import {app_channel_path, app_user} from "@/types/paths"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { MessageAttachments } from "@/components/message/MessageAttachments"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { BottomMenu } from "@/components/message/bottomMenu"
@@ -29,7 +28,6 @@ import { ConditionalWrap } from "../conditionalWrap/conditionalWrap"
 import { MessageReplyCount } from "@/components/message/messageReplyCount"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
-import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 

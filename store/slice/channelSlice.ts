@@ -44,13 +44,13 @@ export interface MessageInputState {
     replyToText?: string
 }
 
-export interface ChannelScrollPosition {
+interface ChannelScrollPosition {
     [key: string]:  number;
 }
-export interface  ExtendedPosts {
+interface  ExtendedPosts {
     [key: string]:  PostsRes[];
 }
-export interface ExtendedInputState {
+interface ExtendedInputState {
     [key: string]:  MessageInputState;
 }
 
@@ -127,13 +127,6 @@ interface UpdateChannelPosts extends LatestWindowAuthority {
     posts: PostsRes[]
 }
 
-interface UpdatePostReaction {
-    channelId: string
-    reactionId: string,
-    postIndex: number,
-    emojiId: string
-}
-
 interface UpdatePostReactionByPostId {
     channelId: string
     reactionId: string,
@@ -148,38 +141,16 @@ interface UpdatePostReactionId {
     newReactionId: string
 }
 
-interface RemovePostReaction {
-    channelId: string
-    reactionId: string,
-    postIndex: number,
-}
-
 interface RemovePostReactionByPostId {
     channelId: string
     reactionId: string,
     postId: string,
 }
 
-interface UpdatePost {
-    channelId: string
-    postIndex: number
-    htmlText: string
-}
-
-interface UpdatePostCommentCount {
-    postId: string
-    channelId: string
-}
-
 interface UpdatePostByPostId {
     channelId: string
     postId: string
     htmlText: string
-}
-
-interface RemovePost {
-    channelId: string
-    postIndex: number
 }
 
 interface RemovePostPostId {
@@ -215,29 +186,6 @@ interface SetChannelReplyTarget {
     authorName: string
     text: string
 }
-interface UpdateCreatedPostLocally {
-    postId: string
-    createdAt: string
-    postTempId: string
-    channelId: string
-}
-
-interface UpdatePostAsSeen {
-    channelId: string
-}
-
-interface UpdateChannelScrollPosition {
-    channelId: string
-    scrollTop: number
-}
-
-interface CreatePostReaction {
-    channelId: string
-    reactionId: string,
-    postIndex: number,
-    emojiId: string
-    addedBy: UserProfileDataInterface
-}
 
 interface CreatePostReactionByPostId {
     channelId: string
@@ -258,7 +206,7 @@ const initialState = {
     deletedPosts: {} as TombstoneMap,
 }
 
-export const channelSlice = createSlice({
+const channelSlice = createSlice({
     name: 'channel',
     initialState,
     reducers: {
@@ -398,19 +346,6 @@ export const channelSlice = createSlice({
             if (next !== existing) state.channelPosts[channelId] = next;
         },
 
-        updatePostReaction: (state, action: {payload: UpdatePostReaction}) => {
-            const { channelId, postIndex, emojiId, reactionId } = action.payload;
-
-            if (postIndex > -1 && postIndex < state.channelPosts[channelId].length) {
-                state.channelPosts[channelId][postIndex].post_reactions = state.channelPosts[channelId][postIndex].post_reactions?.map((reaction) => {
-                    if (reaction.uid == reactionId) {
-                        reaction.reaction_emoji_id = emojiId
-                    }
-                    return reaction
-                })
-            }
-        },
-
         updatePostReactionPostId: (state, action: {payload: UpdatePostReactionByPostId}) => {
             const { channelId, postId, emojiId, reactionId } = action.payload;
 
@@ -454,25 +389,6 @@ export const channelSlice = createSlice({
             })
         },
 
-        createPostReaction: (state, action: {payload: CreatePostReaction}) => {
-            const { channelId, postIndex, emojiId, reactionId , addedBy} = action.payload;
-
-            if (!state.channelPosts[channelId]) return
-            if (postIndex > -1 && postIndex < state.channelPosts[channelId].length) {
-
-                if(!state.channelPosts[channelId][postIndex].post_reactions) {
-                    state.channelPosts[channelId][postIndex].post_reactions = [] as GroupedReaction[]
-                }
-                state.channelPosts[channelId][postIndex].post_reactions?.push({
-                    reaction_emoji_id: emojiId,
-                    uid: reactionId,
-                    reaction_added_by: addedBy,
-                    reaction_added_at: new Date().toISOString(),
-                    reaction_on_content_added_by: addedBy
-                })
-            }
-        },
-
         createPostReactionPostId: (state, action: {payload: CreatePostReactionByPostId}) => {
             const { channelId, postId, emojiId, reactionId , addedBy} = action.payload;
             if (!state.channelPosts[channelId]) return
@@ -511,18 +427,6 @@ export const channelSlice = createSlice({
 
         },
 
-        removePostReaction: (state, action: {payload: RemovePostReaction}) => {
-            const { channelId, postIndex, reactionId } = action.payload;
-
-            if (!state.channelPosts[channelId]) return
-            if (postIndex > -1 && postIndex < state.channelPosts[channelId].length) {
-                state.channelPosts[channelId][postIndex].post_reactions =  state.channelPosts[channelId][postIndex].post_reactions?.filter((reaction) => {
-                    return reaction.uid !== reactionId
-                })
-            }
-
-        },
-
         removePostReactionByPostId: (state, action: {payload: RemovePostReactionByPostId}) => {
             const { channelId, postId, reactionId } = action.payload;
             if (!state.channelPosts[channelId]) return
@@ -538,38 +442,6 @@ export const channelSlice = createSlice({
             })
         },
 
-        // incrementPostCommentCountByPostID: (state, action: {payload: UpdatePostCommentCount}) => {
-        //     const { postId , channelId} = action.payload;
-        //
-        //     state.channelPosts[channelId].map((post)=> {
-        //         if(post.post_uuid == postId) {
-        //             post.post_comment_count++
-        //         }
-        //         return post
-        //     })
-        //
-        // },
-
-        // decrementPostCommentCountByPostID: (state, action: {payload: UpdatePostCommentCount}) => {
-        //     const { postId , channelId} = action.payload;
-        //
-        //     state.channelPosts[channelId].map((post)=> {
-        //         if(post.post_uuid == postId) {
-        //             post.post_comment_count--
-        //         }
-        //         return post
-        //     })
-        //
-        // },
-
-        updatePost: (state, action: {payload: UpdatePost}) => {
-            const { channelId, postIndex, htmlText } = action.payload;
-            if (postIndex > -1 && postIndex < state.channelPosts[channelId].length) {
-                state.channelPosts[channelId][postIndex].post_text = htmlText
-            }
-
-        },
-
         updatePostByPostId: (state, action: {payload: UpdatePostByPostId}) => {
             const { channelId, postId, htmlText } = action.payload;
             if (!state.channelPosts[channelId]) return
@@ -580,14 +452,6 @@ export const channelSlice = createSlice({
 
                 return post
             })
-        },
-
-        removePost: (state, action: {payload: RemovePost}) => {
-            const { channelId, postIndex } = action.payload;
-            if (!state.channelPosts[channelId]) return
-            if (postIndex > -1 && postIndex < state.channelPosts[channelId].length) {
-                state.channelPosts[channelId].splice(postIndex, 1);
-            }
         },
 
         removePostByPostId: (state, action: {payload: RemovePostPostId}) => {
@@ -648,34 +512,6 @@ export const channelSlice = createSlice({
             state.channelPosts[channelId].sort((a, b) =>
                 new Date(a.post_created_at).getTime() - new Date(b.post_created_at).getTime()
             );
-        },
-
-        addUUIDToLocallyCreatedPost: (state, action: {payload: UpdateCreatedPostLocally}) => {
-            const { channelId, postTempId, postId, createdAt } = action.payload;
-            if (!state.channelPosts[channelId]) return
-            state.channelPosts[channelId] = state.channelPosts[channelId].map((post) => {
-                if(postTempId == post.post_temp_id) {
-                    post.post_uuid = postId
-                    post.post_created_at = createdAt
-                }
-
-                return post
-            }).sort((a, b) => {
-                // Assuming post_created_at is a string (e.g., ISO date) or number (timestamp)
-                return new Date(a.post_created_at).getTime() - new Date(b.post_created_at).getTime()
-            });
-        },
-
-        updatePostAddedLocallyToSeen: (state, action: {payload: UpdatePostAsSeen}) =>{
-            const {channelId} = action.payload;
-            if(state.channelPosts[channelId]) {
-                state.channelPosts[channelId][state.channelPosts[channelId].length-1].post_added_locally = false
-            }
-        },
-
-        updateChannelScrollPosition: (state, action: {payload: UpdateChannelScrollPosition}) =>{
-            const {channelId, scrollTop} = action.payload;
-            state.channelScrollPosition[channelId] = scrollTop
         },
 
         updateChannelScrollToBottom: (state, action: {payload: UpdateScrollToBottom}) => {
@@ -771,21 +607,13 @@ export const {
     removeChannelUploadedFiles,
     clearChannelInputState,
     updateChannelPosts,
-    updatePostReaction,
     updatePostReactionPostId,
-    createPostReaction,
     createPostReactionPostId,
-    removePostReaction,
     removePostReactionByPostId,
-    updatePost,
     updatePostByPostId,
-    removePost,
     removePostByPostId,
     createPost,
     createPostLocally,
-    addUUIDToLocallyCreatedPost,
-    updatePostAddedLocallyToSeen,
-    updateChannelScrollPosition,
     updateChannelScrollToBottom,
     updateChannelMessageReplyIncrement,
     updateChannelMessageReplyDecrement,

@@ -1,6 +1,3 @@
-import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {UserProfileInterface} from "@/types/user";
-import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
 import {useCallback, useMemo} from "react";
 import mqttService, {MqttActionType} from "@/services/mqttService";

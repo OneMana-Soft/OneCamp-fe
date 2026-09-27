@@ -164,4 +164,3 @@ export function GuestTableViewer({ fields, rows }: GuestTableViewerProps) {
   )
 }
 
-export default GuestTableViewer

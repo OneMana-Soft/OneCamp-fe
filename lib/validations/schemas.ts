@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // --- Base Schemas ---
 
-export const UserProfileDataSchema = z.object({
+const UserProfileDataSchema = z.object({
   user_uuid: z.string().uuid(),
   user_name: z.string(),
   user_full_name: z.string().optional(),
@@ -13,7 +13,7 @@ export const UserProfileDataSchema = z.object({
   user_job_title: z.string().optional(),
 }).passthrough();
 
-export const AttachmentMediaSchema = z.object({
+const AttachmentMediaSchema = z.object({
   attachment_uuid: z.string().uuid().optional(),
   attachment_name: z.string(),
   attachment_obj_key: z.string(),
@@ -23,7 +23,7 @@ export const AttachmentMediaSchema = z.object({
 
 // --- Module Schemas ---
 
-export const ChannelInfoSchema = z.object({
+const ChannelInfoSchema = z.object({
   ch_uuid: z.string().uuid(),
   ch_name: z.string(),
   ch_private: z.boolean(),
@@ -34,7 +34,7 @@ export const ChannelInfoSchema = z.object({
   ch_created_at: z.string().optional(),
 }).passthrough();
 
-export const DocInfoSchema = z.object({
+const DocInfoSchema = z.object({
   doc_uuid: z.string().uuid(),
   doc_title: z.string(),
   doc_body: z.any().optional(), // Can be JSON/HTML
@@ -46,7 +46,7 @@ export const DocInfoSchema = z.object({
 
 // --- Response Wrappers ---
 
-export const GenericResponseSchema = z.object({
+const GenericResponseSchema = z.object({
   msg: z.string().optional(),
   data: z.any(),
 }).passthrough();
@@ -55,11 +55,11 @@ export const UserProfileResponseSchema = GenericResponseSchema.extend({
   data: UserProfileDataSchema,
 });
 
-export const ChannelListResponseSchema = GenericResponseSchema.extend({
+const ChannelListResponseSchema = GenericResponseSchema.extend({
   data: z.array(ChannelInfoSchema),
 });
 
-export const DocInfoResponseSchema = GenericResponseSchema.extend({
+const DocInfoResponseSchema = GenericResponseSchema.extend({
   data: DocInfoSchema,
 });
 

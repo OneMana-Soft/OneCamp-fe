@@ -7,18 +7,13 @@ import {RootState} from "@/store/store";
 import {  PostsRes} from "@/types/post";
 import {useEffect, useState, useMemo} from "react";
 
-import {ChatMessages} from "@/components/chat/chatMessages";
 import {CreateChatPaginationResRaw} from "@/types/chat";
 import {ChatInfo} from "@/types/chat";
-import {updateChats, updateChatScrollToBottom} from "@/store/slice/chatSlice";
 import {useMessageResync} from "@/hooks/useMessageResync";
 import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
-import {updateChannelPosts, updateChannelScrollToBottom} from "@/store/slice/channelSlice";
-import {RawUserDMInterface, UserProfileInterface} from "@/types/user";
-import { LoaderCircle } from "@/lib/icons";
+import {RawUserDMInterface} from "@/types/user";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {
-    LocallyCreatedGrpInfoInterface,
     updateGroupChats,
     updateGroupChatScrollToBottom,
     mergeGroupChats

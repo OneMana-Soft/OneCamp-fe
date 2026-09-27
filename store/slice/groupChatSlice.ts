@@ -42,7 +42,7 @@ interface SetGroupChatReplyTarget {
 }
 
 
-export interface ExtendedChatInputState {
+interface ExtendedChatInputState {
     [key: string]:  ChatInputState;
 }
 
@@ -88,11 +88,6 @@ interface UpdateChatByChatId {
     htmlText: string
 }
 
-interface RemoveChat {
-    grpId: string
-    chatIndex: number
-}
-
 interface UpdateScrollToBottom {
     grpId: string
     scrollToBottom: boolean
@@ -131,20 +126,9 @@ interface UpdateGroupChatReactionId {
     newReactionId: string
 }
 
-interface UpdateChat {
-    grpId: string
-    chatIndex: number
-    htmlText: string
-}
-
 interface UpdateChats extends LatestWindowAuthority {
     grpId: string,
     chats: ChatInfo[]
-}
-
-interface UpdateChatCommentCount {
-    chatId: string
-    grpId: string
 }
 
 interface UpdateReplyCountInterface {
@@ -183,7 +167,7 @@ const initialState = {
     deletedChats: {} as TombstoneMap,
 }
 
-export const groupChatSlice = createSlice({
+const groupChatSlice = createSlice({
     name: 'groupChat',
     initialState,
     reducers: {
@@ -347,14 +331,6 @@ export const groupChatSlice = createSlice({
             })
         },
 
-        removeGroupChat: (state, action: {payload: RemoveChat}) => {
-            const { grpId, chatIndex } = action.payload;
-            if (!state.chatMessages[grpId]) return
-            if (chatIndex > -1 && chatIndex < state.chatMessages[grpId].length) {
-                state.chatMessages[grpId].splice(chatIndex, 1);
-            }
-        },
-
         removeGroupChatByChatId: (state, action: {payload: RemoveChatByChatId}) => {
             const { messageId, grpId } = action.payload;
             // Tombstone first so a merge from a pre-delete window can't re-add it.
@@ -377,29 +353,6 @@ export const groupChatSlice = createSlice({
                 }
                 return chat
             })
-        },
-
-        decrementGroupChatCommentCountByChatID: (state, action: {payload: UpdateChatCommentCount}) => {
-            const {chatId , grpId} = action.payload;
-            if (!state.chatMessages[grpId]) return
-
-            state.chatMessages[grpId].map((post)=> {
-                if(post.chat_uuid == chatId) {
-                    // Guard against undefined/0 counters when MQTT races the
-                    // initial fetch. undefined-- yields NaN.
-                    post.chat_comment_count = Math.max(0, (post.chat_comment_count || 0) - 1)
-                }
-                return post
-            })
-
-        },
-
-        updateGroupChat: (state, action: {payload: UpdateChat}) => {
-            const { grpId, chatIndex, htmlText } = action.payload;
-            if (chatIndex > -1 && chatIndex < state.chatMessages[grpId].length) {
-                state.chatMessages[grpId][chatIndex].chat_body_text = htmlText
-            }
-
         },
 
         updateGroupChats: (state, action: {payload: UpdateChats}) => {
@@ -572,11 +525,6 @@ export const groupChatSlice = createSlice({
 
                 return chat
             })
-        },
-
-        // SYNC: Clear all loaded group chat messages to force API refetch after stale reconnection
-        invalidateGroupChatMessages: (state) => {
-            state.chatMessages = {} as ExtendedChats
         }
 
     }
@@ -591,8 +539,6 @@ export const {
     removeGroupChatUploadedFiles,
     clearGroupChatInputState,
     updateGroupChatByChatId,
-    removeGroupChat,
-    updateGroupChat,
     updateGroupChats,
     removeGroupChatByChatId,
     createGroupChat,
@@ -600,7 +546,6 @@ export const {
     clearGroupChatReplyTarget,
     updateGroupChatPreviewFilesUUID,
     removeGroupChatReactionByChatId,
-    decrementGroupChatCommentCountByChatID,
     updateGroupChatReactionByChatId,
     createGroupChatReactionChatId,
     updateGroupChatScrollToBottom,
@@ -608,7 +553,6 @@ export const {
     updateGroupChatMessageReplyDecrement,
     createGrpChatLocally,UpdateGrpChatLocally,
     updateGroupChatReactionId,
-    invalidateGroupChatMessages,
     mergeGroupChats
 } = groupChatSlice.actions
 

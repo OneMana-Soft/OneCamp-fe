@@ -1,6 +1,5 @@
 "use client"
 
-import type * as React from "react"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -10,7 +9,6 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
 interface ConfirmAlertDialogProps {

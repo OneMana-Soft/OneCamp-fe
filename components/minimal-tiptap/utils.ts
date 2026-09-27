@@ -21,9 +21,8 @@ export type FileValidationOptions = {
 
 type FileInput = File | { src: string | File; alt?: string; title?: string }
 
-export const isClient = (): boolean => typeof window !== 'undefined'
-export const isServer = (): boolean => !isClient()
-export const isMacOS = (): boolean => isClient() && window.navigator.platform === 'MacIntel'
+const isClient = (): boolean => typeof window !== 'undefined'
+const isMacOS = (): boolean => isClient() && window.navigator.platform === 'MacIntel'
 
 const shortcutKeyMap: Record<string, ShortcutKeyResult> = {
   mod: isMacOS() ? { symbol: '⌘', readable: 'Command' } : { symbol: 'Ctrl', readable: 'Control' },
@@ -33,8 +32,6 @@ const shortcutKeyMap: Record<string, ShortcutKeyResult> = {
 
 export const getShortcutKey = (key: string): ShortcutKeyResult =>
   shortcutKeyMap[key.toLowerCase()] || { symbol: key, readable: key }
-
-export const getShortcutKeys = (keys: string[]): ShortcutKeyResult[] => keys.map(getShortcutKey)
 
 export const getOutput = (editor: Editor, format: MinimalTiptapProps['output']): object | string => {
   switch (format) {
@@ -71,7 +68,7 @@ export const isUrl = (
   }
 }
 
-export const sanitizeUrl = (
+const sanitizeUrl = (
   url: string | null | undefined,
   options: { allowBase64?: boolean } = {}
 ): string | undefined => {
@@ -106,21 +103,6 @@ export const blobUrlToBase64 = async (blobUrl: string): Promise<string> => {
 }
 
 export const randomId = (): string => Math.random().toString(36).slice(2, 11)
-
-export const fileToBase64 = (file: File | Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result)
-      } else {
-        reject(new Error('Failed to convert File to base64'))
-      }
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
 
 const validateFileOrBase64 = <T extends FileInput>(
   input: File | string,

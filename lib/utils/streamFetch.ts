@@ -45,7 +45,7 @@ async function refreshAccessToken(signal?: AbortSignal): Promise<boolean> {
   }
 }
 
-export interface AuthedStreamInit {
+interface AuthedStreamInit {
   method?: string
   /** JSON-serializable body; sent as application/json. Omit for GET. */
   jsonBody?: unknown

@@ -1,6 +1,5 @@
 import { MessageContent } from "./messageContent"
 import {CommentInfoInterface} from "@/types/comment";
-import TaskActivity from "@/components/task/taskActivity";
 import {ProgressiveList} from "@/components/ui/progressiveList";
 import { EmptyState } from "@/components/ui/empty-state"
 import { MessageSquare } from "@/lib/icons";

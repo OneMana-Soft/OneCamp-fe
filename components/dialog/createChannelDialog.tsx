@@ -22,13 +22,9 @@ import {useState} from "react";
 import {useFetch} from "@/hooks/useFetch";
 import {
     ChannelInfoInterface,
-    ChannelInfoListInterfaceResp,
-    ChannelJoinInterface,
     ChannelNameExistsInterface
 } from "@/types/channel";
-import {useDispatch} from "react-redux";
-import {addUserChannelList} from "@/store/slice/userSlice";
-import {app_channel_path, app_home_path} from "@/types/paths";
+import {app_channel_path} from "@/types/paths";
 import {useRouter} from "next/navigation"; // Import the useFetch hook
 
 const createChannelFormSchema = z.object({

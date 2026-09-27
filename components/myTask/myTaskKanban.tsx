@@ -59,11 +59,9 @@ import {TaskKanbanProjectFilter} from "@/components/task/taskKanbanProjectFilter
 import {openUI} from "@/store/slice/uiSlice";
 import {taskStatuses} from "@/types/table";
 import {usePost} from "@/hooks/usePost";
-import {mutate} from "swr";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
-import {VList} from "virtua";
 
-export const animateLayoutChanges: AnimateLayoutChanges = (args) =>
+const animateLayoutChanges: AnimateLayoutChanges = (args) =>
     defaultAnimateLayoutChanges({...args, wasDragging: true});
 
 export function DroppableContainer({
@@ -827,7 +825,7 @@ type Args = {
     isSorting: boolean;
     isDragOverlay: boolean;
 };
-export interface SortableItemProps {
+interface SortableItemProps {
     containerId: UniqueIdentifier;
     id: UniqueIdentifier;
     task: TaskInfoInterface

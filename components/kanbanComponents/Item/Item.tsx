@@ -22,7 +22,7 @@ import { ColorIcon } from "@/components/colorIcon/colorIcon"
 import { Badge } from "@/components/ui/badge"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 
-export interface Props {
+interface Props {
     dragOverlay?: boolean
     color?: string
     disabled?: boolean

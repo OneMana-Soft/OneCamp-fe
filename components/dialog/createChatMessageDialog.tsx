@@ -9,12 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {ForwardMessageDropdown} from "@/components/searchDropdown/fwdMsgToDropdown/fwdMsgToDropdown";
-import MinimalTiptapTextInput from "@/components/textInput/textInput";
-import {cn} from "@/lib/utils/helpers/cn";
-import {createOrUpdateFwdMsg} from "@/store/slice/fwdMessageSlice";
-import {MessagePreview} from "@/components/message/MessagePreview";
-import { LoaderCircle } from "@/lib/icons";
 import * as React from "react";
 import {
   SelectUserToMessageDropdown

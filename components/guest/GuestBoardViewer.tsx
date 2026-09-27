@@ -170,4 +170,3 @@ export function GuestBoardViewer({ documentName, boardId, token, tokenFetcher }:
   )
 }
 
-export default GuestBoardViewer

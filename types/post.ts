@@ -38,11 +38,6 @@ export interface CreatePostsRes {
     post_created_at: string
 }
 
-export interface CreatePostsResRaw {
-    data: CreatePostsRes
-    msg: string
-}
-
 export interface CreatePostPaginationRes {
     posts: PostsRes[];
     has_more: boolean

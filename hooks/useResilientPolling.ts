@@ -41,7 +41,7 @@
 
 import { useCallback, useEffect, useRef } from "react"
 
-export interface PollingOptions {
+interface PollingOptions {
     /**
      * Master gate. When false, no polling occurs and any in-flight
      * timer is cleared. Use this to express "is there anything that

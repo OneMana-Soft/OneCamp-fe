@@ -8,7 +8,6 @@
 // AS the approver, with that user's permissions re-checked. All routes are
 // scoped server-side to the calling user.
 
-import axiosInstance from "@/lib/axiosInstance"
 
 export type PendingActionStatus =
     | "pending"
@@ -54,9 +53,9 @@ export interface PendingAction {
 }
 
 /** The surfaces an approval can be raised on. Mirrors the backend's constants. */
-export const PENDING_ACTION_SURFACES = ["channel", "dm", "group", "assistant"] as const
+const PENDING_ACTION_SURFACES = ["channel", "dm", "group", "assistant"] as const
 
-export type PendingActionSurface = (typeof PENDING_ACTION_SURFACES)[number]
+type PendingActionSurface = (typeof PENDING_ACTION_SURFACES)[number]
 
 /**
  * Narrow an untrusted value to a surface, falling back to "assistant".
@@ -76,30 +75,4 @@ export function toPendingActionSurface(value: unknown): PendingActionSurface {
     return PENDING_ACTION_SURFACES.includes(value as PendingActionSurface)
         ? (value as PendingActionSurface)
         : "assistant"
-}
-
-// getOpenPendingActions reconciles on load: the caller's open (pending,
-// unexpired) approvals, newest first. Returns a real array even when the
-// backend serializes an empty slice as JSON null.
-export async function getOpenPendingActions(): Promise<PendingAction[]> {
-    const res = await axiosInstance.get("/ai/pending-actions", {
-        // @ts-expect-error — suppress the global loading bar for this background fetch
-        silent: true,
-    })
-    const data = (res.data as { data?: PendingAction[] })?.data
-    return Array.isArray(data) ? data : []
-}
-
-// approvePendingAction approves and executes a proposed write. The resolved
-// record (with terminal status + result/error) is returned. A 409/410 (already
-// handled / expired) also returns the authoritative record so the UI can
-// reconcile rather than show a stale card.
-export async function approvePendingAction(id: string): Promise<PendingAction | undefined> {
-    const res = await axiosInstance.post(`/ai/pending-actions/${id}/approve`, {})
-    return (res.data as { data?: PendingAction })?.data
-}
-
-export async function rejectPendingAction(id: string): Promise<PendingAction | undefined> {
-    const res = await axiosInstance.post(`/ai/pending-actions/${id}/reject`, {})
-    return (res.data as { data?: PendingAction })?.data
 }

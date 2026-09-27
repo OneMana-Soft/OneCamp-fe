@@ -1,7 +1,6 @@
 "use client"
 
 import {usePathname, useRouter} from "next/navigation";
-import Link from "next/link";
 import {useDispatch} from "react-redux";
 import {OrgAvatarNav} from "@/components/navigationBar/orgAvatarNav";
 import {openUI} from "@/store/slice/uiSlice";

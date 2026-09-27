@@ -1,9 +1,5 @@
-import {PostsRes} from "@/types/post";
 import {UserProfileDataInterface} from "@/types/user";
-import {RecordingInfoInterface} from "@/types/recording";
 import {CommentInfoInterface} from "@/types/comment";
-import {ChannelInfoInterface} from "@/types/channel";
-import {ProjectInfoInterface} from "@/types/project";
 import {AttachmentMediaReq} from "@/types/attachment";
 
 export interface DocInfoInterface {

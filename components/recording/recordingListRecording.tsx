@@ -1,13 +1,5 @@
 import React from "react";
-import {ChatUserAvatar} from "@/components/chat/chatUserAvatar";
-import {removeHtmlTags} from "@/lib/utils/removeHtmlTags";
-import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
-import {ChatUserListUserAvatar} from "@/components/chat/chatUserListUserAvatar";
-import {useSelector} from "react-redux";
-import {RootState} from "@/store/store";
 import { Video, Trash2 } from "@/lib/icons";
-import { statusColors } from "@/lib/colors";
-import {app_channel_path} from "@/types/paths";
 import {RecordingInfoInterface} from "@/types/recording";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";

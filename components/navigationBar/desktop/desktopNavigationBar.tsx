@@ -10,7 +10,7 @@ import { CircleCheck, ClipboardList, File as FileIcon, LayoutDashboard, MoreHori
 import {DesktopSideNavigationBar} from "@/components/navigationBar/desktop/desktopSideNavigationBar";
 import DesktopNavigationTopBar from "@/components/navigationBar/desktop/desktopNavigationTopBar";
 import {useFetch} from "@/hooks/useFetch";
-import {UserDMInterface, UserProfileDataInterface, UserProfileInterface} from "@/types/user";
+import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
 import {
     app_channel_path,
     app_chat_path,

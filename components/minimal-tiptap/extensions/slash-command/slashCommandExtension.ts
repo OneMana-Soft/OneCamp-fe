@@ -3,7 +3,7 @@ import { PluginKey } from "@tiptap/pm/state"
 import Suggestion from "@tiptap/suggestion"
 import { SlashCommandItem, slashCommandSuggestion, CHAT_COMMANDS } from "./slashCommand"
 
-export const SlashCommandPluginKey = new PluginKey("slash-command")
+const SlashCommandPluginKey = new PluginKey("slash-command")
 
 export const SlashCommand = Extension.create<{ commands?: SlashCommandItem[] }>({
   name: "slash-command",
@@ -40,4 +40,3 @@ export const SlashCommand = Extension.create<{ commands?: SlashCommandItem[] }>(
   },
 })
 
-export default SlashCommand

@@ -219,4 +219,3 @@ export function BoardMentionInput({
   )
 }
 
-export default BoardMentionInput

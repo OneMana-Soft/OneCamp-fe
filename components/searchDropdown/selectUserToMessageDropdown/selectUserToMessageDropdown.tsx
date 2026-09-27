@@ -4,11 +4,11 @@ import { Check, Search, Sparkles, User, X } from "@/lib/icons";
 import {GetEndpointUrl} from "@/services/endPoints"
 import {
     UserListInterfaceResp,
-    UserProfileDataInterface, UserProfileInterface,
+    UserProfileDataInterface,
 } from "@/types/user"
 import {Input} from "@/components/ui/input";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import {useFetch} from "@/hooks/useFetch";
 import {Badge} from "@/components/ui/badge";
 import {ChatUserListUserAvatar} from "@/components/chat/chatUserListUserAvatar";
 import {cn} from "@/lib/utils/helpers/cn";

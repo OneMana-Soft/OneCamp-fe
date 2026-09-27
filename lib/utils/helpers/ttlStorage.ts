@@ -46,56 +46,6 @@ function readEntry(rawValue: string | null, defaultTTL: number): TTLEntry | null
 }
 
 /**
- * Returns true when a TTL entry under (prefix + id) is still alive.
- * Cleans up the entry if expired.
- */
-export function isTTLActive(prefix: string, id: string, defaultTTL: number): boolean {
-    if (typeof window === "undefined") return false
-    const key = prefix + id
-    const entry = readEntry(localStorage.getItem(key), defaultTTL)
-    if (!entry) return false
-    if (Date.now() - entry.at > entry.ttl) {
-        try {
-            localStorage.removeItem(key)
-        } catch {
-            // Quota errors on remove are vanishingly rare; ignore.
-        }
-        return false
-    }
-    return true
-}
-
-/**
- * Writes a TTL entry under (prefix + id). Pass the TTL explicitly so
- * the caller documents the intent at the call site.
- */
-export function setTTL(prefix: string, id: string, ttlMs: number): void {
-    if (typeof window === "undefined") return
-    try {
-        localStorage.setItem(
-            prefix + id,
-            JSON.stringify({ at: Date.now(), ttl: ttlMs } satisfies TTLEntry),
-        )
-    } catch {
-        // localStorage is full or blocked. Caller logic should
-        // tolerate this — at worst the dismissal flag won't persist
-        // across reload, which is mildly annoying but never broken.
-    }
-}
-
-/**
- * Removes a TTL entry — useful for "undo dismiss" flows.
- */
-export function clearTTL(prefix: string, id: string): void {
-    if (typeof window === "undefined") return
-    try {
-        localStorage.removeItem(prefix + id)
-    } catch {
-        /* ignore */
-    }
-}
-
-/**
  * sweepTTLKeys — global cleaner. Iterates every localStorage key under
  * the given prefix and removes the expired ones. Cheap (O(N) on the
  * keys, only on app boot or rare focus events) and bounded by the

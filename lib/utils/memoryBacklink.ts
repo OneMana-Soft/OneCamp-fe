@@ -20,9 +20,9 @@ import { getOtherUserId } from "@/lib/utils/getOtherUserId"
  * know the current user's id).
  */
 
-export type MemoryScopeKind = "channel" | "project" | "group" | "dm"
+type MemoryScopeKind = "channel" | "project" | "group" | "dm"
 
-export interface MemoryBacklinkInput {
+interface MemoryBacklinkInput {
   channel_uuid?: string
   project_uuid?: string
   chat_grp_id?: string
@@ -33,7 +33,7 @@ export interface MemoryBacklinkInput {
   project_name?: string
 }
 
-export interface MemoryBacklink {
+interface MemoryBacklink {
   kind: MemoryScopeKind
   label: string
   href: string

@@ -7,7 +7,7 @@
 // finishes in the app editor. One-click Uninstall removes the app, its
 // commands, and its stored secrets. Optimistic UI + toasts keep it snappy.
 
-import React, { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"

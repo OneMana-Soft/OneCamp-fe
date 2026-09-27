@@ -12,4 +12,4 @@
 // control that belongs on a board belongs in components/ui with everything else.
 export { Container } from "./Container"
 export type { ContainerProps } from "./Container"
-export { Item, Action, Handle, Remove } from "./Item"
+export { Item } from "./Item"

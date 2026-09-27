@@ -11,8 +11,6 @@ import {useEffect} from "react";
 import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {updateChannelPosts} from "@/store/slice/channelSlice";
-import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
-import {app_channel_path} from "@/types/paths";
 
 
 export default function Page() {

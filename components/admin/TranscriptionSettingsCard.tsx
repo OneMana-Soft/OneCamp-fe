@@ -12,7 +12,7 @@
 // admin point at OpenAI Whisper, Groq, or a self-hosted Whisper endpoint
 // without any code change.
 
-import React, { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

@@ -17,7 +17,7 @@ import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
 import {
-    ProjectAddAttachmentInterface, ProjectInfoInterface,
+    ProjectAddAttachmentInterface, 
     ProjectInfoRawInterface,
     ProjectRemoveAttachmentInterface
 } from "@/types/project";

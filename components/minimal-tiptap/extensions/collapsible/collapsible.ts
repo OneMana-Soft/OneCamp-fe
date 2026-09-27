@@ -4,7 +4,7 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { CollapsibleView } from './components/collapsible-view'
 
-export interface CollapsibleOptions {
+interface CollapsibleOptions {
   HTMLAttributes: Record<string, any>
 }
 
@@ -98,4 +98,3 @@ export const Collapsible = Node.create<CollapsibleOptions>({
   },
 })
 
-export default Collapsible

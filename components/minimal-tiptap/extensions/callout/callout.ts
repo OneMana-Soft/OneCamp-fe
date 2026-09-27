@@ -4,7 +4,7 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { CalloutView } from './components/callout-view'
 
-export interface CalloutOptions {
+interface CalloutOptions {
   HTMLAttributes: Record<string, any>
 }
 
@@ -99,4 +99,3 @@ export const Callout = Node.create<CalloutOptions>({
   },
 })
 
-export default Callout

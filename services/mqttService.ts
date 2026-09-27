@@ -45,19 +45,6 @@ export enum MqttMessageType {
     AI_Agent_Work,
 }
 
-// msgAgentWorkInterface mirrors the backend MqttAgentWork payload. It carries
-// only what the strip already shows to anyone who can see the surface — never
-// whether THIS person may stop the job, which stays a server-side check.
-export interface msgAgentWorkInterface {
-    entity_id?: string
-    task_id?: string
-    agent_id?: string
-    agent_name?: string
-    state?: string
-    open: boolean
-    updated_at?: string
-}
-
 export enum MqttActionType {
     Create = 0,
     Update,
@@ -68,25 +55,25 @@ export interface msgType{
     type: MqttMessageType
 }
 
-export interface msgUserEmojiStatusInterface {
+interface msgUserEmojiStatusInterface {
     type: MqttActionType
     user_emoji_status: UserEmojiStatus
     user_uuid: string
 }
 
-export interface msgUserStatusInterface {
+interface msgUserStatusInterface {
     type: MqttActionType
     user_status: string
     user_uuid: string
 }
 
-export interface msgUserDeviceInterface {
+interface msgUserDeviceInterface {
     type: MqttActionType
     user_device_connected: number
     user_uuid: string
 }
 
-export interface msgChatInterface {
+interface msgChatInterface {
     type: MqttActionType
     chat_uuid: string
     chat_html_text: string
@@ -102,7 +89,7 @@ export interface msgChatInterface {
     chat_reply_to?: ChatInfo
     chat_attachments: AttachmentMediaReq[]
 }
-export interface msgPostInterface {
+interface msgPostInterface {
     type: MqttActionType
     post_uuid: string
     post_html_text: string
@@ -120,7 +107,7 @@ export interface msgPostInterface {
 }
 
 
-export interface msgTaskCommentInterface {
+interface msgTaskCommentInterface {
     type: MqttActionType
     comment_uuid: string
     task_id: string
@@ -133,7 +120,7 @@ export interface msgTaskCommentInterface {
     body_text: string
 }
 
-export interface msgDocCommentInterface {
+interface msgDocCommentInterface {
     type: MqttActionType
     comment_uuid: string
     doc_id: string
@@ -146,7 +133,7 @@ export interface msgDocCommentInterface {
     body_text: string
 }
 
-export interface msgChatReactionInterface {
+interface msgChatReactionInterface {
     type: MqttActionType
     reaction_emoji_id: string
     user_uuid: string
@@ -156,7 +143,7 @@ export interface msgChatReactionInterface {
     reaction_id: string
 }
 
-export interface msgChatCommentReactionInterface {
+interface msgChatCommentReactionInterface {
     type: MqttActionType
     reaction_emoji_id: string
     user_uuid: string
@@ -167,7 +154,7 @@ export interface msgChatCommentReactionInterface {
 
 }
 
-export interface msgPostReactionInterface {
+interface msgPostReactionInterface {
     type: MqttActionType
     reaction_emoji_id: string
     user_uuid: string
@@ -178,7 +165,7 @@ export interface msgPostReactionInterface {
     reaction_id: string
 }
 
-export interface msgPostCommentReactionInterface {
+interface msgPostCommentReactionInterface {
     type: MqttActionType
     reaction_emoji_id: string
     user_uuid: string
@@ -188,7 +175,7 @@ export interface msgPostCommentReactionInterface {
     reaction_id: string
 }
 
-export interface msgTaskCommentReactionInterface {
+interface msgTaskCommentReactionInterface {
     type: MqttActionType
     reaction_emoji_id: string
     user_uuid: string
@@ -198,7 +185,7 @@ export interface msgTaskCommentReactionInterface {
     reaction_id: string
 }
 
-export interface msgDocCommentReactionInterface {
+interface msgDocCommentReactionInterface {
     type: MqttActionType
     reaction_emoji_id: string
     user_uuid: string
@@ -213,14 +200,14 @@ export interface msgActivityInterface {
     activity: any // UnifiedActivityItem
 }
 
-export interface msgChannelTypingInterface {
+interface msgChannelTypingInterface {
     user_uuid: string
     user_profile: string
     user_name: string
     channel_uuid: string
 }
 
-export interface msgChannelUpdateInterface {
+interface msgChannelUpdateInterface {
     type: MqttActionType
     channel_uuid: string
     action?: string
@@ -231,7 +218,7 @@ interface rawMsgChannelUpdateInterface {
     data: msgChannelUpdateInterface
 }
 
-export interface msgChatComment {
+interface msgChatComment {
     type: number
     message_id: string
     chat_grp_id: string
@@ -245,7 +232,7 @@ export interface msgChatComment {
     is_bot?: boolean
 }
 
-export interface msgPostCommentInterface {
+interface msgPostCommentInterface {
     type: number
     post_id: string
     channel_id: string
@@ -258,7 +245,7 @@ export interface msgPostCommentInterface {
     comment_attachments: AttachmentMediaReq[]
     is_bot?: boolean
 }
-export interface msgDmTypingInterface {
+interface msgDmTypingInterface {
     user_uuid: string
     user_profile: string
     user_name: string
@@ -372,7 +359,7 @@ interface rawMsgActivityInterface {
     data: msgActivityInterface
 }
 
-export interface msgGitHubSyncInterface {
+interface msgGitHubSyncInterface {
     task_uuid: string
     sync_type: string
     project_uuid: string

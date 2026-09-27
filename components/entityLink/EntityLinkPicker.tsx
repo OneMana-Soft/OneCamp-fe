@@ -143,4 +143,3 @@ export function EntityLinkPicker({ onPick, isLinked, disabled }: EntityLinkPicke
   )
 }
 
-export default EntityLinkPicker

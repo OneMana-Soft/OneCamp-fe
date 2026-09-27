@@ -4,7 +4,7 @@ import { Node, mergeAttributes } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
 import { RecordingEmbedView } from "./recording-embed-view"
 
-export interface RecordingEmbedOptions {
+interface RecordingEmbedOptions {
   HTMLAttributes: Record<string, any>
 }
 
@@ -78,4 +78,3 @@ export const RecordingEmbed = Node.create<RecordingEmbedOptions>({
   },
 })
 
-export default RecordingEmbed

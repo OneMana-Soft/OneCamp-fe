@@ -73,4 +73,3 @@ export const CollapsibleView: React.FC<NodeViewProps> = ({ node, updateAttribute
   )
 }
 
-export default CollapsibleView

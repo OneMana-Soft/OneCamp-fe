@@ -9,7 +9,6 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {CallTokenResponseInterface, UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
-import {GetChannelCallInterface} from "@/types/channel";
 import {GetChatCallInterface} from "@/types/chat";
 
 export default function Page({ params }: { params: Promise<{ grpId: string, roomId: string}> }) {

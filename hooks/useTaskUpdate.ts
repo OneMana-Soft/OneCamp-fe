@@ -2,8 +2,6 @@ import { useSWRConfig } from "swr";
 import { useCallback } from "react";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { TaskInfoInterface } from "@/types/task";
-import { ProjectInfoRawInterface } from "@/types/project";
-import { UserInfoRawInterface } from "@/types/user";
 
 export const useTaskUpdate = () => {
     const { mutate, cache } = useSWRConfig();

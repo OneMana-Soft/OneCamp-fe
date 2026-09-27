@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next"
 import {useCallback, useEffect, useRef, useState} from 'react';
 
-import { VList } from "virtua"
 
 import {
     closestCenter,
@@ -12,9 +11,8 @@ import {
     UniqueIdentifier, useSensor, useSensors
 } from '@dnd-kit/core';
 import {
-    CheckCircledIcon,
-    CircleIcon, CrossCircledIcon,
-    MixerHorizontalIcon, QuestionMarkCircledIcon, StopwatchIcon,
+    
+    MixerHorizontalIcon,
 } from "@radix-ui/react-icons";
 import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -26,7 +24,7 @@ import {
     DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 
-import { CircleEllipsis, CirclePlus } from "lucide-react";
+import { CirclePlus } from "lucide-react";
 import {useDispatch} from "react-redux";
 import {
     dropAnimation, DroppableContainer,
@@ -55,7 +53,6 @@ import {openUI} from "@/store/slice/uiSlice";
 import {prioritiesInterface, taskStatuses} from "@/types/table";
 import {ProjectTaskKanbanAssigneeFilter} from "@/components/project/projectTaskKanbanAssigneeFilter";
 import {usePost} from "@/hooks/usePost";
-import {mutate} from "swr";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 
 

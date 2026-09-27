@@ -10,7 +10,7 @@
 //   - the source ("db" | "env" | "none") is surfaced so an admin understands
 //     whether they're overriding an env-provided default.
 
-import React, { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"

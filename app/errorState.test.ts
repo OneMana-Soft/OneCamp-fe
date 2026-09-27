@@ -61,7 +61,6 @@ const SURFACES = [
   // `status?.connected || false`, so a failed status fetch read as "not
   // connected" and offered a Connect button that starts a redundant OAuth flow.
   "components/admin/ApiTokensCard.tsx",
-  "components/admin/DataSourcesCard.tsx",
   "components/admin/WebhooksCard.tsx",
   "components/admin/SlackImportCard.tsx",
   "components/admin/GitHubIntegrationCard.tsx",

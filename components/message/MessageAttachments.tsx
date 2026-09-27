@@ -1,6 +1,5 @@
 import {ATTACHMENT_MAX_IMAGE_GRID_SIZE, AttachmentMediaReq} from "@/types/attachment";
 import {useMemo, useState} from "react";
-import {useCanHover} from "@/hooks/useCanHover";
 import {isRenderable} from "@/lib/utils/validation/isRenderable";
 import {cn} from "@/lib/utils/helpers/cn";
 import {MessageAttachmentCard} from "@/components/message/MessageAttachmentCard";
@@ -129,7 +128,7 @@ interface NonRenderableAttachmentProps {
     mediaGetUrl: string
 }
 
-export function NonRenderableAttachment({ attachment, attachmentLength, mediaGetUrl }: NonRenderableAttachmentProps) {
+function NonRenderableAttachment({ attachment, attachmentLength, mediaGetUrl }: NonRenderableAttachmentProps) {
     const mediaReq = useMediaFetch<GetMediaURLRes>(attachment?.attachment_uuid ? mediaGetUrl +'/'+attachment.attachment_uuid : '')
 
     const download = (e: React.MouseEvent) => {

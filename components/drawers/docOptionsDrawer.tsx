@@ -1,7 +1,6 @@
 "use client"
 
-import * as React from "react"
-import { CircleUser, Eye, Forward, History, Link, MessageCircle, MessageSquareText, Pencil, Share2, Trash2, Type, Users } from "@/lib/icons";
+import { Eye, History, MessageCircle, Pencil, Share2, Trash2 } from "@/lib/icons";
 
 import {
     Drawer,
@@ -10,18 +9,13 @@ import {
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer"
-import {preSelectedEmojis} from "@/components/drawers/consts/preSelectedEmojiConst";
-import {Button} from "@/components/ui/button";
-import Image from "next/image";
-import addEmojiIconSrc from "@/assets/addEmoji.svg";
-import {DrawerActionCard} from "@/components/drawerActionCard/drawerActionCard";
 import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
 import {Separator} from "@/components/ui/separator";
 import {DrawerDestructiveActionLink} from "@/components/drawerActionLink/drawerDestructiveActionLink";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {useRouter} from "next/navigation";
-import {app_chat_path, app_doc_path} from "@/types/paths";
+import {app_doc_path} from "@/types/paths";
 import {useFetch} from "@/hooks/useFetch";
 import type {DocInfoResponse} from "@/types/doc";
 import {GetEndpointUrl} from "@/services/endPoints";

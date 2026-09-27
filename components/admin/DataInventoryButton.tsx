@@ -156,4 +156,3 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
     )
 }
 
-export default DataInventoryButton

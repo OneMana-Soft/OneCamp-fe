@@ -65,11 +65,6 @@ export interface GenericSearchTextInterface {
     page_size?: number
 }
 
-export enum UserStatus {
-    online = "online",
-    offline = "offline",
-}
-
 export const USER_STATUS_ONLINE = "online"
 export const USER_STATUS_OFFLINE = "offline"
 
@@ -102,7 +97,7 @@ export interface UserProfileUpdateInterface {
 
 export type StatusTime = '30m' | '1h' | '4h' | 'today' | 'this_week' | 'custom';
 
-export type CustomNotificationSchedule = {
+type CustomNotificationSchedule = {
     days: ('Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday')[]
     start_time: string
     end_time: string
@@ -119,11 +114,6 @@ export interface UserStatusRespInterface {
 
 export interface UserListInterfaceResp {
     users: UserProfileDataInterface[],
-    msg: string
-}
-
-export interface UserListInterfaceRawResp {
-    data: UserProfileDataInterface[],
     msg: string
 }
 
@@ -195,11 +185,6 @@ export interface UserEmojiStatus {
     status_user_emoji_expiry_in?: StatusTime
 }
 
-export interface UserEmojiStatusResp {
-    data: UserEmojiStatus
-    msg: string
-}
-
 export interface UserInfoRawInterface {
     msg: string;
     pageCount?: number;
@@ -225,7 +210,6 @@ export interface CallTokenResponseInterface {
 }
 
 export const chat_forward_type = "chat"
-export const channel_forward_type = "channel"
 
 interface langInterface {
     name: string

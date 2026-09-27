@@ -1,19 +1,18 @@
 "use client"
 
-import React, { memo } from "react"
+import { memo } from "react"
 import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, User, FolderKanban, Hash, LayoutDashboard } from "lucide-react"
 import { SearchResult } from "@/services/searchService"
 import { ChatUserAvatar } from "@/components/chat/chatUserAvatar"
 import { cn } from "@/lib/utils/helpers/cn"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { getOtherUserId } from "@/lib/utils/getOtherUserId"
-import { isRenderable } from "@/lib/utils/validation/isRenderable"
 import { getAttachmentType } from "@/lib/utils/file/getAttachmentType"
 import { AttachmentMediaReq } from "@/types/attachment"
 import { sanitizePlainHtml } from "@/lib/sanitizeHtml"
 import { SafeHtml } from "@/components/safeHtml/SafeHtml"
 
-export const HighlightedText = memo(({ text, highlights, field }: { text: string, highlights?: any, field: string }) => {
+const HighlightedText = memo(({ text, highlights, field }: { text: string, highlights?: any, field: string }) => {
     if (!highlights || !highlights[field]) return <span>{text}</span>
     const highlight = highlights[field][0]
     // OpenSearch highlights wrap matched terms with <em>...</em>, but
@@ -25,7 +24,7 @@ export const HighlightedText = memo(({ text, highlights, field }: { text: string
 })
 HighlightedText.displayName = "HighlightedText"
 
-export const getTitle = (result: SearchResult): string => {
+const getTitle = (result: SearchResult): string => {
     switch (result.type) {
         case "chat": return result.chat?.chat_body || ""
         case "post": return result.post?.post_body || ""

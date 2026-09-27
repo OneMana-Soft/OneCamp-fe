@@ -33,7 +33,7 @@ import { DesktopNavType } from "@/types/nav"
  * checkable against each other.
  */
 
-export interface NavUnreadCounts {
+interface NavUnreadCounts {
     channel: number
     dm: number
     activity: number
@@ -43,7 +43,7 @@ export interface NavUnreadCounts {
  * True when the given path sits under /app/<segment>. `path` is a split
  * pathname, so index 2 is the first segment below /app.
  */
-export function isNavSectionActive(path: readonly string[], segment: string): boolean {
+function isNavSectionActive(path: readonly string[], segment: string): boolean {
     return path.length > 2 && path[2] === segment
 }
 

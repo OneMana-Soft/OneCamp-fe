@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import { Clapperboard, Video } from "@/lib/icons"
 import {
     Drawer,
@@ -122,4 +121,3 @@ export function ChatOptionsDrawer({
     )
 }
 
-export default ChatOptionsDrawer

@@ -4,7 +4,7 @@ import { memo, type ReactNode } from "react"
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {useProgressiveList, UseProgressiveListOptions} from "@/hooks/useProgressiveList";
 
-export interface ProgressiveListProps<T> extends UseProgressiveListOptions {
+interface ProgressiveListProps<T> extends UseProgressiveListOptions {
     /** Array of items to render */
     items: T[] | undefined
     /** Render function for each item */

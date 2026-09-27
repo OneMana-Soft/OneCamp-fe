@@ -2,14 +2,11 @@
 
 import {useState} from "react";
 import {Input} from "@/components/ui/input";
-import {Separator} from "@/components/ui/separator";
 import * as React from "react";
 import MemberInfo from "@/components/member/memberInfo";
 import {ListSkeleton} from "@/components/ui/ListSkeleton";
-import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
+import {UserProfileDataInterface} from "@/types/user";
 import { Search } from "@/lib/icons";
-import {useFetch} from "@/hooks/useFetch";
-import {GetEndpointUrl} from "@/services/endPoints";
 
 
 interface MembersListPropInterface {

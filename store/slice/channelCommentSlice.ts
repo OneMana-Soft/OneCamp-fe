@@ -128,7 +128,7 @@ interface CreateComment {
     attachments: AttachmentMediaReq[]
 }
 
-export interface commentInputState {
+interface commentInputState {
     commentMsgBody: string,
     filesUploaded: AttachmentMediaReq[],
     filesPreview: FilePreview[],
@@ -137,7 +137,7 @@ export interface  ExtendedComments {
     [key: string]:  CommentInfoInterface[];
 }
 
-export interface ExtendedChannelCommentInputState {
+interface ExtendedChannelCommentInputState {
     [key: string]: commentInputState;
 }
 
@@ -146,7 +146,7 @@ const initialState: {commentInputState:ExtendedChannelCommentInputState, postCom
     postComments: {} as ExtendedComments,
 }
 
-export const channelCommentSlice = createSlice({
+const channelCommentSlice = createSlice({
     name: 'channelComment',
     initialState,
     reducers: {
@@ -414,11 +414,6 @@ export const channelCommentSlice = createSlice({
             }
         },
 
-        // SYNC: Clear all loaded channel comments to force API refetch after stale reconnection
-        invalidateChannelComments: (state) => {
-            state.postComments = {} as ExtendedComments
-        },
-
     }
 })
 
@@ -444,8 +439,7 @@ export const {
     createChannelCommentReactionByCommentId,
     removeChannelCommentReaction,
     removeChannelCommentReactionByReactionId,
-    updateChannelCommentReactionId,
-    invalidateChannelComments
+    updateChannelCommentReactionId
 } = channelCommentSlice.actions
 
 export default channelCommentSlice;

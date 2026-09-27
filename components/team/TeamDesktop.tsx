@@ -1,9 +1,8 @@
 import { Pencil, Users } from "@/lib/icons";
 import {useDispatch} from "react-redux";
 import {useFetch} from "@/hooks/useFetch";
-import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {TeamInfoInterface, TeamInfoRawInterface} from "@/types/team";
+import {TeamInfoRawInterface} from "@/types/team";
 import {Button} from "@/components/ui/button";
 import {TeamProjectCard} from "@/components/team/TeamProjectCard";
 import {openUI} from "@/store/slice/uiSlice";

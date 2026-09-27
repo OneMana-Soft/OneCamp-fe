@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import { RotateCcw, Trash, Users } from "@/lib/icons"
 import {
     Drawer,

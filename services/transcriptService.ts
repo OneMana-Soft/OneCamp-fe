@@ -1,7 +1,7 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "./endPoints"
 
-export interface TranscriptLineInput {
+interface TranscriptLineInput {
     room_name: string
     text: string
     /** Milliseconds from recording start, when a recording is running. */

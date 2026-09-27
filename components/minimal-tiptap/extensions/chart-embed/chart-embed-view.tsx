@@ -25,4 +25,3 @@ export const ChartEmbedView: React.FC<NodeViewProps> = ({ node }) => {
   )
 }
 
-export default ChartEmbedView

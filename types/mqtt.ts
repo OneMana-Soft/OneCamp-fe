@@ -13,12 +13,6 @@ export interface MqttConnectionState {
     reconnectAttempts: number
 }
 
-export interface MqttMessage {
-    topic: string
-    payload: string
-    timestamp: number
-}
-
 export interface TypingTimeout {
     userId: string
     timer: NodeJS.Timeout

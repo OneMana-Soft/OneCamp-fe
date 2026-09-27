@@ -1,10 +1,8 @@
 "use client"
 import MembersList from "@/components/member/membersList";
 import {useFetch} from "@/hooks/useFetch";
-import {ChannelInfoInterfaceResp, ChannelMemberUpdateInterface} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
-import AddChannelMemberCombobox from "@/components/combobox/addChannelMemberCombobox";
 import {UserListInterfaceResp} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";

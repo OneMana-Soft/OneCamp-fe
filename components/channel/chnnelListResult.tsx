@@ -1,6 +1,5 @@
 import { ChannelInfoInterface } from "@/types/channel";
 import { ChannelListChannel } from "@/components/channel/channelListChannel";
-import * as React from "react";
 import { app_channel_path } from "@/types/paths";
 import Link from "next/link";
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll";

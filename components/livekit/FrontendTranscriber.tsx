@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocalParticipant, useRoomContext } from "@livekit/components-react";
-import { LocalParticipant, RoomEvent, Track } from "livekit-client";
+import { RoomEvent } from "livekit-client";
 import { useEffect, useRef, useState } from "react";
 import { useClientConfig } from "@/hooks/useClientConfig";
 import { persistTranscriptLine } from "@/services/transcriptService";

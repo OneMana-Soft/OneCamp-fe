@@ -10,7 +10,7 @@ import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import React, {useEffect, useState, useMemo} from "react";
+import {useEffect, useState} from "react";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 
 
@@ -20,7 +20,6 @@ import {
 
 } from "@/types/user";
 import { GrpChatNotificationInterface} from "@/types/chat";
-import {TypingIndicator} from "@/components/typingIndicator/typyingIndicaator";
 import {createOrUpdateGroupChatBody, clearGroupChatReplyTarget, LocallyCreatedGrpInfoInterface, ChatInputState} from "@/store/slice/groupChatSlice";
 import {GroupChatFileUpload} from "@/components/fileUpload/groupChatFileUpload";
 import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
@@ -31,16 +30,14 @@ import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
 import {addUserToUserChatList} from "@/store/slice/userSlice";
 import {AddUserInChatList, updateChatCallStatus} from "@/store/slice/chatSlice";
-import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {useRouter} from "next/navigation";
-import {app_grp_call, app_grp_chat_path, app_home_path} from "@/types/paths";
+import {app_grp_call} from "@/types/paths";
 import {usePublishTyping} from "@/hooks/usePublishTyping";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpInfoInterface
-const EMPTY_TYPING_LIST: any[] = []
 const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
 
 export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {

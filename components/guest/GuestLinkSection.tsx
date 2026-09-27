@@ -179,4 +179,3 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
   )
 }
 
-export default GuestLinkSection

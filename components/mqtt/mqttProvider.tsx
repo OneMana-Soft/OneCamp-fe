@@ -1,11 +1,11 @@
 "use client"
 
-import React, {useCallback, useMemo, useRef, useState} from "react"
+import React, {useCallback, useMemo, useRef} from "react"
 import { createContext, useContext, useEffect } from "react"
 import {useMqttConnection} from "@/hooks/useMqttConnection";
 import {useMqttMessageHandler} from "@/hooks/useMqttMessageHandler";
 import {useMessageSyncManager} from "@/hooks/useMessageSyncManager";
-import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
+import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {DynamicTopicManager, mqttConfigRes, MqttConnectionState, TopicSubscription} from "@/types/mqtt";

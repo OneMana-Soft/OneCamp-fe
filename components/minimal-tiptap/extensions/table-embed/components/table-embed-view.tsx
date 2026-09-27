@@ -125,4 +125,3 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
   )
 }
 
-export default TableEmbedView

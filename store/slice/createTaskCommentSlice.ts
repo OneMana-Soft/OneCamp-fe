@@ -1,4 +1,3 @@
-import {CancelTokenSource} from "axios";
 import {createSlice} from "@reduxjs/toolkit";
 import {FilePreview} from "@/store/slice/channelSlice";
 import {AttachmentMediaReq} from "@/types/attachment";
@@ -16,7 +15,7 @@ export interface TaskCommentInputState {
     filesPreview: FilePreview[]
 }
 
-export interface ExtendedTaskCommentInputState {
+interface ExtendedTaskCommentInputState {
     [key: string]:  TaskCommentInputState;
 }
 
@@ -434,11 +433,6 @@ export const createTaskCommentSlice = createSlice({
 
         },
 
-        // SYNC: Clear all loaded task comments to force API refetch after stale reconnection
-        invalidateTaskComments: (state) => {
-            state.taskComments = {} as ExtendedComments
-        },
-
 
     }
 });
@@ -463,7 +457,6 @@ export const {
     createTaskCommentReaction,
     createTaskCommentReactionByCommentId,
     removeTaskCommentReaction,
-    removeTaskCommentReactionByReactionId,
-    invalidateTaskComments
+    removeTaskCommentReactionByReactionId
 
 } =createTaskCommentSlice.actions

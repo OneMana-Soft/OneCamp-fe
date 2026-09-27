@@ -18,7 +18,7 @@ export interface ChartSeries {
 }
 
 /** The raw shape an agent emits inside a ```chart block (before validation). */
-export interface ChartSpecInput {
+interface ChartSpecInput {
     type?: string;
     title?: string;
     labels?: unknown[];

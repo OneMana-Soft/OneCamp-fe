@@ -1,5 +1,5 @@
 
-import React, {useState} from "react";
+import {useState} from "react";
 import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {useSelector} from "react-redux";
 import {RootState} from "@/store/store";

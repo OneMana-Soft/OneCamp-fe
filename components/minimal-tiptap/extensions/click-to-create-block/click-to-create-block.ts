@@ -1,6 +1,5 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { TextSelection } from '@tiptap/pm/state'
 
 /**
  * Notion-like click-to-create-block behavior for the doc editor.

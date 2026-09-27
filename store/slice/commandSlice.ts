@@ -8,7 +8,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit"
 import type { CommandResponse } from "@/types/command"
 
-export interface EphemeralCard {
+interface EphemeralCard {
     trigger_id: string
     surface_key: string // channel uuid or dm grouping id ("" for global)
     command: string // originating command name, needed for interaction round-trips
@@ -58,13 +58,8 @@ const commandSlice = createSlice({
             if (!list) return
             state.cards[surface_key] = list.filter((c) => c.trigger_id !== trigger_id)
         },
-        // Clear all cards for a surface (e.g. on conversation change).
-        clearSurface: (state, action: PayloadAction<{ surface_key: string }>) => {
-            delete state.cards[action.payload.surface_key]
-        },
     },
 })
 
-export const { upsertCard, dismissCard, clearSurface } = commandSlice.actions
+export const { upsertCard, dismissCard } = commandSlice.actions
 export { commandSlice }
-export default commandSlice.reducer

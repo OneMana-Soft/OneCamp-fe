@@ -52,70 +52,6 @@ export interface BoardListResponse {
     };
 }
 
-// AI diagram generation: the server returns a validated, laid-out graph that
-// the client renders as editable Excalidraw elements.
-export type BoardDiagramType =
-    | "auto"
-    | "flow"
-    | "roadmap"
-    | "journey"
-    | "mindmap"
-    | "orgchart"
-    | "wireframe"
-    | "ui-mobile"
-    | "ui-desktop";
-
-export interface BoardLaidNode {
-    id: string;
-    label: string;
-    shape: "rectangle" | "ellipse" | "diamond";
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    bgColor: string;
-}
-
-export interface BoardLaidEdge {
-    from: string;
-    to: string;
-    label?: string;
-}
-
-// UI mockup mode (ui-mobile / ui-desktop): a device frame + laid-out components.
-export interface BoardLaidFrame {
-    name: string;
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-}
-
-export interface BoardLaidComponent {
-    role: string; // device|navbar|bar|button|input|image|card|divider|avatar|text
-    variant?: string;
-    text?: string;
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-}
-
-export interface BoardGenerateResult {
-    title: string;
-    type: BoardDiagramType;
-    nodes: BoardLaidNode[];
-    edges: BoardLaidEdge[];
-    device?: string;
-    frames?: BoardLaidFrame[];
-    components?: BoardLaidComponent[];
-}
-
-export interface BoardGenerateResponse {
-    msg: string;
-    data: BoardGenerateResult;
-}
-
 // Board snapshot (version history). The blob lives in object storage; this is
 // the metadata surfaced in the version-history UI.
 export interface BoardSnapshotContributor {
@@ -148,10 +84,4 @@ export interface ResourceViewer {
     user_profile_object_key?: string;
     first_viewed_at: string;
     last_viewed_at: string;
-}
-
-export interface ResourceViewersResponse {
-    msg: string;
-    data: ResourceViewer[] | null;
-    count: number;
 }

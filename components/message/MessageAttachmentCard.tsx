@@ -1,4 +1,3 @@
-import { useState } from 'react'
 
 import {AttachmentMediaReq} from "@/types/attachment";
 import {ImageAttachmentCard} from "@/components/attachmentCard/imageAttachmentCard";
@@ -118,12 +117,4 @@ export function MessageAttachmentCard({ mediaGetURL, attachment, autoplay, class
     }
 
     return null
-}
-
-export function Accessory({ label }: { label: string }) {
-    return (
-        <div className='dark:bg-elevated rounded-md bg-black px-2 py-1 text-center font-mono text-2xs text-xs font-semibold text-white'>
-            {label}
-        </div>
-    )
 }

@@ -17,12 +17,12 @@ type ReactionCategoryType =
     | 'symbols'
     | 'flags'
 
-export interface StandardReactionSkin {
+interface StandardReactionSkin {
     unified: string
     native: string
 }
 
-export interface CustomReactionSkin {
+interface CustomReactionSkin {
     file_url: string
     created_at: string
 }

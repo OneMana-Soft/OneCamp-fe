@@ -39,12 +39,6 @@ export const CAPABILITY_META: Record<string, { label: string; description: strin
     },
 };
 
-// MyCapabilities returns the current user's capability → allowed map.
-export async function getMyCapabilities(): Promise<Record<string, boolean>> {
-    const res = await axiosInstance.get(GetEndpointUrl.MyCapabilities);
-    return (res.data?.data as Record<string, boolean>) || {};
-}
-
 // Admin: list all capability policies.
 export async function listCapabilityPolicies(): Promise<CapabilityPolicy[]> {
     const res = await axiosInstance.get(GetEndpointUrl.GetCapabilityPolicies);

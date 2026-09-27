@@ -1,7 +1,5 @@
 import Image from 'next/image'
 import {AttachmentMediaReq} from "@/types/attachment";
-import {useMediaFetch} from "@/hooks/useFetch";
-import {GetMediaURLRes} from "@/types/file";
 import {cn} from "@/lib/utils/helpers/cn";
 
 

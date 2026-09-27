@@ -53,25 +53,3 @@ export async function setWorkerUserUUID(uuid: string): Promise<void> {
     console.error('[workerCommunication] Failed to store userUUID:', error);
   }
 }
-
-/**
- * Optional helper for foreground reading if ever needed.
- */
-export async function getWorkerUserUUID(): Promise<string | null> {
-  try {
-    const db = await initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get('userUUID');
-
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = (e) => reject((e.target as IDBRequest).error);
-      
-      transaction.oncomplete = () => db.close();
-    });
-  } catch (error) {
-    console.error('[workerCommunication] Failed to read userUUID:', error);
-    return null;
-  }
-}

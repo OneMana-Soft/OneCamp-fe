@@ -1,5 +1,5 @@
 import {ChannelInfoInterface} from "@/types/channel";
-import {UserDMInterface, UserInfoRawInterface, UserProfileDataInterface} from "@/types/user";
+import {UserDMInterface, UserProfileDataInterface} from "@/types/user";
 
 export interface RecordingInfoInterface {
     recording_egress_id: string;

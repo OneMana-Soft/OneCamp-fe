@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import {UserDMInterface, UserEmojiStatus, UserProfileDataInterface, UserStatus} from "@/types/user";
+import {UserDMInterface, UserEmojiStatus, UserProfileDataInterface} from "@/types/user";
 import {ChannelInfoInterface} from "@/types/channel";
 import {TeamInfoInterface} from "@/types/team";
 import {ProjectInfoInterface} from "@/types/project";
@@ -141,7 +141,7 @@ const initialState = {
   } as UserSidebarInterface
 };
 
-export const userSlice = createSlice({
+const userSlice = createSlice({
   name: "users",
   initialState,
   reducers: {
@@ -472,16 +472,6 @@ export const userSlice = createSlice({
       state.userSidebar.userDocs = [{...existing, doc_title}, ...rest];
     },
 
-    // removeUserDoc drops a doc from the sidebar (e.g. on delete).
-    removeUserDoc: (state, action: {payload: {doc_uuid: string}}) => {
-      if (!state.userSidebar.userDocs) {
-        return;
-      }
-      state.userSidebar.userDocs = state.userSidebar.userDocs.filter(
-        (d) => d.doc_uuid !== action.payload.doc_uuid,
-      );
-    },
-
     createUserBoardList: (state, action: {payload: CreateUserBoardsInterface}) => {
       const {boardUsers} = action.payload;
       state.userSidebar.userBoards = boardUsers;
@@ -644,7 +634,6 @@ export const {
   createUserDocList,
   addUserDoc,
   updateUserDocTitle,
-  removeUserDoc,
   createUserBoardList,
   addUserBoard,
   updateUserBoardTitle,

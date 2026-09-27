@@ -11,8 +11,6 @@ import type {RootState} from "@/store/store";
 import {useEffect} from "react";
 import {CreateChatPaginationResRaw} from "@/types/chat";
 import {updateChats} from "@/store/slice/chatSlice";
-import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
-import {app_chat_path} from "@/types/paths";
 
 
 export default function Page() {

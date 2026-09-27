@@ -5,7 +5,7 @@ import {VList, VListHandle} from "virtua"
 import { cn } from "@/lib/utils/helpers/cn"
 import {debounceUtil} from "@/lib/utils/helpers/debounce";
 
-export interface VirtualInfiniteScrollProps<T> {
+interface VirtualInfiniteScrollProps<T> {
     /**
      * Array of items to render
      */

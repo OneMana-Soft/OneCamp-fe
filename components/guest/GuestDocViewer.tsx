@@ -12,7 +12,6 @@
  * exactly what members see — no second, divergent renderer to maintain.
  */
 
-import * as React from "react"
 import "@/components/minimal-tiptap/styles/index.css"
 import { EditorContent } from "@tiptap/react"
 import { useMinimalTiptapEditor } from "@/components/minimal-tiptap/hooks/use-minimal-tiptap"
@@ -63,4 +62,3 @@ export function GuestDocViewer({ documentName, tokenFetcher }: GuestDocViewerPro
   )
 }
 
-export default GuestDocViewer

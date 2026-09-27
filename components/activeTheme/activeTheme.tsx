@@ -34,7 +34,7 @@ export const VALID_COLOR_THEMES = [
   "stone",
 ] as const
 
-export type ColorTheme = (typeof VALID_COLOR_THEMES)[number]
+type ColorTheme = (typeof VALID_COLOR_THEMES)[number]
 
 export function isValidColorTheme(theme: string): theme is ColorTheme {
   return VALID_COLOR_THEMES.includes(theme as ColorTheme)

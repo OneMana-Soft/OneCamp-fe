@@ -82,4 +82,3 @@ export const SafeHtml: React.FC<SafeHtmlProps> = ({
     })
 }
 
-export default SafeHtml

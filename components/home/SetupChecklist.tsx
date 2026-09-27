@@ -65,7 +65,7 @@ interface Props {
     isAdmin: boolean | undefined
 }
 
-export const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
+const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
     const [state, setState] = useState<OnboardingState | null>(null)
     // Hidden optimistically on dismiss so the card goes away on click rather than
     // after a round trip. The write is fire-and-forget precisely because it is

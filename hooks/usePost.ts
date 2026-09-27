@@ -3,7 +3,7 @@
 import React, { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints"
+import { PostEndpointUrl } from "@/services/endPoints"
 import type { GenericResponse } from "@/types/genericRes"
 
 import type { AxiosError } from "axios"

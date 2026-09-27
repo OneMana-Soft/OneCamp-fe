@@ -64,7 +64,7 @@ function describe(config: PushConfig | null): { label: string; tone: string; det
     }
 }
 
-export const PushNotificationsCard: React.FC = () => {
+const PushNotificationsCard: React.FC = () => {
     const [config, setConfig] = useState<PushConfig | null>(null)
     const [draft, setDraft] = useState("")
     const [saving, setSaving] = useState(false)

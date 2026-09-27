@@ -1,5 +1,5 @@
 import { FileText, FileSpreadsheet, FileCode, FileImage } from "@/lib/icons";
-import { Presentation, FileBox, FileArchive } from "@/lib/icons";
+import { Presentation } from "@/lib/icons";
 
 import {
     FileAiIcon,

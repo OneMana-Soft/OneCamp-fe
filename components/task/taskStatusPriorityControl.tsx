@@ -6,16 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils/helpers/cn"
 import {priorities, prioritiesInterface, taskStatuses} from "@/types/table";
 import {TaskStatusCell} from "@/components/task/taskStatusCell";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
-
-export type Option = {
-    value: string
-    label: string
-    icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
-}
 
 type StatusPriorityControlsProps = {
     isAdmin: boolean

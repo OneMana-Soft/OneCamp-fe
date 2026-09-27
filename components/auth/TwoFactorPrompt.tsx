@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Loader2, ShieldCheck } from "@/lib/icons"
@@ -17,7 +17,7 @@ import { TwoFactorCodeField } from "@/components/auth/TwoFactorCodeField"
  * Entry rules — digits-only, the base32 recovery alphabet, and auto-submit on the sixth digit — live in
  * TwoFactorCodeField, shared with the two settings screens that also take a code.
  */
-export interface TwoFactorPromptProps {
+interface TwoFactorPromptProps {
     /** Called with whatever the user entered. Returns the failure to show, or null on success. */
     onSubmit: (code: string) => Promise<{ msg: string; expired: boolean } | null>
     /** Returns to the password step, for an expired challenge or a change of mind. */

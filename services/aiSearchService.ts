@@ -42,7 +42,7 @@ export interface UnifiedSearchGroup {
   note?: string
 }
 
-export interface UnifiedSearchResponse {
+interface UnifiedSearchResponse {
   enabled: boolean
   query: string
   groups: UnifiedSearchGroup[]
@@ -70,59 +70,4 @@ export function isAbortedRequest(err: unknown): boolean {
   if (!err || typeof err !== "object") return false
   const e = err as { code?: string; name?: string; message?: string }
   return e.code === "ERR_CANCELED" || e.name === "AbortError" || e.name === "CanceledError"
-}
-
-/**
- * A grounded, cited AI answer synthesized over the same unified-search corpus.
- * Each citation is a real, permission-scoped hit the caller can click through
- * to (workspace routing fields, or an external url). Marker [n] in `answer`
- * maps to the citation with `index === n`.
- */
-export interface SearchCitation {
-  index: number
-  source: UnifiedSource
-  title: string
-  snippet?: string
-  meta?: string
-  url?: string
-  kind?: string
-
-  content_type?: string
-  content_uuid?: string
-  channel_uuid?: string
-  channel_name?: string
-  project_uuid?: string
-  chat_grp_id?: string
-  chat_by_user_id?: string
-  chat_to_user_id?: string
-  post_uuid?: string
-  task_uuid?: string
-  doc_uuid?: string
-}
-
-export interface UnifiedAnswerResponse {
-  enabled: boolean
-  query: string
-  answer: string
-  citations: SearchCitation[]
-  note?: string
-  /**
-   * Set when the retrieved material was shortened to fit the model's context window, so
-   * the reader knows the answer covers part of what the search found. Distinct from
-   * `note`, which explains why there is no answer at all.
-   */
-  notice?: string
-  provider?: string
-}
-
-export async function unifiedSearchAnswer(query: string, signal?: AbortSignal): Promise<UnifiedAnswerResponse> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearchAnswer, { query }, { signal })
-  return (
-    res.data?.data ?? {
-      enabled: false,
-      query,
-      answer: "",
-      citations: [],
-    }
-  )
 }
