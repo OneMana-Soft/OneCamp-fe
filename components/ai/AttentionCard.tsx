@@ -38,7 +38,10 @@ import { withAI } from "@/components/common/withFeature"
 import { Skeleton } from "@/components/ui/skeleton"
 import { dueLabel } from "@/lib/utils/dueLabel"
 
-// Per-source icon + tint so each row's origin is recognizable at a glance.
+// Per-source icon so each row's origin is recognisable at a glance. The icon
+// does that alone; colour is kept for the one row type that waits on you (an
+// approval). Every task used to carry a red icon whether or not it was late,
+// which read as an error; lateness is said in words, in red, on the row itself.
 const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   approval: Inbox,
   task: CircleCheck,
@@ -47,11 +50,7 @@ const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> =
   calendar: Calendar,
 }
 const SOURCE_TINT: Record<string, string> = {
-  approval: "text-violet-600 dark:text-violet-400",
-  task: "text-destructive",
-  commitment: "text-info",
-  question: "text-warning",
-  calendar: "text-success",
+  approval: "text-brand",
 }
 
 function AttentionCard() {
@@ -162,12 +161,10 @@ function AttentionCard() {
   }
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card/40 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
-        <div className="bg-primary/10 p-1 rounded-md">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-        </div>
-        <h2 className="text-sm font-semibold tracking-tight">What needs me now</h2>
+    <div className="ai-panel">
+      <div className="ai-panel-head">
+        <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
+        <h2 className="text-sm font-medium text-foreground">What needs me now</h2>
         <span className="text-xs text-muted-foreground">{items.length}</span>
       </div>
 
@@ -266,12 +263,10 @@ export default withAI(AttentionCard)
 
 function AttentionCardSkeleton() {
   return (
-    <div className="rounded-xl border border-border/60 bg-card/40 overflow-hidden" role="status" aria-label="Loading what needs you">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
-        <div className="bg-primary/10 p-1 rounded-md">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-        </div>
-        <h2 className="text-sm font-semibold tracking-tight">What needs me now</h2>
+    <div className="ai-panel" role="status" aria-label="Loading what needs you">
+      <div className="ai-panel-head">
+        <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
+        <h2 className="text-sm font-medium text-foreground">What needs me now</h2>
       </div>
       <div className="flex items-start gap-2.5 px-4 py-2.5">
         <Skeleton className="h-4 w-4 mt-0.5 rounded-full" />

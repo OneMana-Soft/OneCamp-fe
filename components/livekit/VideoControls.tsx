@@ -196,12 +196,12 @@ export function VideoControls({
             label={isAIOpen ? "Hide AI Assistant" : "Ask AI"}
             onClick={onToggleAI}
             isActive={isAIOpen}
-            activeClass="bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 border-violet-500/50"
+            activeClass="bg-brand/20 text-brand hover:bg-brand/30 border-brand/50"
         >
             <Sparkles className="h-5 w-5" />
         </ControlBtn>
         {!isAIOpen && (aiUnreadCount ?? 0) > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-violet-500 text-white text-3xs font-bold leading-none shadow ring-2 ring-black/40 pointer-events-none">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-brand text-white text-3xs font-bold leading-none shadow ring-2 ring-black/40 pointer-events-none">
                 {(aiUnreadCount ?? 0) > 9 ? "9+" : aiUnreadCount}
             </span>
         )}

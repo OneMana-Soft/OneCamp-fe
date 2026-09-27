@@ -71,7 +71,7 @@ export function LinkedFromSection({ refType, refUUID, className }: LinkedFromSec
             key={`project-${p.project_uuid}`}
             type="button"
             onClick={() => router.push(`/app/project/${p.project_uuid}`)}
-            className="inline-flex max-w-[14rem] items-center gap-1.5 rounded-md bg-violet-500/10 px-2 py-1 text-xs font-medium text-violet-600 transition-colors hover:bg-violet-500/20 dark:text-violet-400"
+            className="inline-flex max-w-[14rem] items-center gap-1.5 rounded-md bg-brand/10 px-2 py-1 text-xs font-medium text-brand transition-colors hover:bg-brand/20"
           >
             <FolderKanban className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{p.project_name || "Untitled project"}</span>

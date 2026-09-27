@@ -77,22 +77,12 @@ export function referenceIcon(refType: ReferenceType): LucideIcon {
   }
 }
 
-// Tailwind accent per type so chips are colour-coded but calm (Notion-like).
-export function referenceAccentClass(refType: ReferenceType): string {
-  switch (refType) {
-    case "channel":
-      return "bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 dark:text-orange-400"
-    case "doc":
-      return "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
-    case "board":
-      return "bg-sky-500/10 text-sky-600 hover:bg-sky-500/20 dark:text-sky-400"
-    case "task":
-      return "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 dark:text-blue-400"
-    case "project":
-      return "bg-violet-500/10 text-violet-600 hover:bg-violet-500/20 dark:text-violet-400"
-    default:
-      return "bg-primary/10 text-primary hover:bg-primary/20"
-  }
+// One chip for every type. They were colour-coded (orange channels, emerald
+// docs, sky boards, blue tasks, violet projects), so a message citing three
+// things read as a rainbow; the icon beside the label already says which kind
+// it is. The accent stays reserved for what is new or needs you (DESIGN.md).
+export function referenceAccentClass(_refType: ReferenceType): string {
+  return "bg-foreground/[0.05] text-foreground hover:bg-foreground/[0.09] [&_svg]:text-muted-foreground"
 }
 
 export function referenceTypeLabel(refType: ReferenceType): string {

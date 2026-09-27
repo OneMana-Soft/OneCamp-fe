@@ -167,14 +167,12 @@ function WhileYouWereAwayCard({
 
   return (
     <section
-      className="rounded-xl border border-border/60 bg-card/40 overflow-hidden"
+      className="ai-panel"
       aria-labelledby="away-recap-heading"
     >
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
-        <div className="bg-primary/10 p-1 rounded-md">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-        </div>
-        <h2 id="away-recap-heading" className="text-sm font-semibold tracking-tight">
+      <div className="ai-panel-head">
+        <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
+        <h2 id="away-recap-heading" className="text-sm font-medium text-foreground">
           While you were away
         </h2>
         <Button

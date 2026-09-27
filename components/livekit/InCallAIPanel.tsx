@@ -85,8 +85,8 @@ export function InCallAIPanel({
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
                 <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-gradient-to-br from-violet-500 to-blue-500">
-                        <Sparkles className="h-4 w-4 text-white" />
+                    <div className="flex items-center justify-center h-7 w-7 rounded-lg bg-brand text-brand-foreground">
+                        <Sparkles className="h-4 w-4" />
                     </div>
                     <div>
                         <p className="text-sm font-semibold leading-tight">Call Assistant</p>
@@ -134,7 +134,7 @@ export function InCallAIPanel({
                 {!statusLoading && aiEnabled && items.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-2">
                         <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-white/5">
-                            <Sparkles className="h-6 w-6 text-violet-400" />
+                            <Sparkles className="h-6 w-6 text-brand" />
                         </div>
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-white/90">Ask about the call</p>

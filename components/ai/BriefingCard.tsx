@@ -56,22 +56,12 @@ const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   commitment: CheckCircle2,
   question: HelpCircle,
 }
-const KIND_TINT: Record<string, string> = {
-  decision: "text-violet-600 dark:text-violet-400",
-  commitment: "text-info",
-  question: "text-warning",
-}
 
-// Per-source icon + tint for the cross-connector "Your day" agenda.
+// Per-source icon for the cross-connector "Your day" agenda; monochrome, the icon names the source.
 const DAY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   calendar: Calendar,
   github: Github,
   gmail: Mail,
-}
-const DAY_TINT: Record<string, string> = {
-  calendar: "text-info",
-  github: "text-foreground/70",
-  gmail: "text-destructive",
 }
 
 function isOverdue(due?: string): boolean {
@@ -191,16 +181,14 @@ function BriefingCard() {
   }
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card/40 overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
-        <div className="bg-primary/10 p-1 rounded-md">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-        </div>
-        <h2 className="text-sm font-semibold tracking-tight">Your briefing</h2>
+    <div className="ai-panel">
+      <div className="ai-panel-head">
+        <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
+        <h2 className="text-sm font-medium text-foreground">Your briefing</h2>
         <button
           type="button"
           onClick={() => router.push("/app/ai/memory")}
-          className="ml-auto text-xs text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
+          className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
         >
           Open memory <ArrowUpRight className="h-3 w-3" />
         </button>
@@ -210,13 +198,13 @@ function BriefingCard() {
           only when the user has linked connectors and there's something today. */}
       {dayItems.length > 0 && (
         <div className="px-4 py-3 border-b border-border/50 bg-muted/20">
-          <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-2">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
             Your day
           </p>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
             {dayItems.map((d: BriefingDayItem, i: number) => {
               const Icon = DAY_ICON[d.source] || Sparkles
-              const tint = DAY_TINT[d.source] || "text-muted-foreground"
+              const tint = "text-muted-foreground"
               const row = (
                 <span className="w-full text-left flex items-start gap-2 rounded-md px-2 py-1.5 -mx-2 hover:bg-accent/40 transition-colors">
                   <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${tint}`} />
@@ -250,7 +238,7 @@ function BriefingCard() {
             so an empty column never leaves dead space on the dashboard. */}
         {hasOpenItems && (
           <div className="p-4">
-            <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-2">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
               Your open items
             </p>
             <ul className="space-y-1">
@@ -264,7 +252,7 @@ function BriefingCard() {
                       onClick={() => router.push(openHref(it))}
                       className="w-full text-left flex items-start gap-2 rounded-md px-2 py-1.5 -mx-2 hover:bg-accent/40 transition-colors"
                     >
-                      <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${KIND_TINT[it.kind] || "text-muted-foreground"}`} />
+                      <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground`} />
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm leading-snug truncate">{it.content}</span>
                         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
@@ -297,7 +285,7 @@ function BriefingCard() {
         {/* Recent highlights — only rendered when there's something new. */}
         {hasHighlights && (
           <div className="p-4">
-            <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-2">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
               Recent highlights
             </p>
             <ul className="space-y-1">
@@ -310,7 +298,7 @@ function BriefingCard() {
                       onClick={() => router.push(highlightHref(h))}
                       className="w-full text-left flex items-start gap-2 rounded-md px-2 py-1.5 -mx-2 hover:bg-accent/40 transition-colors"
                     >
-                      <HighlightIcon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-primary/60" />
+                      <HighlightIcon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm leading-snug truncate">{h.snippet}</span>
                         <span className="text-2xs text-muted-foreground">

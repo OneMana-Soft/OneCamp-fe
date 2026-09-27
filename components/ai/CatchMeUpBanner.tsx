@@ -117,7 +117,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
         <div
             className={cn(
                 "mx-4 my-2 px-3.5 py-3 rounded-xl",
-                "bg-muted/50 border border-border/60",
+                "border border-border/60 bg-background",
                 "relative z-10 animate-in fade-in slide-in-from-top-2 duration-200",
             )}
             role="region"
@@ -125,9 +125,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
         >
             {state === "idle" && (
                 <div className="flex items-center gap-3 flex-wrap">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
-                        <Sparkles className="h-4 w-4" />
-                    </div>
+                    <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
                     <div className="flex-1 text-sm text-muted-foreground min-w-0">
                         <span className="font-semibold text-foreground">
                             {unreadCount} unread messages
@@ -162,14 +160,12 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
             {state === "loading" && (
                 <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
-                            <Sparkles className="h-4 w-4 animate-pulse" />
-                        </div>
+                        <Sparkles className="h-4 w-4 shrink-0 text-brand animate-pulse" strokeWidth={1.75} aria-hidden="true" />
                         <span className="flex-1 text-sm text-muted-foreground">
                             Reading {unreadCount} messages…
                         </span>
                     </div>
-                    <div className="flex flex-col gap-2 pl-11">
+                    <div className="flex flex-col gap-2 pl-7">
                         <Skeleton className="h-3 w-[90%]" />
                         <Skeleton className="h-3 w-[75%]" />
                         <Skeleton className="h-3 w-[60%]" />
@@ -180,9 +176,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
             {state === "summary" && (
                 <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400">
-                            <Sparkles className="h-4 w-4" />
-                        </div>
+                        <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
                         <span className="flex-1 text-sm font-semibold text-foreground truncate">
                             AI summary: {subjectLabel}
                         </span>

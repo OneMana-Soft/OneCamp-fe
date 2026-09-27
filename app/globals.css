@@ -910,3 +910,21 @@ html[data-media-collapsed="true"] [data-message-media] {
     color: var(--foreground);
   }
 }
+
+@layer components {
+  /* What OneCamp AI assembled for you: one hairline panel, a glyph in the
+     accent and a plain title. It replaced four hand-copied shells, each with a
+     tinted icon chip and a ruled header band, which made AI read as a widget
+     bolted onto the page. */
+  .ai-panel {
+    border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+    border-radius: calc(var(--radius) + 4px);
+    overflow: hidden;
+  }
+  .ai-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1rem 0.375rem;
+  }
+}
