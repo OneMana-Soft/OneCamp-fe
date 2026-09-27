@@ -80,11 +80,12 @@ export function mcpCurlExample(
 }
 
 /**
- * How to connect each agent people actually use, by URL and sign-in.
+ * How to connect an agent, by URL and sign-in. Model-agnostic on purpose:
+ * the first recipe is any MCP client on any model (local Ollama included),
+ * and the named ones are the clients people ask about most.
  *
- * Since the server speaks OAuth, none of these needs a token: the client
- * signs the person in, and they approve it in OneCamp as an agent they
- * sponsor. Menu paths checked against each vendor's own documentation in
+ * Since the server speaks OAuth, a client that can sign in needs no token:
+ * the person approves it in OneCamp as an agent they sponsor. Menu paths checked against each vendor's own documentation in
  * September 2026; kept here, next to the URL they use, so a changed path is
  * one edit.
  */
@@ -99,6 +100,26 @@ interface MCPConnectRecipe {
 export function mcpConnectRecipes(base?: string): MCPConnectRecipe[] {
   const url = mcpEndpointUrl(base)
   return [
+    {
+      id: "any",
+      name: "Any MCP client",
+      steps: [
+        "OneCamp works with any agent that speaks MCP, on any model: a local one on Ollama or LM Studio, OpenAI, Anthropic, or your own. Point it at the address below.",
+        "If the client can sign in (OAuth), it opens OneCamp to approve it as an agent you sponsor. If it can only send a header, make a token in Settings, API tokens, bind it to an agent, and send it as Authorization: Bearer.",
+        "Open-source clients that work this way include Open WebUI, goose and ollmcp.",
+      ],
+      snippet: url,
+    },
+    {
+      id: "open-webui",
+      name: "Open WebUI (Ollama)",
+      steps: [
+        "In Settings, Admin, Integrations, under External Tool Servers, choose + Add Connection.",
+        "Set Type to MCP (Streamable HTTP), paste the address below, and pick OAuth 2.1. Save, then choose Authorize OAuth and approve it in OneCamp.",
+        "Set WEBUI_SECRET_KEY on the Open WebUI container first, or the sign-in is lost on every restart.",
+      ],
+      snippet: url,
+    },
     {
       id: "claude",
       name: "Claude & Cowork",

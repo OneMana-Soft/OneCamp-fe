@@ -269,7 +269,7 @@ const ApiTokensCard = () => {
               {mcpEndpoint && (
                 <details className="rounded-lg border border-border/60 bg-muted/20">
                   <summary className="cursor-pointer px-3 py-2 text-xs font-medium">
-                    Use this token with an MCP client (Claude, Cursor, …)
+                    Use this token with any MCP client (Open WebUI, goose, Cursor, Claude, …)
                   </summary>
                   <div className="space-y-2 px-3 pb-3">
                     <CopyableCode

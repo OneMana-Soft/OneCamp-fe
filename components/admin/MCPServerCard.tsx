@@ -211,8 +211,8 @@ function MCPServerCard() {
                     ) : null}
                 </CardTitle>
                 <CardDescription>
-                    Let outside agents (Claude, Cowork, ChatGPT, Grok Bot, Cursor, your own) work in
-                    this workspace over the Model Context Protocol. They sign in by URL, and every
+                    Let outside agents work in this workspace over the Model Context Protocol: any
+                    MCP client on any model, from a local one on Ollama to Claude, ChatGPT or Grok Bot. They sign in by URL, and every
                     call runs as the person who approved it, so an agent can never reach something its owner
                     couldn&apos;t open themselves, and every call is recorded in the audit log
                     whether it succeeded or was refused. Most tools are additionally re-checked

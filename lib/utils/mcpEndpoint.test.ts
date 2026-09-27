@@ -110,10 +110,21 @@ describe("connect recipes", () => {
   it("every recipe uses this instance's address, and none asks for a token", async () => {
     const { mcpConnectRecipes } = await import("@/lib/utils/mcpEndpoint")
     const recipes = mcpConnectRecipes("https://api.acme.test/")
-    expect(recipes.map((r) => r.id)).toEqual(["claude", "chatgpt", "grok", "claude-code", "cursor"])
+    expect(recipes.map((r) => r.id)).toEqual(["any", "open-webui", "claude", "chatgpt", "grok", "claude-code", "cursor"])
     for (const r of recipes) {
       expect(r.snippet).toContain("https://api.acme.test/v1/mcp")
-      expect(JSON.stringify(r)).not.toMatch(/oc_|Bearer/)
+      // Only the generic recipe may mention a token, for clients that cannot sign in.
+      if (r.id !== "any") expect(JSON.stringify(r)).not.toMatch(/oc_|Bearer/)
     }
+  })
+})
+
+describe("the connect guide is not tied to one vendor", () => {
+  it("leads with any MCP client and names a local-model option", async () => {
+    const { mcpConnectRecipes } = await import("@/lib/utils/mcpEndpoint")
+    const recipes = mcpConnectRecipes("https://api.acme.test/")
+    expect(recipes[0].id).toBe("any")
+    expect(JSON.stringify(recipes[0])).toMatch(/Ollama/)
+    expect(recipes.some((r) => /Ollama/.test(r.name))).toBe(true)
   })
 })
