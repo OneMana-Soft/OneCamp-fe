@@ -495,13 +495,15 @@ export const BaseMessageCard = React.memo(({
             />
           )}
 
-          {message.comments && message.commentCount && (
+          {/* Both conditions must be booleans: `comments && commentCount` rendered a
+              literal "0" under a message whose first reply had not arrived yet. */}
+          {(message.comments?.length ?? 0) > 0 && (message.commentCount ?? 0) > 0 && (
             <div className="mt-1.5">
               <MessageReplyCount
                 openDesktopThread={handleOpenThread}
                 replyCount={message.commentCount}
-                lastCommentCreatedAt={message.comments[message.comments.length - 1].comment_created_at}
-                participants={message.comments
+                lastCommentCreatedAt={message.comments![message.comments!.length - 1].comment_created_at}
+                participants={message.comments!
                   .slice()
                   .reverse()
                   .map((c) => ({
