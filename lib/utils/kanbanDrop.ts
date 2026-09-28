@@ -1,5 +1,3 @@
-import { arrayMove } from "@dnd-kit/sortable"
-
 type Card = { task_uuid: string }
 type Columns<T extends Card> = Record<string | number, T[]>
 
@@ -12,48 +10,48 @@ export interface SettledDrop<T extends Card> {
   after: string
 }
 
-/**
- * Where a dragged card lands when it is let go.
- *
- * During the drag, a card that crosses into another column is already moved
- * there (onDragOver). Reordering inside one column is left to the drop, as in
- * dnd-kit's own multi-column example: moving the array while the sortable
- * strategy is also animating the cards made them jitter, and the card could
- * land one place away from where it was let go.
- *
- * overId is a card or a column. Returns null when the drop does not place the
- * card anywhere (it is in no column, or the drop target is unknown).
- */
-export function settleDrop<T extends Card>(items: Columns<T>, activeId: string, overId: string | number): SettledDrop<T> | null {
-  const columnOf = (id: string | number) =>
-    id in items ? String(id) : Object.keys(items).find((k) => items[k].some((t) => t.task_uuid === id))
-
-  const column = columnOf(overId)
-  if (!column || columnOf(activeId) !== column) return null
-
-  let cards = items[column]
-  const from = cards.findIndex((t) => t.task_uuid === activeId)
-  const to = overId in items ? from : cards.findIndex((t) => t.task_uuid === overId)
-  let next = items
-  if (to >= 0 && to !== from) {
-    cards = arrayMove(cards, from, to)
-    next = { ...items, [column]: cards }
-  }
-  const index = cards.findIndex((t) => t.task_uuid === activeId)
-  return {
-    items: next,
-    column,
-    index,
-    before: cards[index - 1]?.task_uuid ?? "",
-    after: cards[index + 1]?.task_uuid ?? "",
-  }
-}
-
-/** Whether a settled drop changed anything compared with where the drag began. */
+/** Whether a drop changed anything compared with where the drag began: a card
+ * let go where it started sends nothing to the server. */
 export function dropMovedCard<T extends Card>(start: Columns<T> | null, drop: SettledDrop<T>, activeId: string): boolean {
   if (!start) return true
   const startColumn = Object.keys(start).find((k) => start[k].some((t) => t.task_uuid === activeId))
   if (startColumn !== drop.column) return true
   const before = start[startColumn][start[startColumn].findIndex((t) => t.task_uuid === activeId) - 1]?.task_uuid ?? ""
   return before !== drop.before
+}
+
+/**
+ * Put a card at a position in a column, the other cards keeping their order.
+ * index counts the column's cards without the moved one, so "before the first
+ * card" is 0 and "after the last" is the column's length. Returns null when
+ * the card is not on the board or the column is unknown.
+ */
+export function placeCard<T extends Card>(items: Columns<T>, cardId: string, column: string, index: number): SettledDrop<T> | null {
+  if (!(column in items)) return null
+  const from = Object.keys(items).find((k) => items[k].some((t) => t.task_uuid === cardId))
+  if (!from) return null
+  const card = items[from].find((t) => t.task_uuid === cardId)!
+  const next: Columns<T> = { ...items, [from]: items[from].filter((t) => t.task_uuid !== cardId) }
+  const target = next[column]
+  const at = Math.max(0, Math.min(index, target.length))
+  const placed = [...target.slice(0, at), card, ...target.slice(at)]
+  next[column] = placed
+  return {
+    items: next,
+    column,
+    index: at,
+    before: placed[at - 1]?.task_uuid ?? "",
+    after: placed[at + 1]?.task_uuid ?? "",
+  }
+}
+
+/**
+ * Where a card being dragged would land in a column: the index among the
+ * column's other cards, from the pointer's height against each card's middle.
+ * mids are the vertical middles of those cards, top to bottom.
+ */
+export function insertionIndex(mids: number[], pointerY: number): number {
+  let i = 0
+  while (i < mids.length && pointerY > mids[i]) i++
+  return i
 }

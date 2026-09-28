@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect } from "react"
+import React from "react"
 import type { DraggableSyntheticListeners } from "@dnd-kit/core"
 import type { Transform } from "@dnd-kit/utilities"
 
@@ -68,6 +68,149 @@ function formatDueShort(d: Date): string {
 }
 
 /**
+ * The card's content, drawn from the task alone.
+ *
+ * While a card is dragged, dnd-kit re-renders every sortable card on every
+ * pointer move so it can hand each one its new transform. The card used to
+ * rebuild everything each time (avatar, GitHub badges, date formatting,
+ * stripping the description's HTML), and on an ordinary laptop that stalled
+ * frames for up to 180ms with five cards on the board. Memoised on the task,
+ * a pointer move now only moves the cards.
+ */
+const TaskCardBody = React.memo(function TaskCardBody({ task }: { task: TaskInfoInterface }) {
+    const dispatch = useDispatch()
+    const taskP = priorities.find((p) => p.value == task.task_priority)
+    const dueDate = !isZeroEpoch(task.task_due_date) ? new Date(task.task_due_date) : null
+    const isOverdue = dueDate && dueDate < new Date() && task.task_status !== "done"
+    const descPreview = task.task_description ? removeHtmlTags(task.task_description) : ""
+    const hasMetaRow = Boolean(task.task_project) || Boolean(task.task_label)
+    const openTask = () => {
+        dispatch(
+            openRightPanel({
+                chatMessageUUID: "",
+                chatUUID: "",
+                channelUUID: "",
+                postUUID: "",
+                taskUUID: task.task_uuid,
+                groupUUID: "",
+                docUUID: "",
+            }),
+        )
+    }
+
+    return (
+        <>
+            {/* Optional meta row — project + label */}
+            {hasMetaRow && (
+                <div className="flex items-center gap-2 min-w-0 text-2xs text-muted-foreground">
+                    {task.task_project && (
+                        <span className="inline-flex items-center gap-1 min-w-0 max-w-[60%]">
+                            <ColorIcon name={task.task_project.project_uuid} size="xs" />
+                            <span className="truncate">{task.task_project.project_name}</span>
+                        </span>
+                    )}
+                    {task.task_label && (
+                        <Badge
+                            variant="secondary"
+                            className="text-3xs h-4 px-1.5 font-medium uppercase tracking-wide truncate max-w-[40%]"
+                        >
+                            {task.task_label}
+                        </Badge>
+                    )}
+                </div>
+            )}
+
+            {/* Title row — title fills width, with an explicit open
+                affordance on the right (always visible on touch,
+                fades in on hover for desktop). The button stops
+                pointer events so it cannot start a drag. */}
+            <div className="flex items-start gap-2 min-w-0">
+                <div className="text-sm font-medium text-foreground leading-snug line-clamp-3 flex-1 min-w-0">
+                    {task.task_name}
+                </div>
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    className={cn(
+                        "h-6 w-6 -mr-1 -mt-0.5 shrink-0 text-muted-foreground hover:text-foreground",
+                        "md:opacity-0 pointer-events-none md:group-hover:opacity-100 group-hover:pointer-events-auto md:focus-visible:opacity-100 transition-opacity",
+                    )}
+                    aria-label="Open task"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        openTask()
+                    }}
+                >
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                </Button>
+            </div>
+
+            {/* Description preview */}
+            {descPreview && (
+                <div className="text-xs text-muted-foreground line-clamp-2 leading-snug">
+                    {descPreview}
+                </div>
+            )}
+
+            {/* Footer */}
+            <div className="flex items-center gap-2 mt-1 min-w-0">
+                {/* Assignee on the left, fixed slot — keeps the avatar in the same place across cards. */}
+                <div className="shrink-0">
+                    {task.task_assignee ? (
+                        <TaskAssigneeCell userInfo={task.task_assignee} avatarOnly />
+                    ) : (
+                        <span className="block h-6 w-6" />
+                    )}
+                </div>
+
+                {/* Meta cluster on the right, allowed to wrap. */}
+                <div className="ml-auto flex items-center justify-end flex-wrap gap-x-2 gap-y-1 text-2xs text-muted-foreground min-w-0">
+                    {taskP && (
+                        <span
+                            className={cn(
+                                "inline-flex items-center gap-1 h-5 px-1.5 rounded text-3xs font-medium",
+                                taskP.color,
+                            )}
+                            title={`Priority: ${taskP.label}`}
+                        >
+                            <taskP.icon className="h-3 w-3" />
+                            {taskP.label}
+                        </span>
+                    )}
+                    {task.task_comment_count > 0 && (
+                        <span className="inline-flex items-center gap-0.5" title="Comments">
+                            <MessageSquare className="h-3 w-3" />
+                            {task.task_comment_count}
+                        </span>
+                    )}
+                    {task.task_sub_task_count > 0 && (
+                        <span className="inline-flex items-center gap-0.5" title="Subtasks">
+                            <GitBranch className="h-3 w-3" />
+                            {task.task_sub_task_count}
+                        </span>
+                    )}
+                    <GitHubBadgeGroup task={task} size="sm" />
+                    {dueDate && (
+                        <span
+                            className={cn(
+                                "tabular-nums",
+                                isOverdue && "text-destructive font-medium",
+                            )}
+                            title={format(dueDate, "PPP")}
+                        >
+                            {formatDueShort(dueDate)}
+                        </span>
+                    )}
+                </div>
+            </div>
+        </>
+    )
+})
+
+/**
  * Kanban Item — Notion / Linear–style task card.
  *
  * Layout, top-down, designed to remain readable inside a 320px column:
@@ -111,19 +254,9 @@ export const Item = React.memo(
         ) => {
             const dispatch = useDispatch()
 
-            useEffect(() => {
-                if (!dragOverlay) return
-                document.body.style.cursor = "grabbing"
-                return () => {
-                    document.body.style.cursor = ""
-                }
-            }, [dragOverlay])
-
-            const taskP = priorities.find((p) => p.value == task.task_priority)
-
-            const dueDate = !isZeroEpoch(task.task_due_date) ? new Date(task.task_due_date) : null
-            const isOverdue = dueDate && dueDate < new Date() && task.task_status !== "done"
-            const descPreview = task.task_description ? removeHtmlTags(task.task_description) : ""
+            // No cursor on <body> while dragging: changing a style on body makes
+            // the browser restyle the whole page, the most expensive frame of a
+            // pick-up. The lifted card carries the grabbing cursor itself.
 
             const openTask = () => {
                 dispatch(
@@ -155,8 +288,6 @@ export const Item = React.memo(
                 })
             }
 
-            const hasMetaRow = Boolean(task.task_project) || Boolean(task.task_label)
-
             return (
                 <div
                     className={cn(
@@ -185,7 +316,9 @@ export const Item = React.memo(
                             handle && styles.withHandle,
                             dragOverlay && styles.dragOverlay,
                             disabled && styles.disabled,
-                            "group flex flex-col gap-1.5 px-3 py-2.5 w-full min-w-0",
+                            // select-none: pressing to drag must not start selecting the
+                            // card's words, which also scrolled the column under the pointer.
+                            "group flex flex-col gap-1.5 px-3 py-2.5 w-full min-w-0 select-none",
                             "rounded-md bg-card border border-border/60",
                             "transition-[border-color,box-shadow,background-color] duration-150",
                             "hover:border-border",
@@ -210,112 +343,7 @@ export const Item = React.memo(
                             }
                         }}
                     >
-                        {/* Optional meta row — project + label */}
-                        {hasMetaRow && (
-                            <div className="flex items-center gap-2 min-w-0 text-2xs text-muted-foreground">
-                                {task.task_project && (
-                                    <span className="inline-flex items-center gap-1 min-w-0 max-w-[60%]">
-                                        <ColorIcon name={task.task_project.project_uuid} size="xs" />
-                                        <span className="truncate">{task.task_project.project_name}</span>
-                                    </span>
-                                )}
-                                {task.task_label && (
-                                    <Badge
-                                        variant="secondary"
-                                        className="text-3xs h-4 px-1.5 font-medium uppercase tracking-wide truncate max-w-[40%]"
-                                    >
-                                        {task.task_label}
-                                    </Badge>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Title row — title fills width, with an explicit open
-                            affordance on the right (always visible on touch,
-                            fades in on hover for desktop). The button stops
-                            pointer events so it cannot start a drag. */}
-                        <div className="flex items-start gap-2 min-w-0">
-                            <div className="text-sm font-medium text-foreground leading-snug line-clamp-3 flex-1 min-w-0">
-                                {task.task_name}
-                            </div>
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                className={cn(
-                                    "h-6 w-6 -mr-1 -mt-0.5 shrink-0 text-muted-foreground hover:text-foreground",
-                                    "md:opacity-0 pointer-events-none md:group-hover:opacity-100 group-hover:pointer-events-auto md:focus-visible:opacity-100 transition-opacity",
-                                )}
-                                aria-label="Open task"
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onTouchStart={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    openTask()
-                                }}
-                            >
-                                <ArrowUpRight className="h-3.5 w-3.5" />
-                            </Button>
-                        </div>
-
-                        {/* Description preview */}
-                        {descPreview && (
-                            <div className="text-xs text-muted-foreground line-clamp-2 leading-snug">
-                                {descPreview}
-                            </div>
-                        )}
-
-                        {/* Footer */}
-                        <div className="flex items-center gap-2 mt-1 min-w-0">
-                            {/* Assignee on the left, fixed slot — keeps the avatar in the same place across cards. */}
-                            <div className="shrink-0">
-                                {task.task_assignee ? (
-                                    <TaskAssigneeCell userInfo={task.task_assignee} avatarOnly />
-                                ) : (
-                                    <span className="block h-6 w-6" />
-                                )}
-                            </div>
-
-                            {/* Meta cluster on the right, allowed to wrap. */}
-                            <div className="ml-auto flex items-center justify-end flex-wrap gap-x-2 gap-y-1 text-2xs text-muted-foreground min-w-0">
-                                {taskP && (
-                                    <span
-                                        className={cn(
-                                            "inline-flex items-center gap-1 h-5 px-1.5 rounded text-3xs font-medium",
-                                            taskP.color,
-                                        )}
-                                        title={`Priority: ${taskP.label}`}
-                                    >
-                                        <taskP.icon className="h-3 w-3" />
-                                        {taskP.label}
-                                    </span>
-                                )}
-                                {task.task_comment_count > 0 && (
-                                    <span className="inline-flex items-center gap-0.5" title="Comments">
-                                        <MessageSquare className="h-3 w-3" />
-                                        {task.task_comment_count}
-                                    </span>
-                                )}
-                                {task.task_sub_task_count > 0 && (
-                                    <span className="inline-flex items-center gap-0.5" title="Subtasks">
-                                        <GitBranch className="h-3 w-3" />
-                                        {task.task_sub_task_count}
-                                    </span>
-                                )}
-                                <GitHubBadgeGroup task={task} size="sm" />
-                                {dueDate && (
-                                    <span
-                                        className={cn(
-                                            "tabular-nums",
-                                            isOverdue && "text-destructive font-medium",
-                                        )}
-                                        title={format(dueDate, "PPP")}
-                                    >
-                                        {formatDueShort(dueDate)}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+                        <TaskCardBody task={task} />
 
                         {/* Drag handle / remove (only present when handle prop is true) */}
                         {(onRemove || handle) && (

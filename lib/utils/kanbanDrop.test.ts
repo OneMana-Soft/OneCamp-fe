@@ -1,63 +1,60 @@
 import { describe, expect, it } from "vitest"
-import { dropMovedCard, settleDrop } from "./kanbanDrop"
+import { dropMovedCard, insertionIndex, placeCard } from "./kanbanDrop"
 
 const c = (id: string) => ({ task_uuid: id })
 const board = () => ({ todo: [c("a"), c("b"), c("c")], done: [c("x"), c("y")] })
 const ids = (cards: { task_uuid: string }[]) => cards.map((t) => t.task_uuid).join(",")
 
-describe("settleDrop", () => {
-  it("reorders within a column at the drop, and names the new neighbours", () => {
-    const d = settleDrop(board(), "a", "c")!
-    expect(ids(d.items.todo)).toBe("b,c,a")
-    expect(d).toMatchObject({ column: "todo", index: 2, before: "c", after: "" })
-  })
-
-  it("moves up as well as down", () => {
-    const d = settleDrop(board(), "c", "a")!
-    expect(ids(d.items.todo)).toBe("c,a,b")
-    expect(d).toMatchObject({ index: 0, before: "", after: "a" })
-  })
-
-  it("keeps a card that crossed columns during the drag where onDragOver put it", () => {
-    // onDragOver has already moved b into done, between x and y.
-    const during = { todo: [c("a"), c("c")], done: [c("x"), c("b"), c("y")] }
-    const d = settleDrop(during, "b", "b")!
-    expect(ids(d.items.done)).toBe("x,b,y")
-    expect(d).toMatchObject({ column: "done", before: "x", after: "y" })
-  })
-
-  it("dropped on a column's empty space, the card stays where it is in that column", () => {
-    const during = { todo: [c("a"), c("c")], done: [c("x"), c("y"), c("b")] }
-    const d = settleDrop(during, "b", "done")!
-    expect(d).toMatchObject({ column: "done", index: 2, before: "y", after: "" })
-  })
-
-  it("into an empty column", () => {
-    const during = { todo: [c("a")], done: [c("b")] }
-    expect(settleDrop(during, "b", "done")).toMatchObject({ column: "done", index: 0, before: "", after: "" })
-  })
-
-  it("refuses a drop that does not place the card", () => {
-    expect(settleDrop(board(), "a", "nowhere")).toBeNull()
-    // Over another column's card but the card was not moved there: stale state.
-    expect(settleDrop(board(), "a", "x")).toBeNull()
-  })
-
-  it("does not copy the board when nothing moved", () => {
-    const b = board()
-    expect(settleDrop(b, "b", "b")!.items).toBe(b)
-  })
-})
-
 describe("dropMovedCard", () => {
   it("is false for a card let go where it started, so no request is sent", () => {
     const b = board()
-    expect(dropMovedCard(b, settleDrop(b, "b", "b")!, "b")).toBe(false)
+    expect(dropMovedCard(b, placeCard(b, "b", "todo", 1)!, "b")).toBe(false)
   })
   it("is true for a reorder and for a change of column", () => {
     const b = board()
-    expect(dropMovedCard(b, settleDrop(b, "a", "c")!, "a")).toBe(true)
-    const during = { todo: [c("a"), c("c")], done: [c("b"), c("x"), c("y")] }
-    expect(dropMovedCard(b, settleDrop(during, "b", "done")!, "b")).toBe(true)
+    expect(dropMovedCard(b, placeCard(b, "a", "todo", 2)!, "a")).toBe(true)
+    expect(dropMovedCard(b, placeCard(b, "b", "done", 0)!, "b")).toBe(true)
+  })
+})
+
+describe("placeCard", () => {
+  it("moves a card into another column at a position", () => {
+    const d = placeCard(board(), "b", "done", 1)!
+    expect(ids(d.items.todo)).toBe("a,c")
+    expect(ids(d.items.done)).toBe("x,b,y")
+    expect(d).toMatchObject({ column: "done", index: 1, before: "x", after: "y" })
+  })
+  it("reorders within a column, counting positions without the card", () => {
+    // a to the end of todo: without a, todo is b,c; index 2 is after c.
+    const d = placeCard(board(), "a", "todo", 2)!
+    expect(ids(d.items.todo)).toBe("b,c,a")
+    expect(d).toMatchObject({ before: "c", after: "" })
+  })
+  it("clamps an index past the end", () => {
+    expect(ids(placeCard(board(), "a", "done", 99)!.items.done)).toBe("x,y,a")
+  })
+  it("refuses an unknown card or column", () => {
+    expect(placeCard(board(), "zz", "done", 0)).toBeNull()
+    expect(placeCard(board(), "a", "nowhere", 0)).toBeNull()
+  })
+  it("leaves the original board untouched", () => {
+    const b = board()
+    placeCard(b, "a", "done", 0)
+    expect(ids(b.todo)).toBe("a,b,c")
+  })
+})
+
+describe("insertionIndex", () => {
+  const mids = [100, 200, 300]
+  it("is 0 above the first card's middle and the length below the last", () => {
+    expect(insertionIndex(mids, 50)).toBe(0)
+    expect(insertionIndex(mids, 350)).toBe(3)
+  })
+  it("falls between the cards whose middles the pointer is between", () => {
+    expect(insertionIndex(mids, 150)).toBe(1)
+    expect(insertionIndex(mids, 250)).toBe(2)
+  })
+  it("is 0 in an empty column", () => {
+    expect(insertionIndex([], 500)).toBe(0)
   })
 })
