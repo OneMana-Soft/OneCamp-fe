@@ -197,3 +197,16 @@ export function columnsByStatus<T extends TaskStatusFields>(byCategory: Record<s
   }
   return out
 }
+
+/**
+ * Whether a fetched URL holds tasks whose status a change to projectId's
+ * statuses rewrites on the server: the project's board and list, the
+ * assigned-task lists (which span projects), and a task's own panel.
+ * Renaming, recategorising or deleting a status changes those tasks in the
+ * database; these are what the app has to fetch again to show it.
+ */
+export function holdsProjectTasks(key: unknown, projectId: string): boolean {
+  if (typeof key !== "string" || !projectId) return false
+  if (key.startsWith("/project/taskList")) return key.includes(projectId)
+  return key.startsWith("/user/assignedTaskList") || key.startsWith("/task/info")
+}
