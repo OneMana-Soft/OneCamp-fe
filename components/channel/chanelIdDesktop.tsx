@@ -1,4 +1,5 @@
 import {useFetch} from "@/hooks/useFetch";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
     ChannelInfoInterfaceResp,
     ChannelJoinInterface,
@@ -9,7 +10,7 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X } from "@/lib/icons";
+import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X, MoreHorizontal } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -257,11 +258,6 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                     </WithTooltip>
 
                     <NotificationBell notificationType={channelNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
-                    {channelInfo.data?.channel_info.ch_is_admin && (
-                        <WithTooltip label="Edit channel">
-                            <Button aria-label="Edit channel" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}}><Pencil /></Button>
-                        </WithTooltip>
-                    )}
                     <WithTooltip label="Manage channel members">
                         <Button aria-label="Manage channel members" size='icon' variant='ghost' onClick={()=>{dispatch(openUI({ key: 'editChannelMember', data: { channelUUID: channelId } }))}}> <Users /></Button>
                     </WithTooltip>
@@ -283,29 +279,42 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                     </Link></Button>
                     </WithTooltip>
                     </FeatureGate>
-                    <WithTooltip label="Recordings">
-                        <Button size='icon' variant='ghost' asChild><Link href={channelRecordingHref} aria-label="Recordings"> <Clapperboard /></Link></Button>
-                    </WithTooltip>
-                    <FeatureGate feature={FEATURE_AI}>
-                    {/* The two least guessable icons in the row, and the two the
-                        product is actually about. They say what they do now. */}
-                    <WithTooltip label="Channel memory: decisions, commitments and open questions">
-                    <Button size='icon' variant='ghost' asChild><Link href={`/app/ai/memory?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channelDisplayName)}`}
-                        aria-label="Channel memory">
-                            <Lightbulb className="text-muted-foreground" />
-                        </Link></Button>
-                    </WithTooltip>
-                    <WithTooltip label="Create tasks from this conversation">
-                    <Button
-                        size='icon'
-                        variant='ghost'
-                        aria-label="Create tasks from this conversation"
-                        onClick={() => dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'channel', sourceId: channelId } }))}
-                    >
-                        <CheckSquare className="text-muted-foreground" />
-                    </Button>
-                    </WithTooltip>
-                    </FeatureGate>
+                    {/* Everything a reader does not need every minute, in one menu:
+                        the header had eight buttons of equal weight. What stays out
+                        is what people use or need to see (favourite, the bell's
+                        state, members, the call). */}
+                    <DropdownMenu modal={false}>
+                        <WithTooltip label="More channel actions">
+                            <DropdownMenuTrigger asChild>
+                                <Button size='icon' variant='ghost' aria-label="More channel actions"><MoreHorizontal /></Button>
+                            </DropdownMenuTrigger>
+                        </WithTooltip>
+                        <DropdownMenuContent align="end" className="w-64">
+                            <FeatureGate feature={FEATURE_AI}>
+                                <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'channel', sourceId: channelId } }))}>
+                                    <CheckSquare className="text-muted-foreground" /> Create tasks from this conversation
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                    <Link href={`/app/ai/memory?channel=${encodeURIComponent(channelId)}&name=${encodeURIComponent(channelDisplayName)}`}>
+                                        <Lightbulb className="text-muted-foreground" /> Decisions and open questions
+                                    </Link>
+                                </DropdownMenuItem>
+                            </FeatureGate>
+                            <DropdownMenuItem asChild>
+                                <Link href={channelRecordingHref}>
+                                    <Clapperboard className="text-muted-foreground" /> Call recordings
+                                </Link>
+                            </DropdownMenuItem>
+                            {channelInfo.data?.channel_info.ch_is_admin && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'editChannel', data: { channelUUID: channelId } }))}>
+                                        <Pencil className="text-muted-foreground" /> Edit channel
+                                    </DropdownMenuItem>
+                                </>
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </header>
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">

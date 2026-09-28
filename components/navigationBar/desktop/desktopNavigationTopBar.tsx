@@ -1,7 +1,6 @@
 "use client"
 
 import DesktopNavigationSearch from "@/components/navigationBar/desktop/desktopNavigationSearch";
-import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
 import {UserStatusNav} from "@/components/navigationBar/userStatusNav";
 import DesktopNavigationUserProfile from "@/components/navigationBar/desktop/desktopNavigationUserProfile";
 import DesktopNavigationOrgProfile from "@/components/navigationBar/desktop/desktopNavigationOrgProfile";
@@ -37,7 +36,7 @@ export default function DesktopNavigationTopBar() {
         <div className="w-full h-12 flex px-3 justify-between items-center bg-canvas sticky top-0 z-[var(--z-sticky)]">
             <DesktopNavigationOrgProfile/>
             <DesktopNavigationSearch/>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
                 <FeatureGate feature={FEATURE_AI}>
                 <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>
@@ -60,11 +59,12 @@ export default function DesktopNavigationTopBar() {
                 </Tooltip>
                 </FeatureGate>
 
-                <div className="flex items-center gap-1.5">
-                    <ConnectionStatusIndicator compact />
-                    <UserStatusNav userUUID={selfProfile.data?.data.user_uuid || ''}/>
-                    <ThemeToggle/>
-                </div>
+                {/* Quiet while all is well: the connection shows only when it is
+                    lost, and the status only once one is set. Theme and "set a
+                    status" live in the profile menu. Six controls in the top bar
+                    became three. */}
+                <ConnectionStatusIndicator compact quietWhenConnected />
+                <UserStatusNav userUUID={selfProfile.data?.data.user_uuid || ''} hideWhenEmpty />
 
                 <DesktopNavigationUserProfile/>
             </div>

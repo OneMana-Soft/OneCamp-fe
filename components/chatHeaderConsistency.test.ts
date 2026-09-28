@@ -72,7 +72,10 @@ describe("chat headers stay consistent", () => {
     const actions = channel.slice(channel.indexOf("<header"), channel.indexOf("</header>"))
     const iconButtons = (actions.match(/size='icon'/g) || []).length
     const tooltips = (actions.match(/<WithTooltip/g) || []).length
-    expect(iconButtons).toBeGreaterThan(4)
+    // A floor, and a ceiling: the header once had eight buttons of equal
+    // weight. Anything used less than every minute belongs in its "More" menu.
+    expect(iconButtons).toBeGreaterThanOrEqual(3)
+    expect(iconButtons, "the channel header is crowding again; move actions into More").toBeLessThanOrEqual(5)
     expect(tooltips, "icon controls in the channel header with no visible name").toBeGreaterThanOrEqual(iconButtons - 1)
   })
 })

@@ -903,7 +903,7 @@ html[data-media-collapsed="true"] [data-message-media] {
     box-shadow: none;
   }
   .nav-idle {
-    color: color-mix(in oklch, var(--foreground) 80%, transparent);
+    color: color-mix(in oklch, var(--foreground) 72%, transparent);
   }
   .nav-idle:hover {
     background: color-mix(in oklch, var(--foreground) 5%, transparent);

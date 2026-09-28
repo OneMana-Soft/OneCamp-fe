@@ -11,11 +11,15 @@ import {
 
 interface ConnectionStatusIndicatorProps {
   compact?: boolean
+  /** Render nothing while connected: say something only when it matters. */
+  quietWhenConnected?: boolean
 }
 
-export function ConnectionStatusIndicator({ compact = false }: ConnectionStatusIndicatorProps) {
+export function ConnectionStatusIndicator({ compact = false, quietWhenConnected = false }: ConnectionStatusIndicatorProps) {
   const { connectionState } = useMqtt()
   const { isConnected, isConnecting, error } = connectionState
+
+  if (quietWhenConnected && isConnected) return null
 
   let statusColor = "bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.5)]"
   let statusText = "Offline"
