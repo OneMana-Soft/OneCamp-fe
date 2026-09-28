@@ -13,8 +13,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { A2ACardSummary } from "@/components/admin/A2ACardSummary"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { TaskMoveFilterFields, ANY_MOVE, type TaskMoveFilter } from "@/components/task/TaskMoveFilterFields"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
+import type { ProjectInfoInterface } from "@/types/project"
+import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { McpServer, parseMcpTools, mcpToolFullName } from "@/services/mcpService"
 import { McpToolRiskBadge, McpToolRiskLegend } from "@/components/admin/McpToolRisk"
 import { type AuthorizedModel } from "@/services/aiModelService"
@@ -162,6 +165,12 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
   const [scheduleWeekdays, setScheduleWeekdays] = React.useState<Set<string>>(new Set(["MO", "WE", "FR"]))
   const [scheduleTime, setScheduleTime] = React.useState("09:00")
   const [eventType, setEventType] = React.useState(EVENT_TRIGGER_OPTIONS[0].value)
+  // "A task's status changes": which moves. Unnarrowed, the agent runs on every move.
+  const [taskMove, setTaskMove] = React.useState<TaskMoveFilter>(ANY_MOVE)
+  const { data: projectListData } = useFetch<{ data: { user_projects?: ProjectInfoInterface[] } }>(
+    open ? GetEndpointUrl.GetUserProjectList : "",
+  )
+  const moveProjects = (projectListData?.data?.user_projects ?? []).filter((p) => isZeroEpoch(p.project_deleted_at || ""))
   const [mentionHandle, setMentionHandle] = React.useState("")
   const [mentionChannelIds, setMentionChannelIds] = React.useState<Set<string>>(new Set())
   // Knowledge sources: channels the agent is always grounded on (read as the
@@ -296,6 +305,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
         setScheduleMode("interval")
       }
       setEventType(cfg.event || EVENT_TRIGGER_OPTIONS[0].value)
+      setTaskMove({ projectId: cfg.project_id || "", toStatus: cfg.to_status || "" })
       setMentionHandle(cfg.handle || "")
       setMentionChannelIds(new Set(parseScope(agent).channel_ids || []))
       setKnowledgeChannelIds(new Set(parseKnowledge(agent).filter((k) => k.type === "channel").map((k) => k.id)))
@@ -326,6 +336,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setScheduleWeekdays(new Set(["MO", "WE", "FR"]))
       setScheduleTime("09:00")
       setEventType(EVENT_TRIGGER_OPTIONS[0].value)
+      setTaskMove(ANY_MOVE)
       setMentionHandle("")
       setMentionChannelIds(new Set())
       setKnowledgeChannelIds(new Set())
@@ -486,6 +497,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       if (mentionChannelIds.size > 0) scope = { channel_ids: Array.from(mentionChannelIds) }
     } else if (triggerType === "event") {
       triggerConfig = { event: eventType }
+      if (eventType === "task.status_changed") {
+        if (taskMove.projectId) triggerConfig.project_id = taskMove.projectId
+        if (taskMove.toStatus) triggerConfig.to_status = taskMove.toStatus
+      }
     } else if (triggerType === "mention") {
       if (mentionHandle.trim()) triggerConfig = { handle: mentionHandle.trim() }
       // Channel scope only applies to the mention trigger ("invited or silent").
@@ -885,6 +900,14 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     </button>
                   ))}
                 </div>
+                {eventType === "task.status_changed" && (
+                  <>
+                    <TaskMoveFilterFields value={taskMove} onChange={setTaskMove} projects={moveProjects} />
+                    <p className="text-xs text-muted-foreground text-pretty">
+                      Each run is a model call. Pick the project and status it is for, or it runs on every status change in the workspace.
+                    </p>
+                  </>
+                )}
               </div>
             )}
 

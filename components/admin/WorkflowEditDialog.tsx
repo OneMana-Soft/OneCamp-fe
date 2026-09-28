@@ -42,8 +42,7 @@ import {
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel";
 import { ProjectInfoInterface } from "@/types/project";
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch";
-import { useProjectStatuses } from "@/hooks/useProjectStatuses";
-import { cn } from "@/lib/utils/helpers/cn";
+import { TaskMoveFilterFields, ANY_MOVE, type TaskMoveFilter } from "@/components/task/TaskMoveFilterFields";
 import {
     Workflow,
     WorkflowAction,
@@ -130,9 +129,6 @@ const TRIGGER_HELP: Record<WorkflowTriggerType, string> = {
         "Runs when a task moves into the status you pick, or on every move. A reply can say {by} moved {task} to {status} (from {from}) in {project}, with {link} to the task.",
 };
 
-/** Select value for "no project" / "any status"; Radix Select cannot hold "". */
-const ANY = "__any__";
-
 export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) {
     const { toast } = useToast();
     const isEdit = !!workflow;
@@ -148,8 +144,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
     const [actions, setActions] = useState<WorkflowAction[]>([]);
     const [saving, setSaving] = useState(false);
     // task_status_changed: which moves count.
-    const [taskProjectId, setTaskProjectId] = useState<string>(ANY);
-    const [toStatus, setToStatus] = useState<string>(ANY);
+    const [taskMove, setTaskMove] = useState<TaskMoveFilter>(ANY_MOVE);
 
     // Natural-language draft (create mode only).
     const [draftPrompt, setDraftPrompt] = useState("");
@@ -166,8 +161,6 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
 
     const isMessageTrigger = triggerType === "message_posted";
     const isTaskTrigger = triggerType === "task_status_changed";
-    // A project's own statuses when one is picked, else the built-in ones every project has.
-    const { options: statusChoices } = useProjectStatuses(isTaskTrigger && taskProjectId !== ANY ? taskProjectId : undefined);
 
     // Hydrate form on open / when target workflow changes.
     useEffect(() => {
@@ -186,8 +179,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             setMatchType(workflow.match_type === "all" ? "all" : "any");
             setActions(acts.length ? acts : []);
             const tc = parseTaskStatusConfig(workflow);
-            setTaskProjectId(tc.project_id || ANY);
-            setToStatus(tc.to_status || ANY);
+            setTaskMove({ projectId: tc.project_id || "", toStatus: tc.to_status || "" });
         } else {
             setName("");
             setIsActive(true);
@@ -197,8 +189,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             setKeywords([]);
             setMatchType("any");
             setActions([{ type: "reply", text: "" }]);
-            setTaskProjectId(ANY);
-            setToStatus(ANY);
+            setTaskMove(ANY_MOVE);
         }
         setKeywordInput("");
         setDraftPrompt("");
@@ -250,7 +241,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             setKeywords(msgTrigger ? (d.keywords || []).filter(Boolean) : []);
             setMatchType(d.match_type === "all" ? "all" : "any");
             // A status as the draft named it; the server resolves it once a project is picked.
-            if (trig === "task_status_changed") setToStatus(d.trigger_config?.to_status?.trim() || ANY);
+            if (trig === "task_status_changed") setTaskMove((m) => ({ ...m, toStatus: d.trigger_config?.to_status?.trim() || "" }));
             const acts = (d.actions || []).filter((a) => msgTrigger || !ACTION_META[a.type]?.messageOnly);
             if (acts.length) setActions(acts);
             setDraftNote(d.notes || "Draft ready. Review the fields and pick any channels or projects before saving.");
@@ -301,8 +292,8 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
             actions,
             trigger_config: isTaskTrigger
                 ? {
-                      project_id: taskProjectId === ANY ? undefined : taskProjectId,
-                      to_status: toStatus === ANY ? undefined : toStatus,
+                      project_id: taskMove.projectId || undefined,
+                      to_status: taskMove.toStatus || undefined,
                   }
                 : undefined,
         };
@@ -408,53 +399,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
 
                         <p className="text-xs text-muted-foreground text-pretty">{TRIGGER_HELP[triggerType]}</p>
 
-                        {isTaskTrigger && (
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <div className="space-y-1.5">
-                                    <Label className="text-sm font-normal">In project</Label>
-                                    <Select
-                                        value={taskProjectId}
-                                        onValueChange={(v) => {
-                                            setTaskProjectId(v)
-                                            // A project's own status belongs to that project only.
-                                            setToStatus(ANY)
-                                        }}
-                                    >
-                                        <SelectTrigger aria-label="In project">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value={ANY}>Any project</SelectItem>
-                                            {projects.map((p) => (
-                                                <SelectItem key={p.project_uuid} value={p.project_uuid}>
-                                                    {p.project_name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-sm font-normal">Moves into</Label>
-                                    <Select value={toStatus} onValueChange={setToStatus}>
-                                        <SelectTrigger aria-label="Moves into">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value={ANY}>Any status</SelectItem>
-                                            {statusChoices.map((o) => (
-                                                <SelectItem key={o.value} value={o.value} className={cn(o.custom && "pl-6")}>
-                                                    {o.label}
-                                                </SelectItem>
-                                            ))}
-                                            {/* A status a draft named that is not in this list yet: kept, and checked on save. */}
-                                            {toStatus !== ANY && !statusChoices.some((o) => o.value === toStatus) && (
-                                                <SelectItem value={toStatus}>{toStatus}</SelectItem>
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        )}
+                        {isTaskTrigger && <TaskMoveFilterFields value={taskMove} onChange={setTaskMove} projects={projects} />}
 
                         <div className="space-y-1.5">
                             <Label className="text-sm font-normal">

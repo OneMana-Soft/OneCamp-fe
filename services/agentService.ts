@@ -270,6 +270,9 @@ interface TriggerConfig {
   at_minute_utc?: number // schedule (cron mode): fire time, minutes past UTC midnight
   event?: string // event: workspace event type
   handle?: string // mention: explicit @handle (defaults to the agent name)
+  // event task.status_changed: only moves in this project, into this status
+  project_id?: string
+  to_status?: string
 }
 
 export function parseTriggerConfig(a: Agent): TriggerConfig {
