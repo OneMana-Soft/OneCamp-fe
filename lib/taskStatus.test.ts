@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { columnsByStatus, statusOptionOf, statusOptions, statusPatch, statusValueOf, type ProjectStatuses, statusFieldsFromMessage } from "./taskStatus"
+import { columnsByStatus, statusOptionOf, statusOptions, statusPatch, statusValueOf, type ProjectStatuses, statusFieldsFromMessage, holdsProjectTasks } from "./taskStatus"
 
 const project: ProjectStatuses = {
   built_in: [],
@@ -97,5 +97,21 @@ describe("statusFieldsFromMessage", () => {
   it("leaves older messages, which name only a status, to the built-in rule", () => {
     expect(statusFieldsFromMessage({ status: "done" })).toBeUndefined()
     expect(statusFieldsFromMessage({})).toBeUndefined()
+  })
+})
+
+describe("holdsProjectTasks", () => {
+  it("matches this project's board and list, assigned lists and task panels", () => {
+    expect(holdsProjectTasks("/project/taskListForKanban/p1?assignee=", "p1")).toBe(true)
+    expect(holdsProjectTasks("/project/taskList/p1", "p1")).toBe(true)
+    expect(holdsProjectTasks("/user/assignedTaskListForKanban?x=1", "p1")).toBe(true)
+    expect(holdsProjectTasks("/task/info/t1", "p1")).toBe(true)
+  })
+  it("leaves other projects, other data and non-string keys alone", () => {
+    expect(holdsProjectTasks("/project/taskListForKanban/p2", "p1")).toBe(false)
+    expect(holdsProjectTasks("/project/p1/statuses", "p1")).toBe(false)
+    expect(holdsProjectTasks("/channel/list", "p1")).toBe(false)
+    expect(holdsProjectTasks(["/task/info", "t1"], "p1")).toBe(false)
+    expect(holdsProjectTasks("/task/info/t1", "")).toBe(false)
   })
 })
