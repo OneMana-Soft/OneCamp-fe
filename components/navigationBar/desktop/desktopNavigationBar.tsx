@@ -470,6 +470,20 @@ export function DesktopNavigationBar({
         },
     ];
 
+    // Reveal the group holding the page you are on, once per arrival. Boards is
+    // collapsed by default, so /app/board showed nothing selected anywhere in
+    // the sidebar. Opening it on arrival (rather than forcing it open) keeps the
+    // chevron working: collapse it again and it stays collapsed until you move.
+    useEffect(() => {
+        for (const group of [...recentNavLinks, ...favNavLinks, ...secondaryNavLinks]) {
+            if (!group.isOpen && group.setIsOpen && group.children?.some((c) => c.variant === "sidebarActive")) {
+                group.setIsOpen(true)
+            }
+        }
+        // Only on arrival: the groups' identities change on every render.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pathname])
+
     const [isDragging, setIsDragging] = useState(false);
 
     useEffect(() => {

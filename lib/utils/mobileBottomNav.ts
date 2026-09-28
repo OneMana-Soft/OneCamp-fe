@@ -25,3 +25,15 @@ const BOTTOM_OWNED_BY_PAGE = [
 export function pageOwnsBottomEdge(pathname: string): boolean {
   return BOTTOM_OWNED_BY_PAGE.some((r) => r.test(pathname))
 }
+
+/**
+ * Which bottom-bar tab the page belongs to: the tab whose section the path is
+ * in, or "more" for everything reached through the More menu (My Tasks, Docs,
+ * Calendar, Tables...). Those pages used to select nothing at all, so a phone
+ * showed a bar with no current place.
+ */
+export function bottomNavTab(pathname: string, tabPages: string[]): string {
+  const path = (pathname || "").split(/[?#]/)[0].replace(/^\/+|\/+$/g, "")
+  const tab = tabPages.find((page) => path === page || path.startsWith(`${page}/`))
+  return tab ?? "more"
+}
