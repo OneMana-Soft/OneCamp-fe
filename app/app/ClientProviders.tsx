@@ -1,5 +1,6 @@
 "use client"
 
+import { LaterDueHost } from "@/components/later/LaterDueHost";
 import { useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MqttProvider } from "@/components/mqtt/mqttProvider";
@@ -56,6 +57,7 @@ export default function ClientProviders({
               {children}
               <CommandActionBridge />
               <GlobalCommandHost />
+              <LaterDueHost />
               <AiQuickInvoke />
               <Toaster />
             </MqttProvider>

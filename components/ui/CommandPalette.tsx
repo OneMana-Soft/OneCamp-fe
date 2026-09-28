@@ -46,6 +46,7 @@ import {
   app_team_path,
   app_admin,
   app_recording_activity,
+  app_later_path,
 } from "@/types/paths"
 import { SearchResult } from "@/services/searchService"
 import { FEATURE_AI, FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
@@ -299,6 +300,14 @@ export function CommandPalette() {
         icon: <Bell className="mr-2 h-4 w-4" />,
         group: "Navigate",
         action: () => router.push(app_doc_activity),
+      },
+      {
+        id: "nav-later",
+        label: "Go to Later",
+        keywords: ["later", "saved", "bookmarks", "reminders", "remind me"],
+        icon: <Bookmark className="mr-2 h-4 w-4" />,
+        group: "Navigate",
+        action: () => router.push(app_later_path),
       },
       {
         id: "nav-docs",

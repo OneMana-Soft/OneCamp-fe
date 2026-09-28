@@ -1,5 +1,7 @@
 "use client"
 
+import { LaterDrawerItems } from "@/components/later/LaterDrawerItems";
+import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
 import * as React from "react"
 import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type } from "@/lib/icons";
 import { useTranslateText } from "@/services/aiService";
@@ -19,7 +21,7 @@ import {preSelectedEmojis} from "@/components/drawers/consts/preSelectedEmojiCon
 import {DrawerActionCard} from "@/components/drawerActionCard/drawerActionCard";
 import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
 import {DrawerDestructiveActionLink} from "@/components/drawerActionLink/drawerDestructiveActionLink";
-import {app_channel_path, app_chat_path, app_message_forward_path} from "@/types/paths";
+import {app_chat_path, app_message_forward_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import {chat_forward_type} from "@/types/user";
 import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
@@ -89,7 +91,8 @@ export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, onAd
         const host = window.location.host;
         const protocol = window.location.protocol;
         const baseUrl = `${protocol}//${host}`;
-        const newPath = `${app_channel_path}/${otherUserUUID}/${chatUUID}`
+        // A direct message lives under /app/chat; the channel path opened nothing.
+        const newPath = `${app_chat_path}/${otherUserUUID}/${chatUUID}`
 
         copyToClipboard.copy(`${baseUrl}${newPath}`, 'copied link')
 
@@ -199,6 +202,11 @@ export function ChatMessageLongPressDrawer({ drawerOpenState, setOpenState, onAd
                                 linkText={'Edit message'}
                                 Icon={Pencil}
                             />}
+                            <LaterDrawerItems
+                                target={{ itemType: "chat", itemId: chatUUID, link: `/app/chat/${otherUserUUID}/${chatUUID}`, title: htmlToPreviewText(messageText) || "A message" }}
+                                onDone={() => setOpenState(false)}
+                            />
+
 
 
                             <DrawerActionLink

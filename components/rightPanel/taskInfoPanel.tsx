@@ -886,6 +886,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                     onDeleteTask={handleDeleteTask}
                     taskUUID={taskUUID}
                     taskName={taskInfo.data?.data.task_name}
+                    projectName={taskInfo.data?.data.task_project?.project_name}
                     hasGitHubLink={!!(taskInfo.data?.data.task_github_issue_url || taskInfo.data?.data.task_github_pr_url || taskInfo.data?.data.task_github_branch)}
                 />
                 {((isMobile && canMarkComplete) || isDesktop) && <Separator orientation="horizontal" />}

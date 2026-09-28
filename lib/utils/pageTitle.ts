@@ -23,6 +23,7 @@ const SECTIONS: Record<string, string> = {
   myTask: "My Tasks",
   task: "Task",
   activity: "Activity",
+  later: "Later",
   doc: "Docs",
   board: "Boards",
   project: "Project",

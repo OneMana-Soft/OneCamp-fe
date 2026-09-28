@@ -1,5 +1,6 @@
 import {
     Bell as BellIcon,
+    Bookmark,
     Calendar,
     CircleCheck,
     Hash,
@@ -17,6 +18,7 @@ import {
     app_chat_path,
     app_doc_activity,
     app_home_path,
+    app_later_path,
     app_my_task_path,
     app_tables_path,
     app_templates_path,
@@ -37,6 +39,8 @@ interface NavUnreadCounts {
     channel: number
     dm: number
     activity: number
+    /** Saved-for-later items whose reminder has come. */
+    laterDue?: number
 }
 
 /**
@@ -112,6 +116,13 @@ export function buildPrimaryNavLinks(
             icon: BellIcon,
             variant: variantFor(path, "activity"),
             path: app_doc_activity,
+        },
+        {
+            title: "Later",
+            label: formatCount(counts.laterDue ?? 0),
+            icon: Bookmark,
+            variant: variantFor(path, "later"),
+            path: app_later_path,
         },
     ]
 

@@ -97,6 +97,10 @@ function oneCampNotificationRoute(data, selfUUID) {
     if (type === 'doc_comment') {
         return typeId ? '/app/doc/' + typeId : ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
     }
+    // 'later' carries the app path of the saved item; only an in-app path is followed.
+    if (type === 'later') {
+        return /^\/app\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9_\-=&%.]*)?$/.test(typeId) ? typeId : '/app/later';
+    }
     // 'reminder' carries no target: focus the app and let it surface the reminder.
     return ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
 }

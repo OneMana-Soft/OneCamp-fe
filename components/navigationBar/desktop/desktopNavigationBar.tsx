@@ -1,5 +1,6 @@
 "use client"
 
+import { useLaterList } from "@/hooks/useLater";
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import { isCurrentPath } from "@/lib/utils/isCurrentPath";
 import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from "@/components/ui/resizable";
@@ -179,6 +180,7 @@ export function DesktopNavigationBar({
     );
 
     const isAdmin = userSideNav.data && userSideNav.data.data.user_is_admin
+    const laterDue = useLaterList("open").data?.data.due ?? 0
 
     const navLinks: DesktopNavType[] = useMemo(
         () => buildPrimaryNavLinks(
@@ -187,10 +189,11 @@ export function DesktopNavigationBar({
                 channel: totalChannelUnread,
                 dm: totalDMUnread,
                 activity: userSidebarState.totalUnreadActivityCount,
+                laterDue,
             },
             !!isAdmin,
         ),
-        [path, userSidebarState.totalUnreadActivityCount, totalDMUnread, totalChannelUnread, isAdmin],
+        [path, userSidebarState.totalUnreadActivityCount, totalDMUnread, totalChannelUnread, isAdmin, laterDue],
     );
 
     // Focus mode: the surfaces people live in keep the rail; the rest fold

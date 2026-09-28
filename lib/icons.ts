@@ -186,6 +186,7 @@ export {
   GitPullRequestDraft,
   Tag,
   Bookmark,
+  BookmarkCheck,
   Rocket,
   Terminal,
 } from "lucide-react";

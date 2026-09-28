@@ -23,6 +23,7 @@ import {
     updateTaskPRIsDraftInTaskList
 } from "@/store/slice/taskInfoSlice";
 import { upsertNudge, setOpenCount } from "@/store/slice/nudgeSlice";
+import { LATER_DUE_EVENT } from "@/components/later/LaterDueHost";
 import type { Nudge } from "@/services/nudgeService";
 import { upsertPendingAction, removePendingAction } from "@/store/slice/pendingActionSlice";
 import { toPendingActionSurface, type PendingAction } from "@/services/pendingActionService";
@@ -254,6 +255,17 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                             )
                         } catch (e) {
                             console.warn("[MQTT] Failed to parse command ephemeral message", e)
+                        }
+                        break
+
+                    case MqttMessageType.Saved_Item_Due:
+                        // A saved-for-later reminder came due; LaterDueHost
+                        // shows it and refreshes Later.
+                        try {
+                            const parsed = JSON.parse(messageStr)
+                            window.dispatchEvent(new CustomEvent(LATER_DUE_EVENT, { detail: parsed.data }))
+                        } catch (e) {
+                            console.warn("[MQTT] Failed to parse saved item due message", e)
                         }
                         break
 
