@@ -1,5 +1,6 @@
 "use client"
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import { useMemo, useState } from "react"
 import { useDispatch } from "react-redux"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -313,7 +314,7 @@ const GitHubIntegrationCard = () => {
               <>
                 <Separator />
                 <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Linked Repositories</h4>
+                  <h4 className={cn(eyebrowClass, "mb-3")}>Linked Repositories</h4>
                   <div className="space-y-3">
                     {linkedRepos.map(link => (
                       <div key={link.id} className="border border-border/50 rounded-lg bg-card/50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -569,7 +570,7 @@ const GitHubIntegrationCard = () => {
                   <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-4 custom-scrollbar">
                     {allRules.map((group, gIdx) => (
                       <div key={group.section} className="space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 bg-background py-1 z-10">{group.section}</p>
+                        <p className={cn(eyebrowClass, "sticky top-0 bg-background py-1 z-10")}>{group.section}</p>
                         <div className="space-y-1">
                           {group.items.map(rule => (
                             <div key={rule.key} className="flex items-center justify-between gap-3 py-1.5">

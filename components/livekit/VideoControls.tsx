@@ -267,7 +267,7 @@ export function VideoControls({
                 </DropdownMenuItem>
                 
                 {onToggleRecording && (
-                    <DropdownMenuItem onClick={onToggleRecording} className="py-3 text-red-400 focus:text-red-400">
+                    <DropdownMenuItem onClick={onToggleRecording} className="py-3 text-destructive focus:text-destructive">
                          <Disc className="mr-2 h-4 w-4" />
                          {isRecording ? "Stop Recording" : "Record Meeting"}
                     </DropdownMenuItem>

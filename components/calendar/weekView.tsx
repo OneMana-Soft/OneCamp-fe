@@ -1,5 +1,6 @@
 "use client";
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import { useEffect, useMemo, useRef } from "react";
 import { addDays, format, isSameDay, parseISO, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -179,7 +180,7 @@ export function WeekView({
           const isToday = isSameDay(day, now);
           return (
             <div key={i} className="flex-1 min-w-[90px] border-r border-border/60 py-2 text-center">
-              <div className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className={cn(eyebrowClass, "text-3xs")}>
                 {format(day, "EEE")}
               </div>
               <div

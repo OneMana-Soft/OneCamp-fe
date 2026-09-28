@@ -1,5 +1,6 @@
 "use client"
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
@@ -133,7 +134,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                     {/* Details Section */}
                     {isBot ? (
                         <div className="bg-muted/10 p-5 rounded-2xl border space-y-2 ">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">About</p>
+                            <p className={eyebrowClass}>About</p>
                             <p className="text-base text-foreground leading-relaxed">
                                 {profileInfo.data?.data?.user_name || botCopy.defaultName} {botCopy.bio}
                             </p>
@@ -141,22 +142,22 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                     ) : (
                     <div className="bg-muted/10 p-5 rounded-2xl border space-y-5 ">
                         <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Full Name</p>
+                            <p className={eyebrowClass}>Full Name</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_full_name || "—"}</p>
                         </div>
                         
                         <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Display Name</p>
+                            <p className={eyebrowClass}>Display Name</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
                         </div>
                         
                         <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Job Title</p>
+                            <p className={eyebrowClass}>Job Title</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_job_title || "—"}</p>
                         </div>
                         
                         <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Hobbies</p>
+                            <p className={eyebrowClass}>Hobbies</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_hobbies || "—"}</p>
                         </div>
                     </div>

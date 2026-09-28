@@ -1,3 +1,4 @@
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import {ATTACHMENT_MAX_IMAGE_GRID_SIZE, AttachmentMediaReq} from "@/types/attachment";
 import {useMemo, useState} from "react";
 import {isRenderable} from "@/lib/utils/validation/isRenderable";
@@ -161,7 +162,7 @@ function NonRenderableAttachment({ attachment, attachmentLength, mediaGetUrl }: 
                     {truncateFileName(attachment.attachment_file_name)}
                 </div>
                 <div className="flex items-center gap-1.5 text-3xs font-medium text-muted-foreground/80">
-                    <span className="uppercase tracking-wider">
+                    <span className={cn(eyebrowClass, "text-3xs font-medium text-muted-foreground/80")}>
                         {getFriendlyFileExtension(attachment.attachment_raw_type, attachment.attachment_file_name)}
                     </span>
                     <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/40" />

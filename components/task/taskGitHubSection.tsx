@@ -1,5 +1,7 @@
 "use client"
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import { Github, GitBranch, RefreshCw, Download, Copy, AlertCircle, CheckCircle2 } from "@/lib/icons";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button"
@@ -123,7 +125,7 @@ export function TaskGitHubSection({
                     })()}
                   </span>
                 </div>
-                <span className="text-3xs uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition shrink-0 hidden sm:flex">
+                <span className={cn(eyebrowClass, "text-3xs text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition shrink-0 hidden sm:flex")}>
                   View Issue <ExternalLink className="h-3 w-3" />
                 </span>
                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 sm:hidden" />
@@ -145,7 +147,7 @@ export function TaskGitHubSection({
                     })()}
                   </span>
                 </div>
-                <span className="text-3xs uppercase font-medium tracking-wider text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition shrink-0 hidden sm:flex">
+                <span className={cn(eyebrowClass, "text-3xs text-muted-foreground/0 group-hover:text-muted-foreground flex items-center gap-1 transition shrink-0 hidden sm:flex")}>
                   View PR <ExternalLink className="h-3 w-3" />
                 </span>
                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 sm:hidden" />

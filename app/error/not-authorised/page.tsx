@@ -1,5 +1,6 @@
 "use client"
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, ShieldAlert, Home } from "@/lib/icons"
@@ -23,7 +24,7 @@ export default function NotAuthorised() {
                 </div>
 
                 <div className="space-y-2">
-                    <p className="text-xs font-medium tracking-wider uppercase text-muted-foreground">
+                    <p className={eyebrowClass}>
                         Error 401
                     </p>
                     <h1 className="text-2xl font-semibold tracking-tight">

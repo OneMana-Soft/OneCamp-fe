@@ -10,6 +10,7 @@
  * Renders nothing when the caller can't share, so the dialog stays clean.
  */
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -93,7 +94,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
 
   return (
     <div className="flex flex-col gap-3 pt-4 border-t border-border">
-      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <Label className={eyebrowClass}>
         Share to web
       </Label>
 

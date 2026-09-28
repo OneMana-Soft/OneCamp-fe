@@ -1,5 +1,6 @@
 "use client"
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
 import { cn } from "@/lib/utils/helpers/cn"
 import {
@@ -44,12 +45,12 @@ export function ConnectionStatusIndicator({ compact = false, quietWhenConnected 
           )}>
             <div className="relative flex h-2 w-2">
               {isConnected && (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
               )}
               <div className={cn("relative inline-flex rounded-full h-2 w-2", statusColor)} />
             </div>
             {!compact && (
-              <span className="text-3xs font-medium text-muted-foreground uppercase tracking-wider hidden md:block">
+              <span className={cn(eyebrowClass, "text-3xs hidden md:block")}>
                 {isConnected ? "Live" : statusText}
               </span>
             )}

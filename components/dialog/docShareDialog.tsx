@@ -1,3 +1,4 @@
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -199,7 +200,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
 
                     {/* People with access */}
                     <div className="flex flex-col gap-3">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">People with access</Label>
+                        <Label className={eyebrowClass}>People with access</Label>
                         <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
                             {/* Owner */}
                             {permissions?.doc_created_by && (
@@ -223,7 +224,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
 
                     {/* General Access */}
                     <div className="flex flex-col gap-3 pt-4 border-t border-border">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">General access</Label>
+                        <Label className={eyebrowClass}>General access</Label>
                         <div className="flex items-center justify-between group">
                             <div className="flex items-center gap-3">
                                 <div className={cn("p-2 rounded-full transition-colors", permissions?.doc_private ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary")}>
@@ -264,7 +265,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                          <Button 
                             variant="outline" 
                             size="sm"
-                            className={cn("rounded-full gap-2 transition", copied ? "border-green-500 text-success bg-success/10" : "text-primary border-primary/20 hover:bg-primary/5")}
+                            className={cn("rounded-full gap-2 transition", copied ? "border-success/50 text-success bg-success/10" : "text-primary border-primary/20 hover:bg-primary/5")}
                             onClick={() => {
                                 navigator.clipboard.writeText(window.location.href);
                                 setCopied(true);

@@ -438,7 +438,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                     <div
                         className={`mb-2 rounded-lg border p-2.5 text-xs ${
                             testResult.success
-                                ? "border-emerald-400/50 bg-success/10 text-success"
+                                ? "border-success/50 bg-success/10 text-success"
                                 : "border-destructive/50 bg-destructive/10 text-destructive"
                         }`}
                     >

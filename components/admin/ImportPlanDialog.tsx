@@ -167,7 +167,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
             {plan.warnings && plan.warnings.length > 0 && (
               <div className="rounded border border-warning/30 bg-warning/5 p-3 text-sm">
                 <div className="mb-1 font-medium text-warning">Warnings</div>
-                <ul className="list-disc space-y-1 pl-5 text-amber-600/90">
+                <ul className="list-disc space-y-1 pl-5 text-warning">
                   {plan.warnings.slice(0, 8).map((w, i) => (
                     <li key={i}>{w}</li>
                   ))}

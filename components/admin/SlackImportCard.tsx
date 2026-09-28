@@ -19,6 +19,8 @@
  *   without touching unrelated state.
  */
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import React, { useMemo, useState, Suspense, lazy } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -406,7 +408,7 @@ const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onR
 
 const Stat: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div>
-    <div className="text-muted-foreground uppercase tracking-wider text-3xs">{label}</div>
+    <div className={cn(eyebrowClass, "text-3xs")}>{label}</div>
     <div className="font-medium">{value}</div>
   </div>
 )

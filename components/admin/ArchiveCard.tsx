@@ -1,5 +1,7 @@
 "use client"
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import React, { useMemo, useState } from "react"
 import { useDispatch } from "react-redux"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -143,7 +145,7 @@ const ArchiveCard = () => {
         <div className="space-y-8">
           {statsData?.stats && (
             <div>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Database className="h-3.5 w-3.5" />Archive Overview</h3>
+              <h3 className={cn(eyebrowClass, "mb-3 flex items-center gap-1.5")}><Database className="h-3.5 w-3.5" />Archive Overview</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {Object.entries(ENTITY_LABELS).map(([type, label]) => (
                   <div key={type} className={`border border-border/50 rounded-lg bg-card/50 p-3 flex items-center gap-3 ${isUnsupported(type) ? "opacity-50" : ""}`}>
@@ -162,7 +164,7 @@ const ArchiveCard = () => {
           <Separator />
 
           <div>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Retention Policies</h3>
+            <h3 className={cn(eyebrowClass, "mb-3")}>Retention Policies</h3>
             {policiesLoading ? <div className="text-sm text-muted-foreground animate-pulse">Loading policies…</div> :
             policies.length === 0 ? <div className="text-center py-8 text-sm text-muted-foreground">No archive policies configured.</div> :
             <div className="space-y-3">
@@ -197,7 +199,7 @@ const ArchiveCard = () => {
 
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Job History</h3>
+              <h3 className={eyebrowClass}>Job History</h3>
               <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => mutateJobs()}><RefreshCw className="h-3 w-3" />Refresh</Button>
             </div>
             {jobsLoading ? <div className="text-sm text-muted-foreground animate-pulse">Loading jobs…</div> :

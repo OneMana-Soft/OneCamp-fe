@@ -12,6 +12,8 @@
  * is persisted on the job row.
  */
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import React, { useEffect, useState } from "react"
 import {
   Dialog,
@@ -256,7 +258,7 @@ const PlanStat: React.FC<{ label: string; value: React.ReactNode; positive?: boo
   warn,
 }) => (
   <div className="border border-border/50 rounded-md p-3 bg-background/30">
-    <div className="text-3xs uppercase tracking-wider text-muted-foreground">{label}</div>
+    <div className={cn(eyebrowClass, "text-3xs")}>{label}</div>
     <div
       className={`text-lg font-semibold mt-0.5 ${
         warn ? "text-warning" : positive ? "text-success" : ""

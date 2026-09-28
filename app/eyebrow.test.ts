@@ -16,7 +16,7 @@ import { resolve } from "node:path"
  * class exported separately for the FormLabel cases that cannot be swapped for a
  * span.
  *
- * A ratchet rather than a hard zero, for the same reason as the type-scale one:
+ * It was a ratchet rather than a hard zero at first, for the same reason as the type-scale one:
  * the remaining sites differ in element type, in whether they carry layout
  * classes, and in whether the weight change is visible against their background,
  * so each is a small judgement rather than a rename. The count may fall freely
@@ -27,7 +27,6 @@ const root = resolve(__dirname, "..")
 /** An uppercase label written by hand, in either class order. */
 const HAND_WRITTEN =
   /className="[^"]*(?:uppercase[^"]*tracking-wider|tracking-wider[^"]*uppercase)[^"]*"/g
-const BASELINE = 44
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)
@@ -53,20 +52,19 @@ describe("uppercase section labels come from one place", () => {
     expect(src, "weight must not be configurable").not.toMatch(/weight\?:/)
   })
 
-  it("does not grow the number of hand-written uppercase labels", () => {
-    let total = 0
-    const worst: string[] = []
+  it("has no hand-written uppercase labels", () => {
+    // Was a ratchet from 53 labels at five sizes and four weights, down to 39; the
+    // last 39 moved onto eyebrowClass on 29 Sep 2026, keeping only what each place
+    // needs on top (its spacing, a smaller size, a destructive or accent colour).
+    const holders: string[] = []
     for (const file of files) {
       const n = (readFileSync(file, "utf8").match(HAND_WRITTEN) || []).length
-      total += n
-      if (n > 0) worst.push(`${file.slice(root.length + 1)} (${n})`)
+      if (n > 0) holders.push(`${file.slice(root.length + 1)} (${n})`)
     }
     expect(
-      total,
-      `Hand-written uppercase labels went UP (${total} > ${BASELINE}). Use ` +
-        "<Eyebrow> from components/ui/eyebrow.tsx, or eyebrowClass when the " +
-        "element cannot be a span (FormLabel and friends). Lower the baseline " +
-        `when you convert existing ones. Current holders:\n  ${worst.join("\n  ")}`,
-    ).toBeLessThanOrEqual(BASELINE)
+      holders,
+      "Hand-written uppercase labels. Use <Eyebrow> from components/ui/eyebrow.tsx, " +
+        "or cn(eyebrowClass, …) when the element cannot be a span (FormLabel and friends).",
+    ).toEqual([])
   })
 })

@@ -82,7 +82,7 @@ function AuthErrorMessage() {
   const msg = knownErrorMessages[error] || "Sign-in failed. Please try again or contact your administrator.";
 
   return (
-    <div className="bg-destructive/10 border-l-4 border-red-500 text-destructive p-4 rounded-md shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+    <div className="bg-destructive/10 border-l-4 border-destructive text-destructive p-4 rounded-md shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
       <div className="flex items-start">
         <AlertCircle className="h-5 w-5 mr-3 mt-0.5 shrink-0" />
         <div>

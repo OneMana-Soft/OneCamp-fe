@@ -7,6 +7,8 @@
 // finishes in the app editor. One-click Uninstall removes the app, its
 // commands, and its stored secrets. Optimistic UI + toasts keep it snappy.
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import { useCallback, useMemo, useState } from "react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
@@ -167,7 +169,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             <div className="space-y-4">
                 {grouped.map(([category, items]) => (
                     <div key={category}>
-                        <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-1.5">
+                        <p className={cn(eyebrowClass, "text-2xs text-muted-foreground/70 mb-1.5")}>
                             {category}
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -254,7 +256,7 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="flex-1 h-8 gap-1 border-amber-400/60 text-warning"
+                                className="flex-1 h-8 gap-1 border-warning/60 text-warning"
                                 onClick={onConfigure}
                             >
                                 <AlertCircle className="h-3.5 w-3.5" /> Finish setup

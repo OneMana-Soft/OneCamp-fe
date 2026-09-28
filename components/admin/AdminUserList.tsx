@@ -255,7 +255,7 @@ function AdminUserRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-auto gap-1 px-2 sm:w-8 sm:px-0 text-success hover:text-success dark:hover:text-emerald-300 hover:bg-success/10"
+                className="h-8 w-auto gap-1 px-2 sm:w-8 sm:px-0 text-success hover:text-success hover:bg-success/10"
                 onClick={() => onActivate(user.user_email_id!, user.user_uuid)}
                 disabled={isSubmitting}
                 aria-label={`Reactivate ${seed}`}
