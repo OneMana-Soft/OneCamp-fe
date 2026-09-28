@@ -1,5 +1,6 @@
 import {useFetch} from "@/hooks/useFetch";
-import ChannelAgents from "@/components/ai/ChannelAgents";
+import ChannelAgents, { useChannelAgents } from "@/components/ai/ChannelAgents";
+import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
 import {
     ChannelInfoInterfaceResp,
     ChannelJoinInterface,
@@ -61,6 +62,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
     // (e.g. direct navigation from notification/bookmark)
     const channelDisplayName = channelNme?.ch_name || channelInfo.data?.channel_info?.ch_name || "channel";
     const memberCount = channelInfo.data?.channel_info?.ch_member_count ?? 0;
+    const channelAgents = useChannelAgents(channelId, !!channelInfo.data?.channel_info?.ch_is_member);
 
     const channelState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || EMPTY_INPUT_STATE);
 
@@ -214,7 +216,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
             editorContentClassName="overflow-auto mb-2"
             output="html"
             content={channelState.inputTextHTML}
-            placeholder={"Message #" + channelDisplayName}
+            placeholder={channelComposerPlaceholder(channelDisplayName, channelAgents.map((a) => a.name))}
             editable={true}
             ButtonIcon={SendHorizontal}
             buttonOnclick={handleSend}

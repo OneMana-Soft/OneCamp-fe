@@ -1,6 +1,8 @@
 "use client"
 
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
+import { useChannelAgents } from "@/components/ai/ChannelAgents";
+import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
 import { ComposerAIButton } from "@/components/ai/ComposerAIButton";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
@@ -47,6 +49,8 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
     );
     const channelDisplayName =
         channelInSidebar?.ch_name || channelInfo.data?.channel_info?.ch_name || "channel";
+    // The composer only exists for someone who can post, i.e. a member.
+    const channelAgents = useChannelAgents(channelId, true);
 
     useEffect(() => {
         if (!contentRef.current) return;
@@ -92,7 +96,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={channelInputState.inputTextHTML}
-                        placeholder={`Message #${channelDisplayName}`}
+                        placeholder={channelComposerPlaceholder(channelDisplayName, channelAgents.map((a) => a.name), { compact: true })}
                         editable={true}
                         buttonOnclick={handleSend}
                         ButtonIcon={SendHorizontal}

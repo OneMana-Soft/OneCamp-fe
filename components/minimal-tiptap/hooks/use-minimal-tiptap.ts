@@ -95,7 +95,9 @@ export interface UseMinimalTiptapEditorProps extends UseEditorOptions {
 }
 
 const createExtensions = (
-    placeholder: string, 
+    // A getter, so a placeholder that changes after the editor is created (a
+    // channel's agents load a moment later) is read at render time, not frozen.
+    placeholderOf: () => string, 
     toast: (options: Toast) => void, 
     collaboration?: UseMinimalTiptapEditorProps['collaboration'], 
     provider?: HocuspocusProvider, 
@@ -333,6 +335,7 @@ const createExtensions = (
     DiffEmbed,
     Placeholder.configure({
       placeholder: ({ node }) => {
+        const placeholder = placeholderOf()
         if (placeholder?.trim()) {
           if (node.type.name === 'paragraph') return placeholder
           if (node.type.name === 'heading') return `Heading ${node.attrs.level}`
@@ -535,7 +538,7 @@ export const useMinimalTiptapEditor = ({
   // `activeUsers` is deliberately excluded so presence updates never rebuild.
   const extensions = React.useMemo(
     () => createExtensions(
-      placeholderRef.current,
+      () => placeholderRef.current,
       toast,
       collaboration,
       provider || undefined,
@@ -607,6 +610,13 @@ export const useMinimalTiptapEditor = ({
   // REMOVED: the early return that caused editor to vanish when provider was null.
   // The parent component should handle loading states; the hook should return an
   // editor whenever possible so that non-collaborative fallback works.
+
+  // Placeholder decorations are only recomputed on a transaction, so a new
+  // placeholder prop needs one to show. It changes nothing in the document.
+  React.useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    editor.view.dispatch(editor.state.tr.setMeta('placeholderRefresh', true))
+  }, [editor, placeholder])
 
   return editor
 }

@@ -5,12 +5,28 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { openUI } from "@/store/slice/uiSlice"
 import { withAI } from "@/components/common/withFeature"
+import { FEATURE_AI, useFeature } from "@/hooks/useClientConfig"
 import { Sparkles } from "@/lib/icons"
 
-interface ChannelAgent {
+export interface ChannelAgent {
   bot_user_id: string
   name: string
   description?: string
+}
+
+/**
+ * The active agents in a channel, for its members. One cached request shared by
+ * the header and the composer. Empty when AI is off, so callers need no gate.
+ */
+export function useChannelAgents(channelId: string, isMember: boolean): ChannelAgent[] {
+  const aiAvailable = useFeature(FEATURE_AI)
+  const { data } = useFetch<{ data: ChannelAgent[] }>(
+    aiAvailable && channelId && isMember ? `${GetEndpointUrl.GetChannelAgents}/${channelId}` : "",
+    undefined,
+    { revalidateOnFocus: false },
+    { suppressErrorToast: true } as never,
+  )
+  return data?.data ?? []
 }
 
 /** How many agents are named before the rest fold into "+N". */
@@ -24,13 +40,7 @@ const SHOWN = 2
  */
 function ChannelAgents({ channelId, isMember }: { channelId: string; isMember: boolean }) {
   const dispatch = useDispatch()
-  const { data } = useFetch<{ data: ChannelAgent[] }>(
-    channelId && isMember ? `${GetEndpointUrl.GetChannelAgents}/${channelId}` : "",
-    undefined,
-    { revalidateOnFocus: false },
-    { suppressErrorToast: true } as never,
-  )
-  const agents = data?.data ?? []
+  const agents = useChannelAgents(channelId, isMember)
   if (agents.length === 0) return null
 
   const open = (userUUID: string) => dispatch(openUI({ key: "otherUserProfile", data: { userUUID } }))
