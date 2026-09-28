@@ -23,6 +23,7 @@ import {
   parseFieldConfig,
   parseViewConfig,
 } from "@/services/tableService"
+import { TableGlyph } from "@/components/table/TableGlyph"
 
 export default function TableDetailPage() {
   const params = useParams()
@@ -170,7 +171,7 @@ export default function TableDetailPage() {
         <Button variant="ghost" size="icon" aria-label="Back to tables" className="h-8 w-8" onClick={() => router.push("/app/tables")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <span className="text-2xl">{t.icon || "📊"}</span>
+        <TableGlyph size="lg" icon={t.icon} />
         {bundle.can_manage ? (
           <input
             value={name}

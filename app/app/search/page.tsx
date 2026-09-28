@@ -17,7 +17,8 @@ import { getIcon, getHighlightedTitle, getHighlightedContext, isResultPreviewabl
 
 export default function SearchPage() {
     const searchParams = useSearchParams()
-    const query = searchParams.get("query") || ""
+    // query is what the app links with; q is what people and browsers type.
+    const query = searchParams.get("query") || searchParams.get("q") || ""
     const router = useRouter()
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -56,8 +57,8 @@ export default function SearchPage() {
                     >
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
-                    <h1 className="text-base md:text-lg font-semibold text-foreground truncate">
-                        {query ? `Results for "${query}"` : "Global Search"}
+                    <h1 className="font-display text-lg md:text-xl font-semibold tracking-tight text-foreground truncate">
+                        {query ? `Results for “${query}”` : "Search"}
                     </h1>
                 </div>
 

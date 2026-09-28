@@ -13,6 +13,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Loader2, Plus, Table as TableIcon, Search } from "@/lib/icons"
 import type { DataTable } from "@/services/tableService"
+import { TableGlyph } from "@/components/table/TableGlyph"
 
 // TableEmbedPickerDialog lets a doc author either create a brand-new table or
 // embed a live view of one they already have. It powers the "/table" slash
@@ -96,7 +97,7 @@ export function TableEmbedPickerDialog({
                 }
                 className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent"
               >
-                <span className="text-base">{t.icon || "📊"}</span>
+                <TableGlyph size="sm" icon={t.icon} />
                 <span className="min-w-0 flex-1 truncate font-medium">{t.name || "Untitled table"}</span>
                 <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
                   {t.visibility === "private" ? "Private" : "Workspace"}
