@@ -71,11 +71,12 @@ export function EmptyState({
         </div>
       )}
       <div className={cn("space-y-1", accent && "max-w-sm")}>
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <h3 className="text-sm font-medium text-foreground text-balance">{title}</h3>
         {description && (
           <p
             className={cn(
-              "text-muted-foreground",
+              // pretty: no sentence ends on a word alone on its last line.
+              "text-muted-foreground text-pretty",
               accent ? "text-sm" : "text-xs max-w-[260px]"
             )}
           >

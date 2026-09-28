@@ -1,5 +1,6 @@
 "use client"
 
+import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
 import { useState } from "react"
 import { SectionTabs } from "@/components/ui/sectionTabs"
@@ -83,13 +84,13 @@ function LaterItems({ state }: { state: "open" | "done" }) {
   }
   if (items.length === 0) {
     return state === "open" ? (
-      <div className="mx-auto max-w-sm py-16 text-center">
-        <Bookmark className="mx-auto h-6 w-6 text-muted-foreground" />
-        <p className="mt-3 text-sm font-medium text-foreground">Nothing saved for later</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Use the bookmark on a message, task or doc to keep it here. Ask for a reminder and it comes back when you need it.
-        </p>
-      </div>
+      <EmptyState
+        icon={Bookmark}
+        tone="accent"
+        className="py-16"
+        title="Nothing saved for later"
+        description="Use the bookmark on a message, task or doc to keep it here. Ask for a reminder and it comes back when you need it."
+      />
     ) : (
       <p className="py-16 text-center text-sm text-muted-foreground">Things you mark done appear here.</p>
     )

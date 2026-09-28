@@ -13,6 +13,7 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonCards } from "@/components/ui/skeletonCards"
+import { TableGlyph } from "@/components/table/TableGlyph"
 
 export default function TablesPage() {
   const router = useRouter()
@@ -142,7 +143,7 @@ export default function TablesPage() {
                 onClick={() => router.push(`/app/tables/${t.id}`)}
                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
-                <span className="text-lg">{t.icon || "📊"}</span>
+                <TableGlyph icon={t.icon} />
                 <div className="min-w-0">
                   <p className="truncate font-medium">{t.name}</p>
                   {t.description && <p className="truncate text-xs text-muted-foreground">{t.description}</p>}

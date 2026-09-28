@@ -514,7 +514,7 @@ export function CommandPalette() {
         keywords: ["settings", "preferences", "config", "theme", "appearance"],
         icon: <Settings className="mr-2 h-4 w-4" />,
         group: "Settings",
-        action: () => dispatch(openUI({ key: "selfUserProfile" })),
+        action: () => router.push("/app/settings"),
       },
       {
         id: "notification-settings",

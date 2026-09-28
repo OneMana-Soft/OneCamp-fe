@@ -9,6 +9,7 @@ import { Loader2, Table as TableIcon, ExternalLink } from "@/lib/icons"
 import { useMqttTopic } from "@/hooks/useMqttTopic"
 import { DataTableGrid } from "@/components/table/DataTableGrid"
 import { TableBundle } from "@/services/tableService"
+import { TableGlyph } from "@/components/table/TableGlyph"
 
 // TableEmbedView renders a live, interactive view of a referenced table inside
 // a doc. It fetches the table bundle by id and renders the grid; edits go
@@ -58,7 +59,7 @@ export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNo
     >
       <div className="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-base">{(!gone && bundle?.table?.icon) || "📊"}</span>
+          <TableGlyph size="sm" icon={gone ? null : bundle?.table?.icon} />
           <span className="truncate text-sm font-medium">
             {gone
               ? "Table unavailable"

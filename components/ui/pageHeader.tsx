@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils/helpers/cn"
  * display face is the product's voice (DESIGN.md), and the kicker gives the
  * page a place (today's date, a team, a count) without another box.
  */
-const kicker = "font-mono text-2xs uppercase tracking-wider text-muted-foreground"
+/** The kicker's look, for a line that sits where one would (a way back). */
+export const kicker = "font-mono text-2xs uppercase tracking-wider text-muted-foreground"
 
 export function PageHeader({
   eyebrow,
