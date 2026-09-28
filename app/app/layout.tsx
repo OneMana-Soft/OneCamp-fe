@@ -8,6 +8,7 @@ import { LayoutContent } from "./LayoutContent";
 import { GlobalErrorBoundary } from "@/components/error/GlobalErrorBoundary";
 import "@/lib/env"; // Validate environment variables early
 import { FCMHandler } from "@/components/fcm/FCMHandler";
+import { DocumentTitle } from "@/components/common/DocumentTitle";
 
 export default function AppLayout({
   children,
@@ -25,6 +26,7 @@ export default function AppLayout({
           <UnifiedUIManager />
           <CommandPaletteLoader />
           <FCMHandler />
+          <DocumentTitle />
         </AppProtectedRoute>
       </GlobalErrorBoundary>
     </ClientProviders>
