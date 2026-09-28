@@ -32,6 +32,8 @@ interface Props {
     height?: number
     index?: number
     task: TaskInfoInterface
+    /** A status to show on the card, when its column does not already say it. */
+    statusBadge?: string
     fadeIn?: boolean
     transform?: Transform | null
     listeners?: DraggableSyntheticListeners
@@ -77,13 +79,13 @@ function formatDueShort(d: Date): string {
  * frames for up to 180ms with five cards on the board. Memoised on the task,
  * a pointer move now only moves the cards.
  */
-const TaskCardBody = React.memo(function TaskCardBody({ task }: { task: TaskInfoInterface }) {
+const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { task: TaskInfoInterface; statusBadge?: string }) {
     const dispatch = useDispatch()
     const taskP = priorities.find((p) => p.value == task.task_priority)
     const dueDate = !isZeroEpoch(task.task_due_date) ? new Date(task.task_due_date) : null
     const isOverdue = dueDate && dueDate < new Date() && task.task_status !== "done"
     const descPreview = task.task_description ? removeHtmlTags(task.task_description) : ""
-    const hasMetaRow = Boolean(task.task_project) || Boolean(task.task_label)
+    const hasMetaRow = Boolean(task.task_project) || Boolean(task.task_label) || Boolean(statusBadge)
     const openTask = () => {
         dispatch(
             openRightPanel({
@@ -108,6 +110,11 @@ const TaskCardBody = React.memo(function TaskCardBody({ task }: { task: TaskInfo
                             <ColorIcon name={task.task_project.project_uuid} size="xs" />
                             <span className="truncate">{task.task_project.project_name}</span>
                         </span>
+                    )}
+                    {statusBadge && (
+                        <Badge variant="secondary" className="text-3xs h-4 px-1.5 font-medium truncate max-w-[40%]" title="Status">
+                            {statusBadge}
+                        </Badge>
                     )}
                     {task.task_label && (
                         <Badge
@@ -238,6 +245,7 @@ export const Item = React.memo(
                 handle,
                 handleProps,
                 task,
+                statusBadge,
                 index,
                 listeners,
                 onRemove,
@@ -343,7 +351,7 @@ export const Item = React.memo(
                             }
                         }}
                     >
-                        <TaskCardBody task={task} />
+                        <TaskCardBody task={task} statusBadge={statusBadge} />
 
                         {/* Drag handle / remove (only present when handle prop is true) */}
                         {(onRemove || handle) && (

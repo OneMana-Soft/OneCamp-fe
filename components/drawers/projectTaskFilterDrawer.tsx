@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { taskPriorityOptions, taskStatusOptions } from "@/types/task"
+import { taskPriorityOptions } from "@/types/task"
+import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import {useFetch} from "@/hooks/useFetch";
 import {ProjectInfoRawInterface} from "@/types/project";
 import {GetEndpointUrl} from "@/services/endPoints";
@@ -53,6 +54,7 @@ interface ProjectTaskFilterDrawerProps {
 export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, projectId }: ProjectTaskFilterDrawerProps) {
     const [activeTab, setActiveTab] = React.useState("sort")
     const projectInfo = useFetch<ProjectInfoRawInterface>(projectId ? GetEndpointUrl.GetProjectMemberInfo + '/' + projectId : '')
+    const { options: statusOpts } = useProjectStatuses(projectId)
     const dispatch = useDispatch()
     const taskFiltersAndSorts = useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId])
 
@@ -210,7 +212,8 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
 
         const optionsMap = {
             priority: taskPriorityOptions,
-            status: taskStatusOptions,
+            // The project's own statuses too, beside the built-in ones.
+            status: statusOpts.map((o) => ({ id: o.value, label: o.label })),
         }
 
         const currentOptions = optionsMap[activeTab as keyof typeof optionsMap] || []

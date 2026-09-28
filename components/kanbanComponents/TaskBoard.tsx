@@ -51,6 +51,7 @@ import { coordinateGetter } from "@/components/task/multipleContainersKeyboardCo
 import type { TaskInfoInterface } from "@/types/task"
 import { dropMovedCard, insertionIndex, placeCard, type SettledDrop } from "@/lib/utils/kanbanDrop"
 import { cn } from "@/lib/utils/helpers/cn"
+import { colorDot, type StatusOption } from "@/lib/taskStatus"
 
 type Columns = Record<string, TaskInfoInterface[]>
 type Target = { column: string; index: number }
@@ -87,8 +88,8 @@ export function TaskBoard({
 }: {
     /** The board as the server last described it, by status. */
     columns: Columns
-    /** Which status columns to show, in order. */
-    visible: string[]
+    /** The status columns to show, in order: built-in and the project's own. */
+    visible: StatusOption[]
     /** Whether this person may move this task. */
     canDrag: (task: TaskInfoInterface) => boolean
     /** Save a drop. The board already shows it. */
@@ -207,7 +208,15 @@ export function TaskBoard({
         <DndContext
             sensors={sensors}
             collisionDetection={noCollisions}
-            autoScroll={{ canScroll: boardScrollsOnly }}
+            autoScroll={{
+                canScroll: boardScrollsOnly,
+                // dnd-kit starts scrolling within 20% of the scroller's edge by
+                // default: about 250px on a board, so a column near the edge of
+                // the window slid away while the card was held over it and the
+                // card landed several columns on. Scroll only at the very edge.
+                threshold: { x: 0.06, y: 0.1 },
+                acceleration: 8,
+            }}
             onDragStart={onDragStart}
             onDragMove={onDragMove}
             onDragEnd={onDragEnd}
@@ -216,12 +225,12 @@ export function TaskBoard({
             <div ref={boardRef} className="flex h-full gap-4 pb-4 overflow-x-auto" data-board-scroll="">
                 {visible.map((status) => (
                     <BoardColumn
-                        key={status}
-                        id={status}
-                        tasks={items[status] ?? NO_TASKS}
+                        key={status.value}
+                        status={status}
+                        tasks={items[status.value] ?? NO_TASKS}
                         canDrag={canDragTask}
                         activeId={activeTask?.task_uuid ?? null}
-                        lineAt={target?.column === status ? target.index : null}
+                        lineAt={target?.column === status.value ? target.index : null}
                     />
                 ))}
             </div>
@@ -243,13 +252,13 @@ const NO_TASKS: TaskInfoInterface[] = []
  * in, and the one it just left, render again.
  */
 const BoardColumn = memo(function BoardColumn({
-    id,
+    status,
     tasks,
     canDrag,
     activeId,
     lineAt,
 }: {
-    id: string
+    status: StatusOption
     tasks: TaskInfoInterface[]
     canDrag: (task: TaskInfoInterface) => boolean
     activeId: string | null
@@ -257,11 +266,22 @@ const BoardColumn = memo(function BoardColumn({
     lineAt: number | null
 }) {
     // A drop target only for the keyboard, whose sensor steps between columns.
+    const id = status.value
     const { setNodeRef } = useDroppable({ id, data: { type: "container", children: tasks } })
     const others = tasks.filter((t) => t.task_uuid !== activeId).length
     let k = 0
     return (
-        <Container ref={setNodeRef} label={id} count={tasks.length} scrollable hover={lineAt !== null} data-column={id}>
+        <Container
+            ref={setNodeRef}
+            label={id}
+            title={status.label}
+            icon={status.icon}
+            swatchClass={status.swatch ? colorDot(status.swatch) : undefined}
+            count={tasks.length}
+            scrollable
+            hover={lineAt !== null}
+            data-column={id}
+        >
             <div className="flex flex-col gap-2 w-full pb-4">
                 {tasks.map((task) => {
                     const position = task.task_uuid === activeId ? -1 : k++
@@ -271,6 +291,9 @@ const BoardColumn = memo(function BoardColumn({
                             task={task}
                             column={id}
                             disabled={!canDrag(task)}
+                            // Its own status, where the column does not already say it
+                            // (My Tasks has only the built-in columns).
+                            statusBadge={task.task_custom_status && task.task_custom_status !== id ? task.task_custom_status_name : undefined}
                             lineAbove={lineAt !== null && position === lineAt}
                             lineBelow={lineAt !== null && lineAt === others && position === others - 1}
                         />
@@ -297,10 +320,12 @@ const BoardCard = memo(function BoardCard({
     disabled,
     lineAbove,
     lineBelow,
+    statusBadge,
 }: {
     task: TaskInfoInterface
     column: string
     disabled: boolean
+    statusBadge?: string
     lineAbove: boolean
     lineBelow: boolean
 }) {
@@ -316,6 +341,7 @@ const BoardCard = memo(function BoardCard({
                 ref={setNodeRef}
                 value={task.task_uuid}
                 task={task}
+                statusBadge={statusBadge}
                 dragging={isDragging}
                 listeners={disabled ? undefined : listeners}
                 data-task-id={task.task_uuid}

@@ -14,6 +14,9 @@ export interface TaskInfoInterface {
     task_project: ProjectInfoInterface
     task_team: TeamInfoInterface
     task_status: string;
+    /** The project's own status the task is in, if any; task_status is then its category. */
+    task_custom_status?: string;
+    task_custom_status_name?: string;
     task_sub_tasks: TaskInfoInterface[]
     task_parent_task: TaskInfoInterface
     task_label: string;

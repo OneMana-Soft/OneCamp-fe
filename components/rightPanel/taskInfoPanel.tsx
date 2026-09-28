@@ -7,7 +7,9 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import type {Content} from "@tiptap/core"
 import {useDispatch, useSelector} from "react-redux"
 import type {RootState} from "@/store/store"
-import {priorities, type prioritiesInterface, taskStatuses} from "@/types/table"
+import {priorities, type prioritiesInterface} from "@/types/table"
+import { statusOptionOf, statusPatch, type TaskStatusFields } from "@/lib/taskStatus"
+import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch"
 import {
     addTaskComments,
@@ -122,7 +124,9 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     // or another member's update right after assignment) can never overwrite the
     // saved description with "".
     const descUserEditedRef = useRef(false)
-    const [selectedStatus, setSelectedStatus] = useState<prioritiesInterface | undefined>(undefined)
+    // The task's status as it stands (category and custom status); the option
+    // shown is derived from it and the project's statuses, which may load later.
+    const [statusFields, setStatusFields] = useState<TaskStatusFields>({})
     const [selectedPriority, setSelectedPriority] = useState<prioritiesInterface | undefined>(undefined)
     const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
     const [taskIsDeleted, setTaskIsDeleted] = useState<boolean>(false)
@@ -149,6 +153,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         refreshWhenHidden: false,
         refreshWhenOffline: false,
     })
+    const { options: statusOpts } = useProjectStatuses(taskInfo.data?.data?.task_project?.project_uuid)
+    const selectedStatus = useMemo(
+        () => (statusFields.task_status ? statusOptionOf(statusFields, statusOpts) : undefined),
+        [statusFields, statusOpts],
+    )
     const syncStatus = useFetch<{ data: { status: string; error?: string; attempts: number } }>(
         taskUUID && (taskInfo.data?.data?.task_github_issue_url || taskInfo.data?.data?.task_github_pr_url)
             ? `${GetEndpointUrl.GetGitHubSyncStatus}/${taskUUID}`
@@ -212,7 +221,8 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const canMarkComplete = useMemo(
         () => {
 
-            return selectedStatus?.value !== CONSTANTS.STATUS_DONE
+            // Done or any of the project's statuses that count as done.
+            return selectedStatus?.category !== CONSTANTS.STATUS_DONE
         },
         [selectedStatus],
     )
@@ -286,7 +296,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     )
 
     const updateTaskStatus = useCallback(
-        (status: string, id: string) => {
+        (status: string, id: string, patch: TaskStatusFields) => {
             if (!status || !id || !taskInfo.data?.data.task_project.project_uuid) return
 
             post
@@ -299,8 +309,8 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                     },
                 })
                 .then(() => {
-                    dispatch(updateTaskStatusInTaskList({taskId: id, value: status}))
-                    optimisticUpdateTask({ task_uuid: id, task_status: status }, taskInfo.data!.data.task_project.project_uuid)
+                    dispatch(updateTaskStatusInTaskList({taskId: id, value: status, patch}))
+                    optimisticUpdateTask({ task_uuid: id, ...patch }, taskInfo.data!.data.task_project.project_uuid)
                     // Status affects kanban columns — debounce so rapid clicks
                     // (e.g. todo → in_progress → done) batch into one sweep.
                     revalidateTaskListsDebounced(1500)
@@ -669,7 +679,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
 
         setStartDate(!isZeroEpoch(data.task_start_date) ? new Date(data.task_start_date) : undefined)
         setDueDate(!isZeroEpoch(data.task_due_date) ? new Date(data.task_due_date) : undefined)
-        setSelectedStatus(taskStatuses.find((s) => s.value === data.task_status))
+        setStatusFields({
+            task_status: data.task_status,
+            task_custom_status: data.task_custom_status,
+            task_custom_status_name: data.task_custom_status_name,
+        })
         setSelectedPriority(priorities.find((p) => p.value === data.task_priority))
         setTaskSubTasks(data.task_sub_tasks||[])
         setTaskLabel(data.task_label || "")
@@ -715,11 +729,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
 
     const handleStatusSelect = useCallback(
         (value: string) => {
-            const status = taskStatuses.find((s) => s.value === value)
-            setSelectedStatus(status)
-            updateTaskStatus(value, taskUUID)
+            const patch = statusPatch(value, statusOpts)
+            setStatusFields(patch)
+            updateTaskStatus(value, taskUUID, patch)
         },
-        [taskUUID, updateTaskStatus],
+        [taskUUID, updateTaskStatus, statusOpts],
     )
 
     const handlePrioritySelect = useCallback(
@@ -985,6 +999,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                     <TaskStatusPriorityControl
                         isAdmin={isAdmin}
                         selectedStatus={selectedStatus}
+                        statusOptions={statusOpts}
                         selectedPriority={selectedPriority}
                         onSelectStatus={handleStatusSelect}
                         onSelectPriority={handlePrioritySelect}
@@ -1173,10 +1188,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         subtasks={taskSubTasks}
                         projectMembers={projectMembers}
                         onToggleStatus={(id, newStatus) => {
+                                const patch = statusPatch(newStatus, statusOpts)
                                 setTaskSubTasks((prevSubtasks) =>
-                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, task_status: newStatus } : subtask)),
+                                    prevSubtasks.map((subtask) => (subtask.task_uuid === id ? { ...subtask, ...patch } : subtask)),
                                 )
-                                updateTaskStatus(newStatus, id)
+                                updateTaskStatus(newStatus, id, patch)
                             }
                         }
                         onRename={(id, name) => setTaskName({ taskName: name, taskUUID: id })}

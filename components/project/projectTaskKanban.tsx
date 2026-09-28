@@ -7,6 +7,7 @@ import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
     DropdownMenuContent,
+    DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
@@ -19,10 +20,12 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { GetTaskStatusQueryParamByStatus } from "@/lib/utils/getTaskStatusQueryParamByStatus"
 import type { TaskInfoInterface } from "@/types/task"
 import { openUI } from "@/store/slice/uiSlice"
-import { type prioritiesInterface, taskStatuses } from "@/types/table"
 import { ProjectTaskKanbanAssigneeFilter } from "@/components/project/projectTaskKanbanAssigneeFilter"
 import { useMoveTask } from "@/hooks/useMoveTask"
-import { useBoardColumns } from "@/hooks/useBoardColumns"
+import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
+import { useProjectStatuses } from "@/hooks/useProjectStatuses"
+import { columnsByStatus, statusPatch } from "@/lib/taskStatus"
+import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
 
 const EMPTY: TaskInfoInterface[] = []
@@ -51,18 +54,26 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
     // Unknown until the project loads; the server checks again on every move.
     const isAdmin = p?.project_is_admin !== undefined ? Boolean(p.project_is_admin) : false
 
+    // One column per status: the built-in ones, each followed by the project's
+    // own that count as it (the server groups tasks by category only).
+    const { options: statusOpts } = useProjectStatuses(projectId)
+    const [managing, setManaging] = useState(false)
     const columns = useMemo(
-        () => ({
-            backlog: p?.project_tasks_backlog ?? EMPTY,
-            todo: p?.project_tasks_todo ?? EMPTY,
-            inProgress: p?.project_tasks_in_progress ?? EMPTY,
-            inReview: p?.project_tasks_in_review ?? EMPTY,
-            done: p?.project_tasks_done ?? EMPTY,
-            canceled: p?.project_tasks_canceled ?? EMPTY,
-        }),
-        [p],
+        () =>
+            columnsByStatus(
+                {
+                    backlog: p?.project_tasks_backlog ?? EMPTY,
+                    todo: p?.project_tasks_todo ?? EMPTY,
+                    inProgress: p?.project_tasks_in_progress ?? EMPTY,
+                    inReview: p?.project_tasks_in_review ?? EMPTY,
+                    done: p?.project_tasks_done ?? EMPTY,
+                    canceled: p?.project_tasks_canceled ?? EMPTY,
+                },
+                statusOpts,
+            ),
+        [p, statusOpts],
     )
-    const visible = useMemo(() => Object.keys(viewableStatus).filter((k) => viewableStatus[k]), [viewableStatus])
+    const visible = useMemo(() => statusOpts.filter((o) => isShown(viewableStatus, o.value)), [statusOpts, viewableStatus])
 
     return (
         <div className="flex flex-col h-full p-4 overflow-hidden">
@@ -82,19 +93,25 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                                 {t("view")}
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-[150px]">
+                        <DropdownMenuContent align="end" className="w-[200px]">
                             <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {taskStatuses.map((column: prioritiesInterface) => (
+                            {statusOpts.map((column) => (
                                 <DropdownMenuCheckboxItem
                                     key={column.value}
-                                    className="capitalize"
-                                    checked={viewableStatus[column.value as keyof typeof viewableStatus]}
+                                    className={column.custom ? "pl-10" : undefined}
+                                    checked={isShown(viewableStatus, column.value)}
                                     onCheckedChange={(value) => setColumnShown(column.value, value)}
                                 >
                                     {column.label}
                                 </DropdownMenuCheckboxItem>
                             ))}
+                            {isAdmin && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onSelect={() => setManaging(true)}>Manage statuses…</DropdownMenuItem>
+                                </>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
@@ -106,10 +123,11 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                         columns={columns}
                         visible={visible}
                         canDrag={() => isAdmin}
-                        onMove={(task, drop) => void moveTask(task.task_uuid, projectId, drop)}
+                        onMove={(task, drop) => void moveTask(task.task_uuid, projectId, drop, statusPatch(drop.column, statusOpts))}
                     />
                 </div>
             </div>
+            {isAdmin && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
         </div>
     )
 }

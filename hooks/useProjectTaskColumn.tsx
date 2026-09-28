@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 
-import { priorities, taskStatuses } from "@/types/table";
+import { priorities } from "@/types/table";
+import { statusValueOf, statusOptionOf, type StatusOption } from "@/lib/taskStatus";
 import {format} from "date-fns";
 import { GitBranch, MessageSquare } from "@/lib/icons";
 import {prioritiesInterface} from "@/types/table";
@@ -18,7 +19,8 @@ import {useDispatch} from "react-redux";
 
 
 
-export const useProjectTaskColumn = () => {
+/** statusOptions: the project's statuses, so its own ones show in their colours. */
+export const useProjectTaskColumn = (statusOptions?: StatusOption[]) => {
 
     const { t } = useTranslation();
     const dispatch = useDispatch();
@@ -66,9 +68,8 @@ export const useProjectTaskColumn = () => {
                 <TaskTableColumnHeader column={column} title={t("status")} />
             ),
             cell: ({ row }) => {
-                const status = taskStatuses.find(
-                    (status: prioritiesInterface) => status.value === row.getValue("task_status")
-                );
+                // Its custom status, or its built-in one (see lib/taskStatus).
+                const status = statusOptionOf(row.original, statusOptions);
 
                 if (!status) {
                     return null;
@@ -90,8 +91,8 @@ export const useProjectTaskColumn = () => {
                     </div>
                 );
             },
-            filterFn: (row, id, value) => {
-                return value.includes(row.getValue(id));
+            filterFn: (row, _id, value) => {
+                return value.includes(statusValueOf(row.original));
             },
             enableSorting: false,
         },

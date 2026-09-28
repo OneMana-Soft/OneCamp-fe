@@ -1,4 +1,5 @@
 "use client"
+import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
     type ColumnFiltersState,
@@ -203,7 +204,8 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
 
     const pageCount = projectInfo.data?.pageCount || 1
 
-    const { columns } = useProjectTaskColumn()
+    const { options: statusOpts } = useProjectStatuses(projectId)
+    const { columns } = useProjectTaskColumn(statusOpts)
 
     const table = useReactTable({
         data: taskListState,

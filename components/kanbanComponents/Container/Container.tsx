@@ -12,6 +12,11 @@ interface Props {
     label?: string
     /** Cards in the column; shown beside its name. */
     count?: number
+    /** The column's name and icon when it is not one of the built-in statuses. */
+    title?: string
+    icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>
+    /** A project's own status: its colour, as a dot beside the name. */
+    swatchClass?: string
     style?: React.CSSProperties
     horizontal?: boolean
     hover?: boolean
@@ -39,6 +44,9 @@ export const Container = forwardRef<HTMLDivElement, Props>(
             onRemove,
             label,
             count,
+            title,
+            icon,
+            swatchClass,
             placeholder,
             style,
             scrollable,
@@ -50,6 +58,8 @@ export const Container = forwardRef<HTMLDivElement, Props>(
     ) => {
         const Component = onClick ? "button" : "div"
         const status = taskStatuses.find((s) => s.value == label)
+        const Icon = icon ?? status?.icon
+        const name = title ?? status?.label ?? label
 
         return (
             <Component
@@ -86,10 +96,9 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                 {label ? (
                     <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/60">
                         <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                            {status?.icon && (
-                                <status.icon className="h-4 w-4 text-muted-foreground" strokeWidth={2} />
-                            )}
-                            {status?.label || label}
+                            {Icon && <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={2} />}
+                            {swatchClass && <span aria-hidden="true" className={cn("h-2 w-2 rounded-full", swatchClass)} />}
+                            {name}
                         </h2>
                         {/* No drag handle: column order was never saved, so a
                             moved column went back on reload. The count says more. */}

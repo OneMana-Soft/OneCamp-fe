@@ -119,7 +119,11 @@ export const useTaskUpdate = () => {
         });
     }, [mutate, getTaskKeys]);
 
-    const optimisticUpdateTask = useCallback((updatedTask: Partial<TaskInfoInterface> & { task_uuid: string }, projectId: string, newIndex?: number) => {
+    // placement puts a moved card next to the card it was dropped beside. It
+    // beats newIndex: a board column for a project's own status is only part
+    // of its category's list in this cache, so an index in the column is not
+    // an index in the list.
+    const optimisticUpdateTask = useCallback((updatedTask: Partial<TaskInfoInterface> & { task_uuid: string }, projectId: string, newIndex?: number, placement?: { before?: string; after?: string }) => {
         const matchedKeys = getTaskKeys(projectId);
 
         const updateDataArray = (tasks: TaskInfoInterface[] | undefined) => {
@@ -158,9 +162,16 @@ export const useTaskUpdate = () => {
                        data[targetColKey] = [];
                     }
 
-                    // Insert at specific index or default to top
+                    // Insert beside its neighbour, at a specific index, or at the top
                     const taskToInsert = { ...foundTask, ...(updatedTask as any) };
-                    if (targetIndex !== undefined) {
+                    const list = data[targetColKey] as any[];
+                    const beforeAt = placement?.before ? list.findIndex((t: any) => t.task_uuid === placement.before) : -1;
+                    const afterAt = placement?.after ? list.findIndex((t: any) => t.task_uuid === placement.after) : -1;
+                    if (beforeAt >= 0) {
+                        list.splice(beforeAt + 1, 0, taskToInsert);
+                    } else if (afterAt >= 0) {
+                        list.splice(afterAt, 0, taskToInsert);
+                    } else if (targetIndex !== undefined) {
                         (data[targetColKey] as any).splice(targetIndex, 0, taskToInsert);
                     } else {
                         (data[targetColKey] as any) = [taskToInsert, ...(data[targetColKey] as any)];
