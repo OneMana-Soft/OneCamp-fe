@@ -15,7 +15,13 @@ export type WorkflowActionType =
     | "warn_user"
     | "flag_to_channel";
 
-export type WorkflowTriggerType = "message_posted" | "user_joined_channel" | "meeting_ended";
+export type WorkflowTriggerType = "message_posted" | "user_joined_channel" | "meeting_ended" | "task_status_changed";
+
+/** task_status_changed: which moves count. Both optional; the server stores to_status as a key or id. */
+export interface TaskStatusTriggerConfig {
+    project_id?: string;
+    to_status?: string;
+}
 
 export interface WorkflowAction {
     type: WorkflowActionType;
@@ -58,6 +64,18 @@ export interface WorkflowFormValues {
     keywords: string[];
     match_type: "any" | "all";
     actions: WorkflowAction[];
+    trigger_config?: TaskStatusTriggerConfig;
+}
+
+/** A saved workflow's task_status_changed config, or {} for anything else. */
+export function parseTaskStatusConfig(w: Workflow): TaskStatusTriggerConfig {
+    if (w.trigger_type !== "task_status_changed" || !w.trigger_config) return {};
+    try {
+        const c = JSON.parse(w.trigger_config) as TaskStatusTriggerConfig;
+        return { project_id: c.project_id || undefined, to_status: c.to_status || undefined };
+    } catch {
+        return {};
+    }
 }
 
 // parseWorkflow expands the raw JSON string fields into typed values for the UI.
@@ -106,6 +124,8 @@ interface WorkflowDraft {
     keywords: string[];
     match_type: "any" | "all";
     actions: WorkflowAction[];
+    /** task_status_changed: a status as the person named it, e.g. "QA". */
+    trigger_config?: { to_status?: string };
     notes?: string;
 }
 
