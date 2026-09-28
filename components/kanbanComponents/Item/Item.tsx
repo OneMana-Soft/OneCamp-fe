@@ -21,6 +21,7 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ColorIcon } from "@/components/colorIcon/colorIcon"
 import { Badge } from "@/components/ui/badge"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
+import { isClosedStatus } from "@/lib/taskStatus"
 
 interface Props {
     dragOverlay?: boolean
@@ -83,7 +84,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
     const dispatch = useDispatch()
     const taskP = priorities.find((p) => p.value == task.task_priority)
     const dueDate = !isZeroEpoch(task.task_due_date) ? new Date(task.task_due_date) : null
-    const isOverdue = dueDate && dueDate < new Date() && task.task_status !== "done"
+    const isOverdue = dueDate && dueDate < new Date() && !isClosedStatus(task.task_status)
     const descPreview = task.task_description ? removeHtmlTags(task.task_description) : ""
     const hasMetaRow = Boolean(task.task_project) || Boolean(task.task_label) || Boolean(statusBadge)
     const openTask = () => {

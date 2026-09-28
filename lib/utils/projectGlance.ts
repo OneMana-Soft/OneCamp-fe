@@ -4,6 +4,8 @@
  * people have to learn; counts in words need no learning.
  */
 
+import { isClosedStatus } from "@/lib/taskStatus"
+
 interface GlanceTask {
   task_status: string
   task_due_date?: string | null
@@ -15,8 +17,6 @@ export interface ProjectGlance {
   dueSoon: number
   done: number
 }
-
-const CLOSED = new Set(["done", "canceled"])
 
 function startOfDay(d: Date): Date {
   const x = new Date(d)
@@ -38,7 +38,7 @@ export function projectGlance(tasks: GlanceTask[], now: Date): ProjectGlance {
       g.done++
       continue
     }
-    if (CLOSED.has(t.task_status)) continue
+    if (isClosedStatus(t.task_status)) continue
     g.open++
     const due = t.task_due_date ? new Date(t.task_due_date) : null
     if (!due || Number.isNaN(due.getTime()) || due.getFullYear() < 1971) continue
