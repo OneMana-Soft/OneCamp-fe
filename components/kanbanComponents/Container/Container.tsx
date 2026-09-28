@@ -6,7 +6,7 @@ import styles from "./Container.module.css"
 import { cn } from "@/lib/utils/helpers/cn"
 import { taskStatuses } from "@/types/table"
 
-export interface Props {
+interface Props {
     children: React.ReactNode
     columns?: number
     label?: string
@@ -64,6 +64,10 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                     unstyled && styles.unstyled,
                     !unstyled && [
                         "shrink-0 mx-2 my-0 w-[320px] rounded-lg",
+                        // A column's layout is its own: when a card moves in or
+                        // out, the browser re-lays out this column and not the
+                        // whole page, which is most of the cost of a crossing.
+                        "[contain:layout]",
                         "bg-card border border-border/60",
                         "transition-colors duration-150",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
@@ -100,7 +104,7 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                     </div>
                 ) : null}
                 {placeholder ? children : (
-                    <div className={styles.Content}>
+                    <div className={styles.Content} data-board-scroll="">
                         {children}
                         {count === 0 && (
                             <p className="px-3 py-8 text-center text-xs text-muted-foreground">

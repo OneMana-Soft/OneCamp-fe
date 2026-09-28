@@ -11,5 +11,4 @@
 // Container and Item are what the two board screens use. Keep it that way: a
 // control that belongs on a board belongs in components/ui with everything else.
 export { Container } from "./Container"
-export type { ContainerProps } from "./Container"
 export { Item } from "./Item"
