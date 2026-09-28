@@ -221,7 +221,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
       <div className="flex justify-between items-center px-5 py-4 border-b ">
          <div className="flex items-center gap-2 font-medium">
            <Sparkles className="h-4 w-4 text-primary " />
-           <span>AI Assistant</span>
+           <span>OneCamp AI</span>
          </div>
          {(isSidebar || onClose) && (
             <Button onClick={handleClosePanel} size="icon" variant="ghost" aria-label={isSidebar && !onClose ? "Collapse panel" : "Close panel"} className={cn("h-8 w-8 text-muted-foreground hover:text-foreground", isSidebar && !onClose && "hidden md:flex")}>

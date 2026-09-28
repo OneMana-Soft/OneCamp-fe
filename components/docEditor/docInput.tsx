@@ -665,7 +665,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     <Drawer.Portal>
                         <Drawer.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[var(--z-modal-backdrop)]" />
                         <Drawer.Content className="bg-background flex flex-col rounded-t-[20px] h-[85vh] mt-24 fixed bottom-0 left-0 right-0 z-[var(--z-modal)] outline-none border-t border-border">
-                            <Drawer.Title className="sr-only">AI Assistant</Drawer.Title>
+                            <Drawer.Title className="sr-only">OneCamp AI</Drawer.Title>
                             <Drawer.Description className="sr-only">AI powered document assistant for writing and transforming text.</Drawer.Description>
                             <div className="mx-auto w-12 h-1.5 flex-shrink-0 rounded-full bg-muted my-4" />
                             <div className="flex-1 overflow-y-auto">

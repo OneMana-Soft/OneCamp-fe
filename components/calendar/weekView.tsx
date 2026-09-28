@@ -207,8 +207,8 @@ export function WeekView({
                 key={`${it.uuid}-${i}`}
                 onClick={() => (it.isTask ? onTaskClick(it.uuid) : onEventClick(it.uuid))}
                 className={cn(
-                  "block w-full truncate rounded px-1.5 py-0.5 text-left text-3xs font-medium text-white",
-                  it.isTask ? calendarColors.task.solidOpacity : calendarColors.event.solidOpacity,
+                  "block w-full truncate rounded px-1.5 py-0.5 text-left text-3xs font-medium",
+                  it.isTask ? calendarColors.task.block : calendarColors.event.block,
                 )}
               >
                 {it.title}
@@ -279,8 +279,8 @@ export function WeekView({
                       width: `calc(${widthPct}% - 4px)`,
                     }}
                     className={cn(
-                      "absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-3xs font-medium leading-tight text-white shadow-sm",
-                      it.isTask ? calendarColors.task.solidOpacity : calendarColors.event.solidOpacity,
+                      "absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-3xs font-medium leading-tight",
+                      it.isTask ? calendarColors.task.block : calendarColors.event.block,
                     )}
                   >
                     <span className="block truncate font-semibold">{it.title}</span>

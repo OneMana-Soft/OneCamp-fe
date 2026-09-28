@@ -273,7 +273,7 @@ export function MobileHome() {
                 still advertises an assistant the server cannot serve. */}
             <FeatureGate feature={FEATURE_AI}>
             <TapSurface
-                ariaLabel="Open AI Assistant"
+                ariaLabel="Ask OneCamp AI"
                 onClick={() => router.push("/app/ai")}
                 className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-3"
             >

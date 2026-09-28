@@ -44,7 +44,7 @@ export default function DesktopNavigationTopBar() {
                     <TooltipTrigger asChild>
                         <button
                             onClick={handleAiToggle}
-                            aria-label={isAiOpen ? "Close AI Assistant" : "Open AI Assistant"}
+                            aria-label={isAiOpen ? "Close OneCamp AI" : "Open OneCamp AI"}
                             className={cn(
                                 "h-9 w-9 flex items-center justify-center rounded-md transition duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                                 isAiOpen
@@ -56,7 +56,7 @@ export default function DesktopNavigationTopBar() {
                         </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
-                        AI Assistant
+                        OneCamp AI
                     </TooltipContent>
                 </Tooltip>
                 </FeatureGate>

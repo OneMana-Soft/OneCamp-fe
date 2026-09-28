@@ -360,7 +360,6 @@ export function CalendarApp() {
                                                                 <div className={cn(
                                                                     "w-2.5 h-2.5 rounded-full shrink-0 shadow-sm",
                                                                     event.isTask ? calendarColors.task.solid : calendarColors.event.solid,
-                                                                    event.isTask ? "group-hover:bg-blue-600" : "group-hover:bg-indigo-600"
                                                                 )} />
                                                                 <div className="flex flex-col min-w-0">
                                                                     <div className="text-2xs font-semibold truncate text-foreground group-hover:text-primary transition-colors">
@@ -424,9 +423,8 @@ export function CalendarApp() {
                                             "absolute h-5 px-1.5 py-0 text-3xs font-medium truncate cursor-pointer transition flex items-center z-20",
                                             isHovered && "scale-[1.02] z-30 shadow-md",
                                             event.isTask
-                                                ? (isHovered ? calendarColors.task.solidHover : calendarColors.task.solidOpacity)
-                                                : (isHovered ? calendarColors.event.solidHover : calendarColors.event.solidOpacity),
-                                            "text-white",
+                                                ? (isHovered ? calendarColors.task.blockHover : calendarColors.task.block)
+                                                : (isHovered ? calendarColors.event.blockHover : calendarColors.event.block),
                                             isStartOfWeek ? "rounded-l-[4px]" : "",
                                             isEndOfWeek ? "rounded-r-[4px]" : (event.isTask ? "border-r " + calendarColors.task.border : "border-r " + calendarColors.event.border)
                                         )}

@@ -546,7 +546,7 @@ const AiChatPanel: React.FC = () => {
                     <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-primary/10 text-primary">
                         <Sparkles className="h-3.5 w-3.5" />
                     </span>
-                    <span className="text-sm font-semibold text-foreground">AI Assistant</span>
+                    <span className="text-sm font-semibold text-foreground">OneCamp AI</span>
                     <AiUsageIndicator refreshSignal={messages.length} />
                 </div>
                 <div className="flex items-center gap-0.5">

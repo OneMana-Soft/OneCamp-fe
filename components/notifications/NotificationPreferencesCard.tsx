@@ -10,7 +10,7 @@
  * "your admin hasn't configured email yet" message.
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -195,7 +195,7 @@ export function NotificationPreferencesCard() {
         {/* Per-event toggles */}
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-muted-foreground">What to email me about</h3>
-          <div className="space-y-2">
+          <div className="divide-y divide-border/60 rounded-lg border border-border/70">
             <ToggleRow
               label="Direct messages"
               description="When someone sends you a 1:1 chat or messages a group you're in."
@@ -352,6 +352,10 @@ export function NotificationPreferencesCard() {
   )
 }
 
+// One row of a preference list. The label is tied to its switch, so a screen
+// reader announces what each switch controls (the page had eleven unnamed
+// switches) and clicking the text toggles it. A group of rows sits in one
+// bordered list rather than a box per row.
 function ToggleRow(props: {
   label: string
   description?: string
@@ -359,15 +363,18 @@ function ToggleRow(props: {
   disabled?: boolean
   onChange: (v: boolean) => void
 }) {
+  const id = useId()
   return (
-    <div className="flex items-start justify-between gap-4 rounded-md border bg-card/50 p-3">
+    <div className="flex items-start justify-between gap-4 px-3 py-3">
       <div className="space-y-0.5">
-        <Label className="text-sm font-medium">{props.label}</Label>
+        <Label htmlFor={id} className="text-sm font-medium">{props.label}</Label>
         {props.description && (
-          <p className="text-xs text-muted-foreground">{props.description}</p>
+          <p id={`${id}-desc`} className="text-xs text-muted-foreground">{props.description}</p>
         )}
       </div>
       <Switch
+        id={id}
+        aria-describedby={props.description ? `${id}-desc` : undefined}
         checked={props.checked}
         disabled={props.disabled}
         onCheckedChange={props.onChange}
