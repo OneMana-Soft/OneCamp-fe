@@ -17,7 +17,7 @@ import {preSelectedEmojis} from "@/components/drawers/consts/preSelectedEmojiCon
 import {DrawerActionCard} from "@/components/drawerActionCard/drawerActionCard";
 import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
 import {DrawerDestructiveActionLink} from "@/components/drawerActionLink/drawerDestructiveActionLink";
-import {app_channel_path, app_chat_path, app_message_forward_path} from "@/types/paths";
+import {app_chat_path, app_message_forward_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import {chat_forward_type} from "@/types/user";
 import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
@@ -65,7 +65,8 @@ export function DmChatMessageLongPressDrawer({ drawerOpenState, handleEmojiClick
         const host = window.location.host;
         const protocol = window.location.protocol;
         const baseUrl = `${protocol}//${host}`;
-        const newPath = `${app_channel_path}/${otherUserUUID}/${chatUUID}`
+        // A direct message lives under /app/chat; the channel path opened nothing.
+        const newPath = `${app_chat_path}/${otherUserUUID}/${chatUUID}`
 
         copyToClipboard.copy(`${baseUrl}${newPath}`, 'copied link')
 

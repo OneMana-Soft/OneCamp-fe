@@ -42,6 +42,8 @@ export function MobileTopNavigationBarSecond() {
                 return "My Profile";
             case "activity":
                 return "Activity";
+            case "later":
+                return "Later";
             case "create":
 
                 if (path.length < 5)

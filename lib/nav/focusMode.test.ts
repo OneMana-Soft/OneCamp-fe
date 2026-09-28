@@ -25,6 +25,7 @@ describe("the desktop rail under focus mode", () => {
             "DMs",
             "My Tasks",
             "Activity",
+            "Later",
             "Admin",
         ])
     })
@@ -52,6 +53,14 @@ describe("the desktop rail under focus mode", () => {
         expect(links.find((l) => l.title === "Channels")?.label).toBe("3")
         expect(links.find((l) => l.title === "DMs")?.label).toBe("12")
         expect(links.find((l) => l.title === "Activity")?.label).toBe("")
+        expect(links.find((l) => l.title === "Later")?.label).toBe("")
+    })
+
+    it("shows how many saved-for-later reminders have come, and nothing otherwise", () => {
+        const due = buildPrimaryNavLinks(at("home"), { ...quiet, laterDue: 2 }, false)
+        expect(due.find((l) => l.title === "Later")?.label).toBe("2")
+        const onLater = buildPrimaryNavLinks(at("later"), quiet, false)
+        expect(onLater.find((l) => l.title === "Later")?.variant).toBe("sidebarActive")
     })
 })
 

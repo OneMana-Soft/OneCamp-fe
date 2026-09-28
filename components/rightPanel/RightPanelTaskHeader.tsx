@@ -28,6 +28,7 @@ import { app_task_path } from "@/types/paths"
 import { openUI } from "@/store/slice/uiSlice"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { usePost } from "@/hooks/usePost"
+import { SaveForLaterButton } from "@/components/later/SaveForLater"
 
 type HeaderActionsProps = {
     isAdmin: boolean
@@ -37,6 +38,8 @@ type HeaderActionsProps = {
     taskUUID: string
     taskName?: string
     hasGitHubLink?: boolean
+    /** Shown beside the task in Later. */
+    projectName?: string
 }
 
 /**
@@ -52,6 +55,7 @@ export function RightPanelTaskHeader({
     taskUUID,
     taskName,
     hasGitHubLink,
+    projectName,
 }: HeaderActionsProps) {
     const post = usePost()
     const [isAnimating, setIsAnimating] = useState(false)
@@ -95,6 +99,19 @@ export function RightPanelTaskHeader({
 
     const dispatch = useDispatch()
 
+    // Anyone who can see the task can save it for later, not only its admins.
+    const laterButton = taskName ? (
+        <SaveForLaterButton
+            target={{
+                itemType: "task",
+                itemId: taskUUID,
+                link: `${app_task_path}/${taskUUID}`,
+                title: taskName,
+                context: projectName,
+            }}
+        />
+    ) : null
+
     return (
         <div
             className={cn(
@@ -118,8 +135,10 @@ export function RightPanelTaskHeader({
                 )}
             </div>
 
+            {!isDesktop && laterButton}
             {isDesktop && (
                 <div className="flex items-center gap-0.5 shrink-0">
+                    {laterButton}
                     {isAdmin && onDeleteTask && (
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>

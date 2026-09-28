@@ -4,6 +4,7 @@ import {useMedia} from "@/context/MediaQueryContext";
 import {DocTopBarBreadcrumb} from "@/components/doc/docTopBarBreadcrumb";
 import MinimalTiptapDocInput from "@/components/docEditor/docInput";
 import {ActiveUsersBar} from "@/components/docEditor/ActiveUsersBar";
+import { SaveForLaterButton } from "@/components/later/SaveForLater";
 import {LinkedFromSection} from "@/components/entityLink/LinkedFromSection";
 import {cn} from "@/lib/utils/helpers/cn";
 import { useParams } from "next/navigation";
@@ -366,27 +367,14 @@ export default function Page() {
                         {/* Active users avatars */}
                         <ActiveUsersBar users={awarenessUsers} maxShown={4} />
 
-                        {/* Export */}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleExportMarkdown}
-                            className="gap-1.5 text-muted-foreground hover:text-foreground"
-                            title="Export as Markdown"
-                        >
-                            <Download className='h-4 w-4'/>
-                        </Button>
-
-                        {/* Shortcuts help */}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowShortcuts(true)}
-                            className="gap-1.5 text-muted-foreground hover:text-foreground"
-                            title="Keyboard shortcuts (? )"
-                        >
-                            <Keyboard className='h-4 w-4'/>
-                        </Button>
+                        <SaveForLaterButton
+                            target={{
+                                itemType: "doc",
+                                itemId: docId,
+                                link: `/app/doc/${docId}`,
+                                title: displayDocInfo?.doc_title || "Untitled doc",
+                            }}
+                        />
 
                         {/* Focus mode */}
                         <Button
@@ -404,25 +392,37 @@ export default function Page() {
                             <span className="text-sm">{docCommentCount || 0}</span>
                         </Button>
 
-                        {hasEditAccess && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" title="More">
-                                        <Ellipsis className='h-4 w-4'/>
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docViewers", data: { docId } }))}>
-                                        <Eye className="mr-2 h-4 w-4" />
-                                        Viewed by
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docVersionHistory", data: { docId } }))}>
-                                        <History className="mr-2 h-4 w-4" />
-                                        Version history
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
+                        {/* Export and shortcuts are occasional, so they live here
+                            rather than as two more icons beside the title. */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground" aria-label="More doc actions" title="More">
+                                    <Ellipsis className='h-4 w-4'/>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={handleExportMarkdown}>
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Export as Markdown
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setShowShortcuts(true)}>
+                                    <Keyboard className="mr-2 h-4 w-4" />
+                                    Keyboard shortcuts
+                                </DropdownMenuItem>
+                                {hasEditAccess && (
+                                    <>
+                                        <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docViewers", data: { docId } }))}>
+                                            <Eye className="mr-2 h-4 w-4" />
+                                            Viewed by
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => dispatch(openUI({ key: "docVersionHistory", data: { docId } }))}>
+                                            <History className="mr-2 h-4 w-4" />
+                                            Version history
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </div>
             )}

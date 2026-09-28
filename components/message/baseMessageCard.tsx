@@ -373,6 +373,7 @@ export const BaseMessageCard = React.memo(({
               onReactionSelect={handleEmojiClick}
               setIsDropdownOpen={setIsDropdownOpen}
               messageText={message.bodyText}
+              authorName={userInfoState?.userName || message.from.user_name}
               onReply={onReply}
               onTranslate={message.bodyText ? handleTranslate : undefined}
               {...hoverOptionsConfig}

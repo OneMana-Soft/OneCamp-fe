@@ -40,9 +40,12 @@ export enum MqttMessageType {
     AI_Pending_Action,
     // AI_Agent_Work mirrors backend MESSAGE_AI_AGENT_WORK: a durable agent job
     // started, was asked to stop, or finished. It is what makes the in-thread
-    // "working… / Stop" strip live without a timer. MUST stay last to keep the
-    // numeric values aligned with the Go iota enum.
+    // "working… / Stop" strip live without a timer.
     AI_Agent_Work,
+    // Saved_Item_Due mirrors backend MESSAGE_SAVED_ITEM_DUE: something the member
+    // saved for later has come due. MUST stay last to keep the numeric values
+    // aligned with the Go iota enum.
+    Saved_Item_Due,
 }
 
 export enum MqttActionType {

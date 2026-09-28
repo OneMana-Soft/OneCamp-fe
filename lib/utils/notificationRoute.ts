@@ -27,6 +27,7 @@
  *   task_comment           project id                  TASK id        business/Comment/commentBusiness.go
  *   doc_comment            doc id                      —              business/Comment/commentBusiness.go
  *   reminder               recipient user id           —              business/Command/delivery.go
+ *   later                  app path of the saved item  —              business/SavedItem/savedItem.go
  *
  *   (*) some chat senders omit thread_id; the chat arm doesn't need it.
  *
@@ -123,7 +124,17 @@ export function notificationRoute(
     case "reminder":
       return NOTIFICATION_FALLBACK_ROUTE
 
+    // A saved-for-later reminder carries the path that opens the item. Only a
+    // path inside the app is followed; anything else opens Later instead.
+    case "later":
+      return isLaterPath(typeId) ? typeId : "/app/later"
+
     default:
       return NOTIFICATION_FALLBACK_ROUTE
   }
+}
+
+/** An in-app path of the shape the server accepts for saved items. */
+function isLaterPath(path: string): boolean {
+  return /^\/app\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9_\-=&%.]*)?$/.test(path)
 }

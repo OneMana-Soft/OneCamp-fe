@@ -1,5 +1,7 @@
 "use client"
 
+import { LaterDrawerItems } from "@/components/later/LaterDrawerItems";
+import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
 import * as React from "react"
 import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type } from "@/lib/icons";
 import { useTranslateText } from "@/services/aiService";
@@ -203,6 +205,11 @@ export function GroupChatMessageLongPressDrawer({ drawerOpenState, setOpenState,
                                 linkText={'Edit message'}
                                 Icon={Pencil}
                             />}
+                            <LaterDrawerItems
+                                target={{ itemType: "chat", itemId: chatUUID, link: `/app/chat/group/${grpId}/${chatUUID}`, title: htmlToPreviewText(messageText) || "A message" }}
+                                onDone={() => setOpenState(false)}
+                            />
+
 
 
                             <DrawerActionLink

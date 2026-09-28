@@ -12,6 +12,8 @@
 /* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum GetEndpointUrl {
+    // Save for later: the member's own list. ?state=open|done
+    Later = "/later",
     // Retention as a setting rather than a deploy: the person who owns the
     // policy is usually compliance or legal, and they cannot edit a compose file.
     AdminRetention = "/admin/retention",
@@ -265,6 +267,9 @@ export enum PostFileUploadURL {
 }
 
 export enum PostEndpointUrl {
+    LaterSave = "/later/save",
+    LaterUpdate = "/later/update",
+    LaterDelete = "/later/delete",
     CreateTeam = "/team/createTeam",
     CreateProject = "/project/createProject",
     CreateChannel = "/ch/create",

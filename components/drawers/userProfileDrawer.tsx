@@ -1,6 +1,7 @@
 "use client"
 
 import {
+    Bookmark,
     Calendar,
     CircleUser,
     ClipboardCheck,
@@ -162,6 +163,11 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         icon={ClipboardCheck}
                         label="My Tasks"
                         onClick={() => handleNavigate("/app/myTask")}
+                    />
+                    <DrawerItem
+                        icon={Bookmark}
+                        label="Later"
+                        onClick={() => handleNavigate("/app/later")}
                     />
                     <DrawerItem
                         icon={Calendar}

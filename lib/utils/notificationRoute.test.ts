@@ -94,6 +94,11 @@ const CASES: { name: string; data: PushNotificationData; expected: string }[] = 
   },
   { name: "doc_comment opens the doc", data: { type: "doc_comment", type_id: "doc-1" }, expected: "/app/doc/doc-1" },
   { name: "reminder just focuses the app", data: { type: "reminder", type_id: SELF }, expected: "/app" },
+  { name: "later opens the saved item", data: { type: "later", type_id: "/app/task/t-1" }, expected: "/app/task/t-1" },
+  { name: "later keeps a thread link", data: { type: "later", type_id: "/app/channel/c-1/p-2" }, expected: "/app/channel/c-1/p-2" },
+  { name: "later refuses a link out of the app", data: { type: "later", type_id: "https://evil.example/app/x" }, expected: "/app/later" },
+  { name: "later refuses a protocol-relative link", data: { type: "later", type_id: "//evil.example/app/x" }, expected: "/app/later" },
+  { name: "later with no link opens Later", data: { type: "later" }, expected: "/app/later" },
 ]
 
 /** Payloads that must never produce a path with a missing segment. */

@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils/helpers/cn";
 
 import MessageDesktopDropdown from "@/components/MessageDesktopHover/MessageDesktopDropdown";
 import { AddReactionTrigger } from "@/components/reactionPicker/AddReactionTrigger";
+import { SaveForLaterButton } from "@/components/later/SaveForLater";
+import { messageLink } from "@/lib/utils/later";
+import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
 
 import { openUI } from "@/store/slice/uiSlice";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
@@ -24,6 +27,8 @@ interface MessageDesktopHoverOptionProps {
     channelUUID?: string;
     postUUID?: string;
     messageText?: string;
+    /** Who wrote it, shown beside the message in Later. */
+    authorName?: string;
     // onReply, when provided, arms the composer to inline-reply to this message
     // (Discord-style). Distinct from "Reply in thread" (which opens the thread
     // panel). Rendered only when the surface supplies it.
@@ -90,6 +95,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     chatUUID,
     postUUID,
     messageText,
+    authorName,
     deleteMessage,
     editMessage,
     getReplyNotification,
@@ -130,6 +136,19 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     }, [dispatch, chatUUID, groupUUID, chatMessageID, channelUUID, postUUID]);
 
     const showDropdown = Boolean(isAdmin || isOwner || getReplyNotification);
+
+    // Save for later opens the message in its thread, where it is shown in full.
+    const laterLink = messageLink({ channelUUID, postUUID, chatUUID, groupUUID, chatMessageID });
+    const laterID = postUUID || chatMessageID;
+    const laterTarget = laterLink && laterID
+        ? {
+            itemType: (postUUID ? "post" : "chat") as "post" | "chat",
+            itemId: laterID,
+            link: laterLink,
+            title: htmlToPreviewText(messageText) || "A message",
+            context: authorName ? `From ${authorName}` : undefined,
+        }
+        : null;
 
     return (
         <motion.div
@@ -186,6 +205,10 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
             <HoverIconButton label="Forward" onClick={handleForward}>
                 <Forward className="h-4 w-4" />
             </HoverIconButton>
+
+            {laterTarget && (
+                <SaveForLaterButton target={laterTarget} onOpenChange={setIsDropdownOpen} />
+            )}
 
             {onTranslate && (
                 <HoverIconButton label="Translate" onClick={onTranslate}>
