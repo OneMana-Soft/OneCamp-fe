@@ -76,7 +76,7 @@ export default function EvidencePackPage() {
     return (
         <main id="main-content" className="h-full overflow-y-auto bg-background">
             {/* Not printed: it is the furniture around the document, not part of it. */}
-            <div className="sticky top-0 z-10 border-b border-border/60 bg-background/90 backdrop-blur print:hidden">
+            <div className="sticky top-0 z-10 border-b border-border/60 bg-background print:hidden">
                 <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3">
                     <p className="text-sm font-medium">Evidence pack</p>
                     <Button

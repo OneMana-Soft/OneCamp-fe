@@ -320,7 +320,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
                 <ChannelMessageList channelId={channelId} isAdmin={channelInfo.data?.channel_info.ch_is_admin}/>
             </div>
-            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
+            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
                 <div className="max-w-6xl mx-auto w-full">
                     {renderChatInput()}
                 </div>

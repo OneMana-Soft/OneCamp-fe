@@ -186,7 +186,7 @@ export default function BoardPage() {
       {/* Top bar (desktop only). On mobile the global mobile top nav provides
           back + title; the canvas uses the full height. */}
       {!isMobile && (
-      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b bg-background/80 px-2 backdrop-blur-sm sm:h-14 sm:px-4">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b bg-background px-2 sm:h-14 sm:px-4">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <Input
             value={title}

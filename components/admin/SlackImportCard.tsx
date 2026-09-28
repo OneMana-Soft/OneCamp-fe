@@ -224,7 +224,7 @@ const SlackImportCard: React.FC = () => {
 
   return (
     <>
-      <Card className="bg-card/50 backdrop-blur-sm border-border/50 shadow-sm h-full overflow-hidden flex flex-col">
+      <Card className="bg-card border-border/50 shadow-sm h-full overflow-hidden flex flex-col">
         <CardHeader className="pb-4 border-b border-border/50">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="min-w-0">

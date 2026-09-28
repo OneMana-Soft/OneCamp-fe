@@ -77,7 +77,7 @@ export default function InstantMeetingPage() {
         <div className="relative h-full w-full">
             {/* Guest invite bar — copy the shareable link. */}
             <div className="absolute top-3 left-1/2 z-10 -translate-x-1/2 px-3">
-                <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/90 px-3 py-1.5 shadow-md backdrop-blur">
+                <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-1.5 shadow-md">
                     <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="hidden sm:inline text-xs text-muted-foreground">Invite a guest</span>
                     <Button size="sm" variant="secondary" className="h-7 gap-1.5 text-xs" onClick={copyLink}>

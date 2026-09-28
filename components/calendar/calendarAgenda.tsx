@@ -66,7 +66,7 @@ export function CalendarAgenda({
         <section key={day.toISOString()} aria-label={dayLabel(day)}>
           <h2
             className={cn(
-              "sticky top-0 z-10 bg-background/95 px-4 pb-1.5 pt-4 text-xs font-semibold uppercase tracking-wide backdrop-blur",
+              "sticky top-0 z-10 bg-background px-4 pb-1.5 pt-4 text-xs font-semibold uppercase tracking-wide",
               isToday(day) ? "text-primary" : "text-muted-foreground",
             )}
           >

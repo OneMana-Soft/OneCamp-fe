@@ -193,7 +193,7 @@ const WebhooksCard = () => {
         ) : (
           <div className="space-y-4">
             {webhooks.map(webhook => (
-              <div key={webhook.id} className="border border-border/50 rounded-lg bg-card/50 backdrop-blur-sm overflow-hidden">
+              <div key={webhook.id} className="border border-border/50 rounded-lg bg-card overflow-hidden">
                 <div className="p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className={`p-2 rounded-lg ${webhook.type === "incoming" ? "bg-blue-500/10" : "bg-orange-500/10"}`}>

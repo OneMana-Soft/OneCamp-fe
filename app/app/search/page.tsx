@@ -45,7 +45,7 @@ export default function SearchPage() {
     return (
         <div className="flex flex-col h-full bg-background overflow-hidden font-sans">
             {/* Header with Search Group */}
-            <div className="flex flex-col gap-4 p-4 md:p-6 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+            <div className="flex flex-col gap-4 p-4 md:p-6 border-b bg-card sticky top-0 z-10">
                 <div className="flex items-center gap-3">
                     <Button 
                         variant="ghost" 

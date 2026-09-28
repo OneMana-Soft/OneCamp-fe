@@ -24,7 +24,7 @@ const DialogOverlay = React.forwardRef<
       // Fixed dark backdrop in both themes. Inverting via tokens (foreground/X)
       // would flip to a white veil in dark mode, which is wrong for a modal
       // backdrop — the purpose is to dim, not invert.
-      "fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
