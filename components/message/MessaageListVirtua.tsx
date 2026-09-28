@@ -6,6 +6,7 @@ import { Virtualizer } from "virtua"
 import { cn } from "@/lib/utils/helpers/cn"
 import {Button} from "@/components/ui/button";
 import { ChevronDown, Loader2 } from "@/lib/icons";
+import { changedAtStart } from "@/components/message/listShift";
 
 // Memoized item component to prevent unnecessary re-renders
 const MemoizedMessageItem = React.memo(({ item, index, total, renderItem }: { item: any, index: number, total: number, renderItem: any }) => {
@@ -31,7 +32,6 @@ export const MessageListVirtua = <T,>({
                                           hasOldMessage = true,
                                           fetchNewMessage,
                                           newMessageLoading,
-                                          virtualShift,
                                             clickedScrollToBottom,
                                           hasNewMessage = true,
                                           ref,
@@ -42,6 +42,16 @@ export const MessageListVirtua = <T,>({
     const initiallyScrolledToBottom = useRef(false)
     const [visibleDateIndex, setVisibleDateIndex] = useState<number>(-1)
     const [isScrolledToBottom, setIsScrolledToBottom] = useState(true) 
+
+    // Shift only for the render in which the list changed at its start (see
+    // listShift). Worked out while rendering, from the previous items, so
+    // virtua sees it in the same render as the new rows.
+    const [prevItems, setPrevItems] = useState(items)
+    const [shift, setShift] = useState(false)
+    if (items !== prevItems) {
+        setPrevItems(items)
+        setShift(changedAtStart(prevItems, items))
+    }
 
 
     // Optimized: Calculate dateKeys and separatorItems in one pass if possible, or just memoize efficiently
@@ -222,7 +232,7 @@ export const MessageListVirtua = <T,>({
             )}
             <Virtualizer
                 ref={ref}
-                shift={virtualShift}
+                shift={shift}
                 overscan={500} // Render extra content for smoother scrolling
                 // @ts-ignore
                 initialTopMostItemIndex={initialTopMostItemIndex !== undefined ? initialTopMostItemIndex : (shouldLockBottom.current ? items.length - 1 : undefined)}

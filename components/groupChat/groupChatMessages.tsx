@@ -1,5 +1,5 @@
 // src/components/channel/ChannelMessages.tsx
-import { useEffect, useMemo, useRef, useState, useCallback} from "react";
+import { useEffect, useMemo, useRef, useCallback} from "react";
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import {groupByDate} from "@/lib/utils/date/groupByDate";
 import {getGroupDateHeading} from "@/lib/utils/date/getMessageGroupDate";
@@ -46,7 +46,6 @@ const EMPTY_SCROLL_TO_BOTTOM: ScrollToBottom = { shouldScrollToBottom: false }
 export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMoreNewMsg, getNewMessages, hasMoreOldMsg, getOldMessages, isNewMsgLoading, isOLdMsgLoading }: ChannelMessagesProps) => {
     const { isMobile } = useMedia();
 
-    const [virtualShift, setVirtualShift] = useState(false);
     const pendingReactionDeletes = useRef<Set<string>>(new Set())
 
     const post = usePost()
@@ -312,14 +311,6 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
 
     },[channelScrollToBottom.shouldScrollToBottom])
 
-    const handleGetOldMessage = () => {
-        setVirtualShift(true)
-        getOldMessages()
-        setTimeout(() => {
-            setVirtualShift(false)
-        }, 1000)
-    }
-
     const handleGetNewMessage = () => {
         getNewMessages()
     }
@@ -359,14 +350,13 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
         items={flatItems}
         renderItem={renderItem}
         getDateHeading={getGroupDateHeading}
-        fetchOlderMessage={handleGetOldMessage}
+        fetchOlderMessage={getOldMessages}
         fetchNewMessage={handleGetNewMessage}
         hasNewMessage={hasMoreNewMsg}
         hasOldMessage={hasMoreOldMsg}
         olderMessageLoading={isOLdMsgLoading}
         newMessageLoading={isNewMsgLoading}
         ref={containerRef}
-        virtualShift={virtualShift}
         clickedScrollToBottom={clickedScrollToBottom}
         initialTopMostItemIndex={initialIndex}
         initialScrollOffsetFromTop={scrollPosition?.offset}
