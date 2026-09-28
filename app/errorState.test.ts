@@ -41,8 +41,6 @@ const SURFACES = [
   // conclusion they must not reach from a request that merely failed.
   "components/activity/activityAllListResult.tsx",
   "components/activity/activityMentionListResult.tsx",
-  "components/activity/activityCommentListResult.tsx",
-  "components/activity/activityReactionListResult.tsx",
   // Comments. "Be the first to add a comment" invites a reply to a thread that
   // may already hold a discussion, which the user then talks over.
   "components/rightPanel/docCommentList.tsx",

@@ -2,8 +2,6 @@
 
 import { useMemo } from "react"
 import { ActivityMentionListResult } from "@/components/activity/activityMentionListResult"
-import { ActivityCommentListResult } from "@/components/activity/activityCommentListResult"
-import { ActivityReactionListResult } from "@/components/activity/activityReactionListResult"
 import { ActivityAllListResult } from "@/components/activity/activityAllListResult"
 
 export const ActivityListTabContent = ({
@@ -21,10 +19,6 @@ export const ActivityListTabContent = ({
                 return <ActivityAllListResult />
             case "mentions":
                 return <ActivityMentionListResult />
-            case "comments":
-                return <ActivityCommentListResult />
-            case "reactions":
-                return <ActivityReactionListResult />
             default:
                 return null
         }

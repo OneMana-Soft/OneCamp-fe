@@ -132,8 +132,6 @@ export enum GetEndpointUrl {
     GetDocViewers = "/doc/getViewers",
     GlobalSearch = "/search/unifiedSearch/",
     GetMentionActivity= "/activity/mentions",
-    GetCommentActivity= "/activity/comments",
-    GetReactionsActivity= "/activity/reactions",
     GetUnifiedActivity= "/activity/unified",
     GetUserPosts = "/user/posts",
     UserRecordingList = "/user/recordingList",

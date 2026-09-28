@@ -12,7 +12,10 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activity"
 
-const VALID_TABS = ["priority", "all", "mentions", "comments", "reactions"] as const
+// Comments and Reactions were tabs of their own. Everything in them is in All,
+// in order, and five tabs to read one inbox is the kind of choice a calm tool
+// should not ask for. Old links to them open All.
+const VALID_TABS = ["priority", "all", "mentions"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export function ActivityListTabs() {
@@ -45,8 +48,6 @@ export function ActivityListTabs() {
             { value: "priority", label: "Priority", count: priorityCount > 9 ? "9+" : priorityCount || undefined },
             { value: "all", label: "All" },
             { value: "mentions", label: "Mentions" },
-            { value: "comments", label: "Comments" },
-            { value: "reactions", label: "Reactions" },
         ],
         [priorityCount],
     )
