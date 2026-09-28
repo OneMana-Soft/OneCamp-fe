@@ -170,6 +170,16 @@ export function statusPatch(value: string, options: StatusOption[]): Required<Ta
 }
 
 /**
+ * The fields a live update sets on a task: the full status when the message
+ * says which custom status (if any) the task is in, else undefined, and only
+ * a built-in status applies (see updateTaskStatusInTaskList).
+ */
+export function statusFieldsFromMessage(p: { status?: string; custom_status?: string; custom_status_name?: string }): TaskStatusFields | undefined {
+  if (!p.status || p.custom_status === undefined) return undefined
+  return { task_status: p.status, task_custom_status: p.custom_status || "", task_custom_status_name: p.custom_status ? p.custom_status_name || "" : "" }
+}
+
+/**
  * Split a board's columns by category (as the server sends them) into one
  * column per status: a built-in column keeps the tasks in no custom status,
  * and each custom status gets its own. Order within each is kept.
