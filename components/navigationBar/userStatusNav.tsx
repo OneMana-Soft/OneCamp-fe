@@ -12,7 +12,7 @@ import {RootState} from "@/store/store";
 import {useMemo} from "react";
 import {useStatusIsExpired} from "@/hooks/useStatusIsExpired";
 
-export function UserStatusNav({userUUID}: {userUUID: string}) {
+export function UserStatusNav({userUUID, hideWhenEmpty = false}: {userUUID: string; hideWhenEmpty?: boolean}) {
 
     const dispatch = useDispatch();
 
@@ -62,6 +62,10 @@ export function UserStatusNav({userUUID}: {userUUID: string}) {
     const emojiInfo = findEmojiMartEmojiByEmojiID(emojiData.data, activeStatus?.status_user_emoji_id ?? '')
 
     const statusMessage = activeStatus?.status_user_emoji_desc ?? null
+
+    // In the top bar an empty status was a permanent "add emoji" button; setting
+    // one lives in the profile menu, and the bar shows the status once it is set.
+    if (hideWhenEmpty && !emojiInfo) return null
 
     return (
         <div className='flex'>

@@ -8,9 +8,12 @@ import {
     DropdownMenuGroup,
     DropdownMenuItem,
     DropdownMenuLabel,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import {useTheme} from "next-themes";
 import {Button} from "@/components/ui/button";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
@@ -24,6 +27,7 @@ export default function DesktopNavigationUserProfile() {
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const dispatch = useDispatch();
     const { logout } = useLogout();
+    const { theme, setTheme } = useTheme();
 
 
     return (
@@ -50,11 +54,24 @@ export default function DesktopNavigationUserProfile() {
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                     <DropdownMenuItem
+                        onClick={()=>{dispatch(openUI({ key: 'userStatusUpdate', data: { userUUID: '' } }))}}
+                    >
+                        Set a status…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                         onClick={()=>{dispatch(openUI({ key: 'selfUserProfile' }))}}
                     >
                         Settings
                     </DropdownMenuItem>
                 </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                {/* Moved from a button of its own in the top bar. */}
+                <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">Appearance</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+                    <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="system">Match my device</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                     onClick={logout}
