@@ -1,6 +1,7 @@
 "use client"
 
 import React, {useEffect, useMemo, useRef, useState} from "react";
+import { isCurrentPath } from "@/lib/utils/isCurrentPath";
 import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from "@/components/ui/resizable";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import {cn} from "@/lib/utils/helpers/cn";
@@ -340,7 +341,7 @@ export function DesktopNavigationBar({
         recentNavGrp.push({
             title: item.title,
             path: item.path,
-            variant: path.join('/') === item.path.slice(1) ? "sidebarActive" : "ghost",
+            variant: isCurrentPath(pathname, item.path) ? "sidebarActive" : "ghost",
             icon: typeIconMap[item.type] || CircleCheck,
         });
     }
