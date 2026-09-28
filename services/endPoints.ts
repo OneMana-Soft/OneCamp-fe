@@ -12,6 +12,8 @@
 /* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum GetEndpointUrl {
+    // A project's task statuses: /project/{id}/statuses (+ /reorder, /{statusId}, /{statusId}/delete)
+    ProjectStatuses = "/project",
     // Save for later: the member's own list. ?state=open|done
     Later = "/later",
     // Retention as a setting rather than a deploy: the person who owns the

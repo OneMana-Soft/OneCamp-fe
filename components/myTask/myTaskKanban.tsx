@@ -22,7 +22,8 @@ import { TaskKanbanProjectFilter } from "@/components/task/taskKanbanProjectFilt
 import { openUI } from "@/store/slice/uiSlice"
 import { taskStatuses } from "@/types/table"
 import { useMoveTask } from "@/hooks/useMoveTask"
-import { useBoardColumns } from "@/hooks/useBoardColumns"
+import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
+import { BUILT_IN_STATUSES, statusPatch } from "@/lib/taskStatus"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
 
 const EMPTY: TaskInfoInterface[] = []
@@ -63,7 +64,9 @@ export const MyTaskKanban = () => {
         }),
         [u],
     )
-    const visible = useMemo(() => Object.keys(viewableStatus).filter((k) => viewableStatus[k]), [viewableStatus])
+    // Across projects, so only the built-in columns: a task in one of its
+    // project's own statuses sits in that status's category and says which.
+    const visible = useMemo(() => BUILT_IN_STATUSES.filter((o) => isShown(viewableStatus, o.value)), [viewableStatus])
 
     return (
         <div className="flex flex-col h-full p-4 overflow-hidden">
@@ -90,7 +93,7 @@ export const MyTaskKanban = () => {
                                 <DropdownMenuCheckboxItem
                                     key={column.value}
                                     className="capitalize"
-                                    checked={viewableStatus[column.value as keyof typeof viewableStatus]}
+                                    checked={isShown(viewableStatus, column.value)}
                                     onCheckedChange={(value) => setColumnShown(column.value, value)}
                                 >
                                     {column.label}
@@ -108,7 +111,7 @@ export const MyTaskKanban = () => {
                         visible={visible}
                         // Only in projects where I am an admin: the server allows no more.
                         canDrag={(task) => Boolean(task.task_project?.project_is_admin)}
-                        onMove={(task, drop) => void moveTask(task.task_uuid, task.task_project.project_uuid, drop)}
+                        onMove={(task, drop) => void moveTask(task.task_uuid, task.task_project.project_uuid, drop, statusPatch(drop.column, BUILT_IN_STATUSES))}
                     />
                 </div>
             </div>

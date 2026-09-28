@@ -9,6 +9,7 @@ import * as React from "react"
 import { useDispatch } from "react-redux"
 import { TaskTableViewOptions } from "@/components/task/taskTableViewOptions"
 import { TaskTableFacetedStatusFilter } from "@/components/task/taskTableFacetedStatusFilter"
+import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { TaskTableFacetedProjectFilter } from "@/components/task/taskTableFacetedProjectFilter"
 import { TaskTableFacetedAssigneeFilter } from "@/components/task/taskTableFacetedAssigneeFilter"
 import { TaskTableFacetedPriorityFilter } from "@/components/task/taskTableFacetedPriorityFilter"
@@ -24,6 +25,7 @@ export function TaskTableToolbar<TData>({
     table,
     projectId,
 }: DataTableToolbarProps<TData>) {
+    const { options: statusOpts } = useProjectStatuses(projectId)
     const dispatch = useDispatch()
     const isFiltered = table.getState().columnFilters.length > 0
     const { t } = useTranslation()
@@ -53,6 +55,7 @@ export function TaskTableToolbar<TData>({
                     <TaskTableFacetedStatusFilter
                         column={table.getColumn("task_status")}
                         title={t("status")}
+                        options={statusOpts}
                     />
                 )}
                 {table.getColumn("task_priority") && (

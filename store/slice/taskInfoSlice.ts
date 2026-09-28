@@ -1,3 +1,4 @@
+import { isBuiltInStatus, type TaskStatusFields } from "@/lib/taskStatus";
 import {createSlice} from "@reduxjs/toolkit";
 import {FilePreview} from "@/store/slice/channelSlice";
 import {AttachmentMediaReq} from "@/types/attachment";
@@ -174,11 +175,21 @@ export const taskInfoSlice = createSlice({
 
         },
 
-        updateTaskStatusInTaskList: (state, action: {payload: UpdateTaskNameORLabelInterface}) => {
-            const { taskId, value } = action.payload;
+        // value is a status as a person or tool gave it; patch, when the caller
+        // knows it, is exactly what the task becomes (see lib/taskStatus).
+        // Without one only a built-in key is applied: a custom status's name
+        // is not a category, and the list's next refresh brings the truth.
+        updateTaskStatusInTaskList: (state, action: {payload: UpdateTaskNameORLabelInterface & { patch?: TaskStatusFields }}) => {
+            const { taskId, value, patch } = action.payload;
             state.taskListVisibleInfo = state.taskListVisibleInfo.map((task)=>{
                 if(task.task_uuid == taskId) {
-                    task.task_status = value
+                    if (patch) {
+                        Object.assign(task, patch)
+                    } else if (isBuiltInStatus(value)) {
+                        task.task_status = value
+                        task.task_custom_status = undefined
+                        task.task_custom_status_name = undefined
+                    }
                 }
                 return task
             })

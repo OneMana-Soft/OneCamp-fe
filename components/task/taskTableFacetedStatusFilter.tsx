@@ -20,18 +20,21 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import {taskStatuses} from "@/types/table";
+import { BUILT_IN_STATUSES, type StatusOption } from "@/lib/taskStatus";
 import {TaskStatusCell} from "@/components/task/taskStatusCell";
 
 interface DataTableFacetedFilterProps<TData, TValue> {
     column?: Column<TData, TValue>;
     title?: string;
+    /** The project's statuses; the built-in ones where there is no project. */
+    options?: StatusOption[];
 
 }
 
 export function TaskTableFacetedStatusFilter<TData, TValue>({
                                                           column,
                                                           title,
+                                                          options = BUILT_IN_STATUSES,
                                                       }: DataTableFacetedFilterProps<TData, TValue>) {
     const { t } = useTranslation()
     const selectedValues = new Set(column?.getFilterValue() as string[]);
@@ -60,7 +63,7 @@ export function TaskTableFacetedStatusFilter<TData, TValue>({
                                         {selectedValues.size} {t('selected')}
                                     </Badge>
                                 ) : (
-                                    taskStatuses
+                                    options
                                         .filter((option) => selectedValues.has(option.value))
                                         .map((option) => (
 
@@ -84,7 +87,7 @@ export function TaskTableFacetedStatusFilter<TData, TValue>({
                     <CommandList>
                         <CommandEmpty>{t('noResultFound')}</CommandEmpty>
                         <CommandGroup>
-                            {taskStatuses.map((option) => {
+                            {options.map((option) => {
                                 const isSelected = selectedValues.has(option.value);
                                 return (
                                     <CommandItem

@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 
-import { priorities, taskStatuses } from "@/types/table";
+import { priorities } from "@/types/table";
+import { statusValueOf, statusOptionOf } from "@/lib/taskStatus";
 import {format} from "date-fns";
 import { GitBranch, MessageSquare } from "@/lib/icons";
 import {prioritiesInterface} from "@/types/table";
@@ -20,6 +21,7 @@ import {app_project_path} from "@/types/paths";
 
 
 
+// Across projects: a project's own status shows by the name the task carries.
 export const useMyTaskColumn = () => {
 
     const { t } = useTranslation();
@@ -69,9 +71,8 @@ export const useMyTaskColumn = () => {
                 <TaskTableColumnHeader column={column} title={t("status")} />
             ),
             cell: ({ row }) => {
-                const status = taskStatuses.find(
-                    (status: prioritiesInterface) => status.value === row.getValue("task_status")
-                );
+                // Its custom status, or its built-in one (see lib/taskStatus).
+                const status = statusOptionOf(row.original);
 
                 if (!status) {
                     return null;
@@ -93,8 +94,8 @@ export const useMyTaskColumn = () => {
                     </div>
                 );
             },
-            filterFn: (row, id, value) => {
-                return value.includes(row.getValue(id));
+            filterFn: (row, _id, value) => {
+                return value.includes(statusValueOf(row.original));
             },
             enableSorting: false,
         },

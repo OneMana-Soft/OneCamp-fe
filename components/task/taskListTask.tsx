@@ -1,6 +1,7 @@
 import {TaskInfoInterface} from "@/types/task";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
-import {priorities, prioritiesInterface, taskStatuses} from "@/types/table";
+import {priorities, prioritiesInterface} from "@/types/table";
+import { statusOptionOf } from "@/lib/taskStatus";
 import {TaskStatusCell} from "@/components/task/taskStatusCell";
 import {TaskAssigneeCell} from "@/components/task/taskAssigneeCell";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
@@ -53,9 +54,7 @@ export const TaskListTask = ({
         (priority: prioritiesInterface) => priority.value === taskInfo.task_priority
     );
 
-    const status = taskStatuses.find(
-        (status: prioritiesInterface) => status.value === taskInfo.task_status
-    );
+    const status = statusOptionOf(taskInfo);
 
     return (
         <div className={cn("flex items-start gap-3 px-3 py-3 border-b hover:bg-accent/40 transition-colors duration-150", isAnimating && "animate-gradient-completion", isSelected && "bg-accent/60")} >

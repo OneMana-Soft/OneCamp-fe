@@ -6,15 +6,18 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import {priorities, prioritiesInterface, taskStatuses} from "@/types/table";
+import {priorities, prioritiesInterface} from "@/types/table";
+import { BUILT_IN_STATUSES, type StatusOption } from "@/lib/taskStatus";
 import {TaskStatusCell} from "@/components/task/taskStatusCell";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
 
 type StatusPriorityControlsProps = {
     isAdmin: boolean
 
-    selectedStatus?: prioritiesInterface
+    selectedStatus?: StatusOption
     selectedPriority?: prioritiesInterface
+    /** The project's statuses, built-in and its own; the built-in ones if left out. */
+    statusOptions?: StatusOption[]
     onSelectStatus: (value: string) => void
     onSelectPriority: (value: string) => void
 }
@@ -24,6 +27,7 @@ export function TaskStatusPriorityControl({
 
                                            selectedStatus,
                                            selectedPriority,
+                                           statusOptions = BUILT_IN_STATUSES,
                                            onSelectStatus,
                                            onSelectPriority,
                                        }: StatusPriorityControlsProps) {
@@ -60,14 +64,18 @@ export function TaskStatusPriorityControl({
                             <CommandList>
                                 <CommandEmpty>{t("noResultFound")}</CommandEmpty>
                                 <CommandGroup>
-                                    {taskStatuses.map((status) => (
+                                    {statusOptions.map((status) => (
                                         <CommandItem
                                             key={status.value}
-                                            value={status.value}
-                                            onSelect={(value) => {
+                                            // Searched by what people read. The value is taken
+                                            // from the option itself: cmdk may lowercase the
+                                            // one it hands back, and "inprogress" is no status.
+                                            value={`${status.label} ${status.value}`}
+                                            onSelect={() => {
                                                 setOpenStatus(false)
-                                                onSelectStatus(value)
+                                                onSelectStatus(status.value)
                                             }}
+                                            className={status.custom ? "pl-6" : undefined}
                                         >
                                             <TaskStatusCell  status={status} />
 
