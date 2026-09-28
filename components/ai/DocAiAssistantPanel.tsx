@@ -1,5 +1,6 @@
 "use client";
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, Send, RotateCcw, Copy, Check, Type, ArrowLeft, MessageSquarePlus } from "@/lib/icons";
@@ -14,42 +15,36 @@ import { useDispatch } from "react-redux";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { withAI } from "@/components/common/withFeature"
 // Types and Config
-const ACTION_DETAILS: Record<DocAIAction, { label: string; icon: any; description: string; color: string }> = {
+const ACTION_DETAILS: Record<DocAIAction, { label: string; icon: any; description: string }> = {
   write: {
     label: 'Write',
     icon: Send,
-    description: 'Generate fresh content from a prompt',
-    color: 'text-primary'
+    description: 'Generate fresh content from a prompt'
   },
   rewrite: {
     label: 'Rewrite',
     icon: RotateCcw,
-    description: 'Improve clarity, flow, and tone',
-    color: 'text-emerald-400'
+    description: 'Improve clarity, flow, and tone'
   },
   summarize: {
     label: 'Summarize',
     icon: Scissors,
-    description: 'Condense into key bullet points',
-    color: 'text-amber-400'
+    description: 'Condense into key bullet points'
   },
   expand: {
     label: 'Expand',
     icon: Type,
-    description: 'Add more detail and examples',
-    color: 'text-pink-400'
+    description: 'Add more detail and examples'
   },
   fix_grammar: {
     label: 'Fix Grammar',
     icon: Wand2,
-    description: 'Spelling and style checks',
-    color: 'text-blue-400'
+    description: 'Spelling and style checks'
   },
   shorten: {
     label: 'Shorten',
     icon: MousePointer2,
-    description: 'Make it concise and direct',
-    color: 'text-slate-400'
+    description: 'Make it concise and direct'
   }
 };
 
@@ -234,7 +229,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
         <div className="p-5">
         {selectedText && !streamText && !hookIsStreaming && (
           <div className="bg-primary/5 border border-primary/10 rounded-xl p-3 mb-5">
-            <span className="text-3xs uppercase tracking-wider text-muted-foreground font-medium mb-1 block">Context Selection</span>
+            <span className={cn(eyebrowClass, "text-3xs mb-1 block")}>Context Selection</span>
             <div className="line-clamp-2 text-xs text-muted-foreground italic">"{selectedText}"</div>
           </div>
         )}
@@ -259,7 +254,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                       onClick={() => executeAction(actionId)}
                       className="group relative h-auto p-4 bg-muted/30 border border-border rounded-2xl text-left transition-colors duration-150 hover:bg-muted/50 hover:border-primary/40 overflow-hidden flex flex-row items-center gap-4 justify-start"
                     >
-                      <div className={cn("p-3 rounded-xl bg-muted group-hover:bg-accent/10 transition-colors shrink-0", details.color)}>
+                      <div className={"p-3 rounded-xl bg-muted group-hover:bg-accent/10 transition-colors shrink-0 text-primary"}>
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="flex flex-col text-left overflow-hidden">

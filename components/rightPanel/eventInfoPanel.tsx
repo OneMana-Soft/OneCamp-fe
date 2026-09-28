@@ -1,3 +1,5 @@
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import React, { useState, useRef } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
@@ -242,7 +244,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         <ScrollArea className="h-full">
             <div className="p-6 space-y-6 flex flex-col h-full bg-background relative">
                 <div className="flex items-center justify-between mb-2">
-                    <Badge variant="outline" className="text-3xs uppercase tracking-wider font-medium text-primary border-primary/20">Personal Event</Badge>
+                    <Badge variant="outline" className={cn(eyebrowClass, "text-3xs font-medium text-primary border-primary/20")}>Personal Event</Badge>
                     {!isEditing ? (
                         <div className="flex items-center gap-2">
                             {(isCreator || isParticipant) && (

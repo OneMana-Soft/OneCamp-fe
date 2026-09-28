@@ -1,3 +1,5 @@
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import {zodResolver} from "@hookform/resolvers/zod";
 import {useForm} from "react-hook-form";
 import {z} from "zod";
@@ -341,7 +343,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         name="fullName"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Full Name</FormLabel>
+                                                <FormLabel className={eyebrowClass}>Full Name</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
                                                 </FormControl>
@@ -354,7 +356,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         name="displayName"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Display Name</FormLabel>
+                                                <FormLabel className={eyebrowClass}>Display Name</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
                                                 </FormControl>
@@ -367,7 +369,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         name="jobTitle"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('jobTitle')}</FormLabel>
+                                                <FormLabel className={eyebrowClass}>{t('jobTitle')}</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
                                                 </FormControl>
@@ -380,7 +382,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         name="hobbies"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Hobbies</FormLabel>
+                                                <FormLabel className={eyebrowClass}>Hobbies</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
                                                 </FormControl>
@@ -396,7 +398,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         name="language"
                                         render={({ field }) => (
                                             <FormItem className="flex flex-col">
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('language')}</FormLabel>
+                                                <FormLabel className={eyebrowClass}>{t('language')}</FormLabel>
                                                 <AppLanguageCombobox
                                                     onLangChange={field.onChange}
                                                     userLang={field.value}
@@ -411,10 +413,10 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         name="status"
                                         render={({ field }) => (
                                             <FormItem className="flex flex-col">
-                                                <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('status')}</FormLabel>
+                                                <FormLabel className={eyebrowClass}>{t('status')}</FormLabel>
                                                 <div className="flex items-center justify-between bg-muted/20 border border-transparent rounded-md px-4 h-10">
                                                     <span 
-                                                        className="text-xs font-medium uppercase tracking-wider text-muted-foreground cursor-pointer leading-none"
+                                                        className={cn(eyebrowClass, "cursor-pointer leading-none")}
                                                         onClick={() => field.onChange(!field.value)}
                                                     >
                                                         Appear online

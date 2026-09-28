@@ -1,5 +1,7 @@
 "use client"
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import React, { useRef, useEffect } from "react"
 import { TeamInfoInterface } from "@/types/team"
 import { Button } from "@/components/ui/button"
@@ -106,11 +108,11 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                     {team.team_name}
                   </span>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-3xs text-muted-foreground uppercase tracking-wider">
+                    <span className={cn(eyebrowClass, "text-3xs")}>
                       {team.team_member_count || 0} members
                     </span>
                     {isDeleted && (
-                      <span className="text-3xs text-destructive uppercase tracking-wider font-semibold">
+                      <span className={cn(eyebrowClass, "text-3xs text-destructive")}>
                         • Deleted
                       </span>
                     )}
@@ -124,7 +126,7 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-success hover:text-success dark:hover:text-emerald-300 hover:bg-success/10"
+                          className="h-8 w-8 text-success hover:text-success hover:bg-success/10"
                           onClick={() => onUnDelete(team.team_uuid)}
                           disabled={isSubmitting}
                           aria-label={`Restore ${team.team_name}`}

@@ -15,6 +15,8 @@
  * never adds noise to a fresh or AI-disabled workspace.
  */
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import * as React from "react"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Mail, Github, ExternalLink, Sparkles, Plug, Brain } from "@/lib/icons"
@@ -103,7 +105,7 @@ const ConnectorSearchResults: React.FC<{ query: string }> = ({ query }) => {
 
   return (
     <div className="mt-6">
-      <div className="mb-2 flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className={cn(eyebrowClass, "mb-2 flex items-center gap-1.5 px-1")}>
         <Sparkles className="h-3.5 w-3.5 text-primary" />
         AI results
         {loading && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin text-muted-foreground" />}

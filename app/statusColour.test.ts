@@ -63,6 +63,15 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const files = [...walk(resolve(root, "components")), ...walk(resolve(root, "app"))]
 
+/**
+ * Where a hue names a thing rather than a state, so it is not a status colour.
+ * GitHubActivityTab gives each event type its own icon colour; mapping those onto
+ * four status tokens would lose which event is which. Listed by name so a new
+ * exception is a decision someone writes down, not a number that drifts.
+ */
+const CATEGORICAL = new Set(["components/task/GitHubActivityTab.tsx"])
+const statusFiles = files.filter((f) => !CATEGORICAL.has(f.slice(root.length + 1)))
+
 describe("status colour tokens", () => {
   it("defines all four meanings, in both modes", () => {
     const css = readFileSync(resolve(root, "app/globals.css"), "utf8")
@@ -97,33 +106,20 @@ describe("status colour tokens", () => {
     expect(offenders, `interchangeable hues mixed in:\n${offenders.join("\n")}`).toEqual([])
   })
 
-  it("does not grow the raw-hue backlog", () => {
-    // Ratchet. Lower this number when you convert more; never raise it.
-    // Started at 369 before the token set existed, then 350.
-    // 342: the Ollama update instruction was written out three times, each with its own amber
-    // warning surface. Collapsing them into OllamaUpdateSteps removed two copies and moved the
-    // survivor onto the warning token.
-    // 313: the mode-aware text pairs whose meaning was unambiguous went onto the tokens
-    // (blue -> info, amber and yellow -> warning, red -> destructive, green -> success).
-    //
-    // The REST is deliberately still here, and it is worth saying why rather than
-    // leaving the number to imply laziness. A size is a size, so migrating the type
-    // scale was mechanical. A colour is a claim about meaning, and deciding what each
-    // of the remaining ones means is a judgement per surface: an amber that marks a
-    // warning and an amber that is decoration look identical from a regex. Orange is
-    // excluded outright now, because it is the brand hue and an orange here may be
-    // identity rather than a state. These come off surface by surface, with eyes on
-    // the screen, not in one blind sweep.
-    const BASELINE = 36
-    const total = files.reduce(
-      (n, f) => n + (readFileSync(f, "utf8").match(RAW_HUE_UTILITY)?.length ?? 0),
-      0,
-    )
+  it("uses no raw status hue outside categorical colour", () => {
+    // This was a ratchet: 369 raw status hues before the token set existed, then 350,
+    // 342, 313 and 36. The last 26 went surface by surface on 29 Sep 2026 (a live-call
+    // pulse, success hovers, warning callouts, an error line, the doc AI's rainbow of
+    // action icons, which now speak in the one accent), so it is a hard rule now.
+    const offenders: string[] = []
+    for (const f of statusFiles) {
+      const hits = readFileSync(f, "utf8").match(RAW_HUE_UTILITY)
+      if (hits) offenders.push(`${f.slice(root.length + 1)}: ${[...new Set(hits)].join(", ")}`)
+    }
     expect(
-      total,
-      `raw-hue status utilities went UP (${total} > ${BASELINE}). Use bg-success/` +
-        `text-warning/text-destructive etc. instead of a raw Tailwind hue.`,
-    ).toBeLessThanOrEqual(BASELINE)
+      offenders,
+      `raw status hues. Use bg-success / text-warning / text-destructive / text-info instead:\n${offenders.join("\n")}`,
+    ).toEqual([])
   })
 
   it("the light/dark pairs really were collapsed", () => {

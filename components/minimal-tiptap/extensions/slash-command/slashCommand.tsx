@@ -1,3 +1,5 @@
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import { ReactRenderer } from "@tiptap/react"
 import { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion"
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
@@ -637,7 +639,7 @@ const SlashCommandList = forwardRef<SlashRef, SlashProps>((props, ref) => {
     <div className="flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl min-w-[17rem] max-h-[22rem] overflow-y-auto py-1.5 px-1">
       {groupedItems.map((group) => (
         <div key={group.section} className="mb-1 last:mb-0">
-          <div className="px-2.5 py-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+          <div className={cn(eyebrowClass, "px-2.5 py-1 text-2xs text-muted-foreground/70")}>
             {group.section}
           </div>
           <div className="flex flex-col gap-px">

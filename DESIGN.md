@@ -91,6 +91,17 @@ face, and at most one line underneath that says something the title does not.
 "Here is a list of your tasks" and "Manage your team" are not that line; leave
 it out.
 
+The one exception is a section whose page is a tabbed list (Channels, Docs,
+Projects, Activity, Later): it opens with `SectionTabs`, the section's icon and
+name beside its tabs. The tabs already place the page, so a kicker above them
+would say it twice.
+
+**Labels come from one place.** An uppercase label is `<Eyebrow>`, or
+`cn(eyebrowClass, …)` where the element cannot be a span; a test fails on any
+written by hand. A status colour is a token (`success`, `warning`, `info`,
+`destructive`); a test fails on a raw status hue anywhere but the files listed as
+categorical, where the colour names a thing rather than a state.
+
 **Counts are sentences.** Home says "3 unread channels · 2 notifications · 3
 open tasks, 1 overdue" (`GlanceLine`), not four tiles of which three read 0.
 Zeros are dropped; all zeros reads "All caught up."

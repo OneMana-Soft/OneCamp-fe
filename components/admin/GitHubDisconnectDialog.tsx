@@ -1,5 +1,7 @@
 "use client"
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { RefreshCw, AlertTriangle } from "@/lib/icons";
 
@@ -22,7 +24,7 @@ export default function GitHubDisconnectDialog({ open, onOpenChange, onConfirm, 
           <AlertDialogDescription className="space-y-3 pt-2 text-sm text-muted-foreground">
             <p>Are you sure you want to completely disconnect GitHub?</p>
             <div className="bg-destructive/10 text-destructive p-3 rounded-md border border-destructive/20">
-              <p className="font-semibold text-destructive mb-1 text-xs uppercase tracking-wider">This action will:</p>
+              <p className={cn(eyebrowClass, "text-destructive mb-1")}>This action will:</p>
               <ul className="list-disc list-inside space-y-1 text-sm">
                 <li>Remove all <strong className="font-semibold">{repoCount}</strong> linked repositories</li>
                 <li>Clear GitHub metadata from all tasks</li>

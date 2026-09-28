@@ -122,7 +122,7 @@ function UnsubscribeContent() {
             the settings page to fine-tune which events reach your inbox.
           </p>
           {isSuppressed && (
-            <div className="text-left text-xs rounded-md border border-warning/30 bg-warning/10 p-3 text-amber-900 dark:text-amber-100">
+            <div className="text-left text-xs rounded-md border border-warning/30 bg-warning/10 p-3 text-foreground">
               <p className="font-medium mb-1">Heads-up</p>
               <p>
                 Your address is currently flagged at the provider level

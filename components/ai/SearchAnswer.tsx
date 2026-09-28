@@ -14,6 +14,8 @@
  * workspace, and it never fabricates a reference.
  */
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
+import { cn } from "@/lib/utils/helpers/cn"
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Sparkles, Scissors, ExternalLink, CircleStop } from "@/lib/icons"
@@ -141,7 +143,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
 
   return (
     <div className="mt-4 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-4">
-      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+      <div className={cn(eyebrowClass, "mb-2 flex items-center gap-1.5 text-primary")}>
         <Sparkles className="h-3.5 w-3.5" />
         AI answer
         {loading && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin text-muted-foreground" />}
@@ -200,7 +202,7 @@ const SearchAnswer: React.FC<{ query: string; selfUUID?: string }> = ({ query, s
 
           {citations.length > 0 && (
             <div className="mt-3 border-t border-border/50 pt-2">
-              <div className="mb-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
+              <div className={cn(eyebrowClass, "mb-1.5 text-2xs")}>
                 Sources
               </div>
               <div className="space-y-1">

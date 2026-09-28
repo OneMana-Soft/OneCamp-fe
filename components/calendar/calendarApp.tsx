@@ -1,5 +1,6 @@
 "use client";
 
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import { useState, useMemo } from "react";
 import { 
     format, 
@@ -326,7 +327,7 @@ export function CalendarApp() {
                                         <PopoverContent className="w-64 p-2 shadow-xl border-border bg-popover" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center justify-between px-2 pb-2">
-                                                    <span className="text-3xs font-bold text-muted-foreground uppercase tracking-wider">
+                                                    <span className={cn(eyebrowClass, "text-3xs")}>
                                                         {format(day, "EEEE, MMM d")}
                                                     </span>
                                                     <span className="text-3xs text-muted-foreground/50">
@@ -689,7 +690,7 @@ export function CalendarApp() {
                             {/* Days of week header */}
                             <div className="grid grid-cols-7 w-full border-b border-border/60 sticky top-0 bg-background z-20 border-l text-center">
                                 {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((dayName) => (
-                                    <div key={dayName} className="py-2 text-3xs font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/60">
+                                    <div key={dayName} className={cn(eyebrowClass, "py-2 text-3xs border-r border-border/60")}>
                                         {dayName}
                                     </div>
                                 ))}
