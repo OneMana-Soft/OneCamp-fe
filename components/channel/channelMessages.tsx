@@ -1,7 +1,7 @@
 "use client"
 
 // src/components/channel/ChannelMessages.tsx
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 import { groupByDate } from "@/lib/utils/date/groupByDate"
 import { getGroupDateHeading } from "@/lib/utils/date/getMessageGroupDate"
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
@@ -65,7 +65,6 @@ export const ChannelMessages = ({
                                 }: ChannelMessagesProps) => {
     const { isMobile } = useMedia()
 
-    const [virtualShift, setVirtualShift] = useState(false)
     const pendingReactionDeletes = useRef<Set<string>>(new Set())
 
 
@@ -387,14 +386,6 @@ export const ChannelMessages = ({
         }
     }, [channelScrollToBottom.shouldScrollToBottom, channelId, dispatch, flatItems.length])
     
-    const handleGetOldMessage = () => {
-        setVirtualShift(true)
-        getOldMessages()
-        setTimeout(() => {
-            setVirtualShift(false)
-        }, 1000)
-    }
-
     const handleGetNewMessage = () => {
         getNewMessages()
     }
@@ -432,14 +423,13 @@ export const ChannelMessages = ({
             items={flatItems}
             renderItem={renderItem}
             getDateHeading={getGroupDateHeading}
-            fetchOlderMessage={handleGetOldMessage}
+            fetchOlderMessage={getOldMessages}
             fetchNewMessage={handleGetNewMessage}
             hasNewMessage={hasMoreNewMsg}
             hasOldMessage={hasMoreOldMsg}
             olderMessageLoading={isOLdMsgLoading}
             newMessageLoading={isNewMsgLoading}
             ref={containerRef}
-            virtualShift={virtualShift}
             clickedScrollToBottom={clickedScrollToBottom}
             initialTopMostItemIndex={initialIndex}
             initialScrollOffsetFromTop={scrollPosition?.offset}

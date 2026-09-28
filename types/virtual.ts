@@ -18,7 +18,6 @@ export interface VirtualizedListProps<T> {
     fetchNewMessage: () => void;
     newMessageLoading?: boolean;
     hasNewMessage?: boolean;
-    virtualShift: boolean;
     clickedScrollToBottom: () => void;
     ref: React.RefObject<VListHandle | null>
 }
