@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { columnsByStatus, statusOptionOf, statusOptions, statusPatch, statusValueOf, type ProjectStatuses, statusFieldsFromMessage, holdsProjectTasks } from "./taskStatus"
+import { columnsByStatus, statusOptionOf, statusOptions, statusPatch, statusValueOf, type ProjectStatuses, statusFieldsFromMessage, holdsProjectTasks, isClosedStatus } from "./taskStatus"
 
 const project: ProjectStatuses = {
   built_in: [],
@@ -113,5 +113,13 @@ describe("holdsProjectTasks", () => {
     expect(holdsProjectTasks("/channel/list", "p1")).toBe(false)
     expect(holdsProjectTasks(["/task/info", "t1"], "p1")).toBe(false)
     expect(holdsProjectTasks("/task/info/t1", "")).toBe(false)
+  })
+})
+
+describe("isClosedStatus", () => {
+  it("is done and canceled, so neither is ever overdue", () => {
+    expect(isClosedStatus("done")).toBe(true)
+    expect(isClosedStatus("canceled")).toBe(true)
+    for (const s of ["backlog", "todo", "inProgress", "inReview", "", undefined]) expect(isClosedStatus(s)).toBe(false)
   })
 })

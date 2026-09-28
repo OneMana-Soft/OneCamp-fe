@@ -104,6 +104,15 @@ export function isBuiltInStatus(value: string): value is StatusCategory {
   return BUILT_IN_STATUSES.some((s) => s.value === value)
 }
 
+/**
+ * Whether a task's status is finished: Done or Canceled. A project's own
+ * status is finished when the status it counts as is, which is what
+ * task_status holds. Finished work is never overdue. (Backend: TASK_OPEN_FILTER.)
+ */
+export function isClosedStatus(taskStatus: string | undefined): boolean {
+  return taskStatus === "done" || taskStatus === "canceled"
+}
+
 function builtIn(key: string): StatusOption | undefined {
   return BUILT_IN_STATUSES.find((s) => s.value === key)
 }
