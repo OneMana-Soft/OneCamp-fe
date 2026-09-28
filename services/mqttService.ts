@@ -370,6 +370,9 @@ interface msgGitHubSyncInterface {
         name?: string
         description?: string
         status?: string
+        /** With status_synced: the project's own status the task moved to, or "" for none. */
+        custom_status?: string
+        custom_status_name?: string
         label?: string
         assignee_uuid?: string
         assignee_name?: string

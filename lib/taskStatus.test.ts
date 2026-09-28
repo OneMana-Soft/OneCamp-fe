@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { columnsByStatus, statusOptionOf, statusOptions, statusPatch, statusValueOf, type ProjectStatuses } from "./taskStatus"
+import { columnsByStatus, statusOptionOf, statusOptions, statusPatch, statusValueOf, type ProjectStatuses, statusFieldsFromMessage } from "./taskStatus"
 
 const project: ProjectStatuses = {
   built_in: [],
@@ -76,5 +76,26 @@ describe("columnsByStatus", () => {
     expect(cols.inReview.map((t) => t.id)).toEqual([2, 4])
     expect(cols.todo.map((t) => t.id)).toEqual([5])
     expect(cols.blk).toEqual([])
+  })
+})
+
+describe("statusFieldsFromMessage", () => {
+  it("carries a custom status from a live update", () => {
+    expect(statusFieldsFromMessage({ status: "inReview", custom_status: "qa-id", custom_status_name: "QA" })).toEqual({
+      task_status: "inReview",
+      task_custom_status: "qa-id",
+      task_custom_status_name: "QA",
+    })
+  })
+  it("clears the custom status when the update says none", () => {
+    expect(statusFieldsFromMessage({ status: "done", custom_status: "", custom_status_name: "stale" })).toEqual({
+      task_status: "done",
+      task_custom_status: "",
+      task_custom_status_name: "",
+    })
+  })
+  it("leaves older messages, which name only a status, to the built-in rule", () => {
+    expect(statusFieldsFromMessage({ status: "done" })).toBeUndefined()
+    expect(statusFieldsFromMessage({})).toBeUndefined()
   })
 })

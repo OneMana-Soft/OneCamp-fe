@@ -19,6 +19,8 @@ import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
+import { useProjectStatuses } from "@/hooks/useProjectStatuses"
+import { cn } from "@/lib/utils/helpers/cn"
 import { openUI } from "@/store/slice/uiSlice"
 import type { ProjectInfoInterface } from "@/types/project"
 import axiosInstance from "@/lib/axiosInstance"
@@ -89,18 +91,14 @@ const GitHubIntegrationCard = () => {
   const [savingSettings, setSavingSettings] = useState(false)
   const [showConfigDialog, setShowConfigDialog] = useState(false)
 
-  const statusOptions = [
-    { id: "backlog", label: "Backlog" },
-    { id: "todo", label: "To Do" },
-    { id: "inProgress", label: "In Progress" },
-    { id: "inReview", label: "In Review" },
-    { id: "done", label: "Done" },
-    { id: "canceled", label: "Canceled" },
-  ]
 
   const status = statusData?.status
   const isConnected = status?.connected || false
   const linkedRepos = Array.isArray(status?.linked_repos) ? status.linked_repos : []
+  // The rules dialog offers the linked project's own statuses beside the
+  // built-in ones; a rule stores a built-in key or a custom status's id.
+  const rulesProjectId = linkedRepos.find((l) => l.id === showSettingsLinkId)?.project_id
+  const { options: ruleStatusOptions } = useProjectStatuses(rulesProjectId)
   const projects = useMemo(() => {
     const raw = Array.isArray(projectListData?.data?.user_projects) ? projectListData.data.user_projects : []
     return raw.filter(p => {
@@ -599,14 +597,22 @@ const GitHubIntegrationCard = () => {
                                   }
                                 }}
                               >
-                                <SelectTrigger className="w-[130px] h-7 text-xs">
+                                <SelectTrigger className="w-[150px] h-7 text-xs">
                                   <SelectValue placeholder="No change" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="_none">No change</SelectItem>
-                                  {statusOptions.map(s => (
-                                    <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+                                  {ruleStatusOptions.map(s => (
+                                    <SelectItem key={s.value} value={s.value} className={cn(s.custom && "pl-6")}>{s.label}</SelectItem>
                                   ))}
+                                  {/* A value saved before statuses were checked, which this
+                                      project no longer has: shown, so the rule is not silently blank. */}
+                                  {(() => {
+                                    const v = currentRules[rule.key as keyof AutomationRules]
+                                    return v && v !== "_none" && !ruleStatusOptions.some(o => o.value === v)
+                                      ? <SelectItem value={v}>{v} (not a status here)</SelectItem>
+                                      : null
+                                  })()}
                                 </SelectContent>
                               </Select>
                             </div>

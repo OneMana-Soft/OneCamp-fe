@@ -27,6 +27,7 @@ import { LATER_DUE_EVENT } from "@/components/later/LaterDueHost";
 import type { Nudge } from "@/services/nudgeService";
 import { upsertPendingAction, removePendingAction } from "@/store/slice/pendingActionSlice";
 import { toPendingActionSurface, type PendingAction } from "@/services/pendingActionService";
+import { statusFieldsFromMessage } from "@/lib/taskStatus";
 
 interface UseMqttMessageHandlerProps {
     connectionConfig: ConnectionConfig
@@ -154,7 +155,7 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                                     case "issue_closed":
                                     case "issue_reopened":
                                         if (payload.status) {
-                                            dispatch(updateTaskStatusInTaskList({ taskId: task_uuid, value: payload.status }))
+                                            dispatch(updateTaskStatusInTaskList({ taskId: task_uuid, value: payload.status, patch: statusFieldsFromMessage(payload) }))
                                         }
                                         break
                                     case "label_synced":
@@ -177,7 +178,7 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                                     case "pr_closed":
                                     case "pr_merged":
                                         if (payload.status) {
-                                            dispatch(updateTaskStatusInTaskList({ taskId: task_uuid, value: payload.status }))
+                                            dispatch(updateTaskStatusInTaskList({ taskId: task_uuid, value: payload.status, patch: statusFieldsFromMessage(payload) }))
                                         }
                                         if (payload.pr_state !== undefined) {
                                             dispatch(updateTaskPRStateInTaskList({ taskId: task_uuid, prState: payload.pr_state }))
