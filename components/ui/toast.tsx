@@ -53,7 +53,7 @@ const toastVariants = cva(
         destructive:
           "destructive border-destructive/60 bg-destructive text-destructive-foreground",
         notification:
-          "border-border/60 bg-background/95 backdrop-blur-xl text-foreground",
+          "border-border/60 bg-background text-foreground",
       },
     },
     defaultVariants: {

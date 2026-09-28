@@ -629,7 +629,7 @@ function BoardAIPanel({ boardId, api, disabled }: BoardAIPanelProps) {
     <>
       <div className="pointer-events-none absolute bottom-16 left-1/2 z-20 -translate-x-1/2">
         {open ? (
-        <div className="pointer-events-auto w-[min(92vw,30rem)] rounded-xl border bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
+        <div className="pointer-events-auto w-[min(92vw,30rem)] rounded-xl border bg-popover p-3 shadow-xl">
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-sm font-medium">
               <Sparkles className="h-4 w-4 text-primary" />

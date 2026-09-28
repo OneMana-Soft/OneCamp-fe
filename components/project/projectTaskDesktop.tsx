@@ -119,7 +119,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
             <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">
                 {projectId && (
                     <Tabs value={selectedTab} onValueChange={handleTabChange} className="h-full flex flex-col gap-6">
-                        <TabsList className="w-full sm:w-fit grid grid-cols-3 sm:flex bg-muted/50 p-1 border border-border/50 backdrop-blur-sm h-auto overflow-hidden">
+                        <TabsList className="w-full sm:w-fit grid grid-cols-3 sm:flex bg-muted/50 p-1 border border-border/50 h-auto overflow-hidden">
                             <TabsTrigger 
                                 value="list"
                                 className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"

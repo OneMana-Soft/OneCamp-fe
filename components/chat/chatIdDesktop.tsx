@@ -199,7 +199,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                 <ChatMessageList chatId={chatId} />
             </div>
 
-            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
+            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
                 <div className="max-w-6xl mx-auto w-full">
                     {suggestions.length > 0 && (
                         <div className="mb-2 flex flex-wrap items-center gap-1.5">

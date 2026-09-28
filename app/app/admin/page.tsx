@@ -219,7 +219,7 @@ const AdminPage = () => {
       {/* Header: desktop only. A phone's top bar already says Admin, and the
           section picker below is the first thing that is needed there. */}
       {isDesktop && (
-      <header className="shrink-0 border-b border-border/60 bg-card/30 backdrop-blur-md">
+      <header className="shrink-0 border-b border-border/60 bg-card/30">
         <div className="px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-2.5">
             <div className="bg-primary/10 p-1.5 rounded-md">

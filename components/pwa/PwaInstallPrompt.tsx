@@ -108,7 +108,7 @@ export function PwaInstallPrompt() {
   return (
     // Above the mobile bottom navigation, not on it.
     <div className="fixed left-4 right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[var(--z-devtools)] md:bottom-4 md:left-auto md:right-4 md:w-[400px] animate-in fade-in slide-in-from-bottom-2 duration-300 motion-reduce:animate-none">
-      <div className="relative flex items-center gap-3 rounded-xl border border-border/60 bg-background/95 p-3 pr-10 shadow-lg backdrop-blur-xl">
+      <div className="relative flex items-center gap-3 rounded-xl border border-border/60 bg-background p-3 pr-10 shadow-lg">
         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg">
           <Image src="/logo.svg" alt="" fill className="object-cover" />
         </div>

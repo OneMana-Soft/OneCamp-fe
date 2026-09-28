@@ -122,7 +122,7 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
 
                         <div className="max-h-[52vh] overflow-auto rounded-lg border border-border">
                             <table className="w-full border-collapse text-sm">
-                                <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                                <thead className="sticky top-0 bg-muted/80">
                                     <tr>
                                         <th className="px-3 py-2 text-left font-medium">Table</th>
                                         <th className="px-3 py-2 text-left font-medium">Column</th>

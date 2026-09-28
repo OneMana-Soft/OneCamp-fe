@@ -61,7 +61,7 @@ export default function GuestTablePage({ params }: { params: Promise<{ token: st
 
     return (
         <div className="min-h-screen w-full bg-background">
-            <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-card/60 px-4 py-2.5 backdrop-blur-sm">
+            <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-card px-4 py-2.5">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
                         <TableIcon className="h-3.5 w-3.5" />

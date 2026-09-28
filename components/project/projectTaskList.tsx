@@ -360,7 +360,7 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
             {/* Floating action bar */}
             {selectionMode && selectedTaskUUIDs.size > 0 && (
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20">
-                    <div className="flex items-center gap-2 bg-card/95 backdrop-blur-sm border shadow-lg rounded-full px-4 py-2">
+                    <div className="flex items-center gap-2 bg-card border shadow-lg rounded-full px-4 py-2">
                         <Badge variant="secondary" className="text-xs rounded-full">
                             {selectedTaskUUIDs.size}
                         </Badge>

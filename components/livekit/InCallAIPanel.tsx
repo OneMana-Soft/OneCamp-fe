@@ -81,7 +81,7 @@ export function InCallAIPanel({
     };
 
     return (
-        <div className="flex flex-col h-full w-full md:w-[360px] bg-zinc-900/95 backdrop-blur-md border-l border-white/10 text-white shadow-2xl">
+        <div className="flex flex-col h-full w-full md:w-[360px] bg-zinc-900/95 border-l border-white/10 text-white shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
                 <div className="flex items-center gap-2">

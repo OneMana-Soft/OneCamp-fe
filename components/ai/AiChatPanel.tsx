@@ -541,7 +541,7 @@ const AiChatPanel: React.FC = () => {
     return (
         <div className="flex flex-col h-full bg-background border-l border-border">
             {/* Header — uses bg-card to match the rest of the right panel chrome */}
-            <div className="flex items-center justify-between px-3 h-12 border-b border-border/60 bg-card/40 backdrop-blur-sm shrink-0">
+            <div className="flex items-center justify-between px-3 h-12 border-b border-border/60 bg-card/40 shrink-0">
                 <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-primary/10 text-primary">
                         <Sparkles className="h-3.5 w-3.5" />

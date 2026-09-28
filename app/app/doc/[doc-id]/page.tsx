@@ -361,7 +361,7 @@ export default function Page() {
         <div className={cn('flex flex-col h-full transition duration-300', focusMode && 'bg-background')}>
             {/* Desktop top bar — hidden in focus mode */}
             {!focusMode && isDesktop && (
-                <div className='h-14 items-center flex justify-between p-2 pl-4 pr-4 border-b shrink-0 bg-background/80 backdrop-blur-sm z-10'>
+                <div className='h-14 items-center flex justify-between p-2 pl-4 pr-4 border-b shrink-0 bg-background z-10'>
                     <DocTopBarBreadcrumb doc={displayDocInfo!} canEdit={hasEditAccess} />
                     <div className='flex items-center gap-2'>
                         {/* Active users avatars */}
@@ -429,7 +429,7 @@ export default function Page() {
 
             {/* Mobile header */}
             {!focusMode && isMobile && (
-                <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b bg-background/80 backdrop-blur-sm">
+                <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b bg-background">
                     <DocTopBarBreadcrumb doc={displayDocInfo!} canEdit={hasEditAccess} />
                     {/* Comments and the document menu live in the phone's top bar
                         (mobileTopNavigationBarThirdDoc and its drawer); repeating

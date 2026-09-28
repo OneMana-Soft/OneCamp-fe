@@ -317,7 +317,7 @@
 }
 
 @utility glass {
-  @apply bg-background/80 backdrop-blur-xl border-b border-border/40;
+  @apply bg-background border-b border-border/40;
 }
 
 

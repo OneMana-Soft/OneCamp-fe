@@ -192,7 +192,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                 <GroupChatMessageList grpId={grpId} />
             </div>
 
-            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background/95 backdrop-blur-sm">
+            <div className="sticky bottom-0 left-0 right-0 z-[var(--z-fixed)] pb-4 px-4 bg-background">
                 <div className="max-w-6xl mx-auto w-full">
                     <CommandSurface
                         surfaceKey={grpId}

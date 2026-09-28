@@ -8,7 +8,7 @@ export function MobileTopNavigationBar() {
 
     return (
         <div 
-            className='w-full z-[var(--z-fixed)] border-b border-border/60 bg-sidebar backdrop-blur'
+            className='w-full z-[var(--z-fixed)] border-b border-border/60 bg-sidebar'
             style={{ 
                 paddingTop: 'env(safe-area-inset-top)',
                 minHeight: 'calc(3.5rem + env(safe-area-inset-top))'

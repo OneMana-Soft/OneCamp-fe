@@ -127,7 +127,7 @@ export default function DesktopNavigationSearch() {
                     </div>
                 </PopoverTrigger>
                 <PopoverContent
-                    className="w-[500px] p-0 shadow-2xl border-border bg-background/95 backdrop-blur-md rounded-xl overflow-hidden"
+                    className="w-[500px] p-0 shadow-2xl border-border bg-background rounded-xl overflow-hidden"
                     align="start"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >

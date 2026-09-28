@@ -51,7 +51,7 @@ export function TypingIndicator({ users, className }: TypingIndicatorProps) {
                         // inline-flex + w-fit keeps the pill compact instead
                         // of stretching to fill its parent on mobile, which
                         // looked like a clunky full-width banner.
-                        "inline-flex w-fit max-w-full items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground bg-background/90 backdrop-blur-md rounded-full border border-border/50 shadow-sm overflow-hidden",
+                        "inline-flex w-fit max-w-full items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground bg-background rounded-full border border-border/50 shadow-sm overflow-hidden",
                         className,
                     )}
                     role="status"

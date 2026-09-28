@@ -120,7 +120,7 @@ const RecordingsPage = () => {
     return (
         <div className="flex h-full flex-col bg-background/30">
             {isDesktop && (
-                <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3 p-2 backdrop-blur-md">
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3 p-2">
                     <div className="flex items-center gap-3">
                         <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${statusColors.online.solid} text-white`}>
                             <Video size={18} />

@@ -137,7 +137,7 @@ function PendingActionsTray({ surfaceId }: PendingActionsTrayProps) {
                     <div
                         key={a.id}
                         className={
-                            "rounded-xl border backdrop-blur-sm px-3.5 py-3 shadow-sm " +
+                            "rounded-xl border px-3.5 py-3 shadow-sm " +
                             (destructive
                                 ? "border-warning/40 bg-warning/[0.06]"
                                 : "border-border bg-card/80")

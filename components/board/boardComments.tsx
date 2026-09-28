@@ -347,7 +347,7 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
         const top = Math.min(Math.max(pos.top - 8, 8), Math.max(8, ch - 200))
         return (
           <div
-            className="pointer-events-auto absolute w-72 rounded-xl border bg-popover/95 shadow-xl backdrop-blur-sm"
+            className="pointer-events-auto absolute w-72 rounded-xl border bg-popover shadow-xl"
             style={{ left, top }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -375,7 +375,7 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
         const top = Math.max(pos.top - 8, 8)
         return (
           <div
-            className="pointer-events-auto absolute w-72 rounded-xl border bg-popover/95 p-3 shadow-xl backdrop-blur-sm"
+            className="pointer-events-auto absolute w-72 rounded-xl border bg-popover p-3 shadow-xl"
             style={{ left, top }}
             onClick={(e) => e.stopPropagation()}
           >

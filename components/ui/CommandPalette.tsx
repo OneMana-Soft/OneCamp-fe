@@ -219,6 +219,15 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", down)
   }, [])
 
+  // Closing any way (Escape, a click outside, the shortcut again) starts the
+  // next opening empty. It used to keep the last query, so typing again ran
+  // the two together ("q4q4") and found nothing.
+  React.useEffect(() => {
+    if (open) return
+    setInputValue("")
+    setSearchValue("")
+  }, [open, setSearchValue])
+
   const runCommand = React.useCallback((command: () => void) => {
     setOpen(false)
     setInputValue("")
