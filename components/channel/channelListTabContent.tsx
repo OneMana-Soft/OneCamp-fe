@@ -46,7 +46,11 @@ export const ChannelListTabContent = ({ selectedTab }: { selectedTab: string }) 
                     placeholder="Search channels…"
                 />
             </div>
-            <div className="flex-1 min-h-0 overflow-hidden">{renderTabs}</div>
+            {/* A flex column, so each tab's flex-1 list gets the height left
+                under the search box. As a plain block it did not, the tab was
+                only as tall as its first rows, and the virtual list drew a
+                160px window with the rest of the phone screen blank. */}
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{renderTabs}</div>
         </div>
     )
 }

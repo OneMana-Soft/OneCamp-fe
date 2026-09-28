@@ -15,6 +15,7 @@ import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { ProjectTaskKanban } from "@/components/project/projectTaskKanban"
+import { ProjectGlanceLine } from "@/components/project/ProjectGlanceLine"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
 import {NotificationBell} from "@/components/Notification/notificationBell";
@@ -32,6 +33,8 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
 
     const dispatch = useDispatch()
     const postNotification  = usePost()
+    const isAdmin = !!projectInfo.data?.data.project_is_admin
+    const isMember = !!projectInfo.data?.data.project_is_member
 
     const router = useRouter()
     const pathname = usePathname()
@@ -76,9 +79,13 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                 className="px-8 pt-8"
                 eyebrow={projectInfo.data?.data.project_team?.team_name ? `Project · ${projectInfo.data.data.project_team.team_name}` : "Project"}
                 title={projectInfo.data?.data.project_name || "\u00a0"}
-                actions={(projectInfo.data?.data.project_is_admin || false) && (
+                actions={(isMember || isAdmin) && (
                     <div className="flex items-center gap-2">
+                        {/* Any member chooses their own notifications; the server
+                            asks only for membership. It used to show to admins only,
+                            so a member could not quiet a busy project. */}
                         <NotificationBell notificationType={projectNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
+                        {isAdmin && (<>
                         <Button
                             size="icon"
                             variant="ghost"
@@ -101,9 +108,12 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                         >
                             <Users className="h-4 w-4" />
                         </Button>
+                        </>)}
                     </div>
                 )}
-            />
+            >
+                <ProjectGlanceLine projectId={projectId} />
+            </PageHeader>
 
             {/* Content */}
             <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">

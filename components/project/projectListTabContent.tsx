@@ -40,10 +40,15 @@ export const ProjectListTabContent = ({
                 value={inputValue}
                 placeholder={`Search ${selectedTab}...`}
             />
-            <div className="flex-1 overflow-y-auto">
-                {selectedTab === "task" && (
+            {/* The task list is virtual and scrolls itself, so it needs a real
+                height. Inside a plain scrolling block its viewport measured next
+                to nothing and only the first two tasks of a project were drawn. */}
+            {selectedTab === "task" && (
+                <div className="flex-1 min-h-0 flex flex-col">
                     <ProjectTaskList searchQuery={searchQuery} projectId={projectId} />
-                )}
+                </div>
+            )}
+            <div className={selectedTab === "attachment" ? "flex-1 overflow-y-auto" : "hidden"}>
                 {selectedTab === "attachment" && (
                     <div className="flex flex-col">
                         <div className="px-3 pt-3">

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { SectionTabs, SectionTabsContent } from "@/components/ui/sectionTabs"
 import { ProjectListTabContent } from "@/components/project/projectListTabContent"
+import { ProjectGlanceLine } from "@/components/project/ProjectGlanceLine"
 
 /**
  * Mobile project detail tab bar. Switches between the Tasks list and
@@ -23,7 +24,8 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             onValueChange={(v) => setSelectedTab(v as "task" | "attachment")}
             className="h-full"
         >
-            <SectionTabsContent value="task" className="flex-1 min-h-0 outline-none">
+            <SectionTabsContent value="task" className="flex-1 min-h-0 outline-none flex flex-col">
+                <ProjectGlanceLine projectId={projectId} className="px-4 pt-3" />
                 <ProjectListTabContent selectedTab="task" projectId={projectId} />
             </SectionTabsContent>
             <SectionTabsContent value="attachment" className="flex-1 min-h-0 outline-none">
