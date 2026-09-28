@@ -67,23 +67,24 @@ export const statusColors = {
 
 // ─── Calendar Colors ────────────────────────────────────────
 
+// Tasks and events are a real category, so they differ: tasks take the accent
+// (they are yours to do), events a neutral ink. As soft tinted blocks with the
+// page's own text, not saturated blue and indigo bars with white text, which
+// made the calendar the loudest and only cold screen in a warm, one-accent
+// product. `solid` is for the small marks (a dot, an agenda bar).
 export const calendarColors = {
   task: {
-    solid: "bg-blue-500",
-    solidHover: "bg-blue-600",
-    solidOpacity: "bg-blue-500/90",
-    text: "text-blue-500",
-    bg: "bg-blue-500/10",
-    border: "border-blue-300/20",
-    dot: "bg-blue-500/60",
+    solid: "bg-brand",
+    block: "bg-brand/15 text-foreground",
+    blockHover: "bg-brand/25 text-foreground",
+    border: "border-brand/30",
+    dot: "bg-brand/70",
   },
   event: {
-    solid: "bg-indigo-500",
-    solidHover: "bg-indigo-600",
-    solidOpacity: "bg-indigo-500/90",
-    text: "text-indigo-500",
-    bg: "bg-indigo-500/10",
-    border: "border-indigo-300/20",
-    dot: "bg-indigo-500/60",
+    solid: "bg-foreground/55",
+    block: "bg-foreground/[0.08] text-foreground",
+    blockHover: "bg-foreground/[0.14] text-foreground",
+    border: "border-foreground/15",
+    dot: "bg-foreground/45",
   },
 } as const;

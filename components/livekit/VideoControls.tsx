@@ -193,7 +193,7 @@ export function VideoControls({
         <FeatureGate feature={FEATURE_AI}>
         <div className="relative">
         <ControlBtn
-            label={isAIOpen ? "Hide AI Assistant" : "Ask AI"}
+            label={isAIOpen ? "Hide OneCamp AI" : "Ask AI"}
             onClick={onToggleAI}
             isActive={isAIOpen}
             activeClass="bg-brand/20 text-brand hover:bg-brand/30 border-brand/50"
@@ -283,7 +283,7 @@ export function VideoControls({
                 {onToggleAI && (
                     <DropdownMenuItem onClick={onToggleAI} className="py-3">
                         <Sparkles className="mr-2 h-4 w-4" />
-                        {isAIOpen ? "Hide AI Assistant" : "Ask AI"}
+                        {isAIOpen ? "Hide OneCamp AI" : "Ask AI"}
                     </DropdownMenuItem>
                 )}
                 
