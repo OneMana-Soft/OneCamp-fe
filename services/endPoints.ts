@@ -428,6 +428,7 @@ export enum PostEndpointUrl {
     CreateTask = "/task/createTask",
     UpdateTaskName = "/task/updateTaskName",
     UpdateTaskStatus = "/task/updateTaskStatus",
+    MoveTask = "/task/moveTask",
     UpdateTaskPriority = "/task/updateTaskPriority",
     UpdateTaskLabel = "/task/updateTaskLabel",
     UpdateTaskDesc = "/task/updateTaskDesc",
