@@ -213,6 +213,10 @@ const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error
         success: "Task name updated.",
         error: "Failed to update task name.",
     },
+    [PostEndpointUrl.MoveTask]: {
+        success: "Task moved.",
+        error: "Could not move the task",
+    },
     [PostEndpointUrl.UpdateTaskStatus]: {
         success: "Task status updated.",
         error: "Failed to update task status.",

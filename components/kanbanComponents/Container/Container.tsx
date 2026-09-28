@@ -1,6 +1,6 @@
 import React, { forwardRef } from "react"
 
-import { Handle, Remove } from "../Item"
+import { Remove } from "../Item"
 
 import styles from "./Container.module.css"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -10,10 +10,11 @@ export interface Props {
     children: React.ReactNode
     columns?: number
     label?: string
+    /** Cards in the column; shown beside its name. */
+    count?: number
     style?: React.CSSProperties
     horizontal?: boolean
     hover?: boolean
-    handleProps?: React.HTMLAttributes<any>
     scrollable?: boolean
     shadow?: boolean
     placeholder?: boolean
@@ -32,12 +33,12 @@ export const Container = forwardRef<HTMLDivElement, Props>(
         {
             children,
             columns = 1,
-            handleProps,
             horizontal,
             hover,
             onClick,
             onRemove,
             label,
+            count,
             placeholder,
             style,
             scrollable,
@@ -86,13 +87,28 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                             )}
                             {status?.label || label}
                         </h2>
+                        {/* No drag handle: column order was never saved, so a
+                            moved column went back on reload. The count says more. */}
                         <div className={styles.Actions}>
+                            {count !== undefined && (
+                                <span className="px-1 text-xs tabular-nums text-muted-foreground" aria-label={`${count} ${count === 1 ? "task" : "tasks"}`}>
+                                    {count}
+                                </span>
+                            )}
                             {onRemove ? <Remove onClick={onRemove} /> : undefined}
-                            <Handle {...handleProps} />
                         </div>
                     </div>
                 ) : null}
-                {placeholder ? children : <div className={styles.Content}>{children}</div>}
+                {placeholder ? children : (
+                    <div className={styles.Content}>
+                        {children}
+                        {count === 0 && (
+                            <p className="px-3 py-8 text-center text-xs text-muted-foreground">
+                                Nothing here. Drag a task in to move it.
+                            </p>
+                        )}
+                    </div>
+                )}
             </Component>
         )
     },

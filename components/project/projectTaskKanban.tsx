@@ -1,4 +1,7 @@
 import { useTranslation } from "react-i18next"
+import { useBoardColumns } from "@/hooks/useBoardColumns";
+import { useMoveTask } from "@/hooks/useMoveTask";
+import { dropMovedCard, settleDrop } from "@/lib/utils/kanbanDrop";
 import {useCallback, useEffect, useRef, useState} from 'react';
 
 
@@ -46,14 +49,12 @@ import {createPortal, unstable_batchedUpdates} from "react-dom";
 import {TaskKanbanColumnPriorityFilter} from "@/components/task/taskKanbanColumnPriorityFilter";
 import {useFetch} from "@/hooks/useFetch";
 import {ProjectInfoRawInterface} from "@/types/project";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import {GetEndpointUrl} from "@/services/endPoints";
 import {GetTaskStatusQueryParamByStatus} from "@/lib/utils/getTaskStatusQueryParamByStatus";
-import {CreateTaskInterface, TaskInfoInterface} from "@/types/task";
+import {TaskInfoInterface} from "@/types/task";
 import {openUI} from "@/store/slice/uiSlice";
 import {prioritiesInterface, taskStatuses} from "@/types/table";
 import {ProjectTaskKanbanAssigneeFilter} from "@/components/project/projectTaskKanbanAssigneeFilter";
-import {usePost} from "@/hooks/usePost";
-import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 
 
 
@@ -76,11 +77,11 @@ export const ProjectTaskKanban = ({
                                   }: KanbanProps) => {
     const { t } = useTranslation()
     const dispatch = useDispatch();
-    const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate();
+    const moveTask = useMoveTask();
 
 
     const [assigneeFilter, setAssigneeFilter] = useState<string[]>([])
-    const [viewableStatus, setViewableStatus] = useState<Record<string, boolean>>({
+    const [viewableStatus, setColumnShown] = useBoardColumns({
         backlog: false,
         todo: true,
         inProgress: true,
@@ -100,7 +101,6 @@ export const ProjectTaskKanban = ({
 
     const urlParam = GetTaskStatusQueryParamByStatus({assigneeFilter:assigneeFilter, priorityFilter});
 
-    const post = usePost()
 
     const projectInfo = useFetch<ProjectInfoRawInterface>(projectId? GetEndpointUrl.GetProjectTaskListForKanban+'/'+projectId+'?'+urlParam : '');
 
@@ -207,7 +207,7 @@ export const ProjectTaskKanban = ({
             // If no droppable is matched, return the last match
             return lastOverId.current ? [{id: lastOverId.current}] : [];
         },
-        [activeId, items]
+        [activeId, items, viewableStatus]
     );
 
     const [clonedItems, setClonedItems] = useState<Items | null>(null);
@@ -357,37 +357,6 @@ export const ProjectTaskKanban = ({
     //     });
     // }
 
-    function getNextContainerId() {
-        const containerIds = Object.keys(items);
-        const lastContainerId = containerIds[containerIds.length - 1];
-
-        return String.fromCharCode(lastContainerId.charCodeAt(0) + 1);
-    }
-
-
-    const updateTaskStatus = async (taskStatus: string, taskId: string, newIndex?: number) => {
-        optimisticUpdateTask({ task_uuid: taskId, task_status: taskStatus }, projectId, newIndex);
-
-        post.makeRequest<CreateTaskInterface>({
-            apiEndpoint: PostEndpointUrl.UpdateTaskStatus,
-            payload: {
-                task_status: taskStatus,
-                task_uuid: taskId,
-                task_project_uuid: projectId,
-            }
-        }).catch(()=> {
-            revalidateTaskKeys(projectId);
-        })
-    }
-
-    async function handleDragEnd(taskInfo: TaskInfoInterface, newStatus: string, newIndex?: number) {
-
-        if(!projectInfo.data?.data.project_is_admin) return
-
-
-        await updateTaskStatus(newStatus, taskInfo.task_uuid, newIndex)
-    }
-
     return (
         <div className="flex flex-col h-full p-4 overflow-hidden">
             <div className='flex  mb-4 justify-between'>
@@ -427,10 +396,7 @@ export const ProjectTaskKanban = ({
                                     className="capitalize"
                                     checked={viewableStatus[column.value as keyof typeof viewableStatus]}
                                     onCheckedChange={(value) =>
-                                        setViewableStatus((prev) => ({
-                                            ...prev,
-                                            [column.value]: value
-                                        }))
+                                        setColumnShown(column.value, value)
                                     }
                                 >
                                     {column.label}
@@ -517,20 +483,9 @@ export const ProjectTaskKanban = ({
                                             ...overItems.slice(newIndex, overItems.length),
                                         ],
                                     };
-                                } else {
-                                    // Intra-container sorting
-                                    const containerItems = prev[overContainer];
-                                    const activeIndex = containerItems.findIndex(t => t.task_uuid === active.id);
-                                    const overIndex = containerItems.findIndex(t => t.task_uuid === overId);
-
-                                    if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
-                                        return {
-                                            ...prev,
-                                            [overContainer]: arrayMove(containerItems, activeIndex, overIndex),
-                                        };
-                                    }
-                                    return prev;
                                 }
+                                // Reordering within a column happens on drop; see settleDrop.
+                                return prev;
                             });
                         }}
                         onDragEnd={async ({active, over}) => {
@@ -551,26 +506,15 @@ export const ProjectTaskKanban = ({
                                 });
                             }
 
-                            const overContainer = findContainer(overId);
-                            
-                            // Get final index from the current items state (updated by onDragOver)
-                            const finalIndex = overContainer ? items[overContainer].findIndex(t => t.task_uuid === active.id) : undefined;
+                            const task = active.data.current?.task as TaskInfoInterface | undefined
+                            const drop = task && !!projectInfo.data?.data.project_is_admin ? settleDrop(items, active.id as string, overId) : null
 
-                            // Original container where drag started
-                            const originalContainer = clonedItems 
-                                ? Object.keys(clonedItems).find(key => 
-                                    clonedItems[key].some(t => t.task_uuid === active.id)
-                                  )
-                                : null;
-                            
                             try {
-                                if(active.data.current?.task && overContainer && originalContainer) {
-                                    if (overContainer !== originalContainer) {
-                                        await handleDragEnd(active.data.current?.task, overContainer as string, finalIndex);
-                                    } else if (finalIndex !== -1 && finalIndex !== undefined) {
-                                        // Intra-column reordering
-                                        optimisticUpdateTask({ task_uuid: active.id as string }, projectId, finalIndex);
-                                    }
+                                if (task && drop && dropMovedCard(clonedItems, drop, task.task_uuid)) {
+                                    setItems(drop.items)
+                                    // Not awaited: the board already shows the move, and the
+                                    // drag overlay must not hang on until the server answers.
+                                    void moveTask(task.task_uuid, projectId, drop)
                                 }
                             } finally {
                                 // Finalize state updates in next tick
