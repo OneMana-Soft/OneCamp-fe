@@ -1,6 +1,6 @@
 "use client"
 
-import { pageOwnsBottomEdge } from "@/lib/utils/mobileBottomNav"
+import { bottomNavTab, pageOwnsBottomEdge } from "@/lib/utils/mobileBottomNav"
 import { Bell, Hash, Home, MessageCircle, MoreHorizontal } from "@/lib/icons"
 import { usePathname, useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
@@ -37,7 +37,6 @@ const NAV_ITEMS: NavItem[] = [
 export function MobileBottomNavigationBar() {
     const pathname = usePathname()
     const router = useRouter()
-    const path = pathname.slice(1)
     const [drawerOpen, setDrawerOpen] = useState(false)
 
     // Which surfaces own the bottom edge of the screen.
@@ -56,6 +55,7 @@ export function MobileBottomNavigationBar() {
     // one is a redundant bar rather than a dead end.
     // The list, and why each entry is on it: lib/utils/mobileBottomNav.ts.
     const isVisible = !pageOwnsBottomEdge(pathname)
+    const currentTab = bottomNavTab(pathname, NAV_ITEMS.map((it) => it.page))
 
     const userSidebarState = useSelector((state: RootState) => state.users.userSidebar)
 
@@ -104,7 +104,7 @@ export function MobileBottomNavigationBar() {
             >
                 <ul className="grid grid-cols-5 items-stretch h-14 w-full">
                     {NAV_ITEMS.map(({ icon: Icon, label, page, unreadKey }) => {
-                        const isActive = path === page
+                        const isActive = currentTab === page
                         const unread = getUnreadCount(unreadKey)
                         return (
                             <li key={page} className="contents">
@@ -160,14 +160,17 @@ export function MobileBottomNavigationBar() {
                             type="button"
                             onClick={() => setDrawerOpen(true)}
                             aria-label="Open menu"
+                            aria-current={currentTab === "more" ? "page" : undefined}
                             className={cn(
                                 "flex flex-col items-center justify-center gap-1 h-full",
-                                "text-muted-foreground hover:text-foreground transition-colors duration-100",
-                                "active:bg-accent/40",
+                                "transition-colors duration-100 active:bg-accent/40",
+                                currentTab === "more"
+                                    ? "text-foreground"
+                                    : "text-muted-foreground hover:text-foreground",
                             )}
                         >
-                            <MoreHorizontal className="h-[22px] w-[22px]" strokeWidth={1.75} />
-                            <span className="text-3xs font-medium leading-none">More</span>
+                            <MoreHorizontal className="h-[22px] w-[22px]" strokeWidth={currentTab === "more" ? 2.25 : 1.75} />
+                            <span className={cn("text-3xs leading-none", currentTab === "more" ? "font-semibold" : "font-medium")}>More</span>
                         </button>
                     </li>
                 </ul>
