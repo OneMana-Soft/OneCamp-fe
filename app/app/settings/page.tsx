@@ -4,12 +4,12 @@ import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { useCapabilities } from "@/hooks/useCapabilities"
-import { useAIAvailable } from "@/hooks/useClientConfig"
 import { visibleSettingsSections } from "@/lib/settingsSections"
 
 export default function SettingsPage() {
   const { can } = useCapabilities()
-  const sections = visibleSettingsSections(can, useAIAvailable())
+  // This edition has no AI, so its sections never show.
+  const sections = visibleSettingsSections(can, false)
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 space-y-6">
       <PageHeader eyebrow="Yours" title="Settings" />

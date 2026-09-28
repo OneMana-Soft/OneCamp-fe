@@ -10,8 +10,8 @@
  */
 
 import type { LucideIcon } from "lucide-react"
-import { Bell, Key, Plug, Sparkles, Zap } from "lucide-react"
-import { CAP_AGENT_MANAGE, CAP_WORKFLOW_MANAGE } from "@/services/capabilityService"
+import { Bell, Key, Plug, Zap } from "lucide-react"
+import { CAP_WORKFLOW_MANAGE } from "@/services/capabilityService"
 
 export interface SettingsSection {
   href: string
@@ -27,7 +27,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     href: "/app/settings/notifications",
     label: "Notifications",
-    description: "Which emails you get, quiet hours, and the daily note from OneCamp AI.",
+    description: "Which emails you get, and quiet hours.",
     icon: Bell,
   },
   {
@@ -43,14 +43,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Zap,
     capability: CAP_WORKFLOW_MANAGE,
   },
-  {
-    href: "/app/settings/agents",
-    label: "Agents and skills",
-    description: "Agents you build and sponsor, and the skills they share.",
-    icon: Sparkles,
-    capability: CAP_AGENT_MANAGE,
-    ai: true,
-  },
+
   {
     href: "/app/settings/api-tokens",
     label: "API tokens",
