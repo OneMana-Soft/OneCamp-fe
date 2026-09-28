@@ -35,10 +35,24 @@ describe("the AI filter in Activity", () => {
   it("is a tab in Activity rather than another item in the sidebar", () => {
     render(<ActivityListTabs />)
     expect(screen.getByText("AI")).toBeTruthy()
-    // The existing filters are untouched.
-    for (const t of ["Priority", "All", "Mentions", "Comments", "Reactions"]) {
+    // The filters people open Activity for are untouched.
+    for (const t of ["Priority", "All", "Mentions"]) {
       expect(screen.getByText(t), `${t} tab disappeared`).toBeTruthy()
     }
+  })
+
+  // Comments and Reactions were folded into All: four tabs, not six.
+  it("keeps Activity to a few tabs", () => {
+    render(<ActivityListTabs />)
+    expect(screen.queryByText("Comments")).toBeNull()
+    expect(screen.queryByText("Reactions")).toBeNull()
+  })
+
+  it("opens All for an old link to a tab that was folded in", () => {
+    search = "tab=comments"
+    render(<ActivityListTabs />)
+    const all = screen.getByText("All").closest("[role='tab']")
+    expect(all?.getAttribute("data-state")).toBe("active")
   })
 
   // On the AI-free edition an "AI" tab leading nowhere would advertise a
@@ -54,7 +68,7 @@ describe("the AI filter in Activity", () => {
     const { container } = render(<ActivityListTabs />)
     const labels = Array.from(container.querySelectorAll("button, [role='tab']"))
       .map((n) => (n.textContent || "").trim())
-      .filter((t) => ["Priority", "All", "Mentions", "Comments", "Reactions", "AI"].includes(t))
+      .filter((t) => ["Priority", "All", "Mentions", "AI"].includes(t))
     expect(labels[labels.length - 1]).toBe("AI")
   })
 })

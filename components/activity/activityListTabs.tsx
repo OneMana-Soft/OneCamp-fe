@@ -19,7 +19,11 @@ import { UnifiedActivityItem, UnifiedActivityPaginationRes } from "@/types/activ
 // the nav is a hotel lobby of equal doors and the wedge is quiet; answering it by
 // adding another door would make the first problem worse to fix the second. This
 // puts what the AI did in your name inside chrome people already open.
-const VALID_TABS = ["priority", "all", "mentions", "comments", "reactions", "ai"] as const
+//
+// Comments and Reactions were tabs of their own. Everything in them is in All,
+// in order, and six tabs to read one inbox is the kind of choice a calm tool
+// should not ask for. Old links to them open All.
+const VALID_TABS = ["priority", "all", "mentions", "ai"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export function ActivityListTabs() {
@@ -54,8 +58,6 @@ export function ActivityListTabs() {
             { value: "priority", label: "Priority", count: priorityCount > 9 ? "9+" : priorityCount || undefined },
             { value: "all", label: "All" },
             { value: "mentions", label: "Mentions" },
-            { value: "comments", label: "Comments" },
-            { value: "reactions", label: "Reactions" },
             // Last, and only when there is AI to account for. On the AI-free
             // edition, and on v2 with AI switched off, an "AI" tab leading to an
             // empty list would advertise a subsystem this server does not have.
