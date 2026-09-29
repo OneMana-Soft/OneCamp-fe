@@ -50,6 +50,8 @@ interface MyAssistantsResponse {
   data?: { open: boolean; connections: AssistantConnection[] }
 }
 
+const ASSISTANT_ORDER = ["chatgpt", "claude", "grok", "cursor", "claude-code"]
+
 const PROMISES = [
   { title: "It acts as you", body: "It can see and do only what you can, in the areas your admin allows. Never more." },
   { title: "Drastic steps wait for you", body: "Reading and adding go straight through. Anything that deletes waits for someone to approve it here." },
@@ -60,11 +62,15 @@ function MyAssistantsCard() {
   const res = useFetch<MyAssistantsResponse>(GetEndpointUrl.MyAssistants)
   const post = usePost()
   const recipes = React.useMemo(() => mcpConnectRecipes(), [])
-  // Lead with the assistants people actually use; "any client" goes last.
-  const ordered = React.useMemo(
-    () => [...recipes.filter((r) => r.id !== "any"), ...recipes.filter((r) => r.id === "any")],
-    [recipes],
-  )
+  // Lead with the assistants most people use; a recipe not named here keeps
+  // its place after them, and "any client" is always last.
+  const ordered = React.useMemo(() => {
+    const rank = (id: string) => {
+      const i = ASSISTANT_ORDER.indexOf(id)
+      return id === "any" ? Number.MAX_SAFE_INTEGER : i === -1 ? ASSISTANT_ORDER.length : i
+    }
+    return [...recipes].sort((a, b) => rank(a.id) - rank(b.id))
+  }, [recipes])
   const [picked, setPicked] = React.useState(ordered[0]?.id ?? "")
   const recipe = ordered.find((r) => r.id === picked) ?? ordered[0]
   const [confirming, setConfirming] = React.useState<string | null>(null)

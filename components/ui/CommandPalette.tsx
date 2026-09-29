@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
-import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink } from "@/lib/icons";
+import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, Bot } from "@/lib/icons";
 import { Plug } from "lucide-react";
 
 import {
@@ -558,6 +558,15 @@ export function CommandPalette() {
         group: "Settings",
         capabilityKey: CAP_AGENT_MANAGE,
         action: () => router.push("/app/settings/agents"),
+      },
+      {
+        id: "my-assistants",
+        featureKey: FEATURE_AI,
+        label: "Connect your AI assistant",
+        keywords: ["assistant", "chatgpt", "claude", "grok", "muse", "cursor", "connect", "mcp", "my ai", "disconnect"],
+        icon: <Bot className="mr-2 h-4 w-4" />,
+        group: "Settings",
+        action: () => router.push("/app/settings/assistants"),
       },
       {
         id: "invite-people",

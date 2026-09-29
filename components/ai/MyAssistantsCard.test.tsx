@@ -31,7 +31,7 @@ describe("MyAssistantsCard", () => {
   it("leads with named assistants and shows steps for the one picked", () => {
     render(<MyAssistantsCard />)
     const tabs = screen.getAllByRole("tab")
-    expect(tabs[0].textContent).not.toBe("Any MCP client")
+    expect(tabs.slice(0, 3).map((t) => t.textContent)).toEqual(["ChatGPT", "Claude & Cowork", "Grok Bot"])
     expect(tabs[tabs.length - 1].textContent).toBe("Any MCP client")
     fireEvent.click(screen.getByRole("tab", { name: "ChatGPT" }))
     expect(screen.getByRole("tabpanel").textContent).toMatch(/Developer mode/)
