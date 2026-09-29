@@ -38,6 +38,14 @@ describe("taskDraftFromMessage", () => {
     )
   })
 
+  it("leaves an opening mention out of the name, not the quote", () => {
+    const html =
+      '<p><span data-type="mention" data-id="u1" data-label="Sam Rivera">@Sam Rivera</span> can we get the rollback steps in before Thursday?</p>'
+    const d = taskDraftFromMessage(html, source)
+    expect(d.name).toBe("Can we get the rollback steps in before Thursday?")
+    expect(d.text).toBe("@Sam Rivera can we get the rollback steps in before Thursday?")
+  })
+
   it("never lets message text become markup", () => {
     const d = taskDraftFromMessage("<p>a &lt;script&gt;alert(1)&lt;/script&gt;</p>", source)
     expect(d.description).not.toContain("<script>")
