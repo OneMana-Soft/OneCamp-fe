@@ -28,6 +28,7 @@
  *   doc_comment            doc id                      —              business/Comment/commentBusiness.go
  *   reminder               recipient user id           —              business/Command/delivery.go
  *   later                  app path of the saved item  —              business/SavedItem/savedItem.go
+ *   approval               —                           —              business/AI/approvalPush.go
  *
  *   (*) some chat senders omit thread_id; the chat arm doesn't need it.
  *
@@ -118,6 +119,11 @@ export function notificationRoute(
 
     case "doc_comment":
       return typeId ? `/app/doc/${typeId}` : NOTIFICATION_FALLBACK_ROUTE
+
+    // An agent is waiting for a decision. Home leads with "Needs your
+    // approval", which lists every open one, so the push carries no id.
+    case "approval":
+      return "/app/home"
 
     // A fired /remind carries no target: focus the app and let the in-app
     // surface show the reminder itself.
