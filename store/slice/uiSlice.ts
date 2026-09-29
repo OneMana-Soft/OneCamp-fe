@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { AttachmentMediaReq } from "@/types/attachment";
+import type { TaskDraft, TaskSource } from "@/lib/task/messageToTask";
 
 // Re-using types from fragmented slices
 interface RecordingPlayerInterface {
@@ -26,7 +27,8 @@ interface RootUIState {
   createChannel: SingleUIState;
   createProject: SingleUIState;
   createTeam: SingleUIState;
-  createTask: SingleUIState;
+  // Set when the task is being made from a message; null for a blank task.
+  createTask: SingleUIState<{ draft: TaskDraft; source: TaskSource } | null>;
   createDoc: SingleUIState;
   editChannel: SingleUIState;
   editChannelMember: SingleUIState;

@@ -15,6 +15,7 @@ import { SaveToMemoryButton } from "@/components/ai/SaveToMemoryButton";
 import { SaveForLaterButton } from "@/components/later/SaveForLater";
 import { messageLink } from "@/lib/utils/later";
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
+import { taskDraftFromMessage, type TaskSource } from "@/lib/task/messageToTask";
 
 import { openUI } from "@/store/slice/uiSlice";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
@@ -136,10 +137,25 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
         );
     }, [dispatch, chatUUID, groupUUID, chatMessageID, channelUUID, postUUID]);
 
-    const showDropdown = Boolean(isAdmin || isOwner || getReplyNotification);
-
     // Save for later opens the message in its thread, where it is shown in full.
     const laterLink = messageLink({ channelUUID, postUUID, chatUUID, groupUUID, chatMessageID });
+
+    // Make a task: the form opens drafted from this message, the task links
+    // back to it, and a reply under it links to the task.
+    const handleMakeTask = useCallback(() => {
+        if (!laterLink) return;
+        const source: TaskSource = {
+            postUUID: postUUID || undefined,
+            chatMessageID: postUUID ? undefined : chatMessageID || undefined,
+            link: window.location.origin + laterLink,
+            authorName,
+        };
+        dispatch(openUI({ key: "createTask", data: { draft: taskDraftFromMessage(messageText, source), source } }));
+    }, [dispatch, laterLink, postUUID, chatMessageID, authorName, messageText]);
+    const onMakeTask = laterLink ? handleMakeTask : undefined;
+
+    const showDropdown = Boolean(isAdmin || isOwner || getReplyNotification || onMakeTask);
+
     const laterID = postUUID || chatMessageID;
     const laterTarget = laterLink && laterID
         ? {
@@ -245,6 +261,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                     deleteMessage={deleteMessage}
                     editMessage={editMessage}
                     getReplyNotification={getReplyNotification}
+                    onMakeTask={onMakeTask}
                 />
             )}
         </motion.div>
