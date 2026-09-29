@@ -75,7 +75,11 @@ const SECTION_4_ACTIONS: ("orderedList" | "bulletList")[] = ["bulletList", "orde
 const SECTION_5_ACTIONS: ("codeBlock" | "blockquote" | "horizontalRule")[] = ["blockquote", "codeBlock", "horizontalRule"];
 const DEFAULT_ALLOWED_MIME_TYPES = ['*/*'];
 
-const Toolbar = ({ editor, toggledTextEditor, setToggledTextEditor, toggleToolbar }: { editor: Editor, toggledTextEditor: boolean,  setToggledTextEditor: (b: boolean)=>void, toggleToolbar: boolean}) => {
+// Memoised: the editor re-renders its host on every keystroke, and the toolbar,
+// a dozen buttons with tooltips, re-rendered with it (up to ~300 ms a key on a
+// slow phone). Its props are stable; each ToolbarSection subscribes to the
+// editor itself and re-renders only when a button's state changes.
+const Toolbar = React.memo(function Toolbar({ editor, toggledTextEditor, setToggledTextEditor, toggleToolbar }: { editor: Editor, toggledTextEditor: boolean,  setToggledTextEditor: (b: boolean)=>void, toggleToolbar: boolean}) {
 
 
   const {isMobile, isDesktop} = useMedia()
@@ -148,7 +152,7 @@ const Toolbar = ({ editor, toggledTextEditor, setToggledTextEditor, toggleToolba
       </div>
   )
 
-};
+});
 
 const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
     (

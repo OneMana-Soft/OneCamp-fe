@@ -5,7 +5,7 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import { CreatePostPaginationResRaw, PostsRes} from "@/types/post";
-import {useEffect, useState, useMemo} from "react";
+import {memo, useEffect, useState, useMemo} from "react";
 import {updateChannelPosts, updateChannelScrollToBottom, mergeChannelPosts} from "@/store/slice/channelSlice";
 import {ChannelMessages} from "@/components/channel/channelMessages";
 import {useMessageResync} from "@/hooks/useMessageResync";
@@ -24,7 +24,10 @@ const EMPTY_POSTS: PostsRes[] = []
 
 const EMPTY_TYPING_LIST: any[] = []
 
-export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: ChannelMessageListProps) => {
+// Memoised: its props are ids, so a parent re-rendering for another reason
+// (the composer's draft changes on every keystroke) never re-renders every
+// message. On a phone that re-render cost up to 300 ms a key.
+export const ChannelMessageList = memo(function ChannelMessageList({channelId, postId: propPostId, isAdmin}: ChannelMessageListProps) {
 
     const { isMobile } = useMedia();
     const searchParams = useSearchParams();
@@ -199,4 +202,4 @@ export const ChannelMessageList = ({channelId, postId: propPostId, isAdmin}: Cha
         </div>
     )
 
-}
+})
