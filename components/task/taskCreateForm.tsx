@@ -38,10 +38,15 @@ import { Calendar } from "@/components/ui/calendar";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer";
 import { useMedia } from "@/context/MediaQueryContext";
+import type { TaskDraft } from "@/lib/task/messageToTask";
 
 type TaskCreateFormProps = {
   submitLabel?: string;
   onSuccess?: () => void;
+  /** Starting name and description, e.g. drafted from a message. */
+  prefill?: TaskDraft;
+  /** Called with the new task once the server has made it. */
+  onCreated?: (task: { taskUUID: string; name: string }) => void;
 };
 
 /**
@@ -133,7 +138,7 @@ const DateField: React.FC<DateFieldProps> = ({ field, placeholder, drawerTitle }
   );
 };
 
-const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create Task", onSuccess }) => {
+const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create Task", onSuccess, prefill, onCreated }) => {
   const [popOpenProjectName, setPopOpenProjectName] = useState(false);
   const [popOpenUserName, setPopOpenUserName] = useState(false);
   const [popOpenPriority, setPopOpenPriority] = useState(false);
@@ -160,9 +165,9 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create T
     resolver: zodResolver(createTaskFormSchema),
     mode: "onChange",
     defaultValues: {
-      task_name: "",
+      task_name: prefill?.name ?? "",
       task_assignee_uuid: "",
-      task_description: "",
+      task_description: prefill?.description ?? "",
       task_project_uuid: "",
       task_attachments: [],
       task_due_date: undefined,
@@ -270,7 +275,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create T
     optimisticCreateTask(tempTask, data.task_project_uuid);
 
         post
-      .makeRequest<CreateTaskInterface>({
+      .makeRequest<CreateTaskInterface, { task_uuid?: string }>({
         apiEndpoint: PostEndpointUrl.CreateTask,
         showToast: true,
         payload: {
@@ -286,9 +291,10 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create T
           task_github_issue_url: data.task_github_issue_url || undefined,
         },
       })
-      .then(() => {
+      .then((res) => {
         dispatch(clearCreateTaskInputState());
         revalidateTaskKeys(data.task_project_uuid);
+        if (res?.task_uuid && onCreated) onCreated({ taskUUID: res.task_uuid, name: data.task_name });
         if (onSuccess) onSuccess();
       });
   };

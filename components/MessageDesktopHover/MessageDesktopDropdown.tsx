@@ -9,19 +9,21 @@ import {
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import {Button} from "@/components/ui/button";
-import { Bell, MoreVertical, Pencil, Trash2 } from "@/lib/icons";
+import { Bell, ListTodo, MoreVertical, Pencil, Trash2 } from "@/lib/icons";
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 
 interface MessageDesktopDropdownProps {
     setIsDropdownOpen: (open: boolean) => void;
     getReplyNotification?: () => void;
+    /** Opens the task form drafted from this message. */
+    onMakeTask?: () => void;
     editMessage: () => void;
     isAdmin?: boolean;
     isOwner: boolean;
     deleteMessage: () => void;
 }
 
-export default function MessageDesktopDropdown({ isOwner, isAdmin, setIsDropdownOpen, getReplyNotification, editMessage, deleteMessage }: MessageDesktopDropdownProps) {
+export default function MessageDesktopDropdown({ isOwner, isAdmin, setIsDropdownOpen, getReplyNotification, onMakeTask, editMessage, deleteMessage }: MessageDesktopDropdownProps) {
 
     return (
         <DropdownMenu
@@ -44,6 +46,16 @@ export default function MessageDesktopDropdown({ isOwner, isAdmin, setIsDropdown
             <DropdownMenuContent className="w-56" align="end" forceMount>
 
                 <DropdownMenuGroup>
+                    {onMakeTask && <DropdownMenuItem onClick={onMakeTask}>
+                        <div className='flex items-center justify-center space-x-1.5'>
+                            <div>
+                                <ListTodo className='h-4 w-4'/>
+                            </div>
+                            <div>
+                                Make a task
+                            </div>
+                        </div>
+                    </DropdownMenuItem>}
                     {getReplyNotification && <DropdownMenuItem onClick={getReplyNotification}>
                         <div className='flex items-center justify-center space-x-1.5'>
                             <div>
@@ -69,7 +81,7 @@ export default function MessageDesktopDropdown({ isOwner, isAdmin, setIsDropdown
                         {/*<DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>*/}
                     </DropdownMenuItem>}
                 </DropdownMenuGroup>
-                <DropdownMenuSeparator/>
+                {(isAdmin || isOwner) && <DropdownMenuSeparator/>}
                 {(isAdmin || isOwner) && <DropdownMenuItem onClick={deleteMessage}>
 
                     <div className='flex items-center justify-center space-x-1.5 text-destructive'>

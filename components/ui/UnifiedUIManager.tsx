@@ -118,6 +118,7 @@ export function UnifiedUIManager() {
         <CreateTaskDialog
           dialogOpenState={ui.createTask.isOpen}
           setOpenState={() => dispatch(closeUI('createTask'))}
+          fromMessage={ui.createTask.data ?? undefined}
         />
       )}
 
