@@ -23,6 +23,8 @@ export default function Page({ params }: { params: Promise<{ chatId: string}> })
   const post = usePost();
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  // The same request the DM's header makes, so this is usually already cached.
+  const otherUser = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`)
 
 
   const handlePreJoin = async (values: { audioEnabled: boolean; videoEnabled: boolean }) => {
@@ -73,7 +75,7 @@ export default function Page({ params }: { params: Promise<{ chatId: string}> })
   };
 
   if (!isPreJoinComplete) {
-      return <PreJoin onJoin={handlePreJoin} username={selfProfile.data?.data.user_name || ''} />;
+      return <PreJoin onJoin={handlePreJoin} username={selfProfile.data?.data.user_name || ''} place={otherUser.data?.data.user_name} onCancel={handleDisconnect} />;
   }
 
   return (
@@ -83,6 +85,7 @@ export default function Page({ params }: { params: Promise<{ chatId: string}> })
         onDisconnect={handleDisconnect}
         toggleRecording={toggleRecording}
         isAdmin={true}
+        place={otherUser.data?.data.user_name}
     />
   );
 }

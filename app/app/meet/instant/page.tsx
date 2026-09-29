@@ -63,6 +63,7 @@ export default function InstantMeetingPage() {
                     onJoin={handlePreJoin}
                     username={selfProfile.data?.data.user_name || ""}
                     joinLabel={starting ? "Starting…" : "Start meeting"}
+                    onCancel={handleDisconnect}
                 />
                 {starting && (
                     <div className="absolute inset-0 flex items-center justify-center bg-background/60">

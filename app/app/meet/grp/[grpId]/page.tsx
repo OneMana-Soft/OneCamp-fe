@@ -1,6 +1,7 @@
 "use client";
 
 
+import type { RawUserDMInterface } from "@/types/user";
 import {use,  useState} from "react";
 import {VideoConference} from "@/components/livekit/VideoConference";
 import {useRouter} from "next/navigation";
@@ -22,6 +23,10 @@ export default function Page({ params }: { params: Promise<{ grpId: string, room
   const post = usePost();
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+  // The same request the group's header makes, so this is usually already cached.
+  const participants = useFetchOnlyOnce<RawUserDMInterface>(`${GetEndpointUrl.GetDmGroupParticipants}/${grpId}`)
+  const others = (participants.data?.data?.dm_participants || []).filter((u) => u.user_uuid !== selfProfile.data?.data.user_uuid).map((u) => u.user_name)
+  const groupPlace = others.length ? others.slice(0, 3).join(", ") + (others.length > 3 ? ` and ${others.length - 3} more` : "") : undefined
 
 
   const handlePreJoin = async (values: { audioEnabled: boolean; videoEnabled: boolean }) => {
@@ -72,7 +77,7 @@ export default function Page({ params }: { params: Promise<{ grpId: string, room
   };
 
   if (!isPreJoinComplete) {
-      return <PreJoin onJoin={handlePreJoin} username={selfProfile.data?.data.user_name || ''} />;
+      return <PreJoin onJoin={handlePreJoin} username={selfProfile.data?.data.user_name || ''} place={groupPlace} onCancel={handleDisconnect} />;
   }
 
   return (
@@ -82,6 +87,7 @@ export default function Page({ params }: { params: Promise<{ grpId: string, room
       onDisconnect={handleDisconnect}
       toggleRecording={toggleRecording}
       isAdmin={true}
+      place={groupPlace}
     />
   );
 }
