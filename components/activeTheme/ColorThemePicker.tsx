@@ -20,7 +20,7 @@ export function ColorThemePicker() {
 
     return (
         <div className="w-full">
-            <div className="text-xs text-muted-foreground mb-2 font-medium">Accent Color</div>
+            <div className="text-xs text-muted-foreground mb-2 font-medium">Accent color</div>
             <div className="flex items-center gap-2 flex-wrap">
                 {VALID_COLOR_THEMES.map((color) => (
                     <button
