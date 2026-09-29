@@ -25,6 +25,10 @@ export interface TaskDraft {
 
 const NAME_MAX = 120
 
+// Mentions a message opens with ("@Sam can we…") address a person; they are
+// not part of what the task is. The quote keeps them.
+const LEADING_MENTIONS = /^(\s*<p[^>]*>)?(?:\s*<span[^>]*data-type="mention"[^>]*>[^<]*<\/span>[\s,:]*)+/i
+
 function escapeHTML(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
@@ -59,11 +63,13 @@ export function taskNameFromText(text: string): string {
  */
 export function taskDraftFromMessage(messageHTML: string | undefined, source: TaskSource): TaskDraft {
   const text = htmlToPreviewText(messageHTML, 4000)
+  const ask = htmlToPreviewText((messageHTML ?? "").replace(LEADING_MENTIONS, "$1"), 4000)
+  const name = taskNameFromText(ask)
   const from = source.authorName ? `${escapeHTML(source.authorName)}'s message` : "the message"
   const quote = text ? `<blockquote><p>${escapeHTML(text)}</p></blockquote>` : ""
   return {
     text,
-    name: taskNameFromText(text),
+    name: name.charAt(0).toUpperCase() + name.slice(1),
     description: `${quote}<p>From <a href="${escapeHTML(source.link)}">${from}</a></p>`,
   }
 }
