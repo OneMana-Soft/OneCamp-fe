@@ -3,6 +3,8 @@ import {CommentInfoInterface} from "@/types/comment";
 import {ProgressiveList} from "@/components/ui/progressiveList";
 import { EmptyState } from "@/components/ui/empty-state"
 import { MessageSquare } from "@/lib/icons";
+import { memo } from "react";
+import { useStableCallback } from "@/hooks/useStableCallback";
 
 
 interface CommentsListProps {
@@ -14,7 +16,24 @@ interface CommentsListProps {
     getMediaURL: string
 }
 
+// The panel around this list re-renders on every keystroke in its composer and
+// recreates these handlers each time. The outer shell hands the list stable
+// wrappers that call the latest handler, so the replies re-render only when
+// they change.
 export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL }: CommentsListProps) => {
+    return (
+        <CommentsListInner
+            comments={comments}
+            addOrUpdateReaction={useStableCallback(addOrUpdateReaction)}
+            removeReaction={useStableCallback(removeReaction)}
+            removeComment={useStableCallback(removeComment)}
+            updateComment={useStableCallback(updateComment)}
+            getMediaURL={getMediaURL}
+        />
+    )
+}
+
+const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL }: CommentsListProps) {
     if (!comments || comments.length === 0) {
         return null
     }
@@ -48,4 +67,4 @@ export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, re
 
         </div>
     )
-}
+})

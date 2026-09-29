@@ -41,6 +41,10 @@ export const ChannelListResult = ({
             <Link
                 key={channel.ch_uuid}
                 href={`${app_channel_path}/${channel.ch_uuid}`}
+                // Fetch the page and its code while the list is on screen, as
+                // the desktop sidebar does. Without it a tap waited for both in
+                // turn before asking for a single message (~800 ms on a phone).
+                prefetch
                 className="block focus:outline-none"
             >
                 <ChannelListChannel
