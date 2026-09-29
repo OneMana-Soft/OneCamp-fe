@@ -357,6 +357,16 @@ body {
     @apply bg-selection text-selection-foreground;
   }
 
+  /* Search wraps what matched in <mark>. Unstyled, that is the browser's
+     yellow: a highlighter on the paper, and glaring in dark mode. A tint of
+     the accent keeps the text in its own colour and reads in both themes. */
+  mark {
+    background-color: color-mix(in oklab, var(--primary) 18%, transparent);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+
   /* Applied here rather than per component, because "which face is a heading"
      is a system decision and 697 files cannot each be trusted to remember it.
      A component that genuinely wants Inter for a heading overrides with

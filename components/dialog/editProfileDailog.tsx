@@ -293,7 +293,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                     {/* Left Sidebar - Profile Summary */}
                     <div className="w-full md:w-1/3 bg-muted/30 p-8 flex flex-col items-center border-b md:border-b-0 md:border-r">
                         <DialogHeader className="w-full mb-8">
-                            <DialogTitle className="text-base font-semibold tracking-tight">Settings</DialogTitle>
+                            <DialogTitle className="text-base font-semibold tracking-tight">Profile</DialogTitle>
                             <DialogDescription className="text-xs">{t('editProfile')}</DialogDescription>
                         </DialogHeader>
                         
@@ -371,7 +371,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                             <FormItem>
                                                 <FormLabel className={eyebrowClass}>{t('jobTitle')}</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
+                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" placeholder="e.g. Software Engineer" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -384,7 +384,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                             <FormItem>
                                                 <FormLabel className={eyebrowClass}>Hobbies</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
+                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" placeholder="What do you like to do?" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -415,12 +415,11 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                             <FormItem className="flex flex-col">
                                                 <FormLabel className={eyebrowClass}>{t('status')}</FormLabel>
                                                 <div className="flex items-center justify-between bg-muted/20 border border-transparent rounded-md px-4 h-10">
-                                                    <span 
-                                                        className={cn(eyebrowClass, "cursor-pointer leading-none")}
-                                                        onClick={() => field.onChange(!field.value)}
-                                                    >
+                                                    {/* A switch's own label, so it reads as what the switch does
+                                                        rather than as another section heading. */}
+                                                    <label htmlFor="status-switch" className="cursor-pointer text-sm leading-none text-foreground">
                                                         Appear online
-                                                    </span>
+                                                    </label>
                                                     <Switch
                                                         id="status-switch"
                                                         checked={!!field.value}
@@ -441,7 +440,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
 
                         <div className="space-y-6 mt-6">
                             <div className="space-y-4">
-                                <h3 className="text-3xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Appearance</h3>
+                                <h3 className={eyebrowClass}>Appearance</h3>
                                 <div className="rounded-xl border bg-muted/10 p-4 space-y-4">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -461,7 +460,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                             </div>
 
                             <div className="space-y-4">
-                                <h3 className="text-3xs font-bold uppercase tracking-[0.2em] text-muted-foreground">{t('integrations') || 'Integrations'}</h3>
+                                <h3 className={eyebrowClass}>{t('integrations') || 'Integrations'}</h3>
                                 
                                 <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition hover:bg-muted/20">
                                     <div className="flex items-center justify-between">
@@ -503,7 +502,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                             </div>
                             
                             <div className="space-y-4">
-                                <h3 className="text-3xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Security</h3>
+                                <h3 className={eyebrowClass}>Security</h3>
                                 <ChangePasswordSection />
                                 <TwoFactorSection />
                             </div>

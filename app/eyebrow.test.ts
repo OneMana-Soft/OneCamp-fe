@@ -26,7 +26,7 @@ import { resolve } from "node:path"
 const root = resolve(__dirname, "..")
 /** An uppercase label written by hand, in either class order. */
 const HAND_WRITTEN =
-  /className="[^"]*(?:uppercase[^"]*tracking-wider|tracking-wider[^"]*uppercase)[^"]*"/g
+  /className="[^"]*(?:uppercase[^"]*tracking-(?:wider|widest|\[[^\]"]+\])|tracking-(?:wider|widest|\[[^\]"]+\])[^"]*uppercase)[^"]*"/g
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)

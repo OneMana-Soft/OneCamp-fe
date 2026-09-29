@@ -1,5 +1,7 @@
 "use client"
 
+import { cn } from "@/lib/utils/helpers/cn"
+import { eyebrowClass } from "@/components/ui/eyebrow"
 import { LoaderCircle, Rocket, AlertCircle, Mail, Lock, Eye, EyeOff } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
 import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
@@ -608,7 +610,7 @@ export default function SignUp() {
             <div className="space-y-4">
               <div className="relative flex py-2 items-center">
                 <div className="flex-grow border-t border-border/40"></div>
-                <span className="flex-shrink mx-3 text-xs font-semibold text-muted-foreground uppercase tracking-widest">Enterprise SSO</span>
+                <span className={cn(eyebrowClass, "flex-shrink mx-3")}>Enterprise SSO</span>
                 <div className="flex-grow border-t border-border/40"></div>
               </div>
 

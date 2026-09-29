@@ -287,7 +287,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                       autoFocus
                     />
                     <div className="flex justify-between items-center mt-3">
-                      <Button variant="ghost" onClick={() => setShowPromptInput(false)} className="h-auto p-0 text-3xs text-muted-foreground hover:text-foreground uppercase tracking-widest hover:bg-transparent">Cancel</Button>
+                      <Button variant="ghost" onClick={() => setShowPromptInput(false)} className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground hover:bg-transparent">Cancel</Button>
                       <Button
                         onClick={() => executeAction('write', customPrompt)}
                         disabled={!customPrompt.trim()}
@@ -314,7 +314,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                   <span className="text-muted-foreground animate-pulse">
                     AI is {state.action === 'write' ? 'writing' : 'thinking'}...
                   </span>
-                  <Button variant="ghost" onClick={handleCancel} className="h-auto p-0 text-3xs text-muted-foreground hover:text-destructive uppercase tracking-widest mt-4 hover:bg-transparent">Stop Generation</Button>
+                  <Button variant="ghost" onClick={handleCancel} className="h-auto p-0 text-xs text-muted-foreground hover:text-destructive mt-4 hover:bg-transparent">Stop Generation</Button>
                 </div>
               ) : (
                 <div className="bg-muted/10 border border-border rounded-[20px] p-4 shadow-sm">
@@ -327,7 +327,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                        >
                          <ArrowLeft className="h-3 w-3" />
                        </button>
-                       <span className="text-3xs uppercase font-medium text-primary tracking-widest">AI Result</span>
+                       <span className={cn(eyebrowClass, "text-3xs text-primary")}>AI Result</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200 hover:bg-accent/10 hover:text-foreground" title="Copy to clipboard">
