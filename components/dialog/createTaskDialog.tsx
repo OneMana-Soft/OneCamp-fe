@@ -16,12 +16,15 @@ interface createTaskDialogProps {
   setOpenState: (state: boolean) => void;
   /** Present when the task is being made from a message. */
   fromMessage?: { draft: TaskDraft; source: TaskSource };
+  /** Passed through to the form; the AI edition suggests a name here. */
+  renderNameHint?: (current: string, use: (name: string) => void) => React.ReactNode;
 }
 
 const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
   dialogOpenState,
   setOpenState,
   fromMessage,
+  renderNameHint,
 }) => {
   const post = usePost();
 
@@ -58,6 +61,7 @@ const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
         <TaskCreateForm
           submitLabel="Create Task"
           prefill={fromMessage?.draft}
+          renderNameHint={renderNameHint}
           onCreated={fromMessage ? replyUnderMessage : undefined}
           onSuccess={() => setOpenState(false)}
         />

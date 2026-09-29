@@ -19,6 +19,8 @@ export interface TaskSource {
 export interface TaskDraft {
   name: string
   description: string
+  /** The message as plain text, for anything that reads it again. */
+  text: string
 }
 
 const NAME_MAX = 120
@@ -27,15 +29,23 @@ function escapeHTML(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
 
+const NAME_MIN_WORDS = 4
+
 /**
- * The task's name is the message's first sentence, cut on a word boundary so
- * it never ends mid-word. The person edits it before saving; this only saves
- * them retyping the gist.
+ * The task's name is the message's opening, cut on a word boundary so it never
+ * ends mid-word. A one-word opener ("Great.", "Thanks!") says nothing, so
+ * sentences are taken until there are a few words. The person edits it before
+ * saving; this only saves them retyping the gist.
  */
 export function taskNameFromText(text: string): string {
   const flat = text.replace(/\s+/g, " ").trim()
   if (!flat) return ""
-  const sentence = flat.match(/^(.+?[.!?])(\s|$)/)?.[1] ?? flat
+  const sentences = flat.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [flat]
+  let sentence = ""
+  for (const part of sentences) {
+    sentence = (sentence + " " + part.trim()).trim()
+    if (sentence.split(" ").length >= NAME_MIN_WORDS) break
+  }
   if (sentence.length <= NAME_MAX) return sentence.replace(/[.]$/, "")
   const cut = sentence.slice(0, NAME_MAX)
   const space = cut.lastIndexOf(" ")
@@ -52,6 +62,7 @@ export function taskDraftFromMessage(messageHTML: string | undefined, source: Ta
   const from = source.authorName ? `${escapeHTML(source.authorName)}'s message` : "the message"
   const quote = text ? `<blockquote><p>${escapeHTML(text)}</p></blockquote>` : ""
   return {
+    text,
     name: taskNameFromText(text),
     description: `${quote}<p>From <a href="${escapeHTML(source.link)}">${from}</a></p>`,
   }

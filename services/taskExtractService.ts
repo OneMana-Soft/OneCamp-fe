@@ -38,8 +38,9 @@ interface ExtractTasksInput {
   text?: string
 }
 
-export async function extractTasks(input: ExtractTasksInput): Promise<ExtractTasksResult> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIExtractTasks, input)
+// quiet: for a suggestion nobody asked for, a failure shows nothing.
+export async function extractTasks(input: ExtractTasksInput, opts?: { quiet?: boolean }): Promise<ExtractTasksResult> {
+  const res = await axiosInstance.post(PostEndpointUrl.AIExtractTasks, input, opts?.quiet ? ({ suppressErrorToast: true } as never) : undefined)
   return res.data?.data ?? { enabled: false, tasks: [] }
 }
 

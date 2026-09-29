@@ -38,6 +38,7 @@ const BoardShareDialog = dynamic(() => import("@/components/dialog/boardShareDia
 const BoardViewersDialog = dynamic(() => import("@/components/dialog/boardViewersDialog"), { ssr: false });
 const DocVersionHistoryDialog = dynamic(() => import("@/components/dialog/docVersionHistoryDialog"), { ssr: false });
 const DocViewersDialog = dynamic(() => import("@/components/dialog/docViewersDialog"), { ssr: false });
+const TaskNameSuggestion = dynamic(() => import("@/components/ai/TaskNameSuggestion").then((m) => m.TaskNameSuggestion), { ssr: false });
 const ExtractTasksDialog = dynamic(() => import("@/components/ai/ExtractTasksDialog"), { ssr: false });
 
 // Admin card dialogs
@@ -120,6 +121,11 @@ export function UnifiedUIManager() {
           dialogOpenState={ui.createTask.isOpen}
           setOpenState={() => dispatch(closeUI('createTask'))}
           fromMessage={ui.createTask.data ?? undefined}
+          renderNameHint={
+            ui.createTask.data?.draft.text
+              ? (current, use) => <TaskNameSuggestion text={ui.createTask.data!.draft.text} current={current} onUse={use} />
+              : undefined
+          }
         />
       )}
 
