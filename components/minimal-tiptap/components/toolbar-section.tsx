@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from 'react'
-import type { Editor } from '@tiptap/react'
+import { useEditorState, type Editor } from '@tiptap/react'
 import type { FormatAction } from '../types'
 import type { VariantProps } from 'class-variance-authority'
 import type { toggleVariants } from '@/components/ui/toggle'
@@ -33,6 +33,14 @@ export const ToolbarSection: React.FC<ToolbarSectionProps> = ({
   size,
   variant
 }) => {
+  // The toolbar above is memoised, so a keystroke no longer re-renders it. This
+  // section re-renders itself when one of its buttons turns on or off, or
+  // becomes (un)available: the only changes it shows.
+  useEditorState({
+    editor,
+    selector: ({ editor: e }) => actions.map(a => `${a.isActive(e) ? 1 : 0}${a.canExecute(e) ? 1 : 0}`).join('')
+  })
+
   const { mainActions, dropdownActions } = React.useMemo(() => {
     const effectiveActiveActions = activeActions ?? actions.map(action => action.value)
     const sortedActions = actions

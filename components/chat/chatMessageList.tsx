@@ -4,7 +4,7 @@ import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
-import {useCallback, useEffect, useMemo, useState} from "react";
+import {memo, useCallback, useEffect, useMemo, useState} from "react";
 
 import {ChatMessages} from "@/components/chat/chatMessages";
 import {ChatInfo, CreateChatPaginationResRaw} from "@/types/chat";
@@ -23,7 +23,10 @@ interface ChatMessageListProps {
     messageId?: string;
 }
 
-export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessageListProps) => {
+// Memoised: its props are ids, so a parent re-rendering for another reason
+// (the composer's draft changes on every keystroke) never re-renders every
+// message. On a phone that re-render cost up to 300 ms a key.
+export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId: propMessageId}: ChatMessageListProps) {
 
     const { isMobile } = useMedia();
     const searchParams = useSearchParams();
@@ -251,4 +254,4 @@ export const ChatMessageList = ({chatId,  messageId: propMessageId}: ChatMessage
         </div>
     )
 
-}
+})
