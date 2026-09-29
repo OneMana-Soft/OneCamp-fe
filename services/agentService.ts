@@ -378,6 +378,7 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
     tools: [
       { name: "read_doc", label: "Read a doc", write: false },
       { name: "create_doc", label: "Create a doc", write: true },
+      { name: "append_to_doc", label: "Add to a doc", write: true },
       { name: "set_reminder", label: "Set a reminder / event", write: true },
     ],
   },
