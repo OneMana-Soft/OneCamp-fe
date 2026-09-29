@@ -37,13 +37,16 @@ interface VideoConferenceProps {
   // route) — so a guest never triggers a 401 → refresh → logout redirect. Guests
   // still see remote captions relayed over the LiveKit data channel.
   guest?: boolean;
+  // Where the call is ("#engineering", "Maya Chen"). Shown over the call, so
+  // someone with two calls open, or back from another tab, knows which this is.
+  place?: string;
 }
 
 export function VideoConference({
   token,
   serverUrl,
   onDisconnect,
-                                    toggleRecording, isAdmin, guest = false
+                                    toggleRecording, isAdmin, guest = false, place
 }: VideoConferenceProps) {
   const [shouldConnect, setShouldConnect] = useState(false);
 
@@ -70,7 +73,12 @@ export function VideoConference({
   }
 
   return (
-    <div className="h-full md:h-screen w-full bg-zinc-950 overflow-hidden" data-lk-theme="default">
+    <div className="relative h-full md:h-screen w-full bg-zinc-950 overflow-hidden" data-lk-theme="default">
+      {place && (
+        <p className="pointer-events-none absolute left-9 top-9 z-10 max-w-[50%] truncate rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white/90">
+          {place}
+        </p>
+      )}
       <LiveKitRoom
         video={true}
         audio={{ 

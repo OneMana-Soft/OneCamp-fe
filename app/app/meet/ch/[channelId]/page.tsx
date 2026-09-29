@@ -75,7 +75,7 @@ export default function Page({ params }: { params: Promise<{ channelId: string, 
   };
 
   if (!isPreJoinComplete) {
-      return <PreJoin onJoin={handlePreJoin} username={selfProfile.data?.data.user_name || ''} />;
+      return <PreJoin onJoin={handlePreJoin} username={selfProfile.data?.data.user_name || ''} place={channelInfo.data?.channel_info.ch_name ? `#${channelInfo.data.channel_info.ch_name}` : undefined} onCancel={handleDisconnect} />;
   }
 
   return (
@@ -85,6 +85,7 @@ export default function Page({ params }: { params: Promise<{ channelId: string, 
       onDisconnect={handleDisconnect}
       toggleRecording={toggleRecording}
       isAdmin={channelInfo.data?.channel_info.ch_is_admin || false}
+      place={channelInfo.data?.channel_info.ch_name ? `#${channelInfo.data.channel_info.ch_name}` : undefined}
     />
   );
 }

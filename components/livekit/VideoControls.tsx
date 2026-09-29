@@ -139,7 +139,7 @@ export function VideoControls({
       </ControlBtn>
 
       <ControlBtn
-        label={isCameraEnabled ? "Stop Video" : "Start Video"}
+        label={isCameraEnabled ? "Stop video" : "Start video"}
         onClick={toggleCamera}
         isActive={!isCameraEnabled}
         activeClass="bg-destructive/20 text-destructive hover:bg-destructive/30 border-destructive/50"
@@ -150,7 +150,7 @@ export function VideoControls({
       {/* Desktop: Screen Share */}
       <div className="hidden md:block">
       <ControlBtn
-        label={isScreenShareEnabled ? "Stop Sharing" : "Share Screen"}
+        label={isScreenShareEnabled ? "Stop sharing" : "Share screen"}
         onClick={toggleScreenShare}
         isActive={isScreenShareEnabled}
         activeClass="bg-blue-500/20 text-blue-500 hover:bg-blue-500/30 border-blue-500/50"
@@ -163,7 +163,7 @@ export function VideoControls({
       {onToggleRecording && (
         <div className="hidden md:block">
         <ControlBtn
-            label={isRecording ? "Stop Recording" : "Record"}
+            label={isRecording ? "Stop recording" : "Record"}
             onClick={onToggleRecording}
             isActive={isRecording}
             disabled={isRecordingLoading}
@@ -178,7 +178,7 @@ export function VideoControls({
       {onToggleCaptions && (
         <div className="hidden md:block">
         <ControlBtn
-            label={showCaptions ? "Hide Captions" : "Show Captions"}
+            label={showCaptions ? "Hide captions" : "Show captions"}
             onClick={onToggleCaptions}
             isActive={showCaptions}
             activeClass="bg-white/20 text-white border-white/50"
@@ -213,7 +213,7 @@ export function VideoControls({
       {onLayoutChange && (
         <div className="hidden md:block">
         <ControlBtn
-            label={layout === 'grid' ? "Switch to Speaker View" : "Switch to Grid View"}
+            label={layout === 'grid' ? "Switch to speaker view" : "Switch to grid view"}
             onClick={() => onLayoutChange(layout === 'grid' ? 'speaker' : 'grid')}
         >
             {layout === 'grid' ? <LayoutGrid className="h-5 w-5" /> : <SquareUser className="h-5 w-5" />}
@@ -247,7 +247,7 @@ export function VideoControls({
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Leave Call</p>
+            <p>Leave call</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -263,20 +263,20 @@ export function VideoControls({
             <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800 text-zinc-100 mb-4 w-56 p-2">
                 <DropdownMenuItem onClick={toggleScreenShare} className="py-3">
                     {isScreenShareEnabled ? <MonitorOff className="mr-2 h-4 w-4" /> : <MonitorUp className="mr-2 h-4 w-4" />}
-                    {isScreenShareEnabled ? "Stop Sharing" : "Share Screen"}
+                    {isScreenShareEnabled ? "Stop sharing" : "Share screen"}
                 </DropdownMenuItem>
                 
                 {onToggleRecording && (
                     <DropdownMenuItem onClick={onToggleRecording} className="py-3 text-destructive focus:text-destructive">
                          <Disc className="mr-2 h-4 w-4" />
-                         {isRecording ? "Stop Recording" : "Record Meeting"}
+                         {isRecording ? "Stop recording" : "Record call"}
                     </DropdownMenuItem>
                 )}
 
                 {onToggleCaptions && (
                     <DropdownMenuItem onClick={onToggleCaptions} className="py-3">
                         <div className="mr-2 font-bold text-xs border border-current rounded px-1">CC</div>
-                        {showCaptions ? "Hide Captions" : "Show Captions"}
+                        {showCaptions ? "Hide captions" : "Show captions"}
                     </DropdownMenuItem>
                 )}
 
@@ -290,7 +290,7 @@ export function VideoControls({
                 {onLayoutChange && (
                     <DropdownMenuItem onClick={() => onLayoutChange(layout === 'grid' ? 'speaker' : 'grid')} className="py-3">
                         {layout === 'grid' ? <LayoutGrid className="mr-2 h-4 w-4" /> : <SquareUser className="mr-2 h-4 w-4" />}
-                        {layout === 'grid' ? "Switch to Speaker View" : "Switch to Grid View"}
+                        {layout === 'grid' ? "Switch to speaker view" : "Switch to grid view"}
                     </DropdownMenuItem>
                 )}
             </DropdownMenuContent>
