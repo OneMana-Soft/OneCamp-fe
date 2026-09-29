@@ -166,6 +166,9 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                                     dmData.dm_grouping_id,
                                     dmData.dm_participants.length,
                                 )}
+                                // As the channel list: page and code are ready
+                                // before the tap, so only messages are awaited.
+                                prefetch
                                 className="block focus:outline-none"
                             >
                                 <ChatUserListUser
