@@ -247,6 +247,7 @@ export enum GetEndpointUrl {
     GetCapabilityPolicies = "/admin/capabilities",
     // Current user's resolved capabilities (member-accessible)
     MyCapabilities = "/me/capabilities",
+    MyAssistants = "/me/assistants",    // outside agents this person has connected
 
     // GitHub (Admin)
     GetGitHubAuthUrl = "/admin/github/auth-url",
@@ -360,6 +361,7 @@ export enum PostEndpointUrl {
     // API tokens (public API)
     CreateApiToken = "/api-tokens",          // POST /api-tokens
     RevokeApiToken = "/api-tokens",          // append /{id}/revoke
+    DisconnectMyAssistant = "/me/assistants", // append /{id}/disconnect
     // Templates (shareable templates)
     CreateMarketplaceTemplate = "/marketplace/templates",  // POST
     DeleteMarketplaceTemplate = "/marketplace/templates",  // append /{id}/delete

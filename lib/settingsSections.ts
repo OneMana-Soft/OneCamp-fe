@@ -10,7 +10,7 @@
  */
 
 import type { LucideIcon } from "lucide-react"
-import { Bell, Key, Plug, Sparkles, Zap } from "lucide-react"
+import { Bell, Bot, Key, Plug, Sparkles, Zap } from "lucide-react"
 import { CAP_AGENT_MANAGE, CAP_WORKFLOW_MANAGE } from "@/services/capabilityService"
 
 export interface SettingsSection {
@@ -49,6 +49,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Agents you build and sponsor, and the skills they share.",
     icon: Sparkles,
     capability: CAP_AGENT_MANAGE,
+    ai: true,
+  },
+  {
+    href: "/app/settings/assistants",
+    label: "Your AI assistants",
+    description: "Connect ChatGPT, Claude or Grok Bot to work here as you, and disconnect them.",
+    icon: Bot,
     ai: true,
   },
   {

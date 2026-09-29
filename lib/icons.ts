@@ -231,6 +231,7 @@ export {
   Languages,
   Shield,
   ShieldCheck,
+  Bot,
   ShieldAlert,
   Lock,
   Key,
