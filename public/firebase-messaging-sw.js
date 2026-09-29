@@ -101,6 +101,10 @@ function oneCampNotificationRoute(data, selfUUID) {
     if (type === 'later') {
         return /^\/app\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9_\-=&%.]*)?$/.test(typeId) ? typeId : '/app/later';
     }
+    // 'approval': an agent is waiting; Home leads with "Needs your approval".
+    if (type === 'approval') {
+        return '/app/home';
+    }
     // 'reminder' carries no target: focus the app and let it surface the reminder.
     return ONECAMP_NOTIFICATION_FALLBACK_ROUTE;
 }
