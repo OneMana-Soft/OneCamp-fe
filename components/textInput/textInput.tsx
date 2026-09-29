@@ -372,6 +372,12 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
 
            if (allowExternalSync && !(isEditorEmpty && isNewContentEmpty) && currentHtml !== c.trim()) {
                editor.commands.setContent(c, false);
+               // The parent's value now IS the editor's content, so a pending
+               // throttled onChange carries the state from before it: at mount,
+               // the empty document. Left to fire, it wrote "" back to the
+               // parent, which the clause above then mirrored as a clear, and a
+               // prefilled description vanished 3 s after the form opened.
+               throttleRef.current?.cancel();
            }
         }
 
