@@ -15,6 +15,11 @@ describe("taskNameFromText", () => {
     expect(name.length).toBeLessThanOrEqual(121)
     expect(name.endsWith("word…")).toBe(true)
   })
+  it("reads past a one-word opener", () => {
+    expect(taskNameFromText("Great. Then the only thing left is the announcement. Thanks!")).toBe(
+      "Great. Then the only thing left is the announcement",
+    )
+  })
   it("is empty for an empty message", () => {
     expect(taskNameFromText("   ")).toBe("")
   })
@@ -26,6 +31,7 @@ describe("taskDraftFromMessage", () => {
   it("quotes the message and links back to it", () => {
     const d = taskDraftFromMessage("<p>Ship the <b>release notes</b> by Friday.</p>", source)
     expect(d.name).toBe("Ship the release notes by Friday")
+    expect(d.text).toBe("Ship the release notes by Friday.")
     expect(d.description).toBe(
       '<blockquote><p>Ship the release notes by Friday.</p></blockquote>' +
         '<p>From <a href="https://acme.test/app/channel/c1/p1">Priya &lt;N&gt;\'s message</a></p>',

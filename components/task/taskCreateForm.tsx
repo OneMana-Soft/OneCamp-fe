@@ -47,6 +47,8 @@ type TaskCreateFormProps = {
   prefill?: TaskDraft;
   /** Called with the new task once the server has made it. */
   onCreated?: (task: { taskUUID: string; name: string }) => void;
+  /** Shown under the name, e.g. a suggested name; `use` puts one in the field. */
+  renderNameHint?: (current: string, use: (name: string) => void) => React.ReactNode;
 };
 
 /**
@@ -138,7 +140,7 @@ const DateField: React.FC<DateFieldProps> = ({ field, placeholder, drawerTitle }
   );
 };
 
-const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create Task", onSuccess, prefill, onCreated }) => {
+const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create Task", onSuccess, prefill, onCreated, renderNameHint }) => {
   const [popOpenProjectName, setPopOpenProjectName] = useState(false);
   const [popOpenUserName, setPopOpenUserName] = useState(false);
   const [popOpenPriority, setPopOpenPriority] = useState(false);
@@ -308,6 +310,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create T
         <div className="grid gap-2 mb-2">
           <Label htmlFor="task_name">Task Name:</Label>
           <Input id="task_name" {...register("task_name")} placeholder="Enter task name" autoFocus />
+          {renderNameHint?.(watch("task_name") ?? "", (name) => setValue("task_name", name, { shouldValidate: true, shouldDirty: true }))}
           {errors.task_name && <p className="text-destructive text-sm">{errors.task_name.message}</p>}
         </div>
         
