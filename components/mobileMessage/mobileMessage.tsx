@@ -23,6 +23,7 @@ import { useCallback, useEffect, useRef, useState, memo } from "react";
 import {app_user} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
+import { makeTaskAction } from "@/lib/task/makeTaskAction";
 
 interface mobileMessageProps {
     userInfo: UserProfileDataInterface
@@ -139,7 +140,11 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                     isOwner: (selfProfile.data?.data?.user_uuid == userInfo.user_uuid),
                     isAdmin: isAdmin,
                     handleEmojiClick: handleEmojiClick,
-                    copyTextToClipboard: copyText
+                    copyTextToClipboard: copyText,
+                    makeTask: () => {
+                        const action = makeTaskAction({ html: content, authorName: userInfo?.user_name, channelUUID, postUUID }, window.location.origin)
+                        if (action) dispatch(action)
+                    },
                 }
             }))
         }
@@ -178,6 +183,10 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                     handleEmojiClick: handleEmojiClick,
                     chatUUID: chatUUID,
                     chatMessageUUID: chatMessageUUID,
+                    makeTask: () => {
+                        const action = makeTaskAction({ html: content, authorName: userInfo?.user_name, chatUUID, chatMessageID: chatMessageUUID }, window.location.origin)
+                        if (action) dispatch(action)
+                    },
                     onAddReaction: () => addEmojiReaction('dmChatMessageLongPress'),
                     isOwner: (selfProfile.data?.data?.user_uuid == userInfo.user_uuid),
                     isAdmin: isAdmin
@@ -219,6 +228,10 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                     handleEmojiClick: handleEmojiClick,
                     grpId: grpId,
                     chatMessageUUID: chatMessageUUID,
+                    makeTask: () => {
+                        const action = makeTaskAction({ html: content, authorName: userInfo?.user_name, groupUUID: grpId, chatMessageID: chatMessageUUID }, window.location.origin)
+                        if (action) dispatch(action)
+                    },
                     onAddReaction: () => addEmojiReaction('dmGroupChatMessageLongPress'),
                     isOwner: (selfProfile.data?.data?.user_uuid == userInfo.user_uuid),
                     isAdmin: isAdmin

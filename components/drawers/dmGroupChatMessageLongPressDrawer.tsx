@@ -1,6 +1,6 @@
 "use client"
 
-import { Forward, Link, Pencil, Trash2, Type } from "@/lib/icons";
+import { Forward, Link, Pencil, Trash2, Type, ListTodo } from "@/lib/icons";
 
 import {
     Drawer,
@@ -28,6 +28,8 @@ import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
 interface dmChatOptionsDrawerProps {
     drawerOpenState: boolean
     setOpenState: (state: boolean) => void
+    /** Opens the task form drafted from this message. */
+    makeTask?: () => void
     onAddEmoji: () => void
     grpId: string
     chatUUID: string
@@ -41,7 +43,7 @@ interface dmChatOptionsDrawerProps {
 
 
 
-export function DmGroupChatMessageLongPressDrawer({ drawerOpenState, handleEmojiClick, editMessage, deleteMessage, copyTextToClipboard, setOpenState, onAddEmoji, chatUUID, grpId, isAdmin, isOwner }: dmChatOptionsDrawerProps) {
+export function DmGroupChatMessageLongPressDrawer({ drawerOpenState, handleEmojiClick, editMessage, deleteMessage, copyTextToClipboard, setOpenState, makeTask, onAddEmoji, chatUUID, grpId, isAdmin, isOwner }: dmChatOptionsDrawerProps) {
 
     const router = useRouter();
     const copyToClipboard = useCopyToClipboard()
@@ -158,6 +160,16 @@ export function DmGroupChatMessageLongPressDrawer({ drawerOpenState, handleEmoji
                                 Icon={Pencil}
                             />}
 
+
+                            {makeTask && <DrawerActionLink
+                                onLinkClick={() => {
+                                    setOpenState(false)
+                                    // Let the drawer finish closing before the dialog takes focus.
+                                    setTimeout(makeTask, 150)
+                                }}
+                                linkText={'Make a task'}
+                                Icon={ListTodo}
+                            />}
 
                             <DrawerActionLink
                                 onLinkClick={handleCopyLink}

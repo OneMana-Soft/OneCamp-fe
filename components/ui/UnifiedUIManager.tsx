@@ -655,6 +655,7 @@ export function UnifiedUIManager() {
         <ChannelMessageLongPressDrawer
           drawerOpenState={ui.channelMessageLongPress.isOpen}
           setOpenState={() => dispatch(closeUI('channelMessageLongPress'))}
+          makeTask={ui.channelMessageLongPress.data.makeTask}
           onAddEmoji={ui.channelMessageLongPress.data.onAddReaction}
           channelUUID={ui.channelMessageLongPress.data.channelUUID}
           postUUID={ui.channelMessageLongPress.data.postUUID}
@@ -673,6 +674,7 @@ export function UnifiedUIManager() {
         <ChatMessageLongPressDrawer
           drawerOpenState={ui.chatMessageLongPress.isOpen}
           setOpenState={() => dispatch(closeUI('chatMessageLongPress'))}
+          makeTask={ui.chatMessageLongPress.data.makeTask}
           onAddEmoji={ui.chatMessageLongPress.data.onAddReaction}
           otherUserUUID={ui.chatMessageLongPress.data.otherUserUUID}
           chatUUID={ui.chatMessageLongPress.data.chatUUID}
@@ -691,6 +693,7 @@ export function UnifiedUIManager() {
         <GroupChatMessageLongPressDrawer
           drawerOpenState={ui.groupChatMessageLongPress.isOpen}
           setOpenState={() => dispatch(closeUI('groupChatMessageLongPress'))}
+          makeTask={ui.groupChatMessageLongPress.data.makeTask}
           onAddEmoji={ui.groupChatMessageLongPress.data.onAddReaction}
           grpId={ui.groupChatMessageLongPress.data.grpId}
           chatUUID={ui.groupChatMessageLongPress.data.chatUUID}
@@ -709,6 +712,7 @@ export function UnifiedUIManager() {
         <PostMessageLongPressDrawer
           drawerOpenState={ui.postMessageLongPress.isOpen}
           setOpenState={() => dispatch(closeUI('postMessageLongPress'))}
+          makeTask={ui.postMessageLongPress.data.makeTask}
           onAddEmoji={ui.postMessageLongPress.data.onAddReaction}
           channelUUID={ui.postMessageLongPress.data.channelUUID}
           postUUID={ui.postMessageLongPress.data.postUUID}
@@ -725,6 +729,7 @@ export function UnifiedUIManager() {
         <DmChatMessageLongPressDrawer
           drawerOpenState={ui.dmChatMessageLongPress.isOpen}
           setOpenState={() => dispatch(closeUI('dmChatMessageLongPress'))}
+          makeTask={ui.dmChatMessageLongPress.data.makeTask}
           onAddEmoji={ui.dmChatMessageLongPress.data.onAddReaction}
           otherUserUUID={ui.dmChatMessageLongPress.data.chatUUID}
           chatUUID={ui.dmChatMessageLongPress.data.chatMessageUUID}
@@ -741,6 +746,7 @@ export function UnifiedUIManager() {
         <DmGroupChatMessageLongPressDrawer
           drawerOpenState={ui.dmGroupChatMessageLongPress.isOpen}
           setOpenState={() => dispatch(closeUI('dmGroupChatMessageLongPress'))}
+          makeTask={ui.dmGroupChatMessageLongPress.data.makeTask}
           onAddEmoji={ui.dmGroupChatMessageLongPress.data.onAddReaction}
           grpId={ui.dmGroupChatMessageLongPress.data.grpId}
           chatUUID={ui.dmGroupChatMessageLongPress.data.chatMessageUUID}

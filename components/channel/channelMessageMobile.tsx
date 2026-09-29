@@ -30,6 +30,7 @@ import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
+import { makeTaskAction } from "@/lib/task/makeTaskAction";
 
 interface ChannelMessageProps {
     postInfo: PostsRes
@@ -174,6 +175,10 @@ const ChannelMessageMobileComponent = ({
                     copyPostText()
                 },
                 messageText: removeHtmlTags(postInfo.post_text || ""),
+                makeTask: () => {
+                    const action = makeTaskAction({ html: postInfo.post_text, authorName: postInfo.post_by?.user_name, channelUUID: channelId, postUUID: postInfo.post_uuid }, window.location.origin)
+                    if (action) dispatch(action)
+                },
             }
         }))
     }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postInfo.post_text])

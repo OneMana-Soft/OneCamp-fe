@@ -29,6 +29,7 @@ import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 import { messageAuthorName } from "@/lib/utils/userDisplayName"
+import { makeTaskAction } from "@/lib/task/makeTaskAction";
 
 interface ChatMessageProps {
     chatInfo: ChatInfo
@@ -144,7 +145,11 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                 handleEmojiClick: handleEmojiClick,
                 onReply: handleReply,
                 copyTextToClipboard: copyPostText,
-                messageText: removeHtmlTags(chatInfo.chat_body_text || "")
+                messageText: removeHtmlTags(chatInfo.chat_body_text || ""),
+                makeTask: () => {
+                    const action = makeTaskAction({ html: chatInfo.chat_body_text, authorName: chatInfo.chat_from?.user_name, chatUUID: otherUserUUID, chatMessageID: chatInfo.chat_uuid }, window.location.origin)
+                    if (action) dispatch(action)
+                },
             }
         }))
     }

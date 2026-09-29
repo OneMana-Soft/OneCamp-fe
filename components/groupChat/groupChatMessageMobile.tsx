@@ -28,6 +28,7 @@ import {htmlToPreviewText} from "@/lib/utils/htmlToPreviewText";
 import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import { messageAuthorName } from "@/lib/utils/userDisplayName"
+import { makeTaskAction } from "@/lib/task/makeTaskAction";
 
 interface ChatMessageProps {
     chatInfo: ChatInfo
@@ -139,7 +140,11 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                 handleEmojiClick: handleEmojiClick,
                 onReply: handleReply,
                 copyTextToClipboard: copyPostText,
-                messageText: removeHtmlTags(chatInfo.chat_body_text || "")
+                messageText: removeHtmlTags(chatInfo.chat_body_text || ""),
+                makeTask: () => {
+                    const action = makeTaskAction({ html: chatInfo.chat_body_text, authorName: chatInfo.chat_from?.user_name, groupUUID: grpId, chatMessageID: chatInfo.chat_uuid }, window.location.origin)
+                    if (action) dispatch(action)
+                },
             }
         }))
     }

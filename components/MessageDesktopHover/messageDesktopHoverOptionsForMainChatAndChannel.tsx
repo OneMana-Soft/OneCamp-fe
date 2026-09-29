@@ -15,7 +15,7 @@ import { SaveToMemoryButton } from "@/components/ai/SaveToMemoryButton";
 import { SaveForLaterButton } from "@/components/later/SaveForLater";
 import { messageLink } from "@/lib/utils/later";
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
-import { taskDraftFromMessage, type TaskSource } from "@/lib/task/messageToTask";
+import { makeTaskAction } from "@/lib/task/makeTaskAction";
 
 import { openUI } from "@/store/slice/uiSlice";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
@@ -143,15 +143,12 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
     // Make a task: the form opens drafted from this message, the task links
     // back to it, and a reply under it links to the task.
     const handleMakeTask = useCallback(() => {
-        if (!laterLink) return;
-        const source: TaskSource = {
-            postUUID: postUUID || undefined,
-            chatMessageID: postUUID ? undefined : chatMessageID || undefined,
-            link: window.location.origin + laterLink,
-            authorName,
-        };
-        dispatch(openUI({ key: "createTask", data: { draft: taskDraftFromMessage(messageText, source), source } }));
-    }, [dispatch, laterLink, postUUID, chatMessageID, authorName, messageText]);
+        const action = makeTaskAction(
+            { html: messageText, authorName, channelUUID, postUUID, chatUUID, groupUUID, chatMessageID },
+            window.location.origin,
+        );
+        if (action) dispatch(action);
+    }, [dispatch, messageText, authorName, channelUUID, postUUID, chatUUID, groupUUID, chatMessageID]);
     const onMakeTask = laterLink ? handleMakeTask : undefined;
 
     const showDropdown = Boolean(isAdmin || isOwner || getReplyNotification || onMakeTask);
