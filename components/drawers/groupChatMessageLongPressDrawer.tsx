@@ -3,7 +3,7 @@
 import { LaterDrawerItems } from "@/components/later/LaterDrawerItems";
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText";
 import * as React from "react"
-import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type } from "@/lib/icons";
+import { Forward, Languages, Link, Loader2, MessageSquareText, Pencil, Reply, Trash2, Type, ListTodo } from "@/lib/icons";
 import { useTranslateText } from "@/services/aiService";
 
 import {
@@ -33,6 +33,8 @@ import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
 interface chatOptionsDrawerProps {
     drawerOpenState: boolean
     setOpenState: (state: boolean) => void
+    /** Opens the task form drafted from this message. */
+    makeTask?: () => void
     onAddEmoji: () => void
     grpId: string
     chatUUID: string
@@ -50,7 +52,7 @@ interface chatOptionsDrawerProps {
 
 
 
-export function GroupChatMessageLongPressDrawer({ drawerOpenState, setOpenState, onAddEmoji, copyTextToClipboard,  grpId, chatUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText }: chatOptionsDrawerProps) {
+export function GroupChatMessageLongPressDrawer({ drawerOpenState, setOpenState, makeTask, onAddEmoji, copyTextToClipboard,  grpId, chatUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick, onReply, messageText }: chatOptionsDrawerProps) {
 
     const router = useRouter();
     const copyToClipboard = useCopyToClipboard()
@@ -211,6 +213,16 @@ export function GroupChatMessageLongPressDrawer({ drawerOpenState, setOpenState,
                             />
 
 
+
+                            {makeTask && <DrawerActionLink
+                                onLinkClick={() => {
+                                    setOpenState(false)
+                                    // Let the drawer finish closing before the dialog takes focus.
+                                    setTimeout(makeTask, 150)
+                                }}
+                                linkText={'Make a task'}
+                                Icon={ListTodo}
+                            />}
 
                             <DrawerActionLink
                                 onLinkClick={handleCopyLink}

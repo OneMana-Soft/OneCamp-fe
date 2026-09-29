@@ -1,6 +1,6 @@
 "use client"
 
-import { Forward, Link, Pencil, Trash2, Type } from "@/lib/icons";
+import { Forward, Link, Pencil, Trash2, Type, ListTodo } from "@/lib/icons";
 
 import {
     Drawer,
@@ -25,6 +25,8 @@ import {useCopyToClipboard} from "@/hooks/useCopyToClipboard";
 interface channelOptionsDrawerProps {
     drawerOpenState: boolean
     setOpenState: (state: boolean) => void
+    /** Opens the task form drafted from this message. */
+    makeTask?: () => void
     onAddEmoji: () => void
     postUUID: string
     channelUUID: string
@@ -38,7 +40,7 @@ interface channelOptionsDrawerProps {
 
 
 
-export function PostMessageLongPressDrawer({ drawerOpenState, copyTextToClipboard, setOpenState, onAddEmoji, postUUID, channelUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick }: channelOptionsDrawerProps) {
+export function PostMessageLongPressDrawer({ drawerOpenState, copyTextToClipboard, setOpenState, makeTask, onAddEmoji, postUUID, channelUUID, editMessage, deleteMessage, isAdmin, isOwner, handleEmojiClick }: channelOptionsDrawerProps) {
 
     const router = useRouter();
 
@@ -163,6 +165,16 @@ export function PostMessageLongPressDrawer({ drawerOpenState, copyTextToClipboar
                                 Icon={Pencil}
                             />}
 
+
+                            {makeTask && <DrawerActionLink
+                                onLinkClick={() => {
+                                    setOpenState(false)
+                                    // Let the drawer finish closing before the dialog takes focus.
+                                    setTimeout(makeTask, 150)
+                                }}
+                                linkText={'Make a task'}
+                                Icon={ListTodo}
+                            />}
 
                             <DrawerActionLink
                                 onLinkClick={handleCopyLink}
