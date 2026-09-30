@@ -14,7 +14,8 @@ import React, { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
 import type { RootState } from "@/store/store"
-import { getBriefing, BriefingResult, MemoryItem, BriefingHighlight, BriefingDayItem } from "@/services/memoryService"
+import { getBriefing, BRIEFING_KEY, BriefingResult, MemoryItem, BriefingHighlight, BriefingDayItem } from "@/services/memoryService"
+import { peekShared } from "@/lib/utils/sharedRequest"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { getOtherUserId } from "@/lib/utils/getOtherUserId"
@@ -74,8 +75,9 @@ function BriefingCard() {
   const channels = useSelector((s: RootState) => s.users.userSidebar.userChannels)
   const { data: selfProfile } = useFetchOnlyOnce<SelfProfile>(GetEndpointUrl.SelfProfile)
   const currentUserId = selfProfile?.data?.user_uuid
-  const [data, setData] = useState<BriefingResult | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Start from the answer kept from a moment ago, if any (see AttentionCard).
+  const [data, setData] = useState<BriefingResult | null>(() => peekShared<BriefingResult>(BRIEFING_KEY) ?? null)
+  const [loading, setLoading] = useState(() => peekShared(BRIEFING_KEY) === undefined)
 
   useEffect(() => {
     let alive = true

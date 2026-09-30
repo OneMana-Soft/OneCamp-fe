@@ -2,6 +2,7 @@
 // workspace AI. All routes are scoped server-side to the calling user.
 
 import axiosInstance from "@/lib/axiosInstance"
+import { forgetShared, sharedRequest } from "@/lib/utils/sharedRequest"
 
 export type NudgeKind =
     | "overdue_commitment"
@@ -31,7 +32,18 @@ interface NudgeListResponse {
     open_count: number
 }
 
-export async function getNudges(): Promise<NudgeListResponse> {
+export const NUDGES_KEY = "ai/nudges"
+
+/**
+ * The nudge list. The bell sits in both navigation bars, so both ask at once;
+ * they share one request. fresh: true when the panel opens, so what the person
+ * sees is current.
+ */
+export function getNudges(opts: { fresh?: boolean } = {}): Promise<NudgeListResponse> {
+    return sharedRequest(NUDGES_KEY, fetchNudges, { fresh: opts.fresh })
+}
+
+async function fetchNudges(): Promise<NudgeListResponse> {
     const res = await axiosInstance.get("/ai/nudges", {
         // @ts-expect-error — suppress the global loading bar for this background fetch
         silent: true,
@@ -47,11 +59,13 @@ export async function getNudges(): Promise<NudgeListResponse> {
 }
 
 export async function dismissNudge(id: string): Promise<number> {
+    forgetShared(NUDGES_KEY)
     const res = await axiosInstance.post(`/ai/nudges/${id}/dismiss`, {})
     return (res.data as { data?: { open_count: number } })?.data?.open_count ?? 0
 }
 
 export async function dismissAllNudges(): Promise<number> {
+    forgetShared(NUDGES_KEY)
     const res = await axiosInstance.post(`/ai/nudges/dismiss-all`, {})
     return (res.data as { data?: { dismissed: number } })?.data?.dismissed ?? 0
 }

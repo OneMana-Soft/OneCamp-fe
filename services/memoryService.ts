@@ -8,6 +8,7 @@
  */
 
 import axiosInstance from "@/lib/axiosInstance"
+import { sharedRequest } from "@/lib/utils/sharedRequest"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 export type MemoryKind = "decision" | "commitment" | "question" | "glossary"
@@ -151,7 +152,16 @@ export interface BriefingResult {
   day_items?: BriefingDayItem[]
 }
 
-export async function getBriefing(): Promise<BriefingResult> {
+/** Keys for the kept answers (see lib/utils/sharedRequest). */
+export const BRIEFING_KEY = "ai/briefing"
+export const ATTENTION_KEY = "ai/attention"
+
+/** The briefing, one request for every card asking at once. */
+export function getBriefing(): Promise<BriefingResult> {
+  return sharedRequest(BRIEFING_KEY, fetchBriefing)
+}
+
+async function fetchBriefing(): Promise<BriefingResult> {
   const res = await axiosInstance.get(GetEndpointUrl.GetAIBriefing)
   const d = res.data?.data
   // Normalize every collection to an array regardless of the payload shape.
@@ -193,7 +203,12 @@ export interface AttentionResult {
 // getAttention loads the single prioritized list of everything that needs the
 // member across surfaces (approvals, overdue tasks/commitments, open
 // questions, upcoming calendar). Read-only; self-hides when AI is off.
-export async function getAttention(): Promise<AttentionResult> {
+/** "What needs me", one request for every card asking at once. */
+export function getAttention(): Promise<AttentionResult> {
+  return sharedRequest(ATTENTION_KEY, fetchAttention)
+}
+
+async function fetchAttention(): Promise<AttentionResult> {
   const res = await axiosInstance.get(GetEndpointUrl.GetAIAttention)
   const d = res.data?.data
   // Normalize the shape so the card never crashes on a null/omitted slice

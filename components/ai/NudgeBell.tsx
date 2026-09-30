@@ -64,7 +64,7 @@ function NudgeBell() {
     useEffect(() => {
         if (!open) return
         let cancelled = false
-        getNudges()
+        getNudges({ fresh: true })
             .then((res) => {
                 if (!cancelled) dispatch(setNudges({ nudges: res.nudges, openCount: res.open_count }))
             })

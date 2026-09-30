@@ -17,7 +17,8 @@
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useDispatch } from "react-redux"
-import { getAttention, AttentionResult, AttentionItem } from "@/services/memoryService"
+import { getAttention, ATTENTION_KEY, AttentionResult, AttentionItem } from "@/services/memoryService"
+import { forgetShared, peekShared } from "@/lib/utils/sharedRequest"
 import { approvePendingAction, rejectPendingAction } from "@/services/pendingActionService"
 import { removePendingAction } from "@/store/slice/pendingActionSlice"
 import { useToast } from "@/hooks/use-toast"
@@ -57,8 +58,10 @@ function AttentionCard() {
   const router = useRouter()
   const dispatch = useDispatch()
   const { toast } = useToast()
-  const [data, setData] = useState<AttentionResult | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Start from the answer kept from a moment ago, if any, so coming back to
+  // Home shows the list at once instead of a placeholder.
+  const [data, setData] = useState<AttentionResult | null>(() => peekShared<AttentionResult>(ATTENTION_KEY) ?? null)
+  const [loading, setLoading] = useState(() => peekShared(ATTENTION_KEY) === undefined)
   // Per-approval in-flight state, keyed by pending-action id (ref_id).
   const [busy, setBusy] = useState<Record<string, boolean>>({})
 
@@ -94,6 +97,7 @@ function AttentionCard() {
 
   // Drop a resolved item from the list and keep the per-source counts honest.
   const removeItem = (it: AttentionItem) => {
+    forgetShared(ATTENTION_KEY)
     setData((prev) => {
       if (!prev) return prev
       const items = prev.items.filter((x) => x !== it)
