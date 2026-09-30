@@ -17,7 +17,7 @@
  * because the thing it needs has changed once already.
  */
 
-export type BotKind = "assistant" | "agent" | "automation" | "bot"
+export type BotKind = "assistant" | "agent" | "automation" | "bridge" | "bot"
 
 interface BotProfileCopy {
     /** Dialog title and mobile sheet heading. */
@@ -67,6 +67,16 @@ export const BOT_PROFILE_COPY: Record<BotKind, BotProfileCopy> = {
         bio: "posts messages sent by your workspace's workflows and integrations.",
         action: "Message",
         defaultName: "OneCamp Automations",
+    },
+    bridge: {
+        title: "Slack bridge",
+        badge: "Slack",
+        subtitle: "Messages from Slack",
+        // Each message it carries names its sender; the account itself is
+        // nobody, and has no AI behind it.
+        bio: "carries messages from a linked Slack channel. Each one starts with the name of the person who wrote it in Slack.",
+        action: "Message",
+        defaultName: "Slack",
     },
     bot: {
         title: "Bot",
