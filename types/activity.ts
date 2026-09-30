@@ -11,26 +11,6 @@ export interface UnifiedActivityItem {
     reaction?: ReactionActivity;
 }
 
-export interface ReactionActivityPagination {
-    reactions: ReactionActivity[];
-    has_more: boolean;
-}
-
-export interface ReactionActivityPaginationRes {
-    data: ReactionActivityPagination;
-    msg: string;
-}
-
-export interface CommentActivityPagination {
-    comments: CommentInfoInterface[];
-    has_more: boolean;
-}
-
-export interface CommentActivityPaginationRes {
-    data: CommentActivityPagination
-    msg: string;
-}
-
 export interface MentionActivityPagination {
     mentions: MentionInfoInterface[];
     has_more: boolean;

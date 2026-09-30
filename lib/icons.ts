@@ -202,7 +202,6 @@ export {
 
 // ─── Social / Reactions ─────────────────────────────────────
 export {
-  Heart,
   Star,
   Crown,
   Eye,
