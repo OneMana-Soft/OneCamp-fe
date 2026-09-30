@@ -182,22 +182,23 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create T
   const taskProjectUUID = watch("task_project_uuid");
   const taskAssigneeUUID = watch("task_assignee_uuid");
 
-  // Sync Redux file uploads to local form state
-  // We still use Redux for file upload progress because that might be global or handled by a specific uploader hook
-  // But we could refactor that later. For now, we just sync the result.
+  // Uploads live in Redux (for their progress), keyed by the project picked in
+  // this form; copy the finished ones into the form so they are sent with the
+  // task. This read a projectUUID field nothing ever set, so every file
+  // attached while creating a task was uploaded and then silently dropped.
+  const uploadedForProject = taskProjectUUID ? dialogInputState.filesUploaded[taskProjectUUID] : undefined;
   useEffect(() => {
-    if (dialogInputState.projectUUID && dialogInputState.filesUploaded[dialogInputState.projectUUID]) {
-       const attachments = dialogInputState.filesUploaded[dialogInputState.projectUUID].map(file => ({
-          attachment_file_name: file.attachment_file_name,
-          attachment_obj_key: file.attachment_obj_key,
-          attachment_uuid: "",
-          attachment_type: file.attachment_type,
-          attachment_size: 0, // Default or fetch if available
-          attachment_created_at: new Date().toISOString()
-        }));
-        setValue("task_attachments", attachments);
-    }
-  }, [dialogInputState.filesUploaded, dialogInputState.projectUUID, setValue]);
+    if (!taskProjectUUID) return;
+    const attachments = (uploadedForProject || []).map(file => ({
+      attachment_file_name: file.attachment_file_name,
+      attachment_obj_key: file.attachment_obj_key,
+      attachment_uuid: "",
+      attachment_type: file.attachment_type,
+      attachment_size: 0,
+      attachment_created_at: new Date().toISOString(),
+    }));
+    setValue("task_attachments", attachments);
+  }, [uploadedForProject, taskProjectUUID, setValue]);
 
   useEffect(() => {
     if (
