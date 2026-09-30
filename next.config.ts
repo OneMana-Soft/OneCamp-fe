@@ -95,6 +95,9 @@ if (reportingEndpoints) {
 }
 
 const nextConfig: NextConfig = {
+    // A self-contained server for the container build (see Dockerfile). Off
+    // otherwise, so a Vercel or `next start` deployment is unchanged.
+    output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
     reactStrictMode: false,
     // Strip console.log / console.debug from prod bundles to avoid
     // accidentally leaking request bodies, user objects, or tokens
