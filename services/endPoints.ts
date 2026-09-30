@@ -12,6 +12,7 @@
 /* eslint-disable @typescript-eslint/no-duplicate-enum-values */
 
 export enum GetEndpointUrl {
+    AdminSeats = "/admin/seats",
     // A project's task statuses: /project/{id}/statuses (+ /reorder, /{statusId}, /{statusId}/delete)
     ProjectStatuses = "/project",
     // Save for later: the member's own list. ?state=open|done
