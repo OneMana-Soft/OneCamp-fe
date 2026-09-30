@@ -16,6 +16,7 @@ import OAuthConfigCard from "@/components/admin/OAuthConfigCard"
 import ArchiveCard from "@/components/admin/ArchiveCard"
 import ExternalUsersCard from "@/components/admin/ExternalUsersCard"
 import SlackImportCard from "@/components/admin/SlackImportCard"
+import SlackBridgeCard from "@/components/admin/SlackBridgeCard"
 import ImportCard from "@/components/admin/ImportCard"
 import AIModelsCard from "@/components/admin/AIModelsCard"
 import AgentDelegationCard from "@/components/admin/AgentDelegationCard"
@@ -430,6 +431,7 @@ const AdminPage = () => {
               </TabsContent>
               <TabsContent value="integrations" className="mt-0 outline-none">
                 <div className={ADMIN_SECTION_STACK}>
+                  <SlackBridgeCard />
                   <GitHubIntegrationCard />
                   <OAuthConfigCard />
                 </div>
