@@ -13,12 +13,19 @@ import TwoFactorService from "@/services/twoFactorService"
 import { AdminUserList } from "./AdminUserList"
 import { Search } from "@/lib/icons"
 import { Users2 } from "lucide-react"
+import { seatSummary } from "@/lib/utils/seatSummary"
+import { cn } from "@/lib/utils/helpers/cn"
 
 const UserCard = () => {
   const [pageIndex, setPageIndex] = useState(0)
   const [allUsers, setAllUsers] = useState<UserProfileDataInterface[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [search, setSearch] = useState("")
+
+  // Seats on a free licence; limit 0 (every paid licence) shows nothing.
+  const seatUsage = useFetch<{ data: { used: number; limit: number; upgrade_url?: string } }>(GetEndpointUrl.AdminSeats)
+  const upgradeUrl = seatUsage.data?.data?.upgrade_url
+  const seats = seatUsage.data?.data ? seatSummary(seatUsage.data.data.used, seatUsage.data.data.limit) : null
 
   const userList = useFetch<UserListResponseInterface>(
     `${GetEndpointUrl.GetAdminUserList}?pageIndex=${pageIndex}&pageSize=20`
@@ -77,8 +84,11 @@ const UserCard = () => {
       .makeRequest<UserActivateOrDeactivateInterface>({
         apiEndpoint: PostEndpointUrl.DeactivateUser,
         payload: { user_uuid: userId },
+        // A refusal (a full free plan, say) must say why, not just undo.
+        showErrorToast: true,
       })
       .catch(() => setAllUsers(previous))
+      .finally(() => void seatUsage.mutate())
   }
 
   const handleActivate = (email: string, userId: string) => {
@@ -93,8 +103,11 @@ const UserCard = () => {
       .makeRequest<UserActivateOrDeactivateInterface>({
         apiEndpoint: PostEndpointUrl.ActivateUser,
         payload: { user_uuid: userId },
+        // A refusal (a full free plan, say) must say why, not just undo.
+        showErrorToast: true,
       })
       .catch(() => setAllUsers(previous))
+      .finally(() => void seatUsage.mutate())
   }
 
   /**
@@ -182,6 +195,21 @@ const UserCard = () => {
             <CardDescription className="text-sm text-muted-foreground">
               Manage user accounts, including activation and deactivation.
             </CardDescription>
+            {seats && (
+              <p
+                className={cn(
+                  "mt-2 text-sm",
+                  seats.tone === "full" ? "text-destructive" : seats.tone === "near" ? "text-warning" : "text-muted-foreground",
+                )}
+              >
+                {seats.text}{" "}
+                {seats.tone !== "ok" && upgradeUrl && (
+                  <a href={upgradeUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                    Remove the limit
+                  </a>
+                )}
+              </p>
+            )}
           </div>
           <div className="relative w-full sm:w-72 shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />

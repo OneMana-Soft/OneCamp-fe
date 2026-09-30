@@ -51,6 +51,7 @@ const knownErrorMessages: Record<string, string> = {
   saml_no_email:          "Your SAML response did not include a usable email.",
   // Shared
   provision_failed:       "Could not provision your account. Please contact your administrator.",
+  seat_limit:             "This workspace is on OneCamp's free plan and has no room for another person. Ask your administrator to free a place or remove the limit.",
   session_failed:         "Could not start your session. Please try again.",
   db_error:               "A temporary database issue occurred. Please try again.",
   resolution_failed:      "Could not resolve your account. Please try again.",
