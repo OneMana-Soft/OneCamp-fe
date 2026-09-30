@@ -799,6 +799,35 @@ export async function deleteAgentRoutine(agentId: string, routineId: string): Pr
   await axiosInstance.delete(`${GetEndpointUrl.GetAgentRuns}/${agentId}/routines/${routineId}`)
 }
 
+// AgentSignatureReport mirrors the backend check of an agent's signed actions
+// (business/AIAgent/agentSigning.go).
+export interface AgentSignatureReport {
+  public_key: string
+  checked: number
+  valid: number
+  unsigned: number
+  invalid: number
+  invalid_examples?: string[]
+}
+
+export async function getAgentSignatures(id: string): Promise<AgentSignatureReport> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.GetAgentRuns}/${id}/signatures`)
+  return res.data?.data as AgentSignatureReport
+}
+
+/** What the owner is told about an agent's signatures. Pure. */
+export function signatureSummary(r: AgentSignatureReport): { tone: "ok" | "warn" | "none"; text: string } {
+  if (r.checked === 0) return { tone: "none", text: "No recorded actions yet." }
+  if (r.invalid > 0) {
+    return {
+      tone: "warn",
+      text: `${r.invalid} of ${r.checked} recorded actions do not verify: they were changed after the fact, or written by something that is not this agent.`,
+    }
+  }
+  const older = r.unsigned > 0 ? ` ${r.unsigned} older ones were recorded before signing existed.` : ""
+  return { tone: "ok", text: `All ${r.valid} signed actions verify as this agent's, unaltered.${older}` }
+}
+
 export async function getAgentStats(id: string): Promise<AgentRunStats | null> {
   const res = await axiosInstance.get(`${GetEndpointUrl.GetAgentRuns}/${id}/stats`)
   return (res.data?.data as AgentRunStats) || null

@@ -35,6 +35,8 @@ import {
   compactionSummary,
   listAgentRuns,
   getAgentStats,
+  getAgentSignatures,
+  signatureSummary,
   listAgentRoutines,
   setAgentRoutineEnabled,
   deleteAgentRoutine,
@@ -143,6 +145,34 @@ function todayUsageParts(stats: AgentRunStats): string[] {
 // success rate (with an outcome-distribution bar), spend, latency, and recent
 // activity. This is the "trust + ROI" surface — proof of what the agent does at
 // volume, not just one run's transcript.
+// SignaturesPanel checks, on request, that the agent's recorded actions carry
+// its own signature and were not altered (a database alone cannot forge one).
+const SignaturesPanel: React.FC<{ agentId: string }> = ({ agentId }) => {
+  const [result, setResult] = useState<ReturnType<typeof signatureSummary> | null>(null)
+  const [checking, setChecking] = useState(false)
+  const check = async () => {
+    setChecking(true)
+    try {
+      setResult(signatureSummary(await getAgentSignatures(agentId)))
+    } catch {
+      setResult({ tone: "warn", text: "Couldn't check the signatures just now." })
+    } finally {
+      setChecking(false)
+    }
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 p-3 text-sm">
+      <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className={cn("min-w-0 flex-1", result?.tone === "warn" && "text-destructive", result?.tone === "ok" && "text-foreground")}>
+        {result ? result.text : "Every action this agent records is signed with its own key."}
+      </span>
+      <Button variant="outline" size="sm" onClick={check} disabled={checking}>
+        {checking ? "Checking…" : result ? "Check again" : "Check signatures"}
+      </Button>
+    </div>
+  )
+}
+
 const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
   const done = completedRuns(stats)
   const successRate = done > 0 ? Math.round((stats.succeeded / done) * 100) : null
@@ -679,6 +709,7 @@ export const AgentRunsDialog: React.FC<{
         </div>
 
         {stats && stats.total_runs > 0 && <ReliabilityPanel stats={stats} />}
+        {stats && stats.total_runs > 0 && <SignaturesPanel agentId={agentId} />}
 
         {routines.length > 0 && (
           <RoutinesPanel agentId={agentId} routines={routines} onChanged={load} />
