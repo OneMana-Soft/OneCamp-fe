@@ -48,6 +48,8 @@ export function MobileTopNavigationBarSecond() {
                 return "Activity";
             case "later":
                 return "Later";
+            case "inbox":
+                return "Inbox";
             case "create":
 
                 if (path.length < 5)
