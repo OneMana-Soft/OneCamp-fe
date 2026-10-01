@@ -14,7 +14,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OneMana-Soft/OneCamp-fe?style=flat-square&color=yellow)](https://github.com/OneMana-Soft/OneCamp-fe/stargazers)
 
-[**Live Demo**](https://onecamp.onemana.dev) · [**Free for up to 25 people**](https://onemana.dev/free) · [**Docs**](https://onemana.dev/docs) · [**Report a Bug**](https://github.com/OneMana-Soft/OneCamp-fe/issues)
+[**Live Demo**](https://onecamp.onemana.dev) · [**Server (AGPL-3.0)**](https://github.com/OneMana-Soft/OneCamp/tree/without-ai) · [**Free for up to 25 people**](https://onemana.dev/free) · [**Desktop app**](https://github.com/OneMana-Soft/OneCamp-desktop/releases/latest) · [**Docs**](https://onemana.dev/docs) · [**Report a Bug**](https://github.com/OneMana-Soft/OneCamp-fe/issues)
 
 </div>
 
@@ -23,6 +23,11 @@
 ## What is OneCamp?
 
 OneCamp is an open-source, self-hosted workspace that replaces Slack + Notion + Zoom, without per-seat pricing and without your conversations living on somebody else's machine. You run it on your own infrastructure, and the data stays there.
+
+**Open source.** This branch is the edition with no AI at all. Its web app is MIT, and its server is
+at [OneMana-Soft/OneCamp, branch `without-ai`](https://github.com/OneMana-Soft/OneCamp/tree/without-ai)
+under AGPL-3.0, with a commercial licence for companies that cannot accept AGPL. Build it yourself,
+or get the ready-made release with a one-command installer [free for up to 25 people](https://onemana.dev/free).
 
 | | |
 |---|---|
