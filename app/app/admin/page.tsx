@@ -20,6 +20,7 @@ import SlackBridgeCard from "@/components/admin/SlackBridgeCard"
 import ImportCard from "@/components/admin/ImportCard"
 import AIModelsCard from "@/components/admin/AIModelsCard"
 import AgentDelegationCard from "@/components/admin/AgentDelegationCard"
+import ModelRoutingCard from "@/components/admin/ModelRoutingCard"
 import GovernanceDrillCard from "@/components/admin/GovernanceDrillCard"
 import MCPServerCard from "@/components/admin/MCPServerCard"
 import AIActivityCard from "@/components/admin/AIActivityCard"
@@ -121,6 +122,7 @@ const TABS: TabDef[] = TAB_GROUPS.flatMap((g) => g.tabs)
 // The cards of AI & agents, in page order, for its jump row.
 const AI_JUMPS = [
   { id: "ai-models-models", label: "Models" },
+  { id: "ai-models-routing", label: "Model per job" },
   { id: "ai-models-inventory", label: "Inventory" },
   { id: "ai-models-delegation", label: "Agent permissions" },
   { id: "ai-models-drill", label: "Governance drill" },
@@ -405,6 +407,8 @@ const AdminPage = () => {
                 <div className={ADMIN_SECTION_STACK}>
                   <SectionJumps jumps={AI_JUMPS} />
                   <section id="ai-models-models" className="scroll-mt-4"><AIModelsCard /></section>
+                  {/* Right after the allowlist, because routing chooses from it. */}
+                  <section id="ai-models-routing" className="scroll-mt-4"><ModelRoutingCard /></section>
                   {/* Right after models: what can act here and who answers for it, with
                       the switch to stop it, before the policies that shape it. */}
                   <section id="ai-models-inventory" className="scroll-mt-4"><AgentInventoryCard /></section>

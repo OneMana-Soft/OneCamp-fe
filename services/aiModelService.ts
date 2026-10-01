@@ -1060,3 +1060,54 @@ export async function setAIMCPServer(enabled: boolean, toolGroups: string): Prom
         tool_groups: toolGroups,
     })
 }
+
+// ─── Model routing (which model each kind of background work runs on) ─────
+
+/** One kind of background work an admin can route, as the server describes it. */
+export interface RoutingPurpose {
+  key: string
+  label: string
+  description: string
+}
+
+export interface RouteTarget {
+  provider_id: string
+  model: string
+}
+
+export interface ModelRouting {
+  purposes: RoutingPurpose[]
+  routes: Record<string, RouteTarget>
+}
+
+export async function getModelRouting(): Promise<ModelRouting> {
+  const res = await axiosInstance.get("/admin/ai/model-routing")
+  const d = res.data?.data ?? {}
+  return { purposes: d.purposes ?? [], routes: d.routes ?? {} }
+}
+
+/** Replaces the routing table. A purpose missing from `routes` uses the workspace default. */
+export async function setModelRouting(routes: Record<string, RouteTarget>): Promise<void> {
+  await axiosInstance.post("/admin/ai/model-routing", { routes })
+}
+
+/** The value a route has in a select: "" means the workspace default. */
+export function routeValue(t?: RouteTarget): string {
+  return t && t.model ? `${t.provider_id}|${t.model}` : ""
+}
+
+/** Only models that can actually run may be routed to: the server refuses the rest. */
+export function routableModels(models: AuthorizedModel[]): AuthorizedModel[] {
+  return models.filter((m) => m.enabled && m.provider_enabled)
+}
+
+/** Turns select values back into the routing table, dropping defaults. */
+export function routesFromValues(values: Record<string, string>): Record<string, RouteTarget> {
+  const out: Record<string, RouteTarget> = {}
+  for (const [purpose, v] of Object.entries(values)) {
+    const i = v.indexOf("|")
+    if (!v || i < 1) continue
+    out[purpose] = { provider_id: v.slice(0, i), model: v.slice(i + 1) }
+  }
+  return out
+}
