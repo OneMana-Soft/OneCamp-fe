@@ -14,7 +14,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OneMana-Soft/OneCamp-fe?style=flat-square&color=yellow)](https://github.com/OneMana-Soft/OneCamp-fe/stargazers)
 
-[**Live Demo**](https://onecamp.onemana.dev) · [**Free for up to 25 people**](https://onemana.dev/free) · [**Docs**](https://onemana.dev/docs) · [**Report a Bug**](https://github.com/OneMana-Soft/OneCamp-fe/issues)
+[**Live Demo**](https://onecamp.onemana.dev) · [**Server (AGPL-3.0)**](https://github.com/OneMana-Soft/OneCamp) · [**Free for up to 25 people**](https://onemana.dev/free) · [**Desktop app**](https://github.com/OneMana-Soft/OneCamp-desktop/releases/latest) · [**Docs**](https://onemana.dev/docs) · [**Report a Bug**](https://github.com/OneMana-Soft/OneCamp-fe/issues)
 
 </div>
 
@@ -24,12 +24,10 @@
 
 OneCamp is a self-hosted workspace that replaces Slack + Notion + Zoom, without per-seat pricing and without your conversations living on somebody else's machine. You run it on your own infrastructure, and the data stays there.
 
-**What is open, precisely.** This repository, the frontend, is MIT and complete. The Go backend is
-not published today, so OneCamp is not open source and this README will not call it that. The
-AI-free edition of the backend is being prepared for release under Apache-2.0, which will make it
-open core: an open server you can read and run, and a commercial edition for the AI teammates. Until
-that lands, the honest description is self-hosted, source-available on the frontend, and a licensed
-backend.
+**Open source.** The whole of OneCamp is open: this web app under MIT, and the
+server at [OneMana-Soft/OneCamp](https://github.com/OneMana-Soft/OneCamp) under AGPL-3.0,
+with a commercial licence for companies that cannot accept AGPL. Build it yourself, or get the
+ready-made release with a one-command installer [free for up to 25 people](https://onemana.dev/free).
 
 It also has AI teammates that live in your channels, bounded by the live permissions of the person who authorised them, running through your choice of model.
 
