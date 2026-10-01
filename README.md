@@ -29,6 +29,10 @@ server at [OneMana-Soft/OneCamp](https://github.com/OneMana-Soft/OneCamp) under 
 with a commercial licence for companies that cannot accept AGPL. Build it yourself, or get the
 ready-made release with a one-command installer [free for up to 25 people](https://onemana.dev/free).
 
+This README once said the AI-free server would be released under Apache-2.0 with the AI edition kept
+commercial. We chose AGPL-3.0 for both editions instead, so the AI edition is open too, and AGPL keeps
+anyone from taking the server private as a closed hosted service.
+
 It also has AI teammates that live in your channels, bounded by the live permissions of the person who authorised them, running through your choice of model.
 
 | | |
