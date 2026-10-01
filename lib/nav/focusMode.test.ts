@@ -23,6 +23,7 @@ describe("the desktop rail under focus mode", () => {
             "Home",
             "Channels",
             "DMs",
+            "Inbox",
             "My Tasks",
             "Activity",
             "Later",

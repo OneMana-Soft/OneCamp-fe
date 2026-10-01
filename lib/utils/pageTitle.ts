@@ -20,6 +20,7 @@ const SECTIONS: Record<string, string> = {
   home: "Home",
   channel: "Channels",
   chat: "DMs",
+  inbox: "Inbox",
   myTask: "My Tasks",
   task: "Task",
   activity: "Activity",

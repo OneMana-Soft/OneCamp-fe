@@ -35,6 +35,7 @@ export {
   User,
   CircleUser,
   Search,
+  Send,
   PanelLeftClose,
   PanelLeftOpen,
   ChevronLeft,

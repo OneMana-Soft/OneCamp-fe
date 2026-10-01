@@ -13,8 +13,7 @@ import {
     Zap,
     MailPlus,
     LayoutDashboard,
-    File as FileIcon,
-} from "@/lib/icons"
+    File as FileIcon, Inbox as InboxIcon } from "@/lib/icons"
 import { Plug } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { useLogout } from "@/hooks/useLogout"
@@ -163,6 +162,11 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         icon={ClipboardCheck}
                         label="My Tasks"
                         onClick={() => handleNavigate("/app/myTask")}
+                    />
+                    <DrawerItem
+                        icon={InboxIcon}
+                        label="Inbox"
+                        onClick={() => handleNavigate("/app/inbox")}
                     />
                     <DrawerItem
                         icon={Bookmark}

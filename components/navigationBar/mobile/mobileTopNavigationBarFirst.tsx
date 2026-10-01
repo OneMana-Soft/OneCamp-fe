@@ -29,6 +29,7 @@ export function MobileTopNavigationBarFirst() {
             case "profile":
             case "activity":
             case "later":
+            case "inbox":
             case "user":
 
                 if(path.length < 4)
