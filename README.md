@@ -18,6 +18,10 @@
 
 </div>
 
+<p align="center">
+  <a href="https://onemana.dev"><img src="https://raw.githubusercontent.com/OneMana-Soft/OneCamp/main/.github/assets/ai.jpg" alt="The OneCamp AI assistant summarising what the team discussed today, with its sources" width="900" /></a>
+</p>
+
 ---
 
 ## What is OneCamp?
