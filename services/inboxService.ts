@@ -56,16 +56,30 @@ export async function replyToThread(id: string, body: string): Promise<void> {
   await axiosInstance.post(`/connectors/gmail/threads/${encodeURIComponent(id)}/reply`, { body })
 }
 
-/** The server answers 409 with this code when Gmail is not connected. */
-export function isNotConnected(err: unknown): boolean {
+export type ConnectionProblem = "not_connected" | "reconnect"
+
+/**
+ * The server answers 409 with a code when the page should offer a button rather
+ * than an error: "not_connected" (never connected) or "reconnect" (the Google
+ * connection expired, was revoked, or lacks a permission).
+ */
+export function connectionProblem(err: unknown): ConnectionProblem | null {
   const e = err as { response?: { status?: number; data?: { code?: string } } }
-  return e?.response?.status === 409 && e?.response?.data?.code === "not_connected"
+  if (e?.response?.status !== 409) return null
+  const code = e.response.data?.code
+  return code === "not_connected" || code === "reconnect" ? code : null
 }
 
 /** "Priya Sharma <priya@x.com>" -> "Priya Sharma"; a bare address stays as is. */
 export function senderName(from: string): string {
   const m = /^\s*"?([^"<]*?)"?\s*<[^>]+>\s*$/.exec(from)
   return (m && m[1].trim()) || from.replace(/[<>]/g, "").trim()
+}
+
+/** A full local date for one email, or the header as sent when it cannot be read. */
+export function fullDate(raw: string): string {
+  const d = new Date(raw)
+  return Number.isNaN(d.getTime()) ? raw : d.toLocaleString()
 }
 
 /** A short, local date for the list: time today, else day and month. */
