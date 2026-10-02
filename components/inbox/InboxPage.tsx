@@ -27,6 +27,11 @@ import { openUI } from "@/store/slice/uiSlice"
 import { startConnect } from "@/services/connectorService"
 import { taskFromEmail } from "@/lib/task/emailToTask"
 import {
+  getInboxKeyboardAction,
+  getNextInboxSelectionIndex,
+  shouldHandleInboxShortcutTarget,
+} from "./inboxKeyboardNavigation"
+import {
   getInbox,
   getInboxThread,
   connectionProblem,
@@ -60,6 +65,7 @@ export default function InboxPage() {
   const [connection, setConnection] = useState<ConnectionProblem | null>(null)
   const [listError, setListError] = useState("")
   const [openId, setOpenId] = useState<string | null>(null)
+  const [selectedIndex, setSelectedIndex] = useState(0)
   const [thread, setThread] = useState<InboxThreadDetail | null>(null)
   const [threadError, setThreadError] = useState("")
   const [summary, setSummary] = useState("")
@@ -72,6 +78,7 @@ export default function InboxPage() {
   // answer for an earlier search or an earlier click must not replace it.
   const listSeq = useRef(0)
   const openSeq = useRef(0)
+  const inboxRowRefs = useRef(new Map<string, HTMLButtonElement>())
 
   /** Moves the page to its connect screen when the error calls for it. */
   const handledAsConnection = useCallback((e: unknown) => {
@@ -83,17 +90,20 @@ export default function InboxPage() {
   const load = useCallback(async (q: string) => {
     const seq = ++listSeq.current
     setThreads(null)
+    setSelectedIndex(0)
     setListError("")
     try {
       const page = await getInbox(q)
       if (seq !== listSeq.current) return
       setThreads(page.threads)
+      setSelectedIndex(0)
       setNextToken(page.next_page_token)
       setConnection(null)
     } catch (e) {
       if (seq !== listSeq.current) return
       if (!handledAsConnection(e)) setListError(apiErrorMessage(e, "Couldn't load your inbox."))
       setThreads([])
+      setSelectedIndex(0)
     }
   }, [handledAsConnection])
 
@@ -142,6 +152,45 @@ export default function InboxPage() {
       setThreadError(apiErrorMessage(e, "Couldn't open this email."))
     }
   }, [handledAsConnection])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const action = getInboxKeyboardAction(event.key)
+      if (
+        !action ||
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        !shouldHandleInboxShortcutTarget(event.target)
+      ) {
+        return
+      }
+
+      if (action === "open") {
+        const selectedThread = threads?.[selectedIndex]
+        if (!selectedThread) return
+        event.preventDefault()
+        void open(selectedThread.id)
+        return
+      }
+
+      if (!threads?.length) return
+      event.preventDefault()
+      setSelectedIndex((currentIndex) =>
+        getNextInboxSelectionIndex(currentIndex, action, threads.length),
+      )
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [open, selectedIndex, threads])
+
+  useEffect(() => {
+    const selectedThread = threads?.[selectedIndex]
+    if (!selectedThread) return
+    inboxRowRefs.current.get(selectedThread.id)?.scrollIntoView({ block: "nearest" })
+  }, [selectedIndex, threads])
 
   const summarize = async () => {
     if (!openId) return
@@ -224,13 +273,21 @@ export default function InboxPage() {
           <p className="p-6 text-center text-sm text-muted-foreground">{applied ? "Nothing matches that search." : "Your inbox is empty."}</p>
         )}
         <ul>
-          {threads?.map((t) => (
+          {threads?.map((t, index) => (
             <li key={t.id}>
               <button
-                onClick={() => void open(t.id)}
+                ref={(node) => {
+                  if (node) inboxRowRefs.current.set(t.id, node)
+                  else inboxRowRefs.current.delete(t.id)
+                }}
+                data-inbox-thread=""
+                onClick={() => {
+                  setSelectedIndex(index)
+                  void open(t.id)
+                }}
                 className={cn(
                   "flex w-full flex-col gap-0.5 border-b border-border px-4 py-3 text-left transition-colors hover:bg-accent",
-                  openId === t.id && "bg-accent",
+                  selectedIndex === index && "bg-accent",
                 )}
               >
                 <span className="flex items-baseline justify-between gap-2">
