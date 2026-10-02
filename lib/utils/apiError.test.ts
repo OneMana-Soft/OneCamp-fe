@@ -14,8 +14,9 @@ describe("apiErrorMessage", () => {
   })
 
   it("falls back to the transport message when there is no envelope", () => {
-    // A network failure never reaches a handler, so there is nothing to read msg from.
-    expect(apiErrorMessage({ message: "Network Error" }, "fallback")).toBe("Network Error")
+    // A network failure never reaches a handler, so there is nothing to read msg from. A
+    // transport message axios has no words for is still shown as it is.
+    expect(apiErrorMessage({ message: "timeout of 30000ms exceeded" }, "fallback")).toBe("timeout of 30000ms exceeded")
   })
 
   it("falls back to the caller's text when nothing useful was said", () => {
@@ -90,5 +91,16 @@ describe("apiErrorStatus", () => {
 
   it("ignores a non-numeric status", () => {
     expect(apiErrorStatus({ response: { status: "409" } })).toBe(0)
+  })
+})
+
+describe("apiErrorMessage without a server answer", () => {
+  it("puts axios's transport words into a sentence a person can act on", () => {
+    const msg = apiErrorMessage({ message: "Network Error" }, "fallback")
+    expect(msg).not.toBe("Network Error")
+    expect(msg).toMatch(/could not be reached/)
+  })
+  it("still prefers the server's own message", () => {
+    expect(apiErrorMessage({ message: "Network Error", response: { data: { msg: "Gmail is busy." } } })).toBe("Gmail is busy.")
   })
 })

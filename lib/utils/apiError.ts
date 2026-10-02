@@ -63,9 +63,20 @@ export function apiErrorMessage(error: unknown, fallback = ""): string {
   if (typeof msg === "string" && msg !== "") return msg
 
   const transport = (error as { message?: unknown } | null | undefined)?.message
-  if (typeof transport === "string" && transport !== "") return transport
+  if (typeof transport === "string" && transport !== "") return TRANSPORT_WORDS[transport] ?? transport
 
   return fallback
+}
+
+/**
+ * Axios's words for a request that got no answer, which mean nothing to the person reading them.
+ * "Network Error" is also what a browser reports when an edge proxy (Cloudflare) swaps a server
+ * error for its own page without CORS headers, so it must not read like the person's Wi-Fi failed
+ * when it did not; it says what is known and what to do.
+ */
+const TRANSPORT_WORDS: Record<string, string> = {
+  "Network Error": "The server could not be reached. Check your connection and try again in a moment.",
+  "Request aborted": "The request was interrupted. Try again.",
 }
 
 /**
