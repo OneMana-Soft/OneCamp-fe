@@ -16,8 +16,14 @@ export async function listConnectors(): Promise<ConnectorStatus[]> {
 // startConnect fetches the provider authorize URL and redirects the browser to
 // it. On completion the backend redirects back to the connectors settings page
 // with ?connector=success|error.
-export async function startConnect(provider: string): Promise<void> {
-    const res = await axiosInstance.get(`${GetEndpointUrl.Connectors}/${provider}/connect`)
+/**
+ * Sends the person to the provider to connect. `returnTo` names the page they
+ * land on afterwards ("inbox"); the server only accepts names it knows, and
+ * anything else lands on the connectors settings page.
+ */
+export async function startConnect(provider: string, returnTo?: "inbox"): Promise<void> {
+    const query = returnTo ? `?return=${returnTo}` : ""
+    const res = await axiosInstance.get(`${GetEndpointUrl.Connectors}/${provider}/connect${query}`)
     const url = (res.data as { data?: { url?: string } })?.data?.url
     if (url) {
         window.location.href = url

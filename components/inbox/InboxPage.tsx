@@ -12,7 +12,7 @@
  * URL is how a sender learns an email was opened) and are sanitised again here.
  */
 
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,14 +29,17 @@ import { taskFromEmail } from "@/lib/task/emailToTask"
 import {
   getInbox,
   getInboxThread,
-  isNotConnected,
+  connectionProblem,
+  fullDate,
   replyToThread,
   senderName,
   shortDate,
   summarizeThread,
+  type ConnectionProblem,
   type InboxThread,
   type InboxThreadDetail,
 } from "@/services/inboxService"
+import { useAIAvailable } from "@/hooks/useClientConfig"
 
 function htmlText(html: string): string {
   if (typeof document === "undefined") return ""
@@ -44,6 +47,11 @@ function htmlText(html: string): string {
   el.innerHTML = sanitizeRichHtml(html)
   return (el.textContent || "").trim()
 }
+
+// On the public demo everyone is the same visitor, so the server never
+// connects a personal account there; the page says so and points to the free
+// install instead of offering a button that would be refused.
+const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
 
 export default function InboxPage() {
   const { toast } = useToast()
@@ -53,34 +61,61 @@ export default function InboxPage() {
   const [threads, setThreads] = useState<InboxThread[] | null>(null)
   const [nextToken, setNextToken] = useState<string | undefined>()
   const [loadingMore, setLoadingMore] = useState(false)
-  const [notConnected, setNotConnected] = useState(false)
+  const [connection, setConnection] = useState<ConnectionProblem | null>(null)
   const [listError, setListError] = useState("")
   const [openId, setOpenId] = useState<string | null>(null)
   const [thread, setThread] = useState<InboxThreadDetail | null>(null)
   const [threadError, setThreadError] = useState("")
   const [summary, setSummary] = useState("")
   const [summarizing, setSummarizing] = useState(false)
+  const aiAvailable = useAIAvailable()
   const [reply, setReply] = useState("")
   const [sending, setSending] = useState(false)
 
+  // Only the newest list and the newest open conversation may land: a slow
+  // answer for an earlier search or an earlier click must not replace it.
+  const listSeq = useRef(0)
+  const openSeq = useRef(0)
+
+  /** Moves the page to its connect screen when the error calls for it. */
+  const handledAsConnection = useCallback((e: unknown) => {
+    const problem = connectionProblem(e)
+    if (problem) setConnection(problem)
+    return problem !== null
+  }, [])
+
   const load = useCallback(async (q: string) => {
+    const seq = ++listSeq.current
     setThreads(null)
     setListError("")
     try {
       const page = await getInbox(q)
+      if (seq !== listSeq.current) return
       setThreads(page.threads)
       setNextToken(page.next_page_token)
-      setNotConnected(false)
+      setConnection(null)
     } catch (e) {
-      if (isNotConnected(e)) setNotConnected(true)
-      else setListError(apiErrorMessage(e, "Couldn't load your inbox."))
+      if (seq !== listSeq.current) return
+      if (!handledAsConnection(e)) setListError(apiErrorMessage(e, "Couldn't load your inbox."))
       setThreads([])
     }
-  }, [])
+  }, [handledAsConnection])
 
   useEffect(() => {
     void load(applied)
   }, [load, applied])
+
+  // Back from Google's consent screen: say so if it failed, and drop the
+  // status from the address so a reload does not repeat it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get("connector")
+    if (!status) return
+    if (status === "error") {
+      toast({ title: "Gmail was not connected", description: "Google did not finish the connection. Try again.", variant: "destructive" })
+    }
+    window.history.replaceState({}, document.title, window.location.pathname)
+  }, [toast])
 
   const loadMore = async () => {
     if (!nextToken) return
@@ -90,32 +125,37 @@ export default function InboxPage() {
       setThreads((cur) => [...(cur ?? []), ...page.threads])
       setNextToken(page.next_page_token)
     } catch (e) {
-      toast({ title: "Couldn't load more", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
+      if (!handledAsConnection(e)) toast({ title: "Couldn't load more", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
     } finally {
       setLoadingMore(false)
     }
   }
 
   const open = useCallback(async (id: string) => {
+    const seq = ++openSeq.current
     setOpenId(id)
     setThread(null)
     setThreadError("")
     setSummary("")
     setReply("")
     try {
-      setThread(await getInboxThread(id))
+      const t = await getInboxThread(id)
+      if (seq === openSeq.current) setThread(t)
     } catch (e) {
+      if (seq !== openSeq.current || handledAsConnection(e)) return
       setThreadError(apiErrorMessage(e, "Couldn't open this email."))
     }
-  }, [])
+  }, [handledAsConnection])
 
   const summarize = async () => {
     if (!openId) return
+    const seq = openSeq.current
     setSummarizing(true)
     try {
-      setSummary(await summarizeThread(openId))
+      const text = await summarizeThread(openId)
+      if (seq === openSeq.current) setSummary(text)
     } catch (e) {
-      toast({ title: "No summary", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
+      if (!handledAsConnection(e)) toast({ title: "No summary", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
     } finally {
       setSummarizing(false)
     }
@@ -138,23 +178,42 @@ export default function InboxPage() {
       toast({ title: "Reply sent", description: "It went from your Gmail address, in the same conversation." })
       await open(openId)
     } catch (e) {
-      toast({ title: "Not sent", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
+      // The draft stays in the box, so nothing typed is lost.
+      if (!handledAsConnection(e)) toast({ title: "Not sent", description: apiErrorMessage(e, "Try again."), variant: "destructive" })
     } finally {
       setSending(false)
     }
   }
 
-  if (notConnected) {
+  if (connection && DEMO) {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-20 text-center">
         <Mail className="h-10 w-10 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Bring your email into OneCamp</h1>
+        <h1 className="text-lg font-semibold">Your own inbox, in your own OneCamp</h1>
         <p className="text-sm text-muted-foreground">
-          Connect Gmail to read your inbox here, summarise long conversations, turn an email into a task, and reply
-          without leaving the workspace. Only you can see your mail.
+          This demo is shared by everyone who opens it, so it never connects anyone&apos;s Gmail: the next visitor would
+          see your mail. On your own OneCamp, the Inbox reads your Gmail beside your work, and only you can see it.
         </p>
-        <Button onClick={() => void startConnect("gmail").catch((e) => toast({ title: "Couldn't connect", description: apiErrorMessage(e, "Try again."), variant: "destructive" }))}>
-          Connect Gmail
+        <Button asChild>
+          <a href="https://onemana.dev/free" target="_blank" rel="noopener noreferrer">Get OneCamp free</a>
+        </Button>
+      </div>
+    )
+  }
+
+  if (connection) {
+    const reconnect = connection === "reconnect"
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-20 text-center">
+        <Mail className="h-10 w-10 text-muted-foreground" />
+        <h1 className="text-lg font-semibold">{reconnect ? "Reconnect Gmail" : "Bring your email into OneCamp"}</h1>
+        <p className="text-sm text-muted-foreground">
+          {reconnect
+            ? "Your Gmail connection expired or no longer has the access the inbox needs. Connect it again to pick up where you left off."
+            : "Connect Gmail to read your inbox here, summarise long conversations, turn an email into a task, and reply without leaving the workspace. Only you can see your mail."}
+        </p>
+        <Button onClick={() => void startConnect("gmail", "inbox").catch((e) => toast({ title: "Couldn't connect", description: apiErrorMessage(e, "Try again."), variant: "destructive" }))}>
+          {reconnect ? "Reconnect Gmail" : "Connect Gmail"}
         </Button>
       </div>
     )
@@ -234,10 +293,12 @@ export default function InboxPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <h2 className="mr-auto min-w-0 flex-1 truncate text-base font-semibold">{thread?.subject || " "}</h2>
-            <Button variant="outline" size="sm" onClick={() => void summarize()} disabled={!thread || summarizing}>
-              {summarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              Summarize
-            </Button>
+            {aiAvailable && (
+              <Button variant="outline" size="sm" onClick={() => void summarize()} disabled={!thread || summarizing}>
+                {summarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Summarise
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={makeTask} disabled={!thread}>
               <CircleCheck className="mr-2 h-4 w-4" /> Make a task
             </Button>
@@ -269,7 +330,7 @@ export default function InboxPage() {
                 <article key={m.id} className="rounded-lg border border-border p-4">
                   <header className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
                     <span className="text-sm font-medium">{senderName(m.from)}</span>
-                    <span className="text-xs text-muted-foreground">{new Date(m.date).toLocaleString()}</span>
+                    <span className="text-xs text-muted-foreground">{fullDate(m.date)}</span>
                   </header>
                   <SafeHtml html={m.body} sanitizer={sanitizeRichHtml} className="prose prose-sm max-w-none break-words dark:prose-invert" />
                   {(m.truncated || (m.attachments ?? 0) > 0) && (
