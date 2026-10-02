@@ -1,4 +1,4 @@
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 
 // The person's own Gmail inside OneCamp. The server reads it with the Gmail
 // connection they made, sanitises every body and drops remote images.
@@ -42,22 +42,22 @@ export async function getInbox(q = "", pageToken = ""): Promise<InboxPage> {
   const params = new URLSearchParams()
   if (q) params.set("q", q)
   if (pageToken) params.set("page_token", pageToken)
-  const res = await axiosInstance.get(`/connectors/gmail/inbox${params.toString() ? `?${params}` : ""}`)
+  const res = await axiosInstance.get(`/connectors/gmail/inbox${params.toString() ? `?${params}` : ""}`, OWN_ERRORS)
   const d = res.data?.data ?? {}
   return { threads: d.threads ?? [], next_page_token: d.next_page_token }
 }
 
 export async function getInboxThread(id: string): Promise<InboxThreadDetail> {
-  const res = await axiosInstance.get(`/connectors/gmail/threads/${encodeURIComponent(id)}`)
+  const res = await axiosInstance.get(`/connectors/gmail/threads/${encodeURIComponent(id)}`, OWN_ERRORS)
   return res.data?.data
 }
 
 export async function replyToThread(id: string, body: string): Promise<void> {
-  await axiosInstance.post(`/connectors/gmail/threads/${encodeURIComponent(id)}/reply`, { body })
+  await axiosInstance.post(`/connectors/gmail/threads/${encodeURIComponent(id)}/reply`, { body }, OWN_ERRORS)
 }
 
 export async function summarizeThread(id: string): Promise<string> {
-  const res = await axiosInstance.post(`/connectors/gmail/threads/${encodeURIComponent(id)}/summary`)
+  const res = await axiosInstance.post(`/connectors/gmail/threads/${encodeURIComponent(id)}/summary`, undefined, OWN_ERRORS)
   return res.data?.data?.summary ?? ""
 }
 
