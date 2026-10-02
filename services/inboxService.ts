@@ -61,18 +61,19 @@ export async function summarizeThread(id: string): Promise<string> {
   return res.data?.data?.summary ?? ""
 }
 
-export type ConnectionProblem = "not_connected" | "reconnect"
+export type ConnectionProblem = "not_connected" | "reconnect" | "demo"
 
 /**
  * The server answers 409 with a code when the page should offer a button rather
- * than an error: "not_connected" (never connected) or "reconnect" (the Google
- * connection expired, was revoked, or lacks a permission).
+ * than an error: "not_connected" (never connected), "reconnect" (the Google
+ * connection expired, was revoked, or lacks a permission), or "demo" (the
+ * public demo's shared visitor, who can never connect one).
  */
 export function connectionProblem(err: unknown): ConnectionProblem | null {
   const e = err as { response?: { status?: number; data?: { code?: string } } }
   if (e?.response?.status !== 409) return null
   const code = e.response.data?.code
-  return code === "not_connected" || code === "reconnect" ? code : null
+  return code === "not_connected" || code === "reconnect" || code === "demo" ? code : null
 }
 
 /** "Priya Sharma <priya@x.com>" -> "Priya Sharma"; a bare address stays as is. */
