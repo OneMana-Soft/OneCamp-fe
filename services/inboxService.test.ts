@@ -7,6 +7,7 @@ describe("connectionProblem", () => {
   it("sends the page to its connect screen only for the two 409 codes", () => {
     expect(connectionProblem(httpError(409, "not_connected"))).toBe("not_connected")
     expect(connectionProblem(httpError(409, "reconnect"))).toBe("reconnect")
+    expect(connectionProblem(httpError(409, "demo"))).toBe("demo")
     expect(connectionProblem(httpError(409, "something_else"))).toBeNull()
     expect(connectionProblem(httpError(502))).toBeNull()
     expect(connectionProblem(new Error("network"))).toBeNull()
