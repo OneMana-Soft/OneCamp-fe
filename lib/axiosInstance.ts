@@ -6,6 +6,16 @@ import {updateRefreshTokenStatus} from "@/store/slice/refreshSlice";
 import {loadingBus} from "@/lib/utils/loadingBus";
 import { toast } from "@/hooks/use-toast";
 
+declare module "axios" {
+    interface AxiosRequestConfig {
+        /** The caller shows its own message for a failure, so the global error toast stays quiet. */
+        suppressErrorToast?: boolean
+    }
+}
+
+/** Pass as a request's config when the screen explains failures itself. */
+export const OWN_ERRORS = { suppressErrorToast: true } as const
+
 // --- Auth-token lifecycle ---
 //
 // The server issues a short-lived `Authorization` access cookie (5-minute

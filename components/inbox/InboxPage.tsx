@@ -46,10 +46,6 @@ function htmlText(html: string): string {
   return (el.textContent || "").trim()
 }
 
-// On the public demo everyone is the same visitor, so the server never
-// connects a personal account there; the page says so and points to the free
-// install instead of offering a button that would be refused.
-const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
 
 export default function InboxPage() {
   const { toast } = useToast()
@@ -163,22 +159,6 @@ export default function InboxPage() {
     } finally {
       setSending(false)
     }
-  }
-
-  if (connection && DEMO) {
-    return (
-      <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-20 text-center">
-        <Mail className="h-10 w-10 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Your own inbox, in your own OneCamp</h1>
-        <p className="text-sm text-muted-foreground">
-          This demo is shared by everyone who opens it, so it never connects anyone&apos;s Gmail: the next visitor would
-          see your mail. On your own OneCamp, the Inbox reads your Gmail beside your work, and only you can see it.
-        </p>
-        <Button asChild>
-          <a href="https://onemana.dev/free" target="_blank" rel="noopener noreferrer">Get OneCamp free</a>
-        </Button>
-      </div>
-    )
   }
 
   if (connection) {
