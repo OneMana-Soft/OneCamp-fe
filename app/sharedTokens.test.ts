@@ -20,6 +20,9 @@ const SHARED: Record<"light" | "dark", Record<string, [number, number, number]>>
     accent: [246, 243, 240],
     "accent-foreground": [29, 26, 22],
     border: [230, 227, 224],
+    "agent": [81, 82, 193],
+    "agent-foreground": [251, 251, 255],
+    "agent-muted": [236, 239, 255],
   },
   dark: {
     brand: [242, 140, 92],
@@ -31,6 +34,9 @@ const SHARED: Record<"light" | "dark", Record<string, [number, number, number]>>
     accent: [44, 40, 36],
     "accent-foreground": [248, 247, 244],
     border: [42, 39, 35],
+    "agent": [167, 176, 253],
+    "agent-foreground": [18, 20, 40],
+    "agent-muted": [38, 41, 68],
   },
 }
 
