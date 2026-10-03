@@ -46,6 +46,9 @@ export enum MqttMessageType {
     // saved for later has come due. MUST stay last to keep the numeric values
     // aligned with the Go iota enum.
     Saved_Item_Due,
+    // Poll_Update mirrors backend MESSAGE_POLL_UPDATE: a poll's votes or state
+    // changed; open views of it revalidate.
+    Poll_Update,
 }
 
 export enum MqttActionType {

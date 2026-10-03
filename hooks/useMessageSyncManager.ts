@@ -3,7 +3,7 @@
 import { useCallback, useRef } from "react"
 import { useDispatch } from "react-redux"
 import { triggerMessageResync } from "@/store/slice/messageResyncSlice"
-import { mutate } from "swr"
+import { appMutate as mutate } from "@/lib/swrMutate";
 import { GetEndpointUrl } from "@/services/endPoints"
 
 // Threshold in milliseconds: if the gap between last healthy connection

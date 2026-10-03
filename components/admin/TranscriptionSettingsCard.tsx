@@ -34,7 +34,7 @@ import {
     type STTProvider,
     type TranscriptionTestResult,
 } from "@/services/settingsService"
-import { mutate as globalMutate } from "swr"
+import { appMutate as globalMutate } from "@/lib/swrMutate";
 
 const SOURCE_LABEL: Record<string, string> = {
     db: "Saved here",

@@ -6,7 +6,8 @@
 // state, matching the AI-provider and webhook security model.
 
 import React, { useCallback, useEffect, useState } from "react"
-import useSWR, { mutate as globalMutate } from "swr"
+import useSWR from "swr";
+import { appMutate as globalMutate } from "@/lib/swrMutate";
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"

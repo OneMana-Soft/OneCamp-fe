@@ -1,5 +1,6 @@
 "use client"
 
+import { pollUrl } from "@/services/pollService";
 import { useCallback, useRef } from "react"
 import { MqttMessageType, type msgType } from "@/services/mqttService"
 import { usePostMessageHandlers } from "./usePostMessageHandlers"
@@ -13,7 +14,7 @@ import {useActivityMessageHandlers} from "@/hooks/useActivityMessageHandlers";
 import mqttService from "@/services/mqttService";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
-import {mutate} from "swr";
+import { appMutate as mutate } from "@/lib/swrMutate";
 import {
     updateTaskNameInTaskList,
     updateTaskStatusInTaskList,
@@ -351,6 +352,17 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                             )
                         } catch (e) {
                             console.warn("[MQTT] Failed to parse AI agent work message", e)
+                        }
+                        break
+
+                    case MqttMessageType.Poll_Update:
+                        // Someone voted, or the poll closed. Revalidate that one
+                        // poll; the server answers with this reader's own choice.
+                        try {
+                            const pollId = JSON.parse(messageStr)?.data?.poll_uuid
+                            if (typeof pollId === "string" && pollId) mutate(pollUrl(pollId))
+                        } catch (e) {
+                            console.warn("[MQTT] Failed to parse poll update message", e)
                         }
                         break
 

@@ -31,6 +31,7 @@ import { Toast, useToast } from "@/hooks/use-toast";
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import { HocuspocusProvider } from '@hocuspocus/provider'
+import { Poll } from "@/components/minimal-tiptap/extensions/poll/poll";
 import { Mention } from "@tiptap/extension-mention";
 import axiosInstance from "@/lib/axiosInstance";
 import { PostFileUploadURL, GetEndpointUrl } from "@/services/endPoints";
@@ -120,6 +121,8 @@ const createExtensions = (
       history: false // Disable history in favor of Y.js history
     }),
     Link,
+    // Polls render in messages (read-only editors) and survive a re-edit.
+    Poll,
     Mention.extend({
       addNodeView() {
         return ReactNodeViewRenderer(MentionNodeView)

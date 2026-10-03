@@ -10,6 +10,7 @@ import CommandActionBridge from "@/components/command/CommandActionBridge";
 import { MediaQueryProvider } from "@/context/MediaQueryContext";
 import { LoadingProvider } from "@/context/LoadingContext";
 import { SWRConfig } from "swr";
+import { SWRMutateBridge } from "@/components/providers/SWRMutateBridge";
 import { localStorageProvider } from "@/lib/swrCache";
 import { sweepTTLKeys } from "@/lib/utils/helpers/ttlStorage";
 import "@/lib/env"; // Trigger validation on load
@@ -49,6 +50,7 @@ export default function ClientProviders({
     // localStorage; on first mount it deserialises back. See lib/swrCache.ts
     // for the persistence specifics.
     <SWRConfig value={{ provider: localStorageProvider }}>
+      <SWRMutateBridge />
       <MediaQueryProvider>
         <LoadingProvider>
           <TooltipProvider delayDuration={200}>
