@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { TaskMoveFilterFields, ANY_MOVE, type TaskMoveFilter } from "@/components/task/TaskMoveFilterFields"
 import { useFetch } from "@/hooks/useFetch"
+import { AGENT_TEMPLATES, scheduleDaysFor, type AgentTemplate } from "@/lib/agentTemplates"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoInterface } from "@/types/project"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
@@ -324,6 +325,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       setAguiCheck(null)
       setAutonomy(agent.autonomy === "approval" ? "approval" : agent.autonomy === "plan" ? "plan" : "auto")
     } else {
+      setAppliedTemplate(null)
       setName("")
       setDescription("")
       setInstructions("")
@@ -370,6 +372,31 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
       return next
     })
   }
+
+  // A template fills the form exactly (see lib/agentTemplates); the person
+  // still reviews every field and saves. Fields a template does not set are
+  // reset, so applying one after another never leaves the first one's tools.
+  const [appliedTemplate, setAppliedTemplate] = React.useState<AgentTemplate | null>(null)
+  const applyTemplate = React.useCallback((t: AgentTemplate) => {
+    setAppliedTemplate(t)
+    setError(null)
+    setName(t.name)
+    setDescription(t.description)
+    setInstructions(t.instructions)
+    setTools(new Set(t.tools))
+    setAutonomy(t.autonomy)
+    setTriggerType(t.trigger.type)
+    if (t.trigger.type === "schedule") {
+      const d = scheduleDaysFor(t.trigger.days)
+      setScheduleMode("clock")
+      setScheduleDays(d.mode)
+      if (d.weekdays.length > 0) setScheduleWeekdays(new Set(d.weekdays))
+      setScheduleTime(t.trigger.time)
+    } else if (t.trigger.type === "event") {
+      setEventType(t.trigger.event)
+      setTaskMove(ANY_MOVE)
+    }
+  }, [])
 
   // Draft the agent from a natural-language description and prefill the form.
   // The human reviews/edits every field before saving — nothing is created.
@@ -597,6 +624,36 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
         </DialogHeader>
 
         <div className="space-y-5">
+          {!editing && (
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground">Start from a template</Label>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Agent templates">
+                {AGENT_TEMPLATES.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    title={t.description}
+                    aria-pressed={appliedTemplate?.id === t.id}
+                    onClick={() => applyTemplate(t)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                      appliedTemplate?.id === t.id
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+                    )}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+              {appliedTemplate && (
+                <p className="text-2xs text-muted-foreground">
+                  {appliedTemplate.description} Every field below is filled in; change anything before you save.
+                  {appliedTemplate.next ? ` ${appliedTemplate.next}` : ""}
+                </p>
+              )}
+            </div>
+          )}
           {!editing && (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
               <Label className="flex items-center gap-1.5 text-xs font-medium text-primary">
