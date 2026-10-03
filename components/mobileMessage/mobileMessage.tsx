@@ -300,7 +300,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
             >
 
                 <div className='h-12 w-12 flex-shrink-0' onClick={handleUserClick}>
-                    <ChannelMessageAvatar userName={userInfo.user_name} userProfileKey={userInfo.user_profile_object_key}/>
+                    <ChannelMessageAvatar userName={userInfo.user_name} userProfileKey={userInfo.user_profile_object_key} isAgent={!!userInfo.is_bot}/>
 
                 </div>
                 <div className='w-full'>

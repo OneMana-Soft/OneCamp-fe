@@ -62,6 +62,10 @@
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-muted: var(--brand-muted);
+  /* Agents, as utilities: bg-agent-muted, text-agent, ring-agent. */
+  --color-agent: var(--agent);
+  --color-agent-foreground: var(--agent-foreground);
+  --color-agent-muted: var(--agent-muted);
   /* Status colours. destructive already existed; success/warning/info did not,
      which is why 156 raw hues accumulated in components — there was nowhere
      semantic to put them. See the :root block for the rule. */
@@ -149,6 +153,17 @@
      Never for text. */
   --brand-muted: oklch(0.955 0.022 60);
 
+  /* AGENTS HAVE A COLOUR OF THEIR OWN. An agent is the one participant in this
+     product that is not a person, and until now it was drawn exactly like one: a
+     pastel initials circle, with a small tag in the brand orange that also marks
+     selection, links and focus. An indigo, a quarter-turn from the brand on the
+     hue wheel, reads as a different kind of thing at a glance and cannot be
+     mistaken for "selected". Used only for agent identity: avatar, tag, and
+     anything an agent did. Guarded by paletteContrast.test.ts. */
+  --agent: oklch(0.5 0.17 278);
+  --agent-foreground: oklch(0.99 0.005 278);
+  --agent-muted: oklch(0.955 0.025 278);
+
   --background: oklch(0.995 0.002 75);
   --foreground: oklch(0.19 0.008 75);
   --card: oklch(1 0.001 75);
@@ -234,6 +249,9 @@
   --brand: oklch(0.74 0.14 45);
   --brand-foreground: oklch(0.18 0.02 60);
   --brand-muted: oklch(0.28 0.04 50);
+  --agent: oklch(0.78 0.11 278);
+  --agent-foreground: oklch(0.2 0.04 278);
+  --agent-muted: oklch(0.29 0.05 278);
 
   --background: oklch(0.17 0.008 70);
   --foreground: oklch(0.975 0.003 85);

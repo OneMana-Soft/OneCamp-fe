@@ -389,6 +389,7 @@ export const BaseMessageCard = React.memo(({
           <ChannelMessageAvatar
             userName={messageAuthorName(message.from, userInfoState?.userName)}
             userProfileKey={userInfoState?.profileKey ?? message.from.user_profile_object_key}
+            isAgent={!!message.from.is_bot}
           />
         </div>
         <div className="flex-1 min-w-0">

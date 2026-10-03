@@ -50,7 +50,7 @@ function ChannelAgents({ channelId, isMember }: { channelId: string; isMember: b
     <span className="inline-flex min-w-0 items-center gap-1">
       {/* Margins, not spaces: a flex row drops the whitespace around the dot. */}
       <span aria-hidden="true" className="mx-1">·</span>
-      <Sparkles className="h-3 w-3 shrink-0 text-brand" aria-hidden="true" />
+      <Sparkles className="h-3 w-3 shrink-0 text-agent" aria-hidden="true" />
       {agents.slice(0, SHOWN).map((a, i) => (
         <span key={a.bot_user_id} className="inline-flex min-w-0 items-center">
           {i > 0 && <span aria-hidden="true" className="mr-1">,</span>}

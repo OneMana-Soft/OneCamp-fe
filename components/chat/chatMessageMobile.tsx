@@ -1,4 +1,5 @@
 import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
+import { PrincipalTag } from "@/components/ui/principalTag";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
 import {cn} from "@/lib/utils/helpers/cn";
 import { Check, X } from "@/lib/icons";
@@ -205,6 +206,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                 <ChannelMessageAvatar
                     userName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)}
                     userProfileKey={userInfoState?.profileKey ?? chatInfo.chat_from.user_profile_object_key}
+                    isAgent={!!chatInfo.chat_from?.is_bot}
                 />
 
             </div>
@@ -213,6 +215,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                     <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
                         {messageAuthorName(chatInfo.chat_from, userInfoState.userName)}
                     </div>
+                    {chatInfo.chat_from?.is_bot && <PrincipalTag kind="ai" />}
                     <div className='text-2xs tabular-nums text-muted-foreground shrink-0'>
                         {formatTimeForPostOrComment(chatInfo.chat_created_at, true)}
 

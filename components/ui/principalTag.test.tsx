@@ -28,7 +28,7 @@ describe("PrincipalTag", () => {
   it("shows the short form to the eye and hides it from readers", () => {
     const { container } = render(<PrincipalTag kind="ai" />)
     const short = container.querySelector('[aria-hidden="true"]')
-    expect(short?.textContent).toBe("AI")
+    expect(short?.textContent).toBe("Agent")
   })
 
   it("gives a reader the expanded meaning, which four call sites never did", () => {
