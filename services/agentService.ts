@@ -371,6 +371,8 @@ export const TOOL_CATALOG: ToolCatalogGroup[] = [
       { name: "summarize_channel", label: "Summarize a channel", write: false },
       { name: "summarize_dm", label: "Summarize a DM", write: false },
       { name: "summarize_group_chat", label: "Summarize a group chat", write: false },
+      { name: "create_poll", label: "Post a poll", write: true },
+      { name: "read_poll", label: "Read a poll's results", write: false },
     ],
   },
   {

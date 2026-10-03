@@ -67,7 +67,7 @@ const SlackImportPlanDialog = lazy(() =>
 const SlackImportErrorsDialog = lazy(() =>
   import("@/components/admin/SlackImportErrorsDialog").then((m) => ({ default: m.SlackImportErrorsDialog })),
 )
-import { mutate as swrMutate } from "swr"
+import { appMutate as swrMutate } from "@/lib/swrMutate";
 
 // Progress polling fallback interval. Kept loose because MQTT carries the
 // fast path; this is purely defensive.

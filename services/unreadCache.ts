@@ -1,4 +1,4 @@
-import { mutate } from "swr";
+import { appMutate as mutate } from "@/lib/swrMutate";
 
 import { GetEndpointUrl } from "@/services/endPoints";
 import type { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel";

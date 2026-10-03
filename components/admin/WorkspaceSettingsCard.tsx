@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Settings } from "@/lib/icons"
 import { getWorkspaceSettings, updateWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
-import { mutate as globalMutate } from "swr"
+import { appMutate as globalMutate } from "@/lib/swrMutate";
 
 const SOURCE_LABEL: Record<string, string> = {
     db: "Saved here",

@@ -76,7 +76,7 @@ import {useTranslation} from "react-i18next";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {EmptyState} from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state"
-import {mutate} from "swr";
+import { appMutate as mutate } from "@/lib/swrMutate";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import {useMqtt} from "@/components/mqtt/mqttProvider";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";

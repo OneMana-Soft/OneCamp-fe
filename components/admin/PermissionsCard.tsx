@@ -5,7 +5,7 @@
 // kept admins-only or opened to all members. Mirrors Slack's Permissions page.
 
 import { useEffect, useState } from "react"
-import { mutate } from "swr"
+import { appMutate as mutate } from "@/lib/swrMutate";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"

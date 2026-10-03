@@ -5,7 +5,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "@/store/store";
 import dynamic from "next/dynamic";
 import { closeUI } from "@/store/slice/uiSlice";
-import { mutate } from "swr";
+import { appMutate as mutate } from "@/lib/swrMutate";
 
 // Lazy load dialogs/drawers to keep bundle size small
 const CreateChannelDialog = dynamic(() => import("@/components/dialog/createChannelDialog"), { ssr: false });
