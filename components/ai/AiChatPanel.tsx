@@ -24,7 +24,7 @@ import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "@/store/store";
 import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { X, Send, Sparkles, Scissors, Loader2, MessageSquarePlus, Lightbulb, FileText, ArrowUpRight, Megaphone, CalendarClock, MoreHorizontal, SlidersHorizontal, Mic } from "@/lib/icons";
-import { useVoiceDictation } from "@/hooks/useVoiceDictation";
+import { useVoiceDictation, dictationLabel } from "@/hooks/useVoiceDictation";
 import { useToast } from "@/hooks/use-toast";
 import { StopCircle } from "lucide-react";
 import {
@@ -381,18 +381,16 @@ const AiChatPanel: React.FC = () => {
     const dispatch = useDispatch();
     const { isMobile } = useMedia();
     // Voice dictation into the assistant input (reuses the model-agnostic STT).
-    const {
-        available: micAvailable,
-        recording: micRecording,
-        transcribing: micTranscribing,
-        toggle: toggleDictation,
-    } = useVoiceDictation({
+    const dictation = useVoiceDictation({
         onText: (t) => {
             setInput((prev) => (prev.trim() ? prev.trimEnd() + " " + t : t));
             inputRef.current?.focus();
         },
         onError: (m) => toast({ title: m, variant: "destructive" }),
     });
+    const { available: micAvailable, recording: micRecording, transcribing: micTranscribing, toggle: toggleDictation } = dictation;
+    const micBusy = micTranscribing || dictation.setup.progress !== null;
+    const micLabel = dictationLabel(dictation);
     const router = useRouter();
 
     // Current user id — needed to resolve DM source links to the OTHER
@@ -833,11 +831,11 @@ const AiChatPanel: React.FC = () => {
                                     : "text-muted-foreground hover:text-primary",
                             )}
                             onClick={toggleDictation}
-                            disabled={micTranscribing}
-                            title={micRecording ? "Stop & insert" : "Dictate"}
-                            aria-label={micRecording ? "Stop dictation" : "Dictate"}
+                            disabled={micBusy}
+                            title={micLabel}
+                            aria-label={micLabel}
                         >
-                            {micTranscribing ? (
+                            {micBusy ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <Mic className={cn("h-4 w-4", micRecording && "animate-pulse")} />
