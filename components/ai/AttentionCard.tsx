@@ -151,7 +151,23 @@ function AttentionCard() {
   // but never assume — a null/omitted items slice must hide the card, not
   // throw during render.
   const items = Array.isArray(data.items) ? data.items : []
-  if (items.length === 0) return null
+  // EMPTY IS AN ANSWER, not an absence. The card used to vanish, so a day with
+  // nothing to do looked exactly like a card that failed to load, and clearing
+  // the last approval made the whole thing disappear under the reader's
+  // cursor. Saying "nothing needs you" is the moment the page is finished.
+  if (items.length === 0) {
+    return (
+      <div className="ai-panel" role="status">
+        <div className="ai-panel-head">
+          <CircleCheck className="h-4 w-4 shrink-0 text-success" strokeWidth={1.75} aria-hidden="true" />
+          <h2 className="text-sm font-medium text-foreground">Nothing needs you right now</h2>
+        </div>
+        <p className="px-4 pb-3 text-xs text-muted-foreground">
+          Approvals, overdue work and questions waiting on you land here.
+        </p>
+      </div>
+    )
+  }
 
   // An approval has no navigable destination (it's acted on inline where it
   // was raised); every other source deep-links to its surface.
