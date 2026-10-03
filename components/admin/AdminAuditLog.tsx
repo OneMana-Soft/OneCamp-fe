@@ -7,6 +7,8 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import EvidenceReceipts from "@/components/admin/EvidenceReceipts"
+import { PlanLockedNotice } from "@/components/admin/PlanLockedNotice"
+import { usePlan } from "@/hooks/usePlan"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -175,6 +177,10 @@ export default function AdminAuditLog() {
     const [verifying, setVerifying] = useState(false)
     const [verifyResult, setVerifyResult] = useState<AuditVerifyResult | null>(null)
     const [exporting, setExporting] = useState(false)
+    // Export and the evidence pack are a company control (the free plan leaves
+    // them out); the log itself and verifying its chain are on every plan.
+    const plan = usePlan()
+    const exportLocked = plan.isLocked("audit_export")
 
     const load = (cat: string, unattended: boolean = unattendedOnly) => {
         setLoading(true)
@@ -269,6 +275,7 @@ export default function AdminAuditLog() {
                             <ShieldCheck className={`h-3.5 w-3.5 ${verifying ? "animate-pulse" : ""}`} />
                             Verify
                         </Button>
+                        {!exportLocked && (<>
                         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => handleExport("csv")} disabled={exporting}>
                             <Download className="h-3.5 w-3.5" />
                             CSV
@@ -306,6 +313,7 @@ export default function AdminAuditLog() {
                             <Download className="h-3.5 w-3.5" />
                             Pack file
                         </Button>
+                        </>)}
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => load(filter)} aria-label="Refresh">
                             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                         </Button>
@@ -314,6 +322,7 @@ export default function AdminAuditLog() {
                 <CardDescription>
                     Configuration changes by admins, tamper-evident (hash-chained). Secret values are never recorded, only that a change occurred. Verify the chain or export it for an auditor.
                 </CardDescription>
+                {exportLocked && <PlanLockedNotice what="Exporting the audit log" upgradeUrl={plan.upgradeUrl} className="mt-2" />}
                 {/* Offered only AFTER a windowed check comes back, and only when it
                     passed. Verify is bounded by default because the log only grows
                     and a full walk on a year-old workspace is the moment the button

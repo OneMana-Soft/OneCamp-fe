@@ -20,6 +20,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/error/errorState"
 import { Printer } from "@/lib/icons"
 import EvidencePackView from "@/components/admin/EvidencePackView"
+import { PlanLockedNotice } from "@/components/admin/PlanLockedNotice"
+import { usePlan } from "@/hooks/usePlan"
 import { getEvidencePack, downloadEvidencePack, type EvidencePack } from "@/services/settingsService"
 
 /**
@@ -43,6 +45,10 @@ export default function EvidencePackPage() {
     const searchParams = useSearchParams()
     const [pack, setPack] = useState<EvidencePack | null>(null)
     const [failed, setFailed] = useState(false)
+    // A company control: on the free plan the server refuses the pack, so the
+    // page says why instead of reporting a failure.
+    const plan = usePlan()
+    const locked = plan.isLocked("audit_export")
 
     const from = searchParams.get("from")
     const to = searchParams.get("to")
@@ -62,6 +68,16 @@ export default function EvidencePackPage() {
         const w = windowFromQuery(new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) }))
         void downloadEvidencePack(w.from, w.to)
     }, [from, to])
+
+    if (locked) {
+        return (
+            <main id="main-content" className="h-full overflow-y-auto bg-background">
+                <div className="mx-auto max-w-2xl px-4 py-10">
+                    <PlanLockedNotice what="The evidence pack" upgradeUrl={plan.upgradeUrl} />
+                </div>
+            </main>
+        )
+    }
 
     if (failed) {
         return (
