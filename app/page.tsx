@@ -52,6 +52,7 @@ const knownErrorMessages: Record<string, string> = {
   // Shared
   provision_failed:       "Could not provision your account. Please contact your administrator.",
   seat_limit:             "This workspace is on OneCamp's free plan and has no room for another person. Ask your administrator to free a place or remove the limit.",
+  plan_required:          "Single sign-on needs a OneCamp licence, and this workspace is on the free plan. Sign in with your email, or ask your administrator.",
   session_failed:         "Could not start your session. Please try again.",
   db_error:               "A temporary database issue occurred. Please try again.",
   resolution_failed:      "Could not resolve your account. Please try again.",

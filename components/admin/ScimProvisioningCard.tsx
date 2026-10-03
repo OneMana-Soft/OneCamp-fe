@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useFetch } from "@/hooks/useFetch"
+import { usePlan } from "@/hooks/usePlan"
+import { PlanLockedNotice } from "@/components/admin/PlanLockedNotice"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
@@ -59,6 +61,10 @@ const ScimProvisioningCard = () => {
   const [expiry, setExpiry] = useState(0)
   const [saving, setSaving] = useState(false)
   const [created, setCreated] = useState<CreatedScimToken | null>(null)
+  // On the free plan a new credential is refused; existing ones stay listed and
+  // revocable, so a credential is never stranded.
+  const plan = usePlan()
+  const scimLocked = plan.isLocked("scim")
   const [busyId, setBusyId] = useState<string | null>(null)
 
   // Empty when this build has no backend URL configured, in which case the setup block is omitted
@@ -130,13 +136,16 @@ const ScimProvisioningCard = () => {
             working after the person who set it up has gone.
           </CardDescription>
         </div>
-        <Button onClick={openCreate} className="shrink-0">
-          <Plus className="h-4 w-4 mr-1.5" />
-          New credential
-        </Button>
+        {!scimLocked && (
+          <Button onClick={openCreate} className="shrink-0">
+            <Plus className="h-4 w-4 mr-1.5" />
+            New credential
+          </Button>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {scimLocked && <PlanLockedNotice what="SCIM provisioning" upgradeUrl={plan.upgradeUrl} />}
         {isLoading ? (
           <div role="status" aria-label="Loading SCIM credentials">
             <SkeletonRows rows={2} />
