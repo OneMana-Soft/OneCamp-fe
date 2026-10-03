@@ -1,5 +1,6 @@
 "use client"
 
+import { PrincipalTag } from "@/components/ui/principalTag"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import type { PostsRes } from "@/types/post"
@@ -222,11 +223,13 @@ const ChannelMessageMobileComponent = ({
                     <ChannelMessageAvatar
                         userName={userInfoState.userName || postInfo.post_by.user_name}
                         userProfileKey={userInfoState.profileKey ?? postInfo.post_by.user_profile_object_key}
+                        isAgent={!!postInfo.post_by.is_bot}
                     />
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
                         <div className="text-sm font-semibold text-foreground truncate" onClick={handleUserClick}>{userInfoState.userName || postInfo.post_by.user_name}</div>
+                        {postInfo.post_by.is_bot && <PrincipalTag kind="ai" />}
                         <div className="text-2xs tabular-nums text-muted-foreground shrink-0">
                             {formatTimeForPostOrComment(postInfo.post_created_at, true)}
                         </div>

@@ -42,14 +42,22 @@ interface PrincipalKindSpec {
   spoken: string
   /** Mouse-hover explanation. */
   title: string
-  /** `soft` tints with the workspace's own primary; `secondary` stays neutral. */
+  /** `secondary` stays neutral; colour comes from `tone`. */
   variant: "soft" | "secondary"
+  /** Extra classes for a kind with a colour of its own. */
+  tone?: string
 }
 
 const PRINCIPAL_KINDS: Record<PrincipalKind, PrincipalKindSpec> = {
   // Primary tint, because an agent acting in your workspace is a first-class
   // participant and the marker should read as informative, not as a warning.
-  ai: { label: "AI", spoken: "AI agent", title: "AI agent", variant: "soft" },
+  // The agent colour (see --agent in globals.css), not the workspace accent: the
+  // accent also marks selection and links, and "Agent" is not either. "Agent"
+  // rather than "AI", which also reads as "written by AI" about the text.
+  ai: {
+    label: "Agent", spoken: "AI agent", title: "AI agent: acts for the person who set it up", variant: "secondary",
+    tone: "border-transparent bg-agent-muted text-agent hover:bg-agent-muted",
+  },
   // Neutral, because "outside the company" is a fact about scope rather than a
   // problem; colouring it as a warning would editorialise every guest's name.
   guest: { label: "Guest", spoken: "Guest user", title: "Guest: outside this workspace", variant: "secondary" },
@@ -72,7 +80,7 @@ export function PrincipalTag({
       title={spec.title}
       // rounded, not rounded-full: matches the five call sites that agreed, and
       // keeps the tag reading as a label rather than a count pill.
-      className={cn("rounded shrink-0", className)}
+      className={cn("rounded shrink-0", spec.tone, className)}
     >
       <span aria-hidden="true">{spec.label}</span>
       <span className="sr-only">{spec.spoken}</span>

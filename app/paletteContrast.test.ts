@@ -73,6 +73,9 @@ const PAIRS: Array<[string, string, number, string]> = [
   ["border", "background", 1.2, "a hairline has to be visible at all"],
   ["foreground", "canvas", 4.5, "navigation text on the canvas"],
   ["muted-foreground", "canvas", 4.5, "section labels and counts on the canvas"],
+  ["agent", "agent-muted", 4.5, "an agent's tag and initials on its tinted ground"],
+  ["agent", "background", 4.5, "agent-coloured text on the page"],
+  ["agent-foreground", "agent", 4.5, "a label on a solid agent surface"],
 ]
 
 describe.each(["light", "dark"] as const)("%s palette meets WCAG AA", (mode) => {
