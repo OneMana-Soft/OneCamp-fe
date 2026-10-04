@@ -1,5 +1,7 @@
 "use client"
 
+import { useScheduleSend } from "@/context/ScheduleSendContext";
+import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
@@ -17,6 +19,7 @@ import CommandSurface from "@/components/command/CommandSurface";
 const EMPTY_CHAT_INPUT_STATE = {};
 
 export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string, handleSend: (latestContent?: string)=>void }) => {
+    const scheduleSend = useScheduleSend()
     const editorRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
     const [isExpanded, setIsExpanded] = useState(false);
@@ -59,6 +62,7 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
             />
             <div ref={contentRef}> {/* Wrap all content in a ref */}
                 <div ref={editorRef}>
+                    {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'groupChatFileUpload' }))
  }}
@@ -77,6 +81,7 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
                         placeholder={"Type a message…"}
                         editable={true}
                         buttonOnclick={handleSend}
+                        onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
                         editorClassName="focus:outline-none px-5"
                         onChange={(content ) => {

@@ -9,4 +9,8 @@ describe("MQTT message types match the backend", () => {
     expect(MqttMessageType.AI_Agent_Work).toBe(28)
     expect(MqttMessageType.Saved_Item_Due).toBe(29)
   })
+  it("Poll_Update is 30 and Scheduled_Message is 31", () => {
+    expect(MqttMessageType.Poll_Update).toBe(30)
+    expect(MqttMessageType.Scheduled_Message).toBe(31)
+  })
 })

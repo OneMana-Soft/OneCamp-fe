@@ -1,4 +1,6 @@
 import { useFetchOnlyOnce} from "@/hooks/useFetch";
+import { useScheduleSend } from "@/context/ScheduleSendContext";
+import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
@@ -41,6 +43,7 @@ const EMPTY_GRP_INFO: LocallyCreatedGrpInfoInterface = {} as LocallyCreatedGrpIn
 const EMPTY_INPUT_STATE: ChatInputState = { chatBody: '', filesUploaded: [], filesPreview: [] }
 
 export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
+    const scheduleSend = useScheduleSend()
 
     const dispatch = useDispatch()
     const grpChatCreatedLocally = useSelector((state: RootState) => state.groupChat.locallyCreatedGrpInfo[grpId] || EMPTY_GRP_INFO);
@@ -212,6 +215,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                             </button>
                         </div>
                     )}
+                    {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'groupChatFileUpload' }))}}
@@ -229,6 +233,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={handleSend}
+                        onSchedule={scheduleSend?.schedule}
                         editorClassName="focus:outline-none px-2 py-2"
                         onChange={(content ) => {
                             publishTyping(content as string)

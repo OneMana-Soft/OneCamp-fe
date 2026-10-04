@@ -1,4 +1,6 @@
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
+import { useScheduleSend } from "@/context/ScheduleSendContext";
+import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
@@ -37,6 +39,7 @@ import { FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 
 export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string)=>void }) => {
+    const scheduleSend = useScheduleSend()
 
     const dispatch = useDispatch()
     const postNotification  = usePost()
@@ -190,6 +193,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                             </button>
                         </div>
                     )}
+                    {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         throttleDelay={300}
                         attachmentOnclick = {()=>{dispatch(openUI({ key: 'chatFileUpload' }))}}
@@ -208,6 +212,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={handleSend}
+                        onSchedule={scheduleSend?.schedule}
                         editorClassName="focus:outline-none px-2 py-2"
                         onChange={(content ) => {
                             publishTyping(content as string)

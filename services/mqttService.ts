@@ -49,6 +49,9 @@ export enum MqttMessageType {
     // Poll_Update mirrors backend MESSAGE_POLL_UPDATE: a poll's votes or state
     // changed; open views of it revalidate.
     Poll_Update,
+    // Scheduled_Message mirrors backend MESSAGE_SCHEDULED_MESSAGE: one of the
+    // member's scheduled messages was sent, failed, or changed.
+    Scheduled_Message,
 }
 
 export enum MqttActionType {

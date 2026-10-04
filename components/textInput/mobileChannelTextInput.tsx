@@ -1,5 +1,7 @@
 "use client"
 
+import { useScheduleSend } from "@/context/ScheduleSendContext";
+import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
@@ -22,6 +24,7 @@ import CommandSurface from "@/components/command/CommandSurface";
 
 
 export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: string, handleSend: (latestContent?: string)=>void }) => {
+    const scheduleSend = useScheduleSend()
     const editorRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
     const [isExpanded, setIsExpanded] = useState(false);
@@ -77,6 +80,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
             />
             <div ref={contentRef}> {/* Wrap all content in a ref */}
                 <div ref={editorRef}>
+                    {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'channelFileUpload' })) }}
                         onActionFiles={async (files) => {
@@ -94,6 +98,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
                         placeholder={`Message #${channelDisplayName}`}
                         editable={true}
                         buttonOnclick={handleSend}
+                        onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
                         editorClassName="focus:outline-none px-5"
                         onChange={(content ) => {

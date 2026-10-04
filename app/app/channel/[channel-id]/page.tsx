@@ -15,6 +15,8 @@ import {
 } from "@/store/slice/channelSlice";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
 import {usePost} from "@/hooks/usePost";
+import {useScheduleMessage} from "@/hooks/useScheduledMessages";
+import {ScheduleSendContext} from "@/context/ScheduleSendContext";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -33,6 +35,7 @@ export default function Page() {
     const channelId = params?.['channel-id'] as string;
 
     const post = usePost()
+    const scheduleMessage = useScheduleMessage()
 
     const channelPostState = useSelector((state: RootState) => state.channel.channelPosts[channelId] || EMPTY_POSTS);
 
@@ -96,6 +99,21 @@ export default function Page() {
 
     if(!channelId) return
 
+
+    // Send later: the same body Send would post, handed to the scheduler.
+    const handleSchedule = async (latestContent: string | undefined, at: Date) => {
+        const body = removeEmptyPTags(latestContent ?? channelState.inputTextHTML)
+        if (body.length == 0 && !(channelState.filesUploaded?.length)) return false
+        const replyToUuid = channelState.replyToUuid
+        const ok = await scheduleMessage("channel", {
+            post_attachments: channelState.filesUploaded,
+            channel_id: channelId,
+            post_text_html: body,
+            ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
+        }, at)
+        if (ok) dispatch(clearChannelInputState({channelId}))
+        return ok
+    }
 
     const handleSend = (latestContent?: string) => {
 
@@ -168,9 +186,11 @@ export default function Page() {
     return (
         <>
 
+            <ScheduleSendContext.Provider value={{ kind: "channel", target: channelId, schedule: handleSchedule }}>
             {isMobile && <ChannelIdMobile channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current}/>}
 
             {isDesktop && <ChannelIdDesktop channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current}/>}
+            </ScheduleSendContext.Provider>
         </>
     );
 }
