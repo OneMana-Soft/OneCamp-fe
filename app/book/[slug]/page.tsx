@@ -83,8 +83,8 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
 
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-8 sm:py-14">
-      <div className="mx-auto grid max-w-4xl overflow-hidden rounded-2xl border bg-background shadow-sm md:grid-cols-[17rem_1fr]">
-        <aside className="grid content-start gap-3 border-b p-6 md:border-b-0 md:border-r">
+      <div className="mx-auto grid max-w-4xl overflow-hidden rounded-2xl border bg-background shadow-sm grid-cols-[minmax(0,1fr)] md:grid-cols-[17rem_minmax(0,1fr)]">
+        <aside className="grid min-w-0 content-start gap-3 border-b p-6 md:border-b-0 md:border-r">
           <p className="text-sm text-muted-foreground">{page.owner_name}</p>
           <h1 className="text-2xl font-semibold tracking-tight text-balance">{page.title}</h1>
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -110,7 +110,7 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
           </div>
         </aside>
 
-        <section className="p-6">
+        <section className="min-w-0 p-6">
           {slot ? (
             <GuestForm slug={slug} page={page} slot={slot} tz={tz} onBack={() => setSlot(null)} onBooked={setBooked} onTaken={() => {
               setSlot(null)
