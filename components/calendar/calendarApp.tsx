@@ -19,7 +19,7 @@ import {
     startOfDay,
     endOfDay
 } from "date-fns";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Loader2, Search } from "@/lib/icons";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Loader2, Search, Link2 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { useFetch } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
@@ -32,6 +32,7 @@ import { calendarColors } from "@/lib/colors";
 import { useDispatch } from "react-redux";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { CreateCalendarEventDialog } from "@/components/calendar/createCalendarEventDialog";
+import { BookingPagesDialog } from "@/components/calendar/bookingPagesDialog";
 import { WeekView } from "@/components/calendar/weekView";
 import { CalendarAgenda } from "@/components/calendar/calendarAgenda";
 import { agendaDays } from "@/lib/utils/calendarAgenda";
@@ -53,6 +54,7 @@ export function CalendarApp() {
     const [viewChosen, setViewChosen] = useState(false);
     const shownView = !viewChosen && isMobile ? "agenda" : view;
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [bookingOpen, setBookingOpen] = useState(false);
     const [defaultDate, setDefaultDate] = useState<Date | undefined>(undefined);
     
     // Filters State
@@ -611,8 +613,13 @@ export function CalendarApp() {
                         </div>
                     </div>
 
+                    <div className="flex items-center gap-2 shrink-0">
+                        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setBookingOpen(true)}>
+                            <Link2 className="h-3.5 w-3.5" aria-hidden />
+                            Booking pages
+                        </Button>
                     {isDesktop && (
-                        <div className="flex items-center gap-2 shrink-0">
+                        <>
                             {gcalStatus?.data?.isConnected ? (
                                 <Button
                                     variant="outline"
@@ -634,8 +641,9 @@ export function CalendarApp() {
                                     Connect Google Calendar
                                 </Button>
                             )}
-                        </div>
+                        </>
                     )}
+                    </div>
                 </header>
 
                 {/* Scrolls in BOTH directions, which it did not.
@@ -704,6 +712,7 @@ export function CalendarApp() {
                 </div>
             </main>
 
+            <BookingPagesDialog open={bookingOpen} onOpenChange={setBookingOpen} />
             <CreateCalendarEventDialog 
                 open={isCreateOpen} 
                 onOpenChange={setIsCreateOpen} 
