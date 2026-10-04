@@ -14,6 +14,7 @@ import { AdminUserList } from "./AdminUserList"
 import { Search } from "@/lib/icons"
 import { Users2 } from "lucide-react"
 import { seatSummary } from "@/lib/utils/seatSummary"
+import { UPGRADE_STEPS } from "@/lib/plan/upgradeSteps"
 import { cn } from "@/lib/utils/helpers/cn"
 
 const UserCard = () => {
@@ -204,9 +205,12 @@ const UserCard = () => {
               >
                 {seats.text}{" "}
                 {seats.tone !== "ok" && upgradeUrl && (
-                  <a href={upgradeUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-                    Remove the limit
-                  </a>
+                  <>
+                    <a href={upgradeUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                      Remove the limit
+                    </a>
+                    <span className="mt-1 block text-xs text-muted-foreground">{UPGRADE_STEPS}</span>
+                  </>
                 )}
               </p>
             )}
