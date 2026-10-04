@@ -5,7 +5,8 @@ import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {ProjectInfoRawInterface, ProjectNotificationInterface} from "@/types/project"
 import { Button } from "@/components/ui/button"
-import { List, Paperclip, Pencil, Users } from "@/lib/icons";
+import { ClipboardList, List, Paperclip, Pencil, Users } from "@/lib/icons";
+import { ProjectFormsDialog } from "@/components/project/ProjectFormsDialog";
 import { Kanban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectTaskTable } from "@/components/project/projectTaskTable"
@@ -30,6 +31,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     const { t } = useTranslation()
     const projectInfo = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectInfo + "/" + projectId)
     const [projectNotification, setProjectNotificationType] = useState<string>(NotificationType.NotificationAll)
+    const [formsOpen, setFormsOpen] = useState(false)
 
     const dispatch = useDispatch()
     const postNotification  = usePost()
@@ -101,6 +103,16 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             size="icon"
                             variant="ghost"
                             className="h-9 w-9"
+                            aria-label="Forms that make tasks"
+                            title="Forms"
+                            onClick={() => setFormsOpen(true)}
+                        >
+                            <ClipboardList className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-9 w-9"
                             aria-label="Manage project members"
                             onClick={() => {
                                 dispatch(openUI({ key: 'editProjectMember', data: { projectUUID: projectId || "" } }))
@@ -114,6 +126,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
             >
                 <ProjectGlanceLine projectId={projectId} />
             </PageHeader>
+            {isAdmin && projectId && <ProjectFormsDialog projectId={projectId} open={formsOpen} onOpenChange={setFormsOpen} />}
 
             {/* Content */}
             <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">

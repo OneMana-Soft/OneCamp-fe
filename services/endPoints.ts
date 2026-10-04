@@ -101,6 +101,8 @@ export enum GetEndpointUrl {
     GetTaskRecurrence = "/task/recurrence",
     // A project's cycles: /project/{id}/cycles (+ /{cycle}/complete, /rename, /delete)
     ProjectCycles = "/project",
+    // A project's intake forms: /project/{id}/forms (+ /{form}/delete)
+    ProjectForms = "/project",
     GetTaskCycle = "/task/cycle",
     GetTaskViews = "/task/views",
     GetBookingPages = "/event/bookingPages",
