@@ -49,6 +49,8 @@ export {
   ArrowRightToLine,
   Kanban,
   Repeat,
+  CalendarCheck,
+  CalendarX,
 } from "lucide-react";
 
 // ─── Actions ────────────────────────────────────────────────

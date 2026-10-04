@@ -432,11 +432,11 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
             {editable && !timeUp && (
               <>
                 {timer.pausedLeftMs !== undefined ? (
-                  <IconButton label="Resume" onClick={resumeTimer}>
+                  <IconButton aria-label="Resume" onClick={resumeTimer}>
                     <Play className="h-3.5 w-3.5" />
                   </IconButton>
                 ) : (
-                  <IconButton label="Pause" onClick={pauseTimer}>
+                  <IconButton aria-label="Pause" onClick={pauseTimer}>
                     <Pause className="h-3.5 w-3.5" />
                   </IconButton>
                 )}
@@ -446,7 +446,7 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
               </>
             )}
             {editable && (
-              <IconButton label={timeUp ? "Dismiss" : "Stop the timer"} onClick={() => setShared("timer", null)}>
+              <IconButton aria-label={timeUp ? "Dismiss" : "Stop the timer"} onClick={() => setShared("timer", null)}>
                 <X className="h-3.5 w-3.5" />
               </IconButton>
             )}
@@ -507,7 +507,7 @@ function Bar({ children, tone, subtle }: { children: React.ReactNode; tone?: "pr
   )
 }
 
-function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+function IconButton({ "aria-label": label, onClick, children }: { "aria-label": string; onClick: () => void; children: React.ReactNode }) {
   return (
     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClick} aria-label={label} title={label}>
       {children}

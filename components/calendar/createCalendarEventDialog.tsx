@@ -17,6 +17,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DateAndTimePicker } from "@/components/dateAndTimePicker/dateAndTimePicker";
+import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker";
+import { FindTimeSuggestions } from "@/components/calendar/findTimeSuggestions";
+import { useFetchOnlyOnce } from "@/hooks/useFetch";
+import { GetEndpointUrl } from "@/services/endPoints";
+import type { UserProfileInterface } from "@/types/user";
 
 const formSchema = z.object({
     title: z.string().min(1, "Title is required").max(100),
@@ -44,6 +49,8 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
     const [submitting, setSubmitting] = useState(false);
     const [startPickerOpen, setStartPickerOpen] = useState(false);
     const [endPickerOpen, setEndPickerOpen] = useState(false);
+    const [guests, setGuests] = useState<PickedPerson[]>([]);
+    const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
@@ -68,6 +75,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
             }
             const initialEnd = new Date(roundedStart.getTime() + 60 * 60 * 1000);
 
+            setGuests([]);
             form.reset({
                 title: "",
                 description: "",
@@ -92,7 +100,8 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                     description: values.description,
                     startTime: startTimeISO,
                     endTime: endTimeISO,
-                    syncToGoogleCalendar: values.syncToGoogleCalendar
+                    syncToGoogleCalendar: values.syncToGoogleCalendar,
+                    participants: guests.map((g) => g.uuid),
                 }
             });
             form.reset();
@@ -104,6 +113,10 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
             setSubmitting(false);
         }
     };
+
+    // The meeting's length, from the times as they stand: what find-a-time looks for.
+    const [watchedStart, watchedEnd] = form.watch(["startTime", "endTime"]);
+    const durationMinutes = Math.round((new Date(watchedEnd).getTime() - new Date(watchedStart).getTime()) / 60000) || 30;
 
     const formatDateDisplay = (dateStr: string) => {
         if (!dateStr) return "Select date & time";
@@ -118,9 +131,9 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
-                    <DialogTitle>Create Personal Event</DialogTitle>
+                    <DialogTitle>New event</DialogTitle>
                     <DialogDescription>
-                        Add a new personal event to your calendar.
+                        Add it to your calendar, and to your guests&apos; calendars too.
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -206,6 +219,23 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                 )}
                             />
                         </div>
+                        <div className="grid gap-1.5">
+                            <label htmlFor="event-guests" className="text-sm font-medium">Guests</label>
+                            <PeoplePicker
+                                id="event-guests"
+                                value={guests}
+                                onChange={setGuests}
+                                exclude={selfProfile.data?.data?.user_uuid ? [selfProfile.data.data.user_uuid] : []}
+                            />
+                        </div>
+                        <FindTimeSuggestions
+                            participants={guests.map((g) => g.uuid)}
+                            durationMinutes={durationMinutes}
+                            onPick={(start, end) => {
+                                form.setValue("startTime", format(start, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
+                                form.setValue("endTime", format(end, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
+                            }}
+                        />
                         <FormField
                             control={form.control}
                             name="description"
@@ -250,7 +280,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                 Cancel
                             </Button>
                             <Button type="submit" disabled={submitting}>
-                                {submitting ? "Creating…" : "Create Event"}
+                                {submitting ? "Creating…" : "Create event"}
                             </Button>
                         </DialogFooter>
                     </form>
