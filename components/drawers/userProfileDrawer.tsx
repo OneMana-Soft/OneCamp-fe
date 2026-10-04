@@ -8,6 +8,7 @@ import {
     ClipboardCheck,
     LogOut,
     Moon,
+    BellOff,
     Sun,
     Shield,
     Sparkles,
@@ -25,6 +26,8 @@ import { useCapabilities } from "@/hooks/useCapabilities"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { CAP_AGENT_MANAGE, CAP_WORKFLOW_MANAGE, CAP_INVITATION_CREATE } from "@/services/capabilityService"
 import { MemberInviteDialog } from "@/components/invite/MemberInviteDialog"
+import { PauseNotificationsDialog, pauseMenuLabel } from "@/components/notifications/PauseNotificationsDialog"
+import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
@@ -137,6 +140,8 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const isAdmin = !!selfProfile.data?.data.user_is_admin
     const [inviteOpen, setInviteOpen] = useState(false)
+    const [pauseOpen, setPauseOpen] = useState(false)
+    const { pausedUntil } = usePauseNotifications()
 
     const closeDrawer = () => setOpenState(false)
 
@@ -273,6 +278,15 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         onClick={() => handleNavigate("/app/profile")}
                     />
 
+                    <DrawerItem
+                        icon={BellOff}
+                        label={pauseMenuLabel(pausedUntil)}
+                        onClick={() => {
+                            setPauseOpen(true)
+                            closeDrawer()
+                        }}
+                    />
+
                     <DrawerSwitchRow
                         icon={isDark ? Moon : Sun}
                         label="Dark mode"
@@ -292,6 +306,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
             </DrawerContent>
         </Drawer>
         <MemberInviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+        <PauseNotificationsDialog open={pauseOpen} onOpenChange={setPauseOpen} />
         </>
     )
 }

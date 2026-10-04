@@ -161,8 +161,8 @@ export function NotificationPreferencesCard() {
           <CardTitle className="text-xl font-bold tracking-tight">Email notifications</CardTitle>
         </div>
         <CardDescription className="text-sm text-muted-foreground">
-          Pick which OneCamp activity should reach your inbox. Realtime in-app and push
-          notifications stay on regardless of these settings.
+          Pick which OneCamp activity should reach your inbox. Quiet hours below hold push
+          notifications too; the rest of these switches are for email only.
         </CardDescription>
       </CardHeader>
 
@@ -270,10 +270,10 @@ export function NotificationPreferencesCard() {
             <Moon className="h-4 w-4" /> Quiet hours
           </h3>
           <ToggleRow
-            label="Defer non-urgent emails during my quiet window"
-            description="Emails are held until quiet hours end, in your timezone."
+            label="Hold notifications during my quiet hours"
+            description="Push notifications and emails wait until quiet hours end, in your time zone. To go quiet right now, use Pause notifications in your profile menu."
             checked={working.quiet_hours_enabled}
-            disabled={masterOff || isLoading}
+            disabled={isLoading}
             onChange={(v) => setField("quiet_hours_enabled", v)}
           />
           {working.quiet_hours_enabled && (
@@ -285,7 +285,6 @@ export function NotificationPreferencesCard() {
                   type="time"
                   value={working.quiet_hours_start || ""}
                   onChange={(e) => setField("quiet_hours_start", e.target.value)}
-                  disabled={masterOff}
                 />
               </div>
               <div className="space-y-1">
@@ -295,7 +294,6 @@ export function NotificationPreferencesCard() {
                   type="time"
                   value={working.quiet_hours_end || ""}
                   onChange={(e) => setField("quiet_hours_end", e.target.value)}
-                  disabled={masterOff}
                 />
               </div>
               <div className="space-y-1">
@@ -305,7 +303,6 @@ export function NotificationPreferencesCard() {
                   placeholder={detectBrowserTZ()}
                   value={working.quiet_hours_tz || ""}
                   onChange={(e) => setField("quiet_hours_tz", e.target.value)}
-                  disabled={masterOff}
                 />
               </div>
             </div>

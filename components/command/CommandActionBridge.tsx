@@ -24,27 +24,11 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { USER_STATUS_ONLINE, USER_STATUS_OFFLINE } from "@/types/user"
 import type { RootState } from "@/store/store"
 import type { ChannelAndUserListInterfaceResp, UserProfileInterface } from "@/types/user"
+import { rememberPause } from "@/lib/notifications/pause"
+import { usePauseNotifications } from "@/hooks/usePauseNotifications"
 
-// dndKey persists the Do-Not-Disturb window so in-app notifications can be
-// suppressed across reloads. Stored as the epoch ms until which DND is active
-// (or "0" for indefinite while enabled).
-const DND_UNTIL_KEY = "oc_dnd_until"
-
-/** isDndActive reports whether DND is currently suppressing notifications. */
-export function isDndActive(): boolean {
-    try {
-        const raw = localStorage.getItem(DND_UNTIL_KEY)
-        if (!raw) return false
-        const until = Number(raw)
-        if (until === 0) return true // indefinite
-        if (Number.isFinite(until) && until > Date.now()) return true
-        // Expired — clean up.
-        localStorage.removeItem(DND_UNTIL_KEY)
-        return false
-    } catch {
-        return false
-    }
-}
+/** isDndActive reports whether this device should keep pushes quiet. */
+export { isPausedHere as isDndActive } from "@/lib/notifications/pause"
 
 // Resolve a free-text name to a matching user or channel from the search API.
 // Returns the best-scored match (preferring an exact, case-insensitive name of
@@ -82,6 +66,9 @@ async function resolveTarget(
 }
 
 export default function CommandActionBridge() {
+    // Mounted once for the whole app, so this device's copy of the pause
+    // follows the server even before any menu is opened.
+    usePauseNotifications()
     const router = useRouter()
     const dispatch = useDispatch()
     const { toast } = useToast()
@@ -150,48 +137,21 @@ export default function CommandActionBridge() {
             dispatch(openUI({ key: "userStatusUpdate", data: { userUUID: "" } }))
         }
 
-        // --- DND: /dnd [duration], and "off" when duration cleared ---
-        // DND does two things: (1) immediately suppress in-app notification
-        // toasts for this client via a persisted DND-until window (read by
-        // isDndActive in the FCM handler), and (2) persist quiet-hours so email
-        // notifications respect it too. A bare "/dnd" with no duration toggles
-        // DND OFF (clears the window + quiet hours).
+        // --- DND: /dnd [duration] and /dnd off ---
+        // The server has already paused (or resumed) every notification by
+        // the time this arrives, so phones and email go quiet too. Here this
+        // device keeps its copy, the pause menus refresh, and the person hears
+        // back. Quiet hours are theirs and stay untouched.
         const onSetDnd = (e: Event) => {
             const detail = (e as CustomEvent).detail as { until?: string; display?: string }
-
-            // No "until" → turn DND OFF.
+            rememberPause(detail?.until ?? null)
+            window.dispatchEvent(new CustomEvent("dnd-changed", { detail: { enabled: !!detail?.until, until: detail?.until } }))
             if (!detail?.until) {
-                try {
-                    localStorage.removeItem(DND_UNTIL_KEY)
-                } catch { /* ignore */ }
-                window.dispatchEvent(new CustomEvent("dnd-changed", { detail: { enabled: false } }))
-                axiosInstance
-                    .post(PostEndpointUrl.UpdateNotificationPreferences, { quiet_hours_enabled: false })
-                    .catch(() => { /* best-effort */ })
-                toast({ title: "Do Not Disturb is off" })
+                toast({ title: "Notifications are back on" })
                 return
             }
-
-            const until = new Date(detail.until)
-            try {
-                localStorage.setItem(DND_UNTIL_KEY, String(until.getTime()))
-            } catch { /* ignore */ }
-
-            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-            const hhmm = (d: Date) =>
-                `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-            axiosInstance
-                .post(PostEndpointUrl.UpdateNotificationPreferences, {
-                    quiet_hours_enabled: true,
-                    quiet_hours_tz: tz,
-                    quiet_hours_start: hhmm(new Date()),
-                    quiet_hours_end: hhmm(until),
-                })
-                .catch(() => { /* best-effort: local DND already applied */ })
-
-            window.dispatchEvent(new CustomEvent("dnd-changed", { detail: { enabled: true, until: detail.until } }))
             toast({
-                title: "Do Not Disturb on",
+                title: "Notifications paused",
                 description: detail.display ? `Until ${detail.display}` : undefined,
             })
         }

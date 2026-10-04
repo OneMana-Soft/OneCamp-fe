@@ -21,6 +21,11 @@ vi.mock("@/hooks/useLogout", () => ({ useLogout: () => ({ logout: () => {} }) })
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: (p: string) => pushed.push(p) }) }))
 vi.mock("next-themes", () => ({ useTheme: () => ({ theme: "light", setTheme: () => {} }) }))
 vi.mock("@/components/invite/MemberInviteDialog", () => ({ MemberInviteDialog: () => null }))
+vi.mock("@/hooks/usePauseNotifications", () => ({ usePauseNotifications: () => ({ pausedUntil: null }) }))
+vi.mock("@/components/notifications/PauseNotificationsDialog", () => ({
+    PauseNotificationsDialog: () => null,
+    pauseMenuLabel: () => "Pause notifications…",
+}))
 
 import { UserProfileDrawer } from "@/components/drawers/userProfileDrawer"
 

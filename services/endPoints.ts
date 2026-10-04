@@ -572,6 +572,7 @@ export enum PostEndpointUrl {
 
     // Email notification preferences (per-user).
     UpdateNotificationPreferences = "/user/notificationPreferences",
+    PauseNotifications = "/user/notificationPause",
 
     // AI Second Brain
     AISummarizeChannel = "/ai/summarize/channel",

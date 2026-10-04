@@ -7,14 +7,33 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { CalendarClock } from "@/lib/icons"
-import { schedulePresets, toLocalInputValue } from "@/lib/messages/schedulePresets"
+import { schedulePresets, toLocalInputValue, type SchedulePreset } from "@/lib/messages/schedulePresets"
 
-export function SchedulePicker({ onPick, busy }: { onPick: (at: Date) => void; busy?: boolean }) {
+/** A list of moments plus any time typed in: send later, pause notifications. */
+export function SchedulePicker({
+  onPick,
+  busy,
+  presets: presetsFor = schedulePresets,
+  actionLabel = "Schedule",
+  maxMs,
+}: {
+  onPick: (at: Date) => void
+  busy?: boolean
+  presets?: (now: Date) => SchedulePreset[]
+  actionLabel?: string
+  /** How far ahead a typed time may be. */
+  maxMs?: number
+}) {
   const now = new Date()
-  const presets = schedulePresets(now)
+  const presets = presetsFor(now)
+  const inputId = React.useId()
   const [custom, setCustom] = React.useState(() => toLocalInputValue(new Date(now.getTime() + 60 * 60 * 1000)))
   const customAt = custom ? new Date(custom) : null
-  const customOk = !!customAt && !Number.isNaN(customAt.getTime()) && customAt.getTime() > Date.now() + 60_000
+  const customOk =
+    !!customAt &&
+    !Number.isNaN(customAt.getTime()) &&
+    customAt.getTime() > Date.now() + 60_000 &&
+    (maxMs === undefined || customAt.getTime() <= Date.now() + maxMs)
   return (
     <div className="grid gap-1">
       {presets.map((p) => (
@@ -29,20 +48,21 @@ export function SchedulePicker({ onPick, busy }: { onPick: (at: Date) => void; b
         </button>
       ))}
       <div className="mt-1 border-t pt-2">
-        <label className="px-1 text-xs text-muted-foreground" htmlFor="schedule-custom">
+        <label className="px-1 text-xs text-muted-foreground" htmlFor={inputId}>
           Custom time
         </label>
         <div className="mt-1 flex gap-1.5">
           <input
-            id="schedule-custom"
+            id={inputId}
             type="datetime-local"
             value={custom}
             min={toLocalInputValue(now)}
+            max={maxMs === undefined ? undefined : toLocalInputValue(new Date(now.getTime() + maxMs))}
             onChange={(e) => setCustom(e.target.value)}
             className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm"
           />
           <Button size="sm" className="h-8" disabled={!customOk || busy} onClick={() => customAt && onPick(customAt)}>
-            Schedule
+            {actionLabel}
           </Button>
         </div>
       </div>
