@@ -355,6 +355,13 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                         }
                         break
 
+                    case MqttMessageType.Scheduled_Message:
+                        // A scheduled message sent, failed or changed; every
+                        // open scheduled list refetches (the message itself
+                        // arrives through the normal post/chat events).
+                        mutate((key) => typeof key === "string" && key.startsWith(GetEndpointUrl.GetScheduledMessages))
+                        break
+
                     case MqttMessageType.Poll_Update:
                         // Someone voted, or the poll closed. Revalidate that one
                         // poll; the server answers with this reader's own choice.

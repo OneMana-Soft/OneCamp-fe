@@ -1,4 +1,6 @@
 import {useFetch} from "@/hooks/useFetch";
+import { useScheduleSend } from "@/context/ScheduleSendContext";
+import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ChannelAgents, { useChannelAgents } from "@/components/ai/ChannelAgents";
 import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
@@ -47,6 +49,7 @@ const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded:
 const EMPTY_TYPING_LIST: any[] = []
 
 export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
+    const scheduleSend = useScheduleSend()
 
     const dispatch = useDispatch()
     const postFav  = usePost()
@@ -204,6 +207,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                 </button>
             </div>
         )}
+        {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
         <MinimalTiptapTextInput
             throttleDelay={300}
             attachmentOnclick = {()=>{dispatch(openUI({ key: 'channelFileUpload' }))}}
@@ -221,6 +225,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
             editable={true}
             ButtonIcon={SendHorizontal}
             buttonOnclick={handleSend}
+                        onSchedule={scheduleSend?.schedule}
             editorClassName="focus:outline-none px-2 py-2"
             onChange={(content ) => {
                 publishTyping(content as string)

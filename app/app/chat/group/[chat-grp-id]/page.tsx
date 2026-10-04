@@ -6,6 +6,8 @@ import {useParams} from "next/navigation";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
 import {usePost} from "@/hooks/usePost";
+import {useScheduleMessage} from "@/hooks/useScheduledMessages";
+import {ScheduleSendContext} from "@/context/ScheduleSendContext";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -37,6 +39,7 @@ export default function Page() {
     const grpId = params?.['chat-grp-id'] as string
 
     const post = usePost()
+    const scheduleMessage = useScheduleMessage()
 
     const chatMessageState = useSelector((state: RootState) => state.groupChat.chatMessages[grpId] || EMPTY_CHATS);
 
@@ -51,6 +54,24 @@ export default function Page() {
 
     const latestMsg = useFetch<CreateChatMessagePaginationResRaw>( grpChatCreatedLocally.grpId && !grpChatCreatedLocally?.haveSentFirstChat ?  '' : (grpId ? GetEndpointUrl.GetGroupChatLatestMessage + '/' + grpId : ''))
 
+
+    // Send later: the same body Send would post, handed to the scheduler. A
+    // group that exists only on this screen (no message sent yet) is made by
+    // its first message, so it is sent, not scheduled.
+    const groupExists = !(grpChatCreatedLocally && grpChatCreatedLocally.grpId && !grpChatCreatedLocally.haveSentFirstChat)
+    const handleSchedule = async (latestContent: string | undefined, at: Date) => {
+        const body = removeEmptyPTags(latestContent ?? chatState.chatBody)
+        if ((body.length == 0 && !chatState.filesUploaded?.length) || !groupExists) return false
+        const replyToUuid = chatState.replyToUuid
+        const ok = await scheduleMessage("group", {
+            media_attachments: chatState.filesUploaded,
+            text_html: body,
+            grp_id: grpId,
+            ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
+        }, at)
+        if (ok) dispatch(clearGroupChatInputState({grpId}))
+        return ok
+    }
 
     const handleSend = (latestContent?: string) => {
 
@@ -164,9 +185,11 @@ export default function Page() {
     return (
         <>
 
+            <ScheduleSendContext.Provider value={groupExists ? { kind: "group", target: grpId, schedule: handleSchedule } : null}>
             {isMobile && <GrpChatIdMobile grpId={grpId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
 
             {isDesktop && <ChatGrpIdDesktop grpId={grpId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
+            </ScheduleSendContext.Provider>
         </>
     );
 }

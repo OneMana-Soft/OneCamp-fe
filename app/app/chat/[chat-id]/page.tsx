@@ -6,6 +6,8 @@ import { useParams } from "next/navigation";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user";
 import { usePost } from "@/hooks/usePost";
+import { useScheduleMessage } from "@/hooks/useScheduledMessages";
+import { ScheduleSendContext } from "@/context/ScheduleSendContext";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -40,6 +42,7 @@ export default function Page() {
   const chatId = params?.["chat-id"] as string;
 
   const post = usePost();
+  const scheduleMessage = useScheduleMessage();
   const dispatch = useDispatch();
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
@@ -98,6 +101,22 @@ export default function Page() {
       dispatch(updateChatCallStatus({grpId: dmGroupingId, callStatus: otherUserInfo.data.data.user_call_active || false}))
     }
   }, [otherUserInfo.data?.data]);
+
+  // Send later: the same body Send would post, handed to the scheduler.
+  const handleSchedule = async (latestContent: string | undefined, at: Date) => {
+    const body = removeEmptyPTags(latestContent ?? chatState.chatBody);
+    if (body.length == 0 && !chatState.filesUploaded?.length) return false;
+    if (isExternalUser(otherUserInfo.data?.data)) return false;
+    const replyToUuid = chatState.replyToUuid;
+    const ok = await scheduleMessage("dm", {
+      media_attachments: chatState.filesUploaded,
+      to_uuid: chatId,
+      text_html: body,
+      ...(replyToUuid ? { reply_to_uuid: replyToUuid } : {}),
+    }, at);
+    if (ok) dispatch(clearChatInputState({ chatUUID: chatId }));
+    return ok;
+  };
 
   const handleSend = (latestContent?: string) => {
     // Prefer the editor's latest HTML (passed in by the input wrapper after
@@ -221,9 +240,11 @@ export default function Page() {
 
   return (
     <>
+      <ScheduleSendContext.Provider value={{ kind: "dm", target: chatId, schedule: handleSchedule }}>
       {isMobile && <ChatIdMobile chatId={chatId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
 
       {isDesktop && <ChatIdDesktop chatId={chatId} handleSend={handleSend} unreadCount={unreadCountRef.current} />}
+      </ScheduleSendContext.Provider>
     </>
   );
 }

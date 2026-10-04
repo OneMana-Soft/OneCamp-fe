@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from "react";
+import { ScheduleSendButton } from "@/components/messages/scheduleSendButton";
 import {useEffect, useState, useRef} from "react";
 import { EditorContent } from "@tiptap/react";
 import { Content, Editor } from "@tiptap/react";
@@ -63,6 +64,11 @@ interface MinimalTiptapProps
    * even when their `useSelector` snapshot hasn't caught up yet.
    */
   buttonOnclick?: (latestContent?: string) => Promise<void> | void;
+  /**
+   * Send later. When given, a clock beside Send offers a time; the handler gets
+   * the freshest editor HTML (flushed like Send) and when to send it.
+   */
+  onSchedule?: (latestContent: string | undefined, at: Date) => Promise<unknown> | unknown;
   SecondaryButtonIcon?: LucideIcon
   secondaryButtonOnclick?: (latestContent?: string) => Promise<void> | void;
   fixedToolbarToBottom?: boolean;
@@ -166,6 +172,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
           PrimaryButtonIcon,
           ButtonIcon,
           buttonOnclick,
+          onSchedule,
           SecondaryButtonIcon,
           secondaryButtonOnclick,
           editable,
@@ -284,6 +291,15 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
             throttleRef.current?.cancel();
         };
       }, [buttonOnclick, flushPendingChange, trySlashCommand]);
+
+      const wrappedOnSchedule = React.useMemo(() => {
+        if (!onSchedule) return undefined;
+        return async (at: Date) => {
+            const latestHtml = flushPendingChange();
+            await onSchedule(latestHtml, at);
+            throttleRef.current?.cancel();
+        };
+      }, [onSchedule, flushPendingChange]);
 
       const wrappedSecondaryButtonOnclick = React.useMemo(() => {
         if (!secondaryButtonOnclick) return undefined;
@@ -442,6 +458,9 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
                       )}
                       {PrimaryButtonIcon && wrappedButtonOnclick && (
                           <Button aria-label={primaryButtonLabel} onClick={wrappedButtonOnclick} size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"><PrimaryButtonIcon className="h-4 w-4"/></Button>
+                      )}
+                      {ButtonIcon && wrappedButtonOnclick && wrappedOnSchedule && (
+                          <ScheduleSendButton onPick={wrappedOnSchedule} />
                       )}
                       {ButtonIcon && wrappedButtonOnclick && (
                           <Button aria-label={buttonLabel} size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90" onClick={wrappedButtonOnclick}><ButtonIcon className="h-4 w-4" /></Button>

@@ -1,5 +1,7 @@
 "use client"
 
+import { useScheduleSend } from "@/context/ScheduleSendContext";
+import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
@@ -21,6 +23,7 @@ import CommandSurface from "@/components/command/CommandSurface";
 const EMPTY_CHAT_INPUT_STATE = {};
 
 export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string)=>void}) => {
+    const scheduleSend = useScheduleSend()
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const uploadFile = useUploadFile()
     const editorRef = useRef<HTMLDivElement>(null);
@@ -65,6 +68,7 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
             />
             <div ref={contentRef}> {/* Wrap all content in a ref */}
                 <div ref={editorRef}>
+                    {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'chatFileUpload' })) }}
                         onActionFiles={async (files) => {
@@ -83,6 +87,7 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
                         placeholder={"Type a message…"}
                         editable={true}
                         buttonOnclick={handleSend}
+                        onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
                         editorClassName="focus:outline-none px-5"
                         onChange={(content ) => {
