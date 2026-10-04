@@ -32,6 +32,9 @@ export function formatSendAt(d: Date, now: Date = new Date()): string {
   const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
   const sameDay = d.toDateString() === now.toDateString()
   if (sameDay) return `today at ${time}`
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  if (d.toDateString() === tomorrow.toDateString()) return `tomorrow at ${time}`
   const days = (d.getTime() - now.getTime()) / 86_400_000
   const day = days < 6.5
     ? d.toLocaleDateString(undefined, { weekday: "short" })

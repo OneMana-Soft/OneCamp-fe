@@ -31,7 +31,8 @@ describe("schedule presets", () => {
   it("formats the time back in words and fills a datetime input", () => {
     const now = d(2026, 10, 7, 10)
     expect(formatSendAt(d(2026, 10, 7, 17), now)).toMatch(/^today at /)
-    expect(formatSendAt(d(2026, 10, 8, 9), now)).toMatch(/^Thu at /)
+    expect(formatSendAt(d(2026, 10, 8, 9), now)).toMatch(/^tomorrow at /)
+    expect(formatSendAt(d(2026, 10, 9, 9), now)).toMatch(/^Fri at /)
     expect(formatSendAt(d(2026, 10, 20, 9), now)).toMatch(/^Oct 20 at /)
     expect(toLocalInputValue(d(2026, 1, 3, 4, 5))).toBe("2026-01-03T04:05")
   })

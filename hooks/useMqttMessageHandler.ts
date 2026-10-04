@@ -360,6 +360,19 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                         // open scheduled list refetches (the message itself
                         // arrives through the normal post/chat events).
                         mutate((key) => typeof key === "string" && key.startsWith(GetEndpointUrl.GetScheduledMessages))
+                        try {
+                            // Sent: load it into the open conversation. A first
+                            // message in a new DM has no subscription to arrive on.
+                            const n = JSON.parse(messageStr)?.data
+                            if (n?.state === "sent" && typeof n.target === "string" && n.target) {
+                                const latest = n.kind === "channel" ? GetEndpointUrl.GetChannelLatestPost
+                                    : n.kind === "group" ? GetEndpointUrl.GetGroupChatLatestMessage
+                                    : GetEndpointUrl.GetChatLatestMessage
+                                mutate(`${latest}/${n.target}`)
+                            }
+                        } catch (e) {
+                            console.warn("[MQTT] Failed to parse scheduled message notice", e)
+                        }
                         break
 
                     case MqttMessageType.Poll_Update:
