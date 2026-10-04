@@ -27,6 +27,8 @@ import { PullProgress, pullModel, formatBytes } from "@/services/aiModelService"
 import { useToast } from "@/hooks/use-toast"
 
 const SUGGESTIONS = [
+  // The default a new install pulls (OLLAMA_MODEL), first so it is the obvious pick.
+  "qwen3:4b-instruct",
   "gemma4:e4b",
   "gemma3:4b",
   "qwen3:8b",
