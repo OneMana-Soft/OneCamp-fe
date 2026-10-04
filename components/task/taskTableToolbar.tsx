@@ -17,6 +17,8 @@ import { openUI } from "@/store/slice/uiSlice"
 import { useTranslation } from "react-i18next"
 import { SavedTaskViewsButton } from "@/components/task/savedTaskViews"
 import { taskViewScope, type TaskViewState } from "@/lib/tasks/views"
+import { CyclesButton } from "@/components/task/cyclesButton"
+import { cycleFilter } from "@/lib/tasks/cycles"
 
 interface DataTableToolbarProps<TData> {
     table: Table<TData>
@@ -52,6 +54,13 @@ export function TaskTableToolbar<TData>({
             // A view saved on a phone has no column choices; keep these.
             if (v.columns) table.setColumnVisibility(v.columns)
         },
+        [table],
+    )
+
+    const activeCycleId = (tableState.columnFilters.find((f) => f.id === "task_cycle")?.value as string[] | undefined)?.[0]
+    const showCycle = useCallback(
+        (id: string | null) =>
+            table.setColumnFilters((prev) => [...prev.filter((f) => f.id !== "task_cycle"), ...(id ? [cycleFilter(id)] : [])]),
         [table],
     )
 
@@ -108,6 +117,7 @@ export function TaskTableToolbar<TData>({
                 )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+                {projectId && <CyclesButton projectId={projectId} activeCycleId={activeCycleId} onShow={showCycle} />}
                 <SavedTaskViewsButton scope={taskViewScope(projectId)} current={currentView} apply={applyView} />
                 <Button
                     variant="default"

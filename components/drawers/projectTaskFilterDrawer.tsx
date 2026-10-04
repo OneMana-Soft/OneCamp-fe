@@ -3,6 +3,9 @@
 import * as React from "react"
 import { SavedTaskViewsPanel } from "@/components/task/savedTaskViews"
 import { taskViewScope } from "@/lib/tasks/views"
+import { useProjectCycles } from "@/hooks/useProjectCycles"
+import { cn } from "@/lib/utils/helpers/cn"
+import { cycleDates, cycleFilter, cycleLabel } from "@/lib/tasks/cycles"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -57,6 +60,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     const [activeTab, setActiveTab] = React.useState("sort")
     const projectInfo = useFetch<ProjectInfoRawInterface>(projectId ? GetEndpointUrl.GetProjectMemberInfo + '/' + projectId : '')
     const { options: statusOpts } = useProjectStatuses(projectId)
+    const { cycles } = useProjectCycles(drawerOpenState ? projectId : undefined)
     const dispatch = useDispatch()
     const taskFiltersAndSorts = useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId])
 
@@ -101,6 +105,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
 
     const filterCategories = [
         { id: "views", label: "Views" },
+        { id: "cycle", label: "Cycle" },
         { id: "sort", label: "Sort" },
         { id: "priority", label: "Priority" },
         { id: "status", label: "Status" },
@@ -124,6 +129,8 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
             ...(data.priority?.length ? [{ id: "task_priority", value: data.priority }] : []),
             ...(data.status?.length ? [{ id: "task_status", value: data.status }] : []),
             ...(data.assignee?.length ? [{ id: "task_assignee_name", value: data.assignee }] : []),
+            // The cycle is picked in its own tab; keep it.
+            ...(taskFiltersAndSorts?.filters ?? []).filter((f) => f.id === "task_cycle"),
         ]
 
 
@@ -148,6 +155,28 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     }
 
     const renderTabContent = () => {
+        if (activeTab === "cycle") {
+            const current = (taskFiltersAndSorts?.filters ?? []).find((f) => f.id === "task_cycle")?.value?.[0]
+            const pick = (id: string | null) => {
+                const rest = (taskFiltersAndSorts?.filters ?? []).filter((f) => f.id !== "task_cycle")
+                dispatch(updateProjectSortingAndFiltering({ projectId, sort: taskFiltersAndSorts?.sort ?? [], filters: id ? [...rest, cycleFilter(id) as filterInterface] : rest }))
+                setOpenState(false)
+            }
+            return (
+                <div className="grid gap-1">
+                    <button type="button" onClick={() => pick(null)} className={cn("rounded-md px-3 py-2.5 text-left text-sm", !current && "bg-secondary")}>
+                        All tasks
+                    </button>
+                    {cycles.length === 0 && <p className="px-3 py-2 text-sm text-muted-foreground">This project has no cycles yet.</p>}
+                    {[...cycles].sort((a, b) => b.number - a.number).map((c) => (
+                        <button key={c.id} type="button" onClick={() => pick(c.id)} className={cn("rounded-md px-3 py-2.5 text-left text-sm", current === c.id && "bg-secondary")}>
+                            <span className="block font-medium">{cycleLabel(c)}</span>
+                            <span className="block text-xs text-muted-foreground">{cycleDates(c)} · {c.progress?.done ?? 0} of {c.progress?.total ?? 0} done</span>
+                        </button>
+                    ))}
+                </div>
+            )
+        }
         if (activeTab === "views") {
             return (
                 <SavedTaskViewsPanel

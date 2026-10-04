@@ -213,7 +213,8 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
         pageCount,
         state: {
             sorting,
-            columnVisibility,
+            // task_cycle only carries the cycle filter to the server.
+            columnVisibility: { ...columnVisibility, task_cycle: false },
             rowSelection,
             columnFilters,
             globalFilter,

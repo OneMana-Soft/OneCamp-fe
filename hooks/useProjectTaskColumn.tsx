@@ -243,6 +243,17 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[]) => {
                 return value.includes(row.getValue(id));
             },
         },
+        // Never shown: carries the cycle filter (see business/Cycle), which the
+        // server applies, so every row it returns passes here.
+        {
+            id: "task_cycle",
+            accessorFn: () => "",
+            header: () => null,
+            cell: () => null,
+            enableHiding: false,
+            enableSorting: false,
+            filterFn: () => true,
+        },
         // Uncomment if needed
         // {
         //   id: "actions",

@@ -95,6 +95,9 @@ export enum GetEndpointUrl {
     projectListByAdminUID = "/project/projectListByAdminUID",
     GetTaskInfo = "/task/info",
     GetTaskRecurrence = "/task/recurrence",
+    // A project's cycles: /project/{id}/cycles (+ /{cycle}/complete, /rename, /delete)
+    ProjectCycles = "/project",
+    GetTaskCycle = "/task/cycle",
     GetTaskViews = "/task/views",
     GetBookingPages = "/event/bookingPages",
     GetUserProjectList = "/user/userProjectList",
@@ -449,6 +452,7 @@ export enum PostEndpointUrl {
     UpdateTaskStartDate = "/task/updateTaskStartDate",
     UpdateTaskDueDate = "/task/updateTaskDueDate",
     SetTaskRecurrence = "/task/recurrence",
+    SetTaskCycle = "/task/cycle",
     SaveTaskView = "/task/views",
     FindTime = "/event/findTime",
     SaveBookingPage = "/event/bookingPages",
