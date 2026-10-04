@@ -1,5 +1,5 @@
 import { Cross2Icon } from "@radix-ui/react-icons"
-import { Table } from "@tanstack/react-table"
+import { Table, type ColumnFiltersState, type SortingState } from "@tanstack/react-table"
 import { useCallback } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,8 @@ import { TaskTableFacetedAssigneeFilter } from "@/components/task/taskTableFacet
 import { TaskTableFacetedPriorityFilter } from "@/components/task/taskTableFacetedPriorityFilter"
 import { openUI } from "@/store/slice/uiSlice"
 import { useTranslation } from "react-i18next"
+import { SavedTaskViewsButton } from "@/components/task/savedTaskViews"
+import { taskViewScope, type TaskViewState } from "@/lib/tasks/views"
 
 interface DataTableToolbarProps<TData> {
     table: Table<TData>
@@ -33,6 +35,22 @@ export function TaskTableToolbar<TData>({
     const handleInputChange = useCallback(
         (event: React.ChangeEvent<HTMLInputElement>) => {
             table.setGlobalFilter(event.target.value)
+        },
+        [table],
+    )
+
+    const tableState = table.getState()
+    const currentView: TaskViewState = {
+        filters: tableState.columnFilters,
+        sort: tableState.sorting,
+        columns: tableState.columnVisibility,
+    }
+    const applyView = useCallback(
+        (v: TaskViewState) => {
+            table.setColumnFilters((v.filters ?? []) as ColumnFiltersState)
+            table.setSorting((v.sort ?? []) as SortingState)
+            // A view saved on a phone has no column choices; keep these.
+            if (v.columns) table.setColumnVisibility(v.columns)
         },
         [table],
     )
@@ -90,6 +108,7 @@ export function TaskTableToolbar<TData>({
                 )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+                <SavedTaskViewsButton scope={taskViewScope(projectId)} current={currentView} apply={applyView} />
                 <Button
                     variant="default"
                     size="sm"
