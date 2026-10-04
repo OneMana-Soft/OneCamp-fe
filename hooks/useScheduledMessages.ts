@@ -19,14 +19,19 @@ export interface ScheduledMessage {
   last_error?: string
 }
 
-export const scheduledListUrl = (target?: string) =>
-  target ? `${GetEndpointUrl.GetScheduledMessages}?target=${encodeURIComponent(target)}` : GetEndpointUrl.GetScheduledMessages
+// One list for the whole app (a person has at most 50 queued), cached once and
+// filtered per conversation here, so opening a conversation costs no request.
+export const scheduledListUrl = GetEndpointUrl.GetScheduledMessages
 
 const refreshAll = () => mutate((key) => typeof key === "string" && key.startsWith(GetEndpointUrl.GetScheduledMessages))
 
 /** One conversation's scheduled messages, and what can be done with them. */
 export function useScheduledMessages(target?: string) {
-  const list = useFetch<{ data: ScheduledMessage[] }>(scheduledListUrl(target))
+  const list = useFetch<{ data: ScheduledMessage[] }>(scheduledListUrl)
+  const items = React.useMemo(
+    () => (list.data?.data ?? []).filter((m) => !target || m.target === target),
+    [list.data, target],
+  )
   const post = usePost()
   const { toast } = useToast()
 
@@ -41,7 +46,7 @@ export function useScheduledMessages(target?: string) {
   )
 
   return {
-    items: list.data?.data ?? [],
+    items,
     isLoading: list.isLoading,
     cancel: (id: string) => act(PostEndpointUrl.CancelScheduledMessage, { id }, "Scheduled message deleted"),
     sendNow: (id: string) => act(PostEndpointUrl.SendScheduledMessageNow, { id }, "Sent"),

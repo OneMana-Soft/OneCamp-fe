@@ -21,6 +21,10 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
 import {openUI} from "@/store/slice/uiSlice";
 import {useLogout} from "@/hooks/useLogout";
+import {useState} from "react";
+import {BellOff} from "@/lib/icons";
+import {usePauseNotifications} from "@/hooks/usePauseNotifications";
+import {PauseNotificationsDialog, pauseMenuLabel} from "@/components/notifications/PauseNotificationsDialog";
 
 export default function DesktopNavigationUserProfile() {
 
@@ -28,9 +32,12 @@ export default function DesktopNavigationUserProfile() {
     const dispatch = useDispatch();
     const { logout } = useLogout();
     const { theme, setTheme } = useTheme();
+    const { pausedUntil } = usePauseNotifications();
+    const [pauseOpen, setPauseOpen] = useState(false);
 
 
     return (
+        <>
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full">
@@ -40,6 +47,15 @@ export default function DesktopNavigationUserProfile() {
                         toolTipString={"Profile and settings"}
                         userUUID={selfProfile.data?.data.user_uuid}
                     />
+                    {pausedUntil && (
+                        <span
+                            className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border bg-background text-muted-foreground"
+                            title={pauseMenuLabel(pausedUntil)}
+                        >
+                            <BellOff className="h-2.5 w-2.5" aria-hidden />
+                            <span className="sr-only">{pauseMenuLabel(pausedUntil)}</span>
+                        </span>
+                    )}
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -57,6 +73,10 @@ export default function DesktopNavigationUserProfile() {
                         onClick={()=>{dispatch(openUI({ key: 'userStatusUpdate', data: { userUUID: '' } }))}}
                     >
                         Set a status…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setPauseOpen(true)}>
+                        <BellOff className="mr-2 h-4 w-4" aria-hidden />
+                        {pauseMenuLabel(pausedUntil)}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         onClick={()=>{dispatch(openUI({ key: 'selfUserProfile' }))}}
@@ -80,6 +100,8 @@ export default function DesktopNavigationUserProfile() {
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
+        <PauseNotificationsDialog open={pauseOpen} onOpenChange={setPauseOpen} />
+        </>
     )
 }
 

@@ -218,6 +218,12 @@ function NotesToTasksDialog({
             </li>
           ))}
         </ul>
+        {!projects.isLoading && (projects.data?.data ?? []).length === 0 ? (
+          <p className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+            Tasks are made in projects you manage, and you don&apos;t manage one yet. Create a project, or ask a
+            project&apos;s admin to make you one of its admins.
+          </p>
+        ) : (
         <Select value={project} onValueChange={setProject}>
           <SelectTrigger aria-label="Project">
             <SelectValue placeholder={projects.isLoading ? "Loading projects…" : "Choose a project"} />
@@ -230,6 +236,7 @@ function NotesToTasksDialog({
             ))}
           </SelectContent>
         </Select>
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel

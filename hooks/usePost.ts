@@ -32,6 +32,7 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH"
 
 
 const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error: string }>> = {
+    [PostEndpointUrl.PauseNotifications]: { success: "Notifications updated.", error: "Couldn't change your notifications" },
     // Teams
     [PostEndpointUrl.CreateTeam]: {
         success: "Team created successfully.",
