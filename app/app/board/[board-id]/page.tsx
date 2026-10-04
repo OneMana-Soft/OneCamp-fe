@@ -30,6 +30,7 @@ import { app_board_path } from "@/types/paths";
 import { useTheme } from "next-themes";
 import BoardCanvas from "@/components/board/boardCanvas";
 import BoardComments from "@/components/board/boardComments";
+import BoardTools from "@/components/board/boardTools";
 import { LinkedFromSection } from "@/components/entityLink/LinkedFromSection";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
@@ -315,6 +316,9 @@ export default function BoardPage() {
         )}
 
         {/* AI generation (edit access only) */}
+
+        {/* Templates, and sticky notes into tasks (edit access only) */}
+        <BoardTools api={excalApi} editable={hasEditAccess} />
 
         {/* Pinned comments (everyone with access sees them; editors can add) */}
         {provider && excalApi && (
