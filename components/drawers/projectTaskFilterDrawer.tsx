@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { SavedTaskViewsPanel } from "@/components/task/savedTaskViews"
+import { taskViewScope } from "@/lib/tasks/views"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -23,7 +25,7 @@ import {useFetch} from "@/hooks/useFetch";
 import {ProjectInfoRawInterface} from "@/types/project";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
-import {updateProjectSortingAndFiltering} from "@/store/slice/taskFilterSlice";
+import {updateProjectSortingAndFiltering, type filterInterface, type sortInterface} from "@/store/slice/taskFilterSlice";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
 import {useEffect} from "react";
 import type { RootState } from "@/store/store"
@@ -98,6 +100,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     },[projectId])
 
     const filterCategories = [
+        { id: "views", label: "Views" },
         { id: "sort", label: "Sort" },
         { id: "priority", label: "Priority" },
         { id: "status", label: "Status" },
@@ -145,6 +148,19 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
     }
 
     const renderTabContent = () => {
+        if (activeTab === "views") {
+            return (
+                <SavedTaskViewsPanel
+                    scope={taskViewScope(projectId)}
+                    withColumns={false}
+                    current={{ filters: taskFiltersAndSorts?.filters ?? [], sort: taskFiltersAndSorts?.sort ?? [] }}
+                    apply={(v) => {
+                        dispatch(updateProjectSortingAndFiltering({ projectId, filters: v.filters as filterInterface[], sort: v.sort as sortInterface[] }))
+                        setOpenState(false)
+                    }}
+                />
+            )
+        }
         if (activeTab === "sort") {
             // Helper to stringify the sort object for RadioGroup value
             const currentSortValue = JSON.stringify(watch("sort"))

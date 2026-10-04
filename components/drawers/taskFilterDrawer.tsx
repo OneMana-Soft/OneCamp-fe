@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import { SavedTaskViewsPanel } from "@/components/task/savedTaskViews"
+import { taskViewScope } from "@/lib/tasks/views"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -22,7 +24,7 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
-import {updateMyTaskSortingAndFiltering} from "@/store/slice/taskFilterSlice";
+import {updateMyTaskSortingAndFiltering, type filterInterface, type sortInterface} from "@/store/slice/taskFilterSlice";
 import {useDispatch, useSelector} from "react-redux";
 import type { RootState } from "@/store/store"
 
@@ -90,6 +92,7 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
     })
 
     const filterCategories = [
+        { id: "views", label: "Views" },
         { id: "sort", label: "Sort" },
         { id: "priority", label: "Priority" },
         { id: "status", label: "Status" },
@@ -136,6 +139,19 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
     }
 
     const renderTabContent = () => {
+        if (activeTab === "views") {
+            return (
+                <SavedTaskViewsPanel
+                    scope={taskViewScope()}
+                    withColumns={false}
+                    current={{ filters: taskFiltersAndSorts?.filters ?? [], sort: taskFiltersAndSorts?.sort ?? [] }}
+                    apply={(v) => {
+                        dispatch(updateMyTaskSortingAndFiltering({ filters: v.filters as filterInterface[], sort: v.sort as sortInterface[] }))
+                        setOpenState(false)
+                    }}
+                />
+            )
+        }
         if (activeTab === "sort") {
             // Helper to stringify the sort object for RadioGroup value
             const currentSortValue = JSON.stringify(watch("sort"))
