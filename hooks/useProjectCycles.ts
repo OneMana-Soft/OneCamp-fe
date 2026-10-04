@@ -6,7 +6,6 @@
 
 import { useCallback } from "react"
 import { useSWRConfig } from "swr"
-import type { AxiosError } from "axios"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -15,8 +14,6 @@ import type { Cycle } from "@/lib/tasks/cycles"
 
 const url = (projectId: string) => `${GetEndpointUrl.ProjectCycles}/${projectId}/cycles`
 
-export const cycleError = (e: unknown) =>
-  ((e as AxiosError<{ msg?: string }>)?.response?.data?.msg as string | undefined) || "Something went wrong. Try again."
 
 export function useProjectCycles(projectId: string | undefined) {
   const key = projectId ? url(projectId) : ""

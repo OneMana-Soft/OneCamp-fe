@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Check, Loader2, Plus, RefreshCw, Trash2, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
-import { cycleError, useProjectCycles } from "@/hooks/useProjectCycles"
+import { useProjectCycles } from "@/hooks/useProjectCycles"
+import { serverMessage } from "@/lib/http/serverMessage"
 import { cycleDates, cycleLabel, nextStart, percentDone, type Cycle } from "@/lib/tasks/cycles"
 
 const STATE_LABEL: Record<string, string> = { current: "Current", upcoming: "Upcoming", ended: "Ended", completed: "Completed" }
@@ -103,7 +104,7 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow }: { projectId: st
     try {
       await fn()
     } catch (e) {
-      toast({ title: "Couldn't do that", description: cycleError(e), variant: "destructive" })
+      toast({ title: "Couldn't do that", description: serverMessage(e), variant: "destructive" })
     } finally {
       setBusy(false)
     }
@@ -190,7 +191,7 @@ function NewCycle({ projectId, cycles, onDone }: { projectId: string; cycles: Cy
       toast({ title: `${cycleLabel(c)} ready`, description: cycleDates(c) })
       onDone()
     } catch (err) {
-      toast({ title: "Couldn't make the cycle", description: cycleError(err), variant: "destructive" })
+      toast({ title: "Couldn't make the cycle", description: serverMessage(err), variant: "destructive" })
     } finally {
       setBusy(false)
     }
