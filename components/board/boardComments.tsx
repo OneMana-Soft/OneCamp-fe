@@ -9,11 +9,13 @@
 // a pin at a scene coordinate with a small message thread + a resolved flag.
 //
 // Pins are an HTML overlay positioned from Excalidraw's scene<->viewport
-// transforms, kept in sync with pan/zoom via a lightweight rAF loop.
+// transforms, kept in sync with pan/zoom by useBoardView.
 // ---------------------------------------------------------------------------
 
 import * as React from "react"
 import type { HocuspocusProvider } from "@hocuspocus/provider"
+import { useBoardView } from "@/hooks/useBoardView"
+import { clientToScene, sceneToLocal } from "@/lib/board/viewport"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -42,19 +44,6 @@ interface BoardComment {
   authorId: string
   authorName: string
   messages: ThreadMessage[]
-}
-
-interface ViewState {
-  scrollX: number
-  scrollY: number
-  zoom: { value: number }
-  offsetLeft: number
-  offsetTop: number
-}
-
-interface CoordFns {
-  sceneToViewport: (p: { sceneX: number; sceneY: number }, v: ViewState) => { x: number; y: number }
-  viewportToScene: (p: { clientX: number; clientY: number }, v: ViewState) => { x: number; y: number }
 }
 
 const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
@@ -125,25 +114,8 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
 
   const [comments, setComments] = React.useState<BoardComment[]>([])
   const [openId, setOpenId] = React.useState<string | null>(null)
-  const [view, setView] = React.useState<ViewState | null>(null)
-  const coordFnsRef = React.useRef<CoordFns | null>(null)
+  const view = useBoardView(api)
   const overlayRef = React.useRef<HTMLDivElement | null>(null)
-
-  // Load Excalidraw's coordinate helpers once (client-only, package already
-  // loaded by the canvas).
-  React.useEffect(() => {
-    let cancelled = false
-    import("@excalidraw/excalidraw").then((mod) => {
-      if (cancelled) return
-      coordFnsRef.current = {
-        sceneToViewport: (p, v) => mod.sceneCoordsToViewportCoords(p, v as never),
-        viewportToScene: (p, v) => mod.viewportCoordsToSceneCoords(p, v as never),
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   // Subscribe to the shared comments map.
   React.useEffect(() => {
@@ -156,31 +128,6 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
     yComments.observe(sync)
     return () => yComments.unobserve(sync)
   }, [yComments])
-
-  // Track pan/zoom so pins stay anchored. rAF diffing avoids re-rendering when
-  // the view hasn't moved.
-  React.useEffect(() => {
-    if (!api) return
-    let raf = 0
-    let prev = ""
-    const tick = () => {
-      const s = api.getAppState() as unknown as ViewState
-      const key = `${s.scrollX},${s.scrollY},${s.zoom.value},${s.offsetLeft},${s.offsetTop}`
-      if (key !== prev) {
-        prev = key
-        setView({
-          scrollX: s.scrollX,
-          scrollY: s.scrollY,
-          zoom: { value: s.zoom.value },
-          offsetLeft: s.offsetLeft,
-          offsetTop: s.offsetTop,
-        })
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [api])
 
   // ---- Yjs mutations (editors only) -------------------------------------
   const writeComment = React.useCallback(
@@ -268,8 +215,8 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
 
   // ---- Placing a new comment --------------------------------------------
   const handleOverlayClick = (e: React.MouseEvent) => {
-    if (!commentMode || !coordFnsRef.current || !view) return
-    const scene = coordFnsRef.current.viewportToScene({ clientX: e.clientX, clientY: e.clientY }, view)
+    if (!commentMode || !view) return
+    const scene = clientToScene(view, e.clientX, e.clientY)
     onCommentModeChange(false)
     // Open a draft pin composer at this location.
     setDraft({ x: scene.x, y: scene.y })
@@ -294,9 +241,8 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
   // Compute a pin's position within the overlay container.
   const pinPos = React.useCallback(
     (sceneX: number, sceneY: number): { left: number; top: number } | null => {
-      if (!coordFnsRef.current || !view) return null
-      const vp = coordFnsRef.current.sceneToViewport({ sceneX, sceneY }, view)
-      return { left: vp.x - view.offsetLeft, top: vp.y - view.offsetTop }
+      if (!view) return null
+      return sceneToLocal(view, sceneX, sceneY)
     },
     [view],
   )

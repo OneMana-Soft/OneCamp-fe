@@ -31,6 +31,7 @@ import { useTheme } from "next-themes";
 import BoardCanvas from "@/components/board/boardCanvas";
 import BoardAIPanel from "@/components/board/boardAIPanel";
 import BoardTools from "@/components/board/boardTools";
+import BoardFacilitation from "@/components/board/boardFacilitation"
 import BoardComments from "@/components/board/boardComments";
 import { LinkedFromSection } from "@/components/entityLink/LinkedFromSection";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
@@ -321,6 +322,19 @@ export default function BoardPage() {
 
         {/* Templates, and sticky notes into tasks (edit access only) */}
         <BoardTools api={excalApi} editable={hasEditAccess} />
+
+        {/* Timer, dot voting and follow-the-presenter */}
+        {provider && excalApi && userProfile.data?.data && (
+          <BoardFacilitation
+            provider={provider}
+            api={excalApi}
+            editable={hasEditAccess}
+            user={{
+              id: userProfile.data.data.user_uuid,
+              name: userProfile.data.data.user_full_name || userProfile.data.data.user_name || "Someone",
+            }}
+          />
+        )}
 
         {/* Pinned comments (everyone with access sees them; editors can add) */}
         {provider && excalApi && (
