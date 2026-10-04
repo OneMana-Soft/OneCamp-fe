@@ -38,6 +38,8 @@ describe("PlanLockedNotice", () => {
     expect(screen.getByRole("note")).toHaveTextContent("SCIM provisioning needs a OneCamp licence.")
     expect(screen.getByRole("note")).toHaveTextContent("single sign-on, LDAP, SCIM and audit export")
     expect(screen.getByRole("link", { name: "See the licence" })).toHaveAttribute("href", "https://licence.example/buy")
+    // What to do after paying, or an admin pays and sees nothing change.
+    expect(screen.getByRole("note")).toHaveTextContent("re-run your install command")
   })
 })
 

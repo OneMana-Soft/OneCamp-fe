@@ -2,6 +2,7 @@
 
 import { Lock } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { UPGRADE_STEPS } from "@/lib/plan/upgradeSteps"
 
 /**
  * Where a company control would be, on the free plan: what it is, why it is not
@@ -36,6 +37,7 @@ export function PlanLockedNotice({
             </a>
           </>
         )}
+        <span className="mt-1 block text-xs">{UPGRADE_STEPS}</span>
       </p>
     </div>
   )
