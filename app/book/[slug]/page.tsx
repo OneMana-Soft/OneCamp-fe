@@ -131,7 +131,7 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
               )}
             </div>
           ) : (
-            <div className="grid gap-5">
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
               <div>
                 <h2 className="mb-2 text-sm font-medium">Pick a day</h2>
                 <div className="flex gap-2 overflow-x-auto pb-1" role="listbox" aria-label="Days with free times">
