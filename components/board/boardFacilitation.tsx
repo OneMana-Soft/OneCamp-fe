@@ -389,7 +389,10 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
             <Popover>
               <PopoverTrigger asChild>
                 <Button size="sm" variant="secondary" className="h-7">
-                  Results{results.length > 0 && `: “${notes.find((n) => n.id === results[0].id)?.text ?? ""}” leads`}
+                  Results
+                  {results.length > 1 && results[0].count === results[1].count
+                    ? ": a tie at the top"
+                    : results.length > 0 && `: “${notes.find((n) => n.id === results[0].id)?.text ?? ""}” leads`}
                 </Button>
               </PopoverTrigger>
               <PopoverContent side={isMobile ? "bottom" : "top"} className="w-72 p-2">
