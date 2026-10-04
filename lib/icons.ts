@@ -47,6 +47,7 @@ export {
   ArrowUpRight,
   ArrowRightToLine,
   Kanban,
+  Repeat,
 } from "lucide-react";
 
 // ─── Actions ────────────────────────────────────────────────
