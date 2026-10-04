@@ -55,6 +55,7 @@ const SCOPE_LABELS: Record<string, string> = {
   "tables:read": "Read tables",
   "tables:write": "Write table rows",
   "data_sources:read": "Read connected data sources",
+  "attention:read": "See what is waiting for you (unread, approvals)",
   "search:read": "Search workspace & apps",
 }
 
