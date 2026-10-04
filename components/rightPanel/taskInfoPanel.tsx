@@ -57,6 +57,7 @@ import {TaskCommentComposer} from "@/components/task/taskCommentComposer"
 import ResizeableTextInput from "@/components/resizeableTextInput/resizeableTextInput"
 import {DateField} from "@/components/task/taskDateField"
 import {TaskRepeatField} from "@/components/task/taskRepeatField"
+import {TaskCycleField} from "@/components/task/taskCycleField"
 import {useDebounce} from "@/hooks/useDebounce"
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice"
 import {TaskStatusPriorityControl} from "@/components/task/taskStatusPriorityControl"
@@ -1046,6 +1047,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         isAdmin={isAdmin}
                         isSubtask={!!taskInfo.data?.data.task_parent_task?.task_uuid}
                         dueDate={dueDate}
+                    />
+                    <TaskCycleField
+                        taskUUID={taskUUID}
+                        projectId={taskInfo.data?.data.task_project?.project_uuid}
+                        isAdmin={isAdmin}
                     />
 
                     <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-2">
