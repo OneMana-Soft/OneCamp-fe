@@ -19,10 +19,16 @@ export function MediaQueryProvider({ children }: { children: React.ReactNode }) 
 
     useLayoutEffect(() => {
         const updateSize = () => {
+            const w = window.innerWidth;
             setScreenSize({
-                isMobile: window.innerWidth < 640, // Tailwind's `sm`
-                isTablet: window.innerWidth >= 640 && window.innerWidth < 1024, // `md`
-                isDesktop: window.innerWidth >= 1024, // `lg`
+                isMobile: w < 640, // Tailwind's `sm`
+                isTablet: w >= 640 && w < 1024, // `md`
+                // Desktop means "not mobile", the same rule LayoutContent uses
+                // to pick the desktop shell. Pages render `isMobile && …` or
+                // `isDesktop && …`; when desktop began at 1024, every page drew
+                // nothing between 640 and 1023: tablets, and any half-screen
+                // window on a 1920 display (a tiled window on Omarchy).
+                isDesktop: w >= 640,
             });
         };
 
