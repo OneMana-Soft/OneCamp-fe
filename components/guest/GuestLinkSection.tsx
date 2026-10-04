@@ -18,10 +18,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Copy, Check, ExternalLink, Link2, Globe } from "@/lib/icons"
-import { createGuestLink, guestResourceLink } from "@/services/guestService"
+import { createGuestLink, guestResourceLink, type GuestCapability, type GuestResourceType } from "@/services/guestService"
 
 interface GuestLinkSectionProps {
-  resourceType: "doc" | "board" | "table"
+  resourceType: GuestResourceType
   resourceId: string
   canShare: boolean
 }
@@ -42,7 +42,7 @@ const EXPIRY_OPTIONS = [
 export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLinkSectionProps) {
   const { toast } = useToast()
   const [ttlHours, setTtlHours] = React.useState(EXPIRY_OPTIONS[1].hours) // 14 days
-  const [capability, setCapability] = React.useState<"view" | "comment">("view")
+  const [capability, setCapability] = React.useState<GuestCapability>(resourceType === "channel" ? "post" : "view")
   const [creating, setCreating] = React.useState(false)
   const [link, setLink] = React.useState("")
   const [copied, setCopied] = React.useState(false)
@@ -50,10 +50,11 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
 
   if (!canShare) return null
 
-  // Comment access is only meaningful for docs (the one resource with a
-  // structured comment thread); boards/tables are view-only externally.
-  const supportsComment = resourceType === "doc"
-  const noun = resourceType === "board" ? "board" : resourceType === "table" ? "table" : "document"
+  // A doc can take comments and a channel can take messages; boards and
+  // tables are view-only externally.
+  const writeCapability: GuestCapability | null = resourceType === "doc" ? "comment" : resourceType === "channel" ? "post" : null
+  const supportsComment = writeCapability !== null
+  const noun = resourceType === "board" ? "board" : resourceType === "table" ? "table" : resourceType === "channel" ? "channel" : "document"
 
   const handleCreate = async () => {
     setCreating(true)
@@ -108,9 +109,11 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
             <Globe className="h-5 w-5" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-medium">Create an external link</span>
+            <span className="text-sm font-medium">{resourceType === "channel" ? "Invite a guest" : "Create an external link"}</span>
             <span className="text-xs text-muted-foreground">
-              Anyone with the link can view this {noun}, read only. No account needed.
+              {resourceType === "channel"
+                ? "Invite someone from another company to this channel. They read and reply from the link, with no account, and see nothing else of the workspace."
+                : `Anyone with the link can view this ${noun}, read only. No account needed.`}
             </span>
           </div>
         </button>
@@ -136,13 +139,13 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
           {supportsComment && (
             <div className="flex-1 space-y-1.5">
               <Label className="text-2xs text-muted-foreground">Permission</Label>
-              <Select value={capability} onValueChange={(v) => setCapability(v as "view" | "comment")}>
+              <Select value={capability} onValueChange={(v) => setCapability(v as GuestCapability)}>
                 <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="view">Can view</SelectItem>
-                  <SelectItem value="comment">Can comment</SelectItem>
+                  <SelectItem value="view">{resourceType === "channel" ? "Can read" : "Can view"}</SelectItem>
+                  <SelectItem value={writeCapability ?? "comment"}>{resourceType === "channel" ? "Can read and post" : "Can comment"}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

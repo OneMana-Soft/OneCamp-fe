@@ -1,5 +1,6 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { publicCall } from "@/services/publicApi"
 
 // --- Member: start an instant meeting (authed) ---
 
@@ -95,10 +96,10 @@ interface GuestLinkResponse {
 }
 
 export async function createGuestLink(
-    resourceType: "doc" | "board" | "table",
+    resourceType: GuestResourceType,
     resourceId: string,
     ttlHours?: number,
-    capability: "view" | "comment" = "view",
+    capability: GuestCapability = "view",
     neverExpires = false,
 ): Promise<GuestLinkResponse> {
     const res = await axiosInstance.post(PostEndpointUrl.CreateGuestLink, {
@@ -111,10 +112,14 @@ export async function createGuestLink(
     return (res.data as { data: GuestLinkResponse }).data
 }
 
+export type GuestResourceType = "doc" | "board" | "table" | "channel"
+/** comment is doc-only; post is channel-only (the server coerces anything else to view). */
+export type GuestCapability = "view" | "comment" | "post"
+
 /** Build the public share URL for a raw guest token + resource type. */
-export function guestResourceLink(resourceType: "doc" | "board" | "table", rawToken: string): string {
+export function guestResourceLink(resourceType: GuestResourceType, rawToken: string): string {
     if (typeof window === "undefined") return ""
-    const seg = resourceType === "board" ? "b" : resourceType === "table" ? "t" : "d"
+    const seg = resourceType === "board" ? "b" : resourceType === "table" ? "t" : resourceType === "channel" ? "c" : "d"
     return `${window.location.origin}/guest/${seg}/${rawToken}`
 }
 
@@ -243,3 +248,31 @@ export async function listGuestGrants(): Promise<GuestGrant[]> {
 export async function revokeGuestGrant(id: string): Promise<void> {
     await axiosInstance.post(`${GetEndpointUrl.GetGuestGrants}/${id}/revoke`)
 }
+
+// --- Public (no auth): a channel shared with a guest. ---
+
+export interface GuestChannelMessage {
+    id: string
+    author: string
+    text: string
+    created_at: string
+    reply_count: number
+}
+
+export interface GuestChannelPage {
+    channel: string
+    can_post: boolean
+    messages: GuestChannelMessage[]
+    has_more: boolean
+}
+
+export const getGuestChannel = (token: string, before?: string) =>
+    publicCall<GuestChannelPage>(`/guest/channel/${encodeURIComponent(token)}${before ? `?before=${encodeURIComponent(before)}` : ""}`)
+
+export const getGuestThread = (token: string, postId: string) =>
+    publicCall<{ message: GuestChannelMessage; replies: GuestChannelMessage[] }>(
+        `/guest/channel/${encodeURIComponent(token)}/thread/${encodeURIComponent(postId)}`,
+    )
+
+export const postGuestMessage = (token: string, body: { display_name: string; text: string; reply_to?: string }) =>
+    publicCall<unknown>(`/guest/channel/${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify(body) })

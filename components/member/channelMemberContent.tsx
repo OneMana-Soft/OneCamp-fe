@@ -1,6 +1,7 @@
 "use client"
 import MembersList from "@/components/member/membersList";
 import {useFetch} from "@/hooks/useFetch";
+import { GuestLinkSection } from "@/components/guest/GuestLinkSection";
 import {ChannelInfoInterfaceResp, ChannelMemberUpdateInterface} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
@@ -178,6 +179,11 @@ const ChannelMemberContent: React.FC<memberContentProp> = ({channelId}) => {
                 </div>
             )}
             <div className="flex-1 min-h-0 flex flex-col">
+                {channelInfo.data?.channel_info.ch_is_admin && (
+                    <div className="mb-4 flex-shrink-0">
+                        <GuestLinkSection resourceType="channel" resourceId={channelId} canShare />
+                    </div>
+                )}
                 <MembersList
                     isAdmin={channelInfo.data?.channel_info.ch_is_admin || false}
                     usersList={channelInfo.data?.channel_info.ch_members || []}
