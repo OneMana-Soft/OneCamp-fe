@@ -9,6 +9,7 @@ import { use, useCallback, useEffect, useState } from "react"
 import { ArrowLeft, Calendar, FolderKanban, Loader2, MessageSquare, User } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import {
+  reviewGuestTask,
   commentOnGuestTask,
   getGuestProject,
   getGuestProjectTask,
@@ -18,6 +19,8 @@ import {
 } from "@/services/guestService"
 import { GUEST_POLL_MS, GuestComposer, GuestLinkGone, GuestLoading, GuestMessageView, GuestNameForm, useGuestName } from "@/components/guest/guestUi"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
+import { ReviewBadge } from "@/components/guest/ReviewBadge"
+import { Textarea } from "@/components/ui/textarea"
 
 // A board changes slower than a conversation.
 const BOARD_POLL_MS = GUEST_POLL_MS * 3
@@ -114,6 +117,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
                           </span>
                         )}
                       </div>
+                      {t.review && <div className="mt-2"><ReviewBadge review={t.review} /></div>}
                     </button>
                   ))}
                 </section>
@@ -182,6 +186,20 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
               </dl>
             </div>
             {task.description && <p className="whitespace-pre-wrap break-words text-sm">{task.description}</p>}
+            {task.review && <ReviewBadge review={task.review} withNote />}
+            {task.can_comment && (
+              <ReviewControls
+                name={name}
+                onReview={async (decision, note) => {
+                  const res = await reviewGuestTask(token, taskId, { display_name: name, decision, note })
+                  if (res.ok) {
+                    void load()
+                    onCommented()
+                  }
+                  return res.ok ? null : res.msg
+                }}
+              />
+            )}
             {task.can_comment && (
               <section aria-label="Comments" className="grid gap-3">
                 <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Comments</h3>
@@ -214,5 +232,44 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
         )
       )}
     </aside>
+  )
+}
+
+/** Approve a task, or ask for changes with a note. Needs the guest's name first. */
+function ReviewControls({ name, onReview }: { name: string; onReview: (decision: "approved" | "changes", note: string) => Promise<string | null> }) {
+  const [asking, setAsking] = useState(false)
+  const [note, setNote] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  const send = async (decision: "approved" | "changes") => {
+    setBusy(true)
+    setError("")
+    const err = await onReview(decision, decision === "changes" ? note : "")
+    setBusy(false)
+    if (err) setError(err)
+    else {
+      setAsking(false)
+      setNote("")
+    }
+  }
+  if (!name) return <p className="text-xs text-muted-foreground">Enter your name below to approve this or ask for changes.</p>
+  return (
+    <section aria-label="Your verdict" className="grid gap-2 rounded-md border p-3">
+      {!asking ? (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => send("approved")} disabled={busy}>Approve</Button>
+          <Button size="sm" variant="outline" onClick={() => setAsking(true)} disabled={busy}>Request changes</Button>
+        </div>
+      ) : (
+        <div className="grid gap-2">
+          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What should change?" aria-label="What should change?" rows={3} maxLength={2000} autoFocus />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => send("changes")} disabled={busy || !note.trim()}>Send</Button>
+            <Button size="sm" variant="ghost" onClick={() => setAsking(false)} disabled={busy}>Cancel</Button>
+          </div>
+        </div>
+      )}
+      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+    </section>
   )
 }

@@ -108,6 +108,8 @@ export enum GetEndpointUrl {
     // /task/time/running, /task/time/entry/{id}/update|delete; a project's report
     // is /project/{id}/time.
     TaskTime = "/task/time",
+    // A client's newest verdict on a task: /task/clientReview/{task}
+    TaskClientReview = "/task/clientReview",
     ProjectTime = "/project",
     GetTaskViews = "/task/views",
     GetBookingPages = "/event/bookingPages",

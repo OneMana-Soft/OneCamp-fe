@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
 import { serverMessage } from "@/lib/http/serverMessage"
-import { Download, Loader2 } from "@/lib/icons"
+import { Download, FileText, Loader2 } from "@/lib/icons"
 import { REPORT_PRESETS, formatDuration, formatHours, presetRange, type ReportPreset, type TimeLine, type TimeReport } from "@/lib/tasks/time"
 import { GetEndpointUrl } from "@/services/endPoints"
 
@@ -64,10 +64,18 @@ export function ProjectTimeDialog({ projectId, projectName, open, onOpenChange }
               {REPORT_PRESETS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={download} disabled={downloading || !report || report.entries === 0}>
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Download CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm" className={`h-9 gap-1.5 ${!report || report.billable_seconds === 0 ? "pointer-events-none opacity-50" : ""}`}>
+              <a href={`/invoice/${projectId}?${query}`} target="_blank" rel="noopener" aria-disabled={!report || report.billable_seconds === 0}>
+                <FileText className="h-4 w-4" />
+                Make an invoice
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={download} disabled={downloading || !report || report.entries === 0}>
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Download CSV
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
