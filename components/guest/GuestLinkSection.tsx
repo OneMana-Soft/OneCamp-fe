@@ -2,8 +2,8 @@
 
 /**
  * GuestLinkSection — an inline "Share to web" panel for the share dialog. Mints
- * a scoped, expiring, READ-ONLY external link for a doc or board so people
- * without a OneCamp account can view the live resource. The raw token is shown
+ * a scoped external link to a doc, board, table, channel or project so people
+ * without a OneCamp account can reach that one resource. The raw token is shown
  * ONCE; revoke any time from admin settings. Requires workspace guest access on
  * + edit access (enforced server-side; a 403 surfaces as a friendly message).
  *
@@ -39,6 +39,29 @@ const EXPIRY_OPTIONS = [
   { label: "Does not expire", hours: NEVER },
 ]
 
+// What each kind of shared resource is called and what its guest may do. A
+// resource with a write capability offers it as the second permission.
+const RESOURCE: Record<GuestResourceType, {
+  noun: string
+  write: GuestCapability | null
+  viewLabel: string
+  writeLabel?: string
+  title: string
+  blurb: string
+}> = {
+  doc: { noun: "document", write: "comment", viewLabel: "Can view", writeLabel: "Can comment", title: "Create an external link", blurb: "Anyone with the link can view this document, read only. No account needed." },
+  board: { noun: "board", write: null, viewLabel: "Can view", title: "Create an external link", blurb: "Anyone with the link can view this board, read only. No account needed." },
+  table: { noun: "table", write: null, viewLabel: "Can view", title: "Create an external link", blurb: "Anyone with the link can view this table, read only. No account needed." },
+  channel: {
+    noun: "channel", write: "post", viewLabel: "Can read", writeLabel: "Can read and post", title: "Invite a guest",
+    blurb: "Invite someone from another company to this channel. They read and reply from the link, with no account, and see nothing else of the workspace.",
+  },
+  project: {
+    noun: "project", write: "comment", viewLabel: "Can see tasks", writeLabel: "Can see and comment", title: "Share with a client",
+    blurb: "A client follows this project's tasks from a link: names, status, dates, assignees and descriptions. With comments on, they also read and write each task's comments. No account needed.",
+  },
+}
+
 export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLinkSectionProps) {
   const { toast } = useToast()
   const [ttlHours, setTtlHours] = React.useState(EXPIRY_OPTIONS[1].hours) // 14 days
@@ -50,11 +73,10 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
 
   if (!canShare) return null
 
-  // A doc can take comments and a channel can take messages; boards and
-  // tables are view-only externally.
-  const writeCapability: GuestCapability | null = resourceType === "doc" ? "comment" : resourceType === "channel" ? "post" : null
+  const kind = RESOURCE[resourceType]
+  const writeCapability = kind.write
   const supportsComment = writeCapability !== null
-  const noun = resourceType === "board" ? "board" : resourceType === "table" ? "table" : resourceType === "channel" ? "channel" : "document"
+  const noun = kind.noun
 
   const handleCreate = async () => {
     setCreating(true)
@@ -72,10 +94,11 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
       const status = e?.response?.status
       toast({
         title: "Couldn't create link",
+        // The server says which it was: guest access off, or not allowed to
+        // share this resource.
         description:
-          status === 403
-            ? `Guest access is off for this workspace, or you need edit access to share this ${noun}.`
-            : e?.response?.data?.msg || "Please try again.",
+          e?.response?.data?.msg ||
+          (status === 403 ? `Guest access is off for this workspace, or you can't share this ${noun}.` : "Please try again."),
         variant: "destructive",
       })
     } finally {
@@ -109,12 +132,8 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
             <Globe className="h-5 w-5" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-medium">{resourceType === "channel" ? "Invite a guest" : "Create an external link"}</span>
-            <span className="text-xs text-muted-foreground">
-              {resourceType === "channel"
-                ? "Invite someone from another company to this channel. They read and reply from the link, with no account, and see nothing else of the workspace."
-                : `Anyone with the link can view this ${noun}, read only. No account needed.`}
-            </span>
+            <span className="text-sm font-medium">{kind.title}</span>
+            <span className="text-xs text-muted-foreground">{kind.blurb}</span>
           </div>
         </button>
       )}
@@ -144,8 +163,8 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="view">{resourceType === "channel" ? "Can read" : "Can view"}</SelectItem>
-                  <SelectItem value={writeCapability ?? "comment"}>{resourceType === "channel" ? "Can read and post" : "Can comment"}</SelectItem>
+                  <SelectItem value="view">{kind.viewLabel}</SelectItem>
+                  {writeCapability && <SelectItem value={writeCapability}>{kind.writeLabel}</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

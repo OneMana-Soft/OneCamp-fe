@@ -5,8 +5,10 @@ import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {ProjectInfoRawInterface, ProjectNotificationInterface} from "@/types/project"
 import { Button } from "@/components/ui/button"
-import { ClipboardList, List, Paperclip, Pencil, Users } from "@/lib/icons";
+import { ClipboardList, Clock, Globe, List, Paperclip, Pencil, Users } from "@/lib/icons";
 import { ProjectFormsDialog } from "@/components/project/ProjectFormsDialog";
+import { ProjectShareDialog } from "@/components/project/ProjectShareDialog";
+import { ProjectTimeDialog } from "@/components/project/ProjectTimeDialog";
 import { Kanban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectTaskTable } from "@/components/project/projectTaskTable"
@@ -32,6 +34,8 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     const projectInfo = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectInfo + "/" + projectId)
     const [projectNotification, setProjectNotificationType] = useState<string>(NotificationType.NotificationAll)
     const [formsOpen, setFormsOpen] = useState(false)
+    const [shareOpen, setShareOpen] = useState(false)
+    const [timeOpen, setTimeOpen] = useState(false)
 
     const dispatch = useDispatch()
     const postNotification  = usePost()
@@ -87,6 +91,16 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             asks only for membership. It used to show to admins only,
                             so a member could not quiet a busy project. */}
                         <NotificationBell notificationType={projectNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-9 w-9"
+                            aria-label="Time logged on this project"
+                            title="Time"
+                            onClick={() => setTimeOpen(true)}
+                        >
+                            <Clock className="h-4 w-4" />
+                        </Button>
                         {isAdmin && (<>
                         <Button
                             size="icon"
@@ -113,6 +127,16 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             size="icon"
                             variant="ghost"
                             className="h-9 w-9"
+                            aria-label="Share with a client"
+                            title="Share with a client"
+                            onClick={() => setShareOpen(true)}
+                        >
+                            <Globe className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-9 w-9"
                             aria-label="Manage project members"
                             onClick={() => {
                                 dispatch(openUI({ key: 'editProjectMember', data: { projectUUID: projectId || "" } }))
@@ -127,6 +151,8 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                 <ProjectGlanceLine projectId={projectId} />
             </PageHeader>
             {isAdmin && projectId && <ProjectFormsDialog projectId={projectId} open={formsOpen} onOpenChange={setFormsOpen} />}
+            {isAdmin && projectId && <ProjectShareDialog projectId={projectId} open={shareOpen} onOpenChange={setShareOpen} />}
+            {(isMember || isAdmin) && projectId && <ProjectTimeDialog projectId={projectId} projectName={projectInfo.data?.data.project_name} open={timeOpen} onOpenChange={setTimeOpen} />}
 
             {/* Content */}
             <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">

@@ -16,6 +16,7 @@ import { EmailOffBanner } from "@/components/banner/EmailOffBanner";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
+import { RunningTimerChip } from "@/components/time/RunningTimerChip";
 
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
       <MobileNavigationBar disableBottomPadding={isTaskPage}>
         <EmailOffBanner isAdmin={isAdmin} />
         {children}
+        <RunningTimerChip className="bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2" />
       </MobileNavigationBar>
     );
   }
@@ -64,6 +66,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <DesktopNavigationBar>
       <EmailOffBanner isAdmin={isAdmin} />
+      <RunningTimerChip className="bottom-4 right-4" />
       <ResizablePanelGroup
         direction="horizontal"
         onLayout={(sizes) => {

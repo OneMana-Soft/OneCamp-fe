@@ -100,6 +100,11 @@ export enum GetEndpointUrl {
     // A project's intake forms: /project/{id}/forms (+ /{form}/delete)
     ProjectForms = "/project",
     GetTaskCycle = "/task/cycle",
+    // Time on tasks: /task/time/{task} (GET, POST to add, /start), /task/time/stop,
+    // /task/time/running, /task/time/entry/{id}/update|delete; a project's report
+    // is /project/{id}/time.
+    TaskTime = "/task/time",
+    ProjectTime = "/project",
     GetTaskViews = "/task/views",
     GetBookingPages = "/event/bookingPages",
     GetUserProjectList = "/user/userProjectList",

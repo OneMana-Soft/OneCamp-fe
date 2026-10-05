@@ -6,20 +6,19 @@
 // polling, since a guest has no session for the live connection.
 
 import { use, useCallback, useEffect, useRef, useState } from "react"
-import { AlertCircle, ArrowLeft, Hash, Loader2, MessageSquare, Send } from "@/lib/icons"
+import { ArrowLeft, Hash, Loader2, MessageSquare } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { getGuestChannel, getGuestThread, postGuestMessage, type GuestChannelMessage } from "@/services/guestService"
-
-const POLL_MS = 5000
-
-const when = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })
-
-function nameKey(token: string) {
-  return `oc_guest_name_${token.slice(0, 12)}`
-}
+import {
+  GUEST_POLL_MS as POLL_MS,
+  GuestComposer as Composer,
+  GuestLinkGone,
+  GuestLoading,
+  GuestMessageView as MessageView,
+  GuestNameForm,
+  useGuestName,
+} from "@/components/guest/guestUi"
+import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 export default function GuestChannelPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -29,21 +28,12 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
   const [messages, setMessages] = useState<GuestChannelMessage[]>([]) // oldest first
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [name, setName] = useState("")
-  const [nameDraft, setNameDraft] = useState("")
+  const [name, setName] = useGuestName(token)
   const [thread, setThread] = useState<string | null>(null)
   const bottom = useRef<HTMLDivElement>(null)
   // Whether there are older messages is known from the first page and from
   // loading older ones, never from polls of the newest page.
   const firstLoad = useRef(true)
-
-  useEffect(() => {
-    try {
-      setName(localStorage.getItem(nameKey(token)) ?? "")
-    } catch {
-      /* storage blocked: they type it again */
-    }
-  }, [token])
 
   // The newest page, merged into what's shown: new messages appear, reply
   // counts update, and older pages already loaded stay.
@@ -88,28 +78,8 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
     setHasMore(res.data.has_more)
   }
 
-  if (state === "loading") return <Centered><Loader2 className="h-7 w-7 animate-spin text-primary" /></Centered>
-  if (state === "missing") {
-    return (
-      <Centered>
-        <AlertCircle className="h-8 w-8 text-muted-foreground" />
-        <p className="text-base font-semibold">This link is no longer available</p>
-        <p className="max-w-sm text-sm text-muted-foreground">It may have expired or been turned off. Ask the person who invited you for a new one.</p>
-      </Centered>
-    )
-  }
-
-  const saveName = (e: React.FormEvent) => {
-    e.preventDefault()
-    const n = nameDraft.trim()
-    if (!n) return
-    setName(n)
-    try {
-      localStorage.setItem(nameKey(token), n)
-    } catch {
-      /* fine: kept for this visit */
-    }
-  }
+  if (state === "loading") return <GuestLoading />
+  if (state === "missing") return <GuestLinkGone />
 
   return (
     <main className="flex h-dvh flex-col bg-background">
@@ -117,6 +87,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
         <Hash className="h-4 w-4 text-muted-foreground" aria-hidden />
         <h1 className="truncate font-semibold">{channel}</h1>
         <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">You&apos;re a guest</span>
+        <MadeWithOneCamp surface="guest-channel" className="hidden sm:block" />
       </header>
       <div className="flex min-h-0 flex-1">
         <section className={`flex min-w-0 flex-1 flex-col ${thread ? "hidden sm:flex" : ""}`}>
@@ -152,13 +123,10 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
                   return res.ok ? null : res.msg
                 }}
                 name={name}
-                onRename={() => { setNameDraft(name); setName("") }}
+                onRename={() => setName("")}
               />
             ) : (
-              <form onSubmit={saveName} className="flex gap-2 border-t p-3">
-                <Input value={nameDraft} onChange={(e) => setNameDraft(e.target.value)} placeholder="Your name, as the team will see it" aria-label="Your name" maxLength={60} autoFocus />
-                <Button type="submit" disabled={!nameDraft.trim()}>Continue</Button>
-              </form>
+              <GuestNameForm onName={setName} />
             )
           )}
         </section>
@@ -167,64 +135,6 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
         )}
       </div>
     </main>
-  )
-}
-
-function MessageView({ m }: { m: GuestChannelMessage }) {
-  return (
-    <article>
-      <p className="flex items-baseline gap-2 text-sm">
-        <span className="font-semibold">{m.author}</span>
-        <time className="text-xs text-muted-foreground" dateTime={m.created_at}>{when(m.created_at)}</time>
-      </p>
-      <p className="whitespace-pre-wrap break-words text-sm">{m.text}</p>
-    </article>
-  )
-}
-
-function Composer({ placeholder, onSend, name, onRename }: { placeholder: string; onSend: (text: string) => Promise<string | null>; name?: string; onRename?: () => void }) {
-  const [text, setText] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const send = async () => {
-    if (!text.trim() || busy) return
-    setBusy(true)
-    setError("")
-    const err = await onSend(text)
-    setBusy(false)
-    if (err) setError(err)
-    else setText("")
-  }
-  return (
-    <div className="border-t p-3">
-      <div className="flex items-end gap-2">
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault()
-              void send()
-            }
-          }}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          rows={1}
-          maxLength={4000}
-          className="max-h-40 min-h-10 resize-none"
-        />
-        <Button size="icon" onClick={send} disabled={busy || !text.trim()} aria-label="Send">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        </Button>
-      </div>
-      {error && <p role="alert" className="mt-1 text-xs text-destructive">{error}</p>}
-      {name && onRename && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          Posting as {name} (guest).{" "}
-          <button type="button" className="underline" onClick={onRename}>Change</button>
-        </p>
-      )}
-    </div>
   )
 }
 
@@ -279,8 +189,4 @@ function Thread({ token, postId, canPost, name, onClose, onReplied }: { token: s
       )}
     </aside>
   )
-}
-
-function Centered({ children }: { children: React.ReactNode }) {
-  return <main className="flex min-h-screen w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">{children}</main>
 }

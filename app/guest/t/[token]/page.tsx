@@ -5,6 +5,7 @@ import { getGuestTable } from "@/services/guestService";
 import { GuestTableViewer } from "@/components/guest/GuestTableViewer";
 import { TableField, TableRow, DataTable } from "@/services/tableService";
 import { Loader2, AlertCircle, Table as TableIcon, Eye } from "@/lib/icons";
+import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 type Phase = "validating" | "viewing" | "unavailable";
 
@@ -68,9 +69,12 @@ export default function GuestTablePage({ params }: { params: Promise<{ token: st
                     </span>
                     {bundle.table?.name || "Shared table"}
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
-                    <Eye className="h-3 w-3" /> Read only
-                </span>
+                <div className="flex items-center gap-3">
+                    <MadeWithOneCamp surface="guest-table" className="hidden sm:block" />
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
+                        <Eye className="h-3 w-3" /> Read only
+                    </span>
+                </div>
             </header>
             <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
                 <GuestTableViewer fields={bundle.fields} rows={bundle.rows} />

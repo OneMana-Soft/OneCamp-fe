@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import { getGuestCollabSession } from "@/services/guestService";
 import { GuestBoardViewer } from "@/components/guest/GuestBoardViewer";
 import { Loader2, AlertCircle, Network, Eye } from "@/lib/icons";
+import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 type Phase = "validating" | "viewing" | "unavailable";
 
@@ -68,9 +69,12 @@ export default function GuestBoardPage({ params }: { params: Promise<{ token: st
                     </span>
                     Shared board
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
-                    <Eye className="h-3 w-3" /> Read only
-                </span>
+                <div className="flex items-center gap-3">
+                    <MadeWithOneCamp surface="guest-board" className="hidden sm:block" />
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
+                        <Eye className="h-3 w-3" /> Read only
+                    </span>
+                </div>
             </header>
             <main className="relative min-h-0 flex-1">
                 <GuestBoardViewer

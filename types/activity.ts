@@ -9,6 +9,8 @@ export interface UnifiedActivityItem {
     mention?: MentionInfoInterface;
     comment?: CommentInfoInterface;
     reaction?: ReactionActivity;
+    /** Who did it; see lib/activity/actor.ts. Absent from an older server. */
+    actor_kind?: "person" | "agent" | "app";
 }
 
 export interface MentionActivityPagination {

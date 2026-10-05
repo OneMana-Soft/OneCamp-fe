@@ -12,6 +12,10 @@ import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { Button } from "@/components/ui/button"
 import { Bell, CheckCircle2 } from "@/lib/icons"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useAIAvailable } from "@/hooks/useClientConfig"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { actorFilters, matchesActor, parseActorFilter, type ActorFilter } from "@/lib/activity/actor"
 
 export const ActivityAllListResult = ({
     priorityOnly = false,
@@ -33,6 +37,22 @@ export const ActivityAllListResult = ({
     // whole feed. Beyond this we show the calm "all caught up" state.
     const [autoPages, setAutoPages] = useState(0)
     const maxPriorityAutoPages = 5
+
+    // People, agents or apps: kept in the URL so a reload or a shared link
+    // shows the same slice of the feed.
+    const searchParams = useSearchParams()
+    const router = useRouter()
+    const pathname = usePathname()
+    const aiAvailable = useAIAvailable()
+    const who: ActorFilter = parseActorFilter(searchParams.get("who"))
+    const setWho = (next: ActorFilter) => {
+        const params = new URLSearchParams(searchParams.toString())
+        if (next === "everyone") params.delete("who")
+        else params.set("who", next)
+        setAutoPages(0)
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    }
+    const filtering = priorityOnly || who !== "everyone"
 
     const endpoint = `${GetEndpointUrl.GetUnifiedActivity}?limit=${pageSize}${
         cursor ? `&beforeTime=${encodeURIComponent(cursor)}` : ""
@@ -67,8 +87,8 @@ export const ActivityAllListResult = ({
     // each item, so this is an instant, spinner-free filter over what we've
     // already loaded — no separate request.
     const visibleActivities = useMemo(
-        () => (priorityOnly ? allActivities.filter((a) => a.priority === "high") : allActivities),
-        [allActivities, priorityOnly],
+        () => allActivities.filter((a) => (!priorityOnly || a.priority === "high") && matchesActor(a, who)),
+        [allActivities, priorityOnly, who],
     )
 
     const renderItem = (activity: UnifiedActivityItem) => (
@@ -91,7 +111,7 @@ export const ActivityAllListResult = ({
     // cap so a user with no high-priority items doesn't page the whole feed.
     useEffect(() => {
         if (
-            priorityOnly &&
+            filtering &&
             !isLoading &&
             hasMore &&
             visibleActivities.length === 0 &&
@@ -102,7 +122,7 @@ export const ActivityAllListResult = ({
             onLoadMore()
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [priorityOnly, isLoading, hasMore, visibleActivities.length, allActivities.length, autoPages])
+    }, [filtering, isLoading, hasMore, visibleActivities.length, allActivities.length, autoPages])
 
     if (isLoading && allActivities.length === 0) {
         return (
@@ -115,7 +135,7 @@ export const ActivityAllListResult = ({
     // While the Priority view is still auto-pulling deeper pages looking for
     // the first high-priority item (within the page cap), show the skeleton
     // rather than a premature "all caught up".
-    if (priorityOnly && visibleActivities.length === 0 && hasMore && autoPages < maxPriorityAutoPages) {
+    if (filtering && visibleActivities.length === 0 && hasMore && autoPages < maxPriorityAutoPages) {
         return (
             <PageContainer>
                 <ListSkeleton rows={6} />
@@ -133,6 +153,38 @@ export const ActivityAllListResult = ({
             </PageContainer>
         )
     }
+    const whoFilter = (
+        <ToggleGroup
+            type="single"
+            value={who}
+            onValueChange={(v) => v && setWho(v as ActorFilter)}
+            aria-label="Show activity from"
+            className="justify-start px-1 pb-2"
+        >
+            {actorFilters(aiAvailable).map((f) => (
+                <ToggleGroupItem key={f.value} value={f.value} size="sm" className="h-7 rounded-full px-3 text-xs">
+                    {f.label}
+                </ToggleGroupItem>
+            ))}
+        </ToggleGroup>
+    )
+
+    if (!isLoading && visibleActivities.length === 0 && who !== "everyone") {
+        return (
+            <PageContainer className="flex flex-col py-2">
+                {whoFilter}
+                <div className="flex flex-1 items-center justify-center">
+                    <EmptyState
+                        icon={Bell}
+                        title={`Nothing from ${actorFilters(aiAvailable).find((f) => f.value === who)?.label.toLowerCase()} lately`}
+                        description="Only your recent activity is searched."
+                        action={<Button variant="outline" size="sm" onClick={() => setWho("everyone")}>Show everyone</Button>}
+                    />
+                </div>
+            </PageContainer>
+        )
+    }
+
     if (!isLoading && visibleActivities.length === 0) {
         return (
             <PageContainer className="flex items-center justify-center">
@@ -158,6 +210,7 @@ export const ActivityAllListResult = ({
 
     return (
         <PageContainer className="overflow-y-auto py-2">
+            {whoFilter}
             <VirtualInfiniteScroll
                 items={visibleActivities}
                 renderItem={renderItem}

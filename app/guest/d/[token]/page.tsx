@@ -5,6 +5,7 @@ import { getGuestCollabSession } from "@/services/guestService";
 import { GuestDocViewer } from "@/components/guest/GuestDocViewer";
 import { GuestDocComments } from "@/components/guest/GuestDocComments";
 import { Loader2, AlertCircle, FileText, Eye, MessageSquare } from "@/lib/icons";
+import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 type Phase = "validating" | "viewing" | "unavailable";
 
@@ -74,17 +75,20 @@ export default function GuestDocPage({ params }: { params: Promise<{ token: stri
                     </span>
                     Shared document
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
-                    {canComment ? (
-                        <>
-                            <MessageSquare className="h-3 w-3" /> Can comment
-                        </>
-                    ) : (
-                        <>
-                            <Eye className="h-3 w-3" /> Read only
-                        </>
-                    )}
-                </span>
+                <div className="flex items-center gap-3">
+                    <MadeWithOneCamp surface="guest-doc" className="hidden sm:block" />
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
+                        {canComment ? (
+                            <>
+                                <MessageSquare className="h-3 w-3" /> Can comment
+                            </>
+                        ) : (
+                            <>
+                                <Eye className="h-3 w-3" /> Read only
+                            </>
+                        )}
+                    </span>
+                </div>
             </header>
             <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
                 <GuestDocViewer documentName={documentName} tokenFetcher={tokenFetcher} />
