@@ -28,7 +28,8 @@ interface RootUIState {
   createProject: SingleUIState;
   createTeam: SingleUIState;
   // Set when the task is being made from a message; null for a blank task.
-  createTask: SingleUIState<{ draft: TaskDraft; source: TaskSource } | null>;
+  // From a message (draft + source), or from My Tasks (assignToMe).
+  createTask: SingleUIState<{ draft?: TaskDraft; source?: TaskSource; assignToMe?: boolean } | null>;
   createDoc: SingleUIState;
   editChannel: SingleUIState;
   editChannelMember: SingleUIState;

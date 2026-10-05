@@ -6,7 +6,8 @@ import { useUploadFile } from "@/hooks/useUploadFile";
 import { useDispatch, useSelector } from "react-redux";
 import { usePost } from "@/hooks/usePost";
 import { RootState } from "@/store/store";
-import { useFetch } from "@/hooks/useFetch";
+import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
+import type { UserProfileInterface } from "@/types/user";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,6 +50,8 @@ type TaskCreateFormProps = {
   onCreated?: (task: { taskUUID: string; name: string }) => void;
   /** Shown under the name, e.g. a suggested name; `use` puts one in the field. */
   renderNameHint?: (current: string, use: (name: string) => void) => React.ReactNode;
+  /** Assign the task to the person making it, once a project they're in is picked. */
+  assignToMe?: boolean;
 };
 
 /**
@@ -140,7 +143,7 @@ const DateField: React.FC<DateFieldProps> = ({ field, placeholder, drawerTitle }
   );
 };
 
-const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create task", onSuccess, prefill, onCreated, renderNameHint }) => {
+const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create task", onSuccess, prefill, onCreated, renderNameHint, assignToMe }) => {
   const [popOpenProjectName, setPopOpenProjectName] = useState(false);
   const [popOpenUserName, setPopOpenUserName] = useState(false);
   const [popOpenPriority, setPopOpenPriority] = useState(false);
@@ -181,6 +184,18 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
 
   const taskProjectUUID = watch("task_project_uuid");
   const taskAssigneeUUID = watch("task_assignee_uuid");
+
+  // From My Tasks a task is yours, or it would vanish from the list you made
+  // it in. Applied once a project you belong to is picked; you can change it.
+  const self = useFetchOnlyOnce<UserProfileInterface>(assignToMe ? GetEndpointUrl.SelfProfile : "");
+  const selfUUID = self.data?.data?.user_uuid;
+  useEffect(() => {
+    if (!assignToMe || !selfUUID || taskAssigneeUUID || !taskProjectUUID) return;
+    const project = projectsInfo.data?.data.find((p) => p.project_uuid === taskProjectUUID);
+    if (project?.project_members?.some((m) => m.user_uuid === selfUUID)) {
+      setValue("task_assignee_uuid", selfUUID, { shouldValidate: true });
+    }
+  }, [assignToMe, selfUUID, taskAssigneeUUID, taskProjectUUID, projectsInfo.data, setValue]);
 
   // With one project there is nothing to choose.
   const projectChoices = projectsInfo.data?.data

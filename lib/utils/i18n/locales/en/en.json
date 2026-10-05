@@ -150,10 +150,10 @@
   "taskPriority": "Task priority",
   "changePriority": "Change priority…",
   "backlog": "Backlog",
-  "todo": "Todo",
-  "inProgress": "In Progress",
+  "todo": "To do",
+  "inProgress": "In progress",
   "done": "Done",
-  "canceled": "Canceled",
+  "canceled": "Cancelled",
   "low": "Low",
   "medium": "Medium",
   "high": "High",
@@ -217,5 +217,5 @@
   "subTaskUnDelete": "Undeleted sub task",
   "onlineLabel": "Online",
   "of": "of",
-  "inReview": "In Review"
+  "inReview": "In review"
 }
