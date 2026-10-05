@@ -419,9 +419,9 @@ export function MobileSelfProfile() {
                                 </div>
                             </div>
 
-                            <ChangePasswordSection />
-
-                            <div className="mt-4">
+                            <div className="mt-4 space-y-4">
+                                <Eyebrow as="h3">Security</Eyebrow>
+                                <ChangePasswordSection />
                                 <TwoFactorSection />
                                 <PasskeySection />
                             </div>
