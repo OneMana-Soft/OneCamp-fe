@@ -1,3 +1,4 @@
+import { PERMISSIONS_POLICY } from "./lib/security/permissionsPolicy";
 import type { NextConfig } from "next";
 import { cspFromEnv, reportingEndpointsFromEnv } from "./lib/security/csp";
 import { imageRemotePatterns, mediaOriginWarning } from "./lib/security/mediaOrigin";
@@ -47,30 +48,11 @@ const securityHeaders = [
     {
         key: "Permissions-Policy",
         // Disable browser features OneCamp doesn't use. camera +
-        // microphone + display-capture stay open for LiveKit.
-        value: [
-            "accelerometer=()",
-            "ambient-light-sensor=()",
-            "autoplay=(self)",
-            "battery=()",
-            "camera=(self)",
-            "display-capture=(self)",
-            "document-domain=()",
-            "encrypted-media=()",
-            "fullscreen=(self)",
-            "geolocation=()",
-            "gyroscope=()",
-            "magnetometer=()",
-            "microphone=(self)",
-            "midi=()",
-            "payment=()",
-            "picture-in-picture=(self)",
-            "publickey-credentials-get=()",
-            "screen-wake-lock=()",
-            "sync-xhr=()",
-            "usb=()",
-            "xr-spatial-tracking=()",
-        ].join(", "),
+        // microphone + display-capture stay open for LiveKit, and the two
+        // publickey-credentials features for passkeys: with get=() the
+        // browser refused every passkey sign-in before showing anything.
+        // lib/security/permissionsPolicy.test.ts keeps them open.
+        value: PERMISSIONS_POLICY,
     },
     {
         key: "Cross-Origin-Opener-Policy",

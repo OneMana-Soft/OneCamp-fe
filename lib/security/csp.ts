@@ -37,6 +37,8 @@ interface CspOrigins {
     livekitUrl?: string
     mqttHost?: string
     appUrl?: string
+    /** Optional endpoints the app posts to (demo funnel, newsletter), if set. */
+    extraConnect?: (string | undefined)[]
 }
 
 /**
@@ -98,6 +100,22 @@ const FIREBASE_CONNECT = [
     "https://firebase.googleapis.com",
 ]
 
+// Images other services serve straight to the browser: GIFs from the /giphy
+// command, and the avatars Google and GitHub sign-ins bring with them. Each
+// was reported as blocked by this policy before it was listed.
+const THIRD_PARTY_IMAGES = [
+    // Giphy's image hosts, by name: the policy allows no wildcards.
+    "https://media.giphy.com",
+    "https://media0.giphy.com",
+    "https://media1.giphy.com",
+    "https://media2.giphy.com",
+    "https://media3.giphy.com",
+    "https://media4.giphy.com",
+    "https://i.giphy.com",
+    "https://avatars.githubusercontent.com",
+    "https://lh3.googleusercontent.com",
+]
+
 /**
  * buildCsp returns the policy string for the configured origins.
  *
@@ -128,12 +146,12 @@ export function buildCsp(origins: CspOrigins): string {
 
         // data: for inline avatars and icons, blob: for locally generated
         // previews and pasted images before they are uploaded.
-        "img-src": ["'self'", "data:", "blob:", ...services],
+        "img-src": ["'self'", "data:", "blob:", ...services, ...THIRD_PARTY_IMAGES],
         "media-src": ["'self'", "blob:", ...services],
 
         // The API, the collaboration websocket, LiveKit signalling, the MQTT
         // broker and push registration.
-        "connect-src": ["'self'", "blob:", ...services, ...FIREBASE_CONNECT],
+        "connect-src": unique(["'self'", "blob:", ...services, ...FIREBASE_CONNECT, ...(origins.extraConnect ?? []).flatMap((u) => originsFrom(u).slice(0, 1))]),
 
         // Web workers and the collaboration provider are created from blobs.
         "worker-src": ["'self'", "blob:"],
@@ -191,5 +209,6 @@ export function cspFromEnv(): string {
         livekitUrl: process.env.NEXT_PUBLIC_LIVEKIT_URL,
         mqttHost: process.env.NEXT_PUBLIC_MQTT_HOST,
         appUrl: process.env.NEXT_PUBLIC_APP_URL,
+        extraConnect: [process.env.NEXT_PUBLIC_FUNNEL_ENDPOINT, process.env.NEXT_PUBLIC_SUBSCRIBE_URL],
     })
 }
