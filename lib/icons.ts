@@ -53,6 +53,8 @@ export {
   CalendarX,
   ArrowUp,
   ArrowDown,
+  Fingerprint,
+  CircleStop,
 } from "lucide-react";
 
 // ─── Actions ────────────────────────────────────────────────

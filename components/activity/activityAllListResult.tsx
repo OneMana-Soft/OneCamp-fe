@@ -13,7 +13,6 @@ import { PageContainer } from "@/components/ui/pageContainer"
 import { Button } from "@/components/ui/button"
 import { Bell, CheckCircle2 } from "@/lib/icons"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { useAIAvailable } from "@/hooks/useClientConfig"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { actorFilters, matchesActor, parseActorFilter, type ActorFilter } from "@/lib/activity/actor"
 
@@ -43,7 +42,8 @@ export const ActivityAllListResult = ({
     const searchParams = useSearchParams()
     const router = useRouter()
     const pathname = usePathname()
-    const aiAvailable = useAIAvailable()
+    // This edition has no AI, so there are no agents to filter by.
+    const aiAvailable = false
     const who: ActorFilter = parseActorFilter(searchParams.get("who"))
     const setWho = (next: ActorFilter) => {
         const params = new URLSearchParams(searchParams.toString())

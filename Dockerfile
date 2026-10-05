@@ -20,7 +20,11 @@ ARG ONECAMP_DOMAIN
 # domain, written to .env.production.local, which the build then reads.
 RUN test -n "$ONECAMP_DOMAIN" || { echo "Pass --build-arg ONECAMP_DOMAIN=your-domain.com" >&2; exit 1; } \
  && node scripts/setup-env.mjs --domain "$ONECAMP_DOMAIN" --force
-ENV NEXT_TELEMETRY_DISABLED=1 \
+# Where the "Made with OneCamp" credit on booking pages, forms and guest
+# links points; pass an empty PRODUCT_SITE to show it without a link.
+ARG PRODUCT_SITE=https://onemana.dev
+ENV NEXT_PUBLIC_PRODUCT_SITE=$PRODUCT_SITE \
+    NEXT_TELEMETRY_DISABLED=1 \
     NEXT_OUTPUT=standalone \
     NODE_OPTIONS=--max-old-space-size=4096
 RUN pnpm build
