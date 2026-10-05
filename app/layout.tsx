@@ -3,6 +3,7 @@ import "./globals.css";
 import { Bricolage_Grotesque, Inter } from "next/font/google";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ClientProviders } from "@/components/providers/ClientProviders";
+import { CHUNK_RECOVERY_SCRIPT } from "@/lib/chunkRecovery";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -97,6 +98,8 @@ export default function RootLayout({
             This is an opaque 180px PNG, the size iOS actually asks for. */}
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <link rel="icon" href="/logo.svg" type="image/svg+xml" sizes="any" />
+        {/* Before the app runs: a page from before a deploy reloads into the new build. */}
+        <script dangerouslySetInnerHTML={{ __html: CHUNK_RECOVERY_SCRIPT }} />
       </head>
       <body
         className={cn(
