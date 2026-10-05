@@ -18,6 +18,8 @@ export default function AppLayout({
   
   return (
     <ClientProviders>
+      {/* Marks the signed-in app, so globals.css locks the page for it alone. */}
+      <span data-app-shell hidden />
       <GlobalErrorBoundary>
         <AppProtectedRoute>
           <LayoutContent>
