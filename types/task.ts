@@ -99,14 +99,19 @@ export const taskPriorityOptions = [
     { id: "low", label: "Low" },
 ]
 
+// The one place a built-in status gets its name. Sentence case, as the
+// client's project page and the docs write them; types/table.ts reads these.
 export const taskStatusOptions = [
     { id: "backlog", label: "Backlog" },
-    { id: "todo", label: "To Do" },
-    { id: "inProgress", label: "In Progress" },
-    { id: "inReview", label: "In Review"},
+    { id: "todo", label: "To do" },
+    { id: "inProgress", label: "In progress" },
+    { id: "inReview", label: "In review"},
     { id: "done", label: "Done" },
-    { id: "canceled", label: "Canceled" },
+    { id: "canceled", label: "Cancelled" },
 ]
+
+/** A built-in status's name, or the raw value for one this build doesn't know. */
+export const taskStatusLabel = (id: string) => taskStatusOptions.find((o) => o.id === id)?.label ?? id
 
 export const createTaskFormSchema = z.object({
     task_name: z
