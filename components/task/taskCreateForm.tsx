@@ -52,6 +52,8 @@ type TaskCreateFormProps = {
   renderNameHint?: (current: string, use: (name: string) => void) => React.ReactNode;
   /** Assign the task to the person making it, once a project they're in is picked. */
   assignToMe?: boolean;
+  /** The project to start with, e.g. the one the person is looking at. */
+  defaultProjectId?: string;
 };
 
 /**
@@ -143,7 +145,7 @@ const DateField: React.FC<DateFieldProps> = ({ field, placeholder, drawerTitle }
   );
 };
 
-const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create task", onSuccess, prefill, onCreated, renderNameHint, assignToMe }) => {
+const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create task", onSuccess, prefill, onCreated, renderNameHint, assignToMe, defaultProjectId }) => {
   const [popOpenProjectName, setPopOpenProjectName] = useState(false);
   const [popOpenUserName, setPopOpenUserName] = useState(false);
   const [popOpenPriority, setPopOpenPriority] = useState(false);
@@ -173,7 +175,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
       task_name: prefill?.name ?? "",
       task_assignee_uuid: "",
       task_description: prefill?.description ?? "",
-      task_project_uuid: "",
+      task_project_uuid: defaultProjectId ?? "",
       task_attachments: [],
       task_due_date: undefined,
       task_start_date: undefined,
@@ -393,7 +395,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
           {selectedProject && (
             <div className="flex mt-2 flex-wrap gap-x-4 gap-y-4">
               <div className="flex items-center gap-x-4">
-                <p className="text-sm">For:</p>
+                <p className="text-sm">Assignee</p>
                 <Controller
                     control={control}
                     name="task_assignee_uuid"
@@ -401,7 +403,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                         <Popover open={popOpenUserName} onOpenChange={setPopOpenUserName}>
                         <PopoverTrigger asChild>
                             <Button variant="outline" className="justify-start">
-                            {selectedUser ? <>{selectedUser.user_name}</> : <>Select Member</>}
+                            {selectedUser ? <>{selectedUser.user_name}</> : <>Pick someone</>}
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="p-0" side="bottom" align="start" portalled={false}>
@@ -433,7 +435,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
               {errors.task_assignee_uuid && <p className="text-destructive text-sm">{errors.task_assignee_uuid.message}</p>}
               
               <div className="flex items-center space-x-4">
-                <p className="text-sm">Priority:</p>
+                <p className="text-sm">Priority</p>
                 <Controller
                   control={control}
                   name="task_priority"
@@ -489,7 +491,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
               </div>
               
               <div className="flex items-center gap-x-4">
-                <Label htmlFor="task_label">Label:</Label>
+                <Label htmlFor="task_label">Label</Label>
                 <Input id="task_label" {...register("task_label")} placeholder="Enter label" />
                 {errors.task_label && <p className="text-destructive text-sm">{errors.task_label.message}</p>}
               </div>
@@ -528,7 +530,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
         {selectedProject?.project_uuid && (
           <div>
             <Label htmlFor="file-upload" className="cursor-pointer">
-              Attach Files
+              Attachments
             </Label>
             <Input
               type="file"
@@ -558,7 +560,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
             
             {selectedProject?.project_uuid && (
               <div className="mt-4">
-                <Label htmlFor="github-url">GitHub Issue URL (optional)</Label>
+                <Label htmlFor="github-url">GitHub issue or pull request (optional)</Label>
                 <Controller
                   control={control}
                   name="task_github_issue_url"
@@ -584,7 +586,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                     render={({ field }) => (
                         <DateField
                             field={field}
-                            placeholder="Start Date"
+                            placeholder="Start date"
                             drawerTitle="Select Start Date"
                         />
                     )}
@@ -604,7 +606,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                     render={({ field }) => (
                         <DateField
                             field={field}
-                            placeholder="Due Date"
+                            placeholder="Due date"
                             drawerTitle="Select Due Date"
                         />
                     )}

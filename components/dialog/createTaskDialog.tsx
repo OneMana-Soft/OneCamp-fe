@@ -20,6 +20,8 @@ interface createTaskDialogProps {
   renderNameHint?: (current: string, use: (name: string) => void) => React.ReactNode;
   /** Opened from My Tasks: the new task is yours unless you pick someone else. */
   assignToMe?: boolean;
+  /** Opened from a project: it's preselected. */
+  projectId?: string;
 }
 
 const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
@@ -28,6 +30,7 @@ const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
   fromMessage,
   renderNameHint,
   assignToMe,
+  projectId,
 }) => {
   const post = usePost();
 
@@ -65,6 +68,7 @@ const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
           submitLabel="Create task"
           prefill={fromMessage?.draft}
           assignToMe={assignToMe}
+          defaultProjectId={projectId}
           renderNameHint={renderNameHint}
           onCreated={fromMessage ? replyUnderMessage : undefined}
           onSuccess={() => setOpenState(false)}

@@ -122,6 +122,7 @@ export function UnifiedUIManager() {
           setOpenState={() => dispatch(closeUI('createTask'))}
           fromMessage={ui.createTask.data?.draft && ui.createTask.data.source ? { draft: ui.createTask.data.draft, source: ui.createTask.data.source } : undefined}
           assignToMe={!!ui.createTask.data?.assignToMe}
+          projectId={ui.createTask.data?.projectId}
           renderNameHint={
             ui.createTask.data?.draft?.text
               ? (current, use) => <TaskNameSuggestion text={ui.createTask.data!.draft!.text} current={current} onUse={use} />

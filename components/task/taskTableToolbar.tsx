@@ -123,7 +123,8 @@ export function TaskTableToolbar<TData>({
                     variant="default"
                     size="sm"
                     className="h-8"
-                    onClick={() => dispatch(openUI({ key: "createTask" }))}
+                    // In a project: that project. On My Tasks: the task is yours.
+                    onClick={() => dispatch(openUI({ key: "createTask", data: projectId ? { projectId } : { assignToMe: true } }))}
                 >
                     <CirclePlus className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">{t("createTask")}</span>
