@@ -37,7 +37,7 @@ interface CspOrigins {
     livekitUrl?: string
     mqttHost?: string
     appUrl?: string
-    /** Optional endpoints the app posts to (demo funnel, newsletter), if set. */
+    /** Optional extra endpoints the app posts to, if set. */
     extraConnect?: (string | undefined)[]
 }
 
@@ -209,6 +209,5 @@ export function cspFromEnv(): string {
         livekitUrl: process.env.NEXT_PUBLIC_LIVEKIT_URL,
         mqttHost: process.env.NEXT_PUBLIC_MQTT_HOST,
         appUrl: process.env.NEXT_PUBLIC_APP_URL,
-        extraConnect: [process.env.NEXT_PUBLIC_FUNNEL_ENDPOINT, process.env.NEXT_PUBLIC_SUBSCRIBE_URL],
     })
 }
