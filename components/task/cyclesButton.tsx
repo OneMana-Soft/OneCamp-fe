@@ -118,7 +118,7 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow }: { projectId: st
             {active && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}
             {cycleLabel(cycle)}
           </span>
-          <span className={cn("shrink-0 rounded-full px-1.5 text-[11px] font-normal", cycle.state === "current" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+          <span className={cn("shrink-0 rounded-full px-1.5 text-2xs font-normal", cycle.state === "current" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
             {STATE_LABEL[cycle.state ?? "upcoming"]}
           </span>
         </span>
