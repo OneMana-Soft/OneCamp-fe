@@ -4,6 +4,10 @@ import { useState } from "react"
 import { SectionTabs, SectionTabsContent } from "@/components/ui/sectionTabs"
 import { ProjectListTabContent } from "@/components/project/projectListTabContent"
 import { ProjectGlanceLine } from "@/components/project/ProjectGlanceLine"
+import { ProjectToolButtons } from "@/components/project/ProjectToolButtons"
+import { useFetch } from "@/hooks/useFetch"
+import { GetEndpointUrl } from "@/services/endPoints"
+import type { ProjectInfoRawInterface } from "@/types/project"
 
 /**
  * Mobile project detail tab bar. Switches between the Tasks list and
@@ -13,6 +17,9 @@ import { ProjectGlanceLine } from "@/components/project/ProjectGlanceLine"
  */
 export function ProjectListTabs({ projectId }: { projectId: string }) {
     const [selectedTab, setSelectedTab] = useState<"task" | "attachment">("task")
+    // The same request the desktop header makes, so SWR shares it.
+    const projectInfo = useFetch<ProjectInfoRawInterface>(GetEndpointUrl.GetProjectInfo + "/" + projectId)
+    const info = projectInfo.data?.data
 
     return (
         <SectionTabs
@@ -25,7 +32,10 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             className="h-full"
         >
             <SectionTabsContent value="task" className="flex-1 min-h-0 outline-none flex flex-col">
-                <ProjectGlanceLine projectId={projectId} className="px-4 pt-3" />
+                <div className="flex items-center gap-1 px-4 pt-3">
+                    <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1" />
+                    <ProjectToolButtons projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} />
+                </div>
                 <ProjectListTabContent selectedTab="task" projectId={projectId} />
             </SectionTabsContent>
             <SectionTabsContent value="attachment" className="flex-1 min-h-0 outline-none">

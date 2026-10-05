@@ -69,7 +69,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     <DesktopNavigationBar>
       <EmailOffBanner isAdmin={isAdmin} />
         <AgentNoteOnOpen />
-      <RunningTimerChip className="bottom-4 right-4" />
+      <RunningTimerChip className="bottom-4 left-1/2 -translate-x-1/2" />
       <ResizablePanelGroup
         direction="horizontal"
         onLayout={(sizes) => {

@@ -18,12 +18,17 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Copy, Check, ExternalLink, Link2, Globe } from "@/lib/icons"
-import { createGuestLink, guestResourceLink, type GuestCapability, type GuestResourceType } from "@/services/guestService"
+import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuestLink, type GuestCapability, type GuestResourceType, type ResourceGuestLink } from "@/services/guestService"
+import { useFetch } from "@/hooks/useFetch"
+import { formatDistanceToNow } from "date-fns"
 
 interface GuestLinkSectionProps {
   resourceType: GuestResourceType
   resourceId: string
   canShare: boolean
+  /** Inside a dialog that is only about sharing: no heading of its own, and
+   *  the options show at once instead of behind a button. */
+  embedded?: boolean
 }
 
 // A UI-only sentinel. It never travels as a ttl, because 0 already means "use
@@ -62,14 +67,18 @@ const RESOURCE: Record<GuestResourceType, {
   },
 }
 
-export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLinkSectionProps) {
+export function GuestLinkSection({ resourceType, resourceId, canShare, embedded = false }: GuestLinkSectionProps) {
   const { toast } = useToast()
   const [ttlHours, setTtlHours] = React.useState(EXPIRY_OPTIONS[1].hours) // 14 days
   const [capability, setCapability] = React.useState<GuestCapability>(resourceType === "channel" ? "post" : "view")
   const [creating, setCreating] = React.useState(false)
   const [link, setLink] = React.useState("")
   const [copied, setCopied] = React.useState(false)
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(embedded)
+
+  // The resource's live links, so whoever shares can also turn one off.
+  const links = useFetch<{ data: ResourceGuestLink[] }>(canShare && resourceId ? resourceGuestLinksKey(resourceType, resourceId) : "")
+  const [turningOff, setTurningOff] = React.useState<string | null>(null)
 
   if (!canShare) return null
 
@@ -90,6 +99,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
         neverExpires,
       )
       setLink(guestResourceLink(resourceType, res.token))
+      void links.mutate()
     } catch (e: any) {
       const status = e?.response?.status
       toast({
@@ -117,10 +127,14 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
   }
 
   return (
-    <div className="flex flex-col gap-3 pt-4 border-t border-border">
-      <Label className={eyebrowClass}>
-        Share to web
-      </Label>
+    <div className={embedded ? "flex flex-col gap-3" : "flex flex-col gap-3 pt-4 border-t border-border"}>
+      {embedded ? (
+        !link && <p className="text-sm text-muted-foreground">{kind.blurb}</p>
+      ) : (
+        <Label className={eyebrowClass}>
+          Share to web
+        </Label>
+      )}
 
       {!open && !link && (
         <button
@@ -194,8 +208,47 @@ export function GuestLinkSection({ resourceType, resourceId, canShare }: GuestLi
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Copy this link now, it won&apos;t be shown again. Revoke it any time from admin settings.
+            Copy this link now, it won&apos;t be shown again. Turn it off any time below.
           </p>
+        </div>
+      )}
+
+      {(links.data?.data?.length ?? 0) > 0 && (
+        <div className="grid gap-1">
+          <Label className="text-2xs text-muted-foreground">Links that work now</Label>
+          <ul className="grid gap-1">
+            {links.data!.data.map((l) => (
+              <li key={l.id} className="flex items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-muted/40">
+                <span className="min-w-0 flex-1 truncate">
+                  {l.capability === "view" ? kind.viewLabel : kind.writeLabel ?? kind.viewLabel}
+                  <span className="text-muted-foreground">
+                    {" · "}
+                    {l.expires_at ? `ends ${formatDistanceToNow(new Date(l.expires_at), { addSuffix: true })}` : "doesn't expire"}
+                    {l.mine ? " · yours" : ""}
+                  </span>
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 shrink-0 text-destructive hover:text-destructive"
+                  disabled={turningOff === l.id}
+                  onClick={async () => {
+                    setTurningOff(l.id)
+                    try {
+                      await turnOffGuestLink(l.id)
+                      await links.mutate()
+                    } catch (e: any) {
+                      toast({ title: "Couldn't turn the link off", description: e?.response?.data?.msg || "Please try again.", variant: "destructive" })
+                    } finally {
+                      setTurningOff(null)
+                    }
+                  }}
+                >
+                  Turn off
+                </Button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
