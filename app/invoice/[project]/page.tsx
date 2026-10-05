@@ -104,7 +104,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
   if (!report || !invoice) return <Centered><Loader2 className="h-6 w-6 animate-spin text-primary" /></Centered>
 
   return (
-    <main className="min-h-screen bg-muted/30 print:bg-white">
+    <main className="h-dvh overflow-y-auto bg-muted/30 print:h-auto print:overflow-visible print:bg-white">
       <div className="mx-auto grid max-w-6xl gap-6 p-4 lg:grid-cols-[22rem_1fr] print:block print:max-w-none print:p-0">
         <aside className="grid content-start gap-5 print:hidden">
           <div>

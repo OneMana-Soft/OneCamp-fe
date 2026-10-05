@@ -397,6 +397,15 @@ body {
   html {
     @apply scroll-smooth;
     overscroll-behavior: none;
+  }
+
+  /* THE APP SHELL LOCKS THE PAGE; NOTHING ELSE DOES. The signed-in app scrolls
+     inside its own panes, so the document itself must never move (on iOS it
+     would rubber-band the whole shell). That lock used to be on every page,
+     which left public pages (a form, a booking page, a shared doc) unable to
+     scroll on a phone: the Submit button was simply out of reach. It now
+     applies only where app/app/layout.tsx puts its [data-app-shell] marker. */
+  html:has([data-app-shell]) {
     overflow: hidden;
     height: 100dvh;
   }
@@ -412,6 +421,9 @@ body {
     letter-spacing: -0.011em;
     @apply bg-background text-foreground;
     overscroll-behavior: none;
+  }
+
+  body:has([data-app-shell]) {
     overflow: hidden;
     height: 100dvh;
     position: fixed;
