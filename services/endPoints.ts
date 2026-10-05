@@ -161,6 +161,7 @@ export enum GetEndpointUrl {
 
     // Email notification preferences (per-user).
     GetNotificationPreferences = "/user/notificationPreferences",
+    GetTeammateNotificationStatus = "/user/notificationStatus",
 
     // AI Second Brain
     AIStatus = "/ai/status",
@@ -554,6 +555,7 @@ export enum PostEndpointUrl {
     // Email notification preferences (per-user).
     UpdateNotificationPreferences = "/user/notificationPreferences",
     PauseNotifications = "/user/notificationPause",
+    NotifyAnyway = "/user/notifyAnyway",
 
     // AI Second Brain
     AISummarizeChannel = "/ai/summarize/channel",

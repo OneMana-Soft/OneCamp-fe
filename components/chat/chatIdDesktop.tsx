@@ -1,6 +1,7 @@
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
+import { HeldNotificationsBar } from "@/components/messages/heldNotificationsBar";
 import {NotificationType} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
@@ -193,6 +194,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                             </button>
                         </div>
                     )}
+                    <HeldNotificationsBar userUUID={chatId} name={otherUserInfo.data?.data?.user_full_name || otherUserInfo.data?.data?.user_name} isBot={isBotPeer} />
                     {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         throttleDelay={300}
