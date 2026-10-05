@@ -18,23 +18,21 @@ import {usePost} from "@/hooks/usePost";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover";
 import {Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList} from "@/components/ui/command";
-import {useState} from "react";
+import {useEffect, useState} from "react";
+import {useRouter} from "next/navigation";
+import {openUI} from "@/store/slice/uiSlice";
 import {TeamListResponseInterface} from "@/types/team";
 import {useFetch} from "@/hooks/useFetch";
 import {useDispatch} from "react-redux";
 import {addUserProjectList} from "@/store/slice/userSlice";
 import {ProjectInfoInterface} from "@/types/project";
+import { nameSchema } from "@/lib/validation/names";
 
 const createProjectFormSchema = z.object({
-  project_name: z
-      .string()
-      .trim()
-      .min(4, "Project name must be at least 4 characters")
-      .max(30, "Project name must be at most 30 characters")
-      .regex(/^[A-Za-z0-9_\s]+$/, "Project name must only contain letters, numbers, and underscores"),
+  project_name: nameSchema("workspace", "Project name"),
   project_team_uuid: z
       .string()
-      .min(1, "Please select team")
+      .min(1, "Pick a team")
 });
 
 // Infer the type for the form values
@@ -54,6 +52,8 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
     control,
     handleSubmit,
     reset,
+    setValue,
+    getValues,
     formState: { isValid },
   } = useForm<CreateTeamFormValues>({
     resolver: zodResolver(createProjectFormSchema),
@@ -72,6 +72,16 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
   const teamsInfo = useFetch<TeamListResponseInterface>(GetEndpointUrl.TeamListUserIsAdmin)
 
   const dispatch = useDispatch()
+  const router = useRouter()
+  const teams = teamsInfo.data?.data ?? []
+  const noTeams = !teamsInfo.isLoading && teams.length === 0
+
+  // With one team there is nothing to choose.
+  useEffect(() => {
+    if (dialogOpenState && teams.length === 1 && !getValues("project_team_uuid")) {
+      setValue("project_team_uuid", teams[0].team_uuid, { shouldValidate: true })
+    }
+  }, [dialogOpenState, teams, getValues, setValue])
 
 
   const onSubmit = async (data: CreateTeamFormValues) => {
@@ -79,10 +89,11 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
       payload: data,
       apiEndpoint: PostEndpointUrl.CreateProject
     }).then((res)=>{
-      if (res) {
-        dispatch(addUserProjectList({ projectUser: res }));
-      }
+      // Kept open on a failure, so what was typed isn't lost.
+      if (!res) return
+      dispatch(addUserProjectList({ projectUser: res }));
       closeModal()
+      if (res.project_uuid) router.push(`/app/project/${res.project_uuid}`)
     });
   };
 
@@ -94,17 +105,17 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
 
   return (
       <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-        <DialogContent id="create-project-dialog" className="max-w-[95vw] md:max-w-[30vw]">
+        <DialogContent id="create-project-dialog" className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-start">Create Project</DialogTitle>
-            <DialogDescription className="hidden">
-              Create a new project
+            <DialogTitle className="text-start">New project</DialogTitle>
+            <DialogDescription>
+              A project holds tasks, boards, forms and the time spent on them, for one team.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid gap-4 py-4 space-y-3">
               <div className="grid gap-2 ">
-                <Label>Project Name</Label>
+                <Label htmlFor="projectName">Name</Label>
                 <Controller
                     name="project_name"
                     control={control}
@@ -112,8 +123,8 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                         <>
                           <Input
                               {...field}
-                              id="teamName"
-                              placeholder="Type project name"
+                              id="projectName"
+                              placeholder="Website redesign"
                               autoFocus
                           />
 
@@ -125,9 +136,26 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                 />
               </div>
 
-              { teamsInfo.data?.data && (
+              {noTeams && (
+                  <div className="rounded-md border border-dashed p-3 text-sm">
+                    <p>Projects belong to a team, and you don&apos;t have one yet.</p>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => {
+                          closeModal()
+                          dispatch(openUI({ key: "createTeam", data: { then: "createProject" } }))
+                        }}
+                    >
+                      Create a team first
+                    </Button>
+                  </div>
+              )}
+              { teams.length > 0 && (
                   <div className="flex items-center space-x-4">
-                    <Label>Team:</Label>
+                    <Label>Team</Label>
                     <Controller
                         name="project_team_uuid"
                         control={control}
@@ -193,7 +221,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
             </div>
             <DialogFooter>
               <Button variant="default" type="submit" disabled={!isValid || isSubmitting}>
-                {isSubmitting ? "Creating…" : "Create Project"}
+                {isSubmitting ? "Creating…" : "Create project"}
               </Button>
             </DialogFooter>
           </form>

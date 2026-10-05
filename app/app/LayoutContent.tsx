@@ -18,9 +18,11 @@ import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
 import { AgentNoteOnOpen } from "@/components/ai/AgentNoteOnOpen";
 import { RunningTimerChip } from "@/components/time/RunningTimerChip";
+import { useOpenFromUrl } from "@/hooks/useOpenFromUrl";
 
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
+  useOpenFromUrl();
   const { isMobile } = useMedia();
   const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState);
   const rightPanelRef = useRef<ImperativePanelHandle>(null);

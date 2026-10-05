@@ -22,14 +22,10 @@ import {useFetch} from "@/hooks/useFetch";
 import {ProjectInfoRawInterface} from "@/types/project";
 import {useDispatch} from "react-redux";
 import {updateUserProjectList} from "@/store/slice/userSlice";
+import { nameSchema } from "@/lib/validation/names";
 
 const createTeamFormSchema = z.object({
-    project_name: z
-        .string()
-        .trim()
-        .min(4, "Project name must be at least 4 characters")
-        .max(30, "Project name must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Project name must only contain letters, numbers, and underscores"),
+    project_name: nameSchema("workspace", "Project name"),
     project_uuid: z.string(),
 });
 

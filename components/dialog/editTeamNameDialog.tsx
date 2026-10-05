@@ -24,14 +24,10 @@ import {ChannelNameExistsInterface} from "@/types/channel";
 import {TeamInfoRawInterface} from "@/types/team";
 import {useDispatch} from "react-redux";
 import {updateUserTeamList} from "@/store/slice/userSlice";
+import { nameSchema } from "@/lib/validation/names";
 
 const createTeamFormSchema = z.object({
-    team_name: z
-        .string()
-        .trim()
-        .min(4, "Team name must be at least 4 characters")
-        .max(30, "Team name must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Team name must only contain letters, numbers, and underscores"),
+    team_name: nameSchema("workspace", "Team name"),
     team_uuid: z.string(),
 });
 

@@ -21,16 +21,14 @@ import {useState} from "react";
 import {useFetch} from "@/hooks/useFetch";
 import {TeamInfoInterface, TeamNameExistsInterface} from "@/types/team";
 import {addUserTeamList} from "@/store/slice/userSlice";
-import {useDispatch} from "react-redux";
+import {useDispatch, useSelector} from "react-redux";
+import {RootState} from "@/store/store";
+import {openUI} from "@/store/slice/uiSlice";
+import { nameSchema } from "@/lib/validation/names";
 
 
 const createTeamFormSchema = z.object({
-  team_name: z
-      .string()
-      .trim()
-      .min(4, "Team name must be at least 4 characters")
-      .max(30, "Team name must be at most 30 characters")
-      .regex(/^[A-Za-z0-9_\s]+$/, "Project name must only contain letters, numbers, and underscores"),
+  team_name: nameSchema("workspace", "Team name"),
 });
 
 type CreateTeamFormValues = z.infer<typeof createTeamFormSchema>;
@@ -70,6 +68,7 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
   const { makeRequest, isSubmitting } = usePost();
 
   const dispatch = useDispatch()
+  const next = useSelector((state: RootState) => state.ui.createTeam.data?.then as string | undefined)
 
 
   const onSubmit =  (data: CreateTeamFormValues) => {
@@ -77,13 +76,12 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
       payload: data,
       apiEndpoint: PostEndpointUrl.CreateTeam
     }).then((res)=>{
-
-      if(res) {
-        dispatch(addUserTeamList({teamUser:res}))
-
-      }
+      // Kept open on a failure, so what was typed isn't lost.
+      if (!res) return
+      dispatch(addUserTeamList({teamUser:res}))
       closeModal()
-
+      // Opened from "New project" with no team yet: carry on to the project.
+      if (next === "createProject") dispatch(openUI({ key: "createProject" }))
     });
 
   };
@@ -103,9 +101,9 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
 
   return (
       <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-        <DialogContent className="max-w-[95vw] md:max-w-[30vw]">
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-start">Create Team</DialogTitle>
+            <DialogTitle className="text-start">New team</DialogTitle>
             <DialogDescription>
 
             </DialogDescription>
@@ -113,7 +111,7 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="team_name">Team Name</Label>
+                <Label htmlFor="team_name">Name</Label>
                 <Controller
                     name="team_name"
                     control={control}
@@ -123,7 +121,7 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
                             <Input
                                 {...field}
                                 id="teamName"
-                                placeholder="Type team name"
+                                placeholder="Design"
                                 autoFocus
                             />
                             <Button
@@ -157,7 +155,7 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
             </div>
             <DialogFooter>
             <Button type="submit" disabled={!isValid || isSubmitting || teamNameToCheck !== team_name ||  isTeamNameAvailable?.exists}>
-                {isSubmitting ? "Creating…" : "Create Team"}
+                {isSubmitting ? "Creating…" : "Create team"}
               </Button>
             </DialogFooter>
           </form>

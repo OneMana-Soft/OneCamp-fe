@@ -20,14 +20,10 @@ import {Switch} from "@/components/ui/switch";
 import {DocInfoInterface} from "@/types/doc";
 import {app_doc_path} from "@/types/paths";
 import {useRouter} from "next/navigation";
+import { nameSchema } from "@/lib/validation/names";
 
 const createDocFormSchema = z.object({
-    doc_title: z
-        .string()
-        .trim()
-        .min(4, "Doc title must be at least 4 characters")
-        .max(30, "Doc title must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Doc title must only contain letters, numbers, and underscores"),
+    doc_title: nameSchema("title", "Doc title"),
     doc_private: z.boolean(),
 });
 

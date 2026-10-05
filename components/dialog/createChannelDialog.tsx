@@ -25,15 +25,11 @@ import {
     ChannelNameExistsInterface
 } from "@/types/channel";
 import {app_channel_path} from "@/types/paths";
+import { nameSchema } from "@/lib/validation/names";
 import {useRouter} from "next/navigation"; // Import the useFetch hook
 
 const createChannelFormSchema = z.object({
-    channel_name: z
-        .string()
-        .trim()
-        .min(4, "Channel name must be at least 4 characters")
-        .max(30, "Channel name must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Channel name must only contain letters, numbers, and underscores"),
+    channel_name: nameSchema("workspace", "Channel name"),
     channel_private: z.boolean(),
 });
 
@@ -116,9 +112,9 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-            <DialogContent className="max-w-[95vw] md:max-w-[30vw]">
+            <DialogContent className="max-w-[95vw] sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="text-start">Create Channel</DialogTitle>
+                    <DialogTitle className="text-start">New channel</DialogTitle>
                     <DialogDescription className="hidden">
                         Create a new channel
                     </DialogDescription>
@@ -136,7 +132,7 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
                                             <Input
                                                 {...field}
                                                 id="teamName"
-                                                placeholder="Type channel name"
+                                                placeholder="launch-week"
                                                 autoFocus
                                             />
                                             <Button
