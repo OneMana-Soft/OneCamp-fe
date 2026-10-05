@@ -51,7 +51,7 @@ const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
     <Dialog open={dialogOpenState} onOpenChange={setOpenState}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>{fromMessage ? "Make a task" : "Create Task"}</DialogTitle>
+          <DialogTitle>{fromMessage ? "Make a task" : "New task"}</DialogTitle>
           <DialogDescription>
             {fromMessage
               ? "The task links back to the message, and a reply under it links to the task."
@@ -59,7 +59,7 @@ const CreateTaskDialog: React.FC<createTaskDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
         <TaskCreateForm
-          submitLabel="Create Task"
+          submitLabel="Create task"
           prefill={fromMessage?.draft}
           renderNameHint={renderNameHint}
           onCreated={fromMessage ? replyUnderMessage : undefined}

@@ -11,7 +11,7 @@ export const TaskCreateTask = () => {
 
     return (
         <div>
-            <TaskCreateForm submitLabel="Create Task" onSuccess={handleClick}/>
+            <TaskCreateForm submitLabel="Create task" onSuccess={handleClick}/>
         </div>
     )
 
