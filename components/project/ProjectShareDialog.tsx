@@ -14,11 +14,11 @@ export function ProjectShareDialog({ projectId, open, onOpenChange }: { projectI
         <DialogHeader>
           <DialogTitle>Share with a client</DialogTitle>
           <DialogDescription>
-            Clients see where their work stands without asking. They can&apos;t see other projects, channels or people&apos;s profiles.
+            Clients see where their work stands without asking. They can&apos;t see other projects, channels or anyone&apos;s profile.
           </DialogDescription>
         </DialogHeader>
         {/* Remounted on each open so a link shown once isn't shown again. */}
-        {open && <GuestLinkSection resourceType="project" resourceId={projectId} canShare />}
+        {open && <GuestLinkSection resourceType="project" resourceId={projectId} canShare embedded />}
       </DialogContent>
     </Dialog>
   )

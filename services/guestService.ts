@@ -112,6 +112,23 @@ export async function createGuestLink(
     return (res.data as { data: GuestLinkResponse }).data
 }
 
+/** A live link to a resource, as the people who may share it see it. */
+export interface ResourceGuestLink {
+    id: string
+    capability: GuestCapability
+    expires_at: string | null
+    created_at: string
+    mine: boolean
+}
+
+/** The SWR key of a resource's live links. */
+export const resourceGuestLinksKey = (resourceType: GuestResourceType, resourceId: string) =>
+    `${PostEndpointUrl.CreateGuestLink}?resource_type=${encodeURIComponent(resourceType)}&resource_id=${encodeURIComponent(resourceId)}`
+
+export async function turnOffGuestLink(id: string): Promise<void> {
+    await axiosInstance.post(`${PostEndpointUrl.CreateGuestLink}/${id}/revoke`)
+}
+
 export type GuestResourceType = "doc" | "board" | "table" | "channel" | "project"
 /** comment is for docs and projects; post is channel-only (the server coerces anything else to view). */
 export type GuestCapability = "view" | "comment" | "post"
