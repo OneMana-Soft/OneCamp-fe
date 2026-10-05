@@ -31,6 +31,7 @@ import { Camera } from "@/lib/icons";
 import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 import { TwoFactorSection } from "@/components/profile/TwoFactorSection";
+import { PasskeySection } from "@/components/profile/PasskeySection";
 import { useTheme } from "next-themes";
 import { ColorThemePicker } from "@/components/activeTheme/ColorThemePicker";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
@@ -422,6 +423,7 @@ export function MobileSelfProfile() {
 
                             <div className="mt-4">
                                 <TwoFactorSection />
+                                <PasskeySection />
                             </div>
 
                             <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 mt-4">

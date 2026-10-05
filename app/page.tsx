@@ -2,7 +2,9 @@
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { eyebrowClass } from "@/components/ui/eyebrow"
-import { LoaderCircle, Rocket, AlertCircle, Mail, Lock, Eye, EyeOff } from "@/lib/icons";
+import { LoaderCircle, Rocket, AlertCircle, Mail, Lock, Eye, EyeOff, Fingerprint } from "@/lib/icons";
+import { signInWithPasskey } from "@/services/passkeyService";
+import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn";
 import { Button } from "@/components/ui/button"
 import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
 import {useEffect, useState, useCallback, Suspense} from "react";
@@ -110,6 +112,10 @@ export default function SignUp() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
+  // Read after mount: the server render can't know what the browser supports.
+  const [canUsePasskey, setCanUsePasskey] = useState(false);
+  const [passkeyError, setPasskeyError] = useState("");
+  useEffect(() => setCanUsePasskey(passkeysSupported()), []);
 
   // A pending second-factor challenge. Non-empty means the password step succeeded and the sign-in is
   // NOT finished, so the code prompt replaces the credential form until it clears.
@@ -249,6 +255,21 @@ export default function SignUp() {
       await action();
     } catch (error) {
       console.error('Error logging in:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setPasskeyError("");
+    setIsLoading(true);
+    try {
+      const result = await signInWithPasskey();
+      if (result.ok) router.push(app_home_path);
+      else if (result.msg) setPasskeyError(result.msg);
+    } catch (error) {
+      const msg = passkeyErrorMessage(error);
+      if (msg) setPasskeyError(msg);
     } finally {
       setIsLoading(false);
     }
@@ -465,6 +486,22 @@ export default function SignUp() {
                       Continue with GitHub
                     </Button>
                   )}
+                </div>
+              )}
+
+              {/* Passkey: the device's own sign-in, no password typed. */}
+              {canUsePasskey && (
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full border-border/50 hover:bg-muted/50 transition-colors"
+                    disabled={isLoading || isDemoLoading}
+                    onClick={handlePasskeyLogin}
+                  >
+                    <Fingerprint className="mr-2 h-4 w-4" />
+                    Sign in with a passkey
+                  </Button>
+                  {passkeyError && <p role="alert" className="text-sm text-destructive font-medium">{passkeyError}</p>}
                 </div>
               )}
 

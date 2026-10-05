@@ -34,6 +34,7 @@ import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 import { TwoFactorSection } from "@/components/profile/TwoFactorSection";
+import { PasskeySection } from "@/components/profile/PasskeySection";
 
 const profileFormSchema = z.object({
     fullName: z
@@ -505,6 +506,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                 <h3 className={eyebrowClass}>Security</h3>
                                 <ChangePasswordSection />
                                 <TwoFactorSection />
+                                <PasskeySection />
                             </div>
                         </div>
 

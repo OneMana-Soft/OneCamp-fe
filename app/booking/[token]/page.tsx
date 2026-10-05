@@ -7,6 +7,7 @@ import { AlertCircle, CalendarCheck, CalendarX, Loader2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { browserTZ, formatRange } from "@/lib/calendar/availability"
 import { cancelBooking, getBooking, type BookingView } from "@/services/bookingService"
+import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 export default function ManageBooking({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -74,6 +75,7 @@ export default function ManageBooking({ params }: { params: Promise<{ token: str
           </Button>
         </>
       )}
+      <MadeWithOneCamp surface="booked" label="Scheduling by OneCamp" className="mt-6" />
     </Centered>
   )
 }

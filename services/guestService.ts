@@ -112,15 +112,17 @@ export async function createGuestLink(
     return (res.data as { data: GuestLinkResponse }).data
 }
 
-export type GuestResourceType = "doc" | "board" | "table" | "channel"
-/** comment is doc-only; post is channel-only (the server coerces anything else to view). */
+export type GuestResourceType = "doc" | "board" | "table" | "channel" | "project"
+/** comment is for docs and projects; post is channel-only (the server coerces anything else to view). */
 export type GuestCapability = "view" | "comment" | "post"
+
+/** Where each kind of shared resource opens for its guest. */
+const guestLinkSegment: Record<GuestResourceType, string> = { doc: "d", board: "b", table: "t", channel: "c", project: "p" }
 
 /** Build the public share URL for a raw guest token + resource type. */
 export function guestResourceLink(resourceType: GuestResourceType, rawToken: string): string {
     if (typeof window === "undefined") return ""
-    const seg = resourceType === "board" ? "b" : resourceType === "table" ? "t" : resourceType === "channel" ? "c" : "d"
-    return `${window.location.origin}/guest/${seg}/${rawToken}`
+    return `${window.location.origin}/guest/${guestLinkSegment[resourceType]}/${rawToken}`
 }
 
 // --- Public (no auth): exchange a share-link token for a short-lived,
@@ -276,3 +278,42 @@ export const getGuestThread = (token: string, postId: string) =>
 
 export const postGuestMessage = (token: string, body: { display_name: string; text: string; reply_to?: string }) =>
     publicCall<unknown>(`/guest/channel/${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify(body) })
+
+// --- Public (no auth): a project shared with a client. ---
+
+export interface GuestTaskCard {
+    id: string
+    name: string
+    status: string
+    status_label: string
+    priority?: string
+    due_date?: string
+    assignee?: string
+    comment_count: number
+}
+
+export interface GuestProjectView {
+    project: string
+    can_comment: boolean
+    columns: { status: string; label: string; tasks: GuestTaskCard[] }[]
+    total_tasks: number
+    done_tasks: number
+    generated_at: string
+}
+
+export interface GuestTaskView extends GuestTaskCard {
+    description: string
+    start_date?: string
+    comments: GuestChannelMessage[]
+    can_comment: boolean
+}
+
+/** refresh marks a poll, so only the first open is recorded in the audit log. */
+export const getGuestProject = (token: string, refresh = false) =>
+    publicCall<GuestProjectView>(`/guest/project/${encodeURIComponent(token)}${refresh ? "?refresh=1" : ""}`)
+
+export const getGuestProjectTask = (token: string, taskId: string) =>
+    publicCall<GuestTaskView>(`/guest/project/${encodeURIComponent(token)}/task/${encodeURIComponent(taskId)}`)
+
+export const commentOnGuestTask = (token: string, taskId: string, body: { display_name: string; text: string }) =>
+    publicCall<unknown>(`/guest/project/${encodeURIComponent(token)}/task/${encodeURIComponent(taskId)}/comment`, { method: "POST", body: JSON.stringify(body) })

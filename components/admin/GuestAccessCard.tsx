@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { UserPlus, Loader2, Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink } from "@/lib/icons"
+import { UserPlus, Loader2, Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban } from "@/lib/icons"
 import { getWorkspaceSettings } from "@/services/settingsService"
 import { setGuestAccess, listGuestGrants, revokeGuestGrant, type GuestGrant } from "@/services/guestService"
 import { formatDistanceToNow } from "date-fns"
@@ -29,6 +29,8 @@ const RESOURCE_META: Record<
     board: { label: "Board", Icon: Kanban, href: (id) => `/app/board/${id}` },
     table: { label: "Table", Icon: TableIcon, href: (id) => `/app/tables/${id}` },
     meeting: { label: "Meeting", Icon: Video },
+    channel: { label: "Channel", Icon: Hash, href: (id) => `/app/channel/${id}` },
+    project: { label: "Project", Icon: FolderKanban, href: (id) => `/app/project/${id}` },
 }
 
 function resourceMeta(type: string) {

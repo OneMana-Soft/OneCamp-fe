@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getForm, sendForm, type PublicForm } from "@/services/formService"
 import type { FormField } from "@/lib/forms/forms"
+import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 export default function IntakeForm({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -85,7 +86,7 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
           Send
         </Button>
       </form>
-      <p className="mt-6 text-center text-xs text-muted-foreground">Made with OneCamp</p>
+      <MadeWithOneCamp surface="form" className="mt-6" />
     </main>
   )
 }

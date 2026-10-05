@@ -24,6 +24,7 @@ import {
   timeZones,
   type Slot,
 } from "@/lib/calendar/availability"
+import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 const WINDOW_DAYS = 14
 
@@ -178,7 +179,7 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
           )}
         </section>
       </div>
-      <p className="mt-6 text-center text-xs text-muted-foreground">Scheduling by OneCamp</p>
+      <MadeWithOneCamp surface="booking" label="Scheduling by OneCamp" className="mt-6" />
     </main>
   )
 }

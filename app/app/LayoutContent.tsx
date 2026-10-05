@@ -17,6 +17,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
 import { AgentNoteOnOpen } from "@/components/ai/AgentNoteOnOpen";
+import { RunningTimerChip } from "@/components/time/RunningTimerChip";
 
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
@@ -55,6 +56,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
         <EmailOffBanner isAdmin={isAdmin} />
         {children}
         <AgentNoteOnOpen />
+        <RunningTimerChip className="bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2" />
       </MobileNavigationBar>
     );
   }
@@ -67,6 +69,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     <DesktopNavigationBar>
       <EmailOffBanner isAdmin={isAdmin} />
         <AgentNoteOnOpen />
+      <RunningTimerChip className="bottom-4 right-4" />
       <ResizablePanelGroup
         direction="horizontal"
         onLayout={(sizes) => {
