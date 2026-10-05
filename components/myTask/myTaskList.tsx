@@ -248,7 +248,7 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
                     action={
                         !isFiltered && (
                             <Button
-                                onClick={() => dispatch(openUI({ key: "createTask" }))}
+                                onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}
                                 variant="outline"
                                 size="sm"
                             >

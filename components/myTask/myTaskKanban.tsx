@@ -76,7 +76,7 @@ export const MyTaskKanban = () => {
                     <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
                 </div>
                 <div className="flex space-x-2">
-                    <Button variant="outline" size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask" }))}>
+                    <Button variant="outline" size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}>
                         <CirclePlus className="h-4 w-4" /> {t("createTask")}
                     </Button>
                     <DropdownMenu>
