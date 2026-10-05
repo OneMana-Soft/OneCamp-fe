@@ -1,0 +1,37 @@
+import { describe, expect, it } from "vitest"
+import { buildInvoice, money, round2, suggestNumber } from "./invoice"
+
+const report = {
+  by_task: [
+    { id: "a", name: "Design", seconds: 7200, billable_seconds: 5400 }, // 1.5h billable
+    { id: "b", name: "Internal", seconds: 3600, billable_seconds: 0 },
+    { id: "c", name: "Build", seconds: 1000, billable_seconds: 1000 }, // 0.28h
+  ],
+  by_person: [{ id: "p", name: "Maya", seconds: 11800, billable_seconds: 6400 }], // 1.78h
+}
+
+describe("buildInvoice", () => {
+  it("bills billable hours only, line by line", () => {
+    const inv = buildInvoice(report, { by: "task", rate: 2000, taxPercent: 18 })
+    expect(inv.lines.map((l) => [l.description, l.hours, l.amount])).toEqual([["Design", 1.5, 3000], ["Build", 0.28, 560]])
+    expect(inv.subtotal).toBe(3560)
+    expect(inv.tax).toBe(640.8)
+    expect(inv.total).toBe(4200.8)
+    expect(inv.hours).toBe(1.78)
+  })
+  it("can bill by person", () => {
+    expect(buildInvoice(report, { by: "person", rate: 100, taxPercent: 0 }).lines).toEqual([{ description: "Maya", hours: 1.78, rate: 100, amount: 178 }])
+  })
+  it("treats a missing or negative rate or tax as none", () => {
+    const inv = buildInvoice(report, { by: "task", rate: Number.NaN, taxPercent: -5 })
+    expect(inv.total).toBe(0)
+    expect(inv.tax).toBe(0)
+  })
+  it("rounds money to two places", () => expect(round2(1.005)).toBe(1.01))
+})
+
+describe("formatting", () => {
+  it("formats money in the currency", () => expect(money("USD", "en-US")(1234.5)).toBe("$1,234.50"))
+  it("survives an unknown currency", () => expect(money("XYZ1", "en-US")(2)).toBe("2.00 XYZ1"))
+  it("suggests an invoice number", () => expect(suggestNumber("Q4 launch", new Date(2026, 9, 5))).toBe("QL-2026-10"))
+})

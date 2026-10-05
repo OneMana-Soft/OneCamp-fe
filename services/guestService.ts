@@ -298,6 +298,14 @@ export const postGuestMessage = (token: string, body: { display_name: string; te
 
 // --- Public (no auth): a project shared with a client. ---
 
+/** A client's verdict on a task. */
+export interface GuestReview {
+    decision: "approved" | "changes"
+    name: string
+    note?: string
+    created_at: string
+}
+
 export interface GuestTaskCard {
     id: string
     name: string
@@ -307,6 +315,7 @@ export interface GuestTaskCard {
     due_date?: string
     assignee?: string
     comment_count: number
+    review?: GuestReview
 }
 
 export interface GuestProjectView {
@@ -334,3 +343,6 @@ export const getGuestProjectTask = (token: string, taskId: string) =>
 
 export const commentOnGuestTask = (token: string, taskId: string, body: { display_name: string; text: string }) =>
     publicCall<unknown>(`/guest/project/${encodeURIComponent(token)}/task/${encodeURIComponent(taskId)}/comment`, { method: "POST", body: JSON.stringify(body) })
+
+export const reviewGuestTask = (token: string, taskId: string, body: { display_name: string; decision: GuestReview["decision"]; note: string }) =>
+    publicCall<GuestReview>(`/guest/project/${encodeURIComponent(token)}/task/${encodeURIComponent(taskId)}/review`, { method: "POST", body: JSON.stringify(body) })

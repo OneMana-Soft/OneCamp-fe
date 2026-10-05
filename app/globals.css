@@ -944,3 +944,19 @@ html[data-media-collapsed="true"] [data-message-media] {
 :root {
   accent-color: var(--brand);
 }
+
+/* An invoice is paper: light in any theme, on screen and when printed. The
+   same values as the light :root tokens, scoped to the invoice. */
+.invoice-paper {
+  --background: oklch(0.995 0.002 75);
+  --foreground: oklch(0.19 0.008 75);
+  --card: oklch(1 0.001 75);
+  --card-foreground: oklch(0.19 0.008 75);
+  --muted: oklch(0.968 0.004 75);
+  --muted-foreground: oklch(0.525 0.012 75);
+  --border: oklch(0.918 0.005 75);
+  color-scheme: light;
+}
+@media print {
+  @page { margin: 16mm; }
+}
