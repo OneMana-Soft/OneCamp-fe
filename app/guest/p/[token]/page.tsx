@@ -62,14 +62,14 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
     <main className="flex h-dvh flex-col bg-background">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3">
         <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        <h1 className="min-w-0 truncate font-semibold">{view.project}</h1>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground" aria-label={`${view.done_tasks} of ${view.total_tasks} tasks done`}>
-          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted" aria-hidden>
+        <h1 className="min-w-0 flex-1 truncate font-semibold sm:flex-none">{view.project}</h1>
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground sm:order-last sm:ml-auto">You&apos;re a guest</span>
+        <div className="flex w-full items-center gap-2 text-xs text-muted-foreground sm:w-auto" aria-label={`${view.done_tasks} of ${view.total_tasks} tasks done`}>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted sm:w-24 sm:flex-none" aria-hidden>
             <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
           </div>
           <span className="tabular-nums">{view.done_tasks} of {view.total_tasks} done</span>
         </div>
-        <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">You&apos;re a guest</span>
       </header>
       <div className="flex min-h-0 flex-1">
         <section className={`min-w-0 flex-1 overflow-auto p-4 ${open ? "hidden md:block" : ""}`}>

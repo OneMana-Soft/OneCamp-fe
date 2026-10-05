@@ -35,29 +35,16 @@ import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 import { TwoFactorSection } from "@/components/profile/TwoFactorSection";
 import { PasskeySection } from "@/components/profile/PasskeySection";
+import { nameSchema, optionalNameSchema } from "@/lib/validation/names";
 
 const profileFormSchema = z.object({
-    fullName: z
-        .string()
-        .trim()
-        .min(4, "Full name must be at least 4 characters")
-        .max(30, "Full name must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Full name must only contain letters, numbers, and underscores")
+    fullName: nameSchema("person", "Full name")
         .transform((e) => (e === "" ? undefined : e)),
-    displayName: z
-        .string()
-        .trim()
-        .min(4, "Display name must be at least 4 characters")
-        .max(30, "Display name must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Display name must only contain letters, numbers, and underscores")
+    displayName: nameSchema("person", "Display name")
         .transform((e) => (e === "" ? undefined : e)),
-    jobTitle: z
-        .union([z.string().length(0), z.string().min(4).max(30)])
-        .optional()
+    jobTitle: optionalNameSchema("label", "Job title")
         .transform((e) => (e === "" ? undefined : e)),
-    hobbies: z
-        .union([z.string().length(0), z.string().min(4).max(30)])
-        .optional()
+    hobbies: optionalNameSchema("label", "Interests")
         .transform((e) => (e === "" ? undefined : e)),
     language: z.string({
         required_error: "Please select a language.",

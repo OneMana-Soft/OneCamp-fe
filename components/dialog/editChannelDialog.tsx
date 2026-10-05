@@ -24,16 +24,10 @@ import {ChannelInfoInterfaceResp, ChannelNameExistsInterface} from "@/types/chan
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {useDispatch} from "react-redux";
 import {removeUserChannelName, updateUserChannelName} from "@/store/slice/userSlice";
-
-const NAME_REGEX = /^[A-Za-z0-9_\s]+$/;
+import { isValidName, nameSchema } from "@/lib/validation/names";
 
 const editChannelFormSchema = z.object({
-    channel_name: z
-        .string()
-        .trim()
-        .min(4, "Channel name must be at least 4 characters")
-        .max(30, "Channel name must be at most 30 characters")
-        .regex(NAME_REGEX, "Only letters, numbers, spaces and underscores"),
+    channel_name: nameSchema("workspace", "Channel name"),
     channel_private: z.boolean(),
     channel_archived: z.boolean(),
     announcement_only: z.boolean(),
@@ -140,7 +134,7 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
     const ch_name = watch("channel_name");
     const nameChanged = ch_name !== originalChannelName;
     const nameSyntaxValid = useMemo(
-        () => ch_name.trim().length >= 4 && ch_name.trim().length <= 30 && NAME_REGEX.test(ch_name.trim()),
+        () => isValidName("workspace", ch_name),
         [ch_name],
     );
 

@@ -16,15 +16,11 @@ import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {usePost} from "@/hooks/usePost";
 import {PostEndpointUrl} from "@/services/endPoints";
+import { nameSchema } from "@/lib/validation/names";
 
 
 const updateDocFormSchema = z.object({
-    doc_title: z
-        .string()
-        .trim()
-        .min(4, "Doc title must be at least 4 characters")
-        .max(30, "Doc title must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Doc title must only contain letters, numbers, and underscores"),
+    doc_title: nameSchema("title", "Doc title"),
 });
 
 type UpdateDocFormValues = z.infer<typeof updateDocFormSchema>;

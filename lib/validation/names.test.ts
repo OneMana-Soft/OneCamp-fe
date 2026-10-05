@@ -1,0 +1,19 @@
+import { describe, expect, it } from "vitest"
+import { isValidName, nameSchema } from "./names"
+
+describe("names", () => {
+  it.each(["qa", "launch-week", "Q4 launch", "design_ops", "विपणन", "製品"])("accepts the workspace name %s", (v) =>
+    expect(isValidName("workspace", v)).toBe(true))
+  it.each(["a", "x".repeat(41), "launch/week", "<b>", "  "])("refuses the workspace name %s", (v) =>
+    expect(isValidName("workspace", v)).toBe(false))
+  it.each(["Li", "José Álvarez", "O'Brien", "Mary-Jane", "Dr. Smith", "अकाश"])("accepts the person %s", (v) =>
+    expect(isValidName("person", v)).toBe(true))
+  it.each(["What's next?", "Q4: plan (draft)", "Launch notes — 5 Oct"])("accepts the title %s", (v) =>
+    expect(isValidName("title", v)).toBe(true))
+  it("refuses control characters in titles", () => expect(isValidName("title", "a\u0007b")).toBe(false))
+  it("explains a refusal", () => {
+    const r = nameSchema("workspace", "Channel name").safeParse("a/b")
+    expect(r.success).toBe(false)
+    expect(r.error?.issues[0].message).toMatch(/Channel name can use letters/)
+  })
+})
