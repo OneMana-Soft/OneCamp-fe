@@ -23,7 +23,8 @@ const ToastViewport = React.forwardRef<
       "fixed z-[var(--z-toast)] flex flex-col gap-2 p-4 max-h-screen w-full",
       // Mobile: bottom-aligned, full-width minus padding, with safe-area inset
       "bottom-0 left-1/2 -translate-x-1/2 sm:translate-x-0",
-      "pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pb-4",
+      // Clears the phone's bottom navigation bar (about 4rem), as the timer chip does.
+      "pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-4",
       // Desktop: pin to bottom-right with bounded width
       "sm:bottom-0 sm:right-0 sm:left-auto sm:max-w-[380px]",
       className,

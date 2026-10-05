@@ -147,7 +147,9 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
     );
 
     const titleNode = (
-        <span className="inline-flex items-center gap-1.5 min-w-0">
+        // Block-level so the line is as wide as the row and the text below ends
+        // in an ellipsis; an inline-flex grew with its text and was clipped.
+        <span className="flex w-full min-w-0 items-center gap-1.5">
             <span className="min-w-0 truncate">
                 <span className="font-semibold text-foreground">
                     {meta.user?.user_full_name || "Unknown user"}
