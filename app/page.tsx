@@ -260,16 +260,20 @@ export default function SignUp() {
     }
   };
 
+  const NO_PASSKEY_USED =
+    "No passkey was used. If you haven't added one on this device yet, sign in another way, then add it from your profile under Security.";
+
   const handlePasskeyLogin = async () => {
     setPasskeyError("");
     setIsLoading(true);
     try {
       const result = await signInWithPasskey();
       if (result.ok) router.push(app_home_path);
-      else if (result.msg) setPasskeyError(result.msg);
+      else setPasskeyError(result.msg ?? NO_PASSKEY_USED);
     } catch (error) {
-      const msg = passkeyErrorMessage(error);
-      if (msg) setPasskeyError(msg);
+      // A cancel and "this device has no passkey for this site" look the
+      // same to the page, so both get the hint rather than silence.
+      setPasskeyError(passkeyErrorMessage(error) ?? NO_PASSKEY_USED);
     } finally {
       setIsLoading(false);
     }
