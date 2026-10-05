@@ -2,6 +2,7 @@
 
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
+import { HeldNotificationsBar } from "@/components/messages/heldNotificationsBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
@@ -68,6 +69,7 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
             />
             <div ref={contentRef}> {/* Wrap all content in a ref */}
                 <div ref={editorRef}>
+                    <HeldNotificationsBar userUUID={chatId} />
                     {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         attachmentOnclick={() => { dispatch(openUI({ key: 'chatFileUpload' })) }}

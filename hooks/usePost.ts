@@ -32,6 +32,7 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH"
 
 
 const endpointMessages: Partial<Record<PostEndpointUrl, { success: string; error: string }>> = {
+    [PostEndpointUrl.NotifyAnyway]: { success: "Notified.", error: "Couldn't notify them" },
     [PostEndpointUrl.PauseNotifications]: { success: "Notifications updated.", error: "Couldn't change your notifications" },
     [PostEndpointUrl.DisconnectMyAssistant]: { success: "Disconnected. It can no longer act in OneCamp.", error: "Could not disconnect; try again." },
     // Teams
