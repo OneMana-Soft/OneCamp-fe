@@ -459,7 +459,7 @@ export function CalendarApp() {
                     onClick={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}
                 >
                     <Plus className="h-4 w-4" />
-                    Create
+                    New event
                 </Button>
                 
                 {/* Mini Calendar placeholder */}
@@ -614,9 +614,23 @@ export function CalendarApp() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                        <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setBookingOpen(true)}>
+                        {/* The one thing a calendar is for. A phone had no way to add an
+                            event at all: the week grid's empty slots are desktop-only. The wide
+                            layout has the same button in its sidebar. */}
+                        <Button size="sm" className="h-8 gap-1.5 lg:hidden" onClick={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}>
+                            <Plus className="h-3.5 w-3.5" aria-hidden />
+                            New event
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn("h-8 gap-1.5", isMobile && "w-8 px-0")}
+                            onClick={() => setBookingOpen(true)}
+                            aria-label="Booking pages"
+                            title="Booking pages"
+                        >
                             <Link2 className="h-3.5 w-3.5" aria-hidden />
-                            Booking pages
+                            {!isMobile && "Booking pages"}
                         </Button>
                     {isDesktop && (
                         <>
