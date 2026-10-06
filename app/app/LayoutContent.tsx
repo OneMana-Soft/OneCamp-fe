@@ -111,8 +111,14 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
             rightPanelState.isOpen ? "opacity-100" : "opacity-0"
           }`}
         >
-          {/* Content for the right panel */}
-          <div className="absolute right-0 top-0 h-full w-full min-w-[320px] overflow-y-auto">
+          {/* Content for the right panel. The panel's width changes fast (it
+              re-lays out the page every frame it moves); what slides in is its
+              content, on transform and opacity, which cost no layout. Keyed on
+              open so it plays on opening, not on switching what is shown. */}
+          <div
+            key={rightPanelState.isOpen ? "open" : "closed"}
+            className="absolute right-0 top-0 h-full w-full min-w-[320px] overflow-y-auto motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-3 motion-safe:duration-200 motion-safe:ease-out"
+          >
             <RightPanel />
           </div>
         </ResizablePanel>

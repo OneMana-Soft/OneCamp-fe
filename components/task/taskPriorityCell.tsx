@@ -8,10 +8,8 @@ export const TaskPriorityCell = ({priority}: {priority: prioritiesInterface}) =>
     const { t } = useTranslation()
 
     return (
-        <Badge variant="secondary" className={cn("font-medium space-x-1", priority.color)}>
-        {priority.icon && (
-                <priority.icon className=" h-4 w-4 text-muted-foreground" />
-            )}
+        <Badge variant="secondary" className={cn("shrink-0 gap-1 whitespace-nowrap font-medium", priority.color)}>
+            {priority.icon && <priority.icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
             <div>{t(priority.value, { defaultValue: priority.label })}</div>
         </Badge>
     )

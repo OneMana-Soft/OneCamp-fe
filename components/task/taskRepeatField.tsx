@@ -27,6 +27,7 @@ import {
   type RepeatSpec,
   type TaskRecurrence,
 } from "@/lib/tasks/recurrence"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 const UNITS: { value: Freq; one: string; many: string }[] = [
   { value: "DAILY", one: "day", many: "days" },
@@ -86,11 +87,11 @@ export function TaskRepeatField({
   const weeklyDays = spec.freq === "WEEKLY" && spec.mode === "schedule"
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-2">
-      <div className="sm:col-span-1">
-        <span className="text-xs text-muted-foreground sm:text-foreground">Repeat</span>
+    <div className={fieldRow()}>
+      <div>
+        <span className={fieldLabel}>Repeat</span>
       </div>
-      <div className="sm:col-span-5">
+      <div className="min-w-0">
         <Popover open={open} onOpenChange={openWith}>
           <PopoverTrigger asChild>
             <Button

@@ -14,6 +14,7 @@ import { serverMessage } from "@/lib/http/serverMessage"
 import { ChevronDown, CircleStop, Pencil, Play, Plus, Trash2 } from "@/lib/icons"
 import { formatClock, formatDuration, parseDuration, type TimeEntryView } from "@/lib/tasks/time"
 import { startTimer, stopTimer, useElapsed, useRunningTimer, useTaskTime, type SpanInput } from "@/hooks/useTaskTime"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 const shortDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" })
@@ -45,11 +46,11 @@ export function TaskTimeSection({ taskUUID }: { taskUUID: string }) {
   }
 
   return (
-    <div className="mb-2 grid grid-cols-1 gap-1 sm:grid-cols-6 sm:items-start sm:gap-0">
-      <div className="pt-1.5 sm:col-span-1">
-        <span className="text-xs text-muted-foreground sm:text-foreground">Time</span>
+    <div className={fieldRow("start")}>
+      <div className="pt-1.5">
+        <span className={fieldLabel}>Time</span>
       </div>
-      <div className="grid gap-2 sm:col-span-5">
+      <div className="min-w-0 grid gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {runningHere ? (
             <Button size="sm" variant="destructive" className="h-8 gap-1.5" disabled={busy} onClick={() => act(() => stopTimer(taskUUID), "Couldn't stop the timer")}>

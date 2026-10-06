@@ -21,12 +21,12 @@ export const TaskStatusCell = ({status}: {status: StatusLike}) => {
     return (
         <div
             className={cn(
-                "flex items-center rounded-full px-2 py-1  bg-blue-700 text-xs font-medium  space-x-1",
+                // Never two lines: a narrow column truncates the row, not the chip.
+                "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium",
                 status.color,
             )}
-        >            {status.icon && (
-                <status.icon className=" h-4 w-4 text-muted-foreground" />
-            )}
+        >
+            {status.icon && <status.icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
             <div>{label}</div>
         </div>
     )

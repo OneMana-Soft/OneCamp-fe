@@ -70,7 +70,7 @@ export function TaskTableToolbar<TData>({
     }, [table])
 
     return (
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="flex flex-1 flex-wrap items-center gap-2 min-w-0">
                 <Input
                     placeholder={t("filterTasksPlaceholder")}

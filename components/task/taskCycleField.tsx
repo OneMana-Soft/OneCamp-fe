@@ -10,6 +10,7 @@ import { usePost } from "@/hooks/usePost"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { cycleDates, cycleLabel, openCycles, type Cycle } from "@/lib/tasks/cycles"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 const NONE = "none"
 
@@ -36,11 +37,11 @@ export function TaskCycleField({ taskUUID, projectId, isAdmin }: { taskUUID: str
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-2">
-      <div className="sm:col-span-1">
-        <span className="text-xs text-muted-foreground sm:text-foreground">Cycle</span>
+    <div className={fieldRow()}>
+      <div>
+        <span className={fieldLabel}>Cycle</span>
       </div>
-      <div className="sm:col-span-5">
+      <div className="min-w-0">
         <Select value={current?.id ?? NONE} onValueChange={change} disabled={!isAdmin || isSubmitting}>
           <SelectTrigger className="md:-ml-1 h-8 w-fit min-w-40 border-none shadow-none hover:bg-accent" aria-label="Cycle">
             <SelectValue>{current ? cycleLabel(current) : <span className="text-muted-foreground">No cycle</span>}</SelectValue>
