@@ -33,6 +33,20 @@ export const GO_KEYS: { key: string; to: string; label: string }[] = [
 /** How long after G the second key still counts. */
 export const GO_WINDOW_MS = 1200
 
+/**
+ * When G was pressed and is still waiting for its letter. Shared, so other
+ * single-letter keys stand aside meanwhile: G then T is My Tasks, not "tags"
+ * on the task a list has highlighted.
+ */
+let goArmedAt = 0
+export const armGo = (now: number) => {
+  goArmedAt = now
+}
+export const disarmGo = () => {
+  goArmedAt = 0
+}
+export const goArmed = (now: number = Date.now()) => goArmedAt > 0 && now - goArmedAt < GO_WINDOW_MS
+
 /** Where G then `key` goes, or null. */
 export function goTarget(key: string): string | null {
   return GO_KEYS.find((g) => g.key === key.toLowerCase())?.to ?? null

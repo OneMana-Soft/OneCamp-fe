@@ -38,6 +38,10 @@ interface Props {
     task: TaskInfoInterface
     /** A status to show on the card, when its column does not already say it. */
     statusBadge?: string
+    /** Where the keyboard is on the board (lib/listKeys). */
+    highlighted?: boolean
+    /** Picked for a change to many tasks at once. */
+    selected?: boolean
     fadeIn?: boolean
     transform?: Transform | null
     listeners?: DraggableSyntheticListeners
@@ -254,6 +258,8 @@ export const Item = React.memo(
                 handleProps,
                 task,
                 statusBadge,
+                highlighted,
+                selected,
                 index,
                 listeners,
                 onRemove,
@@ -341,7 +347,10 @@ export const Item = React.memo(
                             !handle && "cursor-pointer",
                             disabled && "opacity-60 pointer-events-none",
                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                            selected && "border-primary/50 bg-primary/5",
+                            highlighted && "ring-2 ring-ring/40",
                         )}
+                        data-selected={selected || undefined}
                         style={style}
                         data-cypress="draggable-item"
                         {...(!handle ? listeners : undefined)}
@@ -359,6 +368,7 @@ export const Item = React.memo(
                             }
                         }}
                     >
+                        {selected && <span className="sr-only">Selected.</span>}
                         <TaskCardBody task={task} statusBadge={statusBadge} />
 
                         {/* Drag handle / remove (only present when handle prop is true) */}

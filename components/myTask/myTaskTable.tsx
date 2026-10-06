@@ -28,6 +28,7 @@ import {
 
 import {TaskTableToolbar} from "@/components/task/taskTableToolbar";
 import {TaskTablePagination} from "@/components/task/taskTablePagination";
+import { KeyboardList, SelectAllHead, TaskTableRow } from "@/components/task/KeyboardList";
 import {useMyTaskColumn} from "@/hooks/useMyTaskColumn";
 import {useDebounce} from "@/hooks/useDebounce";
 import {useFetch} from "@/hooks/useFetch";
@@ -64,7 +65,6 @@ export const MyTaskTable = () => {
     const taskListState = useSelector(
         (state: RootState) => state.TaskInfo.taskListVisibleInfo || ([] as TaskInfoInterface[]),
     )
-    const [rowSelection, setRowSelection] = useState({});
     const {t} = useTranslation()
 
 
@@ -140,15 +140,12 @@ export const MyTaskTable = () => {
         state: {
             sorting,
             columnVisibility: { ...columnVisibility, ...autoHidden },
-            rowSelection,
             columnFilters,
             globalFilter,
             pagination: pagination(),
         },
-        enableRowSelection: true,
         manualPagination: true,
         getRowId: (originalRow) => originalRow.task_uuid,
-        onRowSelectionChange: setRowSelection,
         onSortingChange: setSorting,
         onColumnFiltersChange: (c) => {
             hasFiltersChangedRef.current = true;
@@ -247,14 +244,17 @@ export const MyTaskTable = () => {
         };
     }, [pageIndex, pageSize, sorting, columnFilters, columnVisibility, globalFilter, pathname, router]);
 
+    const rowIds = table.getRowModel().rows.map((r) => r.id);
+
     return (
-        <div className="space-y-4">
+        <KeyboardList tasks={taskListState} canEdit={canEditTask} className="space-y-4">
             <TaskTableToolbar table={table} />
             <div ref={tableBoxRef} className="rounded-md border">
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
                             <TableRow key={headerGroup.id}>
+                                <SelectAllHead ids={rowIds} />
                                 {headerGroup.headers.map((header) => (
                                     <TableHead key={header.id} colSpan={header.colSpan}>
                                         {header.isPlaceholder
@@ -271,10 +271,7 @@ export const MyTaskTable = () => {
                     <TableBody>
                         {table.getRowModel().rows?.length ? (
                             table.getRowModel().rows.map((row) => (
-                                <TableRow
-                                    key={row.id}
-                                    data-state={row.getIsSelected() && "selected"}
-                                >
+                                <TaskTableRow key={row.id} id={row.id}>
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell key={cell.id}>
                                             {flexRender(
@@ -283,13 +280,13 @@ export const MyTaskTable = () => {
                                             )}
                                         </TableCell>
                                     ))}
-                                </TableRow>
+                                </TaskTableRow>
                             ))
                         ) : userInfo.isLoading ? (
-                            <TableRowsSkeleton columns={table.getVisibleLeafColumns().length} />
+                            <TableRowsSkeleton columns={table.getVisibleLeafColumns().length + 1} />
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center items-center">
+                                <TableCell colSpan={columns.length + 1} className="h-24 text-center items-center">
                                     {t('noResultFound')}
                                 </TableCell>
                             </TableRow>
@@ -298,6 +295,9 @@ export const MyTaskTable = () => {
                 </Table>
             </div>
             <TaskTablePagination table={table} />
-        </div>
+        </KeyboardList>
     );
 };
+
+/** Tasks here come from many projects; each is changed by its own project's admins. */
+const canEditTask = (task: TaskInfoInterface) => Boolean(task.task_project?.project_is_admin)

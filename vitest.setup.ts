@@ -12,3 +12,9 @@ if (typeof globalThis.ResizeObserver === "undefined") {
     disconnect() {}
   } as unknown as typeof ResizeObserver
 }
+
+// jsdom lays nothing out, so it has no scrollIntoView. Lists call it to keep
+// the keyboard's place in view, and cmdk to keep the picked option in view.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {}
+}
