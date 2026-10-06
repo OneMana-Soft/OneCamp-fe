@@ -1,3 +1,4 @@
+import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import { createSlice } from "@reduxjs/toolkit";
 import {CancelTokenSource} from "axios";
 import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
@@ -196,6 +197,8 @@ interface CreatePostReactionByPostId {
 }
 
 const initialState = {
+    // Which conversations have messages in memory, least recent first (lib/utils/recentlyLoaded).
+    loadedOrder: [] as string[],
     channelInputState: {} as ExtendedInputState,
     channelPosts: {} as ExtendedPosts,
     channelScrollPosition: {} as ChannelScrollPosition,
@@ -306,6 +309,7 @@ const channelSlice = createSlice({
             const { channelId, posts } = action.payload;
 
             state.channelPosts[channelId] = [...posts];
+            keepRecentlyLoaded(state.channelPosts, state.loadedOrder, channelId);
 
         },
 
@@ -344,6 +348,7 @@ const channelSlice = createSlice({
             });
 
             if (next !== existing) state.channelPosts[channelId] = next;
+            keepRecentlyLoaded(state.channelPosts, state.loadedOrder, channelId);
         },
 
         updatePostReactionPostId: (state, action: {payload: UpdatePostReactionByPostId}) => {
@@ -591,6 +596,7 @@ const channelSlice = createSlice({
         // SYNC: Clear all loaded channel posts to force API refetch after stale reconnection
         invalidateChannelPosts: (state) => {
             state.channelPosts = {} as ExtendedPosts
+            state.loadedOrder = []
         }
     }
 });

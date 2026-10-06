@@ -1,3 +1,4 @@
+import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import {createSlice} from "@reduxjs/toolkit";
 import {ExtendedScrollToBottom, FilePreview, ScrollToBottom} from "@/store/slice/channelSlice";
 import {AttachmentMediaReq} from "@/types/attachment";
@@ -158,6 +159,8 @@ interface ExtendedLocallyCreatedChats {
 }
 
 const initialState = {
+    // Which conversations have messages in memory, least recent first (lib/utils/recentlyLoaded).
+    loadedOrder: [] as string[],
     chatInputState: {} as ExtendedChatInputState,
     chatMessages: {} as ExtendedChats,
     chatScrollToBottom: {} as ExtendedScrollToBottom,
@@ -359,6 +362,7 @@ const groupChatSlice = createSlice({
             const { grpId, chats } = action.payload;
 
             state.chatMessages[grpId] = [...chats];
+            keepRecentlyLoaded(state.chatMessages, state.loadedOrder, grpId);
 
         },
 
@@ -388,6 +392,7 @@ const groupChatSlice = createSlice({
             });
 
             if (next !== existing) state.chatMessages[grpId] = next;
+            keepRecentlyLoaded(state.chatMessages, state.loadedOrder, grpId);
         },
 
 
