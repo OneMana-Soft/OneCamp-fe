@@ -43,6 +43,7 @@ import {usePost} from "@/hooks/usePost";
 import {clearUserEmojiStatus, updateUserEmojiStatus} from "@/store/slice/userSlice";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
+import { browserTZ } from "@/lib/utils/timeZone"
 
 
 const DEFAULT_STATUSES: UserEmojiStatus[] = [
@@ -160,7 +161,7 @@ const UpdateUserStatusDialog: React.FC<updateUserStatusDialogProps> = ({
           emoji_expiry_time_in: expiresIn || '',
           emoji_id: emoji,
           emoji_status_desc: message,
-          emoji_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+          emoji_timezone: browserTZ()
         }})
           .then(()=>{
             dispatch(updateUserEmojiStatus({userUUID: selfProfile.data?.data.user_uuid || '', status: {

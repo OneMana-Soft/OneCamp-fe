@@ -1,7 +1,8 @@
 "use client"
 
 import { useProjectUpdates } from "@/hooks/useProjectUpdates"
-import { ago, healthOf, updateDue } from "@/lib/projectUpdates"
+import { healthOf, updateDue } from "@/lib/projectUpdates"
+import { daysAgo } from "@/lib/utils/relativeTime"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /**
@@ -32,7 +33,7 @@ export function ProjectHealthChip({ projectId, onOpen }: { projectId: string; on
     >
       <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", h.dot)} />
       {h.label}
-      <span className="font-normal opacity-75">· {ago(latest.created_at, now)}</span>
+      <span className="font-normal opacity-75">· {daysAgo(latest.created_at, now)}</span>
       {due && <span className="font-normal opacity-75">· update due</span>}
     </button>
   )

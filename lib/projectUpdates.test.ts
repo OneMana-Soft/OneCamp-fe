@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { ago, healthOf, textBlocks, updateDue, type ProjectUpdate } from "./projectUpdates"
+import { healthOf, textBlocks, updateDue, type ProjectUpdate } from "./projectUpdates"
+import { daysAgo as ago } from "@/lib/utils/relativeTime"
 
 const now = Date.parse("2026-10-07T12:00:00Z")
 const at = (days: number) => new Date(now - days * 86_400_000).toISOString()

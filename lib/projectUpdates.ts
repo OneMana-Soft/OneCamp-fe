@@ -2,6 +2,7 @@
  * Project updates (business/ProjectUpdate on the server): where a project
  * stands, and a short note in plain text. Pure helpers, for their test.
  */
+import { daysSince } from "@/lib/utils/relativeTime"
 
 export type Health = "on_track" | "at_risk" | "off_track" | "on_hold" | "done"
 
@@ -74,34 +75,10 @@ export function textBlocks(body: string): TextBlock[] {
   return out
 }
 
-/** Whole days since an update was posted. */
-export function daysSince(iso: string, now: number): number {
-  return Math.max(0, Math.floor((now - Date.parse(iso)) / 86_400_000))
-}
-
-/** How long ago, in a few characters: "today", "yesterday", "3 days ago", "2 weeks ago". */
-export function ago(iso: string, now: number): string {
-  const d = daysSince(iso, now)
-  if (d === 0) return "today"
-  if (d === 1) return "yesterday"
-  if (d < 14) return `${d} days ago`
-  if (d < 60) return `${Math.floor(d / 7)} weeks ago`
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
-}
-
 /** A project's admins are reminded once its last update is a week old. */
 export const UPDATE_DUE_DAYS = 7
 
 /** Whether an update is due: none yet, or the newest is a week old. */
 export function updateDue(latest: ProjectUpdate | undefined, now: number): boolean {
   return !latest || daysSince(latest.created_at, now) >= UPDATE_DUE_DAYS
-}
-
-/** The time zone to count days in, the author's. */
-export const authorTimeZone = () => {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  } catch {
-    return "UTC"
-  }
 }

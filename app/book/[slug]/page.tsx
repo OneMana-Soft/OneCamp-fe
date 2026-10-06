@@ -14,7 +14,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils/helpers/cn"
 import { bookSlot, getBookingPage, type Booked, type PublicBookingPage } from "@/services/bookingService"
 import {
-  browserTZ,
   formatDay,
   formatRange,
   formatTime,
@@ -24,6 +23,7 @@ import {
   timeZones,
   type Slot,
 } from "@/lib/calendar/availability"
+import { browserTZ } from "@/lib/utils/timeZone"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { SpamTrap } from "@/components/common/SpamTrap"
 

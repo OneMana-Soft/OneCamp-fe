@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { GuestUpdate } from "@/services/guestService"
-import { ago } from "@/lib/projectUpdates"
+import { daysAgo } from "@/lib/utils/relativeTime"
 import { HealthPill } from "@/components/projectUpdates/HealthPill"
 import { UpdateText } from "@/components/projectUpdates/UpdateText"
 
@@ -23,7 +23,7 @@ export function GuestUpdates({ updates }: { updates: GuestUpdate[] }) {
           <header className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
             <HealthPill health={u.health} />
             <p className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">{u.author}</span> · {ago(u.created_at, now)}
+              <span className="font-medium text-foreground">{u.author}</span> · {daysAgo(u.created_at, now)}
             </p>
           </header>
           <UpdateText body={u.body} />

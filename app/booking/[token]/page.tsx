@@ -5,7 +5,8 @@
 import { use, useEffect, useState } from "react"
 import { AlertCircle, CalendarCheck, CalendarX, Loader2 } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
-import { browserTZ, formatRange } from "@/lib/calendar/availability"
+import { formatRange } from "@/lib/calendar/availability"
+import { browserTZ } from "@/lib/utils/timeZone"
 import { cancelBooking, getBooking, type BookingView } from "@/services/bookingService"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 

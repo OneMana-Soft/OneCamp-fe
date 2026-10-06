@@ -33,6 +33,7 @@ import type {
     ClientAction,
     CommandResponse,
 } from "@/types/command"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 export interface CommandSurfaceContext {
     surfaceKey: string          // channel uuid or dm grouping id
@@ -44,8 +45,6 @@ export interface CommandSurfaceContext {
     onComposerText?: (text: string) => void
     onComposerHtml?: (html: string) => void
 }
-
-const TIMEZONE = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"
 
 export function useCommandRunner(ctx: CommandSurfaceContext) {
     const dispatch = useDispatch()
@@ -205,7 +204,7 @@ export function useCommandRunner(ctx: CommandSurfaceContext) {
                     channel_id: ctx.channelId,
                     dm_group_id: ctx.dmGroupId,
                     thread_ts: ctx.threadTs,
-                    timezone: TIMEZONE,
+                    timezone: browserTZ(),
                     trigger_id: triggerId,
                 })
                 routeResponse(resp, triggerId, command)

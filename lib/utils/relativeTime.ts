@@ -15,3 +15,18 @@ export function relativeTime(iso: string, now: number = Date.now()): string {
   if (d < 7) return `${d}d ago`
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
+
+/** Whole days between a time and now, never negative. */
+export function daysSince(iso: string, now: number = Date.now()): number {
+  return Math.max(0, Math.floor((now - Date.parse(iso)) / 86_400_000))
+}
+
+/** How long ago at the scale of days: "today", "yesterday", "3 days ago", "2 weeks ago", then a date. */
+export function daysAgo(iso: string, now: number = Date.now()): string {
+  const d = daysSince(iso, now)
+  if (d === 0) return "today"
+  if (d === 1) return "yesterday"
+  if (d < 14) return `${d} days ago`
+  if (d < 60) return `${Math.floor(d / 7)} weeks ago`
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+}
