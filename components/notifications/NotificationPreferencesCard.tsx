@@ -21,6 +21,7 @@ import { Bell, Mail, Save, Moon, Loader2 } from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 type Preferences = {
   email_supported: boolean
@@ -60,15 +61,6 @@ const DEFAULTS: Preferences = {
   quiet_hours_tz: null,
 }
 
-// Display IANA timezones the browser exposes (small reasonable set used
-// when the runtime doesn't expose the full Intl supportedValuesOf).
-function detectBrowserTZ(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  } catch {
-    return "UTC"
-  }
-}
 
 export function NotificationPreferencesCard() {
   const { data, isLoading, mutate } = useFetch<FetchResponse>(GetEndpointUrl.GetNotificationPreferences)
@@ -85,7 +77,7 @@ export function NotificationPreferencesCard() {
       const merged: Preferences = { ...DEFAULTS, ...data.data }
       // If user has quiet hours but no timezone yet, seed with browser TZ.
       if (merged.quiet_hours_enabled && !merged.quiet_hours_tz) {
-        merged.quiet_hours_tz = detectBrowserTZ()
+        merged.quiet_hours_tz = browserTZ()
       }
       setWorking(merged)
       setOriginal(merged)
@@ -136,7 +128,7 @@ export function NotificationPreferencesCard() {
       !diff.quiet_hours_tz &&
       !working.quiet_hours_tz
     ) {
-      diff.quiet_hours_tz = detectBrowserTZ()
+      diff.quiet_hours_tz = browserTZ()
     }
 
     await post.makeRequest({
@@ -300,7 +292,7 @@ export function NotificationPreferencesCard() {
                 <Label htmlFor="qh_tz" className="text-xs">Timezone (IANA)</Label>
                 <Input
                   id="qh_tz"
-                  placeholder={detectBrowserTZ()}
+                  placeholder={browserTZ()}
                   value={working.quiet_hours_tz || ""}
                   onChange={(e) => setField("quiet_hours_tz", e.target.value)}
                 />

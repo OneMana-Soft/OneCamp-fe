@@ -11,7 +11,8 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Eye, Megaphone, Pencil, Trash2 } from "@/lib/icons"
-import { ago, daysSince, updateDue, type ProjectUpdate } from "@/lib/projectUpdates"
+import { updateDue, type ProjectUpdate } from "@/lib/projectUpdates"
+import { daysAgo, daysSince } from "@/lib/utils/relativeTime"
 import { HealthPill } from "@/components/projectUpdates/HealthPill"
 import { UpdateText } from "@/components/projectUpdates/UpdateText"
 import { UpdateComposer } from "@/components/projectUpdates/UpdateComposer"
@@ -135,7 +136,7 @@ function UpdateCard({
           <span className="font-medium text-foreground">{update.author_name}</span>
           {" · "}
           <time dateTime={update.created_at} title={new Date(update.created_at).toLocaleString()}>
-            {ago(update.created_at, now)}
+            {daysAgo(update.created_at, now)}
           </time>
           {edited && " · edited"}
         </p>

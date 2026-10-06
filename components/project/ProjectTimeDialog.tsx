@@ -15,6 +15,7 @@ import { serverMessage } from "@/lib/http/serverMessage"
 import { Download, FileText, Loader2 } from "@/lib/icons"
 import { REPORT_PRESETS, formatDuration, formatHours, presetRange, type ReportPreset, type TimeLine, type TimeReport } from "@/lib/tasks/time"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 export function ProjectTimeDialog({ projectId, projectName, open, onOpenChange }: { projectId: string; projectName?: string; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { toast } = useToast()
@@ -31,7 +32,7 @@ export function ProjectTimeDialog({ projectId, projectName, open, onOpenChange }
   const download = async () => {
     setDownloading(true)
     try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const tz = browserTZ()
       const res = await axiosInstance.get(`${base}?${query}&format=csv&tz=${encodeURIComponent(tz)}`, { responseType: "blob" })
       const name = /filename="([^"]+)"/.exec(String(res.headers["content-disposition"] ?? ""))?.[1] ?? "time.csv"
       const url = URL.createObjectURL(res.data as Blob)

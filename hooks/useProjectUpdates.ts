@@ -9,7 +9,8 @@ import { useCallback } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { authorTimeZone, type Health, type ProjectUpdate, type UpdateDraft } from "@/lib/projectUpdates"
+import { type Health, type ProjectUpdate, type UpdateDraft } from "@/lib/projectUpdates"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 /** The list the tab, the header chip and the reminder share (one request). */
 export const UPDATES_SHOWN = 20
@@ -35,12 +36,12 @@ export function useProjectUpdates(projectId: string | undefined) {
   const { data, isLoading, mutate } = useFetch<{ data: { updates: ProjectUpdate[]; can_post: boolean } }>(key)
 
   const draft = useCallback(async (): Promise<UpdateDraft> => {
-    const res = await axiosInstance.get(`${base(projectId!)}/draft`, { params: { tz: authorTimeZone() } })
+    const res = await axiosInstance.get(`${base(projectId!)}/draft`, { params: { tz: browserTZ() } })
     return (res.data as { data: UpdateDraft }).data
   }, [projectId])
 
   const aiDraft = useCallback(async (): Promise<UpdateDraft> => {
-    const res = await axiosInstance.post(GetEndpointUrl.AiProjectUpdateDraft, { project_uuid: projectId, tz: authorTimeZone() })
+    const res = await axiosInstance.post(GetEndpointUrl.AiProjectUpdateDraft, { project_uuid: projectId, tz: browserTZ() })
     return (res.data as { data: UpdateDraft }).data
   }, [projectId])
 

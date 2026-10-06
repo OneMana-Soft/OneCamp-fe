@@ -2,6 +2,7 @@
  * Availability on the client: working hours, slots grouped by day in the
  * viewer's zone, and the calendar file a booked guest takes away. Pure.
  */
+import { browserTZ } from "@/lib/utils/timeZone"
 
 export interface WorkingHours {
   days: number[] // 0 Sunday … 6 Saturday
@@ -13,14 +14,6 @@ export interface WorkingHours {
 export interface Slot {
   start: string
   end: string
-}
-
-export function browserTZ(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-  } catch {
-    return "UTC"
-  }
 }
 
 export const defaultHours = (tz: string = browserTZ()): WorkingHours => ({ days: [1, 2, 3, 4, 5], start: "09:00", end: "17:00", tz })

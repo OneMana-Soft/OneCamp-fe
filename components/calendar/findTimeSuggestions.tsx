@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Loader2, Sparkles } from "@/lib/icons"
 import { usePost } from "@/hooks/usePost"
 import { PostEndpointUrl } from "@/services/endPoints"
-import { browserTZ, defaultHours, formatDay, formatTime, groupByDay, type Slot } from "@/lib/calendar/availability"
+import { defaultHours, formatDay, formatTime, groupByDay, type Slot } from "@/lib/calendar/availability"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 interface FindTimeResult {
   slots: Slot[]
