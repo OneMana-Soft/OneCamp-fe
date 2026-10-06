@@ -10,6 +10,7 @@ import {UserProfileDataInterface} from "@/types/user";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
 import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 
 type AssigneePickerProps = {
@@ -46,11 +47,11 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
     }
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-2">
-            <div className="sm:col-span-1">
-                <span className="text-xs capitalize text-muted-foreground sm:text-foreground">{label}</span>
+        <div className={fieldRow()}>
+            <div>
+                <span className={fieldLabel}>{label}</span>
             </div>
-            <div className="sm:col-span-5 sm:-ml-0 md:-ml-4 ">
+            <div className="min-w-0 sm:-ml-0 md:-ml-4">
                 <Popover open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild>
                         <Button

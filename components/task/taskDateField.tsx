@@ -14,6 +14,7 @@ import {
   DrawerTrigger,
   DrawerTitle,
 } from "@/components/ui/drawer"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 type DateFieldProps = {
     isAdmin: boolean
@@ -181,11 +182,11 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
     if (compact) return Control
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-2">
-            <div className="sm:col-span-1">
-                <span className="text-xs capitalize text-muted-foreground sm:text-foreground">{label}</span>
+        <div className={fieldRow()}>
+            <div>
+                <span className={fieldLabel}>{label}</span>
             </div>
-            <div className="sm:col-span-5">{Control}</div>
+            <div className="min-w-0">{Control}</div>
         </div>
     )
 }

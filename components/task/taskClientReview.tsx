@@ -7,17 +7,18 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
 import type { GuestReview } from "@/services/guestService"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 export function TaskClientReview({ taskUUID }: { taskUUID: string }) {
   const { data } = useFetch<{ data: GuestReview | null }>(taskUUID ? `${GetEndpointUrl.TaskClientReview}/${taskUUID}` : "")
   const review = data?.data
   if (!review) return null
   return (
-    <div className="mb-2 grid grid-cols-1 gap-1 sm:grid-cols-6 sm:items-start sm:gap-0">
-      <div className="pt-0.5 sm:col-span-1">
-        <span className="text-xs text-muted-foreground sm:text-foreground">Client</span>
+    <div className={fieldRow("start")}>
+      <div className="pt-0.5">
+        <span className={fieldLabel}>Client</span>
       </div>
-      <div className="sm:col-span-5">
+      <div className="min-w-0">
         <ReviewBadge review={review} withNote />
       </div>
     </div>

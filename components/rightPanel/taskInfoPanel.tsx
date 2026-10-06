@@ -85,6 +85,7 @@ import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import {useMqtt} from "@/components/mqtt/mqttProvider";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 const CONSTANTS = {
     LABEL_PLACEHOLDER: "addLabel",
@@ -1020,7 +1021,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
 
                     <DateField
                         isAdmin={isAdmin}
-                        label="Start Date"
+                        label="Start date"
                         value={startDate}
                         onSelect={(d) => {
                             setStartDate(d)
@@ -1033,7 +1034,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                     />
                     <DateField
                         isAdmin={isAdmin}
-                        label="Due Date"
+                        label="Due date"
                         value={dueDate}
                         onSelect={(d) => {
                             setDueDate(d)
@@ -1058,11 +1059,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                     {taskInfo.data?.data.task_project?.project_uuid && <TaskTimeSection taskUUID={taskUUID} />}
                     <TaskClientReview taskUUID={taskUUID} />
 
-                    <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-2">
-                        <div className="sm:col-span-1 text-xs capitalize text-muted-foreground sm:text-foreground">
+                    <div className={fieldRow()}>
+                        <div className={fieldLabel}>
                             <div>Project</div>
                         </div>
-                        <div className="sm:col-span-5">
+                        <div className="min-w-0">
                             <Button
                                 variant="ghost"
                                 className="md:-ml-4 hover:underline font-normal max-w-full truncate"
@@ -1073,11 +1074,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                             </Button>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-6 gap-1 sm:gap-0 sm:items-center mb-6">
-                        <div className="sm:col-span-1 text-xs capitalize text-muted-foreground sm:text-foreground">
+                    <div className={fieldRow("center", "mb-6")}>
+                        <div className={fieldLabel}>
                             <div>Team</div>
                         </div>
-                        <div className="sm:col-span-5">
+                        <div className="min-w-0">
                             <Button
                                 variant="ghost"
                                 className="md:-ml-4 hover:underline font-normal max-w-full truncate"
