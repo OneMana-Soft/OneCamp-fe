@@ -21,6 +21,7 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {MessageAttachments} from "@/components/message/MessageAttachments";
 import {AgentResultCards} from "@/components/message/AgentResultCards";
+import { WorkLinkCards } from "@/components/message/WorkLinkCards"
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
@@ -238,6 +239,8 @@ export const MessageContent = ({
                 {userInfo?.is_bot && !isMessageEditEnabled && (
                     <AgentResultCards text={content} />
                 )}
+                {/* Live cards for this workspace's tasks, docs and projects, for everyone. */}
+                {!isMessageEditEnabled && <WorkLinkCards text={content} />}
 
                 {forwardedMessage && !isMessageEditEnabled && (
                     <MessagePreview

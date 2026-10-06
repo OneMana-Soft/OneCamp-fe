@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Check, X } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { AgentResultCards } from "@/components/message/AgentResultCards"
+import { WorkLinkCards } from "@/components/message/WorkLinkCards"
 import { useLongPress } from "@/hooks/useLongPress"
 import { useDispatch } from "react-redux"
 import { setChannelReplyTarget } from "@/store/slice/channelSlice"
@@ -278,6 +279,10 @@ const ChannelMessageMobileComponent = ({
                         {postInfo.post_by.is_bot && !isMessageEditEnabled && (
                             <AgentResultCards text={postInfo.post_text} />
                         )}
+
+                        {/* Live cards for this workspace's tasks, docs and projects, for everyone. */}
+
+                        {!isMessageEditEnabled && <WorkLinkCards text={postInfo.post_text} />}
 
                         {(postInfo.post_fwd_msg_chat || postInfo.post_fwd_msg_post) && (
                             <MessagePreview

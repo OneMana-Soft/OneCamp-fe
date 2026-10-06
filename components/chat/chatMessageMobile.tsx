@@ -5,6 +5,7 @@ import {cn} from "@/lib/utils/helpers/cn";
 import { Check, X } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { AgentResultCards } from "@/components/message/AgentResultCards";
+import { WorkLinkCards } from "@/components/message/WorkLinkCards"
 import {useLongPress} from "@/hooks/useLongPress";
 import {useDispatch} from "react-redux";
 import {openUI, closeUI} from "@/store/slice/uiSlice";
@@ -268,6 +269,10 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                         {chatInfo.chat_from?.is_bot && !isMessageEditEnabled && (
                             <AgentResultCards text={chatInfo.chat_body_text} />
                         )}
+
+                        {/* Live cards for this workspace's tasks, docs and projects, for everyone. */}
+
+                        {!isMessageEditEnabled && <WorkLinkCards text={chatInfo.chat_body_text} />}
 
                         {
                             (chatInfo.chat_fwd_msg_chat || chatInfo.chat_fwd_msg_post) &&
