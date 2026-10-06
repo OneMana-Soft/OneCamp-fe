@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {Separator} from "@/components/ui/separator"
 import {Label} from "@/components/ui/label"
 import { TagPicker } from "@/components/tags/TagPicker"
+import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
 import {Button} from "@/components/ui/button"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import type {Content} from "@tiptap/core"
@@ -120,6 +121,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const revalidateTaskListsTimeout = useRef<ReturnType<typeof setTimeout>|null>(null)
 
     const [taskLabel, setTaskLabel] = useState<string>("")
+    const [managingStatuses, setManagingStatuses] = useState(false)
     const [taskName, setTaskName] = useState<UpdateTaskName>({} as UpdateTaskName)
     const [taskDescription, setTaskDescription] = useState<string>("")
     // True only when the description was changed by USER input (handleDescriptionChange),
@@ -973,7 +975,15 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         selectedPriority={selectedPriority}
                         onSelectStatus={handleStatusSelect}
                         onSelectPriority={handlePrioritySelect}
+                        onManageStatuses={isAdmin && taskInfo.data?.data.task_project?.project_uuid ? () => setManagingStatuses(true) : undefined}
                     />
+                    {isAdmin && taskInfo.data?.data.task_project?.project_uuid && (
+                        <ProjectStatusesDialog
+                            projectId={taskInfo.data.data.task_project.project_uuid}
+                            open={managingStatuses}
+                            onOpenChange={setManagingStatuses}
+                        />
+                    )}
 
                     <TaskAssigneePicker
                         isAdmin={isAdmin}
