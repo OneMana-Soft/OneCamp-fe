@@ -37,16 +37,20 @@ interface VideoConferenceProps {
   // route) — so a guest never triggers a 401 → refresh → logout redirect. Guests
   // still see remote captions relayed over the LiveKit data channel.
   guest?: boolean;
-  // Where the call is ("#engineering", "Maya Chen"). Shown over the call, so
+  // Where the call is, after "Call" ("in #engineering", "with Maya Chen"). Shown over the call, so
   // someone with two calls open, or back from another tab, knows which this is.
   place?: string;
+  // In a side pane beside other work (split view) rather than its own page:
+  // it fills the pane. Its layout follows its own width either way (container
+  // queries), so a narrow pane gets the compact controls a phone gets.
+  embedded?: boolean;
 }
 
 export function VideoConference({
   token,
   serverUrl,
   onDisconnect,
-                                    toggleRecording, isAdmin, guest = false, place
+                                    toggleRecording, isAdmin, guest = false, place, embedded = false
 }: VideoConferenceProps) {
   const [shouldConnect, setShouldConnect] = useState(false);
 
@@ -73,10 +77,10 @@ export function VideoConference({
   }
 
   return (
-    <div className="relative h-full md:h-screen w-full bg-zinc-950 overflow-hidden" data-lk-theme="default">
+    <div className={`@container relative w-full bg-zinc-950 overflow-hidden ${embedded ? "h-full" : "h-full md:h-screen"}`} data-lk-theme="default">
       {place && (
         <p className="pointer-events-none absolute left-9 top-9 z-10 max-w-[50%] truncate rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white/90">
-          {place}
+          Call {place}
         </p>
       )}
       <LiveKitRoom
@@ -516,7 +520,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
                     />
                     {/* Other tracks logic needs to exclude effectiveFocusedTrack */}
                     {tracks.filter(t => t.participant.identity !== effectiveFocusedTrack.participant.identity || t.source !== effectiveFocusedTrack.source).length > 0 && (
-                        <div className="w-[100px] sm:w-[220px] h-full flex flex-col gap-2 overflow-y-auto pr-1 shrink-0">
+                        <div className="w-[100px] @2xl:w-[220px] h-full flex flex-col gap-2 overflow-y-auto pr-1 shrink-0">
                              {tracks.filter(t => t.participant.identity !== effectiveFocusedTrack.participant.identity || t.source !== effectiveFocusedTrack.source).map((track) => (
                                  <div 
                                     key={track.participant.identity + track.source} 
@@ -531,7 +535,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
                  </div>
             ) : (
 
-                    <div className="w-full h-full p-2 md:p-4 pb-20 md:pb-24">
+                    <div className="w-full h-full p-2 @3xl:p-4 pb-20 @3xl:pb-24">
                         <GridLayout tracks={tracks}>
                         <CustomTile onParticipantClick={onParticipantClick} />
                     </GridLayout>

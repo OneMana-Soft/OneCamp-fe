@@ -16,6 +16,7 @@ import { RootState } from "@/store/store";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { FeatureGate } from "@/components/common/withFeature"
 import { FEATURE_AI } from "@/hooks/useClientConfig"
+import { FocusPill } from "@/components/split/FocusPill"
 
 export default function DesktopNavigationTopBar() {
 
@@ -33,10 +34,15 @@ export default function DesktopNavigationTopBar() {
     };
 
     return (
-        <div className="w-full h-12 flex px-3 justify-between items-center bg-canvas sticky top-0 z-[var(--z-sticky)]">
-            <DesktopNavigationOrgProfile/>
+        // Equal sides keep the search centred when something joins the right
+        // (the focus pill), instead of sliding it over.
+        <div className="w-full h-12 flex px-3 gap-3 items-center bg-canvas sticky top-0 z-[var(--z-sticky)]">
+            <div className="flex flex-1 basis-0 items-center">
+                <DesktopNavigationOrgProfile/>
+            </div>
             <DesktopNavigationSearch/>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-1 basis-0 items-center justify-end gap-1.5">
+                <FocusPill />
                 <FeatureGate feature={FEATURE_AI}>
                 <Tooltip delayDuration={0}>
                     <TooltipTrigger asChild>

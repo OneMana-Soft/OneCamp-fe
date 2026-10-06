@@ -20,7 +20,7 @@ import { RunningTimerChip } from "@/components/time/RunningTimerChip";
 import { useOpenFromUrl } from "@/hooks/useOpenFromUrl";
 import { useSplitView } from "@/hooks/useSplitView";
 import { useGoKeys } from "@/hooks/useGoKeys";
-import { SplitPane, FocusPill } from "@/components/split/SplitPane";
+import { SplitPane } from "@/components/split/SplitPane";
 import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
 import { Fragment } from "react";
 
@@ -153,7 +153,6 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
-      {focused !== null && split && <FocusPill />}
       <ShortcutsDialog />
 
     </DesktopNavigationBar>

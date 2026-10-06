@@ -15,14 +15,16 @@ interface PreJoinProps {
   nameEditable?: boolean;
   // Optional override for the primary button label.
   joinLabel?: string;
-  // Where the call is ("#engineering", "Maya Chen"), said above the title, so
+  // Where the call is, after "Call" ("in #engineering", "with Maya Chen"), said above the title, so
   // nobody joins a call without knowing which one it is.
   place?: string;
   // A way out before joining. Without it the page offered only "Join".
   onCancel?: () => void;
+  // In a side pane (split view): fill the pane, not the screen.
+  embedded?: boolean;
 }
 
-export function PreJoin({ onJoin, username, nameEditable = false, joinLabel = "Join call", place, onCancel }: PreJoinProps) {
+export function PreJoin({ onJoin, username, nameEditable = false, joinLabel = "Join call", place, onCancel, embedded = false }: PreJoinProps) {
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [name, setName] = useState(username);
@@ -78,10 +80,10 @@ export function PreJoin({ onJoin, username, nameEditable = false, joinLabel = "J
   const toggleAudio = () => setAudioEnabled(!audioEnabled);
 
   return (
-    <div className="flex min-h-dvh w-full items-center justify-center bg-background p-4">
+    <div className={`flex w-full items-center justify-center bg-background p-4 ${embedded ? "min-h-full" : "min-h-dvh"}`}>
     <div className="flex w-full max-w-md flex-col items-center space-y-6 rounded-lg border bg-card p-6 shadow-sm">
       <div className="space-y-1.5 text-center">
-        {place && <p className={kicker}>Call in {place}</p>}
+        {place && <p className={kicker}>Call {place}</p>}
         <h1 className="font-display text-2xl font-semibold tracking-tight text-balance">Ready to join?</h1>
       </div>
       

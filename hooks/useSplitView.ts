@@ -5,7 +5,7 @@ import { useDispatch, useSelector, useStore } from "react-redux"
 import { usePathname, useRouter } from "next/navigation"
 import type { RootState } from "@/store/store"
 import { closeSplit, openInSplit, replacePane, setActive, setFocused, setSplit } from "@/store/slice/splitSlice"
-import { MAIN, claims, hrefOfPane, isPaneList, paneFromHref, splitShortcut, stepView, type SplitAction } from "@/lib/split"
+import { MAIN, claims, hrefOfPane, isCallPane, isPaneList, paneFromHref, restorablePanes, splitShortcut, stepView, type Pane, type SplitAction } from "@/lib/split"
 
 const KEY = "oc_split_panes"
 
@@ -34,7 +34,8 @@ export function useSplitActions() {
       switch (action.type) {
         case "openHere": {
           const pane = paneFromHref(window.location.pathname + window.location.search, window.location.origin)
-          if (pane) dispatch(openInSplit(pane))
+          // A call page stays put: moving the call would hang it up.
+          if (pane && !isCallPane(pane)) dispatch(openInSplit(pane))
           return
         }
         case "goTo":
@@ -62,8 +63,9 @@ export function useSplitActions() {
         case "swap": {
           // The side view becomes the page; the page, if it can, goes beside.
           const pane = panes[on]
-          if (on === MAIN || !pane) return
           const here = paneFromHref(pathname + window.location.search, window.location.origin)
+          // A call stays where it is, beside or as the page: moving it would hang it up.
+          if (on === MAIN || !pane || isCallPane(pane) || (here && isCallPane(here))) return
           if (here) dispatch(replacePane({ index: on, pane: here }))
           else dispatch(closeSplit(on))
           dispatch(setActive(MAIN))
@@ -76,6 +78,25 @@ export function useSplitActions() {
       }
     },
     [dispatch, store, router, pathname],
+  )
+}
+
+/**
+ * Opens something beside the page on a plain click (the call buttons do this,
+ * so a call runs beside the conversation). Returns false, leaving the click
+ * alone, for a modified click (a new tab) or on a phone, where the page opens
+ * as before.
+ */
+export function useOpenBeside(enabled: boolean) {
+  const dispatch = useDispatch()
+  return useCallback(
+    (pane: Pane, e?: { button?: number; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault?: () => void }) => {
+      if (!enabled || (e && ((e.button !== undefined && e.button !== 0) || e.metaKey || e.ctrlKey || e.shiftKey))) return false
+      e?.preventDefault?.()
+      dispatch(openInSplit(pane))
+      return true
+    },
+    [enabled, dispatch],
   )
 }
 
@@ -97,7 +118,7 @@ export function useSplitView(enabled: boolean) {
     restored.current = true
     try {
       const v: unknown = JSON.parse(localStorage.getItem(KEY) || "[]")
-      if (isPaneList(v) && v.length) dispatch(setSplit(v))
+      if (isPaneList(v) && restorablePanes(v).length) dispatch(setSplit(restorablePanes(v)))
     } catch {
       /* nothing remembered */
     }
@@ -106,7 +127,8 @@ export function useSplitView(enabled: boolean) {
   useEffect(() => {
     if (!restored.current) return
     try {
-      localStorage.setItem(KEY, JSON.stringify(split.panes))
+      // A call is never restored: reloading must not put anyone back in it.
+      localStorage.setItem(KEY, JSON.stringify(restorablePanes(split.panes)))
     } catch {
       /* storage unavailable: the split lasts the visit */
     }
