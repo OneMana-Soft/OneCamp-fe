@@ -97,6 +97,11 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
 
     }, [grpChatCreatedLocally, dmParticipantsInfo.data, dispatch]);
 
+    // A call opens beside the group, so the conversation stays in view.
+    // Above the early returns: a hook runs on every render or none.
+    const { isMobile } = useMedia();
+    const openBeside = useOpenBeside(!isMobile);
+
     if(dmParticipantsInfo.isLoading && !grpChatCreatedLocally.participants) return <LoadingStateCircle />
 
     if(!dmParticipantsInfo.isLoading && !grpChatCreatedLocally.participants && !dmParticipantsInfo.data?.data) {
@@ -112,8 +117,6 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     //         }
     // }
 
-    // A call opens beside the group, so the conversation stays in view.
-    const openBeside = useOpenBeside(!useMedia().isMobile);
     const clickVideoCall = () => {
         if (!openBeside({ kind: "call-group", id: grpId })) router.push(app_grp_call + "/" + grpId);
     }
