@@ -22,6 +22,8 @@ import { ColorIcon } from "@/components/colorIcon/colorIcon"
 import { Badge } from "@/components/ui/badge"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 import { isClosedStatus } from "@/lib/taskStatus"
+import { timeInStatus } from "@/lib/utils/timeInStatus"
+import { Clock } from "@/lib/icons"
 
 interface Props {
     dragOverlay?: boolean
@@ -85,6 +87,8 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
     const taskP = priorities.find((p) => p.value == task.task_priority)
     const dueDate = !isZeroEpoch(task.task_due_date) ? new Date(task.task_due_date) : null
     const isOverdue = dueDate && dueDate < new Date() && !isClosedStatus(task.task_status)
+    // How long it has sat in this status; finished work is not waiting on anyone.
+    const inStatus = isClosedStatus(task.task_status) ? null : timeInStatus(task.task_status_since, task.task_created_at, Date.now())
     const descPreview = task.task_description ? removeHtmlTags(task.task_description) : ""
     const hasMetaRow = Boolean(task.task_project) || Boolean(task.task_label) || Boolean(statusBadge)
     const openTask = () => {
@@ -198,6 +202,15 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                         <span className="inline-flex items-center gap-0.5" title="Subtasks">
                             <GitBranch className="h-3 w-3" />
                             {task.task_sub_task_count}
+                        </span>
+                    )}
+                    {inStatus && (
+                        <span
+                            className={cn("inline-flex items-center gap-0.5 tabular-nums", inStatus.stale && "text-amber-700 dark:text-amber-400")}
+                            title={`In this status for ${inStatus.days} ${inStatus.days === 1 ? "day" : "days"}`}
+                        >
+                            <Clock className="h-3 w-3" />
+                            {inStatus.short}
                         </span>
                     )}
                     <GitHubBadgeGroup task={task} size="sm" />
