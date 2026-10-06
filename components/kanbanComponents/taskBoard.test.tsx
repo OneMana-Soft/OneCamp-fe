@@ -7,6 +7,7 @@ vi.mock("@/components/task/PRStatusBadge", () => ({ GitHubBadgeGroup: () => null
 
 const { TaskBoard, CARDS_PER_PAGE } = await import("@/components/kanbanComponents/TaskBoard")
 import type { StatusOption } from "@/lib/taskStatus"
+import { cellKey } from "@/lib/board/lanes"
 import type { TaskInfoInterface } from "@/types/task"
 
 const todo: StatusOption = { value: "todo", label: "To do", category: "todo", custom: false, color: "" }
@@ -101,5 +102,48 @@ describe("adding a task in a column", () => {
   it("is not offered where the person cannot add", () => {
     board()
     expect(screen.queryByRole("button", { name: /add task/i })).toBeNull()
+  })
+})
+
+describe("a board in swimlanes", () => {
+  const lanes = {
+    list: [
+      { id: "high", label: "High" },
+      { id: "low", label: "Low" },
+    ],
+    laneOf: (t: TaskInfoInterface) => (t.task_uuid.endsWith("-0") ? "high" : "low"),
+  }
+
+  it("cuts every column into one cell per lane, empty cells included", () => {
+    const { container } = board({ columns: { todo: many(3), done: many(1, "done") }, lanes })
+    expect(screen.getByRole("region", { name: "High" })).toBeTruthy()
+    expect(container.querySelectorAll("[data-column]")).toHaveLength(4)
+    expect(container.querySelector(`[data-column="${cellKey("high", "todo")}"]`)!.querySelectorAll("[data-task-id]")).toHaveLength(1)
+    expect(container.querySelector(`[data-column="${cellKey("low", "todo")}"]`)!.querySelectorAll("[data-task-id]")).toHaveLength(2)
+    expect(container.querySelector(`[data-column="${cellKey("low", "done")}"]`)!.querySelectorAll("[data-task-id]")).toHaveLength(0)
+  })
+
+  it("folds a lane to its header and remembers it", () => {
+    const { container } = board({ columns: { todo: many(3), done: [] }, lanes })
+    fireEvent.click(screen.getByRole("button", { name: /High/ }))
+    expect(container.querySelector(`[data-column="${cellKey("high", "todo")}"]`)).toBeNull()
+    expect(JSON.parse(localStorage.getItem("oc_board_collapsed:test:lanes")!)).toEqual(["high"])
+  })
+
+  it("adds a task to the cell's column and lane", async () => {
+    const onQuickAdd = vi.fn().mockResolvedValue(true)
+    const { container } = board({ columns: { todo: [], done: [] }, lanes, onQuickAdd })
+    const cell = container.querySelector(`[data-column="${cellKey("low", "done")}"]`)!
+    fireEvent.click(cell.querySelector("button")!)
+    const input = screen.getByLabelText("New task name")
+    fireEvent.change(input, { target: { value: "Ship it" } })
+    await act(async () => fireEvent.keyDown(input, { key: "Enter" }))
+    expect(onQuickAdd).toHaveBeenCalledWith("done", "Ship it", "low")
+  })
+
+  it("counts each column across lanes, with the server's total when it sent part", () => {
+    board({ columns: { todo: many(3), done: many(2, "done") }, lanes, totals: { done: 450 }, onShowMore: () => {} })
+    expect(screen.getByText("450")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeTruthy()
   })
 })

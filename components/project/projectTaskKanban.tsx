@@ -28,25 +28,46 @@ import { columnsByStatus, statusPatch } from "@/lib/taskStatus"
 import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
 import { usePost } from "@/hooks/usePost"
-import { useReassignTask } from "@/hooks/useReassignTask"
+import { useTaskFields } from "@/hooks/useTaskFields"
 import { useClosedLimit, withQuery } from "@/hooks/useClosedLimit"
 import { useStoredState } from "@/hooks/useStoredState"
 import { NO_ASSIGNEE, groupByAssignee, type BoardGrouping } from "@/lib/board/groupBy"
+import { assigneeLanes, priorityLanes, type BoardLanes } from "@/lib/board/lanes"
+import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
+import { priorities } from "@/types/table"
+import { cn } from "@/lib/utils/helpers/cn"
 import { taskStatusLabel } from "@/types/task"
 import { PostEndpointUrl } from "@/services/endPoints"
 
 const EMPTY: TaskInfoInterface[] = []
 
+/** A priority's arrow in its own colour, before a lane's label. */
+function PriorityMark({ value }: { value: string }) {
+    const p = priorities.find((x) => x.value === value)
+    if (!p) return null
+    return (
+        <span className={cn("inline-flex h-5 w-5 items-center justify-center rounded-md", p.color)}>
+            <p.icon className="h-3.5 w-3.5" />
+        </span>
+    )
+}
+
 export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) => {
     const { t } = useTranslation()
     const dispatch = useDispatch()
     const moveTask = useMoveTask()
-    const reassign = useReassignTask()
+    const { reassign, setPriority } = useTaskFields()
     // Status columns, or one column per person (Linear's "group by assignee").
     const [grouping, setGrouping] = useStoredState<BoardGrouping>(
         projectId ? `oc_board_grouping:${projectId}` : undefined,
         "status",
         (v): v is BoardGrouping => v === "status" || v === "assignee",
+    )
+    // Rows across the status columns (swimlanes), when grouped by status.
+    const [laneBy, setLaneBy] = useStoredState<BoardLanes>(
+        projectId ? `oc_board_lanes:${projectId}` : undefined,
+        "none",
+        (v): v is BoardLanes => v === "none" || v === "assignee" || v === "priority",
     )
 
     const [assigneeFilter, setAssigneeFilter] = useState<string[]>([])
@@ -69,12 +90,18 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
     const post = usePost()
     // "Add task" in a column: a task in that column's status (built-in or the
     // project's own), then the board reloads to show it in place.
-    const quickAdd = async (column: string, name: string) => {
-        // On a board of people the column is who it is for; otherwise its status.
-        const payload =
+    const quickAdd = async (column: string, name: string, lane?: string) => {
+        // On a board of people the column is who it is for; otherwise its
+        // status, and a lane adds who has it or its priority.
+        const forPerson = (who: string) => (who === NO_ASSIGNEE ? "" : who)
+        const payload: { task_name: string; task_project_uuid: string; task_status: string; task_assignee_uuid?: string; task_priority?: string } =
             grouping === "assignee"
-                ? { task_name: name, task_project_uuid: projectId, task_status: "todo", task_assignee_uuid: column === NO_ASSIGNEE ? "" : column }
+                ? { task_name: name, task_project_uuid: projectId, task_status: "todo", task_assignee_uuid: forPerson(column) }
                 : { task_name: name, task_project_uuid: projectId, task_status: column }
+        if (grouping === "status" && lane !== undefined) {
+            if (laneBy === "assignee") payload.task_assignee_uuid = forPerson(lane)
+            if (laneBy === "priority") payload.task_priority = lane
+        }
         const res = await post.makeRequest<typeof payload, { task_uuid?: string }>({
             apiEndpoint: PostEndpointUrl.CreateTask,
             payload,
@@ -116,6 +143,15 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
         () => (grouping === "assignee" ? groupByAssignee(columns, p?.project_members, hideEmpty) : null),
         [grouping, columns, p?.project_members, hideEmpty],
     )
+    const members = p?.project_members
+    const lanes = useMemo(() => {
+        if (grouping !== "status" || laneBy === "none") return undefined
+        if (laneBy === "priority") return priorityLanes(columns, hideEmpty, (id) => <PriorityMark value={id} />)
+        return assigneeLanes(columns, members, hideEmpty, (id) => {
+            const m = members?.find((x) => x.user_uuid === id)
+            return m ? <TaskAssigneeCell userInfo={m} avatarOnly /> : null
+        })
+    }, [grouping, laneBy, columns, members, hideEmpty])
 
     return (
         <div className="flex flex-col h-full p-4 overflow-hidden">
@@ -143,9 +179,20 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                                     {g === "status" ? "Status" : "Assignee"}
                                 </DropdownMenuCheckboxItem>
                             ))}
-                            {grouping === "assignee" && (
+                            {grouping === "status" && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuLabel>Rows</DropdownMenuLabel>
+                                    {(["none", "assignee", "priority"] as const).map((l) => (
+                                        <DropdownMenuCheckboxItem key={l} checked={laneBy === l} onCheckedChange={() => setLaneBy(l)}>
+                                            {l === "none" ? "None" : l === "assignee" ? "Assignee" : "Priority"}
+                                        </DropdownMenuCheckboxItem>
+                                    ))}
+                                </>
+                            )}
+                            {(grouping === "assignee" || laneBy !== "none") && (
                                 <DropdownMenuCheckboxItem checked={hideEmpty} onCheckedChange={(v) => setHideEmpty(Boolean(v))}>
-                                    Hide people with no tasks
+                                    {grouping === "assignee" || laneBy === "assignee" ? "Hide people with no tasks" : "Hide empty rows"}
                                 </DropdownMenuCheckboxItem>
                             )}
                             <DropdownMenuSeparator />
@@ -193,7 +240,14 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                             columns={columns}
                             visible={visible}
                             canDrag={() => isAdmin}
-                            onMove={(task, drop) => void moveTask(task.task_uuid, projectId, drop, statusPatch(drop.column, statusOpts))}
+                            onMove={(task, drop, lane) => {
+                                void moveTask(task.task_uuid, projectId, drop, statusPatch(drop.column, statusOpts))
+                                // Into another row as well: it changes hands, or priority.
+                                if (!lane || lane.from === lane.to) return
+                                if (laneBy === "priority") void setPriority(task.task_uuid, projectId, lane.to)
+                                else void reassign(task.task_uuid, projectId, lane.to === NO_ASSIGNEE ? null : members?.find((m) => m.user_uuid === lane.to) ?? null)
+                            }}
+                            lanes={lanes}
                             boardKey={`project:${projectId}`}
                             totals={{ done: p?.project_tasks_done_count, canceled: p?.project_tasks_canceled_count }}
                             onShowMore={closed.showMore}
