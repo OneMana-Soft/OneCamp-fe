@@ -27,7 +27,7 @@
  * when that answer changes: the column the line left and the one it entered.
  */
 
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import {
     DndContext,
@@ -52,8 +52,9 @@ import type { TaskInfoInterface } from "@/types/task"
 import { dropMovedCard, insertionIndex, placeCard, type SettledDrop } from "@/lib/utils/kanbanDrop"
 import { cn } from "@/lib/utils/helpers/cn"
 import { colorDot, type StatusOption } from "@/lib/taskStatus"
-import { Plus } from "@/lib/icons"
+import { ChevronDown, ChevronRight, Plus } from "@/lib/icons"
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns"
+import { cellKey, intoCells, splitCell, type Lane, type LaneSpec } from "@/lib/board/lanes"
 
 /** Cards a column renders at first, and adds each time it is scrolled near its end. */
 export const CARDS_PER_PAGE = 30
@@ -99,6 +100,7 @@ export function TaskBoard({
     totals,
     badgeFor,
     onShowMore,
+    lanes,
 }: {
     /** The board as the server last described it, by status. */
     columns: Columns
@@ -106,27 +108,39 @@ export function TaskBoard({
     visible: StatusOption[]
     /** Whether this person may move this task. */
     canDrag: (task: TaskInfoInterface) => boolean
-    /** Save a drop. The board already shows it. */
-    onMove: (task: TaskInfoInterface, drop: SettledDrop<TaskInfoInterface>) => void
+    /** Save a drop. The board already shows it. With lanes, drop.column is the
+     * status and `lane` says which row the card left and which it entered. */
+    onMove: (task: TaskInfoInterface, drop: SettledDrop<TaskInfoInterface>, lane?: { from: string; to: string }) => void
     /** Which board this is, so the columns folded on it are remembered. */
     boardKey?: string
-    /** Make a task in a column from its name; resolves whether it worked. */
-    onQuickAdd?: (column: string, name: string) => Promise<boolean>
+    /** Make a task in a column (and lane) from its name; resolves whether it worked. */
+    onQuickAdd?: (column: string, name: string, lane?: string) => Promise<boolean>
     /** A column's real total when the server sent only part of it (done, cancelled). */
     totals?: Record<string, number | undefined>
     /** A word on each card the column does not already say (its status, on a board of people). */
     badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
     /** Load more of a column the server sent only part of (see totals). */
     onShowMore?: (column: string) => void
+    /** Swimlanes: rows cutting every column, by person or priority. Memoise it. */
+    lanes?: LaneSpec
 }) {
     const [collapsed, toggleCollapsed] = useCollapsedColumns(boardKey)
-    const [items, setItems] = useState<Columns>(columns)
+    const [foldedLanes, toggleLane] = useCollapsedColumns(boardKey ? `${boardKey}:lanes` : undefined)
+    // With lanes the board's lists are cells (one lane's share of one column);
+    // everything below, the drag included, works on them unchanged.
+    const board = useMemo(
+        () => (lanes ? intoCells(columns, visible.map((v) => v.value), lanes) : columns),
+        [columns, lanes, visible],
+    )
+    const lanesRef = useRef(lanes)
+    lanesRef.current = lanes
+    const [items, setItems] = useState<Columns>(board)
     const [activeTask, setActiveTask] = useState<TaskInfoInterface | null>(null)
     const [target, setTarget] = useState<Target | null>(null)
     const itemsRef = useRef(items)
     itemsRef.current = items
-    const columnsRef = useRef(columns)
-    columnsRef.current = columns
+    const columnsRef = useRef(board)
+    columnsRef.current = board
     const targetRef = useRef<Target | null>(null)
     const origin = useRef<{ x: number; y: number } | null>(null)
     const boardRef = useRef<HTMLDivElement>(null)
@@ -142,10 +156,10 @@ export function TaskBoard({
     const heldFrom = useRef<Columns | null>(null)
     useEffect(() => {
         if (dragging) return
-        if (heldFrom.current === columns) return
+        if (heldFrom.current === board) return
         heldFrom.current = null
-        setItems(columns)
-    }, [columns, dragging])
+        setItems(board)
+    }, [board, dragging])
 
     const sensors = useSensors(
         // A few pixels before a drag starts, so a click still opens the task.
@@ -188,14 +202,17 @@ export function TaskBoard({
             y = r.top + r.height / 2
         }
         let columnEl: HTMLElement | null = null
+        // Columns span the board's height, so the pointer's x picks one; cells
+        // in lanes are stacked, so both x and y must fall inside.
+        const inLanes = Boolean(lanesRef.current)
         for (const el of board.querySelectorAll<HTMLElement>("[data-column]")) {
             const r = el.getBoundingClientRect()
-            if (x >= r.left && x <= r.right) {
+            if (x >= r.left && x <= r.right && (!inLanes || (y >= r.top && y <= r.bottom))) {
                 columnEl = el
                 break
             }
         }
-        // In the gap between columns: keep the line where it is.
+        // In the gap between columns (or lanes): keep the line where it is.
         if (!columnEl) return
         const mids: number[] = []
         for (const card of columnEl.querySelectorAll<HTMLElement>("[data-task-id]")) {
@@ -223,7 +240,12 @@ export function TaskBoard({
                 setItems(drop.items)
                 // Save on the next frame, so the drop animation starts first: the
                 // optimistic update copies every cached task list it touches.
-                requestAnimationFrame(() => onMove(task, drop))
+                const ls = lanesRef.current
+                requestAnimationFrame(() => {
+                    if (!ls) return onMove(task, drop)
+                    const to = splitCell(drop.column)
+                    onMove(task, { ...drop, column: to.column }, { from: ls.laneOf(task), to: to.lane })
+                })
             }
         }
         finish()
@@ -247,6 +269,23 @@ export function TaskBoard({
             onDragEnd={onDragEnd}
             onDragCancel={finish}
         >
+            {lanes ? (
+                <LaneGrid
+                    boardRef={boardRef}
+                    lanes={lanes.list}
+                    visible={visible}
+                    items={items}
+                    canDrag={canDragTask}
+                    activeId={activeTask?.task_uuid ?? null}
+                    target={target}
+                    folded={foldedLanes}
+                    onToggleLane={toggleLane}
+                    onQuickAdd={onQuickAdd}
+                    totals={totals}
+                    onShowMore={onShowMore}
+                    badgeFor={badgeFor}
+                />
+            ) : (
             <div ref={boardRef} className="flex h-full gap-4 pb-4 overflow-x-auto snap-x snap-mandatory sm:snap-none" data-board-scroll="">
                 {visible.map((status) => (
                     <BoardColumn
@@ -265,6 +304,7 @@ export function TaskBoard({
                     />
                 ))}
             </div>
+            )}
             {typeof document !== "undefined" &&
                 createPortal(
                     <DragOverlay dropAnimation={dropAnimation}>
@@ -311,21 +351,6 @@ const BoardColumn = memo(function BoardColumn({
     // A drop target only for the keyboard, whose sensor steps between columns.
     const id = status.value
     const { setNodeRef } = useDroppable({ id, data: { type: "container", children: tasks } })
-    // A column of hundreds renders a page of cards and adds more as it is
-    // scrolled, so a big board opens and drags as fast as a small one.
-    const [limit, setLimit] = useState(CARDS_PER_PAGE)
-    const shown = tasks.length > limit ? tasks.slice(0, limit) : tasks
-    const sentinel = useRef<HTMLDivElement>(null)
-    const more = tasks.length > limit
-    useEffect(() => {
-        const el = sentinel.current
-        if (!more || !el || typeof IntersectionObserver === "undefined") return
-        const io = new IntersectionObserver(([e]) => e.isIntersecting && setLimit((n) => n + CARDS_PER_PAGE), { rootMargin: "400px" })
-        io.observe(el)
-        return () => io.disconnect()
-    }, [more, limit])
-    const others = shown.filter((t) => t.task_uuid !== activeId).length
-    let k = 0
     return (
         <Container
             collapsed={collapsed}
@@ -341,7 +366,67 @@ const BoardColumn = memo(function BoardColumn({
             hover={lineAt !== null}
             data-column={id}
         >
-            <div className="flex flex-col gap-2 w-full pb-4">
+            <CardStack
+                id={id}
+                column={id}
+                tasks={tasks}
+                canDrag={canDrag}
+                activeId={activeId}
+                lineAt={lineAt}
+                total={total}
+                badgeFor={badgeFor}
+                onShowMore={onShowMore}
+                className="pb-4"
+            />
+        </Container>
+    )
+})
+
+/**
+ * A column's (or a lane cell's) cards: a page at first and more as it is
+ * scrolled, so a big board opens and drags as fast as a small one, with the
+ * line where a dragged card would land.
+ */
+function CardStack({
+    id,
+    column,
+    tasks,
+    canDrag,
+    activeId,
+    lineAt,
+    total,
+    badgeFor,
+    onShowMore,
+    className,
+}: {
+    /** The list's key on the board: a status, or a lane cell. */
+    id: string
+    /** The status the list is in. */
+    column: string
+    tasks: TaskInfoInterface[]
+    canDrag: (task: TaskInfoInterface) => boolean
+    activeId: string | null
+    lineAt: number | null
+    total?: number
+    badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
+    onShowMore?: (column: string) => void
+    className?: string
+}) {
+    const [limit, setLimit] = useState(CARDS_PER_PAGE)
+    const shown = tasks.length > limit ? tasks.slice(0, limit) : tasks
+    const sentinel = useRef<HTMLDivElement>(null)
+    const more = tasks.length > limit
+    useEffect(() => {
+        const el = sentinel.current
+        if (!more || !el || typeof IntersectionObserver === "undefined") return
+        const io = new IntersectionObserver(([e]) => e.isIntersecting && setLimit((n) => n + CARDS_PER_PAGE), { rootMargin: "400px" })
+        io.observe(el)
+        return () => io.disconnect()
+    }, [more, limit])
+    const others = shown.filter((t) => t.task_uuid !== activeId).length
+    let k = 0
+    return (
+            <div className={cn("flex flex-col gap-2 w-full", className)}>
                 {shown.map((task) => {
                     const position = task.task_uuid === activeId ? -1 : k++
                     return (
@@ -352,7 +437,7 @@ const BoardColumn = memo(function BoardColumn({
                             disabled={!canDrag(task)}
                             // Its own status, where the column does not already say it
                             // (My Tasks has only the built-in columns).
-                            statusBadge={badgeFor ? badgeFor(task, id) : task.task_custom_status && task.task_custom_status !== id ? task.task_custom_status_name : undefined}
+                            statusBadge={badgeFor ? badgeFor(task, column) : task.task_custom_status && task.task_custom_status !== column ? task.task_custom_status_name : undefined}
                             lineAbove={lineAt !== null && position === lineAt}
                             lineBelow={lineAt !== null && lineAt === others && position === others - 1}
                         />
@@ -369,7 +454,7 @@ const BoardColumn = memo(function BoardColumn({
                         {onShowMore && tasks.length < BOARD_CLOSED_MAX ? (
                             <button
                                 type="button"
-                                onClick={() => onShowMore(id)}
+                                onClick={() => onShowMore(column)}
                                 className="rounded-md px-2 py-1 font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                             >
                                 Show {Math.min(BOARD_CLOSED_STEP, total - tasks.length)} more
@@ -385,7 +470,164 @@ const BoardColumn = memo(function BoardColumn({
                     </div>
                 )}
             </div>
-        </Container>
+    )
+}
+
+/** Width of a column in lanes: the column heads and every cell share it. */
+const LANE_CELL = "w-[min(288px,calc(100vw-4rem))] shrink-0"
+
+/**
+ * The board in swimlanes: status heads pinned on top, then a row per lane. A
+ * lane folds to its header (remembered per board), and its header stays at
+ * the left edge while the board scrolls sideways.
+ */
+function LaneGrid({
+    boardRef,
+    lanes,
+    visible,
+    items,
+    canDrag,
+    activeId,
+    target,
+    folded,
+    onToggleLane,
+    onQuickAdd,
+    totals,
+    onShowMore,
+    badgeFor,
+}: {
+    boardRef: React.RefObject<HTMLDivElement | null>
+    lanes: Lane[]
+    visible: StatusOption[]
+    items: Columns
+    canDrag: (task: TaskInfoInterface) => boolean
+    activeId: string | null
+    target: Target | null
+    folded: Set<string>
+    onToggleLane: (lane: string) => void
+    onQuickAdd?: (column: string, name: string, lane?: string) => Promise<boolean>
+    totals?: Record<string, number | undefined>
+    onShowMore?: (column: string) => void
+    badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
+}) {
+    const inColumn = (status: string) => lanes.reduce((n, l) => n + (items[cellKey(l.id, status)]?.length ?? 0), 0)
+    return (
+        <div ref={boardRef} className="h-full overflow-auto overscroll-contain pb-4" data-board-scroll="">
+            <div className="w-max min-w-full">
+                <div className="sticky top-0 z-20 flex gap-3 bg-background/90 pb-2 pl-1 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+                    {visible.map((status) => {
+                        const loaded = inColumn(status.value)
+                        const total = totals?.[status.value]
+                        const capped = total !== undefined && total > loaded
+                        return (
+                            <div key={status.value} className={cn(LANE_CELL, "flex items-center gap-1.5 rounded-lg border border-border/60 bg-card px-3 py-2")}>
+                                {status.icon && <status.icon className="h-4 w-4 text-muted-foreground" />}
+                                {status.swatch && <span aria-hidden="true" className={cn("h-2 w-2 rounded-full", colorDot(status.swatch))} />}
+                                <h2 className="truncate text-sm font-semibold text-foreground">{status.label}</h2>
+                                <span className="ml-auto text-xs tabular-nums text-muted-foreground">{Math.max(total ?? 0, loaded)}</span>
+                                {capped && onShowMore && loaded < BOARD_CLOSED_MAX && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onShowMore(status.value)}
+                                        title={`The newest ${loaded} of ${total} are on the board`}
+                                        className="rounded-md px-1.5 py-0.5 text-xs font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                    >
+                                        Show more
+                                    </button>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+                <div className="flex flex-col gap-1">
+                    {lanes.map((lane) => {
+                        const isFolded = folded.has(lane.id)
+                        const count = visible.reduce((n, s) => n + (items[cellKey(lane.id, s.value)]?.length ?? 0), 0)
+                        return (
+                            <section key={lane.id} aria-label={lane.label} className="flex flex-col">
+                                <div className="sticky left-0 z-10 w-fit">
+                                    <button
+                                        type="button"
+                                        onClick={() => onToggleLane(lane.id)}
+                                        aria-expanded={!isFolded}
+                                        className="group/lane inline-flex items-center gap-2 rounded-md px-1.5 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                    >
+                                        {isFolded ? (
+                                            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform" />
+                                        ) : (
+                                            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
+                                        )}
+                                        {lane.icon}
+                                        <span className="truncate">{lane.label}</span>
+                                        <span className="rounded-full bg-muted px-1.5 text-xs font-medium tabular-nums text-muted-foreground">{count}</span>
+                                    </button>
+                                </div>
+                                {!isFolded && (
+                                    <div className="flex gap-3 pb-3 pl-1">
+                                        {visible.map((status) => {
+                                            const id = cellKey(lane.id, status.value)
+                                            return (
+                                                <LaneCell
+                                                    key={id}
+                                                    id={id}
+                                                    lane={lane.id}
+                                                    column={status.value}
+                                                    tasks={items[id] ?? NO_TASKS}
+                                                    canDrag={canDrag}
+                                                    activeId={activeId}
+                                                    lineAt={target?.column === id ? target.index : null}
+                                                    onQuickAdd={onQuickAdd}
+                                                    badgeFor={badgeFor}
+                                                />
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </section>
+                        )
+                    })}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+/** One lane's share of one column: somewhere to drop even when empty. */
+const LaneCell = memo(function LaneCell({
+    id,
+    lane,
+    column,
+    tasks,
+    canDrag,
+    activeId,
+    lineAt,
+    onQuickAdd,
+    badgeFor,
+}: {
+    id: string
+    lane: string
+    column: string
+    tasks: TaskInfoInterface[]
+    canDrag: (task: TaskInfoInterface) => boolean
+    activeId: string | null
+    lineAt: number | null
+    onQuickAdd?: (column: string, name: string, lane?: string) => Promise<boolean>
+    badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
+}) {
+    const { setNodeRef } = useDroppable({ id, data: { type: "container", children: tasks } })
+    return (
+        <div
+            ref={setNodeRef}
+            data-column={id}
+            className={cn(
+                LANE_CELL,
+                "group/cell flex min-h-[4.5rem] flex-col gap-1 rounded-lg border p-1.5 transition-colors duration-150 [contain:layout]",
+                lineAt !== null ? "border-primary/30 bg-accent/50" : "border-transparent bg-muted/30",
+            )}
+        >
+            <CardStack id={id} column={column} tasks={tasks} canDrag={canDrag} activeId={activeId} lineAt={lineAt} badgeFor={badgeFor} />
+            {onQuickAdd && <QuickAdd compact onAdd={(name) => onQuickAdd(column, name, lane)} />}
+        </div>
     )
 })
 
@@ -435,7 +677,7 @@ const BoardCard = memo(function BoardCard({
  * "Add task" at the foot of a column, Asana's way: type a name, Enter adds it
  * here and leaves the box open for the next one; Escape or an empty blur closes.
  */
-function QuickAdd({ onAdd }: { onAdd: (name: string) => Promise<boolean> }) {
+function QuickAdd({ onAdd, compact = false }: { onAdd: (name: string) => Promise<boolean>; compact?: boolean }) {
     const [open, setOpen] = useState(false)
     const [name, setName] = useState("")
     const [busy, setBusy] = useState(false)
@@ -444,7 +686,14 @@ function QuickAdd({ onAdd }: { onAdd: (name: string) => Promise<boolean> }) {
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="mx-3 mb-3 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-[color,background-color,opacity] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                    // In a lane cell it waits for the pointer, so a board of
+                    // many cells stays quiet; a touch screen always shows it.
+                    compact
+                        ? "self-start text-xs opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+                        : "mx-3 mb-3",
+                )}
             >
                 <Plus className="h-4 w-4" />
                 Add task
@@ -460,7 +709,7 @@ function QuickAdd({ onAdd }: { onAdd: (name: string) => Promise<boolean> }) {
         if (ok) setName("")
     }
     return (
-        <div className="mx-3 mb-3">
+        <div className={compact ? undefined : "mx-3 mb-3"}>
             <input
                 autoFocus
                 value={name}
