@@ -87,4 +87,18 @@ export const calendarColors = {
     border: "border-foreground/15",
     dot: "bg-foreground/45",
   },
+  // Focus time: hatched, so a protected block reads differently from a meeting
+  // at a glance without adding a hue.
+  focus: {
+    solid: "bg-foreground/30",
+    block: "bg-[repeating-linear-gradient(135deg,hsl(var(--foreground)/0.06)_0_6px,transparent_6px_12px)] text-foreground ring-1 ring-inset ring-foreground/15",
+    blockHover: "bg-foreground/[0.1] text-foreground",
+    border: "border-foreground/20",
+    dot: "bg-foreground/30",
+  },
 } as const;
+
+/** Which calendar palette an item uses: a task, focus time, or an event. */
+export function calendarTone(item: { isTask?: boolean; isFocus?: boolean }) {
+  return item.isTask ? calendarColors.task : item.isFocus ? calendarColors.focus : calendarColors.event;
+}

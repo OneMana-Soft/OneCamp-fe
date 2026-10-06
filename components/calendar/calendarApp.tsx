@@ -28,7 +28,7 @@ import { UserInfoRawInterface } from "@/types/user";
 import { GetEventsResponse } from "@/types/calendar";
 import { TaskInfoInterface } from "@/types/task";
 import { cn } from "@/lib/utils/helpers/cn";
-import { calendarColors } from "@/lib/colors";
+import { calendarColors, calendarTone } from "@/lib/colors";
 import { useDispatch } from "react-redux";
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice";
 import { CreateCalendarEventDialog } from "@/components/calendar/createCalendarEventDialog";
@@ -362,7 +362,7 @@ export function CalendarApp() {
                                                             >
                                                                 <div className={cn(
                                                                     "w-2.5 h-2.5 rounded-full shrink-0 shadow-sm",
-                                                                    event.isTask ? calendarColors.task.solid : calendarColors.event.solid,
+                                                                    calendarTone({ isTask: event.isTask, isFocus: event.event_is_focus }).solid,
                                                                 )} />
                                                                 <div className="flex flex-col min-w-0">
                                                                     <div className="text-2xs font-semibold truncate text-foreground group-hover:text-primary transition-colors">
