@@ -11,6 +11,9 @@ import { MoreHorizontal, Table as TableIcon } from "@/lib/icons"
 import { FOCUS_SECTION_TITLE } from "@/lib/nav/focusMode"
 import type { DesktopNavType } from "@/types/nav"
 
+// The sidebar can open an entry side by side (split view), which dispatches.
+vi.mock("react-redux", async (orig) => ({ ...(await orig<typeof import("react-redux")>()), useDispatch: () => vi.fn() }))
+
 afterEach(cleanup)
 
 function draw(links: DesktopNavType[], isCollapsed = false) {

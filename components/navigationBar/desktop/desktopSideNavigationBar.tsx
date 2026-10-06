@@ -1,6 +1,9 @@
 "use client";
 
-import { ChevronRight, Plus, Star } from "@/lib/icons";
+import { ChevronRight, Columns2, Plus, Star } from "@/lib/icons";
+import { useDispatch } from "react-redux";
+import { openInSplit } from "@/store/slice/splitSlice";
+import { paneFromHref } from "@/lib/split";
 
 import { cn } from "@/lib/utils/helpers/cn";
 import {Button} from "@/components/ui/button";
@@ -27,8 +30,12 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
     const { isMobile } = useMedia();
     const isActive = ch.variant === "sidebarActive";
     const hasUnread = ch.unread_count && ch.unread_count > 0;
+    const dispatch = useDispatch();
+    // Channels, chats, docs and projects can open beside the page (split view).
+    const pane = !isMobile ? paneFromHref(String(ch.path || "")) : null;
 
     return (
+        <div className="group/item relative">
         <Link
             href={`${ch.path}`}
             prefetch
@@ -92,6 +99,18 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
             ) : null}
             {ch.userProfile && <DesktopNavigationEmojiStatus userUUID={ch.userProfile.user_uuid}/>}
         </Link>
+        {pane && (
+            <button
+                type="button"
+                onClick={() => dispatch(openInSplit(pane))}
+                aria-label={`Open ${ch.title} side by side`}
+                title="Open side by side (Alt + click)"
+                className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center rounded bg-canvas text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 group-hover/item:opacity-100"
+            >
+                <Columns2 className="h-3.5 w-3.5" />
+            </button>
+        )}
+        </div>
     )
 })
 SideNavLink.displayName = "SideNavLink"

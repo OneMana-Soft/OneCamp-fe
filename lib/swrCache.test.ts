@@ -102,8 +102,21 @@ describe("RecentCache", () => {
     c.set("a", 1).set("b", 2).set("c", 3)
     c.get("a") // read: now the most recent
     c.set("d", 4)
-    expect([...c.keys()]).toEqual(["c", "a", "d"])
     expect(c.has("b")).toBe(false)
+    expect(c.recentFirst()).toEqual(["d", "a", "c"])
+  })
+
+  it("never reorders on a read, so a walk over its keys ends", () => {
+    // SWR reads entries while walking the keys (a global mutate); a cache
+    // that moved read keys to the end made that walk endless.
+    const c = new RecentCache<number>([["a", 1], ["b", 2], ["c", 3]], 10)
+    const seen: string[] = []
+    for (const k of c.keys()) {
+      c.get(k)
+      seen.push(k)
+      if (seen.length > 10) break
+    }
+    expect(seen).toEqual(["a", "b", "c"])
   })
 
   it("keeps the order it was given when restored", () => {

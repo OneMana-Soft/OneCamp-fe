@@ -49,6 +49,9 @@ import {
   app_later_path,
 } from "@/types/paths"
 import { SearchResult } from "@/services/searchService"
+import { useSplitActions } from "@/hooks/useSplitView"
+import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
+import { Columns2, Keyboard, Maximize2 } from "@/lib/icons"
 import { FEATURE_AI, FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
 
 /* ------------------------------------------------------------------ */
@@ -274,6 +277,8 @@ export function CommandPalette() {
   /* ---------------------------------------------------------------- */
   /*  Command definitions                                              */
   /* ---------------------------------------------------------------- */
+
+  const splitRun = useSplitActions()
 
   const commands: PaletteCommand[] = React.useMemo(() => {
     const base: PaletteCommand[] = [
@@ -640,6 +645,39 @@ export function CommandPalette() {
         adminOnly: true,
         action: () => router.push("/app/admin?tab=archive"),
       },
+      // Side by side (split view). Opened here, then the Ctrl+Alt keys.
+      {
+        id: "view-split-here",
+        label: "Open this page side by side",
+        keywords: ["split", "side by side", "pane", "beside", "multiple"],
+        icon: <Columns2 className="mr-2 h-4 w-4" />,
+        group: "View",
+        action: () => splitRun({ type: "openHere" }),
+      },
+      {
+        id: "view-focus",
+        label: "Focus: this view alone",
+        keywords: ["focus", "maximize", "zen", "one view", "split"],
+        icon: <Maximize2 className="mr-2 h-4 w-4" />,
+        group: "View",
+        action: () => splitRun({ type: "focus" }),
+      },
+      {
+        id: "view-full-screen",
+        label: "Full screen",
+        keywords: ["fullscreen", "full screen", "focus", "present"],
+        icon: <Maximize2 className="mr-2 h-4 w-4" />,
+        group: "View",
+        action: () => splitRun({ type: "fullScreen" }),
+      },
+      {
+        id: "view-shortcuts",
+        label: "Keyboard shortcuts",
+        keywords: ["keys", "shortcuts", "hotkeys", "keyboard"],
+        icon: <Keyboard className="mr-2 h-4 w-4" />,
+        group: "View",
+        action: () => openShortcuts(),
+      },
     ]
 
     return base.filter((cmd) => {
@@ -650,7 +688,7 @@ export function CommandPalette() {
       if (cmd.featureKey && features?.[cmd.featureKey] !== true) return false
       return true
     })
-  }, [router, dispatch, isAdmin, can, features, pathname])
+  }, [router, dispatch, isAdmin, can, features, pathname, splitRun])
 
   const hasSearchQuery = inputValue.trim().length > 0
   const hasSearchResults = searchResults.length > 0
@@ -747,7 +785,7 @@ export function CommandPalette() {
         {/* Commands — grouped by category */}
         {showCommands && (
           <>
-            {["Navigate", "Create", "GitHub", "AI", "Admin", "Settings"].map((group) => {
+            {["Navigate", "Create", "View", "GitHub", "AI", "Admin", "Settings"].map((group) => {
               const groupCommands = commands.filter((c) => c.group === group)
               if (groupCommands.length === 0) return null
               return (
