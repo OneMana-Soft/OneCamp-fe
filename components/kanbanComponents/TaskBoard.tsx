@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { colorDot, type StatusOption } from "@/lib/taskStatus"
 import { ChevronDown, ChevronRight, Plus } from "@/lib/icons"
 import { useCollapsedColumns } from "@/hooks/useCollapsedColumns"
+import { useRowState } from "@/hooks/useListSelection"
 import { cellKey, intoCells, splitCell, type Lane, type LaneSpec } from "@/lib/board/lanes"
 
 /** Cards a column renders at first, and adds each time it is scrolled near its end. */
@@ -656,6 +657,7 @@ const BoardCard = memo(function BoardCard({
         data: { type: "task", task, containerId: column },
         disabled,
     })
+    const { highlighted, selected } = useRowState(task.task_uuid)
     return (
         <div className="relative">
             {lineAbove && <DropLine className="-top-[5px]" />}
@@ -665,6 +667,8 @@ const BoardCard = memo(function BoardCard({
                 task={task}
                 statusBadge={statusBadge}
                 dragging={isDragging}
+                highlighted={highlighted}
+                selected={selected}
                 listeners={disabled ? undefined : listeners}
                 data-task-id={task.task_uuid}
             />

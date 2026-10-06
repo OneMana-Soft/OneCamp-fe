@@ -25,6 +25,7 @@ import { useMoveTask } from "@/hooks/useMoveTask"
 import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
 import { BUILT_IN_STATUSES, statusPatch } from "@/lib/taskStatus"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
+import { KeyboardList } from "@/components/task/KeyboardList"
 import { useClosedLimit, withQuery } from "@/hooks/useClosedLimit"
 
 const EMPTY: TaskInfoInterface[] = []
@@ -67,6 +68,7 @@ export const MyTaskKanban = () => {
     // Across projects, so only the built-in columns: a task in one of its
     // project's own statuses sits in that status's category and says which.
     const visible = useMemo(() => BUILT_IN_STATUSES.filter((o) => isShown(viewableStatus, o.value)), [viewableStatus])
+    const boardTasks = useMemo(() => Object.values(columns).flat(), [columns])
 
     return (
         <div className="flex flex-col h-full p-4 overflow-hidden">
@@ -104,20 +106,23 @@ export const MyTaskKanban = () => {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-hidden mt-2">
+            <KeyboardList tasks={boardTasks} canEdit={canEditTask} placement="overlay" className="flex-1 overflow-hidden mt-2">
                 <div className="h-full">
                     <TaskBoard
                         columns={columns}
                         visible={visible}
                         // Only in projects where I am an admin: the server allows no more.
-                        canDrag={(task) => Boolean(task.task_project?.project_is_admin)}
+                        canDrag={canEditTask}
                         onMove={(task, drop) => void moveTask(task.task_uuid, task.task_project.project_uuid, drop, statusPatch(drop.column, BUILT_IN_STATUSES))}
                         boardKey="my-tasks"
                         totals={{ done: u?.user_tasks_done_count, canceled: u?.user_tasks_canceled_count }}
                         onShowMore={closed.showMore}
                     />
                 </div>
-            </div>
+            </KeyboardList>
         </div>
     )
 }
+
+/** Tasks here come from many projects; each is changed by its own project's admins. */
+const canEditTask = (task: TaskInfoInterface) => Boolean(task.task_project?.project_is_admin)

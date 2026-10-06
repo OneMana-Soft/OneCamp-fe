@@ -148,6 +148,8 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
               open so it plays on opening, not on switching what is shown. */}
           <div
             key={rightPanelState.isOpen ? "open" : "closed"}
+            // Lists read it: J and K walk through tasks while one is open here.
+            data-right-panel=""
             className="absolute right-0 top-0 h-full w-full min-w-[320px] overflow-y-auto motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-3 motion-safe:duration-200 motion-safe:ease-out"
           >
             <RightPanel />

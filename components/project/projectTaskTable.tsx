@@ -1,6 +1,6 @@
 "use client"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useFitColumns } from "@/hooks/useFitColumns"
 import {
     type ColumnFiltersState,
@@ -23,6 +23,7 @@ import { LoaderCircle } from "@/lib/icons";
 import { useDebounce } from "@/hooks/useDebounce"
 import { TaskTablePagination } from "@/components/task/taskTablePagination"
 import { TaskTableToolbar } from "@/components/task/taskTableToolbar"
+import { KeyboardList, SelectAllHead, TaskTableRow } from "@/components/task/KeyboardList"
 import { useProjectTaskColumn } from "@/hooks/useProjectTaskColumn"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -58,7 +59,6 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
         (state: RootState) => state.TaskInfo.taskListVisibleInfo || ([] as TaskInfoInterface[]),
     )
 
-    const [rowSelection, setRowSelection] = useState({})
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() =>
         safeJsonParse(searchParams.get("visibility"), {}),
     )
@@ -220,15 +220,12 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
             sorting,
             // task_cycle only carries the cycle filter to the server.
             columnVisibility: { ...columnVisibility, ...autoHidden, task_cycle: false },
-            rowSelection,
             columnFilters,
             globalFilter,
             pagination,
         },
-        enableRowSelection: true,
         manualPagination: true,
         getRowId: (originalRow) => originalRow.task_uuid,
-        onRowSelectionChange: setRowSelection,
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
         onColumnVisibilityChange: setColumnVisibility,
@@ -242,14 +239,20 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
         getFacetedUniqueValues: getFacetedUniqueValues(),
     })
 
+    // Only a project's admins change its tasks; everyone can move through them.
+    const isAdmin = Boolean(projectInfo.data?.data?.project_is_admin)
+    const canEdit = useCallback(() => isAdmin, [isAdmin])
+    const rowIds = table.getRowModel().rows.map((r) => r.id)
+
     return (
-        <div className="space-y-4">
+        <KeyboardList tasks={taskListState} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} className="space-y-4">
             <TaskTableToolbar table={table} projectId={projectId} />
             <div ref={tableBoxRef} className="rounded-md border">
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
                             <TableRow key={headerGroup.id}>
+                                <SelectAllHead ids={rowIds} />
                                 {headerGroup.headers.map((header) => (
                                     <TableHead key={header.id} colSpan={header.colSpan}>
                                         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
@@ -261,15 +264,15 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                     <TableBody>
                         {table.getRowModel().rows?.length ? (
                             table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                                <TaskTableRow key={row.id} id={row.id}>
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                                     ))}
-                                </TableRow>
+                                </TaskTableRow>
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={columns.length} className="h-24 text-center">
+                                <TableCell colSpan={columns.length + 1} className="h-24 text-center">
                                     {projectInfo.isLoading ? (
                                         <div className="flex items-center justify-center">
                                             <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -284,6 +287,6 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                 </Table>
             </div>
             <TaskTablePagination table={table} />
-        </div>
+        </KeyboardList>
     )
 }

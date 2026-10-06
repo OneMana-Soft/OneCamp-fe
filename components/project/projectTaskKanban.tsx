@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { MixerHorizontalIcon } from "@radix-ui/react-icons"
 import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,7 @@ import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { columnsByStatus, statusPatch } from "@/lib/taskStatus"
 import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
+import { KeyboardList } from "@/components/task/KeyboardList"
 import { usePost } from "@/hooks/usePost"
 import { useTaskFields } from "@/hooks/useTaskFields"
 import { useClosedLimit, withQuery } from "@/hooks/useClosedLimit"
@@ -161,6 +162,8 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
             return m ? <TaskAssigneeCell userInfo={m} avatarOnly /> : null
         })
     }, [grouping, laneBy, columns, members, hideEmpty])
+    const boardTasks = useMemo(() => Object.values(columns).flat(), [columns])
+    const canEdit = useCallback(() => isAdmin, [isAdmin])
 
     return (
         <div className="flex flex-col h-full p-4 overflow-hidden">
@@ -231,7 +234,7 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-hidden mt-2">
+            <KeyboardList tasks={boardTasks} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} placement="overlay" className="flex-1 overflow-hidden mt-2">
                 <div className="h-full">
                     {byPerson ? (
                         <TaskBoard
@@ -267,7 +270,7 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                         />
                     )}
                 </div>
-            </div>
+            </KeyboardList>
             {isAdmin && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
         </div>
     )
