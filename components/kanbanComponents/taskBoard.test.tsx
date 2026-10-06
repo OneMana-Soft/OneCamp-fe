@@ -53,7 +53,22 @@ describe("a closed column the server sent only part of", () => {
   it("counts the real total and says the rest are in the list", () => {
     board({ totals: { done: 812 } })
     expect(screen.getByLabelText("812 tasks")).toBeTruthy()
-    expect(screen.getByText("The newest 3 of 812. The list view has them all.")).toBeTruthy()
+    expect(screen.getByText("The newest 3 of 812.")).toBeTruthy()
+    expect(screen.getByText("The list view has them all.")).toBeTruthy()
+  })
+
+  it("offers the next page when the board can load it", () => {
+    const onShowMore = vi.fn()
+    board({ totals: { done: 812 }, onShowMore })
+    act(() => screen.getByRole("button", { name: "Show 200 more" }).click())
+    expect(onShowMore).toHaveBeenCalledWith("done")
+  })
+})
+
+describe("a board of people", () => {
+  it("shows each card's status, which the column no longer says", () => {
+    board({ columns: { todo: many(2) }, visible: [todo], badgeFor: () => "In review" })
+    expect(screen.getAllByText("In review").length).toBeGreaterThan(0)
   })
 })
 

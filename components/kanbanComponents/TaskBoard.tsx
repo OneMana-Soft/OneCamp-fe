@@ -58,6 +58,10 @@ import { useCollapsedColumns } from "@/hooks/useCollapsedColumns"
 /** Cards a column renders at first, and adds each time it is scrolled near its end. */
 export const CARDS_PER_PAGE = 30
 
+/** The server's closed-column page and ceiling (models/dgraph BoardClosedLimit, BoardClosedMax). */
+export const BOARD_CLOSED_STEP = 200
+export const BOARD_CLOSED_MAX = 2000
+
 type Columns = Record<string, TaskInfoInterface[]>
 type Target = { column: string; index: number }
 
@@ -93,6 +97,8 @@ export function TaskBoard({
     boardKey,
     onQuickAdd,
     totals,
+    badgeFor,
+    onShowMore,
 }: {
     /** The board as the server last described it, by status. */
     columns: Columns
@@ -108,6 +114,10 @@ export function TaskBoard({
     onQuickAdd?: (column: string, name: string) => Promise<boolean>
     /** A column's real total when the server sent only part of it (done, cancelled). */
     totals?: Record<string, number | undefined>
+    /** A word on each card the column does not already say (its status, on a board of people). */
+    badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
+    /** Load more of a column the server sent only part of (see totals). */
+    onShowMore?: (column: string) => void
 }) {
     const [collapsed, toggleCollapsed] = useCollapsedColumns(boardKey)
     const [items, setItems] = useState<Columns>(columns)
@@ -250,6 +260,8 @@ export function TaskBoard({
                         onToggleCollapse={toggleCollapsed}
                         onQuickAdd={onQuickAdd}
                         total={totals?.[status.value]}
+                        badgeFor={badgeFor}
+                        onShowMore={onShowMore}
                     />
                 ))}
             </div>
@@ -280,6 +292,8 @@ const BoardColumn = memo(function BoardColumn({
     onToggleCollapse,
     onQuickAdd,
     total,
+    badgeFor,
+    onShowMore,
 }: {
     status: StatusOption
     tasks: TaskInfoInterface[]
@@ -291,6 +305,8 @@ const BoardColumn = memo(function BoardColumn({
     onToggleCollapse: (column: string) => void
     onQuickAdd?: (column: string, name: string) => Promise<boolean>
     total?: number
+    badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
+    onShowMore?: (column: string) => void
 }) {
     // A drop target only for the keyboard, whose sensor steps between columns.
     const id = status.value
@@ -336,7 +352,7 @@ const BoardColumn = memo(function BoardColumn({
                             disabled={!canDrag(task)}
                             // Its own status, where the column does not already say it
                             // (My Tasks has only the built-in columns).
-                            statusBadge={task.task_custom_status && task.task_custom_status !== id ? task.task_custom_status_name : undefined}
+                            statusBadge={badgeFor ? badgeFor(task, id) : task.task_custom_status && task.task_custom_status !== id ? task.task_custom_status_name : undefined}
                             lineAbove={lineAt !== null && position === lineAt}
                             lineBelow={lineAt !== null && lineAt === others && position === others - 1}
                         />
@@ -348,9 +364,20 @@ const BoardColumn = memo(function BoardColumn({
                     </div>
                 )}
                 {!more && total !== undefined && total > tasks.length && (
-                    <p className="px-2 py-2 text-center text-xs text-muted-foreground">
-                        The newest {tasks.length} of {total}. The list view has them all.
-                    </p>
+                    <div className="flex flex-col items-center gap-1 px-2 py-2 text-center text-xs text-muted-foreground">
+                        <span>The newest {tasks.length} of {total}.</span>
+                        {onShowMore && tasks.length < BOARD_CLOSED_MAX ? (
+                            <button
+                                type="button"
+                                onClick={() => onShowMore(id)}
+                                className="rounded-md px-2 py-1 font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                            >
+                                Show {Math.min(BOARD_CLOSED_STEP, total - tasks.length)} more
+                            </button>
+                        ) : (
+                            <span>The list view has them all.</span>
+                        )}
+                    </div>
                 )}
                 {more && (
                     <div ref={sentinel} className="py-2 text-center text-xs text-muted-foreground">
