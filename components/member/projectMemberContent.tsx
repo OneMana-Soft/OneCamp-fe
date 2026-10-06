@@ -20,7 +20,10 @@ export const ProjectMemberContent: React.FC<memberContentProp> = ({projectId}) =
 
     const dispatch = useDispatch()
 
-    const usersList = useFetch<UserListInterfaceResp>(projectId ? GetEndpointUrl.UserListNotBelongToProjectButBelongsToTeam + '/' + projectId : '')
+    // Project and team admins may add people (the server's rule); only they
+    // ask who could be added, so nobody else meets a refusal for looking.
+    const canAdd = Boolean(projectInfo.data?.data.project_is_admin || projectInfo.data?.data.project_team?.team_is_admin)
+    const usersList = useFetch<UserListInterfaceResp>(projectId && canAdd ? GetEndpointUrl.UserListNotBelongToProjectButBelongsToTeam + '/' + projectId : '')
 
     const handleMakeAdmin = (id: string) => {
         if(!id) return
@@ -178,7 +181,7 @@ export const ProjectMemberContent: React.FC<memberContentProp> = ({projectId}) =
 
     return (
         <div className='h-full flex flex-col gap-y-6'>
-            {(projectInfo.data?.data.project_is_admin || (projectInfo.data?.data.project_is_member ) || projectInfo.data?.data.project_team.team_is_admin) && <AddProjectMemberCombobox handleAddMember={handleAddMember} projectId={projectId}/>}
+            {canAdd && <AddProjectMemberCombobox handleAddMember={handleAddMember} projectId={projectId}/>}
             <MembersList isAdmin={projectInfo.data?.data.project_is_admin || projectInfo.data?.data.project_team.team_is_admin || false} usersList={projectInfo.data?.data.project_members || []}
                         handleMakeAdmin={handleMakeAdmin} handleRemoveAdmin={handleRemoveAdmin}
                         handleRemoveMember={handleRemoveMember} blockExitForUUID={projectInfo.data?.data.project_created_by.user_uuid}/>
