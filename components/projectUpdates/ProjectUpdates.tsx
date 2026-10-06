@@ -128,7 +128,7 @@ function UpdateCard({
   const [confirming, setConfirming] = useState(false)
   const edited = Date.parse(update.updated_at) - Date.parse(update.created_at) > 60_000
   return (
-    <article className="group rounded-xl border border-border/60 bg-card p-4 transition-shadow hover:shadow-sm">
+    <article className="group rounded-xl border border-border/60 bg-card p-4 transition-colors hover:border-border">
       <header className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <HealthPill health={update.health} />
         <p className="min-w-0 text-xs text-muted-foreground">
@@ -145,7 +145,13 @@ function UpdateCard({
           </span>
         )}
         {(canEdit || canDelete) && (
-          <div className="ml-auto flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+          <div
+            className={cn(
+              "ml-auto flex items-center gap-1 transition-opacity",
+              // Revealed on hover or focus with a pointer; always there on touch, and while confirming.
+              !confirming && "md:pointer-events-none md:opacity-0 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100 md:group-hover:pointer-events-auto md:group-hover:opacity-100",
+            )}
+          >
             {confirming ? (
               <>
                 <span className="text-xs text-muted-foreground">Delete this update?</span>
