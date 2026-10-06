@@ -2,6 +2,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {Separator} from "@/components/ui/separator"
 import {Label} from "@/components/ui/label"
+import { TagPicker } from "@/components/tags/TagPicker"
 import {Button} from "@/components/ui/button"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import type {Content} from "@tiptap/core"
@@ -113,7 +114,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const {t} = useTranslation()
     const { toast } = useToast()
 
-    const badgeSpanRef = useRef<HTMLSpanElement>(null)
     const fileTaskInputRef = useRef<HTMLInputElement>(null)
     // Debounce task-list revalidation to batch rapid changes (e.g. user
     // clicking through multiple fields) into a single expensive SWR sweep.
@@ -350,12 +350,12 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         (label: string) => {
             const trimmedLabel = label.trim()
 
-            // Validate: must be admin, have data, not empty, not placeholder, and no spaces
+            // The label holds the task's tags ("frontend, needs review"); the
+            // picker sends them joined the way the server keeps them.
             if (
                 !isAdmin ||
                 !taskInfo.data?.data ||
-                trimmedLabel === CONSTANTS.LABEL_PLACEHOLDER ||
-                (/\s/.test(trimmedLabel)) // Check for any whitespace but not for empty string
+                trimmedLabel === CONSTANTS.LABEL_PLACEHOLDER
             ) {
                 return
             }
@@ -750,11 +750,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         [updateTaskPriority],
     )
 
-    const handleLabelChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        // Remove all spaces to enforce single-word labels (like tags)
-        const sanitizedValue = e.target.value.replace(/\s+/g, "")
-        setTaskLabel(sanitizedValue)
-    }, [])
 
     const handleDescriptionChange = useCallback(
         (content: Content) => {
@@ -948,48 +943,18 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                       otherwise the input text would overflow the
                       ghost-sized container on mobile.
                     */}
-                    {/* A label that is set is a solid badge. An empty one is a quiet
-                        dashed prompt, and only for someone who can set it: it used to
-                        be a solid orange "add label", the loudest thing above the
-                        title, shown even to people who could not use it. */}
+                    {/* Tags: pills for everyone, a picker of the project's tags for
+                        whoever can edit the task. Nothing at all when there are none
+                        and you can't add any. */}
                     {(isAdmin || taskLabel.trim() !== "") && (
-                    <label
-                        className={cn(
-                            "inline-flex items-center h-7 rounded-md text-sm font-medium",
-                            taskLabel.trim() !== ""
-                                ? "bg-primary text-primary-foreground"
-                                : "border border-dashed border-border text-muted-foreground hover:border-foreground/40",
-                            "max-w-full overflow-hidden",
-                            !isAdmin && "cursor-default",
-                        )}
-                    >
-                        <span className="relative flex items-center max-w-full">
-                            <span
-                                ref={badgeSpanRef}
-                                aria-hidden
-                                className="invisible whitespace-pre px-3 py-1 text-sm font-medium pointer-events-none truncate max-w-[60vw] sm:max-w-[280px]"
-                            >
-                                {taskLabel || t(CONSTANTS.LABEL_PLACEHOLDER)}
-                            </span>
-                            <input
-                                type="text"
-                                value={taskLabel}
-                                placeholder={t(CONSTANTS.LABEL_PLACEHOLDER)}
-                                readOnly={!isAdmin}
-                                aria-label="Task label"
-                                className={cn(
-                                    "absolute inset-0 h-full w-full px-3 py-1",
-                                    "text-sm font-medium",
-                                    taskLabel.trim() !== "" ? "text-primary-foreground" : "text-foreground",
-                                    "placeholder:font-medium placeholder:text-muted-foreground",
-                                    "bg-transparent border-0 outline-none ring-0",
-                                    "focus:outline-none focus:ring-0",
-                                    "cursor-pointer focus:cursor-text",
-                                )}
-                                onChange={handleLabelChange}
+                        <div className="-ml-1.5">
+                            <TagPicker
+                                projectId={taskInfo.data?.data.task_project?.project_uuid}
+                                label={taskLabel}
+                                canEdit={isAdmin}
+                                onChange={setTaskLabel}
                             />
-                        </span>
-                    </label>
+                        </div>
                     )}
 
                     <div className="mt-4 mb-4">

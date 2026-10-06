@@ -1,3 +1,4 @@
+import { TagPills } from "@/components/tags/TagPills"
 import {TaskInfoInterface} from "@/types/task";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
 import {priorities, prioritiesInterface} from "@/types/table";
@@ -5,7 +6,6 @@ import { statusOptionOf } from "@/lib/taskStatus";
 import {TaskStatusCell} from "@/components/task/taskStatusCell";
 import {TaskAssigneeCell} from "@/components/task/taskAssigneeCell";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
-import {Badge} from "@/components/ui/badge";
 import { CheckCircle2, GitBranch, MessageSquare } from "@/lib/icons";
 import { GitHubBadgeGroup } from "@/components/task/PRStatusBadge";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
@@ -91,7 +91,7 @@ export const TaskListTask = ({
             </div>
             <Link href={taskHref} className="flex-1 min-w-0" onClick={(e) => { if (selectionMode) e.preventDefault() }}>
                 <div className="flex items-center gap-2 mb-1">
-                    {taskInfo.task_label && <Badge variant="secondary" className="text-3xs px-1.5 py-0">{taskInfo.task_label}</Badge>}
+                    <TagPills label={taskInfo.task_label} max={3} />
                     <span className="text-sm font-medium truncate">{taskInfo.task_name}</span>
                     {/* On the name's row, so a long row of chips never pushes it onto
                         a line of its own (on a phone it sat alone under the chips). */}

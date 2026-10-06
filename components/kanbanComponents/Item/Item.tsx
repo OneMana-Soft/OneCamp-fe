@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 import { isClosedStatus } from "@/lib/taskStatus"
 import { timeInStatus } from "@/lib/utils/timeInStatus"
+import { TagPills } from "@/components/tags/TagPills"
 import { Clock } from "@/lib/icons"
 
 interface Props {
@@ -121,14 +122,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                             {statusBadge}
                         </Badge>
                     )}
-                    {task.task_label && (
-                        <Badge
-                            variant="secondary"
-                            className="text-3xs h-4 px-1.5 font-medium uppercase tracking-wide truncate max-w-[40%]"
-                        >
-                            {task.task_label}
-                        </Badge>
-                    )}
+                    <TagPills label={task.task_label} max={2} className="min-w-0" />
                 </div>
             )}
 
