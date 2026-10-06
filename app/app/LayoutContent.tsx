@@ -23,6 +23,7 @@ import { useSplitView } from "@/hooks/useSplitView";
 import { useGoKeys } from "@/hooks/useGoKeys";
 import { SplitPane } from "@/components/split/SplitPane";
 import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
+import { KeyboardTip } from "@/components/onboarding/KeyboardTip";
 import { Fragment } from "react";
 
 
@@ -157,6 +158,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
         </ResizablePanel>
       </ResizablePanelGroup>
       <ShortcutsDialog />
+      <KeyboardTip />
 
     </DesktopNavigationBar>
   );
