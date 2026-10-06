@@ -237,7 +237,7 @@ export function TaskBoard({
             onDragEnd={onDragEnd}
             onDragCancel={finish}
         >
-            <div ref={boardRef} className="flex h-full gap-4 pb-4 overflow-x-auto" data-board-scroll="">
+            <div ref={boardRef} className="flex h-full gap-4 pb-4 overflow-x-auto snap-x snap-mandatory sm:snap-none" data-board-scroll="">
                 {visible.map((status) => (
                     <BoardColumn
                         key={status.value}
