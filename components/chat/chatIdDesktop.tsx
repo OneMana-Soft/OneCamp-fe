@@ -80,7 +80,8 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
 
     const chatCallHref = `${app_chat_call}/${chatId}`;
     // A call opens beside the conversation, so it stays in view.
-    const openBeside = useOpenBeside(!useMedia().isMobile);
+    const { isMobile } = useMedia();
+    const openBeside = useOpenBeside(!isMobile);
     const chatRecordingHref = `/app/chat/${chatId}/recording`;
     // Memoize the mapped result to prevent creating a new array on every render
     const chatTypingState = useMemo(() => 

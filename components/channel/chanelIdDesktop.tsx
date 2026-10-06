@@ -92,6 +92,11 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
 
     }, [channelInfo.data?.channel_info])
 
+    // A call opens beside the channel, so the conversation stays in view.
+    // Above the early returns: a hook runs on every render or none.
+    const { isMobile } = useMedia();
+    const openBeside = useOpenBeside(!isMobile);
+
     if(!channelId) return
 
     if(!channelInfo.data?.channel_info && channelInfo.isLoading) return <ChatSkeleton />
@@ -136,8 +141,6 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
 
 
     const channelCallHref = `${app_channel_call}/${channelId}`;
-    // A call opens beside the channel, so the conversation stays in view.
-    const openBeside = useOpenBeside(!useMedia().isMobile);
     const channelRecordingHref = `/app/channel/${channelId}/recording`;
 
 
