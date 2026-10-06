@@ -1,3 +1,5 @@
+import { useOpenBeside } from "@/hooks/useSplitView";
+import { useMedia } from "@/context/MediaQueryContext";
 import {useFetch} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
@@ -134,6 +136,8 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
 
 
     const channelCallHref = `${app_channel_call}/${channelId}`;
+    // A call opens beside the channel, so the conversation stays in view.
+    const openBeside = useOpenBeside(!useMedia().isMobile);
     const channelRecordingHref = `/app/channel/${channelId}/recording`;
 
 
@@ -289,7 +293,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                     <Button size='icon' variant={channelCallActive ? 'secondary' : 'ghost'} className={cn(
                             "relative transition duration-300",
                             channelCallActive && "bg-success/10 text-success hover:bg-success/20"
-                        )} asChild><Link href={channelCallHref} aria-label={channelCallActive ? "Join the call in progress" : "Start a call"}>
+                        )} asChild><Link href={channelCallHref} onClick={(e) => openBeside({ kind: "call-channel", id: channelId }, e)} aria-label={channelCallActive ? "Join the call in progress" : "Start a call"}>
                         <Video size={18} />
                         {channelCallActive && (
                             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">

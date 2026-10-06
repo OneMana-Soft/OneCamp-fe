@@ -1,3 +1,5 @@
+import { useOpenBeside } from "@/hooks/useSplitView";
+import { useMedia } from "@/context/MediaQueryContext";
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
@@ -77,6 +79,8 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
     );
 
     const chatCallHref = `${app_chat_call}/${chatId}`;
+    // A call opens beside the conversation, so it stays in view.
+    const openBeside = useOpenBeside(!useMedia().isMobile);
     const chatRecordingHref = `/app/chat/${chatId}/recording`;
     // Memoize the mapped result to prevent creating a new array on every render
     const chatTypingState = useMemo(() => 
@@ -164,7 +168,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                     <Button size='icon' variant={chatCallStatusActive ? 'secondary' : 'ghost'} className={cn(
                             "relative transition duration-300",
                             chatCallStatusActive && "bg-success/10 text-success hover:bg-success/20"
-                        )} asChild><Link href={chatCallHref} aria-label={chatCallStatusActive ? "Join active call" : "Start video call"}>
+                        )} asChild><Link href={chatCallHref} onClick={(e) => openBeside({ kind: "call-chat", id: chatId }, e)} aria-label={chatCallStatusActive ? "Join active call" : "Start video call"}>
                         <Video size={18} />
                         {chatCallStatusActive && (
                             <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">

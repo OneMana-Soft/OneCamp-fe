@@ -1,10 +1,10 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { ArrowLeftRight, CheckSquare, FileText, FolderKanban, Hash, Maximize2, MessageSquare, Minimize2, Users, X } from "@/lib/icons"
+import { ArrowLeftRight, CheckSquare, FileText, FolderKanban, Hash, Maximize2, MessageSquare, Minimize2, Users, Video, X } from "@/lib/icons"
 import { useSplitActions } from "@/hooks/useSplitView"
 import { cn } from "@/lib/utils/helpers/cn"
-import type { Pane, PaneKind } from "@/lib/split"
+import { isCallPane, type Pane, type PaneKind } from "@/lib/split"
 
 // Each view loads only when it is first split, so the split costs nothing until used.
 const Loading = () => <div className="h-full w-full animate-pulse bg-muted/30" />
@@ -14,6 +14,8 @@ const GroupChatView = dynamic(() => import("@/components/views/GroupChatView").t
 const DocView = dynamic(() => import("@/components/views/DocView").then((m) => m.DocView), { loading: Loading })
 const ProjectView = dynamic(() => import("@/components/views/ProjectView").then((m) => m.ProjectView), { loading: Loading })
 const TaskInfoPanel = dynamic(() => import("@/components/rightPanel/taskInfoPanel"), { loading: Loading })
+// The call (LiveKit) is the heaviest view; it loads only when a call is opened beside.
+const CallView = dynamic(() => import("@/components/livekit/CallView").then((m) => m.CallView), { loading: Loading })
 
 const KIND: Record<PaneKind, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   channel: { label: "Channel", icon: Hash },
@@ -22,10 +24,19 @@ const KIND: Record<PaneKind, { label: string; icon: React.ComponentType<{ classN
   doc: { label: "Doc", icon: FileText },
   project: { label: "Project", icon: FolderKanban },
   task: { label: "Task", icon: CheckSquare },
+  "call-channel": { label: "Call", icon: Video },
+  "call-chat": { label: "Call", icon: Video },
+  "call-group": { label: "Call", icon: Video },
 }
 
-function PaneBody({ pane }: { pane: Pane }) {
+function PaneBody({ pane, onClose }: { pane: Pane; onClose: () => void }) {
   switch (pane.kind) {
+    case "call-channel":
+      return <CallView kind="channel" id={pane.id} onLeave={onClose} embedded />
+    case "call-chat":
+      return <CallView kind="chat" id={pane.id} onLeave={onClose} embedded />
+    case "call-group":
+      return <CallView kind="group" id={pane.id} onLeave={onClose} embedded />
     case "channel":
       return <ChannelView channelId={pane.id} />
     case "chat":
@@ -76,33 +87,19 @@ export function SplitPane({ pane, index, active, focused }: { pane: Pane; index:
           <button type="button" onClick={() => run({ type: "focus" }, index)} aria-label={focused ? "Show every view" : `Focus this ${what}`} title={focused ? "Show every view (Ctrl+Alt+Enter)" : "Focus: this view alone (Ctrl+Alt+Enter)"} className={barButton}>
             {focused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </button>
-          <button type="button" onClick={() => run({ type: "swap" }, index)} aria-label={`Make this ${what} the main view`} title="Swap with the main view (Ctrl+Alt+S)" className={barButton}>
-            <ArrowLeftRight className="h-3.5 w-3.5" />
-          </button>
+          {!isCallPane(pane) && (
+            <button type="button" onClick={() => run({ type: "swap" }, index)} aria-label={`Make this ${what} the main view`} title="Swap with the main view (Ctrl+Alt+S)" className={barButton}>
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button type="button" onClick={() => run({ type: "close" }, index)} aria-label={`Close this ${what}`} title="Close (Ctrl+Alt+W)" className={barButton}>
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
-        <PaneBody pane={pane} />
+        <PaneBody pane={pane} onClose={() => run({ type: "close" }, index)} />
       </div>
     </section>
-  )
-}
-
-/** While one view is focused: a quiet way back to all of them. */
-export function FocusPill() {
-  const run = useSplitActions()
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center">
-      <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-lg backdrop-blur motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2">
-        <span>One view</span>
-        <button type="button" onClick={() => run({ type: "focus" })} className="rounded-full px-2 py-0.5 font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40">
-          Show all
-        </button>
-        <kbd className="rounded border border-border/70 px-1 font-mono text-3xs">Ctrl+Alt+Enter</kbd>
-      </div>
-    </div>
   )
 }

@@ -127,7 +127,7 @@ export function VideoControls({
   };
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 md:gap-4 p-2 md:p-3 rounded-2xl bg-black/80 md:bg-black/40 backdrop-blur-md border border-white/10 shadow-xl z-[var(--z-fixed)] transition hover:bg-black/90 md:hover:bg-black/50 w-[95%] md:w-auto overflow-x-auto md:overflow-visible justify-center md:justify-start">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 @3xl:gap-4 p-2 @3xl:p-3 rounded-2xl bg-black/80 @3xl:bg-black/40 backdrop-blur-md border border-white/10 shadow-xl z-[var(--z-fixed)] transition hover:bg-black/90 @3xl:hover:bg-black/50 w-[95%] @3xl:w-auto overflow-x-auto @3xl:overflow-visible justify-center @3xl:justify-start">
       
       <ControlBtn
         label={isMicrophoneEnabled ? "Mute" : "Unmute"}
@@ -148,7 +148,7 @@ export function VideoControls({
       </ControlBtn>
 
       {/* Desktop: Screen Share */}
-      <div className="hidden md:block">
+      <div className="hidden @3xl:block">
       <ControlBtn
         label={isScreenShareEnabled ? "Stop sharing" : "Share screen"}
         onClick={toggleScreenShare}
@@ -161,7 +161,7 @@ export function VideoControls({
 
       {/* Recording Toggle */}
       {onToggleRecording && (
-        <div className="hidden md:block">
+        <div className="hidden @3xl:block">
         <ControlBtn
             label={isRecording ? "Stop recording" : "Record"}
             onClick={onToggleRecording}
@@ -176,7 +176,7 @@ export function VideoControls({
       
       {/* Captions Toggle */}
       {onToggleCaptions && (
-        <div className="hidden md:block">
+        <div className="hidden @3xl:block">
         <ControlBtn
             label={showCaptions ? "Hide captions" : "Show captions"}
             onClick={onToggleCaptions}
@@ -211,7 +211,7 @@ export function VideoControls({
 
       {/* Layout Toggle */}
       {onLayoutChange && (
-        <div className="hidden md:block">
+        <div className="hidden @3xl:block">
         <ControlBtn
             label={layout === 'grid' ? "Switch to speaker view" : "Switch to grid view"}
             onClick={() => onLayoutChange(layout === 'grid' ? 'speaker' : 'grid')}
@@ -232,7 +232,7 @@ export function VideoControls({
         </ControlBtn>
       )}
 
-      <div className="w-px h-8 bg-white/10 mx-1 hidden md:block" />
+      <div className="w-px h-8 bg-white/10 mx-1 hidden @3xl:block" />
 
        <TooltipProvider>
         <Tooltip>
@@ -253,7 +253,7 @@ export function VideoControls({
       </TooltipProvider>
 
       {/* Mobile Menu for extra options */}
-      <div className="md:hidden">
+      <div className="@3xl:hidden">
          <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button aria-label="More call options" variant="ghost" size="icon" className="text-white/70 hover:text-white hover:bg-white/10 rounded-xl h-12 w-12">

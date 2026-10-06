@@ -2,7 +2,10 @@
  * Split view: what can sit beside the main page, and how a link names it.
  * Pure, for its test.
  */
-export type PaneKind = "channel" | "chat" | "group" | "doc" | "project" | "task"
+export type PaneKind = "channel" | "chat" | "group" | "doc" | "project" | "task" | CallPaneKind
+
+/** A call beside the page: in a channel, a DM or a group. */
+export type CallPaneKind = "call-channel" | "call-chat" | "call-group"
 
 export interface Pane {
   kind: PaneKind
@@ -14,6 +17,9 @@ export const MAX_PANES = 2
 
 const ID = "([0-9a-zA-Z_-]{6,})"
 const ROUTES: [RegExp, PaneKind][] = [
+  [new RegExp(`^/app/meet/ch/${ID}`), "call-channel"],
+  [new RegExp(`^/app/meet/chat/${ID}`), "call-chat"],
+  [new RegExp(`^/app/meet/grp/${ID}`), "call-group"],
   [new RegExp(`^/app/channel/${ID}`), "channel"],
   [new RegExp(`^/app/chat/group/${ID}`), "group"],
   [new RegExp(`^/app/chat/${ID}`), "chat"],
@@ -39,8 +45,14 @@ export function paneFromHref(href: string, origin = "http://x"): Pane | null {
   return null
 }
 
+const CALL_PATHS: Record<CallPaneKind, string> = { "call-channel": "/app/meet/ch", "call-chat": "/app/meet/chat", "call-group": "/app/meet/grp" }
+
+/** Whether a pane is a call. */
+export const isCallPane = (p: Pane): p is Pane & { kind: CallPaneKind } => p.kind in CALL_PATHS
+
 /** The page a pane shows, to open it full size. */
 export function hrefOfPane(p: Pane): string {
+  if (isCallPane(p)) return `${CALL_PATHS[p.kind]}/${p.id}`
   return p.kind === "group" ? `/app/chat/group/${p.id}` : `/app/${p.kind}/${p.id}`
 }
 
@@ -48,12 +60,19 @@ const same = (a: Pane, b: Pane) => a.kind === b.kind && a.id === b.id
 
 /**
  * Panes after opening one: already open stays put; otherwise it goes on the
- * right, and the oldest makes room beyond MAX_PANES.
+ * right, and the oldest makes room beyond MAX_PANES. One call at a time: a new
+ * call takes the place of the one beside the page. A running call never makes
+ * room, since closing its pane hangs it up.
  */
 export function withPane(panes: Pane[], p: Pane, max = MAX_PANES): Pane[] {
   if (panes.some((x) => same(x, p))) return panes
-  return [...panes, p].slice(-max)
+  const next = [...(isCallPane(p) ? panes.filter((x) => !isCallPane(x)) : panes), p]
+  while (next.length > max) next.splice(Math.max(0, next.findIndex((x) => !isCallPane(x))), 1)
+  return next
 }
+
+/** The panes worth restoring next time: not calls, which nobody should rejoin by reloading. */
+export const restorablePanes = (panes: Pane[]) => panes.filter((p) => !isCallPane(p))
 
 /** Whether a stored value is a list of panes, so an old or edited one is dropped. */
 export function isPaneList(v: unknown): v is Pane[] {

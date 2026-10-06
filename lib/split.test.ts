@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { MAIN, claims, hrefOfPane, isPaneList, paneFromHref, splitShortcut, stepView, withPane } from "./split"
+import { MAIN, claims, isCallPane, restorablePanes, hrefOfPane, isPaneList, paneFromHref, splitShortcut, stepView, withPane } from "./split"
 
 const id = "3ea2ea90-0322-43b9-9efd-cee17ec92b01"
 
@@ -13,7 +13,19 @@ describe("split view", () => {
     expect(paneFromHref(`https://elsewhere.example/app/doc/${id}`)).toBeNull()
   })
   it("round-trips a pane to its page", () => {
-    for (const kind of ["channel", "group", "chat", "doc", "project", "task"] as const) expect(paneFromHref(hrefOfPane({ kind, id }))).toEqual({ kind, id })
+    for (const kind of ["channel", "group", "chat", "doc", "project", "task", "call-channel", "call-chat", "call-group"] as const)
+      expect(paneFromHref(hrefOfPane({ kind, id }))).toEqual({ kind, id })
+  })
+  it("opens a call beside the page, one call at a time, and never restores one", () => {
+    expect(paneFromHref(`/app/meet/ch/${id}`)).toEqual({ kind: "call-channel", id })
+    const doc = { kind: "doc" as const, id: "dddddd" }, a = { kind: "call-chat" as const, id: "aaaaaa" }, b = { kind: "call-channel" as const, id: "bbbbbb" }
+    expect(withPane([doc, a], b)).toEqual([doc, b])
+    // A third thing opened beside makes room by closing the doc, not the call.
+    const task = { kind: "task" as const, id: "tttttt" }
+    expect(withPane([a, doc], task)).toEqual([a, task])
+    expect(withPane([doc, a], task)).toEqual([a, task])
+    expect(isCallPane(a)).toBe(true)
+    expect(restorablePanes([doc, b])).toEqual([doc])
   })
   it("keeps an open pane, adds on the right, and drops the oldest past the limit", () => {
     const a = { kind: "doc" as const, id: "aaaaaa" }, b = { kind: "chat" as const, id: "bbbbbb" }, c = { kind: "task" as const, id: "cccccc" }

@@ -1,3 +1,5 @@
+import { useOpenBeside } from "@/hooks/useSplitView";
+import { useMedia } from "@/context/MediaQueryContext";
 import { useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
@@ -112,9 +114,10 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
     //         }
     // }
 
+    // A call opens beside the group, so the conversation stays in view.
+    const openBeside = useOpenBeside(!useMedia().isMobile);
     const clickVideoCall = () => {
-        router.push(app_grp_call + "/" + grpId);
-
+        if (!openBeside({ kind: "call-group", id: grpId })) router.push(app_grp_call + "/" + grpId);
     }
 
     const UpdateNotification = async () => {
