@@ -21,6 +21,12 @@ describe("projectGlance", () => {
     expect(g).toEqual({ open: 5, overdue: 1, dueSoon: 2, done: 1 })
   })
 
+  it("counts every done task, not only the newest the board loaded", () => {
+    const loaded = Array.from({ length: 200 }, () => ({ task_status: "done" }))
+    expect(projectGlance(loaded, now, 206).done).toBe(206)
+    expect(projectGlance(loaded, now).done).toBe(200)
+  })
+
   it("treats the zero time as no due date", () => {
     expect(projectGlance([{ task_status: "todo", task_due_date: "0001-01-01T00:00:00Z" }], now).overdue).toBe(0)
   })

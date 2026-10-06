@@ -25,7 +25,7 @@ export function ProjectGlanceLine({ projectId, className }: { projectId: string;
     ...(p.project_tasks_done ?? []),
     ...(p.project_tasks_canceled ?? []),
   ]
-  const parts = projectGlanceParts(projectGlance(tasks, new Date()))
+  const parts = projectGlanceParts(projectGlance(tasks, new Date(), p.project_tasks_done_count))
   if (!parts) return <p className={cn("text-sm text-muted-foreground", className)}>No tasks yet.</p>
   return (
     <p className={cn("text-sm text-muted-foreground", className)}>
