@@ -25,6 +25,7 @@ import { useMoveTask } from "@/hooks/useMoveTask"
 import { isShown, useBoardColumns } from "@/hooks/useBoardColumns"
 import { BUILT_IN_STATUSES, statusPatch } from "@/lib/taskStatus"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
+import { useClosedLimit, withQuery } from "@/hooks/useClosedLimit"
 
 const EMPTY: TaskInfoInterface[] = []
 
@@ -48,9 +49,8 @@ export const MyTaskKanban = () => {
     // The priority filter used to be left out of this request, so choosing a
     // priority on My Tasks changed nothing.
     const urlParam = GetTaskStatusQueryParamByStatus({ projectFilter: activeProject, priorityFilter })
-    const userInfo = useFetch<UserInfoRawInterface>(
-        urlParam ? `${GetEndpointUrl.GetUserTaskListForKanban}?${urlParam}` : GetEndpointUrl.GetUserTaskListForKanban,
-    )
+    const closed = useClosedLimit()
+    const userInfo = useFetch<UserInfoRawInterface>(withQuery(GetEndpointUrl.GetUserTaskListForKanban, urlParam, closed.param))
     const u = userInfo.data?.data
 
     const columns = useMemo(
@@ -114,6 +114,7 @@ export const MyTaskKanban = () => {
                         onMove={(task, drop) => void moveTask(task.task_uuid, task.task_project.project_uuid, drop, statusPatch(drop.column, BUILT_IN_STATUSES))}
                         boardKey="my-tasks"
                         totals={{ done: u?.user_tasks_done_count, canceled: u?.user_tasks_canceled_count }}
+                        onShowMore={closed.showMore}
                     />
                 </div>
             </div>

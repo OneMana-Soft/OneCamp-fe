@@ -1,37 +1,17 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useMemo } from "react"
+import { useStoredState } from "@/hooks/useStoredState"
 
-const key = (board: string) => `oc_board_collapsed:${board}`
+const isStringList = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string")
 
 /** The columns folded on a board, remembered per board in this browser. */
 export function useCollapsedColumns(board?: string): [Set<string>, (column: string) => void] {
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
-  useEffect(() => {
-    if (!board) return
-    try {
-      const saved = JSON.parse(localStorage.getItem(key(board)) || "[]")
-      if (Array.isArray(saved)) setCollapsed(new Set(saved.filter((v) => typeof v === "string")))
-    } catch {
-      /* nothing remembered, nothing folded */
-    }
-  }, [board])
+  const [list, setList] = useStoredState<string[]>(board ? `oc_board_collapsed:${board}` : undefined, [], isStringList)
+  const collapsed = useMemo(() => new Set(list), [list])
   const toggle = useCallback(
-    (column: string) =>
-      setCollapsed((prev) => {
-        const next = new Set(prev)
-        if (next.has(column)) next.delete(column)
-        else next.add(column)
-        if (board) {
-          try {
-            localStorage.setItem(key(board), JSON.stringify([...next]))
-          } catch {
-            /* folded for this visit only */
-          }
-        }
-        return next
-      }),
-    [board],
+    (column: string) => setList((prev) => (prev.includes(column) ? prev.filter((c) => c !== column) : [...prev, column])),
+    [setList],
   )
   return [collapsed, toggle]
 }
