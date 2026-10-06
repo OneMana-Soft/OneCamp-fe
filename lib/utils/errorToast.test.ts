@@ -20,3 +20,15 @@ describe("shownRecently", () => {
     expect(shownRecently(copy, 9000)).toBe(false)
   })
 })
+
+describe("a bare refusal from the server", () => {
+  it("is replaced by the status's own words", () => {
+    for (const msg of ["Not Authorised", "not authorized", "Unauthorized", "Forbidden."]) {
+      expect(errorToastCopy(403, msg)).toEqual({ title: "Not allowed", description: "You don't have permission to do that." })
+    }
+  })
+
+  it("leaves a message that explains itself alone", () => {
+    expect(errorToastCopy(403, "Only workspace admins can create teams.").description).toBe("Only workspace admins can create teams.")
+  })
+})

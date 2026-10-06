@@ -24,11 +24,15 @@ const BY_STATUS: Record<number, ErrorCopy> = {
 const SERVER_TROUBLE: ErrorCopy = { title: "Something went wrong", description: "The server hit a problem. Try again in a moment." }
 const UNKNOWN: ErrorCopy = { title: "Something went wrong", description: "Try again in a moment." }
 
+// Server messages that say only "no", in the dozen spellings handlers use. The
+// status's own words say it better ("You don't have permission to do that").
+const BARE = /^(not authori[sz]ed|unauthori[sz]ed|forbidden|not allowed)\.?$/i
+
 /** The copy for a failed request. serverMsg is the backend's own msg field. Pure. */
 export function errorToastCopy(status: number | undefined, serverMsg: unknown): ErrorCopy {
   const base = (status && BY_STATUS[status]) || (status && status >= 500 ? SERVER_TROUBLE : UNKNOWN)
   const msg = typeof serverMsg === "string" ? serverMsg.trim() : ""
-  return msg ? { title: base.title, description: msg } : base
+  return msg && !BARE.test(msg) ? { title: base.title, description: msg } : base
 }
 
 // One screen can make several requests that fail the same way at once (a page
