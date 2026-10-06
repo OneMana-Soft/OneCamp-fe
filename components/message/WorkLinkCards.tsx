@@ -81,19 +81,20 @@ function TaskCard({ id }: { id: string }) {
   if (!t?.task_name) return null
   const due = t.task_due_date ? parseISO(t.task_due_date) : null
   const dueOk = due && !Number.isNaN(due.getTime()) && due.getFullYear() > 1970
-  const parts = [
+  const overdue = dueOk && isPast(due) && t.task_status !== "done" && t.task_status !== "canceled"
+  // Only the date turns red when it has passed; the rest of the line is not late.
+  const parts: React.ReactNode[] = [
     t.task_custom_status_name || taskStatusLabel(t.task_status),
     t.task_assignee?.user_name,
-    dueOk ? `due ${format(due, "d MMM")}` : "",
+    dueOk ? <span key="due" className={overdue ? "text-destructive" : undefined}>due {format(due, "d MMM")}</span> : null,
     t.task_project?.project_name,
   ].filter(Boolean)
-  const overdue = dueOk && isPast(due) && t.task_status !== "done" && t.task_status !== "canceled"
   return (
     <CardShell
       href={`/app/task/${id}`}
       icon={<CheckSquare className="h-4 w-4" />}
       title={t.task_name}
-      detail={<span className={overdue ? "text-destructive" : undefined}>{parts.join(" · ")}</span>}
+      detail={parts.flatMap((part, i) => (i ? [" · ", part] : [part]))}
     />
   )
 }

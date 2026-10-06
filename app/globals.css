@@ -860,7 +860,7 @@ body {
 
 .collaboration-cursor__label {
   border-radius: 3px 3px 3px 0;
-  color: hsl(var(--primary-foreground));
+  color: var(--primary-foreground);
   font-size: 10px;
   font-style: normal;
   font-weight: 700;
@@ -875,7 +875,7 @@ body {
 }
 
 .dark .collaboration-cursor__label {
-  color: hsl(var(--primary));
+  color: var(--primary);
 }
 
 

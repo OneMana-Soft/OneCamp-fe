@@ -794,7 +794,7 @@ const AiChatPanel: React.FC = () => {
                         "flex items-end gap-1.5 rounded-xl border bg-card",
                         "pl-3 pr-1 py-1",
                         "transition-shadow duration-150",
-                        "border-border/60 focus-within:border-primary/50 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.12)]",
+                        "border-border/60 focus-within:border-primary/50 focus-within:shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary)_12%,transparent)]",
                         isStreaming && "opacity-90",
                     )}
                 >

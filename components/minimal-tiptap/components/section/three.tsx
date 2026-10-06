@@ -26,9 +26,9 @@ interface ColorPalette {
 const COLORS: ColorPalette[] = [
   {
     label: 'Palette 1',
-    inverse: 'hsl(var(--background))',
+    inverse: 'var(--background)',
     colors: [
-      { cssVar: 'hsl(var(--foreground))', label: 'Default' },
+      { cssVar: 'var(--foreground)', label: 'Default' },
       { cssVar: 'var(--mt-accent-bold-blue)', label: 'Bold blue' },
       { cssVar: 'var(--mt-accent-bold-teal)', label: 'Bold teal' },
       { cssVar: 'var(--mt-accent-bold-green)', label: 'Bold green' },
@@ -39,7 +39,7 @@ const COLORS: ColorPalette[] = [
   },
   {
     label: 'Palette 2',
-    inverse: 'hsl(var(--background))',
+    inverse: 'var(--background)',
     colors: [
       { cssVar: 'var(--mt-accent-gray)', label: 'Gray' },
       { cssVar: 'var(--mt-accent-blue)', label: 'Blue' },
@@ -52,9 +52,9 @@ const COLORS: ColorPalette[] = [
   },
   {
     label: 'Palette 3',
-    inverse: 'hsl(var(--foreground))',
+    inverse: 'var(--foreground)',
     colors: [
-      { cssVar: 'hsl(var(--background))', label: 'White', darkLabel: 'Black' },
+      { cssVar: 'var(--background)', label: 'White', darkLabel: 'Black' },
       { cssVar: 'var(--mt-accent-blue-subtler)', label: 'Blue subtle' },
       { cssVar: 'var(--mt-accent-teal-subtler)', label: 'Teal subtle' },
       { cssVar: 'var(--mt-accent-green-subtler)', label: 'Green subtle' },
@@ -133,7 +133,7 @@ interface SectionThreeProps extends VariantProps<typeof toggleVariants> {
 }
 
 export const SectionThree: React.FC<SectionThreeProps> = ({ editor, size, variant }) => {
-  const color = editor.getAttributes('textStyle')?.color || 'hsl(var(--foreground))'
+  const color = editor.getAttributes('textStyle')?.color || 'var(--foreground)'
   const [selectedColor, setSelectedColor] = React.useState(color)
 
   const handleColorChange = React.useCallback(
