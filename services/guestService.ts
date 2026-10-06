@@ -325,6 +325,16 @@ export interface GuestProjectView {
     total_tasks: number
     done_tasks: number
     generated_at: string
+    /** The project's updates its team shared with the client, newest first. */
+    updates?: GuestUpdate[]
+}
+
+export interface GuestUpdate {
+    health: string
+    health_label: string
+    body: string
+    author: string
+    created_at: string
 }
 
 export interface GuestTaskView extends GuestTaskCard {

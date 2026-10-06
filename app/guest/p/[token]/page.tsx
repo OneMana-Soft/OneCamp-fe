@@ -20,6 +20,7 @@ import {
 import { GUEST_POLL_MS, GuestComposer, GuestLinkGone, GuestLoading, GuestMessageView, GuestNameForm, useGuestName } from "@/components/guest/guestUi"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
+import { GuestUpdates } from "@/components/guest/GuestUpdates"
 import { Textarea } from "@/components/ui/textarea"
 
 // A board changes slower than a conversation.
@@ -76,6 +77,9 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
       </header>
       <div className="flex min-h-0 flex-1">
         <section className={`min-w-0 flex-1 overflow-auto p-4 ${open ? "hidden md:block" : ""}`}>
+          <div className="max-w-3xl">
+            <GuestUpdates updates={view.updates ?? []} />
+          </div>
           {view.total_tasks === 0 ? (
             <p className="py-16 text-center text-sm text-muted-foreground">No tasks here yet.</p>
           ) : (

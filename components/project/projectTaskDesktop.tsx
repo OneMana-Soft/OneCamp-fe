@@ -5,7 +5,9 @@ import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {ProjectInfoRawInterface, ProjectNotificationInterface} from "@/types/project"
 import { Button } from "@/components/ui/button"
-import { List, Paperclip, Pencil, Users } from "@/lib/icons";
+import { List, Megaphone, Paperclip, Pencil, Users } from "@/lib/icons";
+import { ProjectUpdates } from "@/components/projectUpdates/ProjectUpdates";
+import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip";
 import { ProjectToolButtons } from "@/components/project/ProjectToolButtons";
 import { Kanban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -24,7 +26,7 @@ import {NotificationType} from "@/types/channel";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {usePost} from "@/hooks/usePost";
 
-const VALID_TABS = ["list", "kanban", "attachments"] as const
+const VALID_TABS = ["list", "kanban", "updates", "attachments"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
@@ -114,14 +116,17 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                     </div>
                 )}
             >
-                <ProjectGlanceLine projectId={projectId} />
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <ProjectGlanceLine projectId={projectId} />
+                    <ProjectHealthChip projectId={projectId} onOpen={() => handleTabChange("updates")} />
+                </div>
             </PageHeader>
 
             {/* Content */}
             <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">
                 {projectId && (
                     <Tabs value={selectedTab} onValueChange={handleTabChange} className="h-full flex flex-col gap-6">
-                        <TabsList className="w-full sm:w-fit grid grid-cols-3 sm:flex bg-muted/50 p-1 border border-border/50 h-auto overflow-hidden">
+                        <TabsList className="w-full sm:w-fit grid grid-cols-4 sm:flex bg-muted/50 p-1 border border-border/50 h-auto overflow-hidden">
                             <TabsTrigger 
                                 value="list"
                                 className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
@@ -135,6 +140,13 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             >
                                 <Kanban className="h-4 w-4" />
                                 {t("board", { defaultValue: "Board" })}
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="updates"
+                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                            >
+                                <Megaphone className="h-4 w-4" />
+                                Updates
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="attachments"
@@ -151,6 +163,9 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             </TabsContent>
                             <TabsContent value="kanban" className="h-full mt-0 outline-none">
                                 <ProjectTaskKanban projectId={projectId} />
+                            </TabsContent>
+                            <TabsContent value="updates" className="h-full mt-0 overflow-y-auto outline-none">
+                                <ProjectUpdates projectId={projectId} />
                             </TabsContent>
                             <TabsContent value="attachments" className="h-full mt-0 outline-none">
                                 <div className="p-4">
