@@ -77,7 +77,7 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
     const { makeRequest, isSubmitting } = usePost();
     const [teamNameToCheck, setTeamNameToCheck] = useState<string | null>(null);
     const { data: isChannelNameAvailable, isLoading: isCheckingAvailability } = useFetch<ChannelNameExistsInterface>(
-        teamNameToCheck ? `${GetEndpointUrl.CheckTeamNameAvailability}?team_name=${teamNameToCheck}` : ''
+        teamNameToCheck ? `${GetEndpointUrl.CheckTeamNameAvailability}?team_name=${encodeURIComponent(teamNameToCheck)}` : ''
     );
 
     const onSubmit =  (data: UpdateTeamFormValues) => {
@@ -136,7 +136,7 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
                                                 onClick={() => checkChannelNameAvailability(field.value)}
                                                 disabled={!field.value || isSubmitting || isCheckingAvailability || !isValid}
                                             >
-                                                {isCheckingAvailability ? "Checking…" : "Check Availability"}
+                                                {isCheckingAvailability ? "Checking…" : "Check availability"}
                                             </Button>
                                         </div>
                                         <div>

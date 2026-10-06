@@ -66,7 +66,7 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
     const [channelNameToCheck, setChannelNameToCheck] = useState<string | null>(null);
 
     const { data: isChannelNameAvailable, isLoading: isCheckingAvailability } = useFetch<ChannelNameExistsInterface>(
-        channelNameToCheck ? `${GetEndpointUrl.CheckChannelNameAvailability}?ch_name=${channelNameToCheck}` : ''
+        channelNameToCheck ? `${GetEndpointUrl.CheckChannelNameAvailability}?ch_name=${encodeURIComponent(channelNameToCheck)}` : ''
     );
 
     // Handle form submission
@@ -140,7 +140,7 @@ const CreateChannelDialog: React.FC<CreateTeamDialogProps> = ({
                                                 onClick={() => checkChannelNameAvailability(field.value)}
                                                 disabled={!field.value || isSubmitting || isCheckingAvailability || !isValid}
                                             >
-                                                {isCheckingAvailability ? "Checking…" : "Check Availability"}
+                                                {isCheckingAvailability ? "Checking…" : "Check availability"}
                                             </Button>
                                         </div>
                                         <div>

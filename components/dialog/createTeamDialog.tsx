@@ -62,7 +62,7 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
 
 
   const { data: isTeamNameAvailable, isLoading: isCheckingAvailability } = useFetch<TeamNameExistsInterface>(
-      teamNameToCheck ? `${GetEndpointUrl.CheckTeamNameAvailability}?team_name=${teamNameToCheck}` : ''
+      teamNameToCheck ? `${GetEndpointUrl.CheckTeamNameAvailability}?team_name=${encodeURIComponent(teamNameToCheck)}` : ''
   );
 
   const { makeRequest, isSubmitting } = usePost();
@@ -129,7 +129,7 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
                                 onClick={() => checkChannelNameAvailability(field.value)}
                                 disabled={!field.value || isSubmitting || isCheckingAvailability || !isValid}
                             >
-                              {isCheckingAvailability ? "Checking…" : "Check Availability"}
+                              {isCheckingAvailability ? "Checking…" : "Check availability"}
                             </Button>
                           </div>
                           <div>
