@@ -36,6 +36,8 @@ import { assigneeLanes, priorityLanes, type BoardLanes } from "@/lib/board/lanes
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 import { priorities } from "@/types/table"
 import { cn } from "@/lib/utils/helpers/cn"
+import { TagFilter } from "@/components/tags/TagFilter"
+import { hasTag } from "@/lib/tags"
 import { taskStatusLabel } from "@/types/task"
 import { PostEndpointUrl } from "@/services/endPoints"
 
@@ -72,6 +74,7 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
 
     const [assigneeFilter, setAssigneeFilter] = useState<string[]>([])
     const [priorityFilter, setPriorityFilter] = useState<string[]>([])
+    const [tagFilter, setTagFilter] = useState<string[]>([])
     const [viewableStatus, setColumnShown] = useBoardColumns({
         backlog: false,
         todo: true,
@@ -118,7 +121,7 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
     // own that count as it (the server groups tasks by category only).
     const { options: statusOpts } = useProjectStatuses(projectId)
     const [managing, setManaging] = useState(false)
-    const columns = useMemo(
+    const allColumns = useMemo(
         () =>
             columnsByStatus(
                 {
@@ -133,6 +136,12 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
             ),
         [p, statusOpts],
     )
+    // The tag filter works on the board as loaded: tasks with any chosen tag.
+    const columns = useMemo(() => {
+        if (tagFilter.length === 0) return allColumns
+        const keep = (t: TaskInfoInterface) => tagFilter.some((tag) => hasTag(t.task_label, tag))
+        return Object.fromEntries(Object.entries(allColumns).map(([k, v]) => [k, v.filter(keep)]))
+    }, [allColumns, tagFilter])
     const visible = useMemo(() => statusOpts.filter((o) => isShown(viewableStatus, o.value)), [statusOpts, viewableStatus])
     const [hideEmpty, setHideEmpty] = useStoredState<boolean>(
         projectId ? `oc_board_hide_empty:${projectId}` : undefined,
@@ -159,6 +168,7 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                 <div className="flex space-x-2">
                     <ProjectTaskKanbanAssigneeFilter activeList={assigneeFilter} updateList={setAssigneeFilter} members={p?.project_members} />
                     <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
+                    <TagFilter projectId={projectId} active={tagFilter} onChange={setTagFilter} />
                 </div>
                 <div className="flex space-x-2">
                     <Button variant="outline" size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>

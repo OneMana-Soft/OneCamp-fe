@@ -491,8 +491,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
               </div>
               
               <div className="flex items-center gap-x-4">
-                <Label htmlFor="task_label">Label</Label>
-                <Input id="task_label" {...register("task_label")} placeholder="Enter label" />
+                <Label htmlFor="task_label">Tags</Label>
+                <Input id="task_label" {...register("task_label")} placeholder="Separate with commas, e.g. frontend, needs review" />
                 {errors.task_label && <p className="text-destructive text-sm">{errors.task_label.message}</p>}
               </div>
             </div>
