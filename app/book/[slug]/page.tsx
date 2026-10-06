@@ -25,6 +25,7 @@ import {
   type Slot,
 } from "@/lib/calendar/availability"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
+import { SpamTrap } from "@/components/common/SpamTrap"
 
 const WINDOW_DAYS = 14
 
@@ -244,11 +245,7 @@ function GuestForm({
         <Label htmlFor="g-note">Anything to share beforehand? (optional)</Label>
         <Textarea id="g-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} rows={3} className="resize-none" />
       </div>
-      {/* Hidden from people; a bot that fills every field fills this one. */}
-      <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
-        <label htmlFor="g-website">Website</label>
-        <input id="g-website" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
-      </div>
+      <SpamTrap id="g-website" value={website} onChange={setWebsite} />
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       <Button type="submit" disabled={busy} className="justify-self-start">
         {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}

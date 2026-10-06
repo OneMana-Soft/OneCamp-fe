@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getForm, sendForm, type PublicForm } from "@/services/formService"
 import type { FormField } from "@/lib/forms/forms"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
+import { SpamTrap } from "@/components/common/SpamTrap"
 
 export default function IntakeForm({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -75,11 +76,7 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
         {form.fields.map((f) => (
           <Question key={f.id} field={f} value={answers[f.id]} onChange={(v) => set(f.id, v)} />
         ))}
-        {/* Hidden from people; a bot that fills every field fills this one. */}
-        <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
-          <label htmlFor="f-website">Website</label>
-          <input id="f-website" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
-        </div>
+        <SpamTrap id="f-website" value={website} onChange={setWebsite} />
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <Button type="submit" disabled={busy} className="justify-self-start">
           {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
