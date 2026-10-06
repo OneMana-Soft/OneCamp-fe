@@ -22,6 +22,8 @@
 
 import React from "react"
 import { GitBranch, GitPullRequest, GitMerge, ExternalLink } from "@/lib/icons"
+import { cn } from "@/lib/utils/helpers/cn"
+import { LinkCardBody, linkCardClass } from "@/components/message/LinkCard"
 
 // ── Public model ────────────────────────────────────────────────────────────
 
@@ -100,26 +102,20 @@ const ACCENTS: Record<ResultCardAccent, string> = {
 function ResultCardChrome({ card }: { card: ResultCard }) {
   const Icon = ICONS[card.icon] || ExternalLink
   return (
-    <a
-      href={card.href}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      className="group/rc flex items-center gap-2.5 rounded-lg border border-border/70 bg-card/40 px-3 py-2 transition-colors hover:border-border hover:bg-accent/40 min-w-0"
-    >
-      <span className={"flex h-7 w-7 shrink-0 items-center justify-center rounded-md " + (ACCENTS[card.accent] || ACCENTS.muted)}>
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium leading-tight text-foreground">{card.title}</span>
-        {card.subtitle ? (
-          <span className="block truncate font-mono text-2xs leading-tight text-muted-foreground">{card.subtitle}</span>
-        ) : null}
-      </span>
-      <span className="flex shrink-0 items-center gap-1 text-2xs font-medium text-muted-foreground transition-colors group-hover/rc:text-foreground">
-        {card.cta ? <span className="hidden sm:inline">{card.cta}</span> : null}
-        <ExternalLink className="h-3.5 w-3.5" />
-      </span>
+    <a href={card.href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className={cn(linkCardClass, "group/rc")}>
+      <LinkCardBody
+        icon={<Icon className="h-4 w-4" />}
+        iconClassName={ACCENTS[card.accent] || ACCENTS.muted}
+        title={card.title}
+        detail={card.subtitle}
+        detailClassName="font-mono"
+        trailing={
+          <span className="flex shrink-0 items-center gap-1 text-2xs font-medium text-muted-foreground transition-colors group-hover/rc:text-foreground">
+            {card.cta ? <span className="hidden sm:inline">{card.cta}</span> : null}
+            <ExternalLink className="h-3.5 w-3.5" />
+          </span>
+        }
+      />
     </a>
   )
 }

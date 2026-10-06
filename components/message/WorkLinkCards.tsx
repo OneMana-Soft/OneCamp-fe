@@ -13,6 +13,8 @@ import Link from "next/link"
 import { format, isPast, parseISO } from "date-fns"
 
 import { useFetch } from "@/hooks/useFetch"
+import { cn } from "@/lib/utils/helpers/cn"
+import { LinkCardBody, linkCardClass } from "@/components/message/LinkCard"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { CheckSquare, FileText, FolderKanban } from "@/lib/icons"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -61,16 +63,8 @@ const QUIET = { revalidateOnFocus: false, shouldRetryOnError: false }
 
 function CardShell({ href, icon, title, detail }: { href: string; icon: React.ReactNode; title: string; detail?: React.ReactNode }) {
   return (
-    <Link
-      href={href}
-      onClick={(e) => e.stopPropagation()}
-      className="flex min-w-0 max-w-md items-center gap-2.5 rounded-lg border border-border/70 bg-card/40 px-3 py-2 transition-colors hover:border-border hover:bg-accent/40"
-    >
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">{icon}</span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium leading-tight text-foreground">{title}</span>
-        {detail ? <span className="block truncate text-2xs leading-tight text-muted-foreground">{detail}</span> : null}
-      </span>
+    <Link href={href} onClick={(e) => e.stopPropagation()} className={cn(linkCardClass, "max-w-md")}>
+      <LinkCardBody icon={icon} title={title} detail={detail} />
     </Link>
   )
 }

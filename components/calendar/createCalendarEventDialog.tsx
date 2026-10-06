@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DateAndTimePicker } from "@/components/dateAndTimePicker/dateAndTimePicker";
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker";
 import { FindTimeSuggestions } from "@/components/calendar/findTimeSuggestions";
+import { FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import type { UserProfileInterface } from "@/types/user";
@@ -257,26 +258,15 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                             control={form.control}
                             name="isFocus"
                             render={({ field }) => (
-                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                                    <FormControl>
-                                        <input
-                                            type="checkbox"
-                                            checked={field.value}
-                                            onChange={(e) => {
-                                                field.onChange(e.target.checked);
-                                                // A block with no name yet is named for what it is.
-                                                if (e.target.checked && !form.getValues("title").trim()) form.setValue("title", "Focus time");
-                                            }}
-                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                        />
-                                    </FormControl>
-                                    <div className="space-y-1 leading-none">
-                                        <FormLabel>Focus time</FormLabel>
-                                        <p className="text-xs text-muted-foreground">
-                                            Pause your notifications while this runs. Someone who really needs you can still use Notify anyway.
-                                        </p>
-                                    </div>
-                                </FormItem>
+                                <FocusTimeCheckbox
+                                    checked={field.value}
+                                    hint="Pause your notifications while this runs. Someone who really needs you can still use Notify anyway."
+                                    onChange={(checked) => {
+                                        field.onChange(checked);
+                                        // A block with no name yet is named for what it is.
+                                        if (checked && !form.getValues("title").trim()) form.setValue("title", "Focus time");
+                                    }}
+                                />
                             )}
                         />
                         {isGCalConnected && (

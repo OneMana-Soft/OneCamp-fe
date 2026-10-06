@@ -10,6 +10,7 @@ import { GetEventsResponse, CreateEventPayload } from "@/types/calendar";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
 import { Calendar, Clock, AlignLeft, User, X, Check, Users, Plus, Trash2 } from "@/lib/icons";
 import { Edit2, ArrowRightToLine, BellOff } from "@/lib/icons";
+import { FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -496,18 +497,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 </div>
                             </div>
 
-                            <label className="flex items-start gap-3 rounded-md border p-3">
-                                <input
-                                    type="checkbox"
-                                    checked={focus}
-                                    onChange={(e) => setFocus(e.target.checked)}
-                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                />
-                                <span className="space-y-1 leading-none">
-                                    <span className="block text-sm font-medium">Focus time</span>
-                                    <span className="block text-xs text-muted-foreground">Pause your notifications while this runs.</span>
-                                </span>
-                            </label>
+                            <FocusTimeCheckbox checked={focus} onChange={setFocus} />
                         </form>
                     </Form>
                 )}
