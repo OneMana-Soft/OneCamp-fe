@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SPLIT_SHORTCUTS } from "@/lib/split"
+import { GO_KEYS } from "@/lib/goKeys"
 
 /** Opens the list from anywhere (the command palette): `openShortcuts()`. */
 const EVENT = "onecamp:shortcuts"
@@ -57,13 +58,14 @@ export function ShortcutsDialog() {
   )
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Keyboard shortcuts</DialogTitle>
           <DialogDescription>On a Mac, Ctrl is Control and Alt is Option.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-5">
           {section("Everywhere", GENERAL)}
+          {section("Go to", GO_KEYS.map((g) => ({ keys: `G then ${g.key.toUpperCase()}`, does: g.label })))}
           {section("Side by side", SPLIT_SHORTCUTS)}
         </div>
       </DialogContent>

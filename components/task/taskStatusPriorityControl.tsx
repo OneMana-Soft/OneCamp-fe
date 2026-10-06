@@ -3,7 +3,8 @@
 import React from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
+import { Settings2 } from "@/lib/icons"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {priorities, prioritiesInterface} from "@/types/table";
@@ -20,6 +21,8 @@ type StatusPriorityControlsProps = {
     statusOptions?: StatusOption[]
     onSelectStatus: (value: string) => void
     onSelectPriority: (value: string) => void
+    /** Offer "Edit statuses…" at the foot of the list (the project's admins). */
+    onManageStatuses?: () => void
 }
 
 export function TaskStatusPriorityControl({
@@ -30,6 +33,7 @@ export function TaskStatusPriorityControl({
                                            statusOptions = BUILT_IN_STATUSES,
                                            onSelectStatus,
                                            onSelectPriority,
+                                           onManageStatuses,
                                        }: StatusPriorityControlsProps) {
     const { t } = useTranslation()
     const [openStatus, setOpenStatus] = React.useState(false)
@@ -82,6 +86,27 @@ export function TaskStatusPriorityControl({
                                         </CommandItem>
                                     ))}
                                 </CommandGroup>
+                                {/* Where a project's own statuses (QA, Design review) are
+                                    made: it used to be reachable only from the board's
+                                    View menu. */}
+                                {onManageStatuses && (
+                                    <>
+                                        <CommandSeparator />
+                                        <CommandGroup>
+                                            <CommandItem
+                                                value="edit statuses add custom status"
+                                                onSelect={() => {
+                                                    setOpenStatus(false)
+                                                    onManageStatuses()
+                                                }}
+                                                className="text-muted-foreground"
+                                            >
+                                                <Settings2 className="mr-2 h-4 w-4" />
+                                                Edit statuses…
+                                            </CommandItem>
+                                        </CommandGroup>
+                                    </>
+                                )}
                             </CommandList>
                         </Command>
                     </PopoverContent>

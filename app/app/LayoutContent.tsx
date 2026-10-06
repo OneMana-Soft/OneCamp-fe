@@ -19,6 +19,7 @@ import { UserProfileInterface } from "@/types/user";
 import { RunningTimerChip } from "@/components/time/RunningTimerChip";
 import { useOpenFromUrl } from "@/hooks/useOpenFromUrl";
 import { useSplitView } from "@/hooks/useSplitView";
+import { useGoKeys } from "@/hooks/useGoKeys";
 import { SplitPane, FocusPill } from "@/components/split/SplitPane";
 import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
 import { Fragment } from "react";
@@ -29,6 +30,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   const { isMobile } = useMedia();
   // Split view is for a screen with room for it.
   const { panes, active, focused } = useSplitView(!isMobile);
+  useGoKeys(!isMobile);
   // Focus shows one view alone. The others stay mounted, only hidden, so
   // their scroll, drafts and calls are as they were when it ends.
   const shows = (view: number) => focused === null || focused === view
