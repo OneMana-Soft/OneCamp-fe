@@ -18,11 +18,21 @@ import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
 import { RunningTimerChip } from "@/components/time/RunningTimerChip";
 import { useOpenFromUrl } from "@/hooks/useOpenFromUrl";
+import { useSplitView } from "@/hooks/useSplitView";
+import { SplitPane, FocusPill } from "@/components/split/SplitPane";
+import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
+import { Fragment } from "react";
 
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
   useOpenFromUrl();
   const { isMobile } = useMedia();
+  // Split view is for a screen with room for it.
+  const { panes, active, focused } = useSplitView(!isMobile);
+  // Focus shows one view alone. The others stay mounted, only hidden, so
+  // their scroll, drafts and calls are as they were when it ends.
+  const shows = (view: number) => focused === null || focused === view
+  const split = panes.length > 0
   const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState);
   const rightPanelRef = useRef<ImperativePanelHandle>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -80,21 +90,39 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
         className="h-full"
       >
         <ResizablePanel
-          defaultSize={rightPanelState.isOpen ? 70 : 100}
+          defaultSize={Math.max(30, (rightPanelState.isOpen ? 70 : 100) - panes.length * 30)}
           minSize={30}
           id="main-panel"
           order={1}
           className={cn(
             "h-full relative w-full min-w-0",
-            isDragging ? "transition-none" : "transition-[flex-basis] duration-75 ease-out"
+            isDragging ? "transition-none" : "transition-[flex-basis] duration-75 ease-out",
+            !shows(-1) && "hidden"
           )}
         >
-          <div className="h-full w-full overflow-y-auto overflow-x-hidden custom-scrollbar">
+          <div
+            data-split-view="-1"
+            tabIndex={-1}
+            className={cn(
+              "h-full w-full overflow-y-auto overflow-x-hidden custom-scrollbar outline-none",
+              // With views side by side, a hairline marks the one the keys act on.
+              split && focused === null && active === -1 && "shadow-[inset_0_2px_0_0_var(--primary)]"
+            )}
+          >
             <PageTransition>
               {children}
             </PageTransition>
           </div>
         </ResizablePanel>
+        {/* Split view: what was opened beside the page, each in its own pane. */}
+        {panes.map((pane, i) => (
+          <Fragment key={`${pane.kind}:${pane.id}`}>
+            <ResizableHandle withHandle={true} onDragging={setIsDragging} className={focused !== null ? "hidden" : undefined} />
+            <ResizablePanel id={`split-${pane.kind}-${pane.id}`} order={2 + i} defaultSize={30} minSize={22} className={cn("h-full min-w-0", !shows(i) && "hidden")}>
+              <SplitPane pane={pane} index={i} active={split && active === i} focused={focused === i} />
+            </ResizablePanel>
+          </Fragment>
+        ))}
         <ResizableHandle withHandle={true} className={rightPanelState.isOpen ? "" : "hidden"} onDragging={setIsDragging} />
         <ResizablePanel
           ref={rightPanelRef}
@@ -104,7 +132,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           minSize={32}
           maxSize={60}
           id="right-panel"
-          order={2}
+          order={10}
           className={`relative overflow-x-hidden flex justify-end ${
             isDragging ? "transition-none" : "transition-[flex-basis,opacity] duration-75 ease-out"
           } ${
@@ -123,6 +151,8 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+      {focused !== null && split && <FocusPill />}
+      <ShortcutsDialog />
 
     </DesktopNavigationBar>
   );

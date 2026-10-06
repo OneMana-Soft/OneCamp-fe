@@ -18,6 +18,7 @@
  */
 
 // ─── Navigation ─────────────────────────────────────────────
+export { ArrowLeftRight, Columns2 } from "lucide-react";
 export {
   Home,
   Hash,

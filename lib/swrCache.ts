@@ -36,36 +36,57 @@ export const MAX_CACHE_BYTES = 2 * 1024 * 1024
 export const MAX_ENTRIES = 300
 
 /**
- * A Map that remembers the order entries were last read or written, and
- * forgets the least recent beyond its limit. What is on screen is read on
- * every render, so it stays; a response read again after being forgotten is
- * fetched again, as on a first visit.
+ * A Map that forgets the entries read or written least recently beyond its
+ * limit. What is on screen is read on every render, so it stays; a response
+ * read again after being forgotten is fetched again, as on a first visit.
+ *
+ * Reading never reorders the Map: SWR walks the cache's keys while it reads
+ * entries (a global mutate does), and a Map walk visits a key that is moved to
+ * the end again, so moving on read made that walk endless and froze the page.
+ * Recency is kept beside the Map instead.
  */
 export class RecentCache<V> extends Map<string, V> {
+  private readonly used = new Map<string, number>()
+  private clock = 0
+
   constructor(entries: Iterable<readonly [string, V]> = [], private readonly limit = MAX_ENTRIES) {
     super()
     for (const [k, v] of entries) this.set(k, v)
   }
 
   get(key: string): V | undefined {
-    if (!super.has(key)) return undefined
-    const v = super.get(key) as V
-    super.delete(key)
-    super.set(key, v)
-    return v
+    if (super.has(key)) this.used.set(key, ++this.clock)
+    return super.get(key)
   }
 
   set(key: string, value: V): this {
-    super.delete(key)
     super.set(key, value)
-    // During construction (Map calls set before fields exist) limit is unset.
+    this.used.set(key, ++this.clock)
     if (this.limit) {
-      for (const oldest of super.keys()) {
-        if (this.size <= this.limit) break
-        super.delete(oldest)
+      while (this.size > this.limit) {
+        let oldest: string | undefined
+        let at = Infinity
+        for (const [k, t] of this.used) if (t < at && k !== key) (at = t), (oldest = k)
+        if (oldest === undefined) break
+        this.delete(oldest)
       }
     }
     return this
+  }
+
+  delete(key: string): boolean {
+    this.used.delete(key)
+    return super.delete(key)
+  }
+
+  clear(): void {
+    this.used.clear()
+    super.clear()
+  }
+
+  /** Keys, most recently read or written first. */
+  recentFirst(): string[] {
+    return [...this.used.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k)
   }
 }
 
@@ -96,7 +117,8 @@ function isPersistable(value: unknown): boolean {
  * it dropped when over budget). Pure, for its test.
  */
 export function serialise(map: Map<string, unknown>, budget = MAX_CACHE_BYTES): string {
-  const recentFirst = [...map.entries()].reverse()
+  const recentFirst: [string, unknown][] =
+    map instanceof RecentCache ? map.recentFirst().map((k) => [k, Map.prototype.get.call(map, k)]) : [...map.entries()].reverse()
   const parts: string[] = []
   let used = 0
   for (const [key, value] of recentFirst) {

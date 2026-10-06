@@ -71,12 +71,15 @@ export function TaskTableToolbar<TData>({
 
     return (
         <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="flex flex-1 flex-wrap items-center gap-2 min-w-0">
+            {/* Sized by the room it has, not the window: beside another view
+                (split view) or a side panel, the buttons wrap below rather than
+                the search box spilling over them. */}
+            <div className="flex flex-1 flex-wrap items-center gap-2 min-w-[min(100%,18rem)]">
                 <Input
                     placeholder={t("filterTasksPlaceholder")}
                     value={(table.getState().globalFilter as string) || ""}
                     onChange={handleInputChange}
-                    className="h-8 w-[180px] lg:w-[260px]"
+                    className="h-8 min-w-[9rem] max-w-[16rem] flex-1 basis-40"
                 />
                 {table.getColumn("task_status") && (
                     <TaskTableFacetedStatusFilter
