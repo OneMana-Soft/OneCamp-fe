@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { localStorageProvider } from "./swrCache"
+import { RecentCache, localStorageProvider, serialise } from "./swrCache"
 import { endSession } from "./sessionEnd"
 
 // Tests for the SWR cache provider's persistence + safety logic.
@@ -93,5 +93,41 @@ describe("localStorageProvider", () => {
     second.set("/new", { data: "second member" })
     window.dispatchEvent(new Event("pagehide"))
     expect(JSON.parse(localStorage.getItem("onecamp-app-cache") || "{}").entries).toEqual([["/new", { data: "second member" }]])
+  })
+})
+
+describe("RecentCache", () => {
+  it("forgets the least recently used beyond its limit", () => {
+    const c = new RecentCache<number>([], 3)
+    c.set("a", 1).set("b", 2).set("c", 3)
+    c.get("a") // read: now the most recent
+    c.set("d", 4)
+    expect([...c.keys()]).toEqual(["c", "a", "d"])
+    expect(c.has("b")).toBe(false)
+  })
+
+  it("keeps the order it was given when restored", () => {
+    const c = new RecentCache<number>([["x", 1], ["y", 2]], 5)
+    expect([...c.keys()]).toEqual(["x", "y"])
+  })
+})
+
+describe("serialise", () => {
+  it("writes down the most recent entries that fit, oldest first", () => {
+    const m = new Map<string, unknown>([
+      ["old", { data: "o".repeat(50) }],
+      ["big", { data: "b".repeat(500) }],
+      ["new", { data: "n".repeat(50) }],
+      ["$req$x", { data: 1 }],
+      ["failed", { error: new Error("x") }],
+    ])
+    const out = JSON.parse(serialise(m, 200))
+    expect(out.v).toBe(2)
+    expect(out.entries.map((e: [string]) => e[0])).toEqual(["old", "new"])
+  })
+
+  it("round-trips through the provider", () => {
+    localStorage.setItem("onecamp-app-cache", serialise(new Map([["/a", { data: 1 }]])))
+    expect((localStorageProvider() as unknown as Map<string, unknown>).get("/a")).toEqual({ data: 1 })
   })
 })

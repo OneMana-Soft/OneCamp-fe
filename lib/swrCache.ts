@@ -10,9 +10,12 @@
  *     browser-killed tabs) AND on `beforeunload` AND on `visibilitychange`
  *     "hidden" so we don't lose the most recent data when the user
  *     simply switches tabs.
- *   - Bounded localStorage usage with a hard byte cap (default 5 MB,
- *     well under the 5–10 MB browser quota). On overflow we drop the
- *     largest entries first.
+ *   - Bounded memory: the cache keeps the responses read most recently,
+ *     up to MAX_ENTRIES, and forgets the oldest. SWR's own cache never
+ *     forgets, so a day of opening channels, tasks and docs kept every
+ *     response in memory until the tab was closed.
+ *   - Bounded localStorage: the most recently read responses that fit in
+ *     MAX_CACHE_BYTES are written down, each serialised once.
  *   - Cross-version safe: if the cache was serialised by an older
  *     schema, we drop it instead of crashing.
  *   - Avoid persisting transient/error states: SWR stores errors and
@@ -26,7 +29,45 @@ import { onSessionEnd } from "@/lib/sessionEnd"
 
 const CACHE_KEY = "onecamp-app-cache"
 const CACHE_VERSION = 2 // bump when the serialised shape changes
-const MAX_CACHE_BYTES = 5 * 1024 * 1024 // 5 MB
+// Written down for the next load: parsing it blocks the first paint, so it
+// stays small; the newest responses are what that paint needs.
+export const MAX_CACHE_BYTES = 2 * 1024 * 1024
+// Responses kept in memory. A screen reads a few dozen; this is many screens.
+export const MAX_ENTRIES = 300
+
+/**
+ * A Map that remembers the order entries were last read or written, and
+ * forgets the least recent beyond its limit. What is on screen is read on
+ * every render, so it stays; a response read again after being forgotten is
+ * fetched again, as on a first visit.
+ */
+export class RecentCache<V> extends Map<string, V> {
+  constructor(entries: Iterable<readonly [string, V]> = [], private readonly limit = MAX_ENTRIES) {
+    super()
+    for (const [k, v] of entries) this.set(k, v)
+  }
+
+  get(key: string): V | undefined {
+    if (!super.has(key)) return undefined
+    const v = super.get(key) as V
+    super.delete(key)
+    super.set(key, v)
+    return v
+  }
+
+  set(key: string, value: V): this {
+    super.delete(key)
+    super.set(key, value)
+    // During construction (Map calls set before fields exist) limit is unset.
+    if (this.limit) {
+      for (const oldest of super.keys()) {
+        if (this.size <= this.limit) break
+        super.delete(oldest)
+      }
+    }
+    return this
+  }
+}
 
 type SerialisedEntry = [string, unknown]
 type SerialisedCache = { v: number; entries: SerialisedEntry[] }
@@ -48,33 +89,35 @@ function isPersistable(value: unknown): boolean {
   return true
 }
 
+/**
+ * The cache as written down: the most recently read entries that fit in
+ * budget, oldest first so a reload restores their order. Each entry is
+ * serialised once (this used to re-serialise the whole cache once per entry
+ * it dropped when over budget). Pure, for its test.
+ */
+export function serialise(map: Map<string, unknown>, budget = MAX_CACHE_BYTES): string {
+  const recentFirst = [...map.entries()].reverse()
+  const parts: string[] = []
+  let used = 0
+  for (const [key, value] of recentFirst) {
+    if (typeof key !== "string" || key.startsWith("$req$") || !isPersistable(value)) continue
+    let part: string
+    try {
+      part = JSON.stringify([key, value] satisfies SerialisedEntry)
+    } catch {
+      continue
+    }
+    // An entry bigger than what is left is skipped; a smaller, older one may still fit.
+    if (used + part.length + 1 > budget) continue
+    parts.push(part)
+    used += part.length + 1
+  }
+  return `{"v":${CACHE_VERSION},"entries":[${parts.reverse().join(",")}]}`
+}
+
 function persist(map: Map<string, unknown>): void {
   try {
-    const persistableEntries: SerialisedEntry[] = []
-    for (const [key, value] of map) {
-      if (typeof key !== "string") continue
-      if (key.startsWith("$req$")) continue
-      if (!isPersistable(value)) continue
-      persistableEntries.push([key, value])
-    }
-
-    let payload: SerialisedCache = { v: CACHE_VERSION, entries: persistableEntries }
-    let serialised = JSON.stringify(payload)
-
-    // If we exceed the cap, drop the largest entries until we fit.
-    // Sorting once is O(n log n) and only runs on the slow-path.
-    if (serialised.length > MAX_CACHE_BYTES) {
-      const sized = persistableEntries
-        .map((e) => ({ entry: e, size: JSON.stringify(e).length }))
-        .sort((a, b) => b.size - a.size)
-      while (serialised.length > MAX_CACHE_BYTES && sized.length > 0) {
-        sized.shift()
-        payload = { v: CACHE_VERSION, entries: sized.map((s) => s.entry) }
-        serialised = JSON.stringify(payload)
-      }
-    }
-
-    localStorage.setItem(CACHE_KEY, serialised)
+    localStorage.setItem(CACHE_KEY, serialise(map))
   } catch {
     // QuotaExceeded, JSON cyclic refs, etc. Cache is best-effort —
     // a failure here means the next reload won't have hydrated state,
@@ -86,7 +129,7 @@ function rehydrate(): Map<string, unknown> {
   if (typeof window === "undefined") return new Map()
   try {
     const raw = localStorage.getItem(CACHE_KEY)
-    if (!raw) return new Map()
+    if (!raw) return new RecentCache()
     const parsed = JSON.parse(raw) as SerialisedCache | unknown
     // Migration safety: if the stored shape doesn't match the current
     // version, discard it instead of mounting partially-broken values.
@@ -97,14 +140,14 @@ function rehydrate(): Map<string, unknown> {
       !Array.isArray((parsed as SerialisedCache).entries)
     ) {
       localStorage.removeItem(CACHE_KEY)
-      return new Map()
+      return new RecentCache()
     }
     // Defensive: filter out any non-string keys that might exist in a
     // tampered payload. SWR keys are always strings in this codebase.
     const safeEntries = (parsed as SerialisedCache).entries.filter(
       (e): e is SerialisedEntry => Array.isArray(e) && typeof e[0] === "string"
     )
-    return new Map(safeEntries)
+    return new RecentCache(safeEntries)
   } catch {
     // Corrupt JSON. Drop and start fresh.
     try {
@@ -112,7 +155,7 @@ function rehydrate(): Map<string, unknown> {
     } catch {
       /* ignore */
     }
-    return new Map()
+    return new RecentCache()
   }
 }
 

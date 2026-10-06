@@ -1,3 +1,4 @@
+import { keepRecentlyLoaded } from "@/lib/utils/recentlyLoaded";
 import {createSlice} from "@reduxjs/toolkit";
 import {ExtendedCallStatus, ExtendedScrollToBottom, FilePreview, ScrollToBottom} from "@/store/slice/channelSlice";
 import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
@@ -203,6 +204,8 @@ interface ChatScrollPosition {
 }
 
 const initialState = {
+    // Which conversations have messages in memory, least recent first (lib/utils/recentlyLoaded).
+    loadedOrder: [] as string[],
     chatInputState: {} as ExtendedChatInputState,
     chatMessages: {} as ExtendedChats,
     chatScrollToBottom: {} as ExtendedScrollToBottom,
@@ -400,6 +403,7 @@ const chatSlice = createSlice({
             const { chatId, chats } = action.payload;
 
             state.chatMessages[chatId] = [...chats];
+            keepRecentlyLoaded(state.chatMessages, state.loadedOrder, chatId);
 
         },
 
@@ -431,6 +435,7 @@ const chatSlice = createSlice({
             });
 
             if (next !== existing) state.chatMessages[chatId] = next;
+            keepRecentlyLoaded(state.chatMessages, state.loadedOrder, chatId);
         },
 
 
@@ -730,6 +735,7 @@ const chatSlice = createSlice({
         // SYNC: Clear all loaded chat messages to force API refetch after stale reconnection
         invalidateAllChatMessages: (state) => {
             state.chatMessages = {} as ExtendedChats
+            state.loadedOrder = []
         }
 
 
