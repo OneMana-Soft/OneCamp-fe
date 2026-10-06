@@ -4,7 +4,7 @@ import { eyebrowClass } from "@/components/ui/eyebrow"
 import { useEffect, useMemo, useRef } from "react";
 import { addDays, format, isSameDay, parseISO, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
-import { calendarColors } from "@/lib/colors";
+import { calendarTone } from "@/lib/colors";
 import type { CalendarEventInterface } from "@/types/calendar";
 import type { TaskInfoInterface } from "@/types/task";
 
@@ -15,6 +15,7 @@ interface TimedItem {
   uuid: string;
   title: string;
   isTask: boolean;
+  isFocus?: boolean;
   start: Date;
   end: Date;
   topMin: number; // minutes from midnight (clamped to day)
@@ -27,6 +28,7 @@ interface AllDayItem {
   uuid: string;
   title: string;
   isTask: boolean;
+  isFocus?: boolean;
 }
 
 interface WeekViewProps {
@@ -103,6 +105,7 @@ export function WeekView({
       isTask: boolean,
       start: Date,
       end: Date,
+      isFocus = false,
     ) => {
       days.forEach((day, di) => {
         const dayStart = startOfDay(day);
@@ -114,7 +117,7 @@ export function WeekView({
         const isMultiDay = !isSameDay(start, end) && durationMs >= DAY_MINUTES * 60 * 1000;
 
         if (spansFullDay || isMultiDay) {
-          allDay[di].push({ uuid, title, isTask });
+          allDay[di].push({ uuid, title, isTask, isFocus });
           return;
         }
 
@@ -126,6 +129,7 @@ export function WeekView({
           uuid,
           title,
           isTask,
+          isFocus,
           start,
           end,
           topMin,
@@ -141,7 +145,7 @@ export function WeekView({
         const start = parseISO(e.event_start_time);
         const end = parseISO(e.event_end_time);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
-        pushTimedOrAllDay(e.event_uuid, e.event_title, false, start, end);
+        pushTimedOrAllDay(e.event_uuid, e.event_title, false, start, end, !!e.event_is_focus);
       });
     }
 
@@ -209,7 +213,7 @@ export function WeekView({
                 onClick={() => (it.isTask ? onTaskClick(it.uuid) : onEventClick(it.uuid))}
                 className={cn(
                   "block w-full truncate rounded px-1.5 py-0.5 text-left text-3xs font-medium",
-                  it.isTask ? calendarColors.task.block : calendarColors.event.block,
+                  calendarTone(it).block,
                 )}
               >
                 {it.title}
@@ -281,7 +285,7 @@ export function WeekView({
                     }}
                     className={cn(
                       "absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-3xs font-medium leading-tight",
-                      it.isTask ? calendarColors.task.block : calendarColors.event.block,
+                      calendarTone(it).block,
                     )}
                   >
                     <span className="block truncate font-semibold">{it.title}</span>

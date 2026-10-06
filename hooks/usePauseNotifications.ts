@@ -11,14 +11,18 @@ import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { activePause, rememberPause } from "@/lib/notifications/pause"
 
-type PauseState = { notifications_paused_until?: string | null }
+type PauseState = { notifications_paused_until?: string | null; focus_until?: string | null }
 
 export function usePauseNotifications() {
   const { data, mutate } = useFetch<{ data?: PauseState }>(GetEndpointUrl.GetNotificationPreferences)
   const { makeRequest, isSubmitting } = usePost()
   const raw = data?.data?.notifications_paused_until
   const until = activePause(raw)
-  const untilMs = until?.getTime() ?? 0
+  // Focus time from the calendar: a pause the person did not set and cannot
+  // resume here; it ends with the event.
+  const focus = activePause(data?.data?.focus_until)
+  const quiet = [until, focus].filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null
+  const untilMs = quiet?.getTime() ?? 0
 
   // Keep this device's copy in step with the server.
   useEffect(() => {
@@ -55,6 +59,7 @@ export function usePauseNotifications() {
 
   return {
     pausedUntil: until,
+    focusUntil: focus,
     pause: (at: Date) => set(at),
     resume: () => set(null),
     busy: isSubmitting,

@@ -14,7 +14,7 @@ import { formatSendAt } from "@/lib/messages/schedulePresets"
 import { MAX_PAUSE_MS, pausePresets } from "@/lib/notifications/pause"
 
 export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { pausedUntil, pause, resume, busy } = usePauseNotifications()
+  const { pausedUntil, focusUntil, pause, resume, busy } = usePauseNotifications()
   const { toast } = useToast()
 
   const onPick = async (at: Date) => {
@@ -41,6 +41,11 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
               : "Nothing reaches your phone, desktop or inbox until the pause ends. Messages still arrive in OneCamp."}
           </DialogDescription>
         </DialogHeader>
+        {focusUntil && (
+          <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+            Focus time until {formatSendAt(focusUntil)}, from your calendar. It ends when the event does.
+          </p>
+        )}
         {pausedUntil && (
           <Button variant="secondary" onClick={onResume} disabled={busy}>
             Resume notifications
@@ -53,6 +58,7 @@ export function PauseNotificationsDialog({ open, onOpenChange }: { open: boolean
 }
 
 /** The menu wording for the current state. */
-export function pauseMenuLabel(pausedUntil: Date | null): string {
+export function pauseMenuLabel(pausedUntil: Date | null, focusUntil: Date | null = null): string {
+  if (focusUntil && (!pausedUntil || focusUntil >= pausedUntil)) return `Focus time until ${formatSendAt(focusUntil)}`
   return pausedUntil ? `Paused until ${formatSendAt(pausedUntil)}` : "Pause notifications…"
 }

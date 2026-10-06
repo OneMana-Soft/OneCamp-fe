@@ -9,7 +9,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { GetEventsResponse, CreateEventPayload } from "@/types/calendar";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
 import { Calendar, Clock, AlignLeft, User, X, Check, Users, Plus, Trash2 } from "@/lib/icons";
-import { Edit2, ArrowRightToLine } from "@/lib/icons";
+import { Edit2, ArrowRightToLine, BellOff } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,6 +47,7 @@ interface EventInfoPanelProps {
 export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelProps) {
     const post = usePost();
     const [isEditing, setIsEditing] = useState(false);
+    const [focus, setFocus] = useState(false);
     const rightPanelData = useSelector((state: any) => state.rightPanel.rightPanelState?.data);
     const viewStartDate = rightPanelData?.viewStartDate;
     const viewEndDate = rightPanelData?.viewEndDate;
@@ -124,6 +125,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                 endTime: format(parseISO(event.event_end_time), "yyyy-MM-dd'T'HH:mm"),
             });
             setParticipants(event.event_participants || []);
+            setFocus(!!event.event_is_focus);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [eventId]);
@@ -143,7 +145,8 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                     description: values.description,
                     startTime: new Date(values.startTime).toISOString(),
                     endTime: new Date(values.endTime).toISOString(),
-                    participants: participants.map(p => p.user_uuid) || []
+                    participants: participants.map(p => p.user_uuid) || [],
+                    isFocus: focus,
                 }
             });
             await mutate();
@@ -305,6 +308,13 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     </span>
                                 </div>
                             </div>
+
+                            {event.event_is_focus && (
+                                <div className="flex items-center gap-3 text-muted-foreground mt-2">
+                                    <BellOff className="h-4 w-4 text-primary/70" />
+                                    <span className="text-sm">Focus time: {event.event_created_by?.user_name || "its owner"}&apos;s notifications pause while it runs</span>
+                                </div>
+                            )}
 
                             {event.event_created_by && (
                                 <div className="flex items-center gap-3 text-muted-foreground mt-2">
@@ -485,6 +495,19 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     ))}
                                 </div>
                             </div>
+
+                            <label className="flex items-start gap-3 rounded-md border p-3">
+                                <input
+                                    type="checkbox"
+                                    checked={focus}
+                                    onChange={(e) => setFocus(e.target.checked)}
+                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                />
+                                <span className="space-y-1 leading-none">
+                                    <span className="block text-sm font-medium">Focus time</span>
+                                    <span className="block text-xs text-muted-foreground">Pause your notifications while this runs.</span>
+                                </span>
+                            </label>
                         </form>
                     </Form>
                 )}

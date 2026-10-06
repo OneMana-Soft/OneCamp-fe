@@ -29,6 +29,7 @@ const formSchema = z.object({
     startTime: z.string().min(1, "Start time is required"),
     endTime: z.string().min(1, "End time is required"),
     syncToGoogleCalendar: z.boolean().default(false),
+    isFocus: z.boolean().default(false),
 }).refine((data) => new Date(data.startTime) < new Date(data.endTime), {
     message: "End time must be after start time",
     path: ["endTime"]
@@ -60,6 +61,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
             startTime: "",
             endTime: "",
             syncToGoogleCalendar: false,
+            isFocus: false,
         }
     });
 
@@ -82,6 +84,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                 startTime: format(roundedStart, "yyyy-MM-dd'T'HH:mm"),
                 endTime: format(initialEnd, "yyyy-MM-dd'T'HH:mm"),
                 syncToGoogleCalendar: false,
+                isFocus: false,
             });
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,6 +105,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                     endTime: endTimeISO,
                     syncToGoogleCalendar: values.syncToGoogleCalendar,
                     participants: guests.map((g) => g.uuid),
+                    isFocus: values.isFocus,
                 }
             });
             form.reset();
@@ -246,6 +250,32 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                         <Textarea placeholder="Event details…" className="resize-none" {...field} />
                                     </FormControl>
                                     <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="isFocus"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                    <FormControl>
+                                        <input
+                                            type="checkbox"
+                                            checked={field.value}
+                                            onChange={(e) => {
+                                                field.onChange(e.target.checked);
+                                                // A block with no name yet is named for what it is.
+                                                if (e.target.checked && !form.getValues("title").trim()) form.setValue("title", "Focus time");
+                                            }}
+                                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                        />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                        <FormLabel>Focus time</FormLabel>
+                                        <p className="text-xs text-muted-foreground">
+                                            Pause your notifications while this runs. Someone who really needs you can still use Notify anyway.
+                                        </p>
+                                    </div>
                                 </FormItem>
                             )}
                         />

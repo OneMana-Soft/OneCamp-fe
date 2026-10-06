@@ -137,7 +137,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
     const isAdmin = !!selfProfile.data?.data.user_is_admin
     const [inviteOpen, setInviteOpen] = useState(false)
     const [pauseOpen, setPauseOpen] = useState(false)
-    const { pausedUntil } = usePauseNotifications()
+    const { pausedUntil, focusUntil } = usePauseNotifications()
 
     const closeDrawer = () => setOpenState(false)
 
@@ -248,7 +248,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
 
                     <DrawerItem
                         icon={BellOff}
-                        label={pauseMenuLabel(pausedUntil)}
+                        label={pauseMenuLabel(pausedUntil, focusUntil)}
                         onClick={() => {
                             setPauseOpen(true)
                             closeDrawer()

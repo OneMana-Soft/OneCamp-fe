@@ -10,6 +10,8 @@ export interface CalendarEventInterface {
     event_created_by?: UserProfileDataInterface; // 'event_created_by' in JSON
     event_google_calendar_id?: string;
     event_participants?: UserProfileDataInterface[];
+    /** Focus time: the creator's notifications pause while it runs. */
+    event_is_focus?: boolean;
     isTask?: boolean;
 }
 
@@ -26,4 +28,5 @@ export interface CreateEventPayload {
     endTime: string;
     syncToGoogleCalendar?: boolean;
     participants?: string[];
+    isFocus?: boolean;
 }

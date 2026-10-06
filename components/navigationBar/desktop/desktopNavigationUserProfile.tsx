@@ -32,7 +32,7 @@ export default function DesktopNavigationUserProfile() {
     const dispatch = useDispatch();
     const { logout } = useLogout();
     const { theme, setTheme } = useTheme();
-    const { pausedUntil } = usePauseNotifications();
+    const { pausedUntil, focusUntil } = usePauseNotifications();
     const [pauseOpen, setPauseOpen] = useState(false);
 
 
@@ -47,13 +47,13 @@ export default function DesktopNavigationUserProfile() {
                         toolTipString={"Profile and settings"}
                         userUUID={selfProfile.data?.data.user_uuid}
                     />
-                    {pausedUntil && (
+                    {(pausedUntil || focusUntil) && (
                         <span
                             className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border bg-background text-muted-foreground"
-                            title={pauseMenuLabel(pausedUntil)}
+                            title={pauseMenuLabel(pausedUntil, focusUntil)}
                         >
                             <BellOff className="h-2.5 w-2.5" aria-hidden />
-                            <span className="sr-only">{pauseMenuLabel(pausedUntil)}</span>
+                            <span className="sr-only">{pauseMenuLabel(pausedUntil, focusUntil)}</span>
                         </span>
                     )}
                 </Button>
@@ -76,7 +76,7 @@ export default function DesktopNavigationUserProfile() {
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setPauseOpen(true)}>
                         <BellOff className="mr-2 h-4 w-4" aria-hidden />
-                        {pauseMenuLabel(pausedUntil)}
+                        {pauseMenuLabel(pausedUntil, focusUntil)}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         onClick={()=>{dispatch(openUI({ key: 'selfUserProfile' }))}}
