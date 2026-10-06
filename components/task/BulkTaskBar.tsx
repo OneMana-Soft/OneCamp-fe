@@ -72,6 +72,18 @@ export function BulkTaskBar({
   const options = statusOptions ?? own.options
   const bulk = useBulkTaskUpdate(listProjectId)
 
+  // A key can ask for a picker the bar can't offer: nothing here this person
+  // may change, or people to assign across several projects. Say so, rather
+  // than open an empty box (or one that springs open later).
+  const blocked = picker !== null && (editable.length === 0 || (picker === "assignee" && !project))
+  React.useEffect(() => {
+    if (!blocked) return
+    onPicker(null)
+    toast({
+      title: editable.length === 0 ? "Only a project's admins can change its tasks" : "Pick tasks from one project to assign them",
+    })
+  }, [blocked, editable.length, onPicker])
+
   if (selected.length === 0) return null
   const readOnly = selected.length - editable.length
 
@@ -103,7 +115,7 @@ export function BulkTaskBar({
           FIELDS.map(({ field, label, key }) => {
             const needsProject = field === "assignee" && !project
             return (
-              <Popover key={field} open={picker === field} onOpenChange={(o) => onPicker(o ? field : null)}>
+              <Popover key={field} open={picker === field && !needsProject} onOpenChange={(o) => onPicker(o ? field : null)}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="ghost"

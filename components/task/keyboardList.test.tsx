@@ -159,3 +159,38 @@ describe("a board from the keyboard", () => {
     expect(card("Write the copy")).toHaveAttribute("data-highlighted")
   })
 })
+
+describe("the bar's pickers", () => {
+  it("says why when a key asks for people across projects", async () => {
+    const store = configureStore({ reducer: { split: splitSlice.reducer, rightPanel: desktopRightPanelSlice.reducer } })
+    const inProject = (t: TaskInfoInterface, p: string) => ({ ...t, task_project: { project_uuid: p } }) as TaskInfoInterface
+    const tasks = [inProject(TASKS[0], "p1"), inProject(TASKS[1], "p2")]
+    render(
+      <Provider store={store}>
+        <div data-split-view="-1">
+          <KeyboardList tasks={tasks} canEdit={() => true}>
+            <table>
+              <tbody>
+                {tasks.map((t) => (
+                  <TaskTableRow key={t.task_uuid} id={t.task_uuid}>
+                    <td>{t.task_name}</td>
+                  </TaskTableRow>
+                ))}
+              </tbody>
+            </table>
+          </KeyboardList>
+        </div>
+      </Provider>,
+    )
+    press("j")
+    press("x")
+    press("j")
+    press("x")
+    press("a")
+    await act(async () => {})
+    expect(screen.queryByPlaceholderText("Assign to…")).toBeNull()
+    // The picker is not left waiting to spring open later.
+    press("s")
+    expect(await screen.findByPlaceholderText("Move to…")).toBeInTheDocument()
+  })
+})
