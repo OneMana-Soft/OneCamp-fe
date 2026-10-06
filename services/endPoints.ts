@@ -99,6 +99,11 @@ export enum GetEndpointUrl {
     ProjectCycles = "/project",
     // A project's intake forms: /project/{id}/forms (+ /{form}/delete)
     ProjectForms = "/project",
+    // A project's updates: /project/{id}/updates (?limit=), /updates/draft?tz=,
+    // POST /updates, /updates/{update}/edit|delete
+    ProjectUpdates = "/project",
+    // The AI edition's draft of a project's next update (POST {project_uuid, tz}).
+    AiProjectUpdateDraft = "/ai/project-update/draft",
     GetTaskCycle = "/task/cycle",
     // Time on tasks: /task/time/{task} (GET, POST to add, /start), /task/time/stop,
     // /task/time/running, /task/time/entry/{id}/update|delete; a project's report
