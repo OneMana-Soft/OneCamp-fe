@@ -27,9 +27,10 @@ function startOfDay(d: Date): Date {
 /**
  * Counts for a project's tasks, as of now. Overdue: open, with a due date
  * before today. Due soon: open, due today or in the next six days. A due date
- * of the zero time (never set) counts as none.
+ * of the zero time (never set) counts as none. The board loads only the newest
+ * done tasks, so `doneTotal`, the server's count, wins when it is larger.
  */
-export function projectGlance(tasks: GlanceTask[], now: Date): ProjectGlance {
+export function projectGlance(tasks: GlanceTask[], now: Date, doneTotal = 0): ProjectGlance {
   const today = startOfDay(now).getTime()
   const weekEnd = today + 7 * 86_400_000
   const g: ProjectGlance = { open: 0, overdue: 0, dueSoon: 0, done: 0 }
@@ -46,6 +47,7 @@ export function projectGlance(tasks: GlanceTask[], now: Date): ProjectGlance {
     if (day < today) g.overdue++
     else if (day < weekEnd) g.dueSoon++
   }
+  g.done = Math.max(g.done, doneTotal)
   return g
 }
 
