@@ -110,7 +110,7 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                     unstyled && styles.unstyled,
                     !unstyled && [
                         // On a phone one column fills the screen and the board snaps to each.
-                        "group/column shrink-0 mx-2 my-0 w-[min(320px,calc(100vw-3rem))] snap-center rounded-lg",
+                        "group/column shrink-0 mx-2 my-0 w-[min(320px,calc(100vw-5rem))] snap-center rounded-lg",
                         // A column's layout is its own: when a card moves in or
                         // out, the browser re-lays out this column and not the
                         // whole page, which is most of the cost of a crossing.
