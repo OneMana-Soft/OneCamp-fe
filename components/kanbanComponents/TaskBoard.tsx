@@ -52,6 +52,11 @@ import type { TaskInfoInterface } from "@/types/task"
 import { dropMovedCard, insertionIndex, placeCard, type SettledDrop } from "@/lib/utils/kanbanDrop"
 import { cn } from "@/lib/utils/helpers/cn"
 import { colorDot, type StatusOption } from "@/lib/taskStatus"
+import { Plus } from "@/lib/icons"
+import { useCollapsedColumns } from "@/hooks/useCollapsedColumns"
+
+/** Cards a column renders at first, and adds each time it is scrolled near its end. */
+export const CARDS_PER_PAGE = 30
 
 type Columns = Record<string, TaskInfoInterface[]>
 type Target = { column: string; index: number }
@@ -85,6 +90,9 @@ export function TaskBoard({
     visible,
     canDrag,
     onMove,
+    boardKey,
+    onQuickAdd,
+    totals,
 }: {
     /** The board as the server last described it, by status. */
     columns: Columns
@@ -94,7 +102,14 @@ export function TaskBoard({
     canDrag: (task: TaskInfoInterface) => boolean
     /** Save a drop. The board already shows it. */
     onMove: (task: TaskInfoInterface, drop: SettledDrop<TaskInfoInterface>) => void
+    /** Which board this is, so the columns folded on it are remembered. */
+    boardKey?: string
+    /** Make a task in a column from its name; resolves whether it worked. */
+    onQuickAdd?: (column: string, name: string) => Promise<boolean>
+    /** A column's real total when the server sent only part of it (done, cancelled). */
+    totals?: Record<string, number | undefined>
 }) {
+    const [collapsed, toggleCollapsed] = useCollapsedColumns(boardKey)
     const [items, setItems] = useState<Columns>(columns)
     const [activeTask, setActiveTask] = useState<TaskInfoInterface | null>(null)
     const [target, setTarget] = useState<Target | null>(null)
@@ -231,6 +246,10 @@ export function TaskBoard({
                         canDrag={canDragTask}
                         activeId={activeTask?.task_uuid ?? null}
                         lineAt={target?.column === status.value ? target.index : null}
+                        collapsed={collapsed.has(status.value)}
+                        onToggleCollapse={toggleCollapsed}
+                        onQuickAdd={onQuickAdd}
+                        total={totals?.[status.value]}
                     />
                 ))}
             </div>
@@ -257,6 +276,10 @@ const BoardColumn = memo(function BoardColumn({
     canDrag,
     activeId,
     lineAt,
+    collapsed,
+    onToggleCollapse,
+    onQuickAdd,
+    total,
 }: {
     status: StatusOption
     tasks: TaskInfoInterface[]
@@ -264,26 +287,46 @@ const BoardColumn = memo(function BoardColumn({
     activeId: string | null
     /** Where the drop line is, counted among the cards other than the one lifted. */
     lineAt: number | null
+    collapsed: boolean
+    onToggleCollapse: (column: string) => void
+    onQuickAdd?: (column: string, name: string) => Promise<boolean>
+    total?: number
 }) {
     // A drop target only for the keyboard, whose sensor steps between columns.
     const id = status.value
     const { setNodeRef } = useDroppable({ id, data: { type: "container", children: tasks } })
-    const others = tasks.filter((t) => t.task_uuid !== activeId).length
+    // A column of hundreds renders a page of cards and adds more as it is
+    // scrolled, so a big board opens and drags as fast as a small one.
+    const [limit, setLimit] = useState(CARDS_PER_PAGE)
+    const shown = tasks.length > limit ? tasks.slice(0, limit) : tasks
+    const sentinel = useRef<HTMLDivElement>(null)
+    const more = tasks.length > limit
+    useEffect(() => {
+        const el = sentinel.current
+        if (!more || !el || typeof IntersectionObserver === "undefined") return
+        const io = new IntersectionObserver(([e]) => e.isIntersecting && setLimit((n) => n + CARDS_PER_PAGE), { rootMargin: "400px" })
+        io.observe(el)
+        return () => io.disconnect()
+    }, [more, limit])
+    const others = shown.filter((t) => t.task_uuid !== activeId).length
     let k = 0
     return (
         <Container
+            collapsed={collapsed}
+            onToggleCollapse={() => onToggleCollapse(id)}
+            footer={onQuickAdd && !collapsed ? <QuickAdd onAdd={(name) => onQuickAdd(id, name)} /> : undefined}
             ref={setNodeRef}
             label={id}
             title={status.label}
             icon={status.icon}
             swatchClass={status.swatch ? colorDot(status.swatch) : undefined}
-            count={tasks.length}
+            count={Math.max(total ?? 0, tasks.length)}
             scrollable
             hover={lineAt !== null}
             data-column={id}
         >
             <div className="flex flex-col gap-2 w-full pb-4">
-                {tasks.map((task) => {
+                {shown.map((task) => {
                     const position = task.task_uuid === activeId ? -1 : k++
                     return (
                         <BoardCard
@@ -302,6 +345,16 @@ const BoardColumn = memo(function BoardColumn({
                 {lineAt !== null && others === 0 && (
                     <div className="relative h-2">
                         <DropLine className="top-0" />
+                    </div>
+                )}
+                {!more && total !== undefined && total > tasks.length && (
+                    <p className="px-2 py-2 text-center text-xs text-muted-foreground">
+                        The newest {tasks.length} of {total}. The list view has them all.
+                    </p>
+                )}
+                {more && (
+                    <div ref={sentinel} className="py-2 text-center text-xs text-muted-foreground">
+                        {tasks.length - limit} more
                     </div>
                 )}
             </div>
@@ -350,3 +403,57 @@ const BoardCard = memo(function BoardCard({
         </div>
     )
 })
+
+/**
+ * "Add task" at the foot of a column, Asana's way: type a name, Enter adds it
+ * here and leaves the box open for the next one; Escape or an empty blur closes.
+ */
+function QuickAdd({ onAdd }: { onAdd: (name: string) => Promise<boolean> }) {
+    const [open, setOpen] = useState(false)
+    const [name, setName] = useState("")
+    const [busy, setBusy] = useState(false)
+    if (!open) {
+        return (
+            <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="mx-3 mb-3 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            >
+                <Plus className="h-4 w-4" />
+                Add task
+            </button>
+        )
+    }
+    const submit = async () => {
+        const n = name.trim()
+        if (!n || busy) return
+        setBusy(true)
+        const ok = await onAdd(n)
+        setBusy(false)
+        if (ok) setName("")
+    }
+    return (
+        <div className="mx-3 mb-3">
+            <input
+                autoFocus
+                value={name}
+                disabled={busy}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                        e.preventDefault()
+                        void submit()
+                    } else if (e.key === "Escape") {
+                        setOpen(false)
+                        setName("")
+                    }
+                }}
+                onBlur={() => !name.trim() && setOpen(false)}
+                placeholder="Task name, then Enter"
+                aria-label="New task name"
+                maxLength={200}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
+            />
+        </div>
+    )
+}

@@ -39,6 +39,7 @@ import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import {useTranslation} from "react-i18next";
+import { useFitColumns } from "@/hooks/useFitColumns";
 
 // <CHANGE> Helper function for safe JSON parsing
 const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
@@ -127,6 +128,10 @@ export const MyTaskTable = () => {
 
     const pageCount = userInfo.data?.pageCount || 1;
     const {columns} = useMyTaskColumn();
+    // Columns that step aside when the table is narrow (a panel open beside it).
+    const tableBoxRef = useRef<HTMLDivElement>(null)
+    const columnIds = useMemo(() => columns.map((c) => String(c.id ?? (c as { accessorKey?: string }).accessorKey ?? "")), [columns])
+    const autoHidden = useFitColumns(tableBoxRef, columnIds, columnVisibility)
 
     const table = useReactTable({
         data: taskListState,
@@ -134,7 +139,7 @@ export const MyTaskTable = () => {
         pageCount,
         state: {
             sorting,
-            columnVisibility,
+            columnVisibility: { ...columnVisibility, ...autoHidden },
             rowSelection,
             columnFilters,
             globalFilter,
@@ -245,7 +250,7 @@ export const MyTaskTable = () => {
     return (
         <div className="space-y-4">
             <TaskTableToolbar table={table} />
-            <div className="rounded-md border">
+            <div ref={tableBoxRef} className="rounded-md border">
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (

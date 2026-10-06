@@ -52,11 +52,3 @@
   align-items: center;
   gap: 4px;
 }
-
-.Actions>*:first-child:not(:last-child) {
-  opacity: 0;
-}
-
-.Actions>*:first-child:not(:last-child):focus-visible {
-  opacity: 1;
-}

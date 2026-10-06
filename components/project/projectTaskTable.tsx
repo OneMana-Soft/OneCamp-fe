@@ -1,6 +1,7 @@
 "use client"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useFitColumns } from "@/hooks/useFitColumns"
 import {
     type ColumnFiltersState,
     type SortingState,
@@ -206,6 +207,10 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
 
     const { options: statusOpts } = useProjectStatuses(projectId)
     const { columns } = useProjectTaskColumn(statusOpts)
+    // Columns that step aside when the table is narrow (a panel open beside it).
+    const tableBoxRef = useRef<HTMLDivElement>(null)
+    const columnIds = useMemo(() => columns.map((c) => String(c.id ?? (c as { accessorKey?: string }).accessorKey ?? "")), [columns])
+    const autoHidden = useFitColumns(tableBoxRef, columnIds, columnVisibility)
 
     const table = useReactTable({
         data: taskListState,
@@ -214,7 +219,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
         state: {
             sorting,
             // task_cycle only carries the cycle filter to the server.
-            columnVisibility: { ...columnVisibility, task_cycle: false },
+            columnVisibility: { ...columnVisibility, ...autoHidden, task_cycle: false },
             rowSelection,
             columnFilters,
             globalFilter,
@@ -240,7 +245,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
     return (
         <div className="space-y-4">
             <TaskTableToolbar table={table} projectId={projectId} />
-            <div className="rounded-md border">
+            <div ref={tableBoxRef} className="rounded-md border">
                 <Table>
                     <TableHeader>
                         {table.getHeaderGroups().map((headerGroup) => (
