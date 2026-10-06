@@ -28,6 +28,8 @@ export interface TaskInfoInterface {
     task_collaborators: UserProfileDataInterface[];
     task_due_date: string;
     task_created_at: string
+    /** When it entered its status, for "time in status" on a board. */
+    task_status_since?: string
     task_sub_task_count: number
     task_comment_count: number
     task_start_date: string;
