@@ -20,8 +20,12 @@ export const TeamMemberContent: React.FC<memberContentProp> = ({teamId}) => {
 
     const dispatch = useDispatch()
 
-    const usersList = useFetch<UserListInterfaceResp>(teamId ? GetEndpointUrl.UsersListWhoDontBelongToTheTeam + '/' + teamId : '')
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
+    // A team's admins and workspace admins may add people (the server's rule),
+    // so only they ask who could be added: for anyone else the server refuses,
+    // and the refusal used to show as an error just for opening the team.
+    const canAdd = Boolean(teamInfo.data?.data.team_is_admin || selfProfile.data?.data.user_is_admin)
+    const usersList = useFetch<UserListInterfaceResp>(teamId && canAdd ? GetEndpointUrl.UsersListWhoDontBelongToTheTeam + '/' + teamId : '')
 
     const handleMakeAdmin = (id: string) => {
         if(!id) return
@@ -178,7 +182,7 @@ export const TeamMemberContent: React.FC<memberContentProp> = ({teamId}) => {
 
     return (
         <div className='flex-1 min-h-0 flex flex-col gap-y-4 w-full'>
-            {(teamInfo.data?.data.team_is_admin || (teamInfo.data?.data.team_is_member )) && (
+            {canAdd && (
                 <div className="flex-shrink-0">
                     <AddTeamMemberCombobox handleAddMember={handleAddMember} teamId={teamId}/>
                 </div>
