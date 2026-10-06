@@ -194,7 +194,7 @@ export const BlockHandle = Extension.create({
             if (handle && !isDragging) {
               if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null }
               handle.style.opacity = '1'
-              handle.style.backgroundColor = 'hsl(var(--accent))'
+              handle.style.backgroundColor = 'var(--accent)'
             }
           })
           

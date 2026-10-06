@@ -24,6 +24,13 @@ describe("the pause menu during focus time", () => {
 })
 
 describe("how a calendar item is drawn", () => {
+  // The colour tokens are oklch, so hsl(var(--foreground)) is invalid CSS: the
+  // first focus block shipped with no hatching at all.
+  it("draws focus time with a background the browser accepts", () => {
+    expect(calendarColors.focus.block).toContain("color-mix(in_oklch,var(--foreground)")
+    expect(calendarColors.focus.block).not.toMatch(/hsl\(var\(--/)
+  })
+
   it("draws focus time apart from meetings, and tasks apart from both", () => {
     expect(calendarTone({ isFocus: true })).toBe(calendarColors.focus)
     expect(calendarTone({})).toBe(calendarColors.event)

@@ -46,7 +46,7 @@
 
 .minimal-tiptap-editor .ProseMirror ul.task-list li.task-item > label input[type="checkbox"] {
   cursor: pointer;
-  accent-color: hsl(var(--primary));
+  accent-color: var(--primary);
   width: 1rem;
   height: 1rem;
   margin: 0;

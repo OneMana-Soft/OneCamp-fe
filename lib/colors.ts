@@ -88,10 +88,11 @@ export const calendarColors = {
     dot: "bg-foreground/45",
   },
   // Focus time: hatched, so a protected block reads differently from a meeting
-  // at a glance without adding a hue.
+  // at a glance without adding a hue. The tokens are oklch: hsl(var(--x)) is
+  // invalid CSS and silently draws nothing.
   focus: {
     solid: "bg-foreground/30",
-    block: "bg-[repeating-linear-gradient(135deg,hsl(var(--foreground)/0.06)_0_6px,transparent_6px_12px)] text-foreground ring-1 ring-inset ring-foreground/15",
+    block: "bg-[repeating-linear-gradient(135deg,color-mix(in_oklch,var(--foreground)_9%,transparent)_0_5px,transparent_5px_11px)] text-foreground ring-1 ring-inset ring-foreground/15",
     blockHover: "bg-foreground/[0.1] text-foreground",
     border: "border-foreground/20",
     dot: "bg-foreground/30",
