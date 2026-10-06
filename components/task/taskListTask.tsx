@@ -93,9 +93,19 @@ export const TaskListTask = ({
                 <div className="flex items-center gap-2 mb-1">
                     {taskInfo.task_label && <Badge variant="secondary" className="text-3xs px-1.5 py-0">{taskInfo.task_label}</Badge>}
                     <span className="text-sm font-medium truncate">{taskInfo.task_name}</span>
+                    {/* On the name's row, so a long row of chips never pushes it onto
+                        a line of its own (on a phone it sat alone under the chips). */}
+                    {!isZeroEpoch(taskInfo.task_due_date) && (
+                        <span className={cn(
+                            "ml-auto shrink-0 text-xs tabular-nums text-muted-foreground",
+                            dd < new Date() && !isCompleted ? "text-destructive" : ""
+                        )}>
+                            {format(dd, "dd MMM")}
+                        </span>
+                    )}
                 </div>
 
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap">
                     {priority && <TaskPriorityCell priority={priority}/>}
                     {status && <TaskStatusCell status={status}/>}
 
@@ -109,13 +119,6 @@ export const TaskListTask = ({
                     )}
 
                     <div className="flex items-center gap-3 text-xs text-muted-foreground ml-auto">
-                        {!isZeroEpoch(taskInfo.task_due_date) && (
-                            <span className={cn(
-                                dd < new Date() && !isCompleted ? "text-destructive" : ""
-                            )}>
-                                {format(dd, "dd MMM")}
-                            </span>
-                        )}
                         {taskInfo.task_comment_count > 0 && (
                             <span className="flex items-center gap-0.5">
                                 {taskInfo.task_comment_count}

@@ -39,7 +39,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
     const currentUserId = selfProfile?.data?.user_uuid;
 
     const meta = useMemo<ActivityMeta>(() => {
-        let badgeIcon: React.ReactNode = <MessageSquare className="h-3 w-3" strokeWidth={2.25} />;
+        let badgeIcon: React.ReactNode = <MessageSquare className="h-2.5 w-2.5" strokeWidth={2.5} />;
         let badgeClass =
             "bg-muted text-muted-foreground border border-border";
         let title = "";
@@ -48,7 +48,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
         let time = "";
 
         if (activity.activity_type === "MENTION" && activity.mention) {
-            badgeIcon = <AtSign className="h-3 w-3" strokeWidth={2.25} />;
+            badgeIcon = <AtSign className="h-2.5 w-2.5" strokeWidth={2.5} />;
             badgeClass =
                 "bg-primary/10 text-primary border border-primary/20";
             time = activity.mention.mention_created_at;
@@ -77,7 +77,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                 user = activity.mention.mention_doc.doc_created_by;
             }
         } else if (activity.activity_type === "COMMENT" && activity.comment) {
-            badgeIcon = <MessageSquare className="h-3 w-3" strokeWidth={2.25} />;
+            badgeIcon = <MessageSquare className="h-2.5 w-2.5" strokeWidth={2.5} />;
             badgeClass =
                 "bg-success/10 text-success border border-success/20";
             time = activity.comment.comment_created_at;
@@ -135,7 +135,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
             <div
                 aria-hidden
                 className={cn(
-                    "absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full",
+                    "absolute -bottom-1 -right-1.5 w-4 h-4 rounded-full",
                     "flex items-center justify-center shadow-sm",
                     "ring-2 ring-background",
                     meta.badgeClass,
