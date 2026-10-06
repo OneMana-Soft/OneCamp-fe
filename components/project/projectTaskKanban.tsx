@@ -107,7 +107,15 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
         [p, statusOpts],
     )
     const visible = useMemo(() => statusOpts.filter((o) => isShown(viewableStatus, o.value)), [statusOpts, viewableStatus])
-    const byPerson = useMemo(() => (grouping === "assignee" ? groupByAssignee(columns, p?.project_members) : null), [grouping, columns, p?.project_members])
+    const [hideEmpty, setHideEmpty] = useStoredState<boolean>(
+        projectId ? `oc_board_hide_empty:${projectId}` : undefined,
+        false,
+        (v): v is boolean => typeof v === "boolean",
+    )
+    const byPerson = useMemo(
+        () => (grouping === "assignee" ? groupByAssignee(columns, p?.project_members, hideEmpty) : null),
+        [grouping, columns, p?.project_members, hideEmpty],
+    )
 
     return (
         <div className="flex flex-col h-full p-4 overflow-hidden">
@@ -135,6 +143,11 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                                     {g === "status" ? "Status" : "Assignee"}
                                 </DropdownMenuCheckboxItem>
                             ))}
+                            {grouping === "assignee" && (
+                                <DropdownMenuCheckboxItem checked={hideEmpty} onCheckedChange={(v) => setHideEmpty(Boolean(v))}>
+                                    Hide people with no tasks
+                                </DropdownMenuCheckboxItem>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
                             <DropdownMenuSeparator />

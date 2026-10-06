@@ -21,6 +21,11 @@ describe("a board grouped by assignee", () => {
     expect(columns.m).toEqual([])
   })
 
+  it("can leave out people with nothing, and No assignee when it is empty", () => {
+    const { options } = groupByAssignee({ todo: [t("a", sam)] }, [sam, maya], true)
+    expect(options.map((o) => o.label)).toEqual(["Sam Rivera"])
+  })
+
   it("keeps someone who left the project but still has tasks", () => {
     const { options, columns } = groupByAssignee({ todo: [t("a", left)] }, [sam])
     expect(options.map((o) => o.label)).toContain("Alex Former")

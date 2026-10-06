@@ -22,6 +22,8 @@ const nameOf = (m: Member) => m.user_full_name || m.user_name || "Someone"
 export function groupByAssignee(
   byStatus: Record<string, TaskInfoInterface[]>,
   members: Member[] = [],
+  /** Leave out people with nothing (Asana's "hide empty groups"). */
+  hideEmpty = false,
 ): { columns: Record<string, TaskInfoInterface[]>; options: StatusOption[] } {
   const people = new Map<string, Member>()
   for (const m of members) if (m?.user_uuid) people.set(m.user_uuid, m)
@@ -36,10 +38,13 @@ export function groupByAssignee(
       ;(columns[key] ??= []).push(t)
     }
   }
-  const ordered = [...people.values()].sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+  const ordered = [...people.values()]
+    .filter((m) => !hideEmpty || (columns[m.user_uuid]?.length ?? 0) > 0)
+    .sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+  const showNone = !hideEmpty || columns[NO_ASSIGNEE].length > 0
   const option = (value: string, label: string): StatusOption => ({ value, label, category: "todo", custom: false, color: "" })
   return {
-    columns: Object.fromEntries([[NO_ASSIGNEE, columns[NO_ASSIGNEE]], ...ordered.map((m) => [m.user_uuid, columns[m.user_uuid] ?? []])]),
-    options: [option(NO_ASSIGNEE, "No assignee"), ...ordered.map((m) => option(m.user_uuid, nameOf(m)))],
+    columns: Object.fromEntries([...(showNone ? [[NO_ASSIGNEE, columns[NO_ASSIGNEE]]] : []), ...ordered.map((m) => [m.user_uuid, columns[m.user_uuid] ?? []])]),
+    options: [...(showNone ? [option(NO_ASSIGNEE, "No assignee")] : []), ...ordered.map((m) => option(m.user_uuid, nameOf(m)))],
   }
 }
