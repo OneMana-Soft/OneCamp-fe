@@ -32,8 +32,10 @@ export function PageHeader({
   className?: string
 }) {
   return (
-    <header className={cn("flex items-end justify-between gap-4", className)}>
-      <div className="min-w-0 space-y-1.5">
+    // Narrow (a side panel open, or the page side by side with another): the
+    // controls drop below the title rather than squeezing it a word a line.
+    <header className={cn("flex flex-wrap items-end justify-between gap-x-4 gap-y-3", className)}>
+      <div className="min-w-[min(100%,16rem)] flex-1 space-y-1.5">
         {eyebrow && <p className={kicker}>{eyebrow}</p>}
         <h1
           className={cn(
@@ -45,7 +47,7 @@ export function PageHeader({
         </h1>
         {children}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </header>
   )
 }

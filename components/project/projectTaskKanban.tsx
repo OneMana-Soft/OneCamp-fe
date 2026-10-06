@@ -164,13 +164,15 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
 
     return (
         <div className="flex flex-col h-full p-4 overflow-hidden">
-            <div className="flex mb-4 justify-between">
-                <div className="flex space-x-2">
+            {/* Wraps when narrow (side by side, or a side panel open) instead of
+                pushing its last buttons out of sight. */}
+            <div className="flex flex-wrap gap-2 mb-4 justify-between">
+                <div className="flex flex-wrap gap-2">
                     <ProjectTaskKanbanAssigneeFilter activeList={assigneeFilter} updateList={setAssigneeFilter} members={p?.project_members} />
                     <TaskKanbanColumnPriorityFilter activeList={priorityFilter} updateList={setPriorityFilter} />
                     <TagFilter projectId={projectId} active={tagFilter} onChange={setTagFilter} />
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" className="ml-auto hidden h-8 lg:flex" onClick={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}>
                         <CirclePlus className="h-4 w-4" /> {t("createTask")}
                     </Button>
