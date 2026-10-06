@@ -19,6 +19,9 @@ export interface ProjectInfoInterface {
     project_tasks_in_review?: TaskInfoInterface[];
     project_tasks_canceled?: TaskInfoInterface[];
     project_tasks_done?: TaskInfoInterface[];
+    /** Totals of the closed columns; a board loads only the newest of them. */
+    project_tasks_done_count?: number
+    project_tasks_canceled_count?: number
     project_attachments: AttachmentMediaReq[];
     project_task_count: number;
     project_is_admin: boolean;

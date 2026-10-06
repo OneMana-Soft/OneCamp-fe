@@ -22,6 +22,8 @@ export interface UserProfileDataInterface {
     user_tasks_in_review?: TaskInfoInterface[];
     user_tasks_canceled?: TaskInfoInterface[];
     user_tasks_done?: TaskInfoInterface[];
+    user_tasks_done_count?: number
+    user_tasks_canceled_count?: number
     user_channels?: ChannelInfoInterface[];
     user_fav_channels?: ChannelInfoInterface[];
     user_task_count?: number;

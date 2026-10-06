@@ -27,6 +27,8 @@ import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { columnsByStatus, statusPatch } from "@/lib/taskStatus"
 import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
+import { usePost } from "@/hooks/usePost"
+import { PostEndpointUrl } from "@/services/endPoints"
 
 const EMPTY: TaskInfoInterface[] = []
 
@@ -51,6 +53,19 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
         projectId ? `${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}?${urlParam}` : "",
     )
     const p = projectInfo.data?.data
+    const post = usePost()
+    // "Add task" in a column: a task in that column's status (built-in or the
+    // project's own), then the board reloads to show it in place.
+    const quickAdd = async (column: string, name: string) => {
+        const res = await post.makeRequest<{ task_name: string; task_project_uuid: string; task_status: string }, { task_uuid?: string }>({
+            apiEndpoint: PostEndpointUrl.CreateTask,
+            payload: { task_name: name, task_project_uuid: projectId, task_status: column },
+            showErrorToast: true,
+        })
+        if (!res) return false
+        await projectInfo.mutate()
+        return true
+    }
     // Unknown until the project loads; the server checks again on every move.
     const isAdmin = p?.project_is_admin !== undefined ? Boolean(p.project_is_admin) : false
 
@@ -124,6 +139,9 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                         visible={visible}
                         canDrag={() => isAdmin}
                         onMove={(task, drop) => void moveTask(task.task_uuid, projectId, drop, statusPatch(drop.column, statusOpts))}
+                        boardKey={`project:${projectId}`}
+                        totals={{ done: p?.project_tasks_done_count, canceled: p?.project_tasks_canceled_count }}
+                        onQuickAdd={isAdmin ? quickAdd : undefined}
                     />
                 </div>
             </div>

@@ -112,6 +112,8 @@ export const MyTaskKanban = () => {
                         // Only in projects where I am an admin: the server allows no more.
                         canDrag={(task) => Boolean(task.task_project?.project_is_admin)}
                         onMove={(task, drop) => void moveTask(task.task_uuid, task.task_project.project_uuid, drop, statusPatch(drop.column, BUILT_IN_STATUSES))}
+                        boardKey="my-tasks"
+                        totals={{ done: u?.user_tasks_done_count, canceled: u?.user_tasks_canceled_count }}
                     />
                 </div>
             </div>
