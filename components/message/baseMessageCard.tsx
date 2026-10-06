@@ -20,6 +20,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import type { AttachmentMediaReq } from "@/types/attachment"
 import { MessageReplyCount } from "@/components/message/messageReplyCount"
 import { AgentResultCards } from "@/components/message/AgentResultCards"
+import { WorkLinkCards } from "@/components/message/WorkLinkCards"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter"
@@ -480,6 +481,8 @@ export const BaseMessageCard = React.memo(({
           {message.from.is_bot && !isMessageEditEnabled && (
             <AgentResultCards text={message.bodyText} />
           )}
+          {/* Live cards for this workspace's tasks, docs and projects, for everyone. */}
+          {!isMessageEditEnabled && <WorkLinkCards text={message.bodyText} />}
 
           {(message.fwdMsgPost || message.fwdMsgChat) && !isMessageEditEnabled && (
             <MessagePreview
