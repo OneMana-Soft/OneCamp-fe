@@ -56,6 +56,9 @@ export const BlockHandle = Extension.create({
 
     const showHandle = (blockDom: HTMLElement, pos: number, immediate = false) => {
       if (!handle || !editor.isEditable || isDragging) return
+      // An editor out of sight (a side view set aside by Focus, a hidden tab)
+      // has no box: the handle, fixed to the window, would stay behind alone.
+      if (blockDom.getClientRects().length === 0) { hideHandle(true); return }
       if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null }
 
       currentHoverPos = pos
@@ -254,6 +257,12 @@ export const BlockHandle = Extension.create({
 
           initTimeout = setTimeout(() => updateFocusHandle(editorView), 100)
 
+          // Hiding or resizing the editor moves no selection and scrolls
+          // nothing, so follow its box: the handle goes when it does, comes
+          // back when it does, and keeps to its block when the width changes.
+          const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => updateFocusHandle(editorView))
+          resize?.observe(editorView.dom)
+
           return {
             update(view) {
               if (isDragging) return
@@ -261,6 +270,7 @@ export const BlockHandle = Extension.create({
             },
             destroy() {
               if (initTimeout) clearTimeout(initTimeout)
+              resize?.disconnect()
               window.removeEventListener('scroll', onScroll, true)
               window.removeEventListener('dragend', cleanupDrag)
               handle?.remove()
