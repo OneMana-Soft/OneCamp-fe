@@ -1,6 +1,7 @@
 "use client"
 
 import { useMedia } from "@/context/MediaQueryContext";
+import { AdminBanners } from "@/components/banner/AdminBanners";
 import { MobileNavigationBar } from "@/components/navigationBar/mobile/mobileNavigationBar";
 import { DesktopNavigationBar } from "@/components/navigationBar/desktop/desktopNavigationBar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -12,7 +13,6 @@ import { useRef, useEffect, useState } from "react";
 import { ImperativePanelHandle } from "react-resizable-panels";
 import {usePathname} from "next/navigation";
 import { PageTransition } from "@/components/ui/PageTransition";
-import { EmailOffBanner } from "@/components/banner/EmailOffBanner";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { UserProfileInterface } from "@/types/user";
@@ -23,7 +23,6 @@ import { useSplitView } from "@/hooks/useSplitView";
 import { useGoKeys } from "@/hooks/useGoKeys";
 import { SplitPane } from "@/components/split/SplitPane";
 import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
-import { DiskBanner } from "@/components/banner/DiskBanner";
 import { KeyboardTip } from "@/components/onboarding/KeyboardTip";
 import { Fragment } from "react";
 
@@ -69,9 +68,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   if (isMobile) {
     return (
       <MobileNavigationBar disableBottomPadding={isTaskPage}>
-        <EmailOffBanner isAdmin={isAdmin} />
-      <DiskBanner isAdmin={isAdmin} />
-        <DiskBanner isAdmin={isAdmin} />
+        <AdminBanners isAdmin={isAdmin} />
         {children}
         <AgentNoteOnOpen />
         <RunningTimerChip className="bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2" />
@@ -85,7 +82,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <DesktopNavigationBar>
-      <EmailOffBanner isAdmin={isAdmin} />
+      <AdminBanners isAdmin={isAdmin} />
         <AgentNoteOnOpen />
       <RunningTimerChip className="bottom-4 left-1/2 -translate-x-1/2" />
       <ResizablePanelGroup
