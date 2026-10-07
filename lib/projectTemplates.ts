@@ -59,40 +59,12 @@ export function isTemplateId(v: string | null | undefined): v is string {
 
 /**
  * What the server accepts, kept in step with business/ProjectTemplate
- * (MaxNameLength, MaxAboutLength) and the AI edition's plan drafts
- * (business/AI/projectPlanDraft.go: planMinInput, planMaxInput).
+ * (MaxNameLength, MaxAboutLength).
  */
-export const TEMPLATE_LIMITS = { name: 60, about: 280, planMin: 8, planMax: 600 } as const
-
-/** A plan the AI is drafting: until it's done, the app asks for it again. */
-export interface PlanDraft {
-  id: string
-  state: "drafting" | "done" | "failed"
-  template?: ProjectTemplate
-  msg?: string
-}
+export const TEMPLATE_LIMITS = { name: 60, about: 280 } as const
 
 /** The picker's choice of no template. */
 export const BLANK = ""
-
-/** The picker's choice of the plan the AI drafted (AI edition). */
-export const AI_DRAFT = "ai-draft"
-
-/** How many tasks a template makes, subtasks included. */
-const templateSize = (t: ProjectTemplate) => t.tasks.reduce((n, task) => n + 1 + (task.subtasks?.length ?? 0), 0)
-
-/** A template in full as the picker lists one. */
-export function summaryOf(t: ProjectTemplate, id: string): TemplateSummary {
-  return {
-    id,
-    name: t.name,
-    description: t.description ?? "",
-    built_in: false,
-    task_count: templateSize(t),
-    preview: t.tasks.slice(0, 4).map((task) => task.name),
-    can_delete: false,
-  }
-}
 
 /** Marks a file as a OneCamp template, and the version of its shape. */
 const FILE_MARK = "onecamp_template"

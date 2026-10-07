@@ -108,9 +108,6 @@ export enum GetEndpointUrl {
     ProjectUpdates = "/project",
     // The AI edition's draft of a project's next update (POST {project_uuid, tz}).
     AiProjectUpdateDraft = "/ai/project-update/draft",
-    // The AI edition's plan for a project from a sentence: POST {description}
-    // starts a draft, GET /{draft_id} reads it until it's done.
-    AiProjectPlanDraft = "/ai/project-template/draft",
     GetTaskCycle = "/task/cycle",
     // Time on tasks: /task/time/{task} (GET, POST to add, /start), /task/time/stop,
     // /task/time/running, /task/time/entry/{id}/update|delete; a project's report

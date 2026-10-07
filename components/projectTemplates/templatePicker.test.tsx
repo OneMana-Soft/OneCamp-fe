@@ -22,15 +22,6 @@ vi.mock("@/hooks/useProjectTemplates", () => ({
 const toasts: unknown[] = []
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: (t: unknown) => toasts.push(t) }) }))
 
-// The AI's part has its own test; here it hands over a plan at once.
-vi.mock("@/components/projectTemplates/DescribeProject", () => ({
-  DescribeProject: ({ onDrafted }: { onDrafted: (t: unknown) => void }) => (
-    <button type="button" onClick={() => onDrafted({ name: "App launch", description: "Ship v1.", tasks: [{ name: "Plan", subtasks: [{ name: "a" }] }, { name: "Build" }] })}>
-      describe
-    </button>
-  ),
-}))
-
 const { TemplatePicker } = await import("./TemplatePicker")
 
 afterEach(() => {
@@ -88,24 +79,4 @@ describe("the template picker", () => {
     expect(calls).toEqual([])
   })
 
-  it("offers the AI's plan first once drafted, chooses it and previews it", () => {
-    const onChange = vi.fn()
-    const onDraft = vi.fn()
-    const { rerender } = render(<TemplatePicker value="" onChange={onChange} onDraft={onDraft} />)
-    fireEvent.click(screen.getByRole("button", { name: "describe" }))
-    expect(onChange).toHaveBeenCalledWith("ai-draft")
-    const plan = onDraft.mock.calls[0][0]
-    const onChosen = vi.fn()
-    rerender(<TemplatePicker value="ai-draft" onChange={onChange} onDraft={onDraft} draft={plan} onChosen={onChosen} />)
-    const radios = screen.getAllByRole("radio")
-    expect(radios[0].textContent).toMatch(/^App launch3 tasksShip v1\./)
-    expect(radios[0].getAttribute("aria-checked")).toBe("true")
-    expect(onChosen).toHaveBeenLastCalledWith(expect.objectContaining({ id: "ai-draft", task_count: 3 }))
-    expect(onChange).not.toHaveBeenCalledWith("")
-  })
-
-  it("offers no describing without the AI", () => {
-    render(<TemplatePicker value="" onChange={() => {}} />)
-    expect(screen.queryByRole("button", { name: "describe" })).toBeNull()
-  })
 })

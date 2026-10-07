@@ -22,11 +22,8 @@ vi.mock("react-redux", () => ({ useDispatch: () => (a: unknown) => dispatched.pu
 const toasts: unknown[] = []
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: (t: unknown) => toasts.push(t) }) }))
 // The picker has its own tests; here it is a stand-in that chooses a template.
-const plan = { name: "App launch", tasks: [{ name: "Plan" }] }
 vi.mock("@/components/projectTemplates/TemplatePicker", () => ({
-  TemplatePicker: ({ value, onChange, onChosen, onDraft }: { value: string; onChange: (id: string) => void; onChosen: (t: unknown) => void; onDraft: (t: unknown) => void }) => (
-    <>
-    <button type="button" onClick={() => { onDraft(plan); onChange("ai-draft"); onChosen({ id: "ai-draft", name: "App launch", task_count: 1, preview: [], built_in: false, description: "", can_delete: false }) }}>draft</button>
+  TemplatePicker: ({ value, onChange, onChosen }: { value: string; onChange: (id: string) => void; onChosen: (t: unknown) => void }) => (
     <button
       type="button"
       data-value={value}
@@ -37,7 +34,6 @@ vi.mock("@/components/projectTemplates/TemplatePicker", () => ({
     >
       choose
     </button>
-    </>
   ),
 }))
 
@@ -99,16 +95,5 @@ describe("New project", () => {
     // The project goes into the sidebar list without the template's counts.
     expect(JSON.stringify(dispatched)).not.toContain("failed")
     expect(pushed).toEqual(["/app/project/p-2"])
-  })
-
-  it("sends a plan the AI drafted whole, since it isn't saved", async () => {
-    render(<CreateProjectDialog dialogOpenState setOpenState={() => {}} />)
-    await typeName()
-    fireEvent.click(screen.getByRole("button", { name: "draft" }))
-    const create = await screen.findByRole("button", { name: "Create with 1 task" })
-    await waitFor(() => expect((create as HTMLButtonElement).disabled).toBe(false))
-    await act(async () => fireEvent.click(create))
-    expect(sent[0]).toMatchObject({ project_name: "Acme site", template: plan })
-    expect(sent[0].template_id).toBeUndefined()
   })
 })
