@@ -1,0 +1,634 @@
+"use client"
+
+import { useRouter } from "next/navigation"
+import { useCallback, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
+import { useDispatch } from "react-redux"
+import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
+import { Button } from "@/components/ui/button"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { ErrorState } from "@/components/ui/error-state"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useMedia } from "@/context/MediaQueryContext"
+import { useWorkload } from "@/hooks/useWorkload"
+import { AlertTriangle, ArrowRight, UserPlus, Users } from "@/lib/icons"
+import type { ProjectOverview } from "@/lib/projectsOverview"
+import { statusOptions } from "@/lib/taskStatus"
+import { dotColor, spanLabel, spanOf } from "@/lib/timeline"
+import { cn } from "@/lib/utils/helpers/cn"
+import {
+  cellLabel,
+  loadOf,
+  weekLabel,
+  weeksToNextWeek,
+  workloadRows,
+  workloadWeeks,
+  type Load,
+  type WorkloadPerson,
+  type WorkloadRow,
+  type WorkloadTask,
+} from "@/lib/workload"
+import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { app_task_path } from "@/types/paths"
+
+const STATUSES = statusOptions(null)
+
+/** A week's cell, by how full the week is. */
+const TONE: Record<Load, string> = {
+  free: "",
+  room: "bg-muted text-foreground hover:bg-muted/70",
+  full: "bg-primary/15 font-medium text-foreground hover:bg-primary/25",
+  over: "bg-destructive/15 font-semibold text-destructive hover:bg-destructive/25",
+}
+const METER: Record<Load, string> = {
+  free: "",
+  room: "bg-muted-foreground/50",
+  full: "bg-primary",
+  over: "bg-destructive",
+}
+
+type Actions = {
+  openTask: (taskUUID: string) => void
+  moveLater: (t: WorkloadTask, weeks?: number) => void
+  giveTo: (t: WorkloadTask, person: WorkloadPerson | null) => void
+}
+
+/**
+ * Who has how much to do each week, across the projects shown: a row a
+ * person, a column a week from this one, each week's tasks against how many
+ * they take on. Busiest first. A week opens on its tasks, to move one a week
+ * later or give it to someone with room. Asana keeps this for its Advanced
+ * plan, monday for Pro.
+ */
+export function ProjectsWorkload({ projects, compact = false }: { projects: ProjectOverview[]; compact?: boolean }) {
+  const { data, isLoading, isError, mutate, moveLater, giveTo, setCapacity } = useWorkload()
+  const { isDesktop } = useMedia()
+  const router = useRouter()
+  const dispatch = useDispatch()
+  const [today] = useState(() => new Date())
+  const weeks = useMemo(() => workloadWeeks(today), [today])
+  const shown = useMemo(() => new Set(projects.map((p) => p.project_uuid)), [projects])
+  const grid = useMemo(() => (data ? workloadRows(data, weeks, shown) : null), [data, weeks, shown])
+  const nameWidth = compact ? 148 : 232
+  const tableRef = useRef<HTMLTableElement>(null)
+  const [active, setActive] = useState<string | null>(null)
+
+  const openTask = useCallback(
+    (id: string) => (isDesktop ? dispatch(openRightPanel({ taskUUID: id })) : router.push(`${app_task_path}/${id}`)),
+    [isDesktop, dispatch, router],
+  )
+  const actions: Actions = {
+    openTask,
+    moveLater: (t, n) => void moveLater(t, n),
+    giveTo: (t, p) => void giveTo(t, p),
+  }
+
+  // Arrows move between the weeks that have tasks; Tab leaves the grid.
+  const onKeyDown = (e: KeyboardEvent<HTMLTableElement>) => {
+    const at = (e.target as HTMLElement).dataset.cell?.split(":").map(Number)
+    const step = {
+      ArrowRight: [0, 1],
+      ArrowLeft: [0, -1],
+      ArrowDown: [1, 0],
+      ArrowUp: [-1, 0],
+    }[e.key]
+    if (!at || !step || !tableRef.current) return
+    e.preventDefault()
+    for (let r = at[0] + step[0], c = at[1] + step[1]; r >= 0 && c >= 0 && r < 1000 && c < weeks.length + 1; r += step[0], c += step[1]) {
+      const next = tableRef.current.querySelector<HTMLElement>(`[data-cell="${r}:${c}"]`)
+      if (next) {
+        setActive(`${r}:${c}`)
+        next.focus()
+        return
+      }
+      if (!tableRef.current.querySelector(`[data-row="${r}"]`)) return
+    }
+  }
+
+  if (isError && !data) return <ErrorState subject="the workload" onRetry={() => void mutate()} />
+  if (!grid) {
+    return (
+      <div className="grid gap-2 py-2" aria-busy={isLoading}>
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-10" />
+        ))}
+      </div>
+    )
+  }
+
+  const unassignedHasWork = grid.unassigned.overdue.length + grid.unassigned.undated + grid.unassigned.weeks.reduce((n, w) => n + w.length, 0) > 0
+  const rows = unassignedHasWork ? [...grid.people, grid.unassigned] : grid.people
+  const over = grid.people.filter((r) => loadOf(r.weeks[0].length, r.capacity) === "over").length
+  const anything = rows.some((r) => r.overdue.length > 0 || r.weeks.some((w) => w.length > 0))
+  // The first week with tasks takes Tab until arrows move it.
+  const firstCell = (() => {
+    for (let r = 0; r < rows.length; r++) {
+      if (rows[r].overdue.length) return `${r}:0`
+      const c = rows[r].weeks.findIndex((w) => w.length > 0)
+      if (c >= 0) return `${r}:${c + 1}`
+    }
+    return null
+  })()
+  const tabStop = active ?? firstCell
+
+  if (rows.length === 0) {
+    return <p className="py-10 text-center text-sm text-muted-foreground">No one is in these projects yet.</p>
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground">
+        <p>
+          {over > 0 ? (
+            <span className="font-medium text-destructive">
+              {over} {over === 1 ? "person has" : "people have"} more than they take on this week.
+            </span>
+          ) : (
+            "Everyone has room this week."
+          )}{" "}
+          A task counts in each week it runs, from its start to its due date.
+          {data?.truncated && " Only the latest-due 5,000 tasks are counted."}
+        </p>
+        <div className="flex items-center gap-3" aria-hidden>
+          {(["room", "full", "over"] as const).map((l) => (
+            <span key={l} className="flex items-center gap-1.5">
+              <span className={cn("h-2.5 w-2.5 rounded-sm", METER[l])} />
+              {l === "room" ? "Room" : l === "full" ? "Full" : "Over"}
+            </span>
+          ))}
+        </div>
+      </div>
+      {!anything && (
+        <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          Nothing here has dates in the next {weeks.length} weeks. Give a task a start or due date and it shows in the weeks it runs.
+        </p>
+      )}
+      <div className="relative min-h-[16rem] flex-1 overflow-hidden rounded-lg border bg-background">
+        <div role="region" aria-label="Workload by person and week" className="h-full overflow-auto overscroll-x-contain">
+          <table ref={tableRef} onKeyDown={onKeyDown} className="border-separate border-spacing-0 text-sm">
+            <thead>
+              <tr>
+                <th
+                  scope="col"
+                  className="sticky left-0 top-0 z-30 border-b border-r bg-background px-3 py-2 text-left text-xs font-medium text-muted-foreground"
+                  style={{ width: nameWidth, minWidth: nameWidth }}
+                >
+                  Person
+                </th>
+                <th scope="col" className="sticky top-0 z-20 min-w-[4.5rem] border-b bg-background px-1 py-2 text-xs font-medium text-muted-foreground">
+                  Overdue
+                </th>
+                {weeks.map((w, i) => (
+                  <th
+                    key={w.getTime()}
+                    scope="col"
+                    className={cn(
+                      "sticky top-0 z-20 min-w-[4.5rem] whitespace-nowrap border-b bg-background px-1 py-2 text-xs font-medium",
+                      i === 0 ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {weekLabel(w, i, today)}
+                  </th>
+                ))}
+                <th
+                  scope="col"
+                  className="sticky top-0 z-20 min-w-[4.5rem] whitespace-nowrap border-b bg-background px-2 py-2 text-xs font-medium text-muted-foreground"
+                  title="Open tasks with no dates, which no week can show"
+                >
+                  No dates
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, r) => (
+                <tr key={row.key} data-row={r} className="group">
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 border-b border-r bg-background px-3 py-1.5 text-left font-normal group-hover:bg-muted/40"
+                    style={{
+                      width: nameWidth,
+                      minWidth: nameWidth,
+                      maxWidth: nameWidth,
+                    }}
+                  >
+                    <RowName
+                      row={row}
+                      compact={compact}
+                      defaultCapacity={data?.default_capacity ?? 5}
+                      onSave={(n) => row.person && void setCapacity(row.person, n)}
+                    />
+                  </th>
+                  <td className="border-b px-1 py-1 text-center">
+                    <OverdueCell
+                      row={row}
+                      cell={`${r}:0`}
+                      tabStop={tabStop}
+                      people={grid.people}
+                      weeks={weeks}
+                      today={today}
+                      actions={actions}
+                      onFocus={setActive}
+                    />
+                  </td>
+                  {row.weeks.map((tasks, i) => (
+                    <td key={i} className={cn("border-b px-1 py-1 text-center", i === 0 && "bg-primary/[0.03]")}>
+                      <WeekCell
+                        row={row}
+                        tasks={tasks}
+                        week={i}
+                        when={i < 2 ? weekLabel(weeks[i], i, today).toLowerCase() : `the week of ${weekLabel(weeks[i], i, today)}`}
+                        cell={`${r}:${i + 1}`}
+                        tabStop={tabStop}
+                        people={grid.people}
+                        today={today}
+                        actions={actions}
+                        onFocus={setActive}
+                      />
+                    </td>
+                  ))}
+                  <td className="border-b px-2 py-1 text-center text-xs tabular-nums text-muted-foreground">
+                    {row.undated > 0 ? row.undated : <span aria-label="None">·</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RowName({
+  row,
+  compact,
+  defaultCapacity,
+  onSave,
+}: {
+  row: WorkloadRow
+  compact: boolean
+  defaultCapacity: number
+  onSave: (tasks: number | null) => void
+}) {
+  const p = row.person
+  if (!p) {
+    return (
+      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Users className="h-4 w-4 shrink-0" />
+        Nobody
+      </span>
+    )
+  }
+  // On a phone the capacity goes under the name, which needs the width.
+  return (
+    <span className={cn("flex min-w-0 gap-x-2", compact ? "flex-col items-start" : "items-center justify-between")}>
+      <span className="min-w-0 max-w-full" title={p.user_job_title ? `${p.user_name}, ${p.user_job_title}` : p.user_name}>
+        <TaskAssigneeCell
+          userInfo={{
+            user_uuid: p.user_uuid,
+            user_name: p.user_name,
+            user_profile_object_key: p.user_profile_object_key ?? "",
+          }}
+        />
+      </span>
+      <span className={cn(compact && "pl-8")}>
+        <Capacity person={p} defaultCapacity={defaultCapacity} onSave={onSave} />
+      </span>
+    </span>
+  )
+}
+
+/** How many tasks a week someone takes on, changed by them or a workspace admin. */
+function Capacity({ person, defaultCapacity, onSave }: { person: WorkloadPerson; defaultCapacity: number; onSave: (tasks: number | null) => void }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState(String(person.capacity))
+  const id = useId()
+  const label = `${person.capacity}/wk`
+  if (!person.can_edit_capacity) {
+    return (
+      <span
+        className="shrink-0 text-xs tabular-nums text-muted-foreground"
+        title={`${person.user_name} takes on ${person.capacity} tasks a week. They or a workspace admin can change it.`}
+      >
+        {label}
+      </span>
+    )
+  }
+  const n = Number(value)
+  const valid = Number.isInteger(n) && n >= 1 && n <= 100
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!valid) return
+    setOpen(false)
+    onSave(n)
+  }
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (o) setValue(String(person.capacity))
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="shrink-0 rounded px-1 text-xs tabular-nums text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`${person.user_name} takes on ${person.capacity} tasks a week. Change it`}
+        >
+          {label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64">
+        <form onSubmit={submit} className="grid gap-2">
+          <Label htmlFor={id}>Tasks a week</Label>
+          <p className="text-xs text-muted-foreground">How many tasks {person.user_name} takes on in a week. Weeks with more show as over.</p>
+          <div className="flex gap-2">
+            <Input
+              id={id}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={100}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="h-8"
+              aria-invalid={!valid}
+            />
+            <Button type="submit" size="sm" className="h-8" disabled={!valid}>
+              Save
+            </Button>
+          </div>
+          {person.capacity_set && (
+            <button
+              type="button"
+              className="w-fit text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              onClick={() => {
+                setOpen(false)
+                onSave(null)
+              }}
+            >
+              Use the default ({defaultCapacity})
+            </button>
+          )}
+        </form>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+type CellProps = {
+  row: WorkloadRow
+  cell: string
+  tabStop: string | null
+  people: WorkloadRow[]
+  today: Date
+  actions: Actions
+  onFocus: (cell: string) => void
+}
+
+function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: WorkloadTask[]; week: number; when: string }) {
+  const load = loadOf(tasks.length, row.capacity)
+  if (tasks.length === 0) return <span className="text-muted-foreground/40">·</span>
+  const capacity = row.capacity
+  return (
+    <TasksPopover
+      {...rest}
+      row={row}
+      tasks={tasks}
+      week={week}
+      title={when}
+      label={cellLabel(row, when, tasks.length)}
+      summary={
+        capacity === null ? (
+          `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"} nobody has`
+        ) : (
+          <>
+            {tasks.length} {tasks.length === 1 ? "task" : "tasks"}, against the {capacity} they take on a week
+            {load === "over" && <span className="font-medium text-destructive">: {tasks.length - capacity} too many</span>}
+          </>
+        )
+      }
+      hint={load === "over" ? "Move one to a later week, or give it to someone with room." : undefined}
+      className={TONE[load]}
+      meter={capacity === null ? null : { load, share: Math.min(1, tasks.length / Math.max(1, capacity)) }}
+    >
+      {load === "over" && <AlertTriangle aria-hidden className="h-3 w-3" />}
+      {tasks.length}
+    </TasksPopover>
+  )
+}
+
+function OverdueCell({ row, weeks, ...rest }: CellProps & { weeks: Date[] }) {
+  const tasks = row.overdue
+  if (tasks.length === 0) return <span className="text-muted-foreground/40">·</span>
+  const who = row.person ? row.person.user_name : "Nobody"
+  return (
+    <TasksPopover
+      {...rest}
+      row={row}
+      tasks={tasks}
+      week={0}
+      weeks={weeks}
+      title="overdue"
+      label={`${who}: ${tasks.length} overdue ${tasks.length === 1 ? "task" : "tasks"}`}
+      summary={`${tasks.length} open ${tasks.length === 1 ? "task" : "tasks"} due before this week`}
+      hint="Bring one to next week, or give it to someone with room."
+      className="bg-destructive/10 font-medium text-destructive hover:bg-destructive/20"
+      meter={null}
+    >
+      {tasks.length}
+    </TasksPopover>
+  )
+}
+
+function TasksPopover({
+  row,
+  tasks,
+  week,
+  weeks,
+  title,
+  label,
+  summary,
+  hint,
+  className,
+  meter,
+  cell,
+  tabStop,
+  people,
+  today,
+  actions,
+  onFocus,
+  children,
+}: CellProps & {
+  tasks: WorkloadTask[]
+  week: number
+  /** Set for overdue tasks, which move to next week rather than a week on. */
+  weeks?: Date[]
+  title: string
+  label: string
+  summary: ReactNode
+  hint?: string
+  className: string
+  meter: { load: Load; share: number } | null
+  children: ReactNode
+}) {
+  const who = row.person ? row.person.user_name : "Nobody"
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-cell={cell}
+          tabIndex={cell === tabStop ? 0 : -1}
+          onFocus={() => onFocus(cell)}
+          aria-label={label}
+          className={cn(
+            "relative mx-auto flex h-8 w-14 items-center justify-center gap-0.5 rounded-md text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+            className,
+          )}
+        >
+          {children}
+          {meter && (
+            <span aria-hidden className="absolute inset-x-2 bottom-1 h-0.5 overflow-hidden rounded-full bg-foreground/10">
+              <span className={cn("block h-full rounded-full", METER[meter.load])} style={{ width: `${meter.share * 100}%` }} />
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[22rem] max-w-[calc(100vw-2rem)] p-0">
+        <div className="border-b px-3 py-2">
+          <p className="text-sm font-medium">
+            {who}, {title}
+          </p>
+          <p className="text-xs text-muted-foreground">{summary}</p>
+        </div>
+        <ul className="max-h-80 overflow-y-auto py-1">
+          {tasks.map((t) => (
+            <TaskLine key={t.task_uuid} t={t} week={week} weeks={weeks} people={people} today={today} actions={actions} />
+          ))}
+        </ul>
+        {hint && <p className="border-t px-3 py-2 text-xs text-muted-foreground">{hint}</p>}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function TaskLine({
+  t,
+  week,
+  weeks,
+  people,
+  today,
+  actions,
+}: {
+  t: WorkloadTask
+  week: number
+  weeks?: Date[]
+  people: WorkloadRow[]
+  today: Date
+  actions: Actions
+}) {
+  const span = spanOf(t)
+  const by = weeks ? weeksToNextWeek(t, weeks) : 1
+  const move = weeks ? "Bring it to next week" : "A week later"
+  return (
+    <li className="flex items-start gap-2 px-3 py-1.5 hover:bg-muted/50">
+      <span aria-hidden className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", dotColor(t, STATUSES))} />
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => actions.openTask(t.task_uuid)}
+          className="block w-full truncate text-left text-sm outline-none hover:underline focus-visible:underline"
+        >
+          {t.task_name}
+        </button>
+        <p className="truncate text-xs text-muted-foreground">
+          {t.project_name}
+          {t.parent_name && ` · in ${t.parent_name}`}
+          {span && ` · ${spanLabel(span, today)}`}
+        </p>
+      </div>
+      {t.can_edit && (
+        <div className="flex shrink-0 items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title={move}
+            aria-label={`${move}: ${t.task_name}`}
+            onClick={() => actions.moveLater(t, by)}
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+          <GiveTo t={t} week={week} people={people} onGive={actions.giveTo} />
+        </div>
+      )}
+    </li>
+  )
+}
+
+/** Give a task to someone else in its project, those with the most room that week first. */
+function GiveTo({ t, week, people, onGive }: { t: WorkloadTask; week: number; people: WorkloadRow[]; onGive: Actions["giveTo"] }) {
+  const [open, setOpen] = useState(false)
+  const candidates = people
+    .filter((r) => r.person && r.person.user_uuid !== t.assignee_uuid && r.person.project_uuids.includes(t.project_uuid))
+    .map((r) => ({ r, n: r.weeks[week]?.length ?? 0 }))
+    .sort((a, b) => a.n / Math.max(1, a.r.capacity ?? 1) - b.n / Math.max(1, b.r.capacity ?? 1) || a.r.person!.user_name.localeCompare(b.r.person!.user_name))
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" title="Give it to…" aria-label={`Give ${t.task_name} to someone else`}>
+          <UserPlus className="h-3.5 w-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-0">
+        <Command>
+          <CommandInput placeholder="Give it to…" />
+          <CommandList>
+            <CommandEmpty>No one in its project by that name.</CommandEmpty>
+            <CommandGroup>
+              {candidates.map(({ r, n }) => {
+                const load = loadOf(n, r.capacity)
+                return (
+                  <CommandItem
+                    key={r.key}
+                    value={`${r.person!.user_name} ${r.key}`}
+                    onSelect={() => {
+                      setOpen(false)
+                      onGive(t, r.person)
+                    }}
+                  >
+                    <span className="truncate">{r.person!.user_name}</span>
+                    <span
+                      className={cn(
+                        "ml-auto pl-2 text-xs tabular-nums",
+                        load === "over" ? "text-destructive" : load === "full" ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {n}/{r.capacity}
+                    </span>
+                  </CommandItem>
+                )
+              })}
+              {t.assignee_uuid && (
+                <CommandItem
+                  value="nobody"
+                  onSelect={() => {
+                    setOpen(false)
+                    onGive(t, null)
+                  }}
+                >
+                  <span className="text-muted-foreground">Nobody</span>
+                </CommandItem>
+              )}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}

@@ -35,6 +35,7 @@ const SURFACES = [
   "components/myTask/myTaskList.tsx",
   "components/project/ProjectsOverview.tsx",
   "components/project/timeline/ProjectTimeline.tsx",
+  "components/project/ProjectsWorkload.tsx",
   "components/team/TeamList.tsx",
   "components/channel/channelListTabActive.tsx",
   "components/chat/chatUserList.tsx",

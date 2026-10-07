@@ -109,6 +109,7 @@ export enum GetEndpointUrl {
     // A project's timeline is /project/{id}/timeline: lib/timelineKey.
     // Every project the reader is in, with where its tasks stand: ?tz=
     ProjectsOverview = "/project/overview",
+    ProjectWorkload = "/project/workload",
     // The AI edition's draft of a project's next update (POST {project_uuid, tz}).
     AiProjectUpdateDraft = "/ai/project-update/draft",
     GetTaskCycle = "/task/cycle",
@@ -480,6 +481,7 @@ export enum PostEndpointUrl {
     UpdateTaskDates = "/task/updateTaskDates",
     // A task waits on another of its project: {task_uuid, blocked_by_uuid}
     AddTaskDependency = "/task/dependency",
+    SetWorkloadCapacity = "/project/workload/capacity",
     RemoveTaskDependency = "/task/dependency/delete",
     SetTaskRecurrence = "/task/recurrence",
     SetTaskCycle = "/task/cycle",

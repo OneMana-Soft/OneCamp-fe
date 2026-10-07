@@ -107,6 +107,22 @@ export interface TaskDates {
   task_due_date: string
 }
 
+/** A task the server moved because a task it waits on moved (shift_dependents). */
+export interface ShiftedTask {
+  task_uuid: string
+  task_start_date?: string
+  task_due_date?: string
+}
+
+/** The moved-along tasks as patches for the lists that show them, each with only the dates it has. */
+export function shiftedPatches(shifted: ShiftedTask[] = []): ({ task_uuid: string } & Partial<TaskDates>)[] {
+  return shifted.map((s) => ({
+    task_uuid: s.task_uuid,
+    ...(s.task_start_date ? { task_start_date: s.task_start_date } : {}),
+    ...(s.task_due_date ? { task_due_date: s.task_due_date } : {}),
+  }))
+}
+
 /** The hours a date a task didn't have is given: the project templates' working day. */
 const START_HOUR = 9
 const DUE_HOUR = 17
@@ -310,7 +326,7 @@ export function headerTicks(range: Range, zoom: Zoom, dayWidth: number): { top: 
 // ---- Dependencies ------------------------------------------------------------
 
 /** A dependency as the timeline draws it: an arrow from the end of the task waited on to the start of the task waiting. */
-export interface DependencyLink {
+interface DependencyLink {
   key: string
   /** The task waited on. */
   from: string

@@ -9,21 +9,14 @@ import { appMutate } from "@/lib/swrMutate"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { timelineKey } from "@/lib/timelineKey"
-import type { TaskDates, TimelineData, TimelineTask } from "@/lib/timeline"
+import { shiftedPatches, type ShiftedTask, type TaskDates, type TimelineData, type TimelineTask } from "@/lib/timeline"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 /** How long the keyboard waits after the last nudge before saving, so a run of presses is one change. */
 const NUDGE_SAVE_MS = 700
 
-/** A task the server moved because a task it waits on moved (business.ShiftDependents). */
-interface Shifted {
-  task_uuid: string
-  task_start_date?: string
-  task_due_date?: string
-}
-
 /** How a move is saved. */
-export interface MoveOptions {
+interface MoveOptions {
   /** Wait for a pause before saving: the keyboard's one-day nudges. */
   later?: boolean
   /** Move the tasks waiting on it along, as far as they must. */
@@ -78,7 +71,7 @@ export function useProjectTimeline(projectId: string) {
       const done = (queues.current.get(id) ?? Promise.resolve())
         .then(() => {
           sent = new Map(versions.current)
-          return axiosInstance.post<{ data?: { shifted?: Shifted[] } }>(
+          return axiosInstance.post<{ data?: { shifted?: ShiftedTask[] } }>(
             PostEndpointUrl.UpdateTaskDates,
             { task_uuid: id, ...dates, shift_dependents: shift, tz: browserTZ() },
             OWN_ERRORS,
@@ -91,14 +84,7 @@ export function useProjectTimeline(projectId: string) {
             // and the timeline is fetched again so the order the server took shows.
             const shifted = res.data?.data?.shifted ?? []
             const untouched = shifted.filter((s) => versions.current.get(s.task_uuid) === sent.get(s.task_uuid))
-            optimisticUpdateTasks(
-              untouched.map((s) => ({
-                task_uuid: s.task_uuid,
-                ...(s.task_start_date ? { task_start_date: s.task_start_date } : {}),
-                ...(s.task_due_date ? { task_due_date: s.task_due_date } : {}),
-              })),
-              projectId,
-            )
+            optimisticUpdateTasks(shiftedPatches(untouched), projectId)
             if (untouched.length < shifted.length) revalidateTaskKeys(projectId)
             if (!latest()) return
             // A fetch that started before the save may have put the old dates in the cache.

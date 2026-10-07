@@ -1,11 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useMemo, useState, type ReactNode } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useDispatch } from "react-redux"
 import { HealthPill } from "@/components/projectUpdates/HealthPill"
 import { ProjectsTimeline } from "@/components/project/ProjectsTimeline"
+import { ProjectsWorkload } from "@/components/project/ProjectsWorkload"
 import { SearchField } from "@/components/search/searchField"
 import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
@@ -39,8 +40,8 @@ import { app_project_path } from "@/types/paths"
 
 const isSort = (v: unknown): v is OverviewSort => OVERVIEW_SORTS.some((s) => s.value === v)
 const isFilter = (v: unknown): v is OverviewFilter => v === "all" || v === "attention"
-type OverviewView = "table" | "timeline"
-const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline"
+type OverviewView = "table" | "timeline" | "workload"
+const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline" || v === "workload"
 const href = (p: ProjectOverview) => `${app_project_path}/${p.project_uuid}`
 
 /** "6 open · 3 overdue · 2 done", the late part in red; nothing for a project with no tasks. */
@@ -132,6 +133,11 @@ export function ProjectsOverview() {
   const [sort, setSort] = useStoredState<OverviewSort>("oc_projects_sort", "name", isSort)
   const [filter, setFilter] = useStoredState<OverviewFilter>("oc_projects_filter", "all", isFilter)
   const [view, setView] = useStoredState<OverviewView>("oc_projects_view", "table", isView)
+  // ?view= opens a view (a demo link, a doc), and it's remembered like a choice.
+  const asked = useSearchParams().get("view")
+  useEffect(() => {
+    if (isView(asked)) setView(asked)
+  }, [asked, setView])
 
   const all = useMemo(() => projects ?? [], [projects])
   const shown = useMemo(() => sortOverview(filterOverview(all, { query, filter }), sort), [all, query, filter, sort])
@@ -177,6 +183,8 @@ export function ProjectsOverview() {
     )
   } else if (view === "timeline") {
     body = <ProjectsTimeline projects={shown} compact={!isDesktop} />
+  } else if (view === "workload") {
+    body = <ProjectsWorkload projects={shown} compact={!isDesktop} />
   } else if (!isDesktop) {
     body = <ul className="divide-y divide-border/60">{shown.map((p) => <MobileRow key={p.project_uuid} p={p} />)}</ul>
   } else {
@@ -235,6 +243,9 @@ export function ProjectsOverview() {
           <ToggleGroupItem value="timeline" className="h-7 px-2.5 text-xs">
             Timeline
           </ToggleGroupItem>
+          <ToggleGroupItem value="workload" className="h-7 px-2.5 text-xs">
+            Workload
+          </ToggleGroupItem>
         </ToggleGroup>
         <ToggleGroup type="single" size="sm" value={filter} onValueChange={(v) => isFilter(v) && setFilter(v)} aria-label="Show" className="rounded-md border p-0.5">
           <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
@@ -245,27 +256,31 @@ export function ProjectsOverview() {
             <span className="tabular-nums text-muted-foreground">{attention}</span>
           </ToggleGroupItem>
         </ToggleGroup>
-        <Select value={sort} onValueChange={(v) => isSort(v) && setSort(v)}>
-          <SelectTrigger className="h-8 w-auto gap-1.5 text-xs" aria-label="Sort">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {OVERVIEW_SORTS.map((s) => (
-              <SelectItem key={s.value} value={s.value} className="text-xs">
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {view !== "workload" && (
+          <Select value={sort} onValueChange={(v) => isSort(v) && setSort(v)}>
+            <SelectTrigger className="h-8 w-auto gap-1.5 text-xs" aria-label="Sort">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OVERVIEW_SORTS.map((s) => (
+                <SelectItem key={s.value} value={s.value} className="text-xs">
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     </div>
   )
 
+  // The timeline and the workload scroll inside their own frame, filling the page.
+  const fills = view === "timeline" || view === "workload"
   if (!isDesktop) {
     return (
       <div className="flex h-full flex-col">
         {tools}
-        <div className={cn("flex-1", view === "timeline" ? "flex min-h-0 flex-col px-3 pb-3 pt-2" : "overflow-y-auto")}>{body}</div>
+        <div className={cn("flex-1", fills ? "flex min-h-0 flex-col px-3 pb-3 pt-2" : "overflow-y-auto")}>{body}</div>
       </div>
     )
   }
@@ -294,7 +309,7 @@ export function ProjectsOverview() {
         )}
       </PageHeader>
       {tools}
-      <div className={cn("flex-1 px-8 pb-8 pt-2", view === "timeline" ? "flex min-h-0 flex-col" : "overflow-y-auto")}>{body}</div>
+      <div className={cn("flex-1 px-8 pb-8 pt-2", fills ? "flex min-h-0 flex-col" : "overflow-y-auto")}>{body}</div>
     </div>
   )
 }

@@ -1,0 +1,181 @@
+// The workload: who has how much to do each week, across every project the
+// person is in. A task counts for whoever has it in each week it runs, from
+// its start to its due date; a person's capacity is how many tasks a week
+// they take on. The server reads the tasks (business/Project/workload.go);
+// this places them in the reader's own weeks.
+
+import { addDays, differenceInCalendarDays, format, isSameYear, startOfWeek } from "date-fns"
+import { isClosedStatus } from "@/lib/taskStatus"
+import { spanOf, taskDate } from "@/lib/timeline"
+import { GetEndpointUrl } from "@/services/endPoints"
+
+export interface WorkloadPerson {
+  user_uuid: string
+  user_name: string
+  user_full_name?: string
+  user_profile_object_key?: string
+  user_job_title?: string
+  /** Tasks a week they take on; the default when capacity_set is false. */
+  capacity: number
+  capacity_set: boolean
+  can_edit_capacity: boolean
+  /** The projects they're in or have tasks in. */
+  project_uuids: string[]
+}
+
+export interface WorkloadTask {
+  task_uuid: string
+  task_name: string
+  task_status: string
+  task_custom_status?: string
+  task_custom_status_name?: string
+  task_start_date?: string
+  task_due_date?: string
+  /** Who has it; none for nobody (or an account since deleted). */
+  assignee_uuid?: string
+  project_uuid: string
+  project_name: string
+  parent_name?: string
+  /** The reader may move it or give it to someone else. */
+  can_edit: boolean
+}
+
+export interface WorkloadData {
+  people: WorkloadPerson[]
+  tasks: WorkloadTask[]
+  /** Open tasks with no dates, by project and person (none for nobody's). */
+  undated: { project_uuid: string; user_uuid?: string; count: number }[]
+  default_capacity: number
+  /** More tasks than one view sends: the latest due are shown. */
+  truncated: boolean
+}
+
+/** How many weeks the workload shows, from this one. */
+const WORKLOAD_WEEKS = 12
+
+/** The workload's address in the cache, for the reader's zone. */
+export function workloadKey(tz: string, weeks = WORKLOAD_WEEKS): string {
+  return `${GetEndpointUrl.ProjectWorkload}?tz=${encodeURIComponent(tz)}&weeks=${weeks}`
+}
+
+export function isWorkloadKey(key: string): boolean {
+  return new URL(key, "http://localhost").pathname === GetEndpointUrl.ProjectWorkload
+}
+
+/** The Monday of this week and of each week after it, n in all. */
+export function workloadWeeks(today: Date, n = WORKLOAD_WEEKS): Date[] {
+  const first = startOfWeek(today, { weekStartsOn: 1 })
+  return Array.from({ length: n }, (_, i) => addDays(first, 7 * i))
+}
+
+/** "This week", "Next week", then the week's Monday: "26 Oct" (with the year when it isn't this one). */
+export function weekLabel(week: Date, index: number, today: Date): string {
+  if (index === 0) return "This week"
+  if (index === 1) return "Next week"
+  return format(week, isSameYear(week, today) ? "d MMM" : "d MMM yyyy")
+}
+
+/** A row of the workload: a person, or the tasks nobody has. */
+export interface WorkloadRow {
+  key: string
+  person: WorkloadPerson | null
+  /** Tasks a week they take on; none for nobody's tasks. */
+  capacity: number | null
+  /** Open tasks that were due before this week. */
+  overdue: WorkloadTask[]
+  /** The tasks running in each week shown. */
+  weeks: WorkloadTask[][]
+  /** Open tasks without dates, which no week can show. */
+  undated: number
+  /** Their fullest week shown, as a share of their capacity. */
+  peak: number
+}
+
+export const UNASSIGNED = "unassigned"
+
+const emptyRow = (key: string, person: WorkloadPerson | null, weeks: number): WorkloadRow => ({
+  key,
+  person,
+  capacity: person ? person.capacity : null,
+  overdue: [],
+  weeks: Array.from({ length: weeks }, () => []),
+  undated: 0,
+  peak: 0,
+})
+
+/**
+ * The workload's rows for the weeks shown: everyone in the projects shown (all
+ * of the reader's when none are named), busiest first, and a last row for the
+ * tasks nobody has. A finished task has no place (a change made here may have
+ * just finished one).
+ */
+export function workloadRows(data: WorkloadData, weeks: Date[], projects?: ReadonlySet<string>): { people: WorkloadRow[]; unassigned: WorkloadRow } {
+  const shown = (project: string) => !projects || projects.has(project)
+  const rows = new Map<string, WorkloadRow>()
+  for (const p of data.people) {
+    if (p.project_uuids.some(shown)) rows.set(p.user_uuid, emptyRow(p.user_uuid, p, weeks.length))
+  }
+  const unassigned = emptyRow(UNASSIGNED, null, weeks.length)
+  const first = weeks[0]
+  for (const t of data.tasks) {
+    if (!shown(t.project_uuid) || isClosedStatus(t.task_status)) continue
+    const span = spanOf(t)
+    if (!span) continue
+    const row = (t.assignee_uuid && rows.get(t.assignee_uuid)) || unassigned
+    if (span.end < first) {
+      row.overdue.push(t)
+      continue
+    }
+    const from = Math.max(0, Math.floor(differenceInCalendarDays(span.start, first) / 7))
+    const to = Math.min(weeks.length - 1, Math.floor(differenceInCalendarDays(span.end, first) / 7))
+    for (let i = from; i <= to; i++) row.weeks[i].push(t)
+  }
+  for (const u of data.undated) {
+    if (!shown(u.project_uuid)) continue
+    const row = u.user_uuid ? rows.get(u.user_uuid) : unassigned
+    if (row) row.undated += u.count
+  }
+  const people = [...rows.values()]
+  for (const r of people) r.peak = Math.max(0, ...r.weeks.map((w) => w.length)) / Math.max(1, r.capacity ?? 1)
+  const busy = (r: WorkloadRow) => r.weeks.reduce((n, w) => n + w.length, 0) + r.overdue.length
+  people.sort((a, b) => b.peak - a.peak || busy(b) - busy(a) || a.person!.user_name.localeCompare(b.person!.user_name))
+  return { people, unassigned }
+}
+
+/** How full a week is: nothing in it, room left, exactly full, or over capacity. */
+export type Load = "free" | "room" | "full" | "over"
+
+export function loadOf(count: number, capacity: number | null): Load {
+  if (count === 0) return "free"
+  if (capacity === null || count < capacity) return "room"
+  return count === capacity ? "full" : "over"
+}
+
+/** A task's dates n weeks later, each on the same weekday at the same time of day; none it didn't have. */
+export function weeksLater(t: Pick<WorkloadTask, "task_start_date" | "task_due_date">, n: number): { task_start_date: string; task_due_date: string } {
+  const later = (s?: string) => {
+    const d = taskDate(s)
+    return d ? addDays(d, 7 * n).toISOString() : ""
+  }
+  return {
+    task_start_date: later(t.task_start_date),
+    task_due_date: later(t.task_due_date),
+  }
+}
+
+/** How many weeks a task that's overdue moves so that it's due next week. */
+export function weeksToNextWeek(t: Pick<WorkloadTask, "task_start_date" | "task_due_date">, weeks: Date[]): number {
+  const span = spanOf(t)
+  if (!span) return 1
+  return Math.max(1, Math.floor(differenceInCalendarDays(weeks[1] ?? addDays(weeks[0], 7), startOfWeek(span.end, { weekStartsOn: 1 })) / 7))
+}
+
+/** What a row's cell says to a screen reader: whose week, how many tasks, and how that sits with their capacity. */
+export function cellLabel(row: WorkloadRow, when: string, count: number): string {
+  const who = row.person ? row.person.user_name : "Nobody"
+  const tasks = `${count} ${count === 1 ? "task" : "tasks"}`
+  if (row.capacity === null) return `${who}, ${when}: ${tasks}`
+  const load = loadOf(count, row.capacity)
+  const against = load === "over" ? `${count - row.capacity} over their ${row.capacity}` : load === "full" ? "full" : `room for ${row.capacity - count} more`
+  return `${who}, ${when}: ${tasks}, ${against}`
+}
