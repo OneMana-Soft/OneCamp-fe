@@ -17,10 +17,8 @@ import { useToast } from "@/hooks/use-toast"
 import { saveProjectAsTemplate } from "@/hooks/useProjectTemplates"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { openUI } from "@/store/slice/uiSlice"
+import { TEMPLATE_LIMITS } from "@/lib/projectTemplates"
 
-// Kept in step with business/ProjectTemplate's MaxNameLength and MaxAboutLength.
-const MAX_NAME = 60
-const MAX_ABOUT = 280
 
 export function SaveAsTemplateDialog({ projectId, projectName, open, onOpenChange }: { projectId: string; projectName?: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   const { toast } = useToast()
@@ -35,7 +33,7 @@ export function SaveAsTemplateDialog({ projectId, projectName, open, onOpenChang
   // Each time it opens, it starts from the project's name.
   React.useEffect(() => {
     if (open) {
-      setName((projectName ?? "").slice(0, MAX_NAME))
+      setName((projectName ?? "").slice(0, TEMPLATE_LIMITS.name))
       setAbout("")
       setError("")
     }
@@ -77,13 +75,13 @@ export function SaveAsTemplateDialog({ projectId, projectName, open, onOpenChang
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor={nameId}>Name</Label>
-            <Input id={nameId} value={name} maxLength={MAX_NAME} onChange={(e) => setName(e.target.value)} required autoFocus />
+            <Input id={nameId} value={name} maxLength={TEMPLATE_LIMITS.name} onChange={(e) => setName(e.target.value)} required autoFocus />
           </div>
           <div className="grid gap-2">
             <Label htmlFor={aboutId}>
               When to use it <span className="font-normal text-muted-foreground">(optional)</span>
             </Label>
-            <Textarea id={aboutId} value={about} maxLength={MAX_ABOUT} rows={2} placeholder="A new client on a monthly retainer." onChange={(e) => setAbout(e.target.value)} />
+            <Textarea id={aboutId} value={about} maxLength={TEMPLATE_LIMITS.about} rows={2} placeholder="A new client on a monthly retainer." onChange={(e) => setAbout(e.target.value)} />
           </div>
           {error && (
             <p role="alert" className="text-sm text-destructive">
