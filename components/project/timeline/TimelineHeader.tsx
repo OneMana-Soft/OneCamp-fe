@@ -17,12 +17,15 @@ export const TimelineHeader = memo(function TimelineHeader({
   dayWidth,
   today,
   nameWidth,
+  nameLabel = "Task",
 }: {
   range: Range
   zoom: Zoom
   dayWidth: number
   today: Date
   nameWidth: number
+  /** What the rows are: tasks, or projects. */
+  nameLabel?: string
 }) {
   const { top, bottom } = useMemo(() => headerTicks(range, zoom, dayWidth), [range, zoom, dayWidth])
   const todayLeft = offsetOf(today, range, dayWidth)
@@ -33,7 +36,7 @@ export const TimelineHeader = memo(function TimelineHeader({
         className="sticky left-0 z-30 flex shrink-0 items-end border-r bg-background px-3 pb-1.5 text-xs font-medium text-muted-foreground"
         style={{ width: nameWidth }}
       >
-        Task
+        {nameLabel}
       </div>
       <div className="relative" style={{ width: range.days * dayWidth }} aria-hidden>
         {top.map((t) => (

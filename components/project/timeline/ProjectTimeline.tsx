@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react"
+import { useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { startOfDay } from "date-fns"
 import { MixerHorizontalIcon } from "@radix-ui/react-icons"
@@ -22,6 +22,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectTimeline } from "@/hooks/useProjectTimeline"
 import { useTaskDependencies } from "@/hooks/useTaskDependencies"
+import { useTimelineView } from "@/hooks/useTimelineView"
 import { useStoredState } from "@/hooks/useStoredState"
 import { CalendarOff, ChartGantt, ChevronDown, ChevronRight, CirclePlus } from "@/lib/icons"
 import {
@@ -46,9 +47,7 @@ import {
   type Grouping,
   type TimelineData,
   type TimelineTask,
-  type ViewAnchor,
   type Zoom,
-  firstView,
   spanOf,
 } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -175,52 +174,16 @@ export function ProjectTimeline({
   }, [rows, range, dayWidth, preview])
 
   // ---- Keeping the same days in view -----------------------------------------
-  // The day in the middle of the view, kept there when the zoom changes, the
-  // timeline narrows or the grid grows to the left (a task moved earlier than
-  // it reached). First, where lib/timeline firstView says.
-  const anchor = useRef<ViewAnchor | null>(null)
-  const visibleGrid = () => Math.max((scrollRef.current?.clientWidth ?? 0) - nameWidth, 0)
-  const anchorNow = () => (anchor.current ??= firstView(spans, today, visibleGrid() / dayWidth))
-  // Every scroll moves it, a drag's own included, so what's in view stays put
-  // when a panel opens after the drop.
-  const onScroll = () => {
-    const el = scrollRef.current
-    if (!el) return
-    anchor.current = { day: dayAt(el.scrollLeft + visibleGrid() / 2, range, dayWidth), at: 0.5 }
-  }
-  const rangeFrom = range.from.getTime()
-  const ready = !!data && zoomReady
-  useLayoutEffect(() => {
-    const el = scrollRef.current
-    if (!el || !ready) return
-    const { day, at } = anchorNow()
-    el.scrollLeft = Math.max(0, offsetOf(day, range, dayWidth) + dayWidth / 2 - visibleGrid() * at)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the grid's first day or scale changes
-  }, [rangeFrom, dayWidth, ready])
-
-  // A panel opening beside the timeline narrows it; the same days stay in the middle.
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el || typeof ResizeObserver === "undefined") return
-    let width = el.clientWidth
-    const watch = new ResizeObserver(() => {
-      if (el.clientWidth === width || drag.current) return
-      width = el.clientWidth
-      const { day, at } = anchorNow()
-      el.scrollLeft = Math.max(0, offsetOf(day, range, dayWidth) + dayWidth / 2 - visibleGrid() * at)
-    })
-    watch.observe(el)
-    return () => watch.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-made when the grid changes, as the anchor's effect is
-  }, [rangeFrom, dayWidth, ready])
-
-  const goToday = () => {
-    const el = scrollRef.current
-    if (!el) return
-    anchor.current = { day: today, at: 1 / 3 }
-    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-    el.scrollTo({ left: Math.max(0, offsetOf(today, range, dayWidth) + dayWidth / 2 - visibleGrid() / 3), behavior: reduce ? "auto" : "smooth" })
-  }
+  const { onScroll, goToday } = useTimelineView({
+    scrollRef,
+    range,
+    dayWidth,
+    nameWidth,
+    spans,
+    today,
+    ready: !!data && zoomReady,
+    paused: () => !!drag.current,
+  })
 
   // ---- Focus follows a task that moved ------------------------------------------
   // Rows are in date order, so a moved task can change places; its bar is
