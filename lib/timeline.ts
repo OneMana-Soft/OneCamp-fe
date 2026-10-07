@@ -307,8 +307,6 @@ export function headerTicks(range: Range, zoom: Zoom, dayWidth: number): { top: 
   return { top, bottom: unitTicks(range, dayWidth, from, (d) => addDays(d, 1), (d) => format(d, "d"), (d) => format(d, "EEEEE")) }
 }
 
-// ---- Rows --------------------------------------------------------------------
-
 // ---- Dependencies ------------------------------------------------------------
 
 /** A dependency as the timeline draws it: an arrow from the end of the task waited on to the start of the task waiting. */
@@ -320,7 +318,7 @@ export interface DependencyLink {
   to: string
   /** An SVG path in the grid's own pixels. */
   path: string
-  /** The waiting task starts before the other is done, so the plan can't be kept as it stands. */
+  /** The waiting task starts before the other is due, so the plan can't be kept as it stands. Finished work breaks nothing. */
   broken: boolean
 }
 
@@ -340,13 +338,13 @@ export function dependencyLinks(
   rowHeight: number,
   spans: ReadonlyMap<string, Span> = new Map(),
 ): DependencyLink[] {
-  const at = new Map<string, { row: number; span: Span }>()
+  const at = new Map<string, { row: number; span: Span; task: TimelineTask }>()
   rows.forEach((r, i) => {
-    if (r.kind === "task") at.set(r.task.task_uuid, { row: i, span: spans.get(r.task.task_uuid) ?? r.span })
+    if (r.kind === "task") at.set(r.task.task_uuid, { row: i, span: spans.get(r.task.task_uuid) ?? r.span, task: r.task })
   })
   const out: DependencyLink[] = []
   for (const [to, waiting] of at) {
-    const task = (rows[waiting.row] as Extract<TimelineRow, { kind: "task" }>).task
+    const task = waiting.task
     for (const b of task.task_blocked_by ?? []) {
       const blocker = at.get(b.task_uuid)
       if (!blocker) continue
@@ -362,11 +360,14 @@ export function dependencyLinks(
         x2 - x1 >= 2 * STUB
           ? `M${x1} ${y1}H${x1 + STUB}V${y2}H${x2}`
           : `M${x1} ${y1}H${x1 + STUB}V${y2 - Math.sign(y2 - y1) * (rowHeight / 2)}H${x2 - STUB}V${y2}H${x2}`
-      out.push({ key: `${b.task_uuid}>${to}`, from: b.task_uuid, to, path, broken: waiting.span.start <= blocker.span.end })
+      const open = !isClosedStatus(blocker.task.task_status) && !isClosedStatus(task.task_status)
+      out.push({ key: `${b.task_uuid}>${to}`, from: b.task_uuid, to, path, broken: open && waiting.span.start <= blocker.span.end })
     }
   }
   return out
 }
+
+// ---- Rows --------------------------------------------------------------------
 
 export type Grouping = "status" | "assignee" | "none"
 export const GROUPINGS: { value: Grouping; label: string }[] = [
