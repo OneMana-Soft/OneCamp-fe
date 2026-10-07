@@ -362,7 +362,7 @@ export function CalendarApp() {
                                                             >
                                                                 <div className={cn(
                                                                     "w-2.5 h-2.5 rounded-full shrink-0 shadow-sm",
-                                                                    calendarTone({ isTask: event.isTask, isFocus: event.event_is_focus }).solid,
+                                                                    calendarTone({ isTask: event.isTask, isFocus: event.event_is_focus, isAway: event.event_is_away }).solid,
                                                                 )} />
                                                                 <div className="flex flex-col min-w-0">
                                                                     <div className="text-2xs font-semibold truncate text-foreground group-hover:text-primary transition-colors">

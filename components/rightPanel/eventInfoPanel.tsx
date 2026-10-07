@@ -10,7 +10,8 @@ import { GetEventsResponse, CreateEventPayload } from "@/types/calendar";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
 import { Calendar, Clock, AlignLeft, User, X, Check, Users, Plus, Trash2, CalendarClock, Sparkles } from "@/lib/icons";
 import { Edit2, ArrowRightToLine, BellOff } from "@/lib/icons";
-import { FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
+import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
+import { wholeDays } from "@/lib/timeOff";
 import RescheduleDialog from "@/components/ai/RescheduleDialog";
 import MeetingPrepDialog from "@/components/ai/MeetingPrepDialog";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     const post = usePost();
     const [isEditing, setIsEditing] = useState(false);
     const [focus, setFocus] = useState(false);
+    const [away, setAway] = useState(false);
     const [rescheduleOpen, setRescheduleOpen] = useState(false);
     const [prepOpen, setPrepOpen] = useState(false);
     const rightPanelData = useSelector((state: any) => state.rightPanel.rightPanelState?.data);
@@ -131,6 +133,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
             });
             setParticipants(event.event_participants || []);
             setFocus(!!event.event_is_focus);
+            setAway(!!event.event_is_away);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [eventId]);
@@ -151,7 +154,8 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                     startTime: new Date(values.startTime).toISOString(),
                     endTime: new Date(values.endTime).toISOString(),
                     participants: participants.map(p => p.user_uuid) || [],
-                    isFocus: focus,
+                    isFocus: focus && !away,
+                    isAway: away,
                 }
             });
             await mutate();
@@ -321,6 +325,13 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     </span>
                                 </div>
                             </div>
+
+                            {event.event_is_away && (
+                                <div className="flex items-center gap-3 text-muted-foreground mt-2">
+                                    <CalendarClock className="h-4 w-4 text-primary/70" />
+                                    <span className="text-sm">Away: {event.event_created_by?.user_name || "its owner"}&apos;s working days here count out of their workload</span>
+                                </div>
+                            )}
 
                             {event.event_is_focus && (
                                 <div className="flex items-center gap-3 text-muted-foreground mt-2">
@@ -509,7 +520,25 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 </div>
                             </div>
 
-                            <FocusTimeCheckbox checked={focus} onChange={setFocus} />
+                            <FocusTimeCheckbox
+                                checked={focus}
+                                onChange={(checked) => {
+                                    setFocus(checked);
+                                    if (checked) setAway(false);
+                                }}
+                            />
+                            <AwayCheckbox
+                                checked={away}
+                                onChange={(checked) => {
+                                    setAway(checked);
+                                    if (!checked) return;
+                                    setFocus(false);
+                                    // Time off is whole days.
+                                    const days = wholeDays(new Date(form.getValues("startTime")), new Date(form.getValues("endTime")));
+                                    form.setValue("startTime", format(days.start, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
+                                    form.setValue("endTime", format(days.end, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
+                                }}
+                            />
                         </form>
                     </Form>
                 )}

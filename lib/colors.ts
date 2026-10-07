@@ -97,9 +97,20 @@ export const calendarColors = {
     border: "border-foreground/20",
     dot: "bg-foreground/30",
   },
+  // Time off: muted, with a dashed edge, so it reads as an absence rather than
+  // something to attend.
+  away: {
+    solid: "bg-muted-foreground/40",
+    block: "bg-muted/60 text-muted-foreground border border-dashed border-foreground/25",
+    blockHover: "bg-muted text-foreground",
+    border: "border-dashed border-foreground/25",
+    dot: "bg-muted-foreground/40",
+  },
 } as const;
 
-/** Which calendar palette an item uses: a task, focus time, or an event. */
-export function calendarTone(item: { isTask?: boolean; isFocus?: boolean }) {
-  return item.isTask ? calendarColors.task : item.isFocus ? calendarColors.focus : calendarColors.event;
+/** Which calendar palette an item uses: a task, time off, focus time, or an event. */
+export function calendarTone(item: { isTask?: boolean; isFocus?: boolean; isAway?: boolean }) {
+  if (item.isTask) return calendarColors.task;
+  if (item.isAway) return calendarColors.away;
+  return item.isFocus ? calendarColors.focus : calendarColors.event;
 }
