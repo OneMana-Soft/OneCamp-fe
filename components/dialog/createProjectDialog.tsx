@@ -166,21 +166,6 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                 />
               </div>
 
-              <TemplatePicker value={templateId} onChange={setTemplateId} onChosen={setChosen} />
-
-              {templateId !== BLANK && (
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="projectStart">Starts on</Label>
-                      <Input id="projectStart" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 w-auto" required />
-                    </div>
-                    <label className="flex items-center gap-2 text-sm">
-                      <Checkbox checked={skipWeekends} onCheckedChange={(v) => setSkipWeekends(v === true)} />
-                      Nothing due on a weekend
-                    </label>
-                  </div>
-              )}
-
               {noTeams && (
                   <div className="rounded-md border border-dashed p-3 text-sm">
                     <p>Projects belong to a team, and you don&apos;t have one yet.</p>
@@ -262,6 +247,21 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                         )}
                     />
 
+                  </div>
+              )}
+
+              <TemplatePicker value={templateId} onChange={setTemplateId} onChosen={setChosen} />
+
+              {templateId !== BLANK && (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="projectStart">Starts on</Label>
+                      <Input id="projectStart" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 w-auto" required />
+                    </div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Checkbox checked={skipWeekends} onCheckedChange={(v) => setSkipWeekends(v === true)} />
+                      Nothing due on a weekend
+                    </label>
                   </div>
               )}
             </div>
