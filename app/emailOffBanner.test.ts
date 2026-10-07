@@ -19,6 +19,7 @@ import { describe, expect, it } from "vitest"
 const banner = readFileSync(join(process.cwd(), "components/banner/EmailOffBanner.tsx"), "utf8")
 const clientConfig = readFileSync(join(process.cwd(), "hooks/useClientConfig.ts"), "utf8")
 const layout = readFileSync(join(process.cwd(), "app/app/LayoutContent.tsx"), "utf8")
+const adminBanners = readFileSync(join(process.cwd(), "components/banner/AdminBanners.tsx"), "utf8")
 
 describe("EmailOffBanner", () => {
     it("shows only to admins", () => {
@@ -59,8 +60,9 @@ describe("EmailOffBanner", () => {
     })
 
     it("is mounted on both the mobile and desktop layouts", () => {
-        // Mounted once, an admin on the other form factor never sees it.
-        const mounts = (layout.match(/<EmailOffBanner/g) ?? []).length
-        expect(mounts).toBe(2)
+        // Mounted once, an admin on the other form factor never sees it. It
+        // comes through AdminBanners, which each layout renders once.
+        expect((adminBanners.match(/<EmailOffBanner/g) ?? []).length).toBe(1)
+        expect((layout.match(/<AdminBanners/g) ?? []).length).toBe(2)
     })
 })
