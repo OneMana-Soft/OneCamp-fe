@@ -69,7 +69,7 @@ export const ProjectList = ({searchQuery}:{searchQuery: string}) => {
                         <StatePlaceholder
                             type="empty"
                             title="No projects yet"
-                            description="Create a project to organize tasks and collaborate with your team."
+                            description="Start one from a template (a client project, a launch, a new hire's first weeks) or from a blank page."
                             action={
                                 <Button
                                     onClick={() => dispatch(openUI({ key: "createProject" }))}

@@ -4,6 +4,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, Plus } from "@/lib/icons"
+import { localDay } from "@/lib/utils/timeZone"
 import {
   TableField,
   TableRow,
@@ -22,12 +23,6 @@ interface DataTableCalendarProps {
   onChange: () => void
 }
 
-function toKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate(),
-  ).padStart(2, "0")}`
-}
-
 function parseDateValue(v: unknown): string | null {
   if (!v || typeof v !== "string") return null
   // Date-only values (YYYY-MM-DD, from a date input) are already day keys;
@@ -37,7 +32,7 @@ function parseDateValue(v: unknown): string | null {
   if (m) return `${m[1]}-${m[2]}-${m[3]}`
   const d = new Date(v)
   if (Number.isNaN(d.getTime())) return null
-  return toKey(d)
+  return localDay(d)
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -103,13 +98,13 @@ export function DataTableCalendar({
     days.push(d)
   }
 
-  const todayKey = toKey(new Date())
+  const todayKey = localDay(new Date())
   const monthLabel = cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" })
 
   const addOnDay = async (d: Date) => {
     try {
       const pos = rows.length ? Math.max(...rows.map((r) => r.position)) + 1 : 0
-      await createRow(tableId, { [dateField.id]: toKey(d) }, pos)
+      await createRow(tableId, { [dateField.id]: localDay(d) }, pos)
       onChange()
     } catch {
       onChange()
@@ -161,7 +156,7 @@ export function DataTableCalendar({
           </div>
         ))}
         {days.map((d) => {
-          const key = toKey(d)
+          const key = localDay(d)
           const inMonth = d.getMonth() === cursor.getMonth()
           const dayRows = rowsByDay[key] || []
           return (

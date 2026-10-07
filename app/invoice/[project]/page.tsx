@@ -18,6 +18,7 @@ import { serverMessage } from "@/lib/http/serverMessage"
 import { CURRENCIES, buildInvoice, money, suggestNumber, type LineBy } from "@/lib/invoice/invoice"
 import { formatHours, presetRange, type TimeReport } from "@/lib/tasks/time"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { localDay } from "@/lib/utils/timeZone"
 
 interface Seller { name: string; address: string; taxId: string; payment: string }
 interface ClientSide { name: string; address: string; rate: string; currency: string; taxPercent: string; by: LineBy }
@@ -41,7 +42,6 @@ function save(key: string, value: unknown) {
   }
 }
 
-const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 const longDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
 
 export default function InvoicePage({ params }: { params: Promise<{ project: string }> }) {
@@ -61,8 +61,8 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
   const [client, setClient] = useState<ClientSide>({ name: "", address: "", rate: "", currency: "INR", taxPercent: "0", by: "task" })
   const today = new Date()
   const [number, setNumber] = useState("")
-  const [issued, setIssued] = useState(isoDay(today))
-  const [due, setDue] = useState(isoDay(new Date(today.getTime() + 15 * 864e5)))
+  const [issued, setIssued] = useState(localDay(today))
+  const [due, setDue] = useState(localDay(new Date(today.getTime() + 15 * 864e5)))
   const [notes, setNotes] = useState("")
 
   useEffect(() => {

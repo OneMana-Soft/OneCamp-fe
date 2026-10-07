@@ -10,3 +10,14 @@ export function browserTZ(): string {
     return "UTC"
   }
 }
+
+/**
+ * The calendar day a moment falls on where the viewer is, as YYYY-MM-DD: what
+ * a date input holds and what the server reads as "that day". Not
+ * toISOString(), which gives the day in UTC: in India that is still yesterday
+ * until 05:30.
+ */
+export function localDay(d: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}

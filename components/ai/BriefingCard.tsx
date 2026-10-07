@@ -36,6 +36,7 @@ import {
   Mail,
 } from "@/lib/icons"
 import { withAI } from "@/components/common/withFeature"
+import { localDay } from "@/lib/utils/timeZone"
 
 interface SelfProfile {
   data?: { user_uuid?: string }
@@ -67,7 +68,7 @@ const DAY_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
 
 function isOverdue(due?: string): boolean {
   if (!due) return false
-  return due < new Date().toISOString().slice(0, 10)
+  return due < localDay()
 }
 
 function BriefingCard() {

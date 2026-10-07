@@ -253,6 +253,7 @@ export {
   GripVertical,
   BarChart3,
   LayoutGrid,
+  LayoutTemplate,
   Maximize,
   Minimize,
   Maximize2,
