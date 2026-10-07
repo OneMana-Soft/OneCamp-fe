@@ -7,6 +7,11 @@ import {
     updateTaskCommentByCommentUUID, updateTaskCommentReactionByCommentId
 } from "@/store/slice/createTaskCommentSlice";
 import store from "@/store/store";
+import type { msgTaskDatesInterface } from "@/services/mqttService";
+import { useTaskUpdate } from "@/hooks/useTaskUpdate";
+import { appMutate } from "@/lib/swrMutate";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { updateTaskDueDateInTaskList, updateTaskStartDateInTaskList } from "@/store/slice/taskInfoSlice";
 
 interface UseTaskMessageHandlersProps {
     userUuid?: string
@@ -14,6 +19,33 @@ interface UseTaskMessageHandlersProps {
 
 export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps) => {
     const dispatch = useDispatch()
+    const { optimisticUpdateTask } = useTaskUpdate()
+
+    // Someone moved a task (a timeline drag, its panel, a dependency moving it
+    // along): the board, the list, the timeline and its panel show the new
+    // dates without a refresh, in every tab, the mover's other tabs included.
+    // In the mover's own tab it repeats what's already shown, which is
+    // harmless: a move still being saved is drawn over it.
+    const handleTaskDatesMessage = useCallback(
+        (messageStr: string) => {
+            try {
+                const m: msgTaskDatesInterface | undefined = JSON.parse(messageStr)?.data
+                if (!m?.task_uuid || !m.project_uuid) return
+                const dates = { task_start_date: m.task_start_date || "", task_due_date: m.task_due_date || "" }
+                optimisticUpdateTask({ task_uuid: m.task_uuid, ...dates }, m.project_uuid)
+                dispatch(updateTaskStartDateInTaskList({ taskId: m.task_uuid, value: dates.task_start_date }))
+                dispatch(updateTaskDueDateInTaskList({ taskId: m.task_uuid, value: dates.task_due_date }))
+                void appMutate(
+                    `${GetEndpointUrl.GetTaskInfo}/${m.task_uuid}`,
+                    (current: { data?: object } | undefined) => (current?.data ? { ...current, data: { ...current.data, ...dates } } : current),
+                    { revalidate: false },
+                )
+            } catch (error) {
+                console.error("[MQTT] Task dates message handling error:", error)
+            }
+        },
+        [dispatch, optimisticUpdateTask]
+    )
 
     const handleTaskCommentMessage = useCallback(
         (messageStr: string) => {
@@ -149,6 +181,7 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
 
     return useMemo(() => ({
         handleTaskCommentMessage,
-        handleTaskCommentReactionMessage
-    }), [handleTaskCommentMessage, handleTaskCommentReactionMessage])
+        handleTaskCommentReactionMessage,
+        handleTaskDatesMessage,
+    }), [handleTaskCommentMessage, handleTaskCommentReactionMessage, handleTaskDatesMessage])
 }
