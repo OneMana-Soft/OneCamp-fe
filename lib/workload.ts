@@ -19,7 +19,7 @@ export interface WorkloadPerson {
   capacity: number
   capacity_set: boolean
   can_edit_capacity: boolean
-  /** The projects they're in or have tasks in. */
+  /** The projects they're in (a member or an admin): where a task can be handed to them. */
   project_uuids: string[]
 }
 
@@ -105,23 +105,32 @@ const emptyRow = (key: string, person: WorkloadPerson | null, weeks: number): Wo
 
 /**
  * The workload's rows for the weeks shown: everyone in the projects shown (all
- * of the reader's when none are named), busiest first, and a last row for the
- * tasks nobody has. A finished task has no place (a change made here may have
- * just finished one).
+ * of the reader's when none are named) or with a task in one, busiest first,
+ * and a last row for the tasks nobody has. A finished task has no place (a
+ * change made here may have just finished one).
  */
 export function workloadRows(data: WorkloadData, weeks: Date[], projects?: ReadonlySet<string>): { people: WorkloadRow[]; unassigned: WorkloadRow } {
   const shown = (project: string) => !projects || projects.has(project)
+  const everyone = new Map(data.people.map((p) => [p.user_uuid, p]))
   const rows = new Map<string, WorkloadRow>()
   for (const p of data.people) {
     if (p.project_uuids.some(shown)) rows.set(p.user_uuid, emptyRow(p.user_uuid, p, weeks.length))
   }
   const unassigned = emptyRow(UNASSIGNED, null, weeks.length)
+  // Someone taken off a project keeps its tasks, and their row.
+  const rowOf = (who?: string) => {
+    if (!who) return unassigned
+    let row = rows.get(who)
+    const p = everyone.get(who)
+    if (!row && p) rows.set(who, (row = emptyRow(who, p, weeks.length)))
+    return row ?? unassigned
+  }
   const first = weeks[0]
   for (const t of data.tasks) {
     if (!shown(t.project_uuid) || isClosedStatus(t.task_status)) continue
     const span = spanOf(t)
     if (!span) continue
-    const row = (t.assignee_uuid && rows.get(t.assignee_uuid)) || unassigned
+    const row = rowOf(t.assignee_uuid)
     if (span.end < first) {
       row.overdue.push(t)
       continue
@@ -132,8 +141,7 @@ export function workloadRows(data: WorkloadData, weeks: Date[], projects?: Reado
   }
   for (const u of data.undated) {
     if (!shown(u.project_uuid)) continue
-    const row = u.user_uuid ? rows.get(u.user_uuid) : unassigned
-    if (row) row.undated += u.count
+    rowOf(u.user_uuid).undated += u.count
   }
   const people = [...rows.values()]
   for (const r of people) r.peak = Math.max(0, ...r.weeks.map((w) => w.length)) / Math.max(1, r.capacity ?? 1)
