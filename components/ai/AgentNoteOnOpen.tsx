@@ -8,6 +8,8 @@
  *
  * The server decides whether there is a note and makes it once a day however
  * many tabs ask; the sessionStorage mark only saves the request on reloads.
+ * The toast waits while a dialog is open: someone who arrived to start a
+ * project shouldn't find the note over the button they need.
  */
 
 import * as React from "react"
@@ -18,6 +20,7 @@ import { ToastAction } from "@/components/ui/toast"
 import { app_chat_path } from "@/types/paths"
 import { leaveDailyNote } from "@/services/agentNoteService"
 import { localDay } from "@/lib/utils/timeZone"
+import { whenNoDialogOpen } from "@/lib/utils/whenNoDialogOpen"
 
 const MARK = "oc.agentNote"
 
@@ -26,6 +29,8 @@ export function AgentNoteOnOpen() {
   const router = useRouter()
   const { toast } = useToast()
   const asked = React.useRef(false)
+  const pending = React.useRef<(() => void) | null>(null)
+  React.useEffect(() => () => pending.current?.(), [])
 
   React.useEffect(() => {
     if (!ai || asked.current) return
@@ -41,15 +46,17 @@ export function AgentNoteOnOpen() {
       .then((res) => {
         if (!res?.posted || !res.bot_uuid) return
         const open = () => router.push(`${app_chat_path}/${res.bot_uuid}`)
-        toast({
-          title: "OneCamp AI left you a note",
-          description: res.items === 1 ? "One thing needs you today." : `${res.items} things need you today.`,
-          action: (
-            <ToastAction altText="Open the note" onClick={open}>
-              Open
-            </ToastAction>
-          ),
-        })
+        pending.current = whenNoDialogOpen(() =>
+          toast({
+            title: "OneCamp AI left you a note",
+            description: res.items === 1 ? "One thing needs you today." : `${res.items} things need you today.`,
+            action: (
+              <ToastAction altText="Open the note" onClick={open}>
+                Open
+              </ToastAction>
+            ),
+          }),
+        )
       })
       .catch(() => {
         /* a note is a nicety; never an error the member has to see */
