@@ -228,6 +228,8 @@ export enum GetEndpointUrl {
     // Workspace settings (admin)
     GetWorkspaceSettings = "/admin/settings",
     GetAdminAuditLog = "/admin/audit-log",
+    /** How full the server's disk is (admins only): used_pct, free_bytes, level. */
+    GetAdminDisk = "/admin/disk",
     GetTranscriptionConfig = "/admin/transcription/config",
     GetGuestGrants = "/admin/guest-grants",
 
