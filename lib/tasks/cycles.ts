@@ -1,5 +1,7 @@
 /** Cycles (Linear's sprints) on the client: names, dates and progress. Pure. */
 
+import { localDay } from "@/lib/utils/timeZone"
+
 export type CycleState = "upcoming" | "current" | "ended" | "completed"
 
 export interface Cycle {
@@ -40,9 +42,7 @@ export function nextStart(cycles: Cycle[], today: Date = new Date()): string {
     const e = new Date(c.ends_at)
     return !m || e > m ? e : m
   }, null)
-  const d = last && last > today ? last : today
-  const p = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  return localDay(last && last > today ? last : today)
 }
 
 /** The task-list filter that shows one cycle. */

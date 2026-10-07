@@ -104,6 +104,7 @@ export function UnifiedUIManager() {
         <CreateProjectDialog
           dialogOpenState={ui.createProject.isOpen}
           setOpenState={() => dispatch(closeUI('createProject'))}
+          initialTemplateId={ui.createProject.data?.templateId}
         />
       )}
 

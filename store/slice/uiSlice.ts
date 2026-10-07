@@ -25,7 +25,8 @@ interface DocShareUIState {
 interface RootUIState {
   // Dialogs
   createChannel: SingleUIState;
-  createProject: SingleUIState;
+  // A template to start from, when one was chosen before it opened.
+  createProject: SingleUIState<{ templateId?: string } | null>;
   createTeam: SingleUIState;
   // Set when the task is being made from a message; null for a blank task.
   // From a message (draft + source), from My Tasks (assignToMe), or from a

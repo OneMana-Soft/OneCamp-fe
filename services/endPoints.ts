@@ -99,6 +99,10 @@ export enum GetEndpointUrl {
     ProjectCycles = "/project",
     // A project's intake forms: /project/{id}/forms (+ /{form}/delete)
     ProjectForms = "/project",
+    // Project templates: GET the list, POST one from a file; /{id} to download,
+    // /{id}/delete. A project is saved as one at /project/{id}/save-as-template.
+    ProjectTemplates = "/project/templates",
+    ProjectSaveAsTemplate = "/project",
     // A project's updates: /project/{id}/updates (?limit=), /updates/draft?tz=,
     // POST /updates, /updates/{update}/edit|delete
     ProjectUpdates = "/project",

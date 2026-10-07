@@ -15,8 +15,8 @@ import { ChevronDown, CircleStop, Pencil, Play, Plus, Trash2 } from "@/lib/icons
 import { formatClock, formatDuration, parseDuration, type TimeEntryView } from "@/lib/tasks/time"
 import { startTimer, stopTimer, useElapsed, useRunningTimer, useTaskTime, type SpanInput } from "@/hooks/useTaskTime"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { localDay } from "@/lib/utils/timeZone"
 
-const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 const shortDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" })
 
 export function TaskTimeSection({ taskUUID }: { taskUUID: string }) {
@@ -130,7 +130,7 @@ export function TaskTimeSection({ taskUUID }: { taskUUID: string }) {
 }
 
 function SpanForm({ entry, onSave, onCancel }: { entry?: TimeEntryView; onSave: (span: SpanInput) => void; onCancel: () => void }) {
-  const [day, setDay] = React.useState(() => isoDay(entry ? new Date(entry.started_at) : new Date()))
+  const [day, setDay] = React.useState(() => localDay(entry ? new Date(entry.started_at) : new Date()))
   const [duration, setDuration] = React.useState(entry ? formatDuration(entry.seconds) : "")
   const [note, setNote] = React.useState(entry?.note ?? "")
   const [billable, setBillable] = React.useState(entry?.billable ?? true)
@@ -148,7 +148,7 @@ function SpanForm({ entry, onSave, onCancel }: { entry?: TimeEntryView; onSave: 
       const was = new Date(entry.started_at)
       start = new Date(y, m - 1, d, was.getHours(), was.getMinutes())
     } else {
-      const today = isoDay(new Date()) === day
+      const today = localDay(new Date()) === day
       const end = today ? new Date() : new Date(y, m - 1, d, 18, 0)
       start = new Date(end.getTime() - minutes * 60_000)
     }
@@ -160,7 +160,7 @@ function SpanForm({ entry, onSave, onCancel }: { entry?: TimeEntryView; onSave: 
       <div className="grid grid-cols-2 gap-2">
         <div className="grid gap-1">
           <Label htmlFor={`${id}-day`} className="text-2xs text-muted-foreground">Day</Label>
-          <Input id={`${id}-day`} type="date" value={day} max={isoDay(new Date())} onChange={(e) => setDay(e.target.value)} className="h-8" required />
+          <Input id={`${id}-day`} type="date" value={day} max={localDay(new Date())} onChange={(e) => setDay(e.target.value)} className="h-8" required />
         </div>
         <div className="grid gap-1">
           <Label htmlFor={`${id}-dur`} className="text-2xs text-muted-foreground">How long</Label>
