@@ -1,7 +1,7 @@
 "use client"
 
 import { memo, type KeyboardEvent, type PointerEvent } from "react"
-import { Check } from "@/lib/icons"
+import { Check, Lock } from "@/lib/icons"
 import type { EditKind, TimelineTask } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
 
@@ -22,6 +22,12 @@ interface BarProps {
   canEdit: boolean
   /** Where a name scrolled past the left edge stops, so a long bar keeps its name in view. */
   stickAt: number
+  /** How many open tasks it waits on: a lock before its name. */
+  blocked: number
+  /** Start drawing a dependency from this bar to a task that waits on it. */
+  onLinkStart?: (e: PointerEvent, task: TimelineTask) => void
+  /** A dependency being drawn would end on this bar. */
+  linkTarget?: boolean
   helpId?: string
   onPointerDown: (e: PointerEvent, task: TimelineTask, kind: EditKind) => void
   onKeyDown: (e: KeyboardEvent, task: TimelineTask) => void
@@ -43,6 +49,9 @@ export const TimelineBar = memo(function TimelineBar({
   done,
   canEdit,
   stickAt,
+  blocked,
+  onLinkStart,
+  linkTarget,
   helpId,
   onPointerDown,
   onKeyDown,
@@ -50,13 +59,16 @@ export const TimelineBar = memo(function TimelineBar({
 }: BarProps) {
   const inside = width >= NAME_INSIDE
   const handles = canEdit && width >= 18
+  const waiting = blocked > 0 ? `, waiting on ${blocked} ${blocked === 1 ? "task" : "tasks"}` : ""
+  // Room after the bar for the dependency handle, then the name of a short bar.
+  const after = canEdit && onLinkStart ? 22 : 6
   return (
     <>
       <div
         role="button"
         tabIndex={0}
         data-bar={task.task_uuid}
-        aria-label={`${task.task_name}, ${label}${late ? ", late" : ""}${done ? ", done" : ""}`}
+        aria-label={`${task.task_name}, ${label}${late ? ", late" : ""}${done ? ", done" : ""}${waiting}`}
         aria-describedby={canEdit ? helpId : undefined}
         title={`${task.task_name} · ${label}`}
         className={cn(
@@ -64,6 +76,7 @@ export const TimelineBar = memo(function TimelineBar({
           "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           color,
           late && "ring-2 ring-destructive/80 ring-offset-1 ring-offset-background",
+          linkTarget && "ring-2 ring-primary ring-offset-2 ring-offset-background",
           dragLabel ? "z-10 cursor-grabbing shadow-md" : canEdit ? "cursor-grab" : "cursor-pointer",
         )}
         style={{ left, width }}
@@ -81,6 +94,7 @@ export const TimelineBar = memo(function TimelineBar({
         {inside && (
           <span className="sticky flex min-w-0 items-center gap-1 px-2" style={{ left: stickAt }}>
             {done && <Check className="h-3 w-3 shrink-0" />}
+            {blocked > 0 && <Lock aria-hidden className="h-3 w-3 shrink-0" />}
             <span className="truncate">{task.task_name}</span>
           </span>
         )}
@@ -89,6 +103,14 @@ export const TimelineBar = memo(function TimelineBar({
             aria-hidden
             className="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-md hover:bg-black/15"
             onPointerDown={(e) => onPointerDown(e, task, "end")}
+          />
+        )}
+        {canEdit && onLinkStart && (
+          <span
+            aria-hidden
+            title="Drag to the task that waits on this one"
+            className="absolute -right-[18px] top-1/2 h-3 w-3 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-primary bg-background opacity-0 transition-opacity group-hover/bar:opacity-100"
+            onPointerDown={(e) => onLinkStart(e, task)}
           />
         )}
         {dragLabel && (
@@ -100,9 +122,10 @@ export const TimelineBar = memo(function TimelineBar({
       {!inside && (
         <span
           aria-hidden
-          className={cn("pointer-events-none absolute top-[7px] flex h-[22px] max-w-64 items-center truncate text-xs text-muted-foreground", done && "line-through")}
-          style={{ left: left + width + 6 }}
+          className={cn("pointer-events-none absolute top-[7px] flex h-[22px] max-w-64 items-center gap-1 truncate text-xs text-muted-foreground", done && "line-through")}
+          style={{ left: left + width + after }}
         >
+          {blocked > 0 && <Lock className="h-3 w-3 shrink-0" />}
           {task.task_name}
         </span>
       )}

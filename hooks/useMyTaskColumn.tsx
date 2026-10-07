@@ -18,6 +18,7 @@ import {useDispatch} from "react-redux";
 import {ColorIcon} from "@/components/colorIcon/colorIcon";
 import Link from "next/link";
 import {app_project_path} from "@/types/paths";
+import { BlockedBadge } from "@/components/task/BlockedBadge"
 
 
 
@@ -57,6 +58,7 @@ export const useMyTaskColumn = () => {
                         >
             {row.getValue("task_name")}
           </span>
+                        <BlockedBadge count={row.original.task_blocked_open} />
                         {row.original.task_comment_count && <span className='text-muted-foreground '>{row.original.task_comment_count}<MessageSquare className='h-3 w-3 inline ml-1'/></span>}
                         {row.original.task_sub_task_count && <span className='text-muted-foreground '>{row.original.task_sub_task_count}<GitBranch className='h-3 w-3 inline ml-1'/></span>}
 

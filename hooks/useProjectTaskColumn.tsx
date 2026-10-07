@@ -16,6 +16,7 @@ import {TaskStatusCell} from "@/components/task/taskStatusCell";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {useDispatch} from "react-redux";
+import { BlockedBadge } from "@/components/task/BlockedBadge"
 
 
 
@@ -54,6 +55,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[]) => {
                         >
             {row.getValue("task_name")}
           </span>
+                        <BlockedBadge count={row.original.task_blocked_open} />
                         {row.original.task_comment_count && <span className='text-muted-foreground '>{row.original.task_comment_count}<MessageSquare className='h-3 w-3 inline ml-1'/></span>}
                         {row.original.task_sub_task_count && <span className='text-muted-foreground '>{row.original.task_sub_task_count}<GitBranch className='h-3 w-3 inline ml-1'/></span>}
 

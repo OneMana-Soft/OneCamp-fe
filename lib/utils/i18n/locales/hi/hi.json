@@ -116,6 +116,8 @@
   "addAttachmentToProject_other": "परियोजना में {{count}} फ़ाइलें जोड़ें",
   "failedToAddAttachmentToProject": "परियोजना में फ़ाइल जोड़ने में विफल",
   "removedAttachment": "फ़ाइल हटा दी गई",
+  "addedTaskDependency": "निर्भरता जोड़ी गई",
+  "removedTaskDependency": "निर्भरता हटा दी गई",
   "failedToRemoveAttachment": "फ़ाइल हटाने में विफल",
   "updatedTaskStatus": "कार्य की स्थिति अद्यतन की गई",
   "failedToUpdateTaskStatus": "कार्य की स्थिति अद्यतन करने में विफल",

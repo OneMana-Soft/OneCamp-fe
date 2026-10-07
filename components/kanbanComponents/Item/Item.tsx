@@ -25,6 +25,7 @@ import { isClosedStatus } from "@/lib/taskStatus"
 import { timeInStatus } from "@/lib/utils/timeInStatus"
 import { TagPills } from "@/components/tags/TagPills"
 import { Clock } from "@/lib/icons"
+import { BlockedBadge } from "@/components/task/BlockedBadge"
 
 interface Props {
     dragOverlay?: boolean
@@ -190,6 +191,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                             {taskP.label}
                         </span>
                     )}
+                    <BlockedBadge count={task.task_blocked_open} />
                     {task.task_comment_count > 0 && (
                         <span className="inline-flex items-center gap-0.5" title="Comments">
                             <MessageSquare className="h-3 w-3" />

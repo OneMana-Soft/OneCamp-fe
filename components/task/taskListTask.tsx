@@ -15,6 +15,7 @@ import Link from "next/link";
 import React, {useCallback} from "react";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
+import { BlockedBadge } from "@/components/task/BlockedBadge"
 
 export const TaskListTask = ({
   taskInfo,
@@ -119,6 +120,7 @@ export const TaskListTask = ({
                     )}
 
                     <div className="flex items-center gap-3 text-xs text-muted-foreground ml-auto">
+                        <BlockedBadge count={taskInfo.task_blocked_open} />
                         {taskInfo.task_comment_count > 0 && (
                             <span className="flex items-center gap-0.5">
                                 {taskInfo.task_comment_count}

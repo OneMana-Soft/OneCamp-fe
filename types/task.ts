@@ -5,6 +5,15 @@ import {TeamInfoInterface} from "@/types/team";
 import {CommentInfoInterface} from "@/types/comment";
 import {z} from "zod";
 
+/** A task on the other end of a dependency, as a task's panel reads it. */
+export interface DependencyTask {
+    task_uuid: string;
+    task_name: string;
+    task_status: string;
+    task_custom_status?: string;
+    task_custom_status_name?: string;
+}
+
 export interface TaskInfoInterface {
     uid: string;
     task_uuid: string;
@@ -44,6 +53,10 @@ export interface TaskInfoInterface {
     task_github_pr_check_status?: string;
     task_github_pr_review_state?: string;
     task_github_pr_is_draft?: boolean;
+    /** What it waits on and what waits on it (the task's panel), and how many it waits on are still open (boards, lists). */
+    task_blocked_by?: DependencyTask[];
+    task_blocks?: DependencyTask[];
+    task_blocked_open?: number;
 }
 export interface TaskInfoRawInterface {
     data: TaskInfoInterface;

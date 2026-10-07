@@ -116,6 +116,8 @@
   "addAttachmentToProject_other": "Added {{count}} attachments to project",
   "failedToAddAttachmentToProject": "Failed to add attachments to project",
   "removedAttachment": "Removed attachment",
+  "addedTaskDependency": "Added a dependency",
+  "removedTaskDependency": "Removed a dependency",
   "failedToRemoveAttachment": "Failed to remove attachment",
   "updatedTaskStatus": "Updated task status",
   "failedToUpdateTaskStatus": "Failed to update task status",

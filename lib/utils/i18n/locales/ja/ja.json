@@ -116,6 +116,8 @@
   "addAttachmentToProject_other": "プロジェクトに{{count}}個のファイルを追加",
   "failedToAddAttachmentToProject": "プロジェクトへの添付ファイル追加に失敗しました",
   "removedAttachment": "添付ファイルが削除されました",
+  "addedTaskDependency": "依存関係が追加されました",
+  "removedTaskDependency": "依存関係が削除されました",
   "failedToRemoveAttachment": "添付ファイルの削除に失敗しました",
   "updatedTaskStatus": "タスクのステータスが更新されました",
   "failedToUpdateTaskStatus": "タスクのステータス更新に失敗しました",

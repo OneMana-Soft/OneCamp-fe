@@ -18,6 +18,7 @@ import {
   firstView,
   barColor,
   dotColor,
+  dependencyLinks,
   type TimelineTask,
 } from "@/lib/timeline"
 import { isTimelineKey } from "@/lib/timelineKey"
@@ -254,6 +255,35 @@ describe("bar colours", () => {
     expect(dotColor({ task_status: "done" }, statusOptions(null))).toBe("bg-emerald-500")
     const { rows } = timelineRows([task("d", { task_status: "done", task_due_date: iso(2026, 10, 1, 17) })], { grouping: "status", statuses: statusOptions(null), showDone: true, collapsed: new Set() })
     expect(rows[0]).toMatchObject({ kind: "group", dot: "bg-emerald-500" })
+  })
+})
+
+describe("dependency arrows", () => {
+  const range = { from: local(2026, 10, 5), days: 30 }
+  const rowsOf = (tasks: TimelineTask[]) => timelineRows(tasks, { grouping: "none", statuses: statusOptions(null), showDone: true, collapsed: new Set() }).rows
+  const design = task("design", { task_start_date: iso(2026, 10, 5, 9), task_due_date: iso(2026, 10, 7, 17) })
+
+  it("runs from the end of the task waited on to the start of the task waiting", () => {
+    const build = task("build", { task_start_date: iso(2026, 10, 10, 9), task_due_date: iso(2026, 10, 12, 17), task_blocked_by: [{ task_uuid: "design" }] })
+    const [link] = dependencyLinks(rowsOf([design, build]), range, 10, 36)
+    // Design covers days 0-2 (x 0-30) in row 0; Build starts on day 5 (x 50) in row 1.
+    expect(link).toEqual({ key: "design>build", from: "design", to: "build", path: "M30 18H38V54H50", broken: false })
+  })
+
+  it("goes round, and shows as broken, when the waiting task starts before the other is done", () => {
+    const early = task("early", { task_due_date: iso(2026, 10, 6, 17), task_blocked_by: [{ task_uuid: "design" }] })
+    const [link] = dependencyLinks(rowsOf([design, early]), range, 10, 36)
+    expect(link.broken).toBe(true)
+    expect(link.path).toBe("M30 18H38V36H2V54H10")
+  })
+
+  it("follows a bar being dragged, and leaves out a task with no row", () => {
+    const build = task("build", { task_start_date: iso(2026, 10, 10, 9), task_due_date: iso(2026, 10, 12, 17), task_blocked_by: [{ task_uuid: "design" }, { task_uuid: "someday" }] })
+    const rows = rowsOf([design, build, task("someday")])
+    const dragged = new Map([["build", { start: local(2026, 10, 7), end: local(2026, 10, 9) }]])
+    const links = dependencyLinks(rows, range, 10, 36, dragged)
+    expect(links).toHaveLength(1)
+    expect(links[0].broken).toBe(true)
   })
 })
 
