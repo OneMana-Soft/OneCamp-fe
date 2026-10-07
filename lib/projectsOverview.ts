@@ -21,6 +21,9 @@ export interface ProjectOverview {
   /** Its latest update's health; none when it has no update yet. */
   health?: Health
   updated_at?: string
+  /** The days its tasks run across, for the projects' timeline; none without dated tasks. */
+  first_day?: string
+  last_day?: string
 }
 
 export type OverviewSort = "name" | "attention" | "progress" | "updated"

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useMemo, useState, type ReactNode } from "react"
 import { useDispatch } from "react-redux"
 import { HealthPill } from "@/components/projectUpdates/HealthPill"
+import { ProjectsTimeline } from "@/components/project/ProjectsTimeline"
 import { SearchField } from "@/components/search/searchField"
 import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
@@ -38,6 +39,8 @@ import { app_project_path } from "@/types/paths"
 
 const isSort = (v: unknown): v is OverviewSort => OVERVIEW_SORTS.some((s) => s.value === v)
 const isFilter = (v: unknown): v is OverviewFilter => v === "all" || v === "attention"
+type OverviewView = "table" | "timeline"
+const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline"
 const href = (p: ProjectOverview) => `${app_project_path}/${p.project_uuid}`
 
 /** "6 open · 3 overdue · 2 done", the late part in red; nothing for a project with no tasks. */
@@ -128,6 +131,7 @@ export function ProjectsOverview() {
   const [query, setQuery] = useState("")
   const [sort, setSort] = useStoredState<OverviewSort>("oc_projects_sort", "name", isSort)
   const [filter, setFilter] = useStoredState<OverviewFilter>("oc_projects_filter", "all", isFilter)
+  const [view, setView] = useStoredState<OverviewView>("oc_projects_view", "table", isView)
 
   const all = useMemo(() => projects ?? [], [projects])
   const shown = useMemo(() => sortOverview(filterOverview(all, { query, filter }), sort), [all, query, filter, sort])
@@ -171,6 +175,8 @@ export function ProjectsOverview() {
         />
       </div>
     )
+  } else if (view === "timeline") {
+    body = <ProjectsTimeline projects={shown} compact={!isDesktop} />
   } else if (!isDesktop) {
     body = <ul className="divide-y divide-border/60">{shown.map((p) => <MobileRow key={p.project_uuid} p={p} />)}</ul>
   } else {
@@ -222,6 +228,14 @@ export function ProjectsOverview() {
     <div className={cn("flex flex-wrap items-center gap-2", isDesktop ? "px-4 pt-4" : "px-0 pb-1")}>
       <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "w-80 shrink-0" : "w-full"} />
       <div className={cn("flex flex-wrap items-center gap-2", !isDesktop && "px-3")}>
+        <ToggleGroup type="single" size="sm" value={view} onValueChange={(v) => isView(v) && setView(v)} aria-label="View as" className="rounded-md border p-0.5">
+          <ToggleGroupItem value="table" className="h-7 px-2.5 text-xs">
+            {isDesktop ? "Table" : "List"}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="timeline" className="h-7 px-2.5 text-xs">
+            Timeline
+          </ToggleGroupItem>
+        </ToggleGroup>
         <ToggleGroup type="single" size="sm" value={filter} onValueChange={(v) => isFilter(v) && setFilter(v)} aria-label="Show" className="rounded-md border p-0.5">
           <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
             All
@@ -251,7 +265,7 @@ export function ProjectsOverview() {
     return (
       <div className="flex h-full flex-col">
         {tools}
-        <div className="flex-1 overflow-y-auto">{body}</div>
+        <div className={cn("flex-1", view === "timeline" ? "flex min-h-0 flex-col px-3 pb-3 pt-2" : "overflow-y-auto")}>{body}</div>
       </div>
     )
   }
@@ -280,7 +294,7 @@ export function ProjectsOverview() {
         )}
       </PageHeader>
       {tools}
-      <div className="flex-1 overflow-y-auto px-8 pb-8 pt-2">{body}</div>
+      <div className={cn("flex-1 px-8 pb-8 pt-2", view === "timeline" ? "flex min-h-0 flex-col" : "overflow-y-auto")}>{body}</div>
     </div>
   )
 }
