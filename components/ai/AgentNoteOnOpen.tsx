@@ -16,7 +16,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { ToastAction } from "@/components/ui/toast"
 import { app_chat_path } from "@/types/paths"
-import { leaveDailyNote, localDay } from "@/services/agentNoteService"
+import { leaveDailyNote } from "@/services/agentNoteService"
+import { localDay } from "@/lib/utils/timeZone"
 
 const MARK = "oc.agentNote"
 

@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, waitFor } from "@testing-library/react"
 
 import { AgentNoteOnOpen } from "@/components/ai/AgentNoteOnOpen"
-import { leaveDailyNote, localDay } from "@/services/agentNoteService"
+import { leaveDailyNote } from "@/services/agentNoteService"
+import { localDay } from "@/lib/utils/timeZone"
 
 const toast = vi.fn()
 let aiOn = true
@@ -44,11 +45,5 @@ describe("the daily note on opening the app", () => {
     aiOn = false
     render(<AgentNoteOnOpen />)
     expect(leaveDailyNote).not.toHaveBeenCalled()
-  })
-})
-
-describe("localDay", () => {
-  it("is the device's calendar day", () => {
-    expect(localDay(new Date(2026, 8, 7, 23, 30))).toBe("2026-09-07")
   })
 })

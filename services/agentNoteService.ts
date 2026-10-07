@@ -1,5 +1,6 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 /** What leaving today's note did. */
 interface AgentNoteResult {
@@ -9,22 +10,8 @@ interface AgentNoteResult {
   items: number
 }
 
-/** The member's calendar day as their device sees it: YYYY-MM-DD. */
-export function localDay(d: Date = new Date()): string {
-  const p = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
-
-/** The device's IANA time zone, so the note says due times as its clock shows them. */
-function localZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || ""
-  } catch {
-    return ""
-  }
-}
-
-export async function leaveDailyNote(day: string, zone: string = localZone()): Promise<AgentNoteResult> {
+/** Leaves today's note; zone is the device's, so the note says due times as its clock shows them. */
+export async function leaveDailyNote(day: string, zone: string = browserTZ()): Promise<AgentNoteResult> {
   const res = await axiosInstance.post(PostEndpointUrl.LeaveAgentNote, { day, zone })
   return res.data?.data as AgentNoteResult
 }
