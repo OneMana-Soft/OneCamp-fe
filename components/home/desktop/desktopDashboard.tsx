@@ -11,6 +11,7 @@ import {
     FileText,
     Folder,
     Hash,
+    LayoutTemplate,
     Lock,
     MessageCircle,
     Sparkles,
@@ -252,39 +253,11 @@ export function DesktopDashboard() {
                         <div>
                             <SectionHeader title="Quick actions" />
                             <div className="-mx-2 space-y-0.5">
-                                <button
-                                    type="button"
-                                    onClick={() => dispatch(openUI({ key: 'createDoc' }))}
-                                    className="w-full text-left group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                                >
-                                    <FileText className="h-4 w-4 text-muted-foreground group-hover:text-foreground" strokeWidth={1.75} />
-                                    <span className="text-sm font-medium">New document</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => dispatch(openUI({ key: 'createTask' }))}
-                                    className="w-full text-left group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-foreground/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                                >
-                                    <CheckSquare className="h-4 w-4 text-muted-foreground group-hover:text-foreground" strokeWidth={1.75} />
-                                    <span className="text-sm font-medium">New task</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleAiToggle}
-                                    className={cn(
-                                        "w-full text-left group flex items-center gap-3 rounded-md px-2 py-2 transition-colors",
-                                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-                                        isAiOpen ? "bg-brand-muted" : "hover:bg-foreground/[0.04]",
-                                    )}
-                                >
-                                    <Sparkles className="h-4 w-4 text-muted-foreground group-hover:text-foreground" strokeWidth={1.75} />
-                                    <span className="text-sm font-medium">AI assistant</span>
-                                    {isAiOpen && (
-                                        <span className="ml-auto text-3xs font-medium text-brand">
-                                            Open
-                                        </span>
-                                    )}
-                                </button>
+                                <QuickAction icon={FileText} label="New document" onClick={() => dispatch(openUI({ key: 'createDoc' }))} />
+                                <QuickAction icon={CheckSquare} label="New task" onClick={() => dispatch(openUI({ key: 'createTask' }))} />
+                                {/* A whole plan in one click: the fastest way to see a project at work. */}
+                                <QuickAction icon={LayoutTemplate} label="Project from a template" onClick={() => dispatch(openUI({ key: 'createProject', data: { templateId: "client-project" } }))} />
+                                <QuickAction icon={Sparkles} label="AI assistant" onClick={handleAiToggle} active={isAiOpen} />
                             </div>
                         </div>
 
@@ -330,5 +303,24 @@ export function DesktopDashboard() {
                 <BriefingCard />
             </div>
         </PageContainer>
+    )
+}
+
+// One row of the home screen's quick actions.
+function QuickAction({ icon: Icon, label, onClick, active = false }: { icon: typeof FileText; label: string; onClick: () => void; active?: boolean }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                "w-full text-left group flex items-center gap-3 rounded-md px-2 py-2 transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                active ? "bg-brand-muted" : "hover:bg-foreground/[0.04]",
+            )}
+        >
+            <Icon className="h-4 w-4 text-muted-foreground group-hover:text-foreground" strokeWidth={1.75} />
+            <span className="text-sm font-medium">{label}</span>
+            {active && <span className="ml-auto text-3xs font-medium text-brand">Open</span>}
+        </button>
     )
 }

@@ -14,19 +14,23 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Download, MoreHorizontal, Trash2, Upload } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { DescribeProject } from "@/components/projectTemplates/DescribeProject"
 import { useToast } from "@/hooks/use-toast"
 import { addTemplate, deleteTemplate, downloadTemplate, useProjectTemplates } from "@/hooks/useProjectTemplates"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { BLANK, previewLine, readTemplateFile, taskCount, TemplateFileError, type TemplateSummary } from "@/lib/projectTemplates"
+import { AI_DRAFT, BLANK, previewLine, summaryOf, type ProjectTemplate, readTemplateFile, taskCount, TemplateFileError, type TemplateSummary } from "@/lib/projectTemplates"
 
 interface TemplatePickerProps {
   value: string
   onChange: (id: string) => void
   /** The template chosen, once the list has it, for the dialog's button. */
   onChosen?: (t: TemplateSummary | null) => void
+  /** A plan the AI drafted (AI edition), offered first and chosen when it arrives. */
+  draft?: ProjectTemplate | null
+  onDraft?: (t: ProjectTemplate) => void
 }
 
-export function TemplatePicker({ value, onChange, onChosen }: TemplatePickerProps) {
+export function TemplatePicker({ value, onChange, onChosen, draft, onDraft }: TemplatePickerProps) {
   const { templates, isLoading, isError } = useProjectTemplates()
   const { toast } = useToast()
   const labelId = React.useId()
@@ -34,7 +38,11 @@ export function TemplatePicker({ value, onChange, onChosen }: TemplatePickerProp
   const [confirming, setConfirming] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
 
-  const chosen = React.useMemo(() => templates.find((t) => t.id === value) ?? null, [templates, value])
+  const drafted = React.useMemo(() => (draft ? summaryOf(draft, AI_DRAFT) : null), [draft])
+  const chosen = React.useMemo(
+    () => (value === AI_DRAFT ? drafted : templates.find((t) => t.id === value) ?? null),
+    [templates, value, drafted],
+  )
   React.useEffect(() => onChosen?.(chosen), [chosen, onChosen])
 
   // A choice that's gone (deleted elsewhere) falls back to blank.
@@ -94,6 +102,7 @@ export function TemplatePicker({ value, onChange, onChosen }: TemplatePickerProp
         onValueChange={onChange}
         className="grid max-h-[min(19rem,40vh)] grid-cols-1 gap-2 overflow-y-auto overscroll-contain p-0.5 sm:grid-cols-2"
       >
+        {drafted && <Choice value={AI_DRAFT} title={drafted.name} line={drafted.description || "Drafted by the AI from what you wrote"} count={drafted.task_count} selected={value === AI_DRAFT} />}
         <Choice value={BLANK} title="Blank" line="An empty project, to fill as you go." selected={value === BLANK} />
         {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-[4.5rem] rounded-lg" />)}
         {builtIn.map((t) => (
@@ -150,6 +159,14 @@ export function TemplatePicker({ value, onChange, onChosen }: TemplatePickerProp
         ))}
       </RadioGroupPrimitive.Root>
 
+      {onDraft && (
+        <DescribeProject
+          onDrafted={(t) => {
+            onDraft(t)
+            onChange(AI_DRAFT)
+          }}
+        />
+      )}
       {isError && <p className="text-xs text-muted-foreground">Templates couldn&apos;t load just now. A blank project still works.</p>}
       {chosen && chosen.preview.length > 0 && (
         <p className="line-clamp-2 text-xs text-muted-foreground" aria-live="polite">

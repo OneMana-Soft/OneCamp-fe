@@ -30,7 +30,7 @@ import { nameSchema } from "@/lib/validation/names";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { TemplatePicker } from "@/components/projectTemplates/TemplatePicker";
-import { appliedNotice, BLANK, taskCount, type AppliedTemplate, type TemplateSummary } from "@/lib/projectTemplates";
+import { AI_DRAFT, appliedNotice, BLANK, taskCount, type AppliedTemplate, type ProjectTemplate, type TemplateSummary } from "@/lib/projectTemplates";
 import { browserTZ, localDay } from "@/lib/utils/timeZone";
 
 const createProjectFormSchema = z.object({
@@ -53,6 +53,8 @@ interface CreateProjectDialogProps {
 // What starting from a template adds to the request (business/ProjectTemplate).
 interface TemplateChoice {
   template_id?: string;
+  /** A plan the AI drafted, sent whole since it isn't saved. */
+  template?: ProjectTemplate;
   start_date?: string;
   tz?: string;
   skip_weekends?: boolean;
@@ -86,6 +88,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
   const [teamPopoverOpenState, setTeamPopoverOpenState] = useState(false)
   const [templateId, setTemplateId] = useState(initialTemplateId ?? BLANK)
   const [chosen, setChosen] = useState<TemplateSummary | null>(null)
+  const [draft, setDraft] = useState<ProjectTemplate | null>(null)
   const [startDate, setStartDate] = useState(() => localDay())
   const [skipWeekends, setSkipWeekends] = useState(true)
   const { toast } = useToast()
@@ -106,7 +109,11 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
 
 
   const onSubmit = async (data: CreateTeamFormValues) => {
-    const template: TemplateChoice = templateId === BLANK ? {} : { template_id: templateId, start_date: startDate, tz: browserTZ(), skip_weekends: skipWeekends }
+    const dates = { start_date: startDate, tz: browserTZ(), skip_weekends: skipWeekends }
+    const template: TemplateChoice =
+      templateId === BLANK ? {}
+        : templateId === AI_DRAFT && draft ? { template: draft, ...dates }
+        : { template_id: templateId, ...dates }
     let res: (ProjectInfoInterface & { template?: AppliedTemplate }) | undefined
     try {
       res = await makeRequest<CreateTeamFormValues & TemplateChoice, ProjectInfoInterface & { template?: AppliedTemplate }>({
@@ -130,6 +137,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
   const closeModal = () => {
     reset()
     setTemplateId(BLANK)
+    setDraft(null)
     setOpenState(false);
   };
 
@@ -250,7 +258,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                   </div>
               )}
 
-              <TemplatePicker value={templateId} onChange={setTemplateId} onChosen={setChosen} />
+              <TemplatePicker value={templateId} onChange={setTemplateId} onChosen={setChosen} draft={draft} onDraft={setDraft} />
 
               {templateId !== BLANK && (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

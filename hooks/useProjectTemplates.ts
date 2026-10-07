@@ -12,7 +12,8 @@ import { appMutate } from "@/lib/swrMutate"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { downloadBlob } from "@/lib/utils/download"
-import { templateFile, templateFileName, type ProjectTemplate, type TemplateSummary } from "@/lib/projectTemplates"
+import { templateFile, templateFileName, type PlanDraft, type ProjectTemplate, type TemplateSummary } from "@/lib/projectTemplates"
+import { wait } from "@/lib/utils/abort"
 
 const BASE = GetEndpointUrl.ProjectTemplates
 
@@ -20,7 +21,7 @@ const BASE = GetEndpointUrl.ProjectTemplates
 // the change.
 const refresh = () => appMutate(BASE)
 
-export interface SaveInput {
+interface SaveInput {
   name: string
   description: string
 }
@@ -48,6 +49,29 @@ export async function downloadTemplate(id: string): Promise<void> {
 export async function deleteTemplate(id: string): Promise<void> {
   await axiosInstance.post(`${BASE}/${encodeURIComponent(id)}/delete`, {}, OWN_ERRORS)
   await refresh()
+}
+
+// A draft runs on the server, since a small model takes a minute or two.
+const POLL_EVERY_MS = 2500
+const GIVE_UP_AFTER_MS = 5 * 60_000
+const DRAFT_FAILED = "The plan couldn't be drafted just now. Try again, or pick a template."
+
+/**
+ * The AI edition's plan for a project from what the person wrote, asked for
+ * until it's there. signal stops asking (the person closed the dialog).
+ * Nothing is saved.
+ */
+export async function draftProjectPlan(description: string, signal?: AbortSignal): Promise<ProjectTemplate> {
+  const config = { ...OWN_ERRORS, signal }
+  let draft = ((await axiosInstance.post(GetEndpointUrl.AiProjectPlanDraft, { description }, config)).data as { data: PlanDraft }).data
+  const giveUpAt = Date.now() + GIVE_UP_AFTER_MS
+  while (draft.state === "drafting") {
+    if (Date.now() > giveUpAt) throw new Error("The AI took too long to draft the plan. Try again, or pick a template.")
+    await wait(POLL_EVERY_MS, signal)
+    draft = ((await axiosInstance.get(`${GetEndpointUrl.AiProjectPlanDraft}/${encodeURIComponent(draft.id)}`, config)).data as { data: PlanDraft }).data
+  }
+  if (draft.state !== "done" || !draft.template) throw new Error(draft.msg || DRAFT_FAILED)
+  return draft.template
 }
 
 export function useProjectTemplates() {
