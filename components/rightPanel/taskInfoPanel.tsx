@@ -680,6 +680,11 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         [post, taskUUID, taskInfo],
     )
 
+    // Another task's panel starts with nothing typed, so its description loads.
+    useEffect(() => {
+        descUserEditedRef.current = false
+    }, [taskUUID])
+
     useEffect(() => {
         if (!taskInfo.data?.data) return
 
@@ -699,10 +704,14 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         setSelectedPriority(priorities.find((p) => p.value === data.task_priority))
         setTaskSubTasks(data.task_sub_tasks||[])
         setTaskLabel(data.task_label || "")
-        setTaskDescription(data.task_description || "")
-        // Re-hydration from server is not a user edit — clear the flag so the
-        // debounced autosave below does not fire for this programmatic change.
-        descUserEditedRef.current = false
+        // A description still being typed isn't replaced by the server's copy:
+        // this data also refreshes when a teammate moves the task's dates (they
+        // arrive live), and that mustn't take the person's unsaved words. When
+        // nothing is being typed, the server's copy is shown, and as it isn't a
+        // user edit the debounced autosave below doesn't fire for it.
+        if (!descUserEditedRef.current) {
+            setTaskDescription(data.task_description || "")
+        }
         setTaskIsDeleted(!isZeroEpoch(data.task_deleted_at || ''))
         setTaskAttachments(data.task_attachments || [])
     }, [taskInfo.data?.data, taskUUID, dispatch])

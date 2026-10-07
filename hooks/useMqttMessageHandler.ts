@@ -355,6 +355,10 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                         }
                         break
 
+                    case MqttMessageType.Task_Dates:
+                        taskHandler.handleTaskDatesMessage(messageStr)
+                        break
+
                     case MqttMessageType.Scheduled_Message:
                         // A scheduled message sent, failed or changed; every
                         // open scheduled list refetches (the message itself

@@ -52,6 +52,18 @@ export enum MqttMessageType {
     // Scheduled_Message mirrors backend MESSAGE_SCHEDULED_MESSAGE: one of the
     // member's scheduled messages was sent, failed, or changed.
     Scheduled_Message,
+    // Task_Dates mirrors backend MESSAGE_TASK_DATES: a task's dates changed;
+    // open boards, lists, timelines and its panel show the new ones.
+    Task_Dates,
+}
+
+/** MESSAGE_TASK_DATES' data: a task's dates now, "" for an unset one, and who changed them. */
+export interface msgTaskDatesInterface {
+    task_uuid: string
+    project_uuid: string
+    task_start_date: string
+    task_due_date: string
+    by: string
 }
 
 // msgAgentWorkInterface mirrors the backend MqttAgentWork payload. It carries
