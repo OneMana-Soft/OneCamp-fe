@@ -16,6 +16,7 @@ interface TimedItem {
   title: string;
   isTask: boolean;
   isFocus?: boolean;
+  isAway?: boolean;
   start: Date;
   end: Date;
   topMin: number; // minutes from midnight (clamped to day)
@@ -29,6 +30,7 @@ interface AllDayItem {
   title: string;
   isTask: boolean;
   isFocus?: boolean;
+  isAway?: boolean;
 }
 
 interface WeekViewProps {
@@ -105,7 +107,7 @@ export function WeekView({
       isTask: boolean,
       start: Date,
       end: Date,
-      isFocus = false,
+      kind: { isFocus?: boolean; isAway?: boolean } = {},
     ) => {
       days.forEach((day, di) => {
         const dayStart = startOfDay(day);
@@ -117,7 +119,7 @@ export function WeekView({
         const isMultiDay = !isSameDay(start, end) && durationMs >= DAY_MINUTES * 60 * 1000;
 
         if (spansFullDay || isMultiDay) {
-          allDay[di].push({ uuid, title, isTask, isFocus });
+          allDay[di].push({ uuid, title, isTask, ...kind });
           return;
         }
 
@@ -129,7 +131,7 @@ export function WeekView({
           uuid,
           title,
           isTask,
-          isFocus,
+          ...kind,
           start,
           end,
           topMin,
@@ -145,7 +147,7 @@ export function WeekView({
         const start = parseISO(e.event_start_time);
         const end = parseISO(e.event_end_time);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
-        pushTimedOrAllDay(e.event_uuid, e.event_title, false, start, end, !!e.event_is_focus);
+        pushTimedOrAllDay(e.event_uuid, e.event_title, false, start, end, { isFocus: !!e.event_is_focus, isAway: !!e.event_is_away });
       });
     }
 

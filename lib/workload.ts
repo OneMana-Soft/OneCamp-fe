@@ -7,6 +7,7 @@
 import { addDays, differenceInCalendarDays, format, isSameYear, startOfWeek } from "date-fns"
 import { isClosedStatus } from "@/lib/taskStatus"
 import { spanOf, taskDate } from "@/lib/timeline"
+import { awayWorkingDays, capacityAfterTimeOff, type AwaySpan } from "@/lib/timeOff"
 import { GetEndpointUrl } from "@/services/endPoints"
 
 export interface WorkloadPerson {
@@ -46,6 +47,8 @@ export interface WorkloadData {
   /** Open tasks with no dates, by project and person (none for nobody's). */
   undated: { project_uuid: string; user_uuid?: string; count: number }[]
   default_capacity: number
+  /** Time off marked on people's calendars (Away events), as dates only. */
+  away?: { user_uuid: string; start: string; end: string }[]
   /** More tasks than one view sends: the latest due are shown. */
   truncated: boolean
 }
@@ -81,6 +84,10 @@ export interface WorkloadRow {
   person: WorkloadPerson | null
   /** Tasks a week they take on; none for nobody's tasks. */
   capacity: number | null
+  /** Working days they're away in each week shown. */
+  awayDays: number[]
+  /** What they take on in each week shown: their capacity, less the days away. */
+  capacities: (number | null)[]
   /** Open tasks that were due before this week. */
   overdue: WorkloadTask[]
   /** The tasks running in each week shown. */
@@ -97,6 +104,8 @@ const emptyRow = (key: string, person: WorkloadPerson | null, weeks: number): Wo
   key,
   person,
   capacity: person ? person.capacity : null,
+  awayDays: Array.from({ length: weeks }, () => 0),
+  capacities: Array.from({ length: weeks }, () => (person ? person.capacity : null)),
   overdue: [],
   weeks: Array.from({ length: weeks }, () => []),
   undated: 0,
@@ -144,7 +153,22 @@ export function workloadRows(data: WorkloadData, weeks: Date[], projects?: Reado
     rowOf(u.user_uuid).undated += u.count
   }
   const people = [...rows.values()]
-  for (const r of people) r.peak = Math.max(0, ...r.weeks.map((w) => w.length)) / Math.max(1, r.capacity ?? 1)
+  // Time off takes its working days out of each week's capacity.
+  const away = new Map<string, AwaySpan[]>()
+  for (const a of data.away ?? []) {
+    const spans = away.get(a.user_uuid) ?? []
+    spans.push({ start: new Date(a.start), end: new Date(a.end) })
+    away.set(a.user_uuid, spans)
+  }
+  for (const r of people) {
+    const spans = away.get(r.key)
+    if (spans && r.capacity !== null) {
+      r.awayDays = weeks.map((w) => awayWorkingDays(spans, w))
+      r.capacities = r.awayDays.map((d) => capacityAfterTimeOff(r.capacity!, d))
+    }
+    // A week with no capacity left and work in it is fuller than any other.
+    r.peak = Math.max(0, ...r.weeks.map((w, i) => w.length / Math.max(0.5, r.capacities[i] ?? 1)))
+  }
   const busy = (r: WorkloadRow) => r.weeks.reduce((n, w) => n + w.length, 0) + r.overdue.length
   people.sort((a, b) => b.peak - a.peak || busy(b) - busy(a) || a.person!.user_name.localeCompare(b.person!.user_name))
   return { people, unassigned }
@@ -178,12 +202,15 @@ export function weeksToNextWeek(t: Pick<WorkloadTask, "task_start_date" | "task_
   return Math.max(1, Math.floor(differenceInCalendarDays(weeks[1] ?? addDays(weeks[0], 7), startOfWeek(span.end, { weekStartsOn: 1 })) / 7))
 }
 
-/** What a row's cell says to a screen reader: whose week, how many tasks, and how that sits with their capacity. */
-export function cellLabel(row: WorkloadRow, when: string, count: number): string {
+/** What a row's week says to a screen reader: whose week, how many tasks, and how that sits with what they take on that week. */
+export function cellLabel(row: WorkloadRow, week: number, when: string, count: number): string {
   const who = row.person ? row.person.user_name : "Nobody"
   const tasks = `${count} ${count === 1 ? "task" : "tasks"}`
-  if (row.capacity === null) return `${who}, ${when}: ${tasks}`
-  const load = loadOf(count, row.capacity)
-  const against = load === "over" ? `${count - row.capacity} over their ${row.capacity}` : load === "full" ? "full" : `room for ${row.capacity - count} more`
-  return `${who}, ${when}: ${tasks}, ${against}`
+  const capacity = row.capacities[week] ?? null
+  if (capacity === null) return `${who}, ${when}: ${tasks}`
+  const days = row.awayDays[week] ?? 0
+  const off = days >= 5 ? ", away all week" : days > 0 ? `, away ${days} ${days === 1 ? "day" : "days"}` : ""
+  const load = loadOf(count, capacity)
+  const against = load === "over" ? `${count - capacity} over their ${capacity}` : load === "full" ? "full" : `room for ${capacity - count} more`
+  return `${who}, ${when}: ${tasks}${off}, ${against}`
 }

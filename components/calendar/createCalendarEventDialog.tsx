@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { wholeDays } from "@/lib/timeOff";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DateAndTimePicker } from "@/components/dateAndTimePicker/dateAndTimePicker";
 import { PeoplePicker, type PickedPerson } from "@/components/common/peoplePicker";
 import { FindTimeSuggestions } from "@/components/calendar/findTimeSuggestions";
-import { FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
+import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import type { UserProfileInterface } from "@/types/user";
@@ -31,6 +32,7 @@ const formSchema = z.object({
     endTime: z.string().min(1, "End time is required"),
     syncToGoogleCalendar: z.boolean().default(false),
     isFocus: z.boolean().default(false),
+    isAway: z.boolean().default(false),
 }).refine((data) => new Date(data.startTime) < new Date(data.endTime), {
     message: "End time must be after start time",
     path: ["endTime"]
@@ -63,6 +65,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
             endTime: "",
             syncToGoogleCalendar: false,
             isFocus: false,
+            isAway: false,
         }
     });
 
@@ -86,6 +89,7 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                 endTime: format(initialEnd, "yyyy-MM-dd'T'HH:mm"),
                 syncToGoogleCalendar: false,
                 isFocus: false,
+                isAway: false,
             });
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,7 +110,8 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                     endTime: endTimeISO,
                     syncToGoogleCalendar: values.syncToGoogleCalendar,
                     participants: guests.map((g) => g.uuid),
-                    isFocus: values.isFocus,
+                    isFocus: values.isFocus && !values.isAway,
+                    isAway: values.isAway,
                 }
             });
             form.reset();
@@ -265,6 +270,26 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
                                         field.onChange(checked);
                                         // A block with no name yet is named for what it is.
                                         if (checked && !form.getValues("title").trim()) form.setValue("title", "Focus time");
+                                        if (checked) form.setValue("isAway", false);
+                                    }}
+                                />
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="isAway"
+                            render={({ field }) => (
+                                <AwayCheckbox
+                                    checked={field.value}
+                                    onChange={(checked) => {
+                                        field.onChange(checked);
+                                        if (!checked) return;
+                                        form.setValue("isFocus", false);
+                                        if (!form.getValues("title").trim()) form.setValue("title", "Away");
+                                        // Time off is whole days: from the start of the first to the end of the last.
+                                        const { start, end } = wholeDays(new Date(form.getValues("startTime")), new Date(form.getValues("endTime")));
+                                        form.setValue("startTime", format(start, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
+                                        form.setValue("endTime", format(end, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
                                     }}
                                 />
                             )}

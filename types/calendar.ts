@@ -12,6 +12,8 @@ export interface CalendarEventInterface {
     event_participants?: UserProfileDataInterface[];
     /** Focus time: the creator's notifications pause while it runs. */
     event_is_focus?: boolean;
+    /** Time off: the creator is away; the workload counts those working days out of their capacity. */
+    event_is_away?: boolean;
     isTask?: boolean;
 }
 
@@ -29,4 +31,5 @@ export interface CreateEventPayload {
     syncToGoogleCalendar?: boolean;
     participants?: string[];
     isFocus?: boolean;
+    isAway?: boolean;
 }

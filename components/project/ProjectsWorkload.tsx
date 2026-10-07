@@ -161,7 +161,7 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
 
   const unassignedHasWork = grid.unassigned.overdue.length + grid.unassigned.undated + grid.unassigned.weeks.reduce((n, w) => n + w.length, 0) > 0
   const rows = unassignedHasWork ? [...grid.people, grid.unassigned] : grid.people
-  const over = grid.people.filter((r) => loadOf(r.weeks[0].length, r.capacity) === "over").length
+  const over = grid.people.filter((r) => loadOf(r.weeks[0].length, r.capacities[0]) === "over").length
   const anything = rows.some((r) => r.overdue.length > 0 || r.weeks.some((w) => w.length > 0))
   // The weeks with tasks, by id; the first takes Tab until arrows move it,
   // and again when the one that had it empties.
@@ -429,9 +429,21 @@ type CellProps = {
 }
 
 function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: WorkloadTask[]; week: number; when: string }) {
-  const load = loadOf(tasks.length, row.capacity)
-  if (tasks.length === 0) return <span className="text-muted-foreground/40">·</span>
-  const capacity = row.capacity
+  const capacity = row.capacities[week] ?? null
+  const away = row.awayDays[week] ?? 0
+  const load = loadOf(tasks.length, capacity)
+  if (tasks.length === 0) {
+    // A week off says so; otherwise there's nothing to show.
+    return away >= 5 ? (
+      <span className="text-2xs text-muted-foreground" title={`${row.person?.user_name ?? "They"} are away all week`}>
+        Away
+      </span>
+    ) : (
+      <span className="text-muted-foreground/40" title={away ? `Away ${away} ${away === 1 ? "day" : "days"}` : undefined}>
+        ·
+      </span>
+    )
+  }
   return (
     <TasksPopover
       {...rest}
@@ -439,13 +451,14 @@ function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: Work
       tasks={tasks}
       week={week}
       title={when}
-      label={cellLabel(row, when, tasks.length)}
+      label={cellLabel(row, week, when, tasks.length)}
       summary={
         capacity === null ? (
           `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"} nobody has`
         ) : (
           <>
-            {tasks.length} {tasks.length === 1 ? "task" : "tasks"}, against the {capacity} they take on a week
+            {tasks.length} {tasks.length === 1 ? "task" : "tasks"}, against the {capacity} they take on{" "}
+            {away > 0 ? `this week, away ${away >= 5 ? "all week" : `${away} ${away === 1 ? "day" : "days"}`}` : "a week"}
             {load === "over" && <span className="font-medium text-destructive">: {tasks.length - capacity} too many</span>}
           </>
         )
@@ -456,6 +469,11 @@ function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: Work
     >
       {load === "over" && <AlertTriangle aria-hidden className="h-3 w-3" />}
       {tasks.length}
+      {away > 0 && (
+        <span aria-hidden className="absolute right-0.5 top-0 text-3xs font-normal text-muted-foreground">
+          {away >= 5 ? "off" : `−${away}d`}
+        </span>
+      )}
     </TasksPopover>
   )
 }
@@ -618,7 +636,11 @@ function GiveTo({ t, week, people, onGive }: { t: WorkloadTask; week: number; pe
   const candidates = people
     .filter((r) => r.person && r.person.user_uuid !== t.assignee_uuid && r.person.project_uuids.includes(t.project_uuid))
     .map((r) => ({ r, n: r.weeks[week]?.length ?? 0 }))
-    .sort((a, b) => a.n / Math.max(1, a.r.capacity ?? 1) - b.n / Math.max(1, b.r.capacity ?? 1) || a.r.person!.user_name.localeCompare(b.r.person!.user_name))
+    .sort(
+      (a, b) =>
+        a.n / Math.max(0.5, a.r.capacities[week] ?? 1) - b.n / Math.max(0.5, b.r.capacities[week] ?? 1) ||
+        a.r.person!.user_name.localeCompare(b.r.person!.user_name),
+    )
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -633,7 +655,8 @@ function GiveTo({ t, week, people, onGive }: { t: WorkloadTask; week: number; pe
             <CommandEmpty>No one in its project by that name.</CommandEmpty>
             <CommandGroup>
               {candidates.map(({ r, n }) => {
-                const load = loadOf(n, r.capacity)
+                const cap = r.capacities[week] ?? null
+                const load = loadOf(n, cap)
                 return (
                   <CommandItem
                     key={r.key}
@@ -650,7 +673,7 @@ function GiveTo({ t, week, people, onGive }: { t: WorkloadTask; week: number; pe
                         load === "over" ? "text-destructive" : load === "full" ? "text-foreground" : "text-muted-foreground",
                       )}
                     >
-                      {n}/{r.capacity}
+                      {(r.awayDays[week] ?? 0) >= 5 ? "away" : `${n}/${cap}`}
                     </span>
                   </CommandItem>
                 )

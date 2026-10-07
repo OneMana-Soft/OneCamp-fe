@@ -180,6 +180,22 @@ describe("workloadRows", () => {
     expect(moved?.person?.project_uuids.includes("p1")).toBe(false)
   })
 
+  it("takes time off out of the weeks it falls in", () => {
+    const { people } = workloadRows(
+      { ...data([person("alice"), person("bob")], [task("1", { assignee_uuid: "bob", task_due_date: iso(2026, 10, 13, 17) })]), away: [
+        // Bob is away Monday to Wednesday of next week, Alice all of the week after.
+        { user_uuid: "bob", start: local(2026, 10, 12).toISOString(), end: local(2026, 10, 15).toISOString() },
+        { user_uuid: "alice", start: local(2026, 10, 17).toISOString(), end: local(2026, 10, 26).toISOString() },
+      ] },
+      weeks,
+    )
+    const bob = people.find((r) => r.key === "bob")!
+    const alice = people.find((r) => r.key === "alice")!
+    expect(bob.awayDays).toEqual([0, 3, 0, 0])
+    expect(bob.capacities).toEqual([5, 2, 5, 5])
+    expect(alice.capacities).toEqual([5, 5, 0, 5])
+  })
+
   it("puts the busiest against their capacity first", () => {
     const due = iso(2026, 10, 8, 17)
     const { people } = workloadRows(
@@ -215,15 +231,18 @@ describe("how full a week is", () => {
       key: "a",
       person: person("Alice", { capacity: 3 }),
       capacity: 3,
+      awayDays: [0, 0, 0, 2],
+      capacities: [3, 3, 3, 2],
       overdue: [],
       weeks: [],
       undated: 0,
       peak: 0,
     }
-    expect(cellLabel(row, "this week", 4)).toBe("Alice, this week: 4 tasks, 1 over their 3")
-    expect(cellLabel(row, "next week", 3)).toBe("Alice, next week: 3 tasks, full")
-    expect(cellLabel(row, "19 Oct", 1)).toBe("Alice, 19 Oct: 1 task, room for 2 more")
-    expect(cellLabel({ ...row, person: null, capacity: null }, "this week", 2)).toBe("Nobody, this week: 2 tasks")
+    expect(cellLabel(row, 0, "this week", 4)).toBe("Alice, this week: 4 tasks, 1 over their 3")
+    expect(cellLabel(row, 1, "next week", 3)).toBe("Alice, next week: 3 tasks, full")
+    expect(cellLabel(row, 2, "19 Oct", 1)).toBe("Alice, 19 Oct: 1 task, room for 2 more")
+    expect(cellLabel(row, 3, "26 Oct", 2)).toBe("Alice, 26 Oct: 2 tasks, away 2 days, full")
+    expect(cellLabel({ ...row, person: null, capacity: null, capacities: [null] }, 0, "this week", 2)).toBe("Nobody, this week: 2 tasks")
   })
 })
 

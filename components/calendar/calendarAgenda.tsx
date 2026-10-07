@@ -1,6 +1,6 @@
 "use client";
 
-import { format, isSameDay, isToday, isTomorrow, parseISO } from "date-fns";
+import { format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
 import { Calendar as CalendarIcon, ChevronRight, Plus } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -17,6 +17,7 @@ interface AgendaItem {
   event_end_time: string;
   isTask?: boolean;
   event_is_focus?: boolean;
+  event_is_away?: boolean;
 }
 
 function dayLabel(day: Date): string {
@@ -30,6 +31,7 @@ function itemDetail(item: AgendaItem, day: Date): string {
   const end = parseISO(item.event_end_time);
   // A task sits under its due day, so the heading already says when.
   if (item.isTask) return isSameDay(end, day) ? "Task due" : `Task · due ${format(end, "d MMM")}`;
+  if (item.event_is_away) return isSameDay(start, day) ? `Away until ${format(subMinutes(end, 1), "d MMM")}` : "Away";
   if (item.event_is_focus) return `Focus time · ${format(start, "h:mm a")} – ${format(end, "h:mm a")}`;
   if (!isSameDay(start, day)) return "Continues";
   return `${format(start, "h:mm a")} – ${format(end, "h:mm a")}`;
@@ -86,7 +88,7 @@ export function CalendarAgenda({
                     aria-hidden
                     className={cn(
                       "h-9 w-1 shrink-0 rounded-full",
-                      calendarTone({ isTask: item.isTask, isFocus: item.event_is_focus }).solid,
+                      calendarTone({ isTask: item.isTask, isFocus: item.event_is_focus, isAway: item.event_is_away }).solid,
                     )}
                   />
                   <span className="min-w-0 flex-1">
