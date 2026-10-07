@@ -164,6 +164,22 @@ describe("workloadRows", () => {
     expect(people[0].undated).toBe(3)
   })
 
+  it("gives a row to someone with a task in a project they've since left, and hands tasks only to those in it", () => {
+    const { people } = workloadRows(
+      data(
+        [person("alice"), person("moved", { project_uuids: [] })],
+        [task("handover", { assignee_uuid: "moved", task_due_date: iso(2026, 10, 8, 17) })],
+        [{ project_uuid: "p1", user_uuid: "moved", count: 2 }],
+      ),
+      weeks,
+      new Set(["p1"]),
+    )
+    const moved = people.find((r) => r.key === "moved")
+    expect(moved?.weeks[0].map((t) => t.task_uuid)).toEqual(["handover"])
+    expect(moved?.undated).toBe(2)
+    expect(moved?.person?.project_uuids.includes("p1")).toBe(false)
+  })
+
   it("puts the busiest against their capacity first", () => {
     const due = iso(2026, 10, 8, 17)
     const { people } = workloadRows(
