@@ -133,11 +133,20 @@ export function ProjectsOverview() {
   const [sort, setSort] = useStoredState<OverviewSort>("oc_projects_sort", "name", isSort)
   const [filter, setFilter] = useStoredState<OverviewFilter>("oc_projects_filter", "all", isFilter)
   const [view, setView] = useStoredState<OverviewView>("oc_projects_view", "table", isView)
-  // ?view= opens a view (a demo link, a doc), and it's remembered like a choice.
-  const asked = useSearchParams().get("view")
+  // ?view= opens a view (a demo link, a doc, Go to Workload), and it's
+  // remembered like a choice. Choosing one puts it in the address, so the
+  // link can be shared and asking for a view again always lands on it.
+  const params = useSearchParams()
+  const asked = params.get("view")
   useEffect(() => {
     if (isView(asked)) setView(asked)
   }, [asked, setView])
+  const choose = (v: OverviewView) => {
+    setView(v)
+    const next = new URLSearchParams(params.toString())
+    next.set("view", v)
+    router.replace(`?${next.toString()}`, { scroll: false })
+  }
 
   const all = useMemo(() => projects ?? [], [projects])
   const shown = useMemo(() => sortOverview(filterOverview(all, { query, filter }), sort), [all, query, filter, sort])
@@ -236,7 +245,7 @@ export function ProjectsOverview() {
     <div className={cn("flex flex-wrap items-center gap-2", isDesktop ? "px-4 pt-4" : "px-0 pb-1")}>
       <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "w-80 shrink-0" : "w-full"} />
       <div className={cn("flex flex-wrap items-center gap-2", !isDesktop && "px-3")}>
-        <ToggleGroup type="single" size="sm" value={view} onValueChange={(v) => isView(v) && setView(v)} aria-label="View as" className="rounded-md border p-0.5">
+        <ToggleGroup type="single" size="sm" value={view} onValueChange={(v) => isView(v) && choose(v)} aria-label="View as" className="rounded-md border p-0.5">
           <ToggleGroupItem value="table" className="h-7 px-2.5 text-xs">
             {isDesktop ? "Table" : "List"}
           </ToggleGroupItem>
