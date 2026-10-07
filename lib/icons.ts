@@ -19,6 +19,8 @@
 
 // ─── Navigation ─────────────────────────────────────────────
 export { ArrowLeftRight, Columns2 } from "lucide-react";
+// A project's timeline tab, and its Unscheduled list.
+export { ChartGantt, CalendarOff, CirclePlus } from "lucide-react";
 export {
   Home,
   Hash,

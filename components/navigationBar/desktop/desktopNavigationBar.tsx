@@ -250,6 +250,13 @@ export function DesktopNavigationBar({
         [railNavLinks, moreNavLinks],
     );
 
+    // Every project at a glance (ProjectsOverview), as Docs opens with All docs.
+    projectNavGrp.push({
+        title: "All projects",
+        path: app_project_path,
+        variant: (path.length === 3 && path[2] == 'project') ? "sidebarActive" : "ghost",
+        icon: ClipboardList,
+    })
     for (const p of (userSidebarState.userProjects || []).filter(Boolean)) {
         projectNavGrp.push({
             title: p.project_name,

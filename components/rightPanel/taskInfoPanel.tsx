@@ -440,10 +440,12 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         taskId: id,
                         value: startDate
                     }))
-                    // No list revalidation: start date doesn't affect columns or filters.
+                    // The board, the list and the timeline show it at once; no
+                    // refetch, as a start date moves no card between columns.
+                    optimisticUpdateTask({ task_uuid: id, task_start_date: startDate }, taskInfo.data!.data.task_project.project_uuid)
                 })
         },
-        [post, taskInfo, dispatch],
+        [post, taskInfo, dispatch, optimisticUpdateTask],
     )
 
     const updateTaskDueDate = useCallback(
@@ -465,10 +467,12 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         taskId: id,
                         value: dueDate
                     }))
-                    // No list revalidation: due date doesn't affect columns or filters.
+                    // The board, the list and the timeline show it at once; no
+                    // refetch, as a due date moves no card between columns.
+                    optimisticUpdateTask({ task_uuid: id, task_due_date: dueDate }, taskInfo.data!.data.task_project.project_uuid)
                 })
         },
-        [post, taskInfo, dispatch],
+        [post, taskInfo, dispatch, optimisticUpdateTask],
     )
 
     const updateTaskAssignee = useCallback(
