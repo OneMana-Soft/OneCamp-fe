@@ -116,6 +116,8 @@
   "addAttachmentToProject_other": "S'han afegit {{count}} arxius al projecte",
   "failedToAddAttachmentToProject": "No s'ha pogut afegir l'adjunt al projecte",
   "removedAttachment": "L'arxiu ha estat eliminat",
+  "addedTaskDependency": "S'ha afegit una dependència",
+  "removedTaskDependency": "S'ha eliminat una dependència",
   "failedToRemoveAttachment": "No s'ha pogut eliminar l'arxiu",
   "updatedTaskStatus": "Estat de la tasca actualitzat",
   "failedToUpdateTaskStatus": "No s'ha pogut actualitzar l'estat de la tasca",

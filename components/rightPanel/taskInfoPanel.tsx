@@ -72,6 +72,7 @@ import GitHubActivityTab from "@/components/task/GitHubActivityTab"
 import {ColorIcon} from "@/components/colorIcon/colorIcon"
 import type {AttachmentMediaReq} from "@/types/attachment"
 import {SubtasksSection} from "@/components/task/subtasksSection"
+import {TaskDependencies} from "@/components/task/TaskDependencies"
 import {useRouter} from "next/navigation"
 import {app_project_path, app_task_path, app_team_path} from "@/types/paths"
 import {useMedia} from "@/context/MediaQueryContext"
@@ -1177,6 +1178,18 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
 
                     {taskUUID && (
                         <LinkedItemsSection sourceType="task" sourceUUID={taskUUID} canEdit={isAdmin} />
+                    )}
+
+                    {/* A project's top-level tasks wait on one another; subtasks are steps inside a task. */}
+                    {taskUUID && taskInfo.data?.data.task_project?.project_uuid && !taskInfo.data.data.task_parent_task?.task_uuid && (
+                        <TaskDependencies
+                            taskUUID={taskUUID}
+                            projectUUID={taskInfo.data.data.task_project.project_uuid}
+                            canEdit={isAdmin}
+                            waitingOn={taskInfo.data.data.task_blocked_by ?? []}
+                            blocking={taskInfo.data.data.task_blocks ?? []}
+                            onOpen={handleChangeTask}
+                        />
                     )}
 
                     <SubtasksSection

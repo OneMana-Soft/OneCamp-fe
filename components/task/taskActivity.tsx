@@ -21,7 +21,10 @@ export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskA
 
     const {t} = useTranslation()
 
-
+    // A kind of change this build doesn't know (a newer server's) is left
+    // out rather than taking the whole history down with it.
+    const phrase = taskActivityConst[taskActivity.activity_type]?.key
+    if (!phrase) return null
 
     return (
 
@@ -36,7 +39,7 @@ export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskA
             <div className="flex-1 pt-2">
                 <p className="text-sm ">
                     <span className="font-medium hover:underline cursor-pointer" onClick={()=>{openOtherUserProfile(taskActivity.activity_by.user_uuid)}}>{taskActivity.activity_by.user_name}</span>{" "}
-                    {t(taskActivityConst[taskActivity.activity_type].key)}.{" "}
+                    {t(phrase)}.{" "}
                     <span className="text-muted-foreground">{formatTimeForPostOrComment(taskActivity.activity_time)}</span>
                 </p>
             </div>

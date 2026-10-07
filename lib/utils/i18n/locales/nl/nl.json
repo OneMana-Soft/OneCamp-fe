@@ -116,6 +116,8 @@
   "addAttachmentToProject_other": "Voeg {{count}} bestanden toe aan project",
   "failedToAddAttachmentToProject": "Bestanden bijvoegen bij project mislukt",
   "removedAttachment": "Bestand verwijderd",
+  "addedTaskDependency": "Afhankelijkheid toegevoegd",
+  "removedTaskDependency": "Afhankelijkheid verwijderd",
   "failedToRemoveAttachment": "Bestand verwijderen mislukt",
   "updatedTaskStatus": "Taakstatus bijgewerkt",
   "failedToUpdateTaskStatus": "Taakstatus bijwerken mislukt",

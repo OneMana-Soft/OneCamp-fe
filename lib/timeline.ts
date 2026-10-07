@@ -34,6 +34,10 @@ export interface TimelineTask extends TaskStatusFields {
   task_created_at?: string
   task_assignee?: { user_uuid: string; user_name?: string; user_full_name?: string; user_profile_object_key?: string } | null
   task_sub_task_count?: number
+  /** The tasks it waits on: it can start once they are done. */
+  task_blocked_by?: { task_uuid: string }[]
+  /** How many of those are still open. */
+  task_blocked_open?: number
 }
 
 /** GET /project/{id}/timeline */
@@ -304,6 +308,65 @@ export function headerTicks(range: Range, zoom: Zoom, dayWidth: number): { top: 
 }
 
 // ---- Rows --------------------------------------------------------------------
+
+// ---- Dependencies ------------------------------------------------------------
+
+/** A dependency as the timeline draws it: an arrow from the end of the task waited on to the start of the task waiting. */
+export interface DependencyLink {
+  key: string
+  /** The task waited on. */
+  from: string
+  /** The task waiting. */
+  to: string
+  /** An SVG path in the grid's own pixels. */
+  path: string
+  /** The waiting task starts before the other is done, so the plan can't be kept as it stands. */
+  broken: boolean
+}
+
+/** How far an arrow runs out of a bar before it turns. */
+const STUB = 8
+
+/**
+ * The arrows for every dependency whose two tasks both have a row (a task in
+ * a folded group, hidden as done or without dates has none). Rows are all
+ * rowHeight tall; spans gives a bar's days where they aren't its row's own,
+ * as while it's being dragged.
+ */
+export function dependencyLinks(
+  rows: TimelineRow[],
+  range: Range,
+  dayWidth: number,
+  rowHeight: number,
+  spans: ReadonlyMap<string, Span> = new Map(),
+): DependencyLink[] {
+  const at = new Map<string, { row: number; span: Span }>()
+  rows.forEach((r, i) => {
+    if (r.kind === "task") at.set(r.task.task_uuid, { row: i, span: spans.get(r.task.task_uuid) ?? r.span })
+  })
+  const out: DependencyLink[] = []
+  for (const [to, waiting] of at) {
+    const task = (rows[waiting.row] as Extract<TimelineRow, { kind: "task" }>).task
+    for (const b of task.task_blocked_by ?? []) {
+      const blocker = at.get(b.task_uuid)
+      if (!blocker) continue
+      const a = barBox(blocker.span, range, dayWidth)
+      const z = barBox(waiting.span, range, dayWidth)
+      const x1 = a.left + a.width
+      const y1 = blocker.row * rowHeight + rowHeight / 2
+      const x2 = z.left
+      const y2 = waiting.row * rowHeight + rowHeight / 2
+      // Room to turn once between the bars: out, down (or up), across.
+      // Otherwise the arrow goes round, along the edge between the rows.
+      const path =
+        x2 - x1 >= 2 * STUB
+          ? `M${x1} ${y1}H${x1 + STUB}V${y2}H${x2}`
+          : `M${x1} ${y1}H${x1 + STUB}V${y2 - Math.sign(y2 - y1) * (rowHeight / 2)}H${x2 - STUB}V${y2}H${x2}`
+      out.push({ key: `${b.task_uuid}>${to}`, from: b.task_uuid, to, path, broken: waiting.span.start <= blocker.span.end })
+    }
+  }
+  return out
+}
 
 export type Grouping = "status" | "assignee" | "none"
 export const GROUPINGS: { value: Grouping; label: string }[] = [

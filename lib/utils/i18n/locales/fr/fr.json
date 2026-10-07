@@ -116,6 +116,8 @@
   "addAttachmentToProject_other": "Ajouter {{count}} fichiers au projet",
   "failedToAddAttachmentToProject": "Échec de l'ajout du fichier au projet",
   "removedAttachment": "Pièce jointe supprimée",
+  "addedTaskDependency": "Dépendance ajoutée",
+  "removedTaskDependency": "Dépendance supprimée",
   "failedToRemoveAttachment": "Échec de la suppression de la pièce jointe",
   "updatedTaskStatus": "Statut de la tâche mis à jour",
   "failedToUpdateTaskStatus": "Échec de la mise à jour du statut de la tâche",

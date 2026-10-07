@@ -7,12 +7,28 @@ import { useTaskUpdate } from "@/hooks/useTaskUpdate"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { appMutate } from "@/lib/swrMutate"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { browserTZ } from "@/lib/utils/timeZone"
 import { timelineKey } from "@/lib/timelineKey"
 import type { TaskDates, TimelineData, TimelineTask } from "@/lib/timeline"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 /** How long the keyboard waits after the last nudge before saving, so a run of presses is one change. */
 const NUDGE_SAVE_MS = 700
+
+/** A task the server moved because a task it waits on moved (business.ShiftDependents). */
+interface Shifted {
+  task_uuid: string
+  task_start_date?: string
+  task_due_date?: string
+}
+
+/** How a move is saved. */
+export interface MoveOptions {
+  /** Wait for a pause before saving: the keyboard's one-day nudges. */
+  later?: boolean
+  /** Move the tasks waiting on it along, as far as they must. */
+  shift?: boolean
+}
 
 /** The open task's panel, when it's this task: it shows the new dates too. */
 function patchTaskPanel(taskUUID: string, dates: TaskDates) {
@@ -54,13 +70,26 @@ export function useProjectTimeline(projectId: string) {
   )
 
   const save = useCallback(
-    (id: string, dates: TaskDates, version: number) => {
+    (id: string, dates: TaskDates, version: number, shift: boolean) => {
       // Only the last move of a task settles it; an earlier one's answer is old news.
       const latest = () => versions.current.get(id) === version
       const done = (queues.current.get(id) ?? Promise.resolve())
-        .then(() => axiosInstance.post(PostEndpointUrl.UpdateTaskDates, { task_uuid: id, ...dates }, OWN_ERRORS))
+        .then(() =>
+          axiosInstance.post<{ data?: { shifted?: Shifted[] } }>(
+            PostEndpointUrl.UpdateTaskDates,
+            { task_uuid: id, ...dates, shift_dependents: shift, tz: browserTZ() },
+            OWN_ERRORS,
+          ),
+        )
         .then(
-          () => {
+          (res) => {
+            // The tasks waiting on it that moved along, in order, each to its new days.
+            for (const s of res.data?.data?.shifted ?? []) {
+              const patch: { task_uuid: string; task_start_date?: string; task_due_date?: string } = { task_uuid: s.task_uuid }
+              if (s.task_start_date) patch.task_start_date = s.task_start_date
+              if (s.task_due_date) patch.task_due_date = s.task_due_date
+              optimisticUpdateTask(patch, projectId)
+            }
             if (!latest()) return
             // A fetch that started before the save may have put the old dates in the cache.
             optimisticUpdateTask({ task_uuid: id, ...dates }, projectId)
@@ -83,12 +112,9 @@ export function useProjectTimeline(projectId: string) {
     [optimisticUpdateTask, revalidateTaskKeys, projectId, settle],
   )
 
-  /**
-   * Give a task new dates. later waits for a pause before saving, for the
-   * keyboard's one-day nudges; a drag saves at once.
-   */
+  /** Give a task new dates (see MoveOptions). A drag saves at once. */
   const reschedule = useCallback(
-    (task: Pick<TimelineTask, "task_uuid">, dates: TaskDates, later = false) => {
+    (task: Pick<TimelineTask, "task_uuid">, dates: TaskDates, { later = false, shift = false }: MoveOptions = {}) => {
       const id = task.task_uuid
       const version = (versions.current.get(id) ?? 0) + 1
       versions.current.set(id, version)
@@ -98,10 +124,10 @@ export function useProjectTimeline(projectId: string) {
       const pending = waiting.current.get(id)
       if (pending) clearTimeout(pending.timer)
       waiting.current.delete(id)
-      if (!later) return save(id, dates, version)
+      if (!later) return save(id, dates, version, shift)
       const run = () => {
         waiting.current.delete(id)
-        void save(id, dates, version)
+        void save(id, dates, version, shift)
       }
       waiting.current.set(id, { timer: setTimeout(run, NUDGE_SAVE_MS), run })
     },

@@ -116,6 +116,8 @@
   "addAttachmentToProject_other": "Gehitu {{count}} fitxategiak proiektura",
   "failedToAddAttachmentToProject": "Ez da fitxategia proiektura gehitu",
   "removedAttachment": "Fitxategia kendu da",
+  "addedTaskDependency": "Mendekotasuna gehitu da",
+  "removedTaskDependency": "Mendekotasuna kendu da",
   "failedToRemoveAttachment": "Ez da fitxategia kendu",
   "updatedTaskStatus": "Eginkizunaren egoera eguneratu da",
   "failedToUpdateTaskStatus": "Ez da eginkizunaren egoera eguneratu",

@@ -116,6 +116,8 @@
   "addAttachmentToProject_other": "Дададзена {{count}} файлаў да праекта",
   "failedToAddAttachmentToProject": "Не атрымалася дадаць файлы да праекта",
   "removedAttachment": "Файл выдалены",
+  "addedTaskDependency": "Дададзена залежнасць",
+  "removedTaskDependency": "Залежнасць выдалена",
   "failedToRemoveAttachment": "Не атрымалася выдаліць файл",
   "updatedTaskStatus": "Абноўлены статус задачы",
   "failedToUpdateTaskStatus": "Не атрымалася абнавіць статус задачы",

@@ -116,6 +116,8 @@
   "addAttachmentToProject_other": "Lisää {{count}} tiedostoa projektiin",
   "failedToAddAttachmentToProject": "Tiedostoa ei voitu lisätä projektiin",
   "removedAttachment": "Tiedosto poistettu",
+  "addedTaskDependency": "Riippuvuus lisätty",
+  "removedTaskDependency": "Riippuvuus poistettu",
   "failedToRemoveAttachment": "Tiedostoa ei voitu poistaa",
   "updatedTaskStatus": "Tehtävän tila päivitetty",
   "failedToUpdateTaskStatus": "Tehtävän tilaa ei voitu päivittää",

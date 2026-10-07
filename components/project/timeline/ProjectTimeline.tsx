@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectTimeline } from "@/hooks/useProjectTimeline"
+import { useTaskDependencies } from "@/hooks/useTaskDependencies"
 import { useStoredState } from "@/hooks/useStoredState"
 import { CalendarOff, ChartGantt, ChevronDown, ChevronRight, CirclePlus } from "@/lib/icons"
 import {
@@ -31,6 +32,7 @@ import {
   barBox,
   barColor,
   dotColor,
+  dependencyLinks,
   datesAfter,
   datesForDrop,
   dayAt,
@@ -128,12 +130,18 @@ export function ProjectTimeline({
   const [zoom, setZoom, zoomReady] = useStoredState<Zoom>(`oc_timeline_zoom:${key}`, "week", isZoom)
   const [grouping, setGrouping] = useStoredState<Grouping>(`oc_timeline_grouping:${key}`, "status", isGrouping)
   const [showDone, setShowDone] = useStoredState<boolean>(`oc_timeline_done:${key}`, true, isBool)
+  // Moving a task later moves the tasks waiting on it along (monday's "flexible").
+  const [shiftAlong, setShiftAlong] = useStoredState<boolean>(`oc_timeline_shift:${key}`, true, isBool)
+  const setDependency = useTaskDependencies(given ? "" : projectId)
   const [sideOpen, setSideOpen] = useStoredState<boolean>(compact ? undefined : "oc_timeline_unscheduled", !compact, isBool)
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [today] = useState(() => startOfDay(new Date()))
   const [preview, setPreview] = useState<{ id: string; kind: EditKind; days: number } | null>(null)
   const [dropDay, setDropDay] = useState<Date | null>(null)
+  // A dependency being drawn: from a bar's end handle to the pointer, and the bar it would end on.
+  const [linking, setLinking] = useState<{ from: string; x1: number; y1: number; x2: number; y2: number; target: string | null } | null>(null)
   const helpId = useId()
+  const markerId = `dep${helpId.replace(/[^A-Za-z0-9]/g, "")}`
 
   const canEdit = !!data?.can_edit && !compact
   const dayWidth = DAY_WIDTH[zoom]
@@ -155,6 +163,16 @@ export function ProjectTimeline({
     overscan: 12,
     scrollMargin: HEADER_HEIGHT,
   })
+
+  // Every dependency between two drawn bars, a bar being dragged where it's going.
+  const links = useMemo(() => {
+    let moving: Map<string, ReturnType<typeof applyEdit>> | undefined
+    if (preview) {
+      const row = rows.find((r) => r.kind === "task" && r.task.task_uuid === preview.id)
+      if (row?.kind === "task") moving = new Map([[preview.id, applyEdit(row.span, preview)]])
+    }
+    return dependencyLinks(rows, range, dayWidth, ROW_HEIGHT, moving)
+  }, [rows, range, dayWidth, preview])
 
   // ---- Keeping the same days in view -----------------------------------------
   // The day in the middle of the view, kept there when the zoom changes, the
@@ -208,13 +226,15 @@ export function ProjectTimeline({
   // Rows are in date order, so a moved task can change places; its bar is
   // found again and kept in view (clear of the names and the header: the
   // scroll container's scroll padding).
-  const follow = useRef<string | null>(null)
+  // The keyboard's moves take focus along; a mouse's only keep the bar in view.
+  const follow = useRef<{ id: string; focus: boolean } | null>(null)
   useLayoutEffect(() => {
-    const id = follow.current
-    if (!id) return
+    const wanted = follow.current
+    if (!wanted) return
+    const id = wanted.id
     const bar = scrollRef.current?.querySelector<HTMLElement>(`[data-bar="${CSS.escape(id)}"]`)
     if (bar) {
-      if (document.activeElement !== bar) bar.focus({ preventScroll: true })
+      if (wanted.focus && document.activeElement !== bar) bar.focus({ preventScroll: true })
       bar.scrollIntoView({ block: "nearest", inline: "nearest" })
       follow.current = null
       return
@@ -275,8 +295,8 @@ export function ProjectTimeline({
         if (d.moved || !save) swallowNextClick()
         const next = save && d.moved ? datesAfter(d.task, { kind: d.kind, days: d.days }) : null
         if (next) {
-          follow.current = d.task.task_uuid
-          void reschedule(d.task, next)
+          follow.current = { id: d.task.task_uuid, focus: false }
+          void reschedule(d.task, next, { shift: shiftAlong })
         }
       }
       const up = () => finish(true)
@@ -293,7 +313,60 @@ export function ProjectTimeline({
       window.addEventListener("keydown", escape, true)
       d.frame = requestAnimationFrame(edgeScroll)
     },
-    [canEdit, dayWidth, nameWidth, reschedule],
+    [canEdit, dayWidth, nameWidth, reschedule, shiftAlong],
+  )
+
+  // ---- Drawing a dependency --------------------------------------------------------
+  // From the handle at a bar's end to the bar of the task that waits on it,
+  // as Linear and ClickUp draw them. The keyboard's way is the task's panel.
+  const onLinkStart = useCallback(
+    (e: PointerEvent, task: TimelineTask) => {
+      if (!canEdit || e.button !== 0 || e.pointerType === "touch" || isPending(task)) return
+      e.preventDefault()
+      e.stopPropagation()
+      const body = bodyRef.current
+      const bar = (e.currentTarget as HTMLElement).closest<HTMLElement>("[data-bar]")
+      if (!body || !bar) return
+      const local = (x: number, y: number) => {
+        const box = body.getBoundingClientRect()
+        return { x: x - box.left - nameWidth, y: y - box.top }
+      }
+      const b = bar.getBoundingClientRect()
+      const start = local(b.right, b.top + b.height / 2)
+      const targetAt = (x: number, y: number) => {
+        const id = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-bar]")?.dataset.bar ?? null
+        return id && id !== task.task_uuid && !id.startsWith("temp-") ? id : null
+      }
+      setLinking({ from: task.task_uuid, x1: start.x, y1: start.y, x2: start.x, y2: start.y, target: null })
+      const move = (ev: globalThis.PointerEvent) => {
+        const p = local(ev.clientX, ev.clientY)
+        const target = targetAt(ev.clientX, ev.clientY)
+        setLinking((l) => (l ? { ...l, x2: p.x, y2: p.y, target } : l))
+      }
+      const finish = (ev: globalThis.PointerEvent | null) => {
+        window.removeEventListener("pointermove", move)
+        window.removeEventListener("pointerup", up)
+        window.removeEventListener("pointercancel", cancel)
+        window.removeEventListener("keydown", escape, true)
+        setLinking(null)
+        swallowNextClick()
+        const target = ev ? targetAt(ev.clientX, ev.clientY) : null
+        if (target) void setDependency(target, task.task_uuid)
+      }
+      const up = (ev: globalThis.PointerEvent) => finish(ev)
+      const cancel = () => finish(null)
+      const escape = (ev: globalThis.KeyboardEvent) => {
+        if (ev.key !== "Escape") return
+        ev.preventDefault()
+        ev.stopPropagation()
+        finish(null)
+      }
+      window.addEventListener("pointermove", move)
+      window.addEventListener("pointerup", up)
+      window.addEventListener("pointercancel", cancel)
+      window.addEventListener("keydown", escape, true)
+    },
+    [canEdit, nameWidth, setDependency],
   )
 
   const onBarClick = useCallback(
@@ -316,10 +389,10 @@ export function ProjectTimeline({
       e.preventDefault()
       const next = datesAfter(task, { kind: e.shiftKey ? "end" : "move", days: e.key === "ArrowLeft" ? -1 : 1 })
       if (!next) return
-      follow.current = task.task_uuid
-      void reschedule(task, next, true)
+      follow.current = { id: task.task_uuid, focus: true }
+      void reschedule(task, next, { later: true, shift: shiftAlong })
     },
-    [canEdit, onOpenTask, reschedule],
+    [canEdit, onOpenTask, reschedule, shiftAlong],
   )
 
   // ---- Dropping a task with no dates on a day ------------------------------------
@@ -345,8 +418,8 @@ export function ProjectTimeline({
     const task = unscheduled.find((t) => t.task_uuid === id)
     if (!canEdit || !task || !day) return
     e.preventDefault()
-    follow.current = task.task_uuid
-    void reschedule(task, datesForDrop(day))
+    follow.current = { id: task.task_uuid, focus: false }
+    void reschedule(task, datesForDrop(day), { shift: shiftAlong })
   }
 
   const toggleGroup = (id: string) =>
@@ -451,6 +524,11 @@ export function ProjectTimeline({
               <DropdownMenuCheckboxItem checked={showDone} onCheckedChange={(v) => setShowDone(Boolean(v))}>
                 Show done tasks
               </DropdownMenuCheckboxItem>
+              {canEdit && (
+                <DropdownMenuCheckboxItem checked={shiftAlong} onCheckedChange={(v) => setShiftAlong(Boolean(v))}>
+                  Move waiting tasks along
+                </DropdownMenuCheckboxItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
@@ -503,6 +581,33 @@ export function ProjectTimeline({
                 <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-primary/70" style={{ left: todayLeft + dayWidth / 2 }} />
               )}
             </div>
+
+            {/* Dependencies: arrows from the end of a task to the start of the one waiting on it, red where the plan can't be kept. */}
+            {(links.length > 0 || linking) && (
+              <svg aria-hidden className="pointer-events-none absolute top-0 overflow-visible" style={{ left: nameWidth, width: gridWidth, height: "100%" }}>
+                <defs>
+                  <marker id={`${markerId}-ok`} viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 z" className="fill-muted-foreground" />
+                  </marker>
+                  <marker id={`${markerId}-broken`} viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 z" className="fill-destructive" />
+                  </marker>
+                </defs>
+                {links.map((l) => (
+                  <path
+                    key={l.key}
+                    d={l.path}
+                    fill="none"
+                    strokeWidth={1.5}
+                    className={l.broken ? "stroke-destructive" : "stroke-muted-foreground/60"}
+                    markerEnd={`url(#${markerId}-${l.broken ? "broken" : "ok"})`}
+                  />
+                ))}
+                {linking && (
+                  <path d={`M${linking.x1} ${linking.y1}L${linking.x2} ${linking.y2}`} fill="none" strokeWidth={1.5} strokeDasharray="4 3" className="stroke-primary" />
+                )}
+              </svg>
+            )}
 
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]
@@ -559,6 +664,9 @@ export function ProjectTimeline({
                       done={done}
                       canEdit={canEdit && !isPending(task)}
                       stickAt={nameWidth + 4}
+                      blocked={task.task_blocked_open ?? 0}
+                      onLinkStart={given ? undefined : onLinkStart}
+                      linkTarget={linking?.target === task.task_uuid}
                       helpId={helpId}
                       onPointerDown={onBarPointerDown}
                       onKeyDown={onBarKeyDown}
@@ -589,7 +697,8 @@ export function ProjectTimeline({
       </div>
 
       <p id={helpId} className="sr-only">
-        Left and right arrows move the task a day. Shift with an arrow changes when it&apos;s due. Enter opens it.
+        Left and right arrows move the task a day. Shift with an arrow changes when it&apos;s due. Enter opens it, and its
+        panel sets what it waits on.
       </p>
     </div>
   )

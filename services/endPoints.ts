@@ -475,8 +475,12 @@ export enum PostEndpointUrl {
     UpdateTaskDesc = "/task/updateTaskDesc",
     UpdateTaskStartDate = "/task/updateTaskStartDate",
     UpdateTaskDueDate = "/task/updateTaskDueDate",
-    // Both dates at once, as the timeline moves a task: {task_uuid, task_start_date, task_due_date}
+    // Both dates at once, as the timeline moves a task: {task_uuid, task_start_date,
+    // task_due_date, shift_dependents, tz}; answers {shifted: [...]}
     UpdateTaskDates = "/task/updateTaskDates",
+    // A task waits on another of its project: {task_uuid, blocked_by_uuid}
+    AddTaskDependency = "/task/dependency",
+    RemoveTaskDependency = "/task/dependency/delete",
     SetTaskRecurrence = "/task/recurrence",
     SetTaskCycle = "/task/cycle",
     SaveTaskView = "/task/views",

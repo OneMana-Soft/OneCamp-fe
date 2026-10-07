@@ -33,15 +33,20 @@ export const taskActivityConst: Record<string, TaskActivityKey> = {
     "attachmentRemove": {
         "key": "removedAttachment",
     },
+    "dependencyAdd": {
+        "key": "addedTaskDependency",
+    },
+    "dependencyRemove": {
+        "key": "removedTaskDependency",
+    },
     "subTaskAdd": {
         "key": "createSubTask",
     },
     "subTaskDelete": {
-        "key": "deletedTaskSubTask",
-
+        "key": "subTaskDelete",
     },
     "subTaskUnDelete": {
-        "key": "unDeletedTaskSubTask",
+        "key": "subTaskUnDelete",
     },
     "commentAdd": {
         "key": "addedCommentToTask",
