@@ -4,6 +4,7 @@ import { GetEndpointUrl } from "@/services/endPoints";
 import { TaskInfoInterface } from "@/types/task";
 import { isTimelineKey } from "@/lib/timelineKey";
 import { isWorkloadKey, type WorkloadData, type WorkloadTask } from "@/lib/workload";
+import { taskDate } from "@/lib/timeline";
 
 /** A task list's response, whose lists of tasks are keyed by name. */
 type TaskLists = Record<string, unknown>;
@@ -87,6 +88,8 @@ export const useTaskUpdate = () => {
     }, [cache]);
 
     const optimisticCreateTask = useCallback((newTask: TaskInfoInterface, projectId: string) => {
+        // The workload lists open tasks with dates, and counts those without.
+        Array.from(cache.keys() as IterableIterator<string>).filter(isWorkloadKey).forEach(key => void mutate(key));
         const matchedKeys = getTaskKeys(projectId);
 
         matchedKeys.forEach(key => {
@@ -130,7 +133,7 @@ export const useTaskUpdate = () => {
                 return newData;
             }, { revalidate: false }); // Disable immediate revalidation to prevent blinking
         });
-    }, [mutate, getTaskKeys]);
+    }, [cache, mutate, getTaskKeys]);
 
     // The workload holds tasks of every project, its own way: the assignee as
     // assignee_uuid, the other fields it shows under the task's own names. A
@@ -149,12 +152,23 @@ export const useTaskUpdate = () => {
             if ("task_assignee" in p) next.assignee_uuid = p.task_assignee?.user_uuid || undefined;
             return next;
         };
+        // It holds only open tasks with dates, and counts the rest: a task given
+        // its first dates, losing its last, or moved to another project changes
+        // what the server would send, so the workload is fetched again.
+        const reshapes = (p: Partial<TaskInfoInterface>, listed: boolean) =>
+            "task_project" in p ||
+            ((p.task_start_date !== undefined || p.task_due_date !== undefined) && (!listed || (!taskDate(p.task_start_date) && !taskDate(p.task_due_date))));
         keys.forEach(key => {
-            mutate(key, (current: { data?: WorkloadData } | undefined) => {
+            let refetch = false;
+            void mutate(key, (current: { data?: WorkloadData } | undefined) => {
                 if (!current?.data) return current;
+                const listed = new Set(current.data.tasks.map(t => t.task_uuid));
+                refetch = !remove && patches.some(p => reshapes(p, listed.has(p.task_uuid)));
                 const tasks = remove ? current.data.tasks.filter(t => !byId.has(t.task_uuid)) : current.data.tasks.map(patched);
                 return { ...current, data: { ...current.data, tasks } };
-            }, { revalidate: false });
+            }, { revalidate: false }).then(() => {
+                if (refetch) void mutate(key);
+            });
         });
     }, [cache, mutate]);
 
