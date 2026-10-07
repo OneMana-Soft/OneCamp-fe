@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { TaskInfoInterface } from "@/types/task";
 import { isTimelineKey } from "@/lib/timelineKey";
+import { isWorkloadKey, type WorkloadData, type WorkloadTask } from "@/lib/workload";
 
 /** A task list's response, whose lists of tasks are keyed by name. */
 type TaskLists = Record<string, unknown>;
@@ -131,6 +132,32 @@ export const useTaskUpdate = () => {
         });
     }, [mutate, getTaskKeys]);
 
+    // The workload holds tasks of every project, its own way: the assignee as
+    // assignee_uuid, the other fields it shows under the task's own names. A
+    // finished task stays in its list and the view leaves it out.
+    const patchWorkload = useCallback((patches: (Partial<TaskInfoInterface> & { task_uuid: string })[], remove = false) => {
+        const keys = Array.from(cache.keys() as IterableIterator<string>).filter(isWorkloadKey);
+        if (keys.length === 0 || patches.length === 0) return;
+        const byId = new Map(patches.map(p => [p.task_uuid, p]));
+        const patched = (t: WorkloadTask): WorkloadTask => {
+            const p = byId.get(t.task_uuid);
+            if (!p) return t;
+            const next = { ...t };
+            for (const field of ["task_name", "task_status", "task_custom_status", "task_custom_status_name", "task_start_date", "task_due_date"] as const) {
+                if (p[field] !== undefined) next[field] = p[field] ?? undefined;
+            }
+            if ("task_assignee" in p) next.assignee_uuid = p.task_assignee?.user_uuid || undefined;
+            return next;
+        };
+        keys.forEach(key => {
+            mutate(key, (current: { data?: WorkloadData } | undefined) => {
+                if (!current?.data) return current;
+                const tasks = remove ? current.data.tasks.filter(t => !byId.has(t.task_uuid)) : current.data.tasks.map(patched);
+                return { ...current, data: { ...current.data, tasks } };
+            }, { revalidate: false });
+        });
+    }, [cache, mutate]);
+
     // Several tasks' fields at once (the dates of a chain of tasks moved
     // along, say): one change to each list, whatever the number of tasks,
     // and only the tasks patched are copied. A task moving to another board
@@ -173,7 +200,8 @@ export const useTaskUpdate = () => {
                 return { ...currentData, data };
             }, { revalidate: false });
         });
-    }, [mutate, getTaskKeys]);
+        patchWorkload(patches);
+    }, [mutate, getTaskKeys, patchWorkload]);
 
     // placement puts a moved card next to the card it was dropped beside. It
     // beats newIndex: a board column for a project's own status is only part
@@ -185,6 +213,7 @@ export const useTaskUpdate = () => {
             optimisticUpdateTasks([updatedTask], projectId);
             return;
         }
+        patchWorkload([updatedTask]);
         const matchedKeys = getTaskKeys(projectId);
 
         const updateDataArray = (tasks: TaskInfoInterface[] | undefined) => {
@@ -292,9 +321,10 @@ export const useTaskUpdate = () => {
                 return newData;
             }, { revalidate: false });
         });
-    }, [mutate, getTaskKeys, optimisticUpdateTasks]);
+    }, [mutate, getTaskKeys, optimisticUpdateTasks, patchWorkload]);
 
     const optimisticDeleteTask = useCallback((taskUuid: string, projectId: string) => {
+        patchWorkload([{ task_uuid: taskUuid }], true);
         const matchedKeys = getTaskKeys(projectId);
 
         matchedKeys.forEach(key => {
@@ -339,12 +369,14 @@ export const useTaskUpdate = () => {
                 return newData;
             }, { revalidate: false });
         });
-    }, [mutate, getTaskKeys]);
+    }, [mutate, getTaskKeys, patchWorkload]);
 
+    // Every list of the project fetched again, and the workload, which may hold its tasks.
     const revalidateTaskKeys = useCallback((projectId: string) => {
         const matchedKeys = getTaskKeys(projectId);
         matchedKeys.forEach(key => mutate(key));
-    }, [mutate, getTaskKeys]);
+        Array.from(cache.keys() as IterableIterator<string>).filter(isWorkloadKey).forEach(key => mutate(key));
+    }, [mutate, getTaskKeys, cache]);
 
     return { optimisticCreateTask, optimisticUpdateTask, optimisticUpdateTasks, optimisticDeleteTask, revalidateTaskKeys };
 };
