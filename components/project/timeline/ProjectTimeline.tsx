@@ -566,7 +566,7 @@ export function ProjectTimeline({
                     d={l.path}
                     fill="none"
                     strokeWidth={1.5}
-                    className={l.broken ? "stroke-destructive" : "stroke-muted-foreground/60"}
+                    className={l.broken ? "stroke-destructive" : "stroke-muted-foreground"}
                     markerEnd={`url(#${markerId}-${l.broken ? "broken" : "ok"})`}
                   />
                 ))}
