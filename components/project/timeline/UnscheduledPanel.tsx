@@ -40,7 +40,7 @@ export function UnscheduledPanel({
         <div className="min-w-0">
           <p className="text-sm font-medium">Unscheduled</p>
           <p className="text-xs text-muted-foreground">
-            {canEdit ? "Drag a task onto a day to make it due then." : "Open a task to see or give it dates."}
+            {canEdit ? "Drag a task onto a day to make it due then." : "These tasks don't have dates yet."}
           </p>
         </div>
         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Close Unscheduled" onClick={onClose}>

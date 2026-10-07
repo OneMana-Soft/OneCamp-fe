@@ -1,11 +1,12 @@
 "use client"
 
-// A project shared with a client: its tasks by status, how far along it is,
-// and each task's description and (when the link allows) its comments. No
-// account; the link opens this one project and nothing else. The board
-// refreshes by polling, since a guest has no session for the live connection.
+// A project shared with a client: its tasks by status (or on a timeline),
+// how far along it is, and each task's description and (when the link
+// allows) its comments. No account; the link opens this one project and
+// nothing else. The board refreshes by polling, since a guest has no session
+// for the live connection.
 
-import { use, useCallback, useEffect, useState } from "react"
+import { use, useCallback, useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Calendar, FolderKanban, Loader2, MessageSquare, User } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +22,10 @@ import { GUEST_POLL_MS, GuestComposer, GuestLinkGone, GuestLoading, GuestMessage
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
 import { GuestUpdates } from "@/components/guest/GuestUpdates"
+import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useStoredState } from "@/hooks/useStoredState"
+import type { TimelineTask } from "@/lib/timeline"
 import { Textarea } from "@/components/ui/textarea"
 
 // A board changes slower than a conversation.
@@ -32,11 +37,44 @@ function isOverdue(t: GuestTaskCard) {
   return !!t.due_date && t.status !== "done" && new Date(t.due_date).getTime() < Date.now()
 }
 
+type GuestMode = "board" | "timeline"
+const isMode = (v: unknown): v is GuestMode => v === "board" || v === "timeline"
+
+/** The client's cards as the timeline draws them: read-only, the same tasks as the board. */
+function timelineTasksOf(view: GuestProjectView | null): TimelineTask[] {
+  return (view?.columns ?? []).flatMap((c) =>
+    c.tasks.map((t) => ({
+      task_uuid: t.id,
+      task_name: t.name,
+      task_status: t.status,
+      task_start_date: t.start_date,
+      task_due_date: t.due_date,
+      task_assignee: t.assignee ? { user_uuid: t.assignee, user_name: t.assignee } : null,
+    })),
+  )
+}
+
+/** A phone-width window: the timeline lays itself out for one. */
+function useNarrow() {
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => {
+    const m = window.matchMedia("(max-width: 639px)")
+    const update = () => setNarrow(m.matches)
+    update()
+    m.addEventListener("change", update)
+    return () => m.removeEventListener("change", update)
+  }, [])
+  return narrow
+}
+
 export default function GuestProjectPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const [state, setState] = useState<"loading" | "ready" | "missing">("loading")
   const [view, setView] = useState<GuestProjectView | null>(null)
   const [open, setOpen] = useState<string | null>(null)
+  const [mode, setMode] = useStoredState<GuestMode>(`oc_guest_view:${token}`, "board", isMode)
+  const narrow = useNarrow()
+  const timelineTasks = useMemo(() => timelineTasksOf(view), [view])
 
   const refresh = useCallback(async (poll: boolean) => {
     const res = await getGuestProject(token, poll)
@@ -80,8 +118,25 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
           <div className="max-w-3xl">
             <GuestUpdates updates={view.updates ?? []} />
           </div>
+          {view.total_tasks > 0 && (
+            <ToggleGroup
+              type="single"
+              size="sm"
+              value={mode}
+              onValueChange={(v) => isMode(v) && setMode(v)}
+              aria-label="Show the tasks as"
+              className="mb-4 w-fit rounded-md border p-0.5"
+            >
+              <ToggleGroupItem value="board" className="h-7 px-2.5 text-xs">Board</ToggleGroupItem>
+              <ToggleGroupItem value="timeline" className="h-7 px-2.5 text-xs">Timeline</ToggleGroupItem>
+            </ToggleGroup>
+          )}
           {view.total_tasks === 0 ? (
             <p className="py-16 text-center text-sm text-muted-foreground">No tasks here yet.</p>
+          ) : mode === "timeline" ? (
+            <div className="h-[calc(100dvh-13rem)] min-h-[24rem]">
+              <ProjectTimeline projectId="" viewKey={`guest:${token}`} tasks={timelineTasks} compact={narrow} onOpenTask={setOpen} />
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-flow-col md:auto-cols-[minmax(14rem,1fr)]">
               {view.columns.map((col) => (

@@ -41,6 +41,7 @@ import {
   timelineRows,
   type EditKind,
   type Grouping,
+  type TimelineData,
   type TimelineTask,
   type ViewAnchor,
   type Zoom,
@@ -100,22 +101,32 @@ interface Drag {
  */
 export function ProjectTimeline({
   projectId,
+  tasks: given,
+  viewKey,
   onOpenTask,
   onCreateTask,
   compact = false,
   className,
 }: {
   projectId: string
+  /** Draw these instead of fetching the project's, read-only: a client's view of a project shared with them. */
+  tasks?: TimelineTask[]
+  /** Where the view's choices are remembered: the project's id unless given. */
+  viewKey?: string
   onOpenTask: (taskUUID: string) => void
   onCreateTask?: () => void
   compact?: boolean
   className?: string
 }) {
-  const { data, tasks, isLoading, isError, mutate, reschedule } = useProjectTimeline(projectId)
-  const { options: statuses } = useProjectStatuses(projectId)
-  const [zoom, setZoom, zoomReady] = useStoredState<Zoom>(`oc_timeline_zoom:${projectId}`, "week", isZoom)
-  const [grouping, setGrouping] = useStoredState<Grouping>(`oc_timeline_grouping:${projectId}`, "status", isGrouping)
-  const [showDone, setShowDone] = useStoredState<boolean>(`oc_timeline_done:${projectId}`, true, isBool)
+  const fetched = useProjectTimeline(given ? "" : projectId)
+  const { isLoading, isError, mutate, reschedule } = fetched
+  const data: TimelineData | undefined = given ? { tasks: given, total: given.length, can_edit: false } : fetched.data
+  const tasks = given ?? fetched.tasks
+  const { options: statuses } = useProjectStatuses(given ? undefined : projectId)
+  const key = viewKey ?? projectId
+  const [zoom, setZoom, zoomReady] = useStoredState<Zoom>(`oc_timeline_zoom:${key}`, "week", isZoom)
+  const [grouping, setGrouping] = useStoredState<Grouping>(`oc_timeline_grouping:${key}`, "status", isGrouping)
+  const [showDone, setShowDone] = useStoredState<boolean>(`oc_timeline_done:${key}`, true, isBool)
   const [sideOpen, setSideOpen] = useStoredState<boolean>(compact ? undefined : "oc_timeline_unscheduled", !compact, isBool)
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const [today] = useState(() => startOfDay(new Date()))
@@ -363,7 +374,11 @@ export function ProjectTimeline({
         className={className}
         icon={ChartGantt}
         title="Nothing on the timeline yet"
-        description="A project's tasks show here as bars across the days they run. Add a task with a due date, or start the project from a template."
+        description={
+          given
+            ? "The project's tasks show here as bars across the days they run, once they have dates."
+            : "A project's tasks show here as bars across the days they run. Add a task with a due date, or start the project from a template."
+        }
         action={
           onCreateTask && (
             <Button size="sm" className="gap-1.5" onClick={onCreateTask}>

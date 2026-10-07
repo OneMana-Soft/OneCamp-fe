@@ -312,6 +312,7 @@ export interface GuestTaskCard {
     status: string
     status_label: string
     priority?: string
+    start_date?: string
     due_date?: string
     assignee?: string
     comment_count: number
@@ -339,7 +340,6 @@ export interface GuestUpdate {
 
 export interface GuestTaskView extends GuestTaskCard {
     description: string
-    start_date?: string
     comments: GuestChannelMessage[]
     can_comment: boolean
 }
