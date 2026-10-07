@@ -2,6 +2,7 @@ import { useSWRConfig } from "swr";
 import { useCallback } from "react";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { TaskInfoInterface } from "@/types/task";
+import { isTimelineKey } from "@/lib/timelineKey";
 
 export const useTaskUpdate = () => {
     const { mutate, cache } = useSWRConfig();
@@ -71,6 +72,7 @@ export const useTaskUpdate = () => {
             if (pathname.startsWith(projectListPath) || pathname.startsWith(projectKanbanPath)) {
                 return pathname.includes(projectId);
             }
+            if (isTimelineKey(pathname)) return isTimelineKey(pathname, projectId);
             
             // Check for user-specific endpoints
             return pathname === userListPath || pathname === userKanbanPath;
@@ -96,7 +98,11 @@ export const useTaskUpdate = () => {
                 const data = newData.data;
 
                 // Use exact path matching to avoid overlap
-                if (pathname.includes(GetEndpointUrl.GetProjectTaskListForKanban)) {
+                if (isTimelineKey(pathname)) {
+                    // The timeline holds a project's own tasks, newest first.
+                    data.tasks = [newTask, ...(data.tasks || [])];
+                    data.total = (data.total || 0) + 1;
+                } else if (pathname.includes(GetEndpointUrl.GetProjectTaskListForKanban)) {
                     const statusKey = `project_tasks_${statusToKey(newTask.task_status)}` as keyof typeof data;
                     if (Array.isArray(data[statusKey])) {
                         (data[statusKey] as any) = [newTask, ...(data[statusKey] as any)];
@@ -193,7 +199,9 @@ export const useTaskUpdate = () => {
                 const newData = JSON.parse(JSON.stringify(currentData));
                 const data = newData.data;
 
-                if (pathname.includes(GetEndpointUrl.GetProjectTaskListForKanban)) {
+                if (isTimelineKey(pathname)) {
+                    data.tasks = updateDataArray(data.tasks);
+                } else if (pathname.includes(GetEndpointUrl.GetProjectTaskListForKanban)) {
                     if (updatedTask.task_status !== undefined || newIndex !== undefined) {
                         moveTaskInKanban(data, updatedTask.task_uuid, updatedTask.task_status, "project", newIndex);
                     } else {
@@ -240,11 +248,17 @@ export const useTaskUpdate = () => {
 
                 const newData = JSON.parse(JSON.stringify(currentData));
                 const data = newData.data;
+                const pathname = new URL(key, "http://localhost").pathname;
 
-                if (key.includes(GetEndpointUrl.GetProjectTaskList)) {
-                    data.project_tasks = (data.project_tasks || []).filter((t: any) => t.task_uuid !== taskUuid);
-                    data.project_task_count = Math.max(0, (data.project_task_count || 0) - 1);
-                } else if (key.includes(GetEndpointUrl.GetProjectTaskListForKanban)) {
+                // A list's path is the start of its board's ("/project/taskList"
+                // and "/project/taskListForKanban"), so each board is tested
+                // before its list; tested the other way round, a deleted card
+                // stayed on the board until it was fetched again.
+                if (isTimelineKey(pathname)) {
+                    const had = (data.tasks || []).length;
+                    data.tasks = (data.tasks || []).filter((t: TaskInfoInterface) => t.task_uuid !== taskUuid);
+                    if (data.tasks.length < had) data.total = Math.max(0, (data.total || 0) - 1);
+                } else if (pathname.startsWith(GetEndpointUrl.GetProjectTaskListForKanban)) {
                     const columns = ["backlog", "todo", "in_progress", "in_review", "done", "canceled"];
                     columns.forEach(col => {
                         const colKey = `project_tasks_${col}` as keyof typeof data;
@@ -252,10 +266,13 @@ export const useTaskUpdate = () => {
                             data[colKey] = (data[colKey] as any).filter((t: any) => t.task_uuid !== taskUuid);
                         }
                     });
-                } else if (key.includes(GetEndpointUrl.GetUserTaskList)) {
+                } else if (pathname.startsWith(GetEndpointUrl.GetProjectTaskList)) {
+                    data.project_tasks = (data.project_tasks || []).filter((t: any) => t.task_uuid !== taskUuid);
+                    data.project_task_count = Math.max(0, (data.project_task_count || 0) - 1);
+                } else if (pathname === GetEndpointUrl.GetUserTaskList) {
                     data.user_tasks = (data.user_tasks || []).filter((t: any) => t.task_uuid !== taskUuid);
                     data.user_task_count = Math.max(0, (data.user_task_count || 0) - 1);
-                } else if (key.includes(GetEndpointUrl.GetUserTaskListForKanban)) {
+                } else if (pathname === GetEndpointUrl.GetUserTaskListForKanban) {
                     const columns = ["backlog", "todo", "in_progress", "in_review", "done", "canceled"];
                     columns.forEach(col => {
                         const colKey = `user_tasks_${col}` as keyof typeof data;

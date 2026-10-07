@@ -11,6 +11,9 @@ import { useCallback, useEffect, useState } from "react"
  */
 export function useStoredState<T>(key: string | undefined, initial: T, accept: (v: unknown) => v is T) {
   const [value, setValue] = useState<T>(initial)
+  // Whether the remembered value has been read: a view that lays itself out
+  // from it (a timeline's zoom) waits for it rather than drawing twice.
+  const [loaded, setLoaded] = useState(!key)
   useEffect(() => {
     if (!key) return
     try {
@@ -22,6 +25,7 @@ export function useStoredState<T>(key: string | undefined, initial: T, accept: (
     } catch {
       /* nothing remembered */
     }
+    setLoaded(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- read once per key
   }, [key])
   const set = useCallback(
@@ -39,5 +43,5 @@ export function useStoredState<T>(key: string | undefined, initial: T, accept: (
       }),
     [key],
   )
-  return [value, set] as const
+  return [value, set, loaded] as const
 }

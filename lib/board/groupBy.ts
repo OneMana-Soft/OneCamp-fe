@@ -4,7 +4,6 @@
  * tested without rendering.
  */
 import type { StatusOption } from "@/lib/taskStatus"
-import type { TaskInfoInterface } from "@/types/task"
 
 export type BoardGrouping = "status" | "assignee"
 
@@ -19,22 +18,27 @@ interface Member {
 
 const nameOf = (m: Member) => m.user_full_name || m.user_name || "Someone"
 
-export function groupByAssignee(
-  byStatus: Record<string, TaskInfoInterface[]>,
+/** Anything with an assignee: a board's task, or a timeline's. */
+interface Assigned {
+  task_assignee?: Member | null
+}
+
+export function groupByAssignee<T extends Assigned>(
+  byStatus: Record<string, T[]>,
   members: Member[] = [],
   /** Leave out people with nothing (Asana's "hide empty groups"). */
   hideEmpty = false,
-): { columns: Record<string, TaskInfoInterface[]>; options: StatusOption[] } {
+): { columns: Record<string, T[]>; options: StatusOption[] } {
   const people = new Map<string, Member>()
   for (const m of members) if (m?.user_uuid) people.set(m.user_uuid, m)
-  const columns: Record<string, TaskInfoInterface[]> = { [NO_ASSIGNEE]: [] }
+  const columns: Record<string, T[]> = { [NO_ASSIGNEE]: [] }
   for (const tasks of Object.values(byStatus)) {
     for (const t of tasks) {
       const who = t.task_assignee?.user_uuid
       const key = who || NO_ASSIGNEE
       // Someone who has tasks but has left the project still gets a column:
       // their work has not gone anywhere.
-      if (who && !people.has(who)) people.set(who, t.task_assignee as Member)
+      if (who && !people.has(who)) people.set(who, t.task_assignee!)
       ;(columns[key] ??= []).push(t)
     }
   }

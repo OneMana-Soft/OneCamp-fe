@@ -101,15 +101,17 @@ describe("statusFieldsFromMessage", () => {
 })
 
 describe("holdsProjectTasks", () => {
-  it("matches this project's board and list, assigned lists and task panels", () => {
+  it("matches this project's board, list and timeline, assigned lists and task panels", () => {
     expect(holdsProjectTasks("/project/taskListForKanban/p1?assignee=", "p1")).toBe(true)
     expect(holdsProjectTasks("/project/taskList/p1", "p1")).toBe(true)
     expect(holdsProjectTasks("/user/assignedTaskListForKanban?x=1", "p1")).toBe(true)
     expect(holdsProjectTasks("/task/info/t1", "p1")).toBe(true)
+    expect(holdsProjectTasks("/project/p1/timeline", "p1")).toBe(true)
   })
   it("leaves other projects, other data and non-string keys alone", () => {
     expect(holdsProjectTasks("/project/taskListForKanban/p2", "p1")).toBe(false)
     expect(holdsProjectTasks("/project/p1/statuses", "p1")).toBe(false)
+    expect(holdsProjectTasks("/project/p2/timeline", "p1")).toBe(false)
     expect(holdsProjectTasks("/channel/list", "p1")).toBe(false)
     expect(holdsProjectTasks(["/task/info", "t1"], "p1")).toBe(false)
     expect(holdsProjectTasks("/task/info/t1", "")).toBe(false)

@@ -19,6 +19,9 @@ import { openUI } from "@/store/slice/uiSlice"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { ProjectTaskKanban } from "@/components/project/projectTaskKanban"
 import { ProjectGlanceLine } from "@/components/project/ProjectGlanceLine"
+import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
+import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
+import { ChartGantt } from "@/lib/icons"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { useState, useEffect, useCallback } from "react"
 import {NotificationBell} from "@/components/Notification/notificationBell";
@@ -26,7 +29,7 @@ import {NotificationType} from "@/types/channel";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {usePost} from "@/hooks/usePost";
 
-const VALID_TABS = ["list", "kanban", "updates", "attachments"] as const
+const VALID_TABS = ["list", "kanban", "timeline", "updates", "attachments"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
@@ -126,7 +129,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
             <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">
                 {projectId && (
                     <Tabs value={selectedTab} onValueChange={handleTabChange} className="h-full flex flex-col gap-6">
-                        <TabsList className="w-full sm:w-fit grid grid-cols-4 sm:flex bg-muted/50 p-1 border border-border/50 h-auto overflow-hidden">
+                        <TabsList className="w-full sm:w-fit grid grid-cols-5 sm:flex bg-muted/50 p-1 border border-border/50 h-auto overflow-hidden">
                             <TabsTrigger 
                                 value="list"
                                 className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
@@ -140,6 +143,13 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             >
                                 <Kanban className="h-4 w-4" />
                                 {t("board", { defaultValue: "Board" })}
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="timeline"
+                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                            >
+                                <ChartGantt className="h-4 w-4" />
+                                Timeline
                             </TabsTrigger>
                             <TabsTrigger
                                 value="updates"
@@ -163,6 +173,14 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             </TabsContent>
                             <TabsContent value="kanban" className="h-full mt-0 outline-none">
                                 <ProjectTaskKanban projectId={projectId} />
+                            </TabsContent>
+                            <TabsContent value="timeline" className="h-full mt-0 outline-none">
+                                <ProjectTimeline
+                                    key={projectId}
+                                    projectId={projectId}
+                                    onOpenTask={(taskUUID) => dispatch(openRightPanel({ taskUUID }))}
+                                    onCreateTask={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}
+                                />
                             </TabsContent>
                             <TabsContent value="updates" className="h-full mt-0 overflow-y-auto outline-none">
                                 <ProjectUpdates projectId={projectId} />

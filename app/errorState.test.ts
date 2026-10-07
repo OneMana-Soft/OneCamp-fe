@@ -33,7 +33,8 @@ const SURFACES = [
   // The user's own primary work. The empty copy on these asserts the work does
   // not exist, which is the most alarming reading of a failed request.
   "components/myTask/myTaskList.tsx",
-  "components/project/ProjectList.tsx",
+  "components/project/ProjectsOverview.tsx",
+  "components/project/timeline/ProjectTimeline.tsx",
   "components/team/TeamList.tsx",
   "components/channel/channelListTabActive.tsx",
   "components/chat/chatUserList.tsx",
