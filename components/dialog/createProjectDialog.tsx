@@ -151,7 +151,7 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-4 space-y-3">
+            <div className="grid gap-5 py-4">
               <div className="grid gap-2 ">
                 <Label htmlFor="projectName">Name</Label>
                 <Controller
@@ -273,7 +273,8 @@ const CreateProjectDialog: React.FC<CreateProjectDialogProps> = ({
                   </div>
               )}
             </div>
-            <DialogFooter>
+            {/* The dialog scrolls when the window is short; Create stays in view. */}
+            <DialogFooter className="sticky -bottom-6 -mx-6 -mb-6 border-t bg-background px-6 py-3">
               <Button variant="default" type="submit" disabled={!isValid || isSubmitting}>
                 {isSubmitting ? "Creating…" : chosen ? `Create with ${taskCount(chosen.task_count)}` : "Create project"}
               </Button>
