@@ -1,5 +1,5 @@
 import {useDispatch} from "react-redux";
-import {useCallback, useMemo} from "react";
+import {useCallback, useEffect, useMemo, useRef} from "react";
 import mqttService, {MqttActionType} from "@/services/mqttService";
 import {
     createNewTaskComment, createTaskCommentReactionByCommentId, removeTaskCommentByCommentUUID,
@@ -13,13 +13,38 @@ import { appMutate } from "@/lib/swrMutate";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { updateTaskDueDateInTaskList, updateTaskStartDateInTaskList } from "@/store/slice/taskInfoSlice";
 
+/** How long the lists wait for more moved tasks before changing once for all of them. */
+const DATES_BATCH_MS = 100
+
+type DatesPatch = { task_uuid: string; task_start_date: string; task_due_date: string }
+
 interface UseTaskMessageHandlersProps {
     userUuid?: string
 }
 
 export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps) => {
     const dispatch = useDispatch()
-    const { optimisticUpdateTask } = useTaskUpdate()
+    const { optimisticUpdateTasks } = useTaskUpdate()
+
+    // A chain of tasks moved along arrives as a message each; the board, the
+    // list and the timeline change once for the lot, not once per task.
+    const pendingDates = useRef(new Map<string, Map<string, DatesPatch>>())
+    const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const queueDates = useCallback((projectId: string, patch: DatesPatch) => {
+        let forProject = pendingDates.current.get(projectId)
+        if (!forProject) pendingDates.current.set(projectId, (forProject = new Map()))
+        forProject.set(patch.task_uuid, patch)
+        if (flushTimer.current) return
+        flushTimer.current = setTimeout(() => {
+            flushTimer.current = null
+            const all = pendingDates.current
+            pendingDates.current = new Map()
+            for (const [project, patches] of all) optimisticUpdateTasks([...patches.values()], project)
+        }, DATES_BATCH_MS)
+    }, [optimisticUpdateTasks])
+    useEffect(() => () => {
+        if (flushTimer.current) clearTimeout(flushTimer.current)
+    }, [])
 
     // Someone moved a task (a timeline drag, its panel, a dependency moving it
     // along): the board, the list, the timeline and its panel show the new
@@ -32,7 +57,7 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
                 const m: msgTaskDatesInterface | undefined = JSON.parse(messageStr)?.data
                 if (!m?.task_uuid || !m.project_uuid) return
                 const dates = { task_start_date: m.task_start_date || "", task_due_date: m.task_due_date || "" }
-                optimisticUpdateTask({ task_uuid: m.task_uuid, ...dates }, m.project_uuid)
+                queueDates(m.project_uuid, { task_uuid: m.task_uuid, ...dates })
                 dispatch(updateTaskStartDateInTaskList({ taskId: m.task_uuid, value: dates.task_start_date }))
                 dispatch(updateTaskDueDateInTaskList({ taskId: m.task_uuid, value: dates.task_due_date }))
                 void appMutate(
@@ -44,7 +69,7 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
                 console.error("[MQTT] Task dates message handling error:", error)
             }
         },
-        [dispatch, optimisticUpdateTask]
+        [dispatch, queueDates]
     )
 
     const handleTaskCommentMessage = useCallback(

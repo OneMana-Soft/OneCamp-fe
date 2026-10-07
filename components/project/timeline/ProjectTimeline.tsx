@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useProjectTimeline } from "@/hooks/useProjectTimeline"
+import { useStableCallback } from "@/hooks/useStableCallback"
 import { useTaskDependencies } from "@/hooks/useTaskDependencies"
 import { useTimelineView } from "@/hooks/useTimelineView"
 import { useStoredState } from "@/hooks/useStoredState"
@@ -280,6 +281,9 @@ export function ProjectTimeline({
   )
 
   // ---- Drawing a dependency --------------------------------------------------------
+  const waitsOn = useStableCallback((waiting: string, on: string) =>
+    tasks.some((t) => t.task_uuid === waiting && t.task_blocked_by?.some((b) => b.task_uuid === on)),
+  )
   // From the handle at a bar's end to the bar of the task that waits on it,
   // as Linear and ClickUp draw them. The keyboard's way is the task's panel.
   const onLinkStart = useCallback(
@@ -314,7 +318,7 @@ export function ProjectTimeline({
         setLinking(null)
         swallowNextClick()
         const target = ev ? targetAt(ev.clientX, ev.clientY) : null
-        if (target) void setDependency(target, task.task_uuid)
+        if (target && !waitsOn(target, task.task_uuid)) void setDependency(target, task.task_uuid)
       }
       const up = (ev: globalThis.PointerEvent) => finish(ev)
       const cancel = () => finish(null)
@@ -329,7 +333,7 @@ export function ProjectTimeline({
       window.addEventListener("pointercancel", cancel)
       window.addEventListener("keydown", escape, true)
     },
-    [canEdit, nameWidth, setDependency],
+    [canEdit, nameWidth, setDependency, waitsOn],
   )
 
   const onBarClick = useCallback(

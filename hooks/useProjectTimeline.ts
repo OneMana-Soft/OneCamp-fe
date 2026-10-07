@@ -52,7 +52,7 @@ function patchTaskPanel(taskUUID: string, dates: TaskDates) {
  */
 export function useProjectTimeline(projectId: string) {
   const timeline = useFetch<{ data: TimelineData }>(projectId ? timelineKey(projectId) : "")
-  const { optimisticUpdateTask, revalidateTaskKeys } = useTaskUpdate()
+  const { optimisticUpdateTask, optimisticUpdateTasks, revalidateTaskKeys } = useTaskUpdate()
   const [moving, setMoving] = useState<ReadonlyMap<string, TaskDates>>(() => new Map())
   const versions = useRef(new Map<string, number>())
   const queues = useRef(new Map<string, Promise<void>>())
@@ -73,23 +73,33 @@ export function useProjectTimeline(projectId: string) {
     (id: string, dates: TaskDates, version: number, shift: boolean) => {
       // Only the last move of a task settles it; an earlier one's answer is old news.
       const latest = () => versions.current.get(id) === version
+      // Which move of each task was the last when this one was sent.
+      let sent: ReadonlyMap<string, number> = new Map()
       const done = (queues.current.get(id) ?? Promise.resolve())
-        .then(() =>
-          axiosInstance.post<{ data?: { shifted?: Shifted[] } }>(
+        .then(() => {
+          sent = new Map(versions.current)
+          return axiosInstance.post<{ data?: { shifted?: Shifted[] } }>(
             PostEndpointUrl.UpdateTaskDates,
             { task_uuid: id, ...dates, shift_dependents: shift, tz: browserTZ() },
             OWN_ERRORS,
-          ),
-        )
+          )
+        })
         .then(
           (res) => {
-            // The tasks waiting on it that moved along, in order, each to its new days.
-            for (const s of res.data?.data?.shifted ?? []) {
-              const patch: { task_uuid: string; task_start_date?: string; task_due_date?: string } = { task_uuid: s.task_uuid }
-              if (s.task_start_date) patch.task_start_date = s.task_start_date
-              if (s.task_due_date) patch.task_due_date = s.task_due_date
-              optimisticUpdateTask(patch, projectId)
-            }
+            // The tasks waiting on it that moved along, each to its new days, in one
+            // change. One the person has moved since is theirs: its own save settles it,
+            // and the timeline is fetched again so the order the server took shows.
+            const shifted = res.data?.data?.shifted ?? []
+            const untouched = shifted.filter((s) => versions.current.get(s.task_uuid) === sent.get(s.task_uuid))
+            optimisticUpdateTasks(
+              untouched.map((s) => ({
+                task_uuid: s.task_uuid,
+                ...(s.task_start_date ? { task_start_date: s.task_start_date } : {}),
+                ...(s.task_due_date ? { task_due_date: s.task_due_date } : {}),
+              })),
+              projectId,
+            )
+            if (untouched.length < shifted.length) revalidateTaskKeys(projectId)
             if (!latest()) return
             // A fetch that started before the save may have put the old dates in the cache.
             optimisticUpdateTask({ task_uuid: id, ...dates }, projectId)
@@ -109,7 +119,7 @@ export function useProjectTimeline(projectId: string) {
       })
       return done
     },
-    [optimisticUpdateTask, revalidateTaskKeys, projectId, settle],
+    [optimisticUpdateTask, optimisticUpdateTasks, revalidateTaskKeys, projectId, settle],
   )
 
   /** Give a task new dates (see MoveOptions). A drag saves at once. */

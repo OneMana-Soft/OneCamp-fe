@@ -67,6 +67,7 @@ export function TaskDependencies({
             tasks={waitingOn}
             options={options}
             canEdit={canEdit}
+            busy={busy}
             onOpen={onOpen}
             onRemove={(id) => void change(taskUUID, id, true)}
             removeLabel={(name) => `Stop waiting on ${name}`}
@@ -78,6 +79,7 @@ export function TaskDependencies({
             tasks={blocking}
             options={options}
             canEdit={canEdit}
+            busy={busy}
             onOpen={onOpen}
             onRemove={(id) => void change(id, taskUUID, true)}
             removeLabel={(name) => `Stop ${name} waiting on this task`}
@@ -131,6 +133,7 @@ function DependencyGroup({
   tasks,
   options,
   canEdit,
+  busy,
   onOpen,
   onRemove,
   removeLabel,
@@ -139,6 +142,7 @@ function DependencyGroup({
   tasks: DependencyTask[]
   options: ReturnType<typeof useProjectStatuses>["options"]
   canEdit: boolean
+  busy: boolean
   onOpen: (taskUUID: string) => void
   onRemove: (taskUUID: string) => void
   removeLabel: (name: string) => string
@@ -160,6 +164,7 @@ function DependencyGroup({
             <button
               type="button"
               onClick={() => onRemove(t.task_uuid)}
+              disabled={busy}
               aria-label={removeLabel(t.task_name)}
               className="pointer-events-none shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
             >

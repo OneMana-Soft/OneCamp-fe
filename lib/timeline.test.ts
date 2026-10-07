@@ -277,6 +277,13 @@ describe("dependency arrows", () => {
     expect(link.path).toBe("M30 18H38V36H2V54H10")
   })
 
+  it("isn't broken when either task is finished", () => {
+    const early = task("early", { task_due_date: iso(2026, 10, 6, 17), task_blocked_by: [{ task_uuid: "design" }] })
+    const finished = { ...design, task_status: "done" }
+    expect(dependencyLinks(rowsOf([finished, early]), range, 10, 36)[0].broken).toBe(false)
+    expect(dependencyLinks(rowsOf([design, { ...early, task_status: "done" }]), range, 10, 36)[0].broken).toBe(false)
+  })
+
   it("follows a bar being dragged, and leaves out a task with no row", () => {
     const build = task("build", { task_start_date: iso(2026, 10, 10, 9), task_due_date: iso(2026, 10, 12, 17), task_blocked_by: [{ task_uuid: "design" }, { task_uuid: "someday" }] })
     const rows = rowsOf([design, build, task("someday")])

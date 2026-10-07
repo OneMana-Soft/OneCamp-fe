@@ -4,6 +4,12 @@ import { GetEndpointUrl } from "@/services/endPoints";
 import { TaskInfoInterface } from "@/types/task";
 import { isTimelineKey } from "@/lib/timelineKey";
 
+/** A task list's response, whose lists of tasks are keyed by name. */
+type TaskLists = Record<string, unknown>;
+
+/** A board's columns, by status category, as its cache keys them. */
+const BOARD_COLUMNS = ["backlog", "todo", "in_progress", "in_review", "done", "canceled"];
+
 export const useTaskUpdate = () => {
     const { mutate, cache } = useSWRConfig();
 
@@ -125,11 +131,60 @@ export const useTaskUpdate = () => {
         });
     }, [mutate, getTaskKeys]);
 
+    // Several tasks' fields at once (the dates of a chain of tasks moved
+    // along, say): one change to each list, whatever the number of tasks,
+    // and only the tasks patched are copied. A task moving to another board
+    // column goes through optimisticUpdateTask.
+    const optimisticUpdateTasks = useCallback((patches: (Partial<TaskInfoInterface> & { task_uuid: string })[], projectId: string) => {
+        if (patches.length === 0) return;
+        const byId = new Map(patches.map(p => [p.task_uuid, p]));
+        const patch = (tasks: TaskInfoInterface[]) => tasks.map(t => {
+            const p = byId.get(t.task_uuid);
+            return p ? { ...t, ...p } : t;
+        });
+        const patchColumns = (data: TaskLists, prefix: "project" | "user") => {
+            for (const col of BOARD_COLUMNS) {
+                const key = `${prefix}_tasks_${col}`;
+                const tasks = data[key];
+                if (Array.isArray(tasks)) data[key] = patch(tasks);
+            }
+        };
+        // A list filtered on a field that changed drops the tasks that no longer match.
+        const patchList = (tasks: unknown, searchParams: URLSearchParams) =>
+            Array.isArray(tasks) ? patch(tasks).filter(t => !byId.has(t.task_uuid) || matchesFilters(t, searchParams)) : tasks;
+
+        getTaskKeys(projectId).forEach(key => {
+            mutate(key, (currentData: { data?: TaskLists } | undefined) => {
+                if (!currentData || !currentData.data) return currentData;
+                const url = new URL(key, "http://localhost");
+                const pathname = url.pathname;
+                const data: TaskLists = { ...currentData.data };
+                if (isTimelineKey(pathname)) {
+                    if (Array.isArray(data.tasks)) data.tasks = patch(data.tasks);
+                } else if (pathname.startsWith(GetEndpointUrl.GetProjectTaskListForKanban)) {
+                    patchColumns(data, "project");
+                } else if (pathname.startsWith(GetEndpointUrl.GetProjectTaskList)) {
+                    data.project_tasks = patchList(data.project_tasks, url.searchParams);
+                } else if (pathname === GetEndpointUrl.GetUserTaskListForKanban) {
+                    patchColumns(data, "user");
+                } else if (pathname === GetEndpointUrl.GetUserTaskList) {
+                    data.user_tasks = patchList(data.user_tasks, url.searchParams);
+                }
+                return { ...currentData, data };
+            }, { revalidate: false });
+        });
+    }, [mutate, getTaskKeys]);
+
     // placement puts a moved card next to the card it was dropped beside. It
     // beats newIndex: a board column for a project's own status is only part
     // of its category's list in this cache, so an index in the column is not
     // an index in the list.
     const optimisticUpdateTask = useCallback((updatedTask: Partial<TaskInfoInterface> & { task_uuid: string }, projectId: string, newIndex?: number, placement?: { before?: string; after?: string }) => {
+        // Fields alone change in place, as for several tasks at once.
+        if (updatedTask.task_status === undefined && newIndex === undefined) {
+            optimisticUpdateTasks([updatedTask], projectId);
+            return;
+        }
         const matchedKeys = getTaskKeys(projectId);
 
         const updateDataArray = (tasks: TaskInfoInterface[] | undefined) => {
@@ -237,7 +292,7 @@ export const useTaskUpdate = () => {
                 return newData;
             }, { revalidate: false });
         });
-    }, [mutate, getTaskKeys]);
+    }, [mutate, getTaskKeys, optimisticUpdateTasks]);
 
     const optimisticDeleteTask = useCallback((taskUuid: string, projectId: string) => {
         const matchedKeys = getTaskKeys(projectId);
@@ -291,5 +346,5 @@ export const useTaskUpdate = () => {
         matchedKeys.forEach(key => mutate(key));
     }, [mutate, getTaskKeys]);
 
-    return { optimisticCreateTask, optimisticUpdateTask, optimisticDeleteTask, revalidateTaskKeys };
+    return { optimisticCreateTask, optimisticUpdateTask, optimisticUpdateTasks, optimisticDeleteTask, revalidateTaskKeys };
 };
