@@ -353,14 +353,33 @@ const HUE: Record<string, string> = {
   rose: "bg-rose-600 text-white",
 }
 
-/** A status's colour on the timeline: a bar's fill and text, or a group's dot. */
+/** A status's dot, beside a task's name and a group's: the full colour, done's included. */
+const DOT: Record<StatusCategory, string> = {
+  backlog: "bg-zinc-400",
+  todo: "bg-slate-500",
+  inProgress: "bg-blue-600",
+  inReview: "bg-amber-500",
+  done: "bg-emerald-500",
+  canceled: "bg-rose-600",
+}
+
+/** A status's colour on the timeline: a bar's fill and text. */
 function statusColor(o: StatusOption | undefined): string {
   if (o?.custom) return HUE[o.swatch ?? "slate"] ?? HUE.slate
   return BAR[o?.category ?? "todo"] ?? BAR.todo
 }
 
+/** A status's dot. */
+function statusDot(o: StatusOption | undefined): string {
+  if (o?.custom) return HUE[o.swatch ?? "slate"] ?? HUE.slate
+  return DOT[o?.category ?? "todo"] ?? DOT.todo
+}
+
 /** A bar's colour: its status's. */
 export const barColor = (t: TaskStatusFields, options: StatusOption[]) => statusColor(statusOptionOf(t, options))
+
+/** The dot beside a task's name: its status's. */
+export const dotColor = (t: TaskStatusFields, options: StatusOption[]) => statusDot(statusOptionOf(t, options))
 
 const byDates = (a: { task: TimelineTask; span: Span }, b: { task: TimelineTask; span: Span }) =>
   a.span.start.getTime() - b.span.start.getTime() ||
@@ -401,7 +420,7 @@ export function timelineRows(tasks: TimelineTask[], o: RowsInput): { rows: Timel
     const at = new Map<string, number>()
     const add = (opt: StatusOption) => {
       at.set(opt.value, groups.length)
-      groups.push({ key: opt.value, label: opt.label, dot: statusColor(opt), items: [] })
+      groups.push({ key: opt.value, label: opt.label, dot: statusDot(opt), items: [] })
     }
     o.statuses.forEach(add)
     for (const s of scheduled) {
