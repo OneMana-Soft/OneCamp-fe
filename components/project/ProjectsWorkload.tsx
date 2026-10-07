@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useCallback, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
 import { useDispatch } from "react-redux"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,7 @@ import { statusOptions } from "@/lib/taskStatus"
 import { dotColor, spanLabel, spanOf } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
 import {
+  UNASSIGNED,
   cellLabel,
   loadOf,
   weekLabel,
@@ -67,13 +68,35 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
   const { isDesktop } = useMedia()
   const router = useRouter()
   const dispatch = useDispatch()
-  const [today] = useState(() => new Date())
+  const [today, setToday] = useState(() => new Date())
+  // A page left open overnight moves on to the new day when it's looked at
+  // again: "This week" and Overdue follow the calendar.
+  useEffect(() => {
+    const check = () => {
+      if (document.visibilityState !== "visible") return
+      const now = new Date()
+      if (now.toDateString() !== today.toDateString()) {
+        setToday(now)
+        void mutate()
+      }
+    }
+    document.addEventListener("visibilitychange", check)
+    window.addEventListener("focus", check)
+    return () => {
+      document.removeEventListener("visibilitychange", check)
+      window.removeEventListener("focus", check)
+    }
+  }, [today, mutate])
   const weeks = useMemo(() => workloadWeeks(today), [today])
   const shown = useMemo(() => new Set(projects.map((p) => p.project_uuid)), [projects])
   const grid = useMemo(() => (data ? workloadRows(data, weeks, shown) : null), [data, weeks, shown])
   const nameWidth = compact ? 148 : 232
   const tableRef = useRef<HTMLTableElement>(null)
+  // The week that takes Tab, by person and column ("<row key>:<column>"), so a
+  // re-sort after a change can't hand it to someone else's week.
   const [active, setActive] = useState<string | null>(null)
+  // After a move or a hand-off empties a week, focus goes back to the grid.
+  const restoreTo = useRef<string | null>(null)
 
   const openTask = useCallback(
     (id: string) => (isDesktop ? dispatch(openRightPanel({ taskUUID: id })) : router.push(`${app_task_path}/${id}`)),
@@ -81,9 +104,28 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
   )
   const actions: Actions = {
     openTask,
-    moveLater: (t, n) => void moveLater(t, n),
-    giveTo: (t, p) => void giveTo(t, p),
+    moveLater: (t, n) => {
+      restoreTo.current = t.assignee_uuid || UNASSIGNED
+      void moveLater(t, n)
+    },
+    giveTo: (t, p) => {
+      restoreTo.current = t.assignee_uuid || UNASSIGNED
+      void giveTo(t, p)
+    },
   }
+  // A week whose last task moved away takes its popover with it, and focus
+  // would fall to the page: give it to that person's next week with tasks,
+  // or to the grid's own stop.
+  useEffect(() => {
+    const row = restoreTo.current
+    const table = tableRef.current
+    if (!row || !table) return
+    restoreTo.current = null
+    // The week still has tasks: focus is still in its popover.
+    if (document.activeElement && document.activeElement !== document.body) return
+    const next = table.querySelector<HTMLElement>(`[data-id^="${CSS.escape(row)}:"]`) ?? table.querySelector<HTMLElement>("[data-id][tabindex='0']")
+    next?.focus()
+  })
 
   // Arrows move between the weeks that have tasks; Tab leaves the grid.
   const onKeyDown = (e: KeyboardEvent<HTMLTableElement>) => {
@@ -99,7 +141,6 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
     for (let r = at[0] + step[0], c = at[1] + step[1]; r >= 0 && c >= 0 && r < 1000 && c < weeks.length + 1; r += step[0], c += step[1]) {
       const next = tableRef.current.querySelector<HTMLElement>(`[data-cell="${r}:${c}"]`)
       if (next) {
-        setActive(`${r}:${c}`)
         next.focus()
         return
       }
@@ -122,16 +163,10 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
   const rows = unassignedHasWork ? [...grid.people, grid.unassigned] : grid.people
   const over = grid.people.filter((r) => loadOf(r.weeks[0].length, r.capacity) === "over").length
   const anything = rows.some((r) => r.overdue.length > 0 || r.weeks.some((w) => w.length > 0))
-  // The first week with tasks takes Tab until arrows move it.
-  const firstCell = (() => {
-    for (let r = 0; r < rows.length; r++) {
-      if (rows[r].overdue.length) return `${r}:0`
-      const c = rows[r].weeks.findIndex((w) => w.length > 0)
-      if (c >= 0) return `${r}:${c + 1}`
-    }
-    return null
-  })()
-  const tabStop = active ?? firstCell
+  // The weeks with tasks, by id; the first takes Tab until arrows move it,
+  // and again when the one that had it empties.
+  const filled = rows.flatMap((row) => [row.overdue, ...row.weeks].flatMap((tasks, c) => (tasks.length ? [`${row.key}:${c}`] : [])))
+  const tabStop = active && filled.includes(active) ? active : (filled[0] ?? null)
 
   if (rows.length === 0) {
     return <p className="py-10 text-center text-sm text-muted-foreground">No one is in these projects yet.</p>
@@ -224,6 +259,7 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
                     <OverdueCell
                       row={row}
                       cell={`${r}:0`}
+                      id={`${row.key}:0`}
                       tabStop={tabStop}
                       people={grid.people}
                       weeks={weeks}
@@ -240,6 +276,7 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
                         week={i}
                         when={i < 2 ? weekLabel(weeks[i], i, today).toLowerCase() : `the week of ${weekLabel(weeks[i], i, today)}`}
                         cell={`${r}:${i + 1}`}
+                        id={`${row.key}:${i + 1}`}
                         tabStop={tabStop}
                         people={grid.people}
                         today={today}
@@ -382,6 +419,8 @@ function Capacity({ person, defaultCapacity, onSave }: { person: WorkloadPerson;
 type CellProps = {
   row: WorkloadRow
   cell: string
+  /** The week's id: its row's key and its column. */
+  id: string
   tabStop: string | null
   people: WorkloadRow[]
   today: Date
@@ -456,6 +495,7 @@ function TasksPopover({
   className,
   meter,
   cell,
+  id,
   tabStop,
   people,
   today,
@@ -482,8 +522,9 @@ function TasksPopover({
         <button
           type="button"
           data-cell={cell}
-          tabIndex={cell === tabStop ? 0 : -1}
-          onFocus={() => onFocus(cell)}
+          data-id={id}
+          tabIndex={id === tabStop ? 0 : -1}
+          onFocus={() => onFocus(id)}
           aria-label={label}
           className={cn(
             "relative mx-auto flex h-8 w-14 items-center justify-center gap-0.5 rounded-md text-xs tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
