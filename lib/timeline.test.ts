@@ -17,6 +17,7 @@ import {
   timelineRows,
   firstView,
   barColor,
+  dotColor,
   type TimelineTask,
 } from "@/lib/timeline"
 import { isTimelineKey } from "@/lib/timelineKey"
@@ -248,8 +249,11 @@ describe("bar colours", () => {
     }
   })
 
-  it("keep done work quiet without fading its name", () => {
+  it("keep done work quiet without fading its name, and its dot in full colour", () => {
     expect(barColor({ task_status: "done" }, statusOptions(null))).not.toMatch(/opacity/)
+    expect(dotColor({ task_status: "done" }, statusOptions(null))).toBe("bg-emerald-500")
+    const { rows } = timelineRows([task("d", { task_status: "done", task_due_date: iso(2026, 10, 1, 17) })], { grouping: "status", statuses: statusOptions(null), showDone: true, collapsed: new Set() })
+    expect(rows[0]).toMatchObject({ kind: "group", dot: "bg-emerald-500" })
   })
 })
 

@@ -30,6 +30,7 @@ import {
   applyEdit,
   barBox,
   barColor,
+  dotColor,
   datesAfter,
   datesForDrop,
   dayAt,
@@ -535,7 +536,7 @@ export function ProjectTimeline({
                     className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r bg-background px-3 group-hover:bg-muted"
                     style={{ width: nameWidth }}
                   >
-                    <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", barColor(task, statuses))} />
+                    <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", dotColor(task, statuses))} />
                     <button
                       type="button"
                       tabIndex={-1}
