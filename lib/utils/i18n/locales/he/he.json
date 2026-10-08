@@ -118,6 +118,7 @@
   "removedAttachment": "הסרת קובץ",
   "addedTaskDependency": "נוספה תלות",
   "updatedTaskEstimate": "ההערכה עודכנה",
+  "updatedTaskField": "השדה {{field}} שונה",
   "removedTaskDependency": "הוסרה תלות",
   "failedToRemoveAttachment": "לא הצלחנו להסיר קובץ",
   "updatedTaskStatus": "סטטוס משימה עודכן",

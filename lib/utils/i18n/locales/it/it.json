@@ -118,6 +118,7 @@
   "removedAttachment": "File rimosso",
   "addedTaskDependency": "Dipendenza aggiunta",
   "updatedTaskEstimate": "Stima aggiornata",
+  "updatedTaskField": "Campo «{{field}}» modificato",
   "removedTaskDependency": "Dipendenza rimossa",
   "failedToRemoveAttachment": "Impossibile rimuovere file",
   "updatedTaskStatus": "Stato del compito aggiornato",

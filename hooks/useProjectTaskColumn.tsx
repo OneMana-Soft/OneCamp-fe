@@ -17,11 +17,15 @@ import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {useDispatch} from "react-redux";
 import { BlockedBadge } from "@/components/task/BlockedBadge"
+import { FieldValueView } from "@/components/task/fieldValue"
+import type { TaskField } from "@/lib/tasks/fields"
 
 
 
-/** statusOptions: the project's statuses, so its own ones show in their colours. */
-export const useProjectTaskColumn = (statusOptions?: StatusOption[]) => {
+/** statusOptions: the project's statuses, so its own ones show in their
+ * colours; fields: its custom fields, a column each; nameOf names a person
+ * field's value. */
+export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: TaskField[] = [], nameOf?: (id: string) => string | undefined) => {
 
     const { t } = useTranslation();
     const dispatch = useDispatch();
@@ -245,6 +249,18 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[]) => {
                 return value.includes(row.getValue(id));
             },
         },
+        // A column for each of the project's own fields. Its id is the field's
+        // filter id, so a filter set on it goes to the server, which applies it
+        // (business/TaskField); values aren't sorted on.
+        ...fields.map((f): ColumnDef<TaskInfoInterface> => ({
+            id: f.filter_id,
+            meta: { label: f.name },
+            accessorFn: (row) => row.task_fields?.[f.id],
+            header: ({ column }) => <TaskTableColumnHeader column={column} title={f.name} />,
+            cell: ({ row }) => <FieldValueView field={f} value={row.original.task_fields?.[f.id]} nameOf={nameOf} className="max-w-[14rem]" />,
+            enableSorting: false,
+            filterFn: () => true,
+        })),
         // Never shown: carries the cycle filter (see business/Cycle), which the
         // server applies, so every row it returns passes here.
         {

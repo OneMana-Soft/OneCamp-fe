@@ -118,6 +118,7 @@
   "removedAttachment": "फ़ाइल हटा दी गई",
   "addedTaskDependency": "निर्भरता जोड़ी गई",
   "updatedTaskEstimate": "अनुमान अपडेट किया गया",
+  "updatedTaskField": "{{field}} बदला गया",
   "removedTaskDependency": "निर्भरता हटा दी गई",
   "failedToRemoveAttachment": "फ़ाइल हटाने में विफल",
   "updatedTaskStatus": "कार्य की स्थिति अद्यतन की गई",

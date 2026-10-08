@@ -23,6 +23,14 @@ describe("columns that step aside in a narrow table", () => {
     expect(columnsToHide(750, ALL, { task_created_at: true })).not.toHaveProperty("task_created_at")
   })
 
+  it("steps a project's own field columns aside first, the last first", () => {
+    const withFields = [...ALL, "field_a", "field_b"]
+    // The built-in columns want 985px; each field 120px more.
+    expect(Object.keys(columnsToHide(1150, withFields))).toEqual(["field_b"])
+    expect(Object.keys(columnsToHide(1000, withFields))).toEqual(["field_b", "field_a"])
+    expect(Object.keys(columnsToHide(900, withFields))).toEqual(["field_b", "field_a", "task_created_at"])
+  })
+
   it("counts a column the person hid as already gone", () => {
     expect(columnsToHide(900, ALL, { task_created_at: false })).toEqual({})
   })

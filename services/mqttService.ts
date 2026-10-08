@@ -1,4 +1,5 @@
 // Mock MqttService for demonstration purposes
+import type { FieldValue } from "@/lib/tasks/fields"
 import {AttachmentMediaReq} from "@/types/attachment";
 import {PostsRes} from "@/types/post";
 import {ChatInfo} from "@/types/chat";
@@ -55,6 +56,18 @@ export enum MqttMessageType {
     // Task_Dates mirrors backend MESSAGE_TASK_DATES: a task's dates changed;
     // open boards, lists, timelines and its panel show the new ones.
     Task_Dates,
+    // Task_Field mirrors backend MESSAGE_TASK_FIELD: a task's value of one of
+    // its project's own fields changed; lists, boards and its panel show it.
+    Task_Field,
+}
+
+/** MESSAGE_TASK_FIELD's data: a task's value of a field now (null once taken off), and who set it. */
+export interface msgTaskFieldInterface {
+    task_uuid: string
+    project_uuid: string
+    field_id: string
+    value: FieldValue | null
+    by: string
 }
 
 /** MESSAGE_TASK_DATES' data: a task's dates now, "" for an unset one, and who changed them. */

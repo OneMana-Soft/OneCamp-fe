@@ -118,6 +118,7 @@
   "removedAttachment": "Fail eemaldatud",
   "addedTaskDependency": "Sõltuvus lisatud",
   "updatedTaskEstimate": "Hinnang uuendati",
+  "updatedTaskField": "Välja „{{field}}“ muudeti",
   "removedTaskDependency": "Sõltuvus eemaldatud",
   "failedToRemoveAttachment": "Ei õnnestunud faili eemaldada",
   "updatedTaskStatus": "Ülesande staatus uuendatud",

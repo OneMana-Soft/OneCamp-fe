@@ -118,6 +118,7 @@
   "removedAttachment": "L'arxiu ha estat eliminat",
   "addedTaskDependency": "S'ha afegit una dependència",
   "updatedTaskEstimate": "S'ha actualitzat l'estimació",
+  "updatedTaskField": "S'ha canviat «{{field}}»",
   "removedTaskDependency": "S'ha eliminat una dependència",
   "failedToRemoveAttachment": "No s'ha pogut eliminar l'arxiu",
   "updatedTaskStatus": "Estat de la tasca actualitzat",

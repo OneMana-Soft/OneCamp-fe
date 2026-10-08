@@ -13,7 +13,8 @@ describe("MQTT message types match the backend", () => {
     expect(MqttMessageType.Poll_Update).toBe(30)
     expect(MqttMessageType.Scheduled_Message).toBe(31)
   })
-  it("Task_Dates is 32", () => {
+  it("Task_Dates is 32 and Task_Field is 33", () => {
     expect(MqttMessageType.Task_Dates).toBe(32)
+    expect(MqttMessageType.Task_Field).toBe(33)
   })
 })

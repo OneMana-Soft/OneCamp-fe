@@ -118,6 +118,7 @@
   "removedAttachment": "Вложение удалено",
   "addedTaskDependency": "Добавлена зависимость",
   "updatedTaskEstimate": "Оценка обновлена",
+  "updatedTaskField": "Поле «{{field}}» изменено",
   "removedTaskDependency": "Зависимость удалена",
   "failedToRemoveAttachment": "Не удалось удалить вложение",
   "updatedTaskStatus": "Статус задачи обновлён",

@@ -118,6 +118,7 @@
   "removedAttachment": "Файлът е премахнат",
   "addedTaskDependency": "Добавена е зависимост",
   "updatedTaskEstimate": "Оценката е обновена",
+  "updatedTaskField": "Полето „{{field}}“ е променено",
   "removedTaskDependency": "Зависимостта е премахната",
   "failedToRemoveAttachment": "Неуспешно премахване на файл",
   "updatedTaskStatus": "Актуализиран статус на задачата",

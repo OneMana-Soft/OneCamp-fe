@@ -118,6 +118,7 @@
   "removedAttachment": "تمت إزالة المرفق",
   "addedTaskDependency": "تمت إضافة تبعية",
   "updatedTaskEstimate": "تم تحديث التقدير",
+  "updatedTaskField": "تم تغيير «{{field}}»",
   "removedTaskDependency": "تمت إزالة تبعية",
   "failedToRemoveAttachment": "فشل في إزالة المرفق",
   "updatedTaskStatus": "تم تحديث حالة المهمة",

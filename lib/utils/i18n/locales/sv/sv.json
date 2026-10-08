@@ -118,6 +118,7 @@
   "removedAttachment": "Bilaga borttagen",
   "addedTaskDependency": "Beroende tillagt",
   "updatedTaskEstimate": "Uppskattningen uppdaterades",
+  "updatedTaskField": "Fältet {{field}} ändrades",
   "removedTaskDependency": "Beroende borttaget",
   "failedToRemoveAttachment": "Det gick inte att ta bort bilaga",
   "updatedTaskStatus": "Uppgiftsstatus uppdaterad",

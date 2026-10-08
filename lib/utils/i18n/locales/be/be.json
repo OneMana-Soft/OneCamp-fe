@@ -118,6 +118,7 @@
   "removedAttachment": "Файл выдалены",
   "addedTaskDependency": "Дададзена залежнасць",
   "updatedTaskEstimate": "Абноўлена ацэнка",
+  "updatedTaskField": "Зменена поле «{{field}}»",
   "removedTaskDependency": "Залежнасць выдалена",
   "failedToRemoveAttachment": "Не атрымалася выдаліць файл",
   "updatedTaskStatus": "Абноўлены статус задачы",

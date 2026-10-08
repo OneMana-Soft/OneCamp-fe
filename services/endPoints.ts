@@ -97,6 +97,7 @@ export enum GetEndpointUrl {
     GetTaskRecurrence = "/task/recurrence",
     // A project's cycles: /project/{id}/cycles (+ /{cycle}/complete, /rename, /delete)
     ProjectCycles = "/project",
+    ProjectFields = "/project",
     // A project's intake forms: /project/{id}/forms (+ /{form}/delete)
     ProjectForms = "/project",
     // Project templates: GET the list, POST one from a file; /{id} to download,
@@ -501,6 +502,7 @@ export enum PostEndpointUrl {
     AddTaskDependency = "/task/dependency",
     SetWorkloadCapacity = "/project/workload/capacity",
     UpdateTaskEstimate = "/task/updateTaskEstimate",
+    SetTaskField = "/task/field",
     RemoveTaskDependency = "/task/dependency/delete",
     SetTaskRecurrence = "/task/recurrence",
     SetTaskCycle = "/task/cycle",

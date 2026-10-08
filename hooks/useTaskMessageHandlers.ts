@@ -7,7 +7,10 @@ import {
     updateTaskCommentByCommentUUID, updateTaskCommentReactionByCommentId
 } from "@/store/slice/createTaskCommentSlice";
 import store from "@/store/store";
-import type { msgTaskDatesInterface } from "@/services/mqttService";
+import type { msgTaskDatesInterface, msgTaskFieldInterface } from "@/services/mqttService";
+import { useSWRConfig } from "swr";
+import { projectFieldsKey } from "@/hooks/useProjectFields";
+import { optionOf, withField, type FieldValues, type TaskField } from "@/lib/tasks/fields";
 import { useTaskUpdate } from "@/hooks/useTaskUpdate";
 import { appMutate } from "@/lib/swrMutate";
 import { GetEndpointUrl } from "@/services/endPoints";
@@ -24,7 +27,8 @@ interface UseTaskMessageHandlersProps {
 
 export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps) => {
     const dispatch = useDispatch()
-    const { optimisticUpdateTasks } = useTaskUpdate()
+    const { optimisticUpdateTasks, optimisticSetTaskField } = useTaskUpdate()
+    const { cache } = useSWRConfig()
 
     // A chain of tasks moved along arrives as a message each; the board, the
     // list and the timeline change once for the lot, not once per task.
@@ -70,6 +74,36 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
             }
         },
         [dispatch, queueDates]
+    )
+
+    // Someone set a task's value of one of its project's fields: lists, boards
+    // and its panel show it, merged into the task's other values. A field or
+    // an option this app hasn't loaded yet (made or renamed a moment ago)
+    // sends it for the project's fields again.
+    const handleTaskFieldMessage = useCallback(
+        (messageStr: string) => {
+            try {
+                const m: msgTaskFieldInterface | undefined = JSON.parse(messageStr)?.data
+                if (!m?.task_uuid || !m.project_uuid || !m.field_id) return
+                const value = m.value ?? null
+                optimisticSetTaskField(m.task_uuid, m.project_uuid, m.field_id, value)
+                void appMutate(
+                    `${GetEndpointUrl.GetTaskInfo}/${m.task_uuid}`,
+                    (current: { data?: { task_fields?: FieldValues } } | undefined) =>
+                        current?.data ? { ...current, data: { ...current.data, task_fields: withField(current.data.task_fields, m.field_id, value) } } : current,
+                    { revalidate: false },
+                )
+                const key = projectFieldsKey(m.project_uuid)
+                const known = (cache.get(key)?.data as { data?: { fields?: TaskField[] } } | undefined)?.data?.fields
+                const field = known?.find((f) => f.id === m.field_id)
+                const ids = Array.isArray(value) ? value : typeof value === "string" ? [value] : []
+                const stale = known && (!field || ((field.type === "select" || field.type === "multi_select") && ids.some((id) => !optionOf(field, id))))
+                if (stale) void appMutate(key)
+            } catch (error) {
+                console.error("[MQTT] Task field message handling error:", error)
+            }
+        },
+        [optimisticSetTaskField, cache]
     )
 
     const handleTaskCommentMessage = useCallback(
@@ -208,5 +242,6 @@ export const useTaskMessageHandlers = ({ userUuid }: UseTaskMessageHandlersProps
         handleTaskCommentMessage,
         handleTaskCommentReactionMessage,
         handleTaskDatesMessage,
-    }), [handleTaskCommentMessage, handleTaskCommentReactionMessage, handleTaskDatesMessage])
+        handleTaskFieldMessage,
+    }), [handleTaskCommentMessage, handleTaskCommentReactionMessage, handleTaskDatesMessage, handleTaskFieldMessage])
 }
