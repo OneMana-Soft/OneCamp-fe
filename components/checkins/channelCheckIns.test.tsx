@@ -69,4 +69,18 @@ describe("a channel's check-ins", () => {
     expect(screen.queryByRole("button", { name: "Ask now" })).toBeNull()
     expect(screen.queryByRole("button", { name: "New check-in" })).toBeNull()
   })
+
+  it("tells a member when there are none, and an admin how to start", () => {
+    const saved = hook.checkIns
+    hook.checkIns = []
+    hook.canEdit = false
+    render(<ChannelCheckIns channelId="ch1" />)
+    expect(screen.getByText(/no check-ins yet\. Its admins can set one up/)).toBeTruthy()
+    cleanup()
+    hook.canEdit = true
+    render(<ChannelCheckIns channelId="ch1" />)
+    expect(screen.getByText(/instead of a status meeting/)).toBeTruthy()
+    expect(screen.getByRole("button", { name: "New check-in" })).toBeTruthy()
+    hook.checkIns = saved
+  })
 })

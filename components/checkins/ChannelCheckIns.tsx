@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useCheckIns } from "@/hooks/useCheckIns"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, MessageSquare, Pause, Play, Trash2 } from "@/lib/icons"
+import { Loader2, Pause, Play, Plus, Trash2 } from "@/lib/icons"
 import { DAY_LABELS, SUGGESTED_QUESTIONS, describeSchedule, nextLabel, type CheckIn, type CheckInInput } from "@/lib/checkins"
 import { cn } from "@/lib/utils/helpers/cn"
 import { browserTZ } from "@/lib/utils/timeZone"
@@ -118,7 +118,8 @@ function CheckInForm({ editing, onSave, onCancel }: { editing?: CheckIn; onSave:
 
 /**
  * A channel's automatic check-ins: a question asked on a schedule, answered in
- * its thread. Everyone in the channel sees them; its moderators set them up.
+ * its thread. Everyone in the channel sees them; its admins set them up. Shown
+ * in its own dialog, from the channel's ⋯ menu.
  */
 export function ChannelCheckIns({ channelId }: { channelId: string }) {
   const { toast } = useToast()
@@ -129,7 +130,13 @@ export function ChannelCheckIns({ channelId }: { channelId: string }) {
   // click can't ask everyone twice.
   const [pending, setPending] = useState<string | null>(null)
 
-  if (isLoading || (!canEdit && checkIns.length === 0)) return null
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-6">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-label="Loading check-ins" />
+      </div>
+    )
+  }
 
   const run = (id: string, fn: () => Promise<unknown>, done: string) => () => {
     if (pending) return
@@ -141,22 +148,21 @@ export function ChannelCheckIns({ channelId }: { channelId: string }) {
   }
 
   return (
-    <section className="grid gap-2" aria-label="Check-ins">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold">
-          <MessageSquare className="h-4 w-4 text-muted-foreground" aria-hidden />
-          Check-ins
-        </h3>
-        {canEdit && !form && (
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setForm({})}>
+    <section className="grid gap-3" aria-label="Check-ins">
+      {checkIns.length === 0 && !form && (
+        <p className="text-sm text-muted-foreground">
+          {canEdit
+            ? "Ask the channel a question on a schedule, like \u201cWhat did you work on today?\u201d every weekday at 17:00, instead of a status meeting."
+            : "This channel has no check-ins yet. Its admins can set one up."}
+        </p>
+      )}
+      {canEdit && !form && (
+        <div>
+          <Button size="sm" variant={checkIns.length === 0 ? "default" : "outline"} onClick={() => setForm({})}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden />
             New check-in
           </Button>
-        )}
-      </div>
-      {checkIns.length === 0 && !form && (
-        <p className="text-xs text-muted-foreground">
-          Ask the channel a question on a schedule, like &quot;What did you work on today?&quot; every weekday at 17:00, instead of a status meeting.
-        </p>
+        </div>
       )}
       {form && !form.editing && <CheckInForm onSave={create} onCancel={() => setForm(null)} />}
       <ul className="grid gap-2">

@@ -1,6 +1,6 @@
 "use client"
 
-import { Clapperboard, Pencil, Users, Video } from "@/lib/icons"
+import { Clapperboard, MessageSquare, Pencil, Users, Video } from "@/lib/icons"
 import {
     Drawer,
     DrawerContent,
@@ -120,6 +120,20 @@ export function ChannelOptionsDrawer({
                             dispatch(
                                 openUI({
                                     key: "editChannelMember",
+                                    data: { channelUUID: channelId },
+                                }),
+                            )
+                            closeDrawer()
+                        }}
+                    />
+
+                    <DrawerItem
+                        icon={MessageSquare}
+                        label="Check-ins"
+                        onClick={() => {
+                            dispatch(
+                                openUI({
+                                    key: "channelCheckIns",
                                     data: { channelUUID: channelId },
                                 }),
                             )

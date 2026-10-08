@@ -16,7 +16,7 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
-import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X, MoreHorizontal } from "@/lib/icons";
+import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, X, MoreHorizontal, MessageSquare } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -328,6 +328,9 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
                                     </Link>
                                 </DropdownMenuItem>
                             </FeatureGate>
+                            <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'channelCheckIns', data: { channelUUID: channelId } }))}>
+                                <MessageSquare className="text-muted-foreground" /> Check-ins
+                            </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                                 <Link href={channelRecordingHref}>
                                     <Clapperboard className="text-muted-foreground" /> Call recordings

@@ -21,6 +21,7 @@ const DocShareDialog = dynamic(() => import("@/components/dialog/docShareDialog"
 const CreateChatMessageDialog = dynamic(() => import("@/components/dialog/createChatMessageDialog"), { ssr: false });
 const EditChannelDialog = dynamic(() => import("@/components/dialog/editChannelDialog"), { ssr: false });
 const EditChannelMemberDialog = dynamic(() => import("@/components/dialog/editChannelMembers"), { ssr: false });
+const ChannelCheckInsDialog = dynamic(() => import("@/components/dialog/channelCheckInsDialog"), { ssr: false });
 const EditTeamMemberDialog = dynamic(() => import("@/components/dialog/editTeamMembers"), { ssr: false });
 const EditDmMemberDialog = dynamic(() => import("@/components/dialog/editDmMembers"), { ssr: false });
 const MediaLightboxDialog = dynamic(() => import("@/components/dialog/attachmentLightboxDialog").then(mod => mod.MediaLightboxDialog), { ssr: false });
@@ -201,6 +202,14 @@ export function UnifiedUIManager() {
           channelId={ui.editChannelMember.data.channelUUID}
           dialogOpenState={ui.editChannelMember.isOpen}
           setOpenState={() => dispatch(closeUI('editChannelMember'))}
+        />
+      )}
+
+      {ui.channelCheckIns.isOpen && (
+        <ChannelCheckInsDialog
+          channelId={ui.channelCheckIns.data.channelUUID}
+          dialogOpenState={ui.channelCheckIns.isOpen}
+          setOpenState={() => dispatch(closeUI('channelCheckIns'))}
         />
       )}
 
