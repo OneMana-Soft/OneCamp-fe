@@ -252,7 +252,8 @@ function DependencyWayEditor({
           {short}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80" align="end">
+      {/* Short enough for a laptop's screen below the row; it scrolls inside, never off the page. */}
+      <PopoverContent className="max-h-[var(--radix-popover-content-available-height)] w-72 overflow-y-auto" align="end" collisionPadding={8}>
         <form
           className="grid gap-3"
           onSubmit={(e) => {
@@ -262,20 +263,17 @@ function DependencyWayEditor({
             if (kind !== way.kind || lag !== way.lag) onSave({ kind, lag })
           }}
         >
-          <p className="text-sm font-medium">
-            How {waiting} waits on {on}
-          </p>
-          <RadioGroup value={kind} onValueChange={(v) => setKind(v as DependencyKind)} className="gap-0.5" aria-label="Kind of dependency">
-            {DEPENDENCY_KINDS.map((k) => (
-              <label key={k} className="flex cursor-pointer items-start gap-2.5 rounded-md px-1.5 py-1.5 hover:bg-accent/50">
-                <RadioGroupItem value={k} className="mt-0.5" />
-                <span className="grid gap-0.5">
-                  <span className="text-sm leading-none">{KIND_LABEL[k]}</span>
-                  <span className="text-xs text-muted-foreground">{waySentence({ kind: k, lag: 0 }, waiting, on)}</span>
-                </span>
-              </label>
-            ))}
-          </RadioGroup>
+          <div className="grid gap-1.5">
+            <Label id={`${lagId}-kind`}>Kind</Label>
+            <RadioGroup value={kind} onValueChange={(v) => setKind(v as DependencyKind)} className="grid-cols-2 gap-1" aria-labelledby={`${lagId}-kind`}>
+              {DEPENDENCY_KINDS.map((k) => (
+                <label key={k} className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-sm hover:bg-accent/50">
+                  <RadioGroupItem value={k} />
+                  {KIND_LABEL[k]}
+                </label>
+              ))}
+            </RadioGroup>
+          </div>
           <div className="grid gap-1.5">
             <Label htmlFor={lagId}>Lag in days</Label>
             <Input
@@ -291,10 +289,10 @@ function DependencyWayEditor({
               aria-describedby={`${lagId}-says`}
               className="h-8 w-24"
             />
-            <p id={`${lagId}-says`} aria-live="polite" className={cn("text-xs", lag === null ? "text-destructive" : "text-muted-foreground")}>
-              {lag === null ? `A whole number of days, up to ${MAX_LAG} either way.` : waySentence({ kind, lag }, waiting, on)}
-            </p>
           </div>
+          <p id={`${lagId}-says`} aria-live="polite" className={cn("rounded-md bg-muted/60 px-2.5 py-2 text-xs", lag === null ? "text-destructive" : "text-muted-foreground")}>
+            {lag === null ? `A whole number of days, up to ${MAX_LAG} either way.` : waySentence({ kind, lag }, waiting, on)}
+          </p>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
               Cancel
