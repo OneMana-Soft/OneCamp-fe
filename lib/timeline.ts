@@ -22,6 +22,7 @@ import {
 } from "date-fns"
 import { NO_ASSIGNEE, groupByAssignee } from "@/lib/board/groupBy"
 import { isClosedStatus, statusOptionOf, type StatusCategory, type StatusOption, type TaskStatusFields } from "@/lib/taskStatus"
+import { endsOf, wayKept, wayOf, type DependencyFacets } from "@/lib/tasks/dependency"
 
 /** A task as GET /project/{id}/timeline sends it. */
 export interface TimelineTask extends TaskStatusFields {
@@ -34,8 +35,8 @@ export interface TimelineTask extends TaskStatusFields {
   task_created_at?: string
   task_assignee?: { user_uuid: string; user_name?: string; user_full_name?: string; user_profile_object_key?: string } | null
   task_sub_task_count?: number
-  /** The tasks it waits on: it can start once they are done. */
-  task_blocked_by?: { task_uuid: string }[]
+  /** The tasks it waits on, and how: most often it can start once they are done. */
+  task_blocked_by?: ({ task_uuid: string } & DependencyFacets)[]
   /** How many of those are still open. */
   task_blocked_open?: number
 }
@@ -325,7 +326,11 @@ export function headerTicks(range: Range, zoom: Zoom, dayWidth: number): { top: 
 
 // ---- Dependencies ------------------------------------------------------------
 
-/** A dependency as the timeline draws it: an arrow from the end of the task waited on to the start of the task waiting. */
+/**
+ * A dependency as the timeline draws it: an arrow from the end of the task
+ * waited on to the start of the task waiting, or from and to whichever ends
+ * its kind ties.
+ */
 interface DependencyLink {
   key: string
   /** The task waited on. */
@@ -334,7 +339,7 @@ interface DependencyLink {
   to: string
   /** An SVG path in the grid's own pixels. */
   path: string
-  /** The waiting task starts before the other is due, so the plan can't be kept as it stands. Finished work breaks nothing. */
+  /** The waiting task starts (or ends) too early for it, so the plan can't be kept as it stands. Finished work breaks nothing. */
   broken: boolean
 }
 
@@ -364,20 +369,30 @@ export function dependencyLinks(
     for (const b of task.task_blocked_by ?? []) {
       const blocker = at.get(b.task_uuid)
       if (!blocker) continue
+      const way = wayOf(b)
+      const ends = endsOf(way.kind)
       const a = barBox(blocker.span, range, dayWidth)
       const z = barBox(waiting.span, range, dayWidth)
-      const x1 = a.left + a.width
+      // It leaves a bar's end rightwards and its start leftwards, and comes
+      // into a start from the left and an end from the right.
+      const out1 = ends.from === "end" ? 1 : -1
+      const in2 = ends.to === "start" ? -1 : 1
+      const x1 = ends.from === "end" ? a.left + a.width : a.left
       const y1 = blocker.row * rowHeight + rowHeight / 2
-      const x2 = z.left
+      const x2 = ends.to === "start" ? z.left : z.left + z.width
       const y2 = waiting.row * rowHeight + rowHeight / 2
-      // Room to turn once between the bars: out, down (or up), across.
-      // Otherwise the arrow goes round, along the edge between the rows.
+      const turn1 = x1 + out1 * STUB
+      const turn2 = x2 + in2 * STUB
+      // One turn between the bars, when there's a place for it on the way
+      // both out and in: out, down (or up), across. Otherwise the arrow goes
+      // round, along the edge between the rows.
+      const across = out1 === in2 ? (out1 > 0 ? Math.max(turn1, turn2) : Math.min(turn1, turn2)) : (out1 > 0 ? turn1 <= turn2 : turn1 >= turn2) ? turn1 : null
       const path =
-        x2 - x1 >= 2 * STUB
-          ? `M${x1} ${y1}H${x1 + STUB}V${y2}H${x2}`
-          : `M${x1} ${y1}H${x1 + STUB}V${y2 - Math.sign(y2 - y1) * (rowHeight / 2)}H${x2 - STUB}V${y2}H${x2}`
+        across !== null
+          ? `M${x1} ${y1}H${across}V${y2}H${x2}`
+          : `M${x1} ${y1}H${turn1}V${y2 - Math.sign(y2 - y1) * (rowHeight / 2)}H${turn2}V${y2}H${x2}`
       const open = !isClosedStatus(blocker.task.task_status) && !isClosedStatus(task.task_status)
-      out.push({ key: `${b.task_uuid}>${to}`, from: b.task_uuid, to, path, broken: open && waiting.span.start <= blocker.span.end })
+      out.push({ key: `${b.task_uuid}>${to}`, from: b.task_uuid, to, path, broken: open && !wayKept(way, blocker.span, waiting.span) })
     }
   }
   return out

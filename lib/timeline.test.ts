@@ -284,6 +284,31 @@ describe("dependency arrows", () => {
     expect(dependencyLinks(rowsOf([design, { ...early, task_status: "done" }]), range, 10, 36)[0].broken).toBe(false)
   })
 
+  it("ties the ends each kind says, and keeps to its lag", () => {
+    const build = (kind: string, lag = 0) =>
+      task("build", {
+        task_start_date: iso(2026, 10, 10, 9),
+        task_due_date: iso(2026, 10, 12, 17),
+        task_blocked_by: [{ task_uuid: "design", "task_blocked_by|kind": kind, ...(lag ? { "task_blocked_by|lag": lag } : {}) }],
+      })
+    const linkOf = (kind: string, lag = 0) => dependencyLinks(rowsOf([design, build(kind, lag)]), range, 10, 36)[0]
+    // Start to start: out of Design's start, leftwards, and into Build's start.
+    expect(linkOf("ss")).toMatchObject({ path: "M0 18H-8V54H50", broken: false })
+    // Finish to finish: out of Design's end, and into Build's end from the right.
+    expect(linkOf("ff")).toMatchObject({ path: "M30 18H88V54H80", broken: false })
+    // Start to finish: out of Design's start, and round to Build's end.
+    expect(linkOf("sf")).toMatchObject({ path: "M0 18H-8V36H88V54H80", broken: false })
+    // Two days pass between Design and Build: a lag of 2 keeps to that, 3 doesn't.
+    expect(linkOf("fs", 2).broken).toBe(false)
+    expect(linkOf("fs", 3).broken).toBe(true)
+    expect(linkOf("ss", 5).broken).toBe(false)
+    expect(linkOf("ss", 6).broken).toBe(true)
+    expect(linkOf("ff", 5).broken).toBe(false)
+    expect(linkOf("ff", 6).broken).toBe(true)
+    // A kind it doesn't know is finish to start.
+    expect(linkOf("zz").path).toBe("M30 18H38V54H50")
+  })
+
   it("follows a bar being dragged, and leaves out a task with no row", () => {
     const build = task("build", { task_start_date: iso(2026, 10, 10, 9), task_due_date: iso(2026, 10, 12, 17), task_blocked_by: [{ task_uuid: "design" }, { task_uuid: "someday" }] })
     const rows = rowsOf([design, build, task("someday")])

@@ -1213,6 +1213,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                     {taskUUID && taskInfo.data?.data.task_project?.project_uuid && !taskInfo.data.data.task_parent_task?.task_uuid && (
                         <TaskDependencies
                             taskUUID={taskUUID}
+                            taskName={taskInfo.data.data.task_name}
                             projectUUID={taskInfo.data.data.task_project.project_uuid}
                             canEdit={isAdmin}
                             waitingOn={taskInfo.data.data.task_blocked_by ?? []}
