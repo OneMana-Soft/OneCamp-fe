@@ -146,6 +146,8 @@ export enum GetEndpointUrl {
     // A client's newest verdict on a task: /task/clientReview/{task}
     TaskClientReview = "/task/clientReview",
     ProjectTime = "/project",
+    // append /{projectId}/invoices: a project's saved invoices (business/Invoice)
+    ProjectInvoices = "/project",
     GetTaskViews = "/task/views",
     GetBookingPages = "/event/bookingPages",
     GetUserProjectList = "/user/userProjectList",

@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import { serverMessage } from "@/lib/http/serverMessage"
 import { Download, FileText, Loader2 } from "@/lib/icons"
 import { ProjectRatesDialog } from "@/components/project/ProjectRatesDialog"
+import { ProjectInvoices } from "@/components/project/ProjectInvoices"
 import { formatCents } from "@/lib/rates"
 import { REPORT_PRESETS, formatDuration, formatHours, presetRange, type ReportPreset, type TimeLine, type TimeReport } from "@/lib/tasks/time"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -71,7 +72,7 @@ export function ProjectTimeDialog({
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Time{projectName ? ` on ${projectName}` : ""}</DialogTitle>
-          <DialogDescription>Time logged on this project&apos;s tasks. Download it to invoice a client.</DialogDescription>
+          <DialogDescription>Time logged on this project&apos;s tasks. Make an invoice from it, or download it.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -140,6 +141,8 @@ export function ProjectTimeDialog({
             <Breakdown title="By task" lines={report.by_task} total={report.seconds} priced={priced} />
           </div>
         )}
+        {/* Saved invoices are the project's, whatever range is shown above. */}
+        {isAdmin && <ProjectInvoices projectId={projectId} />}
       </DialogContent>
       {isAdmin && <ProjectRatesDialog projectId={projectId} open={ratesOpen} onOpenChange={setRatesOpen} onSaved={() => void mutate()} />}
     </Dialog>
