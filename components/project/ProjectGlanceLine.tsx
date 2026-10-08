@@ -16,7 +16,8 @@ export function ProjectGlanceLine({ projectId, className }: { projectId: string;
   const query = GetTaskStatusQueryParamByStatus({ assigneeFilter: [], priorityFilter: [] })
   const { data } = useFetch<ProjectInfoRawInterface>(projectId ? `${GetEndpointUrl.GetProjectTaskListForKanban}/${projectId}?${query}` : "")
   const p = data?.data
-  if (!p) return null
+  // Its line held while it loads, so what's under it doesn't move when it arrives.
+  if (!p) return <p aria-hidden className={cn("h-5 text-sm", className)} />
   const tasks = [
     ...(p.project_tasks_backlog ?? []),
     ...(p.project_tasks_todo ?? []),
@@ -28,7 +29,7 @@ export function ProjectGlanceLine({ projectId, className }: { projectId: string;
   const parts = projectGlanceParts(projectGlance(tasks, new Date(), p.project_tasks_done_count))
   if (!parts) return <p className={cn("text-sm text-muted-foreground", className)}>No tasks yet.</p>
   return (
-    <p className={cn("text-sm text-muted-foreground", className)}>
+    <p className={cn("text-sm text-muted-foreground", className)} title={parts.map((part) => part.text).join(" · ")}>
       {parts.map((part, i) => (
         <span key={part.text}>
           {i > 0 && <span aria-hidden="true"> · </span>}
