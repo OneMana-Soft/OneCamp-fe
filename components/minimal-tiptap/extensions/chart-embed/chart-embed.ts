@@ -14,7 +14,7 @@ interface ChartEmbedOptions {
 //   <div data-type="chart" data-spec='{…chart JSON…}'></div>
 // when the agent includes a ```chart block, mirroring how the meeting-recap
 // agent emits a recording-embed node. The node stores ONLY the JSON spec string;
-// the view validates + renders it as a dependency-free SVG chart (AgentChart).
+// the view validates + renders it as a dependency-free SVG chart (SvgChart).
 //
 // Safety: data-spec is treated purely as data — parsed as JSON and drawn as SVG
 // numbers by the view, never interpreted as markup — so it carries no injection

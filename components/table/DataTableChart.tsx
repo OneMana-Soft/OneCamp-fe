@@ -9,6 +9,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Loader2 } from "@/lib/icons"
+import SvgChart from "@/components/charts/SvgChart"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
 import {
     aggregateTable,
@@ -21,7 +22,7 @@ import {
 // column to group by, an aggregation (count / sum / avg / min / max) and a chart
 // type; the grouped result is computed server-side (permission-scoped, bounded)
 // by the SAME engine the AI query_table tool uses, and drawn with the SAME
-// dependency-free AgentChart renderer used in AI messages. No row data is pulled
+// dependency-free SvgChart renderer used in AI messages. No row data is pulled
 // to the client — only the aggregated buckets — so it stays fast on big tables.
 
 const CHART_TYPES = ["bar", "line", "area", "pie"] as const
@@ -251,9 +252,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
                     </div>
                 ) : chart ? (
                     <>
-                        <div className="rounded border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-                            Chart view placeholder
-                        </div>
+                        <SvgChart chart={chart} />
                         {result?.truncated && (
                             <p className="mt-2 text-center text-xs text-muted-foreground">
                                 Showing the top {result.buckets.length} of {result.distinct_groups} groups.

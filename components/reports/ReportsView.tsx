@@ -8,7 +8,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo } from "react"
-import AgentChart from "@/components/ai/AgentChart"
+import SvgChart from "@/components/charts/SvgChart"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 import { Button } from "@/components/ui/button"
 import {
@@ -254,8 +254,8 @@ export function ReportsView({ compact }: { compact?: boolean }) {
       ) : (
         <>
           <div className={cn("grid gap-3", !compact && hours && "lg:grid-cols-2")}>
-            <AgentChart chart={throughputChart(report)} className="my-0" />
-            {hours && <AgentChart chart={hours} className="my-0" />}
+            <SvgChart chart={throughputChart(report)} className="my-0" />
+            {hours && <SvgChart chart={hours} className="my-0" />}
           </div>
           {/* The charts' numbers, week by week, for a screen reader. */}
           <table className="sr-only">
