@@ -95,7 +95,7 @@ describe("writing a formula", () => {
 
   it("lists the functions, and puts one in", () => {
     render(<Editing />)
-    fireEvent.click(screen.getByRole("button", { name: "Functions" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show functions" }))
     fireEvent.click(screen.getByTitle("IF(test, then, otherwise)"))
     expect(box().value).toBe("IF(")
   })

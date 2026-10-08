@@ -6,6 +6,7 @@
 // what the preview says is what the column will show.
 
 import * as React from "react"
+import { ChevronRight } from "@/lib/icons"
 import { FORMULA_FUNCTIONS, fieldRef, insertAt, showFormulaValue, type FormulaShown } from "@/lib/tables/formula"
 import { previewFormula, type FormulaPreview, type FormulaResult, type TableField } from "@/services/tableService"
 
@@ -138,9 +139,13 @@ export function FormulaEditor({
           type="button"
           aria-expanded={showFunctions}
           onClick={() => setShowFunctions((v) => !v)}
-          className="text-2xs font-medium text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1 text-2xs font-medium text-muted-foreground hover:text-foreground"
         >
-          {showFunctions ? "Hide functions" : "Functions"}
+          <ChevronRight
+            aria-hidden
+            className={`h-3 w-3 transition-transform motion-reduce:transition-none ${showFunctions ? "rotate-90" : ""}`}
+          />
+          {showFunctions ? "Hide functions" : "Show functions"}
         </button>
         {showFunctions && (
           <div className="mt-1 max-h-48 space-y-2 overflow-y-auto pr-1">
