@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from "@/lib/utils/helpers/cn";
 
 interface LoadingContextType {
   activeRequests: number;
@@ -30,30 +30,28 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   );
 };
 
+// CSS rather than an animation library: this bar is on every page, and the
+// library it used was most of a chunk every page had to load first.
 const GlobalProgressBar: React.FC<{ active: boolean }> = ({ active }) => {
+  // Each time loading starts, the bar starts again from nothing.
+  const [run, setRun] = useState(0);
+  useEffect(() => {
+    if (active) setRun((n) => n + 1);
+  }, [active]);
   return (
-    <AnimatePresence>
-      {active && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed top-0 left-0 right-0 z-[9999] h-1 bg-transparent"
-        >
-          <motion.div
-            className="h-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)]"
-            initial={{ width: "0%" }}
-            animate={{ 
-              width: ["0%", "30%", "60%", "90%"],
-              transition: { 
-                times: [0, 0.2, 0.5, 0.8],
-                duration: 10,
-                ease: "linear"
-              } 
-            }}
-          />
-        </motion.div>
+    <div
+      aria-hidden
+      className={cn(
+        "pointer-events-none fixed top-0 left-0 right-0 z-[9999] h-1 bg-transparent transition-opacity duration-200",
+        active ? "opacity-100" : "opacity-0",
       )}
-    </AnimatePresence>
+    >
+      {run > 0 && (
+        <div
+          key={run}
+          className="h-full w-0 animate-load-progress bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)] motion-reduce:w-1/2 motion-reduce:animate-none"
+        />
+      )}
+    </div>
   );
 };

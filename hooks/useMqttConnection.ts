@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import mqtt, { type MqttClient, type ISubscriptionMap } from "mqtt"
+// Types only: the library itself (about 400 KB) loads when a connection is
+// first made, so it isn't part of the code every page needs to show.
+import type { IClientPublishOptions, ISubscriptionMap, MqttClient } from "mqtt"
 import {ConnectionConfig, mqttConfigRes, MqttConnectionState} from "@/types/mqtt";
 import { getCookie } from "@/lib/utils/helpers/getCookie";
 
@@ -90,7 +92,7 @@ export const useMqttConnection = ({
         [],
     )
 
-    const offlineBuffer = useRef<Array<{ topic: string, message: string, options: mqtt.IClientPublishOptions, resolve: () => void, reject: (err: Error) => void }>>([])
+    const offlineBuffer = useRef<Array<{ topic: string, message: string, options: IClientPublishOptions, resolve: () => void, reject: (err: Error) => void }>>([])
     const pendingSubscriptions = useRef<Set<string>>(new Set())
 
     const flushBuffer = useCallback(async () => {
@@ -497,7 +499,7 @@ export const useMqttConnection = ({
 
             // SETTLE DELAY: Give the broker/OS a moment to finalize any previous 'end(true)'
             if (settleDelayRef.current) clearTimeout(settleDelayRef.current)
-            settleDelayRef.current = setTimeout(() => {
+            settleDelayRef.current = setTimeout(async () => {
                 settleDelayRef.current = null
                 if (isUnmounted.current) {
                     connectionPending.current = false
@@ -505,7 +507,14 @@ export const useMqttConnection = ({
                 }
 
                 try {
-                    const client = mqtt.connect({
+                    const { connect } = await import("mqtt")
+                    // The first connection waits for the library: the page may
+                    // have gone in the meantime.
+                    if (isUnmounted.current) {
+                        connectionPending.current = false
+                        return
+                    }
+                    const client = connect({
                         host,
                         port,
                         path,
@@ -591,7 +600,7 @@ export const useMqttConnection = ({
     }, [clearReconnectTimeout, updateConnectionState])
 
     const publish = useCallback(
-        (topic: string, message: string, options: mqtt.IClientPublishOptions = { qos: 0 }) => {
+        (topic: string, message: string, options: IClientPublishOptions = { qos: 0 }) => {
             return new Promise<void>((resolve, reject) => {
                 if (!clientRef.current || !connectionState.isConnected) {
                     offlineBuffer.current.push({ topic, message, options, resolve, reject })
