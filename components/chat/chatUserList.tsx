@@ -29,6 +29,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { Search } from "@/lib/icons"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 import { withOpenRead } from "@/lib/chat/conversation"
+import { dataToSeed } from "@/lib/swrMutate"
 
 export const ChatUserList = ({ chatId }: { chatId: string }) => {
     const dispatch = useDispatch()
@@ -50,12 +51,13 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
     const selfUserUuid = selfProfile.data?.data.user_uuid
 
     useEffect(() => {
-        if (latestChats.data?.data.user_dms) {
-            // The conversation on screen is read, whatever this answer predates.
-            const dms = withOpenRead(latestChats.data.data.user_dms, window.location.pathname, selfUserUuid)
-            dispatch(CreateUserChatList({ userDmList: dms }))
-        }
-    }, [latestChats.data?.data, selfUserUuid, dispatch])
+        if (!selfUserUuid) return
+        // Once per answer: the list is kept current by live updates since.
+        const dms = dataToSeed(GetEndpointUrl.GetUserLatestChatList, latestChats.data)?.data.user_dms
+        if (!dms) return
+        // The conversation on screen is read, whatever this answer predates.
+        dispatch(CreateUserChatList({ userDmList: withOpenRead(dms, window.location.pathname, selfUserUuid) }))
+    }, [latestChats.data, selfUserUuid, dispatch])
 
     const debouncedSearch = useMemo(
         () =>

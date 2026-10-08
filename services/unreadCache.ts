@@ -36,22 +36,33 @@ import type { UserProfileInterface } from "@/types/user";
  * Painting a badge read while the marker never moved hides a real unread count.
  */
 
-/** Zero one entry in a list, matched on an id field, leaving the rest alone. */
+/**
+ * Zero one entry in a list, matched on an id field, leaving the rest alone.
+ * The same list back when that entry has nothing to clear, so a correction
+ * that changes nothing is no correction (lib/swrMutate patchCached).
+ */
 function zeroOne<T extends Record<string, unknown>>(
     list: T[] | undefined,
     idField: keyof T,
     id: string,
     countField: keyof T,
-): T[] {
-    return (list || []).map((item) =>
-        item[idField] === id ? { ...item, [countField]: 0 } : item,
-    );
+): T[] | undefined {
+    if (!list?.some((item) => item[idField] === id && item[countField])) return list;
+    return list.map((item) => (item[idField] === id ? { ...item, [countField]: 0 } : item));
 }
 
+/** obj with field set to value, or obj itself when it has that value already. */
+function withField<T extends object, K extends keyof T>(obj: T, field: K, value: T[K]): T {
+    return obj[field] === value ? obj : { ...obj, [field]: value };
+}
+
+type Sidenav = UserProfileInterface["data"];
+type Rows = Record<string, unknown>[];
+
 /** Apply a change to the sidenav payload, which every badge is hydrated from. */
-function patchSidenav(update: (data: UserProfileInterface["data"]) => UserProfileInterface["data"]) {
+function patchSidenav(update: (data: Sidenav) => Sidenav) {
     patchCached<UserProfileInterface>(GetEndpointUrl.SelfProfileSideNav, (cached) =>
-        cached.data ? { ...cached, data: update(cached.data) } : cached,
+        cached.data ? withField(cached, "data", update(cached.data)) : cached,
     );
 }
 
@@ -64,20 +75,18 @@ function patchSidenav(update: (data: UserProfileInterface["data"]) => UserProfil
 export function clearChannelUnread(channelId: string): void {
     if (!channelId) return;
 
-    patchSidenav((data) => ({
-        ...data,
-        user_channels: zeroOne(data.user_channels as unknown as Record<string, unknown>[], "ch_uuid", channelId, "unread_post_count") as unknown as ChannelInfoInterface[],
-        user_fav_channels: zeroOne(data.user_fav_channels as unknown as Record<string, unknown>[], "ch_uuid", channelId, "unread_post_count") as unknown as ChannelInfoInterface[],
-    }));
+    const zeroChannel = (list: ChannelInfoInterface[] | undefined) =>
+        zeroOne(list as unknown as Rows, "ch_uuid", channelId, "unread_post_count") as unknown as ChannelInfoInterface[];
+
+    patchSidenav((data) =>
+        withField(withField(data, "user_channels", zeroChannel(data.user_channels)), "user_fav_channels", zeroChannel(data.user_fav_channels)),
+    );
 
     // The channel-list key carries pagination, so every cached page is matched
     // rather than one known string.
     patchCached<ChannelInfoListInterfaceResp>(
         (key) => key.startsWith(GetEndpointUrl.GetUserActiveChannelList),
-        (cached) => ({
-            ...cached,
-            channels_list: zeroOne(cached.channels_list as unknown as Record<string, unknown>[], "ch_uuid", channelId, "unread_post_count") as unknown as ChannelInfoInterface[],
-        }),
+        (cached) => withField(cached, "channels_list", zeroChannel(cached.channels_list)),
     );
 }
 
@@ -88,22 +97,15 @@ export function clearChannelUnread(channelId: string): void {
 export function clearChatUnread(groupingId: string): void {
     if (!groupingId) return;
 
-    const zeroDms = (data: UserProfileInterface["data"]) => ({
-        ...data,
-        user_dms: zeroOne(
-            data.user_dms as unknown as Record<string, unknown>[],
-            "dm_grouping_id",
-            groupingId,
-            "dm_unread",
-        ) as unknown as UserProfileInterface["data"]["user_dms"],
-    });
+    const zeroDms = (data: Sidenav) =>
+        withField(data, "user_dms", zeroOne(data.user_dms as unknown as Rows, "dm_grouping_id", groupingId, "dm_unread") as unknown as Sidenav["user_dms"]);
 
     patchSidenav(zeroDms);
 
     // The chat list is a separate endpoint returning the same profile shape,
     // and like the channel list it reads no Redux, so nothing else clears it.
     patchCached<UserProfileInterface>(GetEndpointUrl.GetUserLatestChatList, (cached) =>
-        cached.data ? { ...cached, data: zeroDms(cached.data) } : cached,
+        cached.data ? withField(cached, "data", zeroDms(cached.data)) : cached,
     );
 }
 
@@ -114,5 +116,5 @@ export function clearChatUnread(groupingId: string): void {
  * feed is the whole reset.
  */
 export function clearActivityUnread(): void {
-    patchSidenav((data) => ({ ...data, user_total_unread_activity_count: 0 }));
+    patchSidenav((data) => withField(data, "user_total_unread_activity_count", 0));
 }

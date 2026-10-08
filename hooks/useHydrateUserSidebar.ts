@@ -18,6 +18,7 @@ import {
 import { batchUpdateChannelCallStatus } from "@/store/slice/channelSlice"
 import { batchUpdateChatCallStatus } from "@/store/slice/chatSlice"
 import { withOpenRead } from "@/lib/chat/conversation"
+import { dataToSeed } from "@/lib/swrMutate"
 
 /**
  * The sidenav payload, for a component that only reads it. One SWR config for
@@ -47,7 +48,8 @@ export function useHydrateUserSidebar() {
     const userSideNav = useSidenav()
 
     useEffect(() => {
-        const data = userSideNav.data?.data
+        // Once per answer: the store is kept current by live updates since.
+        const data = dataToSeed(GetEndpointUrl.SelfProfileSideNav, userSideNav.data)?.data
         if (!data) return
 
         if (data.user_teams) {
@@ -105,7 +107,7 @@ export function useHydrateUserSidebar() {
         if (data.user_boards) {
             dispatch(createUserBoardList({ boardUsers: data.user_boards }))
         }
-    }, [userSideNav.data?.data, dispatch])
+    }, [userSideNav.data, dispatch])
 
     return userSideNav
 }

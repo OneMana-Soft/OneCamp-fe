@@ -53,12 +53,12 @@ const STREAM_BACKED_KEY_PREFIXES: readonly string[] = [
  * revalidateStreamBackedKeys asks SWR to refetch every stream-backed cache once.
  * Pure fan-out over the list above — no component needs to know it exists.
  */
-function revalidateStreamBackedKeys(): void {
-    void mutate(
-        (key: unknown) =>
-            typeof key === "string" && STREAM_BACKED_KEY_PREFIXES.some((prefix) => key.includes(prefix)),
-        undefined,
-        { revalidate: true },
+export function revalidateStreamBackedKeys(): void {
+    // The key alone: SWR refetches each match and keeps what's on screen until
+    // the answer lands. Passing undefined as the data set it, and every list
+    // here went blank to its loading state on a reconnect.
+    void mutate((key: unknown) =>
+        typeof key === "string" && STREAM_BACKED_KEY_PREFIXES.some((prefix) => key.includes(prefix)),
     )
 }
 

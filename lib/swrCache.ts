@@ -111,17 +111,16 @@ function isPersistable(value: unknown): boolean {
 }
 
 /**
- * An entry as the next load should find it. SWR's in-flight flags describe a
- * request of this page, which the next load doesn't have; restored, they said
- * a response was on its way when none was (lib/swrMutate patchCached reads
- * them).
+ * An entry as the next load should find it: at rest. SWR's in-flight flags
+ * describe a request of this page, which the next load doesn't have; restored,
+ * they said a response was on its way when none was (lib/swrMutate
+ * patchCached reads them). They're written false rather than left out: SWR
+ * takes a missing flag as loading, and screens that wait on it showed a
+ * skeleton over the cached data.
  */
 function atRest(value: unknown): unknown {
   if (value === null || typeof value !== "object" || !("isValidating" in value || "isLoading" in value)) return value
-  const rest = { ...(value as Record<string, unknown>) }
-  delete rest.isValidating
-  delete rest.isLoading
-  return rest
+  return { ...(value as Record<string, unknown>), isValidating: false, isLoading: false }
 }
 
 /**
