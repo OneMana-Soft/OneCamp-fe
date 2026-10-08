@@ -17,6 +17,18 @@ import {
 } from "@/store/slice/userSlice"
 import { batchUpdateChannelCallStatus } from "@/store/slice/channelSlice"
 import { batchUpdateChatCallStatus } from "@/store/slice/chatSlice"
+import { withOpenRead } from "@/lib/chat/conversation"
+
+/**
+ * The sidenav payload, for a component that only reads it. One SWR config for
+ * every reader, so they share one request.
+ */
+export function useSidenav() {
+    return useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfileSideNav, undefined, {
+        revalidateOnFocus: false,
+        dedupingInterval: 30000, // 30 seconds; SWR dedups across all mounts
+    })
+}
 
 // useHydrateUserSidebar is the SINGLE source of truth for seeding the sidebar
 // Redux state (channels, DMs, projects, teams, docs, boards, call status, and
@@ -26,14 +38,13 @@ import { batchUpdateChatCallStatus } from "@/store/slice/chatSlice"
 // hydrated the same way everywhere. Previously this lived only inside
 // DesktopNavigationBar, so on mobile the nav badges were never seeded/refreshed
 // and drifted (stale MQTT increments with no authoritative baseline). Returns
-// the SWR response so a caller can also read profile fields (e.g. is_admin).
+// the SWR response so a caller can also read profile fields (e.g. is_admin);
+// a component that only reads them uses useSidenav, so the lists aren't seeded
+// twice.
 export function useHydrateUserSidebar() {
     const dispatch = useDispatch()
 
-    const userSideNav = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfileSideNav, undefined, {
-        revalidateOnFocus: false,
-        dedupingInterval: 30000, // 30 seconds; SWR dedups across all mounts
-    })
+    const userSideNav = useSidenav()
 
     useEffect(() => {
         const data = userSideNav.data?.data
@@ -71,7 +82,8 @@ export function useHydrateUserSidebar() {
                 return [...acc, otherUser]
             }, [])
 
-            dispatch(createUserChatList({ chatUsersDm: data.user_dms }))
+            // The conversation on screen is read, whatever this answer predates.
+            dispatch(createUserChatList({ chatUsersDm: withOpenRead(data.user_dms, window.location.pathname, data.user_uuid) }))
             dispatch(updateUsersStatusFromList({ users: otherUsersList }))
 
             const activeDmIds = (data.user_dms || [])

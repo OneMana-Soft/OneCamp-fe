@@ -1,7 +1,7 @@
 // src/components/channel/ChannelMessages.tsx
 import { useEffect, useMemo, useRef, useCallback} from "react";
 import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
-import type {ChatTarget} from "@/lib/chat/readReceipts";
+import type {ChatTarget} from "@/lib/chat/conversation";
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import {groupByDate} from "@/lib/utils/date/groupByDate";
 import {getGroupDateHeading} from "@/lib/utils/date/getMessageGroupDate";

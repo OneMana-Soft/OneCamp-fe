@@ -3,6 +3,7 @@
 // whether they show at all (the workspace, the person, the size) and says so
 // in `on`; this file turns them into the line under your latest message.
 
+import type { ChatTarget } from "@/lib/chat/conversation"
 import { nameList } from "@/lib/utils/format/nameList"
 import { GetEndpointUrl } from "@/services/endPoints"
 
@@ -16,9 +17,6 @@ export interface Receipts {
   on: boolean
   seen: SeenBy[]
 }
-
-/** A conversation: a DM, by the other person, or a group chat, by its id. */
-export type ChatTarget = { kind: "dm"; otherUUID: string } | { kind: "group"; grpId: string }
 
 /** Where a conversation's receipts are read and marked (GET and POST share it). */
 export function receiptsKey(t: ChatTarget): string {

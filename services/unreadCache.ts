@@ -1,4 +1,4 @@
-import { appMutate as mutate } from "@/lib/swrMutate";
+import { patchCached } from "@/lib/swrMutate";
 
 import { GetEndpointUrl } from "@/services/endPoints";
 import type { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel";
@@ -28,7 +28,9 @@ import type { UserProfileInterface } from "@/types/user";
  * PATCHED, NOT REVALIDATED. The server is already correct by the time any of
  * these run, so refetching would spend requests to learn what we know. Writing
  * the corrected value in is instant and survives the remount that caused the
- * resurrection. The existing refresh cycle reconciles anything else.
+ * resurrection. The existing refresh cycle reconciles anything else. Only a
+ * response already in hand is patched (lib/swrMutate patchCached): touching
+ * one still on its way made SWR throw it away.
  *
  * Callers must only invoke these once the server has actually been told.
  * Painting a badge read while the marker never moved hides a real unread count.
@@ -48,10 +50,8 @@ function zeroOne<T extends Record<string, unknown>>(
 
 /** Apply a change to the sidenav payload, which every badge is hydrated from. */
 function patchSidenav(update: (data: UserProfileInterface["data"]) => UserProfileInterface["data"]) {
-    void mutate<UserProfileInterface>(
-        GetEndpointUrl.SelfProfileSideNav,
-        (cached) => (cached?.data ? { ...cached, data: update(cached.data) } : cached),
-        { revalidate: false },
+    patchCached<UserProfileInterface>(GetEndpointUrl.SelfProfileSideNav, (cached) =>
+        cached.data ? { ...cached, data: update(cached.data) } : cached,
     );
 }
 
@@ -72,16 +72,12 @@ export function clearChannelUnread(channelId: string): void {
 
     // The channel-list key carries pagination, so every cached page is matched
     // rather than one known string.
-    void mutate<ChannelInfoListInterfaceResp>(
-        (key) => typeof key === "string" && key.startsWith(GetEndpointUrl.GetUserActiveChannelList),
-        (cached) =>
-            cached
-                ? {
-                      ...cached,
-                      channels_list: zeroOne(cached.channels_list as unknown as Record<string, unknown>[], "ch_uuid", channelId, "unread_post_count") as unknown as ChannelInfoInterface[],
-                  }
-                : cached,
-        { revalidate: false },
+    patchCached<ChannelInfoListInterfaceResp>(
+        (key) => key.startsWith(GetEndpointUrl.GetUserActiveChannelList),
+        (cached) => ({
+            ...cached,
+            channels_list: zeroOne(cached.channels_list as unknown as Record<string, unknown>[], "ch_uuid", channelId, "unread_post_count") as unknown as ChannelInfoInterface[],
+        }),
     );
 }
 
@@ -106,10 +102,8 @@ export function clearChatUnread(groupingId: string): void {
 
     // The chat list is a separate endpoint returning the same profile shape,
     // and like the channel list it reads no Redux, so nothing else clears it.
-    void mutate<UserProfileInterface>(
-        GetEndpointUrl.GetUserLatestChatList,
-        (cached) => (cached?.data ? { ...cached, data: zeroDms(cached.data) } : cached),
-        { revalidate: false },
+    patchCached<UserProfileInterface>(GetEndpointUrl.GetUserLatestChatList, (cached) =>
+        cached.data ? { ...cached, data: zeroDms(cached.data) } : cached,
     );
 }
 

@@ -111,6 +111,20 @@ function isPersistable(value: unknown): boolean {
 }
 
 /**
+ * An entry as the next load should find it. SWR's in-flight flags describe a
+ * request of this page, which the next load doesn't have; restored, they said
+ * a response was on its way when none was (lib/swrMutate patchCached reads
+ * them).
+ */
+function atRest(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || !("isValidating" in value || "isLoading" in value)) return value
+  const rest = { ...(value as Record<string, unknown>) }
+  delete rest.isValidating
+  delete rest.isLoading
+  return rest
+}
+
+/**
  * The cache as written down: the most recently read entries that fit in
  * budget, oldest first so a reload restores their order. Each entry is
  * serialised once (this used to re-serialise the whole cache once per entry
@@ -125,7 +139,7 @@ export function serialise(map: Map<string, unknown>, budget = MAX_CACHE_BYTES): 
     if (typeof key !== "string" || key.startsWith("$req$") || !isPersistable(value)) continue
     let part: string
     try {
-      part = JSON.stringify([key, value] satisfies SerialisedEntry)
+      part = JSON.stringify([key, atRest(value)] satisfies SerialisedEntry)
     } catch {
       continue
     }

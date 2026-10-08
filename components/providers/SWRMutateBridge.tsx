@@ -6,9 +6,9 @@ import { bindAppMutate } from "@/lib/swrMutate"
 
 /** Hands the provider-bound mutate to code outside components (see lib/swrMutate). */
 export function SWRMutateBridge() {
-  const { mutate } = useSWRConfig()
+  const { mutate, cache } = useSWRConfig()
   // Bound during render too, so effects in children that run first already see it.
-  bindAppMutate(mutate)
+  bindAppMutate(mutate, cache)
   useEffect(() => () => bindAppMutate(null), [])
   return null
 }
