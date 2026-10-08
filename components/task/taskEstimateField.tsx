@@ -23,6 +23,7 @@ export function TaskEstimateField({ taskUUID, projectUUID, minutes, canEdit }: {
   const { optimisticUpdateTasks } = useTaskUpdate()
   const shown = minutes ? formatDuration(minutes * 60) : ""
   const [draft, setDraft] = React.useState(shown)
+  const cancelled = React.useRef(false)
   const id = React.useId()
   React.useEffect(() => setDraft(shown), [shown])
 
@@ -36,8 +37,15 @@ export function TaskEstimateField({ taskUUID, projectUUID, minutes, canEdit }: {
   }
 
   const save = async () => {
+    // Escape blurs too, before the draft it put back has landed: nothing to save.
+    if (cancelled.current) {
+      cancelled.current = false
+      setDraft(shown)
+      return
+    }
     const text = draft.trim()
-    const next = text === "" ? 0 : parseDuration(text, MAX_ESTIMATE_MINUTES)
+    // A bare number is hours, as estimates are said: "8" is a day's work, not 8 minutes.
+    const next = text === "" ? 0 : parseDuration(/^\d+(\.\d+)?$/.test(text) ? `${text}h` : text, MAX_ESTIMATE_MINUTES)
     if (next === null) {
       toast({ variant: "destructive", title: "That isn't an estimate", description: "Write it like 2h, 1h 30m, 45m or 1.5h, up to 1000 hours." })
       setDraft(shown)
@@ -71,7 +79,7 @@ export function TaskEstimateField({ taskUUID, projectUUID, minutes, canEdit }: {
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur()
             if (e.key === "Escape") {
-              setDraft(shown)
+              cancelled.current = true
               e.currentTarget.blur()
             }
           }}

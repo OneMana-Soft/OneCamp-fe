@@ -98,8 +98,12 @@ export function CreateCalendarEventDialog({ open, onOpenChange, onSuccess, defau
     const onSubmit = async (values: FormValues) => {
         setSubmitting(true);
         try {
-            const startTimeISO = new Date(values.startTime).toISOString();
-            const endTimeISO = new Date(values.endTime).toISOString();
+            // Time off is whole days, however the times were changed after ticking Away.
+            const span = values.isAway
+                ? wholeDays(new Date(values.startTime), new Date(values.endTime))
+                : { start: new Date(values.startTime), end: new Date(values.endTime) };
+            const startTimeISO = span.start.toISOString();
+            const endTimeISO = span.end.toISOString();
 
             await post.makeRequest<CreateEventPayload>({
                 apiEndpoint: PostEndpointUrl.CreateCalendarEvent,

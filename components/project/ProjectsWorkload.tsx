@@ -556,7 +556,7 @@ function OverdueCell({ row, weeks, ...rest }: CellProps & { weeks: Date[] }) {
       className="bg-destructive/10 font-medium text-destructive hover:bg-destructive/20"
       meter={null}
     >
-      {formatLoad(row.overdueLoad, rest.measure)}
+      {rest.measure === "hours" && row.overdueLoad === 0 ? <span title="No estimates yet">–</span> : formatLoad(row.overdueLoad, rest.measure)}
     </TasksPopover>
   )
 }

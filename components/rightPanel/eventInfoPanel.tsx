@@ -151,8 +151,9 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                 payload: {
                     title: values.title,
                     description: values.description,
-                    startTime: new Date(values.startTime).toISOString(),
-                    endTime: new Date(values.endTime).toISOString(),
+                    // Time off is whole days, however the times were changed after ticking Away.
+                    startTime: (away ? wholeDays(new Date(values.startTime), new Date(values.endTime)).start : new Date(values.startTime)).toISOString(),
+                    endTime: (away ? wholeDays(new Date(values.startTime), new Date(values.endTime)).end : new Date(values.endTime)).toISOString(),
                     participants: participants.map(p => p.user_uuid) || [],
                     isFocus: focus && !away,
                     isAway: away,

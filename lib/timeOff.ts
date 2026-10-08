@@ -18,13 +18,27 @@ export interface AwaySpan {
   end: Date
 }
 
-/** How many working days (Monday to Friday) of the week starting at weekStart the spans cover. */
+/** A day counts as away when time off covers at least this much of it. */
+const AWAY_DAY_MS = 12 * 3600e3
+
+/**
+ * How many working days (Monday to Friday) of the week starting at weekStart
+ * the spans cover, in the reader's own days. A day counts when time off covers
+ * most of it: a day off marked in another time zone straddles two of the
+ * reader's days, and should count once, not twice.
+ */
 export function awayWorkingDays(spans: readonly AwaySpan[], weekStart: Date): number {
   let days = 0
   for (let i = 0; i < 5; i++) {
     const dayStart = addDays(startOfDay(weekStart), i)
     const dayEnd = addDays(dayStart, 1)
-    if (spans.some((s) => s.start < dayEnd && s.end > dayStart)) days++
+    let covered = 0
+    for (const s of spans) {
+      const from = Math.max(s.start.getTime(), dayStart.getTime())
+      const to = Math.min(s.end.getTime(), dayEnd.getTime())
+      if (to > from) covered += to - from
+    }
+    if (covered >= AWAY_DAY_MS) days++
   }
   return days
 }

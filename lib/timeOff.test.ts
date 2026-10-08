@@ -24,8 +24,14 @@ describe("working days away", () => {
   it("leave weekends out", () => {
     expect(awayWorkingDays([{ start: at(16), end: at(19) }], monday)).toBe(1)
   })
-  it("count a day once when spans overlap, and part of a day as the day", () => {
-    expect(awayWorkingDays([{ start: at(12), end: at(14) }, { start: at(13), end: at(14, 12) }], monday)).toBe(3)
+  it("count a day when time off covers most of it", () => {
+    expect(awayWorkingDays([{ start: at(12), end: at(14) }, { start: at(14), end: at(14, 13) }], monday)).toBe(3)
+    expect(awayWorkingDays([{ start: at(14, 9), end: at(14, 15) }], monday)).toBe(0)
+  })
+  it("count a day off marked in another time zone once, not twice", () => {
+    // Midnight to midnight five and a half hours away: 13.5 hours of one of
+    // the reader's days and 10.5 of the next.
+    expect(awayWorkingDays([{ start: at(13, 10, 30), end: at(14, 10, 30) }], monday)).toBe(1)
   })
   it("count nothing outside the week", () => {
     expect(awayWorkingDays([{ start: at(5), end: at(10) }], monday)).toBe(0)
