@@ -38,7 +38,8 @@ export const SeenReceiptLine = memo(function SeenReceiptLine({
   useEffect(() => {
     if (latest && me && !mine) setArrived(latest.chat_uuid)
   }, [latest, me, mine])
-  useMarkChatSeen(target, arrived)
+  // Your own message is the newest: sending it marked the conversation seen.
+  useMarkChatSeen(mine ? null : target, arrived)
   const receipts = useChatReceipts(target)
   const group = target.kind === "group" ? target.grpId : ""
   const people = useFetchOnlyOnce<RawUserDMInterface>(group ? `${GetEndpointUrl.GetDmGroupParticipants}/${group}` : "")
