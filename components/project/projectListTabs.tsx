@@ -11,6 +11,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoRawInterface } from "@/types/project"
 import { ProjectUpdates } from "@/components/projectUpdates/ProjectUpdates"
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip"
+import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip"
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
 import { useRouter } from "next/navigation"
 import { app_task_path } from "@/types/paths"
@@ -49,6 +50,7 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
                     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                         <ProjectGlanceLine projectId={projectId} />
                         <ProjectHealthChip projectId={projectId} onOpen={() => setSelectedTab("updates")} />
+                        <ProjectGoalChip projectId={projectId} />
                     </div>
                     <ProjectToolButtons projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} />
                 </div>

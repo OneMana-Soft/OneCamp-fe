@@ -21,7 +21,8 @@ export interface ProjectUpdate {
 export interface UpdateDraft {
   text: string
   health: Health
-  since: string
+  /** Where the draft counts from; a goal's first check-in has none. */
+  since?: string
   /** On the AI edition's draft: whether the AI wrote a summary on top. */
   ai?: boolean
 }
@@ -35,7 +36,17 @@ export const HEALTHS: { value: Health; label: string; dot: string; pill: string 
   { value: "done", label: "Done", dot: "bg-info", pill: "bg-info/10 text-info" },
 ]
 
-export const healthOf = (h: string) => HEALTHS.find((x) => x.value === h) ?? HEALTHS[0]
+/** How a goal ended: closing one gives one of these instead of a health. */
+export type Ending = "achieved" | "missed" | "dropped"
+
+export const ENDINGS: { value: Ending; label: string; dot: string; pill: string }[] = [
+  { value: "achieved", label: "Achieved", dot: "bg-success", pill: "bg-success/10 text-success" },
+  { value: "missed", label: "Missed", dot: "bg-destructive", pill: "bg-destructive/10 text-destructive" },
+  { value: "dropped", label: "Dropped", dot: "bg-muted-foreground", pill: "bg-muted text-muted-foreground" },
+]
+
+/** A health or an ending, by its value, for the pill that shows it. */
+export const healthOf = (h: string) => HEALTHS.find((x) => x.value === h) ?? ENDINGS.find((x) => x.value === h) ?? HEALTHS[0]
 
 /** An update's text as blocks to render: paragraphs (lines) and lists. Mirrors ToHTML on the server. */
 export type TextBlock = { kind: "p"; lines: string[] } | { kind: "ul"; items: string[] }

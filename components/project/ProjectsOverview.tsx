@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useDispatch } from "react-redux"
+import { GoalsView } from "@/components/goals/GoalsView"
 import { HealthPill } from "@/components/projectUpdates/HealthPill"
 import { ProjectsTimeline } from "@/components/project/ProjectsTimeline"
 import { ProjectsWorkload } from "@/components/project/ProjectsWorkload"
@@ -40,8 +41,8 @@ import { app_project_path } from "@/types/paths"
 
 const isSort = (v: unknown): v is OverviewSort => OVERVIEW_SORTS.some((s) => s.value === v)
 const isFilter = (v: unknown): v is OverviewFilter => v === "all" || v === "attention"
-type OverviewView = "table" | "timeline" | "workload"
-const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline" || v === "workload"
+type OverviewView = "table" | "timeline" | "workload" | "goals"
+const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline" || v === "workload" || v === "goals"
 const href = (p: ProjectOverview) => `${app_project_path}/${p.project_uuid}`
 
 /** "6 open · 3 overdue · 2 done", the late part in red; nothing for a project with no tasks. */
@@ -155,7 +156,10 @@ export function ProjectsOverview() {
   const newProject = () => dispatch(openUI({ key: "createProject" }))
 
   let body: ReactNode
-  if (isError && !projects) {
+  if (view === "goals") {
+    // Goals stand on their own: a workspace may have goals before it has projects.
+    body = <GoalsView compact={!isDesktop} />
+  } else if (isError && !projects) {
     body = <ErrorState subject="your projects" onRetry={() => void mutate()} />
   } else if (isLoading && !projects) {
     body = (
@@ -241,9 +245,10 @@ export function ProjectsOverview() {
     )
   }
 
-  const tools = all.length > 0 && (
+  const goalsView = view === "goals"
+  const tools = (all.length > 0 || goalsView) && (
     <div className={cn("flex flex-wrap items-center gap-2", isDesktop ? "px-4 pt-4" : "px-0 pb-1")}>
-      <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "w-80 shrink-0" : "w-full"} />
+      {!goalsView && <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "w-80 shrink-0" : "w-full"} />}
       <div className={cn("flex flex-wrap items-center gap-2", !isDesktop && "px-3")}>
         <ToggleGroup type="single" size="sm" value={view} onValueChange={(v) => isView(v) && choose(v)} aria-label="View as" className="rounded-md border p-0.5">
           <ToggleGroupItem value="table" className="h-7 px-2.5 text-xs">
@@ -255,17 +260,22 @@ export function ProjectsOverview() {
           <ToggleGroupItem value="workload" className="h-7 px-2.5 text-xs">
             Workload
           </ToggleGroupItem>
-        </ToggleGroup>
-        <ToggleGroup type="single" size="sm" value={filter} onValueChange={(v) => isFilter(v) && setFilter(v)} aria-label="Show" className="rounded-md border p-0.5">
-          <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
-            All
-          </ToggleGroupItem>
-          <ToggleGroupItem value="attention" className="h-7 gap-1.5 px-2.5 text-xs">
-            Needs attention
-            <span className="tabular-nums text-muted-foreground">{attention}</span>
+          <ToggleGroupItem value="goals" className="h-7 px-2.5 text-xs">
+            Goals
           </ToggleGroupItem>
         </ToggleGroup>
-        {view !== "workload" && (
+        {!goalsView && (
+          <ToggleGroup type="single" size="sm" value={filter} onValueChange={(v) => isFilter(v) && setFilter(v)} aria-label="Show" className="rounded-md border p-0.5">
+            <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
+              All
+            </ToggleGroupItem>
+            <ToggleGroupItem value="attention" className="h-7 gap-1.5 px-2.5 text-xs">
+              Needs attention
+              <span className="tabular-nums text-muted-foreground">{attention}</span>
+            </ToggleGroupItem>
+          </ToggleGroup>
+        )}
+        {view !== "workload" && !goalsView && (
           <Select value={sort} onValueChange={(v) => isSort(v) && setSort(v)}>
             <SelectTrigger className="h-8 w-auto gap-1.5 text-xs" aria-label="Sort">
               <SelectValue />
@@ -284,7 +294,7 @@ export function ProjectsOverview() {
   )
 
   // The timeline and the workload scroll inside their own frame, filling the page.
-  const fills = view === "timeline" || view === "workload"
+  const fills = view === "timeline" || view === "workload" || goalsView
   if (!isDesktop) {
     return (
       <div className="flex h-full flex-col">
@@ -297,16 +307,18 @@ export function ProjectsOverview() {
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         className="px-8 pt-8"
-        eyebrow="Every project you're in"
-        title="Projects"
+        eyebrow={goalsView ? "Every goal in the workspace" : "Every project you're in"}
+        title={goalsView ? "Goals" : "Projects"}
         actions={
-          <Button size="sm" className="gap-1.5" onClick={newProject}>
-            <CirclePlus className="h-4 w-4" />
-            New project
-          </Button>
+          !goalsView && (
+            <Button size="sm" className="gap-1.5" onClick={newProject}>
+              <CirclePlus className="h-4 w-4" />
+              New project
+            </Button>
+          )
         }
       >
-        {summary.length > 0 && (
+        {!goalsView && summary.length > 0 && (
           <p className="text-sm text-muted-foreground">
             {summary.map((s, i) => (
               <span key={s.text}>

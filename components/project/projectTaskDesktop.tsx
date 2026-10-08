@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { List, Megaphone, Paperclip, Pencil, Users } from "@/lib/icons";
 import { ProjectUpdates } from "@/components/projectUpdates/ProjectUpdates";
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip";
+import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip";
 import { ProjectToolButtons } from "@/components/project/ProjectToolButtons";
 import { Kanban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -122,6 +123,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <ProjectGlanceLine projectId={projectId} />
                     <ProjectHealthChip projectId={projectId} onOpen={() => handleTabChange("updates")} />
+                    <ProjectGoalChip projectId={projectId} />
                 </div>
             </PageHeader>
 
