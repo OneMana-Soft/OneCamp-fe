@@ -8,6 +8,7 @@ import {usePost} from "@/hooks/usePost";
 import AddChannelMemberCombobox from "@/components/combobox/addChannelMemberCombobox";
 import ChannelAITeammates from "@/components/member/channelAITeammates";
 import ChannelAIBudget from "@/components/member/channelAIBudget";
+import { ChannelCheckIns } from "@/components/checkins/ChannelCheckIns";
 import {UserListInterfaceResp} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
@@ -184,6 +185,9 @@ const ChannelMemberContent: React.FC<memberContentProp> = ({channelId}) => {
                         <GuestLinkSection resourceType="channel" resourceId={channelId} canShare />
                     </div>
                 )}
+                <div className="mb-4 flex-shrink-0 empty:hidden">
+                    <ChannelCheckIns channelId={channelId} />
+                </div>
                 <MembersList
                     isAdmin={channelInfo.data?.channel_info.ch_is_admin || false}
                     usersList={channelInfo.data?.channel_info.ch_members || []}
