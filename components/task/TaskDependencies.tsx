@@ -253,7 +253,7 @@ function DependencyWayEditor({
         </button>
       </PopoverTrigger>
       {/* Short enough for a laptop's screen below the row; it scrolls inside, never off the page. */}
-      <PopoverContent className="max-h-[var(--radix-popover-content-available-height)] w-72 overflow-y-auto" align="end" collisionPadding={8}>
+      <PopoverContent className="max-h-[var(--radix-popover-content-available-height)] w-80 overflow-y-auto" align="end" collisionPadding={8}>
         <form
           className="grid gap-3"
           onSubmit={(e) => {
@@ -267,7 +267,7 @@ function DependencyWayEditor({
             <Label id={`${lagId}-kind`}>Kind</Label>
             <RadioGroup value={kind} onValueChange={(v) => setKind(v as DependencyKind)} className="grid-cols-2 gap-1" aria-labelledby={`${lagId}-kind`}>
               {DEPENDENCY_KINDS.map((k) => (
-                <label key={k} className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-sm hover:bg-accent/50">
+                <label key={k} className="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-md px-1.5 py-1.5 text-sm hover:bg-accent/50">
                   <RadioGroupItem value={k} />
                   {KIND_LABEL[k]}
                 </label>
