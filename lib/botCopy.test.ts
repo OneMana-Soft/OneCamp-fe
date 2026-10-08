@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { BOT_PROFILE_COPY, type BotKind, botProfileCopy } from "./botCopy"
+import { BOT_PROFILE_COPY, type BotKind, botProfileCopy, botSubtitle, isAIBot } from "./botCopy"
 
 const KINDS = Object.keys(BOT_PROFILE_COPY) as BotKind[]
 
@@ -41,5 +41,20 @@ describe("botProfileCopy", () => {
                 expect(copy[field], `${kind}.${field}`).toBeTruthy()
             }
         }
+    })
+
+    it("counts only the assistant and agents as AI", () => {
+        expect(isAIBot("assistant")).toBe(true)
+        expect(isAIBot("agent")).toBe(true)
+        for (const kind of ["automation", "bridge", "checkin", "guest", "bot", "unknown", "", null, undefined]) {
+            expect(isAIBot(kind)).toBe(false)
+        }
+    })
+
+    it("says what a bot is under its name, and only an AI one is an AI teammate", () => {
+        expect(botSubtitle("agent")).toBe("AI teammate")
+        expect(botSubtitle("checkin")).toBe(BOT_PROFILE_COPY.checkin.subtitle)
+        expect(botSubtitle(undefined)).toBe(BOT_PROFILE_COPY.bot.subtitle)
+        expect(botSubtitle("bridge")).not.toMatch(/AI/)
     })
 })

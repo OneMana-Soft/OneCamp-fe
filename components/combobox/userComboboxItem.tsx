@@ -3,10 +3,12 @@
 import { Check } from "@/lib/icons";
 import { CommandItem } from "@/components/ui/command"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { PrincipalTag } from "@/components/ui/principalTag"
+import { BotTag } from "@/components/ui/botTag"
 import { cn } from "@/lib/utils/helpers/cn"
 import { getNameInitials } from "@/lib/utils/format/getNameIntials"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { useBotKind } from "@/hooks/useBotKinds"
+import { botSubtitle } from "@/lib/botCopy"
 
 interface UserComboboxItemProps {
     userUuid: string
@@ -28,6 +30,7 @@ export function UserComboboxItem({
     onSelect,
 }: UserComboboxItemProps) {
     const {src: imageSrc} = useUserAvatar(userProfileObjectKey)
+    const botKind = useBotKind(userUuid, isBot)
 
     return (
         <CommandItem
@@ -48,10 +51,10 @@ export function UserComboboxItem({
                 <span className="font-medium text-sm truncate flex items-center gap-1.5">
                     {userName}
                     {isBot && (
-                        <PrincipalTag kind="ai" />
+                        <BotTag userUUID={userUuid} />
                     )}
                 </span>
-                <span className="text-3xs text-muted-foreground truncate font-medium">{isBot ? "AI teammate" : userEmail}</span>
+                <span className="text-3xs text-muted-foreground truncate font-medium">{isBot ? botSubtitle(botKind) : userEmail}</span>
             </div>
             <Check
                 className={cn(

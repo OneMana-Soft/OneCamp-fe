@@ -6,6 +6,7 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { cn } from "@/lib/utils/helpers/cn"
 import { PrincipalTag } from "@/components/ui/principalTag"
+import { BotTag } from "@/components/ui/botTag"
 import { Check, X } from "@/lib/icons";
 import {UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface} from "@/types/user";
 import {ForwardedMessageData} from "@/types/rightPanel";
@@ -176,7 +177,8 @@ export const MessageContent = ({
                 <ChannelMessageAvatar
                     userName={isGuest ? guestDisplayName : (userStatusState?.userName || userInfo?.user_name || '')}
                     userProfileKey={isGuest ? undefined : (userStatusState?.userName ? userStatusState?.profileKey : userInfo?.user_profile_object_key)}
-                    isAgent={!isGuest && !!userInfo?.is_bot}
+                    isBot={!isGuest && !!userInfo?.is_bot}
+                    userUUID={userInfo?.user_uuid}
                 />
             </div>
             <div className="flex-1 min-w-0 mb-4">
@@ -191,7 +193,7 @@ export const MessageContent = ({
                         <PrincipalTag kind="guest" />
                     )}
                     {!isGuest && userInfo?.is_bot && (
-                        <PrincipalTag kind="ai" />
+                        <BotTag userUUID={userInfo?.user_uuid} />
                     )}
                      <div className="text-xs text-muted-foreground">{formatTimeForPostOrComment(createdAt || '')}</div>
                 </div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { render, cleanup } from "@testing-library/react"
-import { PrincipalTag } from "./principalTag"
+import { PrincipalTag, botTagKind } from "./principalTag"
 
 /**
  * These assert the two things the tag exists for, not its appearance.
@@ -59,5 +59,23 @@ describe("PrincipalTag", () => {
     cleanup()
     const guest = render(<PrincipalTag kind="guest" />).container.innerHTML
     expect(ai).not.toBe(guest)
+  })
+
+  it("says a plain bot is automated, and claims no AI for it", () => {
+    const { container } = render(<PrincipalTag kind="bot" />)
+    expect(container.querySelector('[aria-hidden="true"]')?.textContent).toBe("Bot")
+    expect(container.querySelector(".sr-only")?.textContent).toBe("Automated account")
+    expect(container.innerHTML).not.toMatch(/\bAI\b|agent/i)
+  })
+
+  it("tags only the assistant and agents as agents", () => {
+    expect(botTagKind("assistant")).toBe("ai")
+    expect(botTagKind("agent")).toBe("ai")
+    expect(botTagKind("guest")).toBe("guest")
+    // The Check-in, Slack and AI-free automation bots, a kind this build
+    // doesn't know, and a list still loading: never "Agent".
+    for (const kind of ["checkin", "bridge", "automation", "bot", "something-new", undefined]) {
+      expect(botTagKind(kind)).toBe("bot")
+    }
   })
 })

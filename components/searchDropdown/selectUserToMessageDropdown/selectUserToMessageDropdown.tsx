@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Search, Sparkles, User, X } from "@/lib/icons";
+import { Check, Search, User, X } from "@/lib/icons";
 import {GetEndpointUrl} from "@/services/endPoints"
 import {
     UserListInterfaceResp,
@@ -10,6 +10,7 @@ import {Input} from "@/components/ui/input";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {useFetch} from "@/hooks/useFetch";
 import {Badge} from "@/components/ui/badge";
+import { BotTag } from "@/components/ui/botTag";
 import {ChatUserListUserAvatar} from "@/components/chat/chatUserListUserAvatar";
 import {cn} from "@/lib/utils/helpers/cn";
 
@@ -168,11 +169,7 @@ export function SelectUserToMessageDropdown({
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
                                         <p className="font-medium text-sm text-foreground truncate">{user.user_name}</p>
-                                        {user.is_bot && (
-                                            <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-3xs font-semibold text-primary">
-                                                <Sparkles className="h-2.5 w-2.5" /> AI
-                                            </Badge>
-                                        )}
+                                        {user.is_bot && <BotTag userUUID={user.user_uuid} />}
                                         {isSelected &&
                                             <Check className="h-4 w-4 text-primary flex-shrink-0"/>}
                                     </div>

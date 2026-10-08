@@ -3,12 +3,14 @@
 import React from "react"
 import { Crown, LogOut } from "@/lib/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { PrincipalTag } from "@/components/ui/principalTag"
+import { BotTag } from "@/components/ui/botTag"
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
+import { useBotKind } from "@/hooks/useBotKinds"
+import { botSubtitle } from "@/lib/botCopy"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Button } from "@/components/ui/button"
 import {
@@ -37,6 +39,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
     handleRemoveMember,
 }) => {
     const { src: imageSrc } = useUserAvatar(userInfo.user_profile_object_key)
+    const botKind = useBotKind(userInfo.user_uuid, userInfo.is_bot)
     const nameInitial = getNameInitials(userInfo.user_name)
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
@@ -107,7 +110,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 {userInfo.user_name}
                             </span>
                             {userInfo.is_bot && (
-                                <PrincipalTag kind="ai" />
+                                <BotTag userUUID={userInfo.user_uuid} />
                             )}
                             {isSelf && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-3xs font-medium bg-muted text-muted-foreground">
@@ -116,7 +119,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                             )}
                         </div>
                         <span className="truncate text-xs text-muted-foreground">
-                            {userInfo.is_bot ? "AI teammate" : userInfo.user_email_id}
+                            {userInfo.is_bot ? botSubtitle(botKind) : userInfo.user_email_id}
                         </span>
                     </div>
                 </div>
