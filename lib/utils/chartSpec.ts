@@ -175,3 +175,28 @@ export function normalizeChartSpec(raw: unknown): NormalizedChart | null {
         series: finalSeries,
     };
 }
+
+/**
+ * Round tick values for a value axis: a step of 1, 2, 2.5 or 5 times a power
+ * of ten, from a round number at or below the data to one at or above it, so
+ * an axis reads 0 2 4 6 rather than 0 1.38 2.75 4.13. Whole-number data
+ * (counts) never gets a fractional step. Pure.
+ */
+export function niceTicks(min: number, max: number, count = 4, integers = false): number[] {
+    // A flat series still gets an axis, as the chart draws it: one unit tall.
+    if (!(max > min)) max = min + 1;
+    const span = max - min;
+    const raw = span / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    let step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw - 1e-12) ?? 10 * mag;
+    if (integers) step = Math.max(1, Math.ceil(step));
+    const lo = Math.floor(min / step + 1e-9) * step;
+    const hi = Math.ceil(max / step - 1e-9) * step;
+    const ticks: number[] = [];
+    for (let i = 0; lo + i * step <= hi + step / 2; i++) {
+        // Rounded to the step's precision, so 0.1 + 0.2 reads 0.3.
+        ticks.push(parseFloat((lo + i * step).toPrecision(12)));
+    }
+    return ticks.length > 1 ? ticks : [lo, lo + step];
+}
+
