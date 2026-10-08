@@ -30,6 +30,9 @@ const SERIES_COLORS = [
 
 const colorAt = (i: number) => SERIES_COLORS[i % SERIES_COLORS.length];
 
+// A series' colour: its own (an app chart's status), or the theme's in turn.
+const seriesColor = (chart: NormalizedChart, i: number) => chart.series[i]?.color ?? colorAt(i);
+
 // Fixed viewBox geometry. The SVG scales responsively to its container width
 // while keeping a readable aspect ratio.
 const VB_W = 560;
@@ -254,10 +257,10 @@ const StackedAreaSeries: React.FC<{
                     : [`${xCenter(n - 1)},${baselineY}`, `${xCenter(0)},${baselineY}`];
                 return (
                     <g key={`band-${si}`}>
-                        <path data-band={s.name} d={`M${top.join(" L")} L${bottom.join(" L")} Z`} fill={colorAt(si)} opacity={0.55} />
-                        <path d={"M" + top.join(" L")} fill="none" stroke={colorAt(si)} strokeWidth={1.5} strokeLinejoin="round" />
+                        <path data-band={s.name} d={`M${top.join(" L")} L${bottom.join(" L")} Z`} fill={seriesColor(chart, si)} opacity={0.55} />
+                        <path d={"M" + top.join(" L")} fill="none" stroke={seriesColor(chart, si)} strokeWidth={1.5} strokeLinejoin="round" />
                         {s.values.map((v, i) => (
-                            <circle key={`bp-${si}-${i}`} cx={xCenter(i)} cy={yOf(tops[si][i])} r={2} fill={colorAt(si)}>
+                            <circle key={`bp-${si}-${i}`} cx={xCenter(i)} cy={yOf(tops[si][i])} r={2} fill={seriesColor(chart, si)}>
                                 <title>{`${s.name}${chart.labels[i] ? ` · ${chart.labels[i]}` : ""}: ${fmtNumber(v)}`}</title>
                             </circle>
                         ))}
@@ -370,7 +373,7 @@ const Legend: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
     const items =
         chart.type === "pie"
             ? chart.labels.map((label, i) => ({ label, color: colorAt(i) }))
-            : chart.series.map((s, i) => ({ label: s.name, color: colorAt(i), dashed: s.dashed }));
+            : chart.series.map((s, i) => ({ label: s.name, color: seriesColor(chart, i), dashed: s.dashed }));
 
     if (items.length <= 1 && chart.type !== "pie") return null;
 

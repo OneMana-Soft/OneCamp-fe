@@ -102,6 +102,20 @@ describe("normalizeChartSpec", () => {
     })
 })
 
+describe("what an agent's chart can't set", () => {
+    it("drops a series colour and stacking, which only the app's own charts use", () => {
+        const chart = normalizeChartSpec({
+            type: "area",
+            stacked: true,
+            labels: ["a"],
+            series: [{ name: "x", values: [1], color: "url(https://example.com/x)" }],
+        } as never)
+        expect(chart).not.toBeNull()
+        expect(chart!.stacked).toBeUndefined()
+        expect(chart!.series[0].color).toBeUndefined()
+    })
+})
+
 describe("niceTicks", () => {
     it("rounds an axis to a step of 1, 2, 2.5 or 5 times a power of ten", () => {
         expect(niceTicks(0, 5.5)).toEqual([0, 2, 4, 6]);

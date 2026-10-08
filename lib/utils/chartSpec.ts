@@ -35,6 +35,9 @@ export interface NormalizedSeries extends Required<ChartSeries> {
     upTo?: number;
     /** Line charts: a dashed line, for a guide such as an ideal pace. */
     dashed?: boolean;
+    /** A CSS colour of the app's own, where a series means something (a
+     * status). Otherwise the theme's chart colours, in turn. */
+    color?: string;
 }
 
 /** A validated, bounded, render-ready chart. Every series has the same length
