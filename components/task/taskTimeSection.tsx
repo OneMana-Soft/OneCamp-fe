@@ -19,7 +19,7 @@ import { localDay } from "@/lib/utils/timeZone"
 
 const shortDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" })
 
-export function TaskTimeSection({ taskUUID }: { taskUUID: string }) {
+export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: string; estimateMinutes?: number }) {
   const { toast } = useToast()
   const { time, add, update, remove } = useTaskTime(taskUUID)
   const { running } = useRunningTimer()
@@ -77,6 +77,9 @@ export function TaskTimeSection({ taskUUID }: { taskUUID: string }) {
           {(time?.entries.length ?? 0) > 0 && (
             <Button size="sm" variant="ghost" className="h-8 gap-1 text-muted-foreground" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
               <span className="tabular-nums">{formatDuration(total)}</span> logged
+              {!!estimateMinutes && (
+                <span className={total > estimateMinutes * 60 ? "text-destructive" : undefined}>of {formatDuration(estimateMinutes * 60)}</span>
+              )}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
             </Button>
           )}

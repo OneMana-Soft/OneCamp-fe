@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Απέτυχε η προσθήκη συνημμένων στο έργο",
   "removedAttachment": "Αφαιρέθηκε το συνημμένο",
   "addedTaskDependency": "Προστέθηκε εξάρτηση",
+  "updatedTaskEstimate": "Η εκτίμηση ενημερώθηκε",
   "removedTaskDependency": "Αφαιρέθηκε η εξάρτηση",
   "failedToRemoveAttachment": "Απέτυχε η αφαίρεση του συνημμένου",
   "updatedTaskStatus": "Ενημερώθηκε η κατάσταση της εργασίας",

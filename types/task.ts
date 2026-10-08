@@ -57,6 +57,8 @@ export interface TaskInfoInterface {
     task_blocked_by?: DependencyTask[];
     task_blocks?: DependencyTask[];
     task_blocked_open?: number;
+    /** How long the task should take, in minutes; none or 0 is no estimate. */
+    task_estimate_minutes?: number;
 }
 export interface TaskInfoRawInterface {
     data: TaskInfoInterface;

@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Kunne ikke tilføje vedhæftning til projekt",
   "removedAttachment": "Vedhæftning fjernet",
   "addedTaskDependency": "Afhængighed tilføjet",
+  "updatedTaskEstimate": "Estimatet blev opdateret",
   "removedTaskDependency": "Afhængighed fjernet",
   "failedToRemoveAttachment": "Kunne ikke fjerne vedhæftning",
   "updatedTaskStatus": "Opgavestatus opdateret",

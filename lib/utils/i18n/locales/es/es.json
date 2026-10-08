@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "No se pudo añadir el archivo al proyecto",
   "removedAttachment": "Archivo eliminado",
   "addedTaskDependency": "Dependencia añadida",
+  "updatedTaskEstimate": "Se actualizó la estimación",
   "removedTaskDependency": "Dependencia eliminada",
   "failedToRemoveAttachment": "No se pudo eliminar el archivo",
   "updatedTaskStatus": "Estado de la tarea actualizado",

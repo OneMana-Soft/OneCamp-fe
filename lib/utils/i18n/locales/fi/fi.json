@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Tiedostoa ei voitu lisätä projektiin",
   "removedAttachment": "Tiedosto poistettu",
   "addedTaskDependency": "Riippuvuus lisätty",
+  "updatedTaskEstimate": "Arvio päivitettiin",
   "removedTaskDependency": "Riippuvuus poistettu",
   "failedToRemoveAttachment": "Tiedostoa ei voitu poistaa",
   "updatedTaskStatus": "Tehtävän tila päivitetty",
