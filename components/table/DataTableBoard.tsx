@@ -4,7 +4,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { Plus } from "@/lib/icons"
-import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, createRow, updateRow, formulaOf } from "@/services/tableService"
+import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, createRow, updateRow, formulaOf, nextRowPosition } from "@/services/tableService"
 import { formulaText } from "@/lib/tables/formula"
 
 interface DataTableBoardProps {
@@ -16,6 +16,8 @@ interface DataTableBoardProps {
   // select field in the table.
   groupFieldId?: string
   onChange: () => void
+  /** Where a new row goes, when rows are filtered out of this view: after every row. */
+  nextPosition?: number
 }
 
 const NO_VALUE = "__none__"
@@ -46,6 +48,7 @@ export function DataTableBoard({
   rows,
   groupFieldId,
   onChange,
+  nextPosition,
 }: DataTableBoardProps) {
   const { toast } = useToast()
   const [dragRowId, setDragRowId] = React.useState<string | null>(null)
@@ -113,7 +116,7 @@ export function DataTableBoard({
 
   const addCard = async (column: string) => {
     try {
-      const pos = rows.length ? Math.max(...rows.map((r) => r.position)) + 1 : 0
+      const pos = nextPosition ?? nextRowPosition(rows)
       const values = column === NO_VALUE ? {} : { [groupField.id]: column }
       await createRow(tableId, values, pos)
       onChange()

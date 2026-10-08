@@ -60,6 +60,7 @@ export {
   ArrowDown,
   Fingerprint,
   CircleStop,
+  ArrowUpDown,
 } from "lucide-react";
 
 // ─── Actions ────────────────────────────────────────────────
