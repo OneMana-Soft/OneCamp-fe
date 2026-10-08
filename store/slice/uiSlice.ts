@@ -35,6 +35,7 @@ interface RootUIState {
   createDoc: SingleUIState;
   editChannel: SingleUIState;
   editChannelMember: SingleUIState;
+  channelCheckIns: SingleUIState;
   editTeamMember: SingleUIState;
   editDmMember: SingleUIState;
   editProjectMember: SingleUIState;
@@ -127,6 +128,7 @@ const initialState: RootUIState = {
   createDoc: { isOpen: false, data: null },
   editChannel: { isOpen: false, data: { channelUUID: "" } },
   editChannelMember: { isOpen: false, data: { channelUUID: "" } },
+  channelCheckIns: { isOpen: false, data: { channelUUID: "" } },
   editTeamMember: { isOpen: false, data: { teamUUID: "" } },
   editDmMember: { isOpen: false, data: { grpId: "" } },
   editProjectMember: { isOpen: false, data: { projectUUID: "" } },
