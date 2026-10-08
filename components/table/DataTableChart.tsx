@@ -12,6 +12,7 @@ import { Loader2 } from "@/lib/icons"
 import SvgChart from "@/components/charts/SvgChart"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
 import { aggregateTable, type AggregateOp, type AggregateResult, type TableField, formulaOf } from "@/services/tableService"
+import { partialNote } from "@/lib/tables/chartNote"
 
 // DataTableChart — a Notion-style "chart view" for a table. The user picks a
 // column to group by, an aggregation (count / sum / avg / min / max) and a chart
@@ -154,6 +155,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
             series: [{ name: metric, values: result.buckets.map((b) => b.value) }],
         })
     }, [result, chartType, op])
+    const note = result ? partialNote(result) : null
 
     if (fields.length === 0) {
         return (
@@ -249,11 +251,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
                 ) : chart ? (
                     <>
                         <SvgChart chart={chart} />
-                        {result?.truncated && (
-                            <p className="mt-2 text-center text-xs text-muted-foreground">
-                                Showing the top {result.buckets.length} of {result.distinct_groups} groups.
-                            </p>
-                        )}
+                        {note && <p className="mt-2 text-center text-xs text-muted-foreground">{note}</p>}
                     </>
                 ) : (
                     <div className="py-20 text-center text-sm text-muted-foreground">
