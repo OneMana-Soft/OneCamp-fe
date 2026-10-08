@@ -403,6 +403,7 @@ export enum PostEndpointUrl {
     DeleteTable = "/tables",                 // append /{id}/delete
     CreateTableRow = "/tables",              // append /{id}/rows
     UpdateTableRow = "/tables",              // append /{id}/rows/{rowId}/update
+    PreviewTableFormula = "/tables",         // append /{id}/formula/preview
     DeleteTableRow = "/tables",              // append /{id}/rows/{rowId}/delete
     AggregateTable = "/tables",              // append /{id}/aggregate (read-only)
     RunTableQueryPlan = "/tables",           // append /{id}/query-plan (read-only, multi-step)

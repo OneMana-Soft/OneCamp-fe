@@ -1,4 +1,5 @@
 import axiosInstance from "@/lib/axiosInstance"
+import { browserTZ } from "@/lib/utils/timeZone"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { publicCall } from "@/services/publicApi"
 
@@ -175,7 +176,8 @@ export async function getGuestCollabSession(
 
 export async function getGuestTable(token: string): Promise<any | null> {
     try {
-        const res = await fetch(`${backendBase}/guest/table/${encodeURIComponent(token)}`, {
+        // The guest's time zone, where a table's formulas count TODAY().
+        const res = await fetch(`${backendBase}/guest/table/${encodeURIComponent(token)}?tz=${encodeURIComponent(browserTZ())}`, {
             method: "GET",
             headers: { Accept: "application/json" },
         })

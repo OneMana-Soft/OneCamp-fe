@@ -4,11 +4,10 @@ import * as React from "react"
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
 import { Loader2, Table as TableIcon, ExternalLink } from "@/lib/icons"
 import { useMqttTopic } from "@/hooks/useMqttTopic"
 import { DataTableGrid } from "@/components/table/DataTableGrid"
-import { TableBundle } from "@/services/tableService"
+import { TableBundle, tableBundleKey } from "@/services/tableService"
 import { TableGlyph } from "@/components/table/TableGlyph"
 
 // TableEmbedView renders a live, interactive view of a referenced table inside
@@ -18,7 +17,7 @@ import { TableGlyph } from "@/components/table/TableGlyph"
 export const TableEmbedView: React.FC<NodeViewProps> = ({ node, editor, deleteNode }) => {
   const tableId = String(node.attrs.tableId || "")
   const { data, isLoading, isError, mutate } = useFetch<{ data: TableBundle }>(
-    tableId ? `${GetEndpointUrl.GetTable}/${tableId}` : "",
+    tableId ? tableBundleKey(tableId) : "",
     undefined,
     undefined,
     // The referenced table may have been deleted or be inaccessible; render a
