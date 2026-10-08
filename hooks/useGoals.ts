@@ -22,8 +22,13 @@ export const projectGoalsKey = (projectId: string) => `${GetEndpointUrl.ProjectG
 
 const PROJECT_GOALS = /^\/project\/[^/?]+\/goals/
 
-/** Reads every goal view again: the list, each goal's page, and projects' goal chips. */
-export const refreshGoals = () => appMutate((key) => typeof key === "string" && (key.startsWith(`${GetEndpointUrl.Goal}/`) || PROJECT_GOALS.test(key)))
+/**
+ * Reads every goal view again: the list, each goal's page, and projects' goal
+ * chips. A deleted goal's own page is passed as gone: read again it would
+ * only answer 404, which the app shows as an error.
+ */
+export const refreshGoals = (gone?: string) =>
+  appMutate((key) => typeof key === "string" && key !== gone && (key.startsWith(`${GetEndpointUrl.Goal}/`) || PROJECT_GOALS.test(key)))
 
 /** A check-in as the composer writes it. */
 export type CheckInInput = UpdateInput
@@ -58,7 +63,12 @@ export function useGoal(id: string | undefined) {
   )
 
   const edit = useCallback((input: GoalInput) => act<GoalSummary>("/edit", input), [act])
-  const remove = useCallback(() => act<void>("/delete"), [act])
+  const remove = useCallback(async () => {
+    await axiosInstance.post(`${GetEndpointUrl.Goal}/${id}/delete?${tz()}`, {})
+    const key = goalKey(id!)
+    await appMutate(key, undefined, { revalidate: false })
+    await refreshGoals(key)
+  }, [id])
   const reopen = useCallback(() => act<void>("/reopen"), [act])
   const linkProject = useCallback((projectId: string) => act<void>("/projects", { project_uuid: projectId }), [act])
   const unlinkProject = useCallback((projectId: string) => act<void>(`/projects/${projectId}/delete`), [act])

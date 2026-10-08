@@ -40,6 +40,7 @@ const COPY = {
     posted: "Update posted",
     saved: "Update saved",
     told: "The project's members are told.",
+    readers: undefined,
   },
   goal: {
     stands: "Where the goal stands",
@@ -57,6 +58,8 @@ const COPY = {
     posted: "Checked in",
     saved: "Check-in saved",
     told: undefined,
+    // A goal is the workspace's: its check-ins are read by everyone in it.
+    readers: "Everyone in the workspace can read check-ins.",
   },
 } as const
 
@@ -108,6 +111,9 @@ export function UpdateComposer({
   const [since, setSince] = useState<string | null>(null)
   const [shared, setShared] = useState(editing?.shared_with_client ?? false)
   const [channel, setChannel] = useState(NO_CHANNEL)
+  // Where the number stood when the composer opened: a goal read again meanwhile
+  // (someone else moved it) mustn't make an untouched field look like a change.
+  const [startValue] = useState(number?.current)
   const [value, setValue] = useState(number ? String(number.current) : "")
   const [busy, setBusy] = useState<"draft" | "ai" | "post" | null>(editing ? null : "draft")
   const [undo, setUndo] = useState<string | null>(null)
@@ -122,7 +128,8 @@ export function UpdateComposer({
   const offerEndings = endings && !editing
   const closing = isEnding(health)
   const moved = number && !editing && value.trim() !== "" ? Number(value) : undefined
-  const valueChanged = moved !== undefined && Number.isFinite(moved) && moved !== number?.current
+  // Closing keeps where the goal ended: a value typed before choosing an ending isn't sent.
+  const valueChanged = !closing && moved !== undefined && Number.isFinite(moved) && moved !== startValue
   const canPost = !!body.trim() || closing || valueChanged
 
   // A new update starts from the draft; the person edits from there.
@@ -307,6 +314,7 @@ export function UpdateComposer({
             </div>
           )}
         </div>
+        {copy.readers && <p className="text-2xs text-muted-foreground">{copy.readers}</p>}
       </div>
 
       {(clientShare || (!editing && myChannels.length > 0)) && (

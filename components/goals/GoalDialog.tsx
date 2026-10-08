@@ -60,7 +60,8 @@ export function GoalDialog({
   const [measure, setMeasure] = useState<Measure>(editing?.measure ?? "projects")
   const [startValue, setStartValue] = useState(editing?.start_value?.toString() ?? "")
   const [target, setTarget] = useState(editing?.target_value?.toString() ?? "")
-  const [current, setCurrent] = useState(editing?.current_value?.toString() ?? "")
+  const [initialCurrent] = useState(editing?.current_value?.toString() ?? "")
+  const [current, setCurrent] = useState(initialCurrent)
   const [unit, setUnit] = useState(editing?.unit ?? "")
   const [parent, setParent] = useState(editing?.parent_id ?? parentId ?? NO_PARENT)
   const [linked, setLinked] = useState<string[]>([])
@@ -72,7 +73,7 @@ export function GoalDialog({
   const people = useMemo(() => (users.data?.users ?? []).filter((u) => !u.is_bot && u.user_uuid), [users.data])
   const ownerId = owner || me?.user_uuid || ""
   const ownerUser = people.find((u) => u.user_uuid === ownerId) ?? (me && me.user_uuid === ownerId ? me : undefined)
-  const parents = useMemo(() => parentChoices(goals, editing?.id), [goals, editing?.id])
+  const parents = useMemo(() => parentChoices(goals, editing?.id, editing?.parent_id), [goals, editing?.id, editing?.parent_id])
   const projectName = (id: string) => projects?.find((p) => p.project_uuid === id)?.project_name ?? "A project"
 
   const check = (): string => {
@@ -101,7 +102,15 @@ export function GoalDialog({
       due_date: due,
       measure,
       unit: measure === "number" ? unit : "",
-      ...(measure === "number" ? { start_value: num(startValue), target_value: num(target), current_value: num(current) ?? num(startValue) } : {}),
+      ...(measure === "number"
+        ? {
+            start_value: num(startValue),
+            target_value: num(target),
+            // Check-ins move the number. An edit sends it only when changed here, so
+            // it never puts back what it was when this dialog opened.
+            ...(editing?.measure === "number" && current === initialCurrent ? {} : { current_value: num(current) ?? num(startValue) }),
+          }
+        : {}),
       ...(editing ? {} : { project_uuids: linked }),
     }
     setBusy(true)

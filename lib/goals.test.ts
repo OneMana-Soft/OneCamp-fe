@@ -90,6 +90,10 @@ describe("goals", () => {
     const list = [goal("top"), goal("a", { parent_id: "top" }), goal("b", { parent_id: "a" }), goal("done", { status: "achieved" })]
     expect(parentChoices(list, "a").map((g) => g.id)).toEqual(["top"])
     expect(parentChoices(list).map((g) => g.id)).toEqual(["top", "a", "b"])
+    // Only goals the reader can change are offered, and a goal's present parent stays.
+    const theirs = [goal("top", { can_edit: false }), goal("mine"), goal("child", { parent_id: "top" })]
+    expect(parentChoices(theirs).map((g) => g.id)).toEqual(["mine", "child"])
+    expect(parentChoices(theirs, "child", "top").map((g) => g.id)).toEqual(["top", "mine"])
   })
 
   it("filters by status, owner and words", () => {

@@ -214,9 +214,12 @@ export function goalTree(goals: GoalSummary[]): GoalNode[] {
   return out
 }
 
-/** The goals a goal may sit under: open ones, never itself or its own sub-goals. The server also keeps goals four levels deep at most. Pure. */
-export function parentChoices(goals: GoalSummary[], self?: string): GoalSummary[] {
-  if (!self) return goals.filter((g) => g.status === "open")
+/** The goals a goal may sit under: open ones the reader can change, never itself or its own sub-goals. The server also keeps goals four levels deep at most. Pure. */
+export function parentChoices(goals: GoalSummary[], self?: string, current?: string): GoalSummary[] {
+  // Putting a goal under another moves the other's progress: only goals the
+  // reader can change are offered, and the goal's present parent stays shown.
+  const offer = (g: GoalSummary) => g.status === "open" && (g.can_edit || g.id === current)
+  if (!self) return goals.filter(offer)
   const below = new Set<string>([self])
   let grew = true
   while (grew) {
@@ -228,7 +231,7 @@ export function parentChoices(goals: GoalSummary[], self?: string): GoalSummary[
       }
     }
   }
-  return goals.filter((g) => g.status === "open" && !below.has(g.id))
+  return goals.filter((g) => offer(g) && !below.has(g.id))
 }
 
 export type GoalFilter = { status: "open" | "closed"; mine: boolean; query: string }

@@ -199,7 +199,6 @@ export function GoalPage({ goalId }: { goalId: string }) {
   const gap = paceGap(goal)
   const late = overdue(goal, localDay())
   const due = checkInDue(goal, now)
-  const latest = goal.checkins[0]
 
   const composerFor = (editing?: GoalCheckIn) => (
     <UpdateComposer
@@ -250,7 +249,7 @@ export function GoalPage({ goalId }: { goalId: string }) {
                     {open ? (late ? "Was due" : "Due") : "Was due"} {dueLabel(goal.due_date)}
                   </span>
                   {!open && <HealthPill health={goal.status} />}
-                  {open && latest && <HealthPill health={latest.health} />}
+                  {open && goal.health && <HealthPill health={goal.health} />}
                 </div>
               </div>
             </div>
