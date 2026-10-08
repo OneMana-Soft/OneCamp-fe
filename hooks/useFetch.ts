@@ -81,9 +81,10 @@ export const useFetchOnlyOnce = <T>(url: string, schema?: z.ZodSchema<T>) => {
     return useMemo(() => ({
         data,
         isLoading: isLoading,
+        isValidating,
         isError: error,
         mutate
-    }), [data, isLoading, error, mutate]);
+    }), [data, isLoading, isValidating, error, mutate]);
 };
 
 const mediaFetcher = async <T>(url: string): Promise<T> => {

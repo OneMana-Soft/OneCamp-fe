@@ -13,7 +13,19 @@ import {useDispatch} from "react-redux";
 import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus} from "@/store/slice/userSlice";
 import { UserProfileResponseSchema } from "@/lib/validations/schemas";
 import axios from "axios";
+import { ErrorState } from "@/components/ui/error-state";
 import store, { persistor, RESET_STORE_ACTION } from "@/store/store";
+
+/**
+ * Whether the profile request failed because the session is gone: the server
+ * answered 401 or 403, after the axios interceptor's refresh (which signs out
+ * itself, lib/axiosInstance). Any other failure, such as the network dropping,
+ * a server error or a reply the app can't read, says nothing about the session.
+ */
+export function sessionGone(error: unknown): boolean {
+    const status = (error as { response?: { status?: number } } | undefined)?.response?.status;
+    return status === 401 || status === 403;
+}
 
 export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
 
@@ -38,8 +50,15 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
         // an Expires-in-the-past directive that the browser respects), then
         // do a FULL PAGE navigation to /. Full reload so all in-memory
         // state is dropped and the next request to / sees no cookies.
+        //
+        // Only when the session is really gone: the server said so, or answered
+        // without a user. Any other failure signed people out too, so a network
+        // blip or a server error sent everyone, demo visitors included, back to
+        // the login page; now the page offers to try again instead.
+        const answeredWithoutUser =
+            !userProfile.isLoading && !userProfile.isError && userProfile.data !== undefined && !userProfile.data?.data;
         if (
-            (userProfile.isError || (!userProfile.isLoading && !userProfile.data?.data)) &&
+            (sessionGone(userProfile.isError) || answeredWithoutUser) &&
             !handledRef.current
         ) {
             handledRef.current = true;
@@ -84,6 +103,13 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
         }
 
 
+        // Nothing asked for yet, and nothing on its way: ask. (SWR doesn't
+        // start this request by itself in every case, and nothing else would.)
+        if (!userProfile.data && !userProfile.isError && !userProfile.isLoading && !userProfile.isValidating) {
+            void userProfile.mutate();
+            return;
+        }
+
         if(userProfile.data?.data) {
             // The reducer ignores empty/undefined emoji-status payloads
             // (profile-fetch responses omit the field when no active
@@ -101,24 +127,25 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
             if (resume) router.replace(resume);
         }
 
-    }, [userProfile.isError, userProfile.isLoading, userProfile.data?.data, router, dispatch]);
+    }, [userProfile.isError, userProfile.isLoading, userProfile.isValidating, userProfile.data, userProfile.mutate, router, dispatch]);
 
-    if (userProfile.isLoading) {
+    if (userProfile.data?.data) {
+        return children;
+    }
+
+    // The profile couldn't be read, but the session is fine: say so, and try
+    // again (SWR also retries on its own).
+    if (userProfile.isError && !sessionGone(userProfile.isError)) {
         return (
-            <div className='flex justify-center items-center h-[100vh] space-x-3'>
-                <Loader2 className="size-10 animate-spin" />
+            <div className="flex h-[100vh] items-center justify-center px-4">
+                <ErrorState subject="your workspace" onRetry={() => void userProfile.mutate()} retrying={userProfile.isValidating} />
             </div>
         );
     }
 
-    if (!userProfile.isLoading && userProfile.data?.data) {
-        return children;
-    }
-
-    return null;
-
-
-    // return children
-
-
+    return (
+        <div className='flex justify-center items-center h-[100vh] space-x-3'>
+            <Loader2 className="size-10 animate-spin" />
+        </div>
+    );
 }
