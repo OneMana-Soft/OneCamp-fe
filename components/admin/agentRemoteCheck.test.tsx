@@ -4,6 +4,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { AgentEditDialog } from "@/components/admin/AgentEditDialog"
 import { checkRemoteBrain } from "@/services/agentService"
 
+// The editor's lists (servers, models, channels, projects) are not under test,
+// and a real fetch leaves SWR's retry timer running after the page is gone.
+vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: undefined, isLoading: false, mutate: vi.fn() }) }))
+
 vi.mock("@/services/agentService", async (orig) => ({
     ...(await orig<typeof import("@/services/agentService")>()),
     listAgentSkills: vi.fn().mockResolvedValue([]),
