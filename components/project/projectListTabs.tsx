@@ -46,13 +46,20 @@ export function ProjectListTabs({ projectId }: { projectId: string }) {
             className="h-full"
         >
             <SectionTabsContent value="task" className="flex-1 min-h-0 outline-none flex flex-col">
-                <div className="flex items-center gap-1 px-4 pt-3">
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                        <ProjectGlanceLine projectId={projectId} />
+                {/* Each piece loads on its own, so each has its place from the
+                    first paint: the line beside the tools, one line high, and
+                    the chips in a row of their own that scrolls sideways rather
+                    than wrapping. Wrapping as they arrived pushed the list down
+                    about 100px on a phone. */}
+                <div className="grid gap-1.5 px-4 pt-3">
+                    <div className="flex items-center gap-1">
+                        <ProjectGlanceLine projectId={projectId} className="min-w-0 flex-1 truncate" />
+                        <ProjectToolButtons projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} />
+                    </div>
+                    <div className="flex h-8 items-center gap-2 overflow-x-auto no-scrollbar [&>*]:shrink-0">
                         <ProjectHealthChip projectId={projectId} onOpen={() => setSelectedTab("updates")} />
                         <ProjectGoalChip projectId={projectId} />
                     </div>
-                    <ProjectToolButtons projectId={projectId} projectName={info?.project_name} isAdmin={!!info?.project_is_admin} isMember={!!info?.project_is_member} />
                 </div>
                 <ProjectListTabContent selectedTab="task" projectId={projectId} />
             </SectionTabsContent>
