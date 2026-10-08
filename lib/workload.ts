@@ -91,7 +91,8 @@ export type Measure = "tasks" | "hours"
 export function formatLoad(load: number, measure: Measure): string {
   if (measure === "tasks") return String(load)
   const h = Math.round(load * 2) / 2
-  return `${h}h`
+  // A little work isn't none.
+  return h === 0 && load > 0 ? "<0.5h" : `${h}h`
 }
 
 /**
