@@ -26,6 +26,11 @@ vi.mock("@/services/settingsService", async (importOriginal) => {
   }
 })
 
+// The plan comes from GET /admin/seats; nothing is locked, as on a licensed workspace.
+vi.mock("@/hooks/usePlan", () => ({
+  usePlan: () => ({ freePlan: false, isLocked: () => false, upgradeUrl: undefined }),
+}))
+
 const entry = (over: Partial<AuditEntry>): AuditEntry => ({
   id: "e1",
   action: "agent.run",

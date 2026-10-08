@@ -7,6 +7,8 @@ import desktopRightPanelSlice from "@/store/slice/desktopRightPanelSlice"
 import { BUILT_IN_STATUSES } from "@/lib/taskStatus"
 import { armGo, disarmGo } from "@/lib/goKeys"
 import type { TaskInfoInterface } from "@/types/task"
+// Status names are translated, as in the app (ClientProviders loads this once).
+import "@/lib/utils/i18n"
 
 const bulk = vi.fn(async () => ({ changed: 2, failed: 0, unchanged: 0 }))
 vi.mock("@/hooks/useBulkTaskUpdate", () => ({ useBulkTaskUpdate: () => bulk }))
