@@ -12,7 +12,8 @@ import { memo, useEffect, useMemo, useState } from "react"
 import { useSelector } from "react-redux"
 import { useChatReceipts, useMarkChatSeen } from "@/hooks/useChatReceipts"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
-import { seenLine, type ChatTarget } from "@/lib/chat/readReceipts"
+import { groupingIdOf, type ChatTarget } from "@/lib/chat/conversation"
+import { seenLine } from "@/lib/chat/readReceipts"
 import { Eye } from "@/lib/icons"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ChatInfo } from "@/types/chat"
@@ -39,7 +40,7 @@ export const SeenReceiptLine = memo(function SeenReceiptLine({
     if (latest && me && !mine) setArrived(latest.chat_uuid)
   }, [latest, me, mine])
   // Your own message is the newest: sending it marked the conversation seen.
-  useMarkChatSeen(mine ? null : target, arrived)
+  useMarkChatSeen(me && !mine ? target : null, arrived, me ? groupingIdOf(target, me) : "")
   const receipts = useChatReceipts(target)
   const group = target.kind === "group" ? target.grpId : ""
   const people = useFetchOnlyOnce<RawUserDMInterface>(group ? `${GetEndpointUrl.GetDmGroupParticipants}/${group}` : "")

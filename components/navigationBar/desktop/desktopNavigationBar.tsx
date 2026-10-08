@@ -11,8 +11,7 @@ import { Users, Hash, MessageCircle, Clock, Star } from "@/lib/icons";
 import { CircleCheck, ClipboardList, File as FileIcon, LayoutDashboard, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from "@/lib/icons";
 import {DesktopSideNavigationBar} from "@/components/navigationBar/desktop/desktopSideNavigationBar";
 import DesktopNavigationTopBar from "@/components/navigationBar/desktop/desktopNavigationTopBar";
-import {useFetch} from "@/hooks/useFetch";
-import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
+import {useHydrateUserSidebar} from "@/hooks/useHydrateUserSidebar";
 import {
     app_channel_path,
     app_chat_path,
@@ -20,21 +19,11 @@ import {
     app_project_team,
     app_grp_chat_path, app_doc_path, app_board_path
 } from "@/types/paths";
-import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {openUI} from "@/store/slice/uiSlice";
 import {usePathname} from "next/navigation";
 import {getOtherUserId} from "@/lib/utils/getOtherUserId";
 import type {RootState} from "@/store/store";
-import {
-    createUserChannelList,
-    createUserChatList,
-    createUserProjectList,
-    setTotalUnreadActivityCount,
-    createUserTeamList, updateUsersStatusFromList,
-    createUserDocList,
-    createUserBoardList
-} from "@/store/slice/userSlice";
 import {sortChannelList} from "@/lib/utils/sortChannelList";
 import {InlineDocCreator} from "@/components/doc/inlineDocCreator";
 import {InlineBoardCreator} from "@/components/board/inlineBoardCreator";
@@ -43,8 +32,6 @@ import {isExternalUser} from "@/lib/utils/isExternalUser";
 import {buildPrimaryNavLinks} from "@/lib/nav/primaryNavLinks";
 import {FOCUS_SECTION_KEY, FOCUS_SECTION_TITLE, FOLDED_NAV_TITLES, partitionByTitle} from "@/lib/nav/focusMode";
 import {useSidebarDisclosure} from "@/lib/nav/sidebarDisclosure";
-import {batchUpdateChannelCallStatus} from "@/store/slice/channelSlice";
-import {batchUpdateChatCallStatus} from "@/store/slice/chatSlice";
 
 
 export function DesktopNavigationBar({
@@ -83,10 +70,8 @@ export function DesktopNavigationBar({
 
     const sidebarPanelRef = useRef<ImperativePanelHandle>(null);
 
-    const userSideNav = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfileSideNav, undefined, {
-        revalidateOnFocus: false,
-        dedupingInterval: 30000, // 30 seconds
-    })
+    // Seeds the sidebar's lists and badges, as every layout must.
+    const userSideNav = useHydrateUserSidebar()
 
     const userSidebarState = useSelector((state: RootState) => state.users.userSidebar)
     const recentItems = useSelector((state: RootState) => state.recentItems.items)
@@ -100,71 +85,6 @@ export function DesktopNavigationBar({
     const channelCallStatus = useSelector((state: RootState) => state.channel.channelCallStatus);
     const chatCallStatus = useSelector((state: RootState) => state.chat.chatCallStatus);
 
-
-    useEffect(() => {
-        if(userSideNav.data?.data?.user_teams) {
-            dispatch(createUserTeamList({teamUsers: userSideNav.data?.data.user_teams}))
-        }
-
-        if(userSideNav.data?.data?.user_projects) {
-            dispatch(createUserProjectList({projectUsers: userSideNav.data?.data.user_projects}))
-        }
-
-        if(userSideNav.data?.data?.user_channels) {
-            dispatch(createUserChannelList({
-                channelsUser: userSideNav.data.data.user_channels,
-                favChannelsUser: userSideNav.data.data.user_fav_channels || []
-            }))
-
-            // Hydrate channel call status from initial sidebar API (single batch dispatch)
-            const activeChannelIds = (userSideNav.data.data.user_channels || [])
-                .filter(ch => ch.ch_call_active)
-                .map(ch => ch.ch_uuid);
-            if (activeChannelIds.length > 0) {
-                dispatch(batchUpdateChannelCallStatus({ channelIds: activeChannelIds, callStatus: true }));
-            }
-        }
-
-        if (userSideNav.data?.data?.user_dms) {
-            const otherUsersList = userSideNav.data.data.user_dms.reduce<UserProfileDataInterface[]>((acc, dm) => {
-                const originalUser = dm.dm_chats?.[0]?.chat_to || dm.dm_chats?.[0]?.chat_from || userSideNav.data?.data || {} as UserProfileDataInterface;
-
-                // Create a new object instead of mutating the original
-                const otherUser = {
-                    ...originalUser,
-                    user_dms: [JSON.parse(JSON.stringify(dm))]
-                };
-
-                return [...acc, otherUser];
-            }, []);
-
-
-
-            dispatch(createUserChatList({ chatUsersDm: userSideNav.data.data.user_dms }));
-            dispatch(updateUsersStatusFromList({ users: otherUsersList }));
-
-            // Hydrate DM/group chat call status from initial sidebar API (single batch dispatch)
-            const activeDmIds = (userSideNav.data.data.user_dms || [])
-                .filter(dm => dm.dm_call_active)
-                .map(dm => dm.dm_grouping_id);
-            if (activeDmIds.length > 0) {
-                dispatch(batchUpdateChatCallStatus({ grpIds: activeDmIds, callStatus: true }));
-            }
-        }
-
-        if(userSideNav.data?.data?.user_total_unread_activity_count !== undefined) {
-            dispatch(setTotalUnreadActivityCount({count: userSideNav.data.data.user_total_unread_activity_count}))
-        }
-
-        if(userSideNav.data?.data?.user_docs) {
-            dispatch(createUserDocList({docUsers: userSideNav.data.data.user_docs}))
-        }
-
-        if(userSideNav.data?.data?.user_boards) {
-            dispatch(createUserBoardList({boardUsers: userSideNav.data.data.user_boards}))
-        }
-
-    }, [userSideNav.data?.data]);
 
     const navCollapsedSize = 4;
 

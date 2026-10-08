@@ -1,27 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/axiosInstance", () => ({
   default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
 
-// A stand-in SWR cache: records what markChannelSeen writes back, so the test
-// asserts the cache correction rather than the network call.
-const cache = new Map<string, unknown>()
-vi.mock("swr", () => ({
-  mutate: vi.fn(
-    async (
-      key: string | ((k: unknown) => boolean),
-      updater: (cached: unknown) => unknown,
-    ) => {
-      for (const [k, v] of cache) {
-        const hit = typeof key === "function" ? key(k) : k === key
-        if (hit) cache.set(k, updater(v))
-      }
-    },
-  ),
-}))
+// A stand-in for the app's SWR cache and its mutate: records what
+// markChannelSeen writes back, so the test asserts the cache correction rather
+// than the network call. An entry is SWR's state: the data, and whether a
+// request for it is on its way.
+type Entry = { data?: unknown; isValidating?: boolean }
+const cache = new Map<string, Entry>()
+const mutate = vi.fn(async (key: string, updater: (data: unknown) => unknown) => {
+  const entry = cache.get(key)
+  if (entry) cache.set(key, { ...entry, data: updater(entry.data) })
+})
 
 import axiosInstance from "@/lib/axiosInstance"
+import { bindAppMutate } from "@/lib/swrMutate"
 import { markChannelSeen } from "@/services/channelService"
 import { clearActivityUnread, clearChatUnread } from "@/services/unreadCache"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -57,20 +52,24 @@ const channelPage = () => ({
   ],
 })
 
+const PAGE = `${GetEndpointUrl.GetUserActiveChannelList}?pageIndex=0&pageSize=20`
+
 beforeEach(() => {
   post.mockReset()
   post.mockResolvedValue({ data: {} })
+  mutate.mockClear()
   cache.clear()
-  cache.set(GetEndpointUrl.SelfProfileSideNav, sidenav())
-  cache.set(`${GetEndpointUrl.GetUserActiveChannelList}?pageIndex=0&pageSize=20`, channelPage())
-  cache.set(GetEndpointUrl.GetUserLatestChatList, sidenav())
+  cache.set(GetEndpointUrl.SelfProfileSideNav, { data: sidenav() })
+  cache.set(PAGE, { data: channelPage() })
+  cache.set(GetEndpointUrl.GetUserLatestChatList, { data: sidenav() })
+  bindAppMutate(mutate as never, cache as never)
 })
 
-const sidenavCache = () => cache.get(GetEndpointUrl.SelfProfileSideNav) as ReturnType<typeof sidenav>
-const listCache = () =>
-  cache.get(`${GetEndpointUrl.GetUserActiveChannelList}?pageIndex=0&pageSize=20`) as ReturnType<
-    typeof channelPage
-  >
+afterEach(() => bindAppMutate(null))
+
+const sidenavCache = () => cache.get(GetEndpointUrl.SelfProfileSideNav)?.data as ReturnType<typeof sidenav>
+const listCache = () => cache.get(PAGE)?.data as ReturnType<typeof channelPage>
+const chatListCache = () => cache.get(GetEndpointUrl.GetUserLatestChatList)?.data as ReturnType<typeof sidenav>
 
 const unreadIn = (list: { ch_uuid: string; unread_post_count: number }[], id: string) =>
   list.find((c) => c.ch_uuid === id)?.unread_post_count
@@ -135,9 +134,34 @@ describe("reading a channel clears its badge", () => {
   it("clears a chat's badge in the sidenav and the chat list", () => {
     clearChatUnread(DM)
 
-    const chatList = cache.get(GetEndpointUrl.GetUserLatestChatList) as ReturnType<typeof sidenav>
     expect(sidenavCache().data.user_dms.find((d) => d.dm_grouping_id === DM)?.dm_unread).toBe(0)
-    expect(chatList.data.user_dms.find((d) => d.dm_grouping_id === DM)?.dm_unread).toBe(0)
+    expect(chatListCache().data.user_dms.find((d) => d.dm_grouping_id === DM)?.dm_unread).toBe(0)
+  })
+
+  // THE DM LIST BUG. On a link straight into a chat, the chat list's first
+  // request was still on its way when the chat cleared its badge. SWR drops a
+  // response whose entry changed under it, so the list never arrived: it
+  // showed only the open conversation until the next refresh, minutes later.
+  it("leaves a chat list that hasn't arrived yet to arrive", () => {
+    cache.set(GetEndpointUrl.GetUserLatestChatList, { isValidating: true })
+
+    clearChatUnread(DM)
+
+    expect(mutate).not.toHaveBeenCalledWith(GetEndpointUrl.GetUserLatestChatList, expect.anything(), expect.anything())
+    expect(sidenavCache().data.user_dms.find((d) => d.dm_grouping_id === DM)?.dm_unread).toBe(0)
+  })
+
+  // Reloading into a chat: the lists are shown from the last visit while they
+  // are fetched again. Correcting them dropped the fresh answer, so the last
+  // visit's lists stood for minutes; now the fresh answer is asked for again.
+  it("fetches a list again when its fresh answer was on its way", () => {
+    cache.set(GetEndpointUrl.GetUserLatestChatList, { data: sidenav(), isValidating: true })
+
+    clearChatUnread(DM)
+
+    expect(chatListCache().data.user_dms.find((d) => d.dm_grouping_id === DM)?.dm_unread).toBe(0)
+    expect(mutate).toHaveBeenCalledWith(GetEndpointUrl.GetUserLatestChatList, expect.any(Function), { revalidate: true })
+    expect(mutate).toHaveBeenCalledWith(GetEndpointUrl.SelfProfileSideNav, expect.any(Function), { revalidate: false })
   })
 
   it("leaves other chats alone", () => {

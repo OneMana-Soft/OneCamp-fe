@@ -143,4 +143,11 @@ describe("serialise", () => {
     localStorage.setItem("onecamp-app-cache", serialise(new Map([["/a", { data: 1 }]])))
     expect((localStorageProvider() as unknown as Map<string, unknown>).get("/a")).toEqual({ data: 1 })
   })
+
+  // A page left while a request was on its way: the next load has no such
+  // request, so the entry mustn't say it does.
+  it("doesn't write down a request on its way", () => {
+    const out = JSON.parse(serialise(new Map([["/a", { data: 1, isValidating: true, isLoading: false, _k: "/a" }]])))
+    expect(out.entries).toEqual([["/a", { data: 1, _k: "/a" }]])
+  })
 })

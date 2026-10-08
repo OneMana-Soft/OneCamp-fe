@@ -27,6 +27,7 @@ import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { Search } from "@/lib/icons"
+import { withOpenRead } from "@/lib/chat/conversation"
 
 export const ChatUserList = ({ chatId }: { chatId: string }) => {
     const dispatch = useDispatch()
@@ -49,7 +50,9 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
 
     useEffect(() => {
         if (latestChats.data?.data.user_dms) {
-            dispatch(CreateUserChatList({ userDmList: latestChats.data?.data.user_dms }))
+            // The conversation on screen is read, whatever this answer predates.
+            const dms = withOpenRead(latestChats.data.data.user_dms, window.location.pathname, selfUserUuid)
+            dispatch(CreateUserChatList({ userDmList: dms }))
         }
     }, [latestChats.data?.data, selfUserUuid, dispatch])
 

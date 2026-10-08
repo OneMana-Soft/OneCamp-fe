@@ -15,6 +15,7 @@ import {
     RemoveMessageFromChatList, UpdateMessageTextInChatList
 } from "@/store/slice/chatSlice"
 import {incrementUserChatUnread} from "@/store/slice/userSlice";
+import {isOpenAt} from "@/lib/chat/conversation";
 import { RemoveChatTyping, RemoveGroupChatTyping } from "@/store/slice/typingSlice";
 import {getOtherUserId} from "@/lib/utils/getOtherUserId";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -147,13 +148,8 @@ export const useChatMessageHandlers = ({ userUuid }: UseChatMessageHandlersProps
                         // someone else and we aren't currently viewing this
                         // conversation. Read the path at call time (the
                         // callback is memoized, so a closed-over value would be
-                        // stale) and match the route shape: a 1:1 DM is
-                        // /app/chat/{otherUserId}; a group chat is
-                        // /app/chat/group/{grpId}.
-                        const segs = window.location.pathname.split('/')
-                        const isViewingThis = isGroupChat
-                            ? (segs[3] === 'group' && segs[4] === grpId)
-                            : (segs[3] === dmId)
+                        // stale).
+                        const isViewingThis = isOpenAt(window.location.pathname, grpId, userUuid || '')
                         if ((userUuid || '') !== mqttChatInfo.data.user_uuid && !isViewingThis) {
                             dispatch(IncrementUnreadCount({grpId: grpId}))
                             dispatch(incrementUserChatUnread({dm_grouping_id: grpId}))

@@ -4,7 +4,9 @@ import { useEffect, useRef } from "react"
 import { useFetch } from "@/hooks/useFetch"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { appMutate } from "@/lib/swrMutate"
-import { receiptsKey, withSeen, type ChatTarget, type Receipts } from "@/lib/chat/readReceipts"
+import type { ChatTarget } from "@/lib/chat/conversation"
+import { receiptsKey, withSeen, type Receipts } from "@/lib/chat/readReceipts"
+import { clearChatUnread } from "@/services/unreadCache"
 
 /** Who has seen a conversation (lib/chat/readReceipts); kept live by MESSAGE_CHAT_SEEN. */
 export function useChatReceipts(target: ChatTarget | null) {
@@ -27,8 +29,10 @@ export function applySeenEvent(key: string, userUUID: string, at: string) {
  * marked the conversation).
  * The others see it at once (MESSAGE_CHAT_SEEN). Nothing is marked while the
  * window is hidden, so a chat left open in a background tab isn't "seen".
+ * The mark is what unread counts are kept against, so once the server has it,
+ * the cached counts for the conversation (groupingId) are cleared too.
  */
-export function useMarkChatSeen(target: ChatTarget | null, arrived: string) {
+export function useMarkChatSeen(target: ChatTarget | null, arrived: string, groupingId: string) {
   const key = target ? receiptsKey(target) : ""
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -39,7 +43,10 @@ export function useMarkChatSeen(target: ChatTarget | null, arrived: string) {
       if (timer.current) clearTimeout(timer.current)
       // A burst of messages is one mark.
       timer.current = setTimeout(() => {
-        void axiosInstance.post(key, {}, OWN_ERRORS).catch(() => {})
+        void axiosInstance
+          .post(key, {}, OWN_ERRORS)
+          .then(() => clearChatUnread(groupingId))
+          .catch(() => {})
       }, 600)
     }
     mark()
@@ -49,5 +56,5 @@ export function useMarkChatSeen(target: ChatTarget | null, arrived: string) {
       document.removeEventListener("visibilitychange", onVisible)
       if (timer.current) clearTimeout(timer.current)
     }
-  }, [key, arrived])
+  }, [key, arrived, groupingId])
 }
