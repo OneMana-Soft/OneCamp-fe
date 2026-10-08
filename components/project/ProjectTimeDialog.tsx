@@ -162,9 +162,10 @@ function Breakdown({ title, lines, total, priced }: { title: string; lines: Time
       <ul className="grid gap-1.5">
         {lines.map((l) => (
           <li key={l.id} className="grid gap-1">
-            <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate">{l.name}</span>
-              <span className="shrink-0 tabular-nums">
+            {/* On a phone the money wraps under the name rather than squeezing it to a few letters. */}
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm">
+              <span className="min-w-0 max-w-full truncate">{l.name}</span>
+              <span className="ml-auto shrink-0 text-right tabular-nums">
                 {formatDuration(l.seconds)}
                 {l.billable_seconds !== l.seconds && <span className="text-xs text-muted-foreground"> · {formatDuration(l.billable_seconds)} billable</span>}
                 {priced && l.amount_cents !== undefined && (
