@@ -111,11 +111,12 @@ export function flowChart(r: Report): NormalizedChart | null {
     stacked: true,
     title: "Flow of work",
     labels: r.weeks.map((w) => weekLabel(w)),
+    // The statuses' own colours, as their dots show them (lib/timeline DOT).
     series: [
-      { name: "Done", values: flow.map((w) => w.done) },
-      { name: "In review", values: flow.map((w) => w.in_review) },
-      { name: "In progress", values: flow.map((w) => w.in_progress) },
-      { name: "To do", values: flow.map((w) => w.to_do) },
+      { name: "Done", values: flow.map((w) => w.done), color: "var(--color-emerald-500)" },
+      { name: "In review", values: flow.map((w) => w.in_review), color: "var(--color-amber-500)" },
+      { name: "In progress", values: flow.map((w) => w.in_progress), color: "var(--color-blue-600)" },
+      { name: "To do", values: flow.map((w) => w.to_do), color: "var(--color-slate-500)" },
     ],
   }
 }

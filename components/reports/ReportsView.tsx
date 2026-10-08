@@ -255,9 +255,17 @@ export function ReportsView({ compact }: { compact?: boolean }) {
         <StatePlaceholder type="empty" title="Nothing open or done in these weeks" description="Pick more weeks, or more projects." />
       ) : (
         <>
-          <div className={cn("grid gap-3", !compact && hours && "lg:grid-cols-2")}>
+          <div className={cn("grid gap-3", !compact && (hours || flow) && "lg:grid-cols-2")}>
             <SvgChart chart={throughputChart(report)} className="my-0" />
             {hours && <SvgChart chart={hours} className="my-0" />}
+            {flow && (
+              <div className="grid content-start gap-1">
+                <SvgChart chart={flow} className="my-0" />
+                <p className="px-1 text-xs text-muted-foreground">
+                  Where the tasks stood at the end of each week. A band that keeps widening is work piling up at that step; done rising steadily is work getting through.
+                </p>
+              </div>
+            )}
           </div>
           {/* The charts' numbers, week by week, for a screen reader. */}
           <table className="sr-only">
@@ -283,12 +291,6 @@ export function ReportsView({ compact }: { compact?: boolean }) {
           </table>
           {flow && report.flow && (
             <>
-              <div className="grid gap-1">
-                <SvgChart chart={flow} className="my-0" />
-                <p className="px-1 text-xs text-muted-foreground">
-                  Where the tasks stood at the end of each week. A band that keeps widening is work piling up at that step; done rising steadily is work getting through.
-                </p>
-              </div>
               <table className="sr-only">
                 <caption>The flow of work: at the end of each week, tasks to do, in progress, in review, and done since the report began</caption>
                 <thead>
