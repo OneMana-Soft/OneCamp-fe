@@ -34,6 +34,18 @@ const displayFace = Bricolage_Grotesque({
 // a plain link preview, which is the honest failure.
 const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
+// The API's origin. Every page's first call goes there (the session check on
+// the start page, the profile in the app), and a new connection to it costs
+// DNS, TCP and TLS before the first byte: started from the document's head,
+// that overlaps the page's own code loading instead of following it.
+const apiOrigin = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_BACKEND_URL ? new URL(process.env.NEXT_PUBLIC_BACKEND_URL).origin : null;
+  } catch {
+    return null;
+  }
+})();
+
 export const metadata: Metadata = {
   ...(appUrl ? { metadataBase: new URL(appUrl) } : {}),
   title: "OneCamp",
@@ -89,6 +101,8 @@ export default function RootLayout({
       className={`${inter.variable} ${displayFace.variable}`}
     >
       <head>
+        {/* Calls to the API carry credentials, so the warmed connection must too. */}
+        {apiOrigin && <link rel="preconnect" href={apiOrigin} crossOrigin="use-credentials" />}
         <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
