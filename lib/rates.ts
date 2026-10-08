@@ -19,9 +19,16 @@ export { CURRENCIES }
 /** Most a rate can be, in minor units: a million an hour. */
 const MAX_CENTS = 100_000_000
 
-/** Minor units from a typed amount: "85", "85.5", "1,200.50". Null when it isn't one, is negative, or has more than two decimals. Pure. */
+/**
+ * Minor units from a typed amount: "85", "85.5", "1,200.50", or with a decimal
+ * comma, "85,50". A comma is a thousands separator only in groups of three;
+ * anything else ambiguous is refused rather than guessed. Null when it isn't
+ * an amount, is negative, or has more than two decimals. Pure.
+ */
 export function centsOf(typed: string): number | null {
-  const s = typed.trim().replace(/,/g, "")
+  let s = typed.trim()
+  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(s)) s = s.replace(/,/g, "")
+  else if (/^\d+,\d{1,2}$/.test(s)) s = s.replace(",", ".")
   if (!/^\d+(\.\d{1,2})?$/.test(s)) return null
   const cents = Math.round(Number(s) * 100)
   return cents <= MAX_CENTS ? cents : null

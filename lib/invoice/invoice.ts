@@ -40,18 +40,26 @@ export function buildInvoice(report: Pick<TimeReport, "by_person" | "by_task">, 
   const rate = Number.isFinite(o.rate) && o.rate > 0 ? o.rate : 0
   const source = o.by === "task" ? report.by_task : report.by_person
   const lines = source
-    .map((l) => {
-      const hours = billableHours(l.billable_seconds)
-      // Priced by the project's rates: the server's amount, at the person's
-      // rate, or for a task (done by people on different rates) the rate it
-      // averages out at. A rate typed on the invoice overrides them all.
-      if (!rate && l.amount_cents !== undefined) {
-        const amount = round2(l.amount_cents / 100)
-        const each = l.rate_cents !== undefined ? round2(l.rate_cents / 100) : hours > 0 ? round2(amount / hours) : 0
-        return { description: l.name, hours, rate: each, amount }
+    .map((l): InvoiceLine[] => {
+      // At the project's rates, unless one is typed for this invoice: a person
+      // at their rate, a task once per rate its time was worked at. Each line
+      // is its hours, as shown, times its rate, so it multiplies out.
+      if (!rate && l.rated) {
+        return l.rated.map((p) => {
+          const hours = billableHours(p.billable_seconds)
+          const each = p.rate_cents / 100
+          return { description: l.name, hours, rate: each, amount: round2(hours * each) }
+        })
       }
-      return { description: l.name, hours, rate, amount: round2(hours * rate) }
+      if (!rate && l.rate_cents !== undefined) {
+        const hours = billableHours(l.billable_seconds)
+        const each = l.rate_cents / 100
+        return [{ description: l.name, hours, rate: each, amount: round2(hours * each) }]
+      }
+      const hours = billableHours(l.billable_seconds)
+      return [{ description: l.name, hours, rate, amount: round2(hours * rate) }]
     })
+    .flat()
     .filter((l) => l.hours > 0)
   const subtotal = round2(lines.reduce((s, l) => s + l.amount, 0))
   const taxPercent = Number.isFinite(o.taxPercent) && o.taxPercent > 0 ? o.taxPercent : 0
@@ -69,7 +77,8 @@ export function money(currency: string, locale?: string) {
   }
 }
 
-export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AUD", "CAD", "SGD", "AED", "JPY", "CHF", "NZD", "ZAR"] as const
+// Currencies written to two decimals: rates and amounts are kept in hundredths.
+export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AUD", "CAD", "SGD", "AED", "CHF", "NZD", "ZAR"] as const
 
 /** A suggested invoice number: the project's initials and the month, e.g. "Q4L-2026-10". */
 export function suggestNumber(project: string, at: Date): string {
