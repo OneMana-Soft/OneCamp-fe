@@ -1,20 +1,24 @@
 "use client"
 
-// What a task waits on, and what waits on it (finish to start: a task can
-// start once the tasks it waits on are done), in the task's panel. Open the
-// other task, take a dependency off, or add one from the project's tasks: the
+// What a task waits on, and what waits on it, in the task's panel. Open the
+// other task, take a dependency off, add one from the project's tasks (finish
+// to start: it can start once the other is done), or change how one works:
+// start to start, finish to finish or start to finish, and a lag. The
 // keyboard's way to what the timeline draws as arrows.
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useFetch } from "@/hooks/useFetch"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { useTaskDependencies } from "@/hooks/useTaskDependencies"
 import { Loader2, Plus, X } from "@/lib/icons"
 import { isClosedStatus } from "@/lib/taskStatus"
+import { DEPENDENCY_KINDS, KIND_LABEL, MAX_LAG, parseLag, wayOf, waySentence, wayShort, type DependencyKind, type DependencyWay } from "@/lib/tasks/dependency"
 import { dotColor, type TimelineData } from "@/lib/timeline"
 import { timelineKey } from "@/lib/timelineKey"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -22,6 +26,7 @@ import type { DependencyTask } from "@/types/task"
 
 export function TaskDependencies({
   taskUUID,
+  taskName,
   projectUUID,
   canEdit,
   waitingOn,
@@ -29,6 +34,7 @@ export function TaskDependencies({
   onOpen,
 }: {
   taskUUID: string
+  taskName: string
   projectUUID: string
   canEdit: boolean
   waitingOn: DependencyTask[]
@@ -47,9 +53,9 @@ export function TaskDependencies({
   )
   const choices = (project.data?.data.tasks ?? []).filter((t) => !taken.has(t.task_uuid) && t.task_status !== "canceled" && !t.task_uuid.startsWith("temp-"))
 
-  const change = async (waiting: string, on: string, remove: boolean) => {
+  const change = async (waiting: string, on: string, remove: boolean, way?: DependencyWay) => {
     setBusy(true)
-    await setDependency(waiting, on, remove)
+    await setDependency(waiting, on, remove, way)
     setBusy(false)
   }
   const stillOpen = waitingOn.filter((t) => !isClosedStatus(t.task_status)).length
@@ -71,6 +77,8 @@ export function TaskDependencies({
             onOpen={onOpen}
             onRemove={(id) => void change(taskUUID, id, true)}
             removeLabel={(name) => `Stop waiting on ${name}`}
+            ends={(name) => ({ waiting: taskName, on: name })}
+            onChangeWay={(id, way) => void change(taskUUID, id, false, way)}
           />
         )}
         {blocking.length > 0 && (
@@ -83,11 +91,15 @@ export function TaskDependencies({
             onOpen={onOpen}
             onRemove={(id) => void change(id, taskUUID, true)}
             removeLabel={(name) => `Stop ${name} waiting on this task`}
+            ends={(name) => ({ waiting: name, on: taskName })}
+            onChangeWay={(id, way) => void change(id, taskUUID, false, way)}
           />
         )}
         {waitingOn.length === 0 && blocking.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            {canEdit ? "Add a task this one can't start without. The timeline draws it as an arrow." : "It doesn't wait on another task."}
+            {canEdit
+              ? "Add a task this one can't start without. The timeline draws it as an arrow; you can then change how it waits."
+              : "It doesn't wait on another task."}
           </p>
         )}
         {canEdit && (
@@ -137,6 +149,8 @@ function DependencyGroup({
   onOpen,
   onRemove,
   removeLabel,
+  ends,
+  onChangeWay,
 }: {
   title: string
   tasks: DependencyTask[]
@@ -146,6 +160,9 @@ function DependencyGroup({
   onOpen: (taskUUID: string) => void
   onRemove: (taskUUID: string) => void
   removeLabel: (name: string) => string
+  /** Which task waits and which it waits on, the other task being called name. */
+  ends: (name: string) => { waiting: string; on: string }
+  onChangeWay: (taskUUID: string, way: DependencyWay) => void
 }) {
   return (
     <div className="grid gap-1.5">
@@ -160,6 +177,7 @@ function DependencyGroup({
           >
             {t.task_name}
           </button>
+          <DependencyWayEditor way={wayOf(t)} {...ends(t.task_name)} canEdit={canEdit} busy={busy} onSave={(way) => onChangeWay(t.task_uuid, way)} />
           {canEdit && (
             <button
               type="button"
@@ -174,5 +192,119 @@ function DependencyGroup({
         </div>
       ))}
     </div>
+  )
+}
+
+/**
+ * How one dependency works, in a few words beside the other task's name; the
+ * whole sentence on hover. A project's admins press it to change the kind or
+ * the lag.
+ */
+function DependencyWayEditor({
+  way,
+  waiting,
+  on,
+  canEdit,
+  busy,
+  onSave,
+}: {
+  way: DependencyWay
+  waiting: string
+  on: string
+  canEdit: boolean
+  busy: boolean
+  onSave: (way: DependencyWay) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [kind, setKind] = React.useState<DependencyKind>(way.kind)
+  const [lagText, setLagText] = React.useState("")
+  const lagId = React.useId()
+  const lag = parseLag(lagText)
+  const short = wayShort(way)
+  const chip = "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] leading-4 text-muted-foreground tabular-nums"
+
+  if (!canEdit) {
+    return (
+      <span className={cn(chip, "bg-muted")} title={waySentence(way, waiting, on)}>
+        {short}
+      </span>
+    )
+  }
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (next) {
+          setKind(way.kind)
+          setLagText(way.lag ? String(way.lag) : "")
+        }
+        setOpen(next)
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={busy}
+          title={waySentence(way, waiting, on)}
+          aria-label={`${waySentence(way, waiting, on)} Change how`}
+          className={cn(chip, "bg-muted transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+        >
+          {short}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80" align="end">
+        <form
+          className="grid gap-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (lag === null) return
+            setOpen(false)
+            if (kind !== way.kind || lag !== way.lag) onSave({ kind, lag })
+          }}
+        >
+          <p className="text-sm font-medium">
+            How {waiting} waits on {on}
+          </p>
+          <RadioGroup value={kind} onValueChange={(v) => setKind(v as DependencyKind)} className="gap-0.5" aria-label="Kind of dependency">
+            {DEPENDENCY_KINDS.map((k) => (
+              <label key={k} className="flex cursor-pointer items-start gap-2.5 rounded-md px-1.5 py-1.5 hover:bg-accent/50">
+                <RadioGroupItem value={k} className="mt-0.5" />
+                <span className="grid gap-0.5">
+                  <span className="text-sm leading-none">{KIND_LABEL[k]}</span>
+                  <span className="text-xs text-muted-foreground">{waySentence({ kind: k, lag: 0 }, waiting, on)}</span>
+                </span>
+              </label>
+            ))}
+          </RadioGroup>
+          <div className="grid gap-1.5">
+            <Label htmlFor={lagId}>Lag in days</Label>
+            <Input
+              id={lagId}
+              type="number"
+              step={1}
+              min={-MAX_LAG}
+              max={MAX_LAG}
+              placeholder="0"
+              value={lagText}
+              onChange={(e) => setLagText(e.target.value)}
+              aria-invalid={lag === null}
+              aria-describedby={`${lagId}-says`}
+              className="h-8 w-24"
+            />
+            <p id={`${lagId}-says`} aria-live="polite" className={cn("text-xs", lag === null ? "text-destructive" : "text-muted-foreground")}>
+              {lag === null ? `A whole number of days, up to ${MAX_LAG} either way.` : waySentence({ kind, lag }, waiting, on)}
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={lag === null}>
+              Save
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
   )
 }

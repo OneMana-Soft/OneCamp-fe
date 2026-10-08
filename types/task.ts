@@ -4,10 +4,11 @@ import {AttachmentMediaReq} from "@/types/attachment";
 import {TeamInfoInterface} from "@/types/team";
 import {CommentInfoInterface} from "@/types/comment";
 import type {FieldValues} from "@/lib/tasks/fields";
+import type {DependencyFacets} from "@/lib/tasks/dependency";
 import {z} from "zod";
 
-/** A task on the other end of a dependency, as a task's panel reads it. */
-export interface DependencyTask {
+/** A task on the other end of a dependency, as a task's panel reads it, with how the dependency works. */
+export interface DependencyTask extends DependencyFacets {
     task_uuid: string;
     task_name: string;
     task_status: string;
