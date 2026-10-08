@@ -3,6 +3,7 @@
 // whether they show at all (the workspace, the person, the size) and says so
 // in `on`; this file turns them into the line under your latest message.
 
+import { nameList } from "@/lib/utils/format/nameList"
 import { GetEndpointUrl } from "@/services/endPoints"
 
 export interface SeenBy {
@@ -39,12 +40,6 @@ export function withSeen(r: Receipts, userUUID: string, at: string): Receipts {
   return { ...r, seen: [...r.seen.filter((s) => s.user_uuid !== userUUID), { user_uuid: userUUID, seen_at: at }] }
 }
 
-function names(list: string[]): string {
-  if (list.length <= 1) return list.join("")
-  if (list.length <= 3) return `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`
-  return `${list.slice(0, 2).join(", ")} and ${list.length - 2} others`
-}
-
 const time = (iso: string) => new Date(iso).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })
 
 /**
@@ -67,5 +62,5 @@ export function seenLine(
   const title = who.map((s) => `${opts.nameOf(s.user_uuid)} · ${time(s.seen_at)}`).join("\n")
   if (opts.dm) return { text: "Seen", title: `Seen ${time(who[0].seen_at)}` }
   if (opts.others > 1 && who.length >= opts.others) return { text: "Seen by everyone", title }
-  return { text: `Seen by ${names(who.map((s) => opts.nameOf(s.user_uuid)))}`, title }
+  return { text: `Seen by ${nameList(who.map((s) => opts.nameOf(s.user_uuid)))}`, title }
 }

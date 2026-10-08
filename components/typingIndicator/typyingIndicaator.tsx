@@ -1,5 +1,6 @@
 "use client"
 import { cn } from "@/lib/utils/helpers/cn"
+import { nameList } from "@/lib/utils/format/nameList"
 import {UserProfileDataInterface} from "@/types/user";
 import {TypingAvatar} from "@/components/typingIndicator/typinngAvatar";
 import { AnimatePresence, motion } from "framer-motion"
@@ -10,15 +11,7 @@ interface TypingIndicatorProps {
 }
 
 export function TypingIndicator({ users, className }: TypingIndicatorProps) {
-    const getTypingText = () => {
-        if (users.length === 1) {
-            return users[0].user_name
-        } else if (users.length === 2) {
-            return `${users[0].user_name}, ${users[1].user_name}`
-        } else {
-            return `${users[0].user_name} and ${users.length - 1} other${users.length > 2 ? "s" : ""}`
-        }
-    }
+    const getTypingText = () => nameList(users.map((u) => u.user_name))
 
     const renderAvatars = () => {
         const displayUsers = users.slice(0, 3) // Show max 3 avatars
