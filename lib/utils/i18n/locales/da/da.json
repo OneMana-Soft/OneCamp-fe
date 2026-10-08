@@ -118,6 +118,7 @@
   "removedAttachment": "Vedhæftning fjernet",
   "addedTaskDependency": "Afhængighed tilføjet",
   "updatedTaskEstimate": "Estimatet blev opdateret",
+  "updatedTaskField": "Feltet {{field}} blev ændret",
   "removedTaskDependency": "Afhængighed fjernet",
   "failedToRemoveAttachment": "Kunne ikke fjerne vedhæftning",
   "updatedTaskStatus": "Opgavestatus opdateret",

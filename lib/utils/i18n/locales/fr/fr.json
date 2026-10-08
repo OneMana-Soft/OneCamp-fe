@@ -118,6 +118,7 @@
   "removedAttachment": "Pièce jointe supprimée",
   "addedTaskDependency": "Dépendance ajoutée",
   "updatedTaskEstimate": "Estimation mise à jour",
+  "updatedTaskField": "Champ « {{field}} » modifié",
   "removedTaskDependency": "Dépendance supprimée",
   "failedToRemoveAttachment": "Échec de la suppression de la pièce jointe",
   "updatedTaskStatus": "Statut de la tâche mis à jour",

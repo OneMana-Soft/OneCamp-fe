@@ -5,6 +5,7 @@ import { TaskInfoInterface } from "@/types/task";
 import { isTimelineKey } from "@/lib/timelineKey";
 import { isWorkloadKey, type WorkloadData, type WorkloadTask } from "@/lib/workload";
 import { taskDate } from "@/lib/timeline";
+import { fieldFilterMatches, fieldIdOfFilter, withField, type FieldValue } from "@/lib/tasks/fields";
 
 /** A task list's response, whose lists of tasks are keyed by name. */
 type TaskLists = Record<string, unknown>;
@@ -27,41 +28,43 @@ export const useTaskUpdate = () => {
         return mapping[status] || status.replace(/ /g, "_");
     };
 
-    const matchesFilters = (task: TaskInfoInterface, searchParams: URLSearchParams) => {
+    // Whether a task belongs in a list filtered as the key says, as far as can
+    // be told here. A filter only the server can answer (a cycle, an assignee
+    // by graph id, overdue) answers `unsure`: an edited task stays in the list
+    // (dropping it lost the task after any edit), and a new one stays out until
+    // the list is fetched again.
+    const matchesFilters = (task: TaskInfoInterface, searchParams: URLSearchParams, unsure = true) => {
         const searchText = searchParams.get("taskSearchString")?.toLowerCase();
         if (searchText && !task.task_name.toLowerCase().includes(searchText)) {
             return false;
         }
 
         const filtersJson = searchParams.get("filters");
-        if (filtersJson) {
-            try {
-                const filters = JSON.parse(filtersJson);
-                for (const filter of filters) {
-                    let taskValue = (task as any)[filter.id];
-                    
-                    // Extract ID from object fields if necessary
-                    if (taskValue && typeof taskValue === 'object') {
-                        if (filter.id === 'task_assignee' && taskValue.user_uuid) {
-                            taskValue = taskValue.user_uuid;
-                        } else if (filter.id === 'task_project' && taskValue.project_uuid) {
-                            taskValue = taskValue.project_uuid;
-                        }
-                    }
-
-                    if (filter.value && filter.value.length > 0) {
-                        if (Array.isArray(taskValue)) {
-                             if (!filter.value.some((v: string) => taskValue.includes(v))) return false;
-                        } else {
-                             if (!filter.value.includes(taskValue)) return false;
-                        }
-                    }
-                }
-            } catch (e) {
-                console.error("Error parsing filters in SWR key", e);
+        if (!filtersJson) return true;
+        let filters: { id: string; value: unknown }[];
+        try {
+            filters = JSON.parse(filtersJson);
+        } catch (e) {
+            console.error("Error parsing filters in SWR key", e);
+            return true;
+        }
+        for (const filter of Array.isArray(filters) ? filters : []) {
+            // Most filters are lists of values; a few (overdue) are one string.
+            const values = Array.isArray(filter.value) ? filter.value.map(String) : filter.value ? [String(filter.value)] : [];
+            if (values.length === 0) continue;
+            if (filter.id === "task_priority" && !values.includes(task.task_priority)) return false;
+            // As the server reads it: a built-in status matches a task in no
+            // status of the project's own; a project's status matches by id.
+            if (filter.id === "task_status") {
+                const own = task.task_custom_status;
+                if (!(own ? values.includes(own) : values.includes(task.task_status))) return false;
+            }
+            if (fieldIdOfFilter(filter.id)) {
+                if (!fieldFilterMatches(task.task_fields, filter.id, values)) return false;
+            } else if (filter.id !== "task_priority" && filter.id !== "task_status" && !unsure) {
+                return false;
             }
         }
-
         return true;
     };
 
@@ -102,7 +105,7 @@ export const useTaskUpdate = () => {
                 const pageIndex = parseInt(searchParams.get("pageIndex") || "0");
 
                 if (pageIndex !== 0) return currentData;
-                if (!matchesFilters(newTask, searchParams)) return currentData;
+                if (!matchesFilters(newTask, searchParams, false)) return currentData;
 
                 const newData = JSON.parse(JSON.stringify(currentData));
                 const data = newData.data;
@@ -173,16 +176,15 @@ export const useTaskUpdate = () => {
         });
     }, [cache, mutate]);
 
-    // Several tasks' fields at once (the dates of a chain of tasks moved
-    // along, say): one change to each list, whatever the number of tasks,
-    // and only the tasks patched are copied. A task moving to another board
-    // column goes through optimisticUpdateTask.
-    const optimisticUpdateTasks = useCallback((patches: (Partial<TaskInfoInterface> & { task_uuid: string })[], projectId: string) => {
-        if (patches.length === 0) return;
-        const byId = new Map(patches.map(p => [p.task_uuid, p]));
+    // Changes tasks in every list of the project that holds them: one change
+    // to each list, whatever the number of tasks, and only the tasks changed
+    // are copied. A list filtered on what changed drops the tasks that no
+    // longer match.
+    const updateTasksInLists = useCallback((projectId: string, change: Map<string, (t: TaskInfoInterface) => TaskInfoInterface>) => {
+        if (change.size === 0) return;
         const patch = (tasks: TaskInfoInterface[]) => tasks.map(t => {
-            const p = byId.get(t.task_uuid);
-            return p ? { ...t, ...p } : t;
+            const f = change.get(t.task_uuid);
+            return f ? f(t) : t;
         });
         const patchColumns = (data: TaskLists, prefix: "project" | "user") => {
             for (const col of BOARD_COLUMNS) {
@@ -191,9 +193,8 @@ export const useTaskUpdate = () => {
                 if (Array.isArray(tasks)) data[key] = patch(tasks);
             }
         };
-        // A list filtered on a field that changed drops the tasks that no longer match.
         const patchList = (tasks: unknown, searchParams: URLSearchParams) =>
-            Array.isArray(tasks) ? patch(tasks).filter(t => !byId.has(t.task_uuid) || matchesFilters(t, searchParams)) : tasks;
+            Array.isArray(tasks) ? patch(tasks).filter(t => !change.has(t.task_uuid) || matchesFilters(t, searchParams)) : tasks;
 
         getTaskKeys(projectId).forEach(key => {
             mutate(key, (currentData: { data?: TaskLists } | undefined) => {
@@ -215,8 +216,23 @@ export const useTaskUpdate = () => {
                 return { ...currentData, data };
             }, { revalidate: false });
         });
+    }, [mutate, getTaskKeys]);
+
+    // Several tasks' fields at once (the dates of a chain of tasks moved
+    // along, say). A task moving to another board column goes through
+    // optimisticUpdateTask.
+    const optimisticUpdateTasks = useCallback((patches: (Partial<TaskInfoInterface> & { task_uuid: string })[], projectId: string) => {
+        if (patches.length === 0) return;
+        updateTasksInLists(projectId, new Map(patches.map(p => [p.task_uuid, (t: TaskInfoInterface) => ({ ...t, ...p })])));
         patchWorkload(patches);
-    }, [mutate, getTaskKeys, patchWorkload]);
+    }, [updateTasksInLists, patchWorkload]);
+
+    // One task's value of one of its project's own fields (null to take it
+    // off), merged into the values it has in each list: a value set elsewhere
+    // mustn't wipe the task's others.
+    const optimisticSetTaskField = useCallback((taskUUID: string, projectId: string, fieldId: string, value: FieldValue | null) => {
+        updateTasksInLists(projectId, new Map([[taskUUID, (t: TaskInfoInterface) => ({ ...t, task_fields: withField(t.task_fields, fieldId, value) })]]));
+    }, [updateTasksInLists]);
 
     // placement puts a moved card next to the card it was dropped beside. It
     // beats newIndex: a board column for a project's own status is only part
@@ -393,5 +409,5 @@ export const useTaskUpdate = () => {
         Array.from(cache.keys() as IterableIterator<string>).filter(isWorkloadKey).forEach(key => mutate(key));
     }, [mutate, getTaskKeys, cache]);
 
-    return { optimisticCreateTask, optimisticUpdateTask, optimisticUpdateTasks, optimisticDeleteTask, revalidateTaskKeys };
+    return { optimisticCreateTask, optimisticUpdateTask, optimisticUpdateTasks, optimisticSetTaskField, optimisticDeleteTask, revalidateTaskKeys };
 };

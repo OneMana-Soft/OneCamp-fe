@@ -118,6 +118,7 @@
   "removedAttachment": "Archivo eliminado",
   "addedTaskDependency": "Dependencia añadida",
   "updatedTaskEstimate": "Se actualizó la estimación",
+  "updatedTaskField": "Se cambió «{{field}}»",
   "removedTaskDependency": "Dependencia eliminada",
   "failedToRemoveAttachment": "No se pudo eliminar el archivo",
   "updatedTaskStatus": "Estado de la tarea actualizado",

@@ -39,7 +39,7 @@ export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskA
             <div className="flex-1 pt-2">
                 <p className="text-sm ">
                     <span className="font-medium hover:underline cursor-pointer" onClick={()=>{openOtherUserProfile(taskActivity.activity_by.user_uuid)}}>{taskActivity.activity_by.user_name}</span>{" "}
-                    {t(phrase)}.{" "}
+                    {t(phrase, { field: taskActivity.activity_next_state })}.{" "}
                     <span className="text-muted-foreground">{formatTimeForPostOrComment(taskActivity.activity_time)}</span>
                 </p>
             </div>

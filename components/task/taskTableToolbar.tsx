@@ -18,6 +18,8 @@ import { useTranslation } from "react-i18next"
 import { SavedTaskViewsButton } from "@/components/task/savedTaskViews"
 import { taskViewScope, type TaskViewState } from "@/lib/tasks/views"
 import { CyclesButton } from "@/components/task/cyclesButton"
+import { TaskTableFieldFilter } from "@/components/task/taskTableFieldFilter"
+import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { cycleFilter } from "@/lib/tasks/cycles"
 
 interface DataTableToolbarProps<TData> {
@@ -57,6 +59,8 @@ export function TaskTableToolbar<TData>({
         [table],
     )
 
+    const { fields } = useProjectFields(projectId)
+    const { people } = usePeople(projectId, fields)
     const activeCycleId = (tableState.columnFilters.find((f) => f.id === "task_cycle")?.value as string[] | undefined)?.[0]
     const showCycle = useCallback(
         (id: string | null) =>
@@ -107,6 +111,7 @@ export function TaskTableToolbar<TData>({
                         projectId={projectId || ""}
                     />
                 )}
+                {projectId && <TaskTableFieldFilter table={table} fields={fields} people={people} />}
                 {isFiltered && (
                     <Button
                         variant="ghost"

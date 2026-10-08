@@ -118,6 +118,7 @@
   "removedAttachment": "Příloha byla odstraněna",
   "addedTaskDependency": "Byla přidána závislost",
   "updatedTaskEstimate": "Odhad byl aktualizován",
+  "updatedTaskField": "Pole „{{field}}“ bylo změněno",
   "removedTaskDependency": "Závislost byla odstraněna",
   "failedToRemoveAttachment": "Nepodařilo se odstranit přílohu",
   "updatedTaskStatus": "Stav úkolu aktualizován",

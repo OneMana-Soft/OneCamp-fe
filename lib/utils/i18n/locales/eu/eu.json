@@ -118,6 +118,7 @@
   "removedAttachment": "Fitxategia kendu da",
   "addedTaskDependency": "Mendekotasuna gehitu da",
   "updatedTaskEstimate": "Estimazioa eguneratu da",
+  "updatedTaskField": "«{{field}}» aldatu da",
   "removedTaskDependency": "Mendekotasuna kendu da",
   "failedToRemoveAttachment": "Ez da fitxategia kendu",
   "updatedTaskStatus": "Eginkizunaren egoera eguneratu da",

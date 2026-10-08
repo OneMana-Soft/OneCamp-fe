@@ -26,6 +26,7 @@ import { timeInStatus } from "@/lib/utils/timeInStatus"
 import { TagPills } from "@/components/tags/TagPills"
 import { Clock } from "@/lib/icons"
 import { BlockedBadge } from "@/components/task/BlockedBadge"
+import { CardFields } from "@/components/task/fieldValue"
 
 interface Props {
     dragOverlay?: boolean
@@ -165,6 +166,9 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                     {descPreview}
                 </div>
             )}
+
+            {/* The project's own fields its board shows on cards. */}
+            <CardFields values={task.task_fields} />
 
             {/* Footer */}
             <div className="flex items-center gap-2 mt-1 min-w-0">

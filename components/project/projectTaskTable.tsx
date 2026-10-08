@@ -1,5 +1,6 @@
 "use client"
 import { useProjectStatuses } from "@/hooks/useProjectStatuses"
+import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useFitColumns } from "@/hooks/useFitColumns"
 import {
@@ -206,10 +207,26 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
     const pageCount = projectInfo.data?.pageCount || 1
 
     const { options: statusOpts } = useProjectStatuses(projectId)
-    const { columns } = useProjectTaskColumn(statusOpts)
+    const { fields, isLoading: fieldsLoading, isError: fieldsFailed } = useProjectFields(projectId)
+    const { nameOf } = usePeople(projectId, fields)
+    const { columns } = useProjectTaskColumn(statusOpts, fields, nameOf)
+    // A saved view or a link can name a field since deleted: its filter goes,
+    // rather than narrowing the list to a field nobody can see.
+    useEffect(() => {
+        if (fieldsLoading || fieldsFailed) return
+        const live = new Set(fields.map((f) => f.filter_id))
+        setColumnFilters((prev) => {
+            const next = prev.filter((f) => !f.id.startsWith("field_") || live.has(f.id))
+            return next.length === prev.length ? prev : next
+        })
+    }, [fields, fieldsLoading, fieldsFailed])
     // Columns that step aside when the table is narrow (a panel open beside it).
     const tableBoxRef = useRef<HTMLDivElement>(null)
-    const columnIds = useMemo(() => columns.map((c) => String(c.id ?? (c as { accessorKey?: string }).accessorKey ?? "")), [columns])
+    // task_cycle never shows, so it takes no room.
+    const columnIds = useMemo(
+        () => columns.map((c) => String(c.id ?? (c as { accessorKey?: string }).accessorKey ?? "")).filter((id) => id !== "task_cycle"),
+        [columns],
+    )
     const autoHidden = useFitColumns(tableBoxRef, columnIds, columnVisibility)
 
     const table = useReactTable({

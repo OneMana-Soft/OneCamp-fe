@@ -118,6 +118,7 @@
   "removedAttachment": "Anhang entfernt",
   "addedTaskDependency": "Abhängigkeit hinzugefügt",
   "updatedTaskEstimate": "Schätzung aktualisiert",
+  "updatedTaskField": "Feld „{{field}}“ geändert",
   "removedTaskDependency": "Abhängigkeit entfernt",
   "failedToRemoveAttachment": "Fehler beim Entfernen des Anhangs",
   "updatedTaskStatus": "Aufgabenstatus aktualisiert",

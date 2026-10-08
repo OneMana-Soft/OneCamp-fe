@@ -44,15 +44,17 @@ export function TaskTableViewOptions<TData>({
                             typeof column.accessorFn !== "undefined" && column.getCanHide()
                     )
                     .map((column) => {
+                        // A project's own field is named as its admins wrote it.
+                        const own = (column.columnDef.meta as { label?: string } | undefined)?.label
 
                         return (
                             <DropdownMenuCheckboxItem
                                 key={column.id}
-                                className="capitalize"
+                                className={own ? undefined : "capitalize"}
                                 checked={column.getIsVisible()}
                                 onCheckedChange={(value) => column.toggleVisibility(!!value)}
                             >
-                                {colName[column.id as ColumnId] || column.id}
+                                {own || colName[column.id as ColumnId] || column.id}
                             </DropdownMenuCheckboxItem>
                         );
                     })}

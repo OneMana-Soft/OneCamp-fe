@@ -118,6 +118,7 @@
   "removedAttachment": "Removed attachment",
   "addedTaskDependency": "Added a dependency",
   "updatedTaskEstimate": "Updated the estimate",
+  "updatedTaskField": "Changed {{field}}",
   "removedTaskDependency": "Removed a dependency",
   "failedToRemoveAttachment": "Failed to remove attachment",
   "updatedTaskStatus": "Updated task status",

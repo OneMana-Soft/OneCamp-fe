@@ -92,6 +92,11 @@ export function colorDot(color: string): string {
   return DOT[color] ?? DOT.slate
 }
 
+/** The pill (tint and text) for a palette colour: a status, a field's option. */
+export function colorPill(color: string): string {
+  return PILL[color] ?? PILL.slate
+}
+
 export const BUILT_IN_STATUSES: StatusOption[] = taskStatuses.map((s) => ({
   value: s.value,
   label: s.label,

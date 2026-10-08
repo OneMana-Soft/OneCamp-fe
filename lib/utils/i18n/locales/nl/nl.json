@@ -118,6 +118,7 @@
   "removedAttachment": "Bestand verwijderd",
   "addedTaskDependency": "Afhankelijkheid toegevoegd",
   "updatedTaskEstimate": "Schatting bijgewerkt",
+  "updatedTaskField": "Veld {{field}} gewijzigd",
   "removedTaskDependency": "Afhankelijkheid verwijderd",
   "failedToRemoveAttachment": "Bestand verwijderen mislukt",
   "updatedTaskStatus": "Taakstatus bijgewerkt",

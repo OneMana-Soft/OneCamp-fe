@@ -3,6 +3,7 @@ import {ProjectInfoInterface} from "@/types/project";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {TeamInfoInterface} from "@/types/team";
 import {CommentInfoInterface} from "@/types/comment";
+import type {FieldValues} from "@/lib/tasks/fields";
 import {z} from "zod";
 
 /** A task on the other end of a dependency, as a task's panel reads it. */
@@ -59,6 +60,8 @@ export interface TaskInfoInterface {
     task_blocked_open?: number;
     /** How long the task should take, in minutes; none or 0 is no estimate. */
     task_estimate_minutes?: number;
+    /** Its values of the project's custom fields, by field id; see lib/tasks/fields. */
+    task_fields?: FieldValues;
 }
 export interface TaskInfoRawInterface {
     data: TaskInfoInterface;

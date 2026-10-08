@@ -34,7 +34,9 @@ export function columnsToHide(
   const need = (cols: string[]) => cols.reduce((sum, c) => sum + (COLUMN_MIN_WIDTH[c] ?? DEFAULT_MIN), 0)
   const hide: Record<string, false> = {}
   let visible = shown
-  for (const c of DROP_ORDER) {
+  // A project's own field columns step aside first, the last one first.
+  const order = [...shown.filter((c) => c.startsWith("field_")).reverse(), ...DROP_ORDER]
+  for (const c of order) {
     if (need(visible) <= width) break
     if (!visible.includes(c) || c in userVisibility) continue
     hide[c] = false

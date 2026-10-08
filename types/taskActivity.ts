@@ -42,6 +42,10 @@ export const taskActivityConst: Record<string, TaskActivityKey> = {
     "estimate": {
         "key": "updatedTaskEstimate",
     },
+    // A custom field's value: the activity's next state names the field.
+    "fieldUpdate": {
+        "key": "updatedTaskField",
+    },
     "subTaskAdd": {
         "key": "createSubTask",
     },

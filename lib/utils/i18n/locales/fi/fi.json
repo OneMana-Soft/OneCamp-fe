@@ -118,6 +118,7 @@
   "removedAttachment": "Tiedosto poistettu",
   "addedTaskDependency": "Riippuvuus lisätty",
   "updatedTaskEstimate": "Arvio päivitettiin",
+  "updatedTaskField": "Kenttää {{field}} muutettiin",
   "removedTaskDependency": "Riippuvuus poistettu",
   "failedToRemoveAttachment": "Tiedostoa ei voitu poistaa",
   "updatedTaskStatus": "Tehtävän tila päivitetty",

@@ -27,6 +27,9 @@ import { useProjectStatuses } from "@/hooks/useProjectStatuses"
 import { columnsByStatus, statusPatch } from "@/lib/taskStatus"
 import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
 import { TaskBoard } from "@/components/kanbanComponents/TaskBoard"
+import { CardFieldsContext } from "@/components/task/fieldValue"
+import { ProjectFieldsDialog } from "@/components/project/ProjectFieldsDialog"
+import { useProjectFields, usePeople } from "@/hooks/useProjectFields"
 import { KeyboardList } from "@/components/task/KeyboardList"
 import { usePost } from "@/hooks/usePost"
 import { useTaskFields } from "@/hooks/useTaskFields"
@@ -122,6 +125,11 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
     // own that count as it (the server groups tasks by category only).
     const { options: statusOpts } = useProjectStatuses(projectId)
     const [managing, setManaging] = useState(false)
+    const [managingFields, setManagingFields] = useState(false)
+    // The project's own fields its cards show, and the names for person ones.
+    const { fields } = useProjectFields(projectId)
+    const { nameOf } = usePeople(projectId, fields)
+    const cardFields = useMemo(() => ({ fields: fields.filter((f) => f.on_card), nameOf }), [fields, nameOf])
     const allColumns = useMemo(
         () =>
             columnsByStatus(
@@ -227,6 +235,7 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
                                 <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onSelect={() => setManaging(true)}>Manage statuses…</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => setManagingFields(true)}>Manage fields…</DropdownMenuItem>
                                 </>
                             )}
                         </DropdownMenuContent>
@@ -235,43 +244,46 @@ export const ProjectTaskKanban = ({ projectId = "" }: { projectId?: string }) =>
             </div>
 
             <KeyboardList tasks={boardTasks} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} placement="overlay" className="flex-1 overflow-hidden mt-2">
-                <div className="h-full">
-                    {byPerson ? (
-                        <TaskBoard
-                            columns={byPerson.columns}
-                            visible={byPerson.options}
-                            canDrag={() => isAdmin}
-                            onMove={(task, drop) => {
-                                if (drop.column === (task.task_assignee?.user_uuid || NO_ASSIGNEE)) return
-                                const to = drop.column === NO_ASSIGNEE ? null : p?.project_members?.find((m) => m.user_uuid === drop.column) ?? null
-                                void reassign(task.task_uuid, projectId, to)
-                            }}
-                            boardKey={`project:${projectId}:assignee`}
-                            onQuickAdd={isAdmin ? quickAdd : undefined}
-                            badgeFor={(task) => task.task_custom_status_name || taskStatusLabel(task.task_status)}
-                        />
-                    ) : (
-                        <TaskBoard
-                            columns={columns}
-                            visible={visible}
-                            canDrag={() => isAdmin}
-                            onMove={(task, drop, lane) => {
-                                void moveTask(task.task_uuid, projectId, drop, statusPatch(drop.column, statusOpts))
-                                // Into another row as well: it changes hands, or priority.
-                                if (!lane || lane.from === lane.to) return
-                                if (laneBy === "priority") void setPriority(task.task_uuid, projectId, lane.to)
-                                else void reassign(task.task_uuid, projectId, lane.to === NO_ASSIGNEE ? null : members?.find((m) => m.user_uuid === lane.to) ?? null)
-                            }}
-                            lanes={lanes}
-                            boardKey={`project:${projectId}`}
-                            totals={{ done: p?.project_tasks_done_count, canceled: p?.project_tasks_canceled_count }}
-                            onShowMore={closed.showMore}
-                            onQuickAdd={isAdmin ? quickAdd : undefined}
-                        />
-                    )}
-                </div>
+                <CardFieldsContext.Provider value={cardFields}>
+                    <div className="h-full">
+                        {byPerson ? (
+                            <TaskBoard
+                                columns={byPerson.columns}
+                                visible={byPerson.options}
+                                canDrag={() => isAdmin}
+                                onMove={(task, drop) => {
+                                    if (drop.column === (task.task_assignee?.user_uuid || NO_ASSIGNEE)) return
+                                    const to = drop.column === NO_ASSIGNEE ? null : p?.project_members?.find((m) => m.user_uuid === drop.column) ?? null
+                                    void reassign(task.task_uuid, projectId, to)
+                                }}
+                                boardKey={`project:${projectId}:assignee`}
+                                onQuickAdd={isAdmin ? quickAdd : undefined}
+                                badgeFor={(task) => task.task_custom_status_name || taskStatusLabel(task.task_status)}
+                            />
+                        ) : (
+                            <TaskBoard
+                                columns={columns}
+                                visible={visible}
+                                canDrag={() => isAdmin}
+                                onMove={(task, drop, lane) => {
+                                    void moveTask(task.task_uuid, projectId, drop, statusPatch(drop.column, statusOpts))
+                                    // Into another row as well: it changes hands, or priority.
+                                    if (!lane || lane.from === lane.to) return
+                                    if (laneBy === "priority") void setPriority(task.task_uuid, projectId, lane.to)
+                                    else void reassign(task.task_uuid, projectId, lane.to === NO_ASSIGNEE ? null : members?.find((m) => m.user_uuid === lane.to) ?? null)
+                                }}
+                                lanes={lanes}
+                                boardKey={`project:${projectId}`}
+                                totals={{ done: p?.project_tasks_done_count, canceled: p?.project_tasks_canceled_count }}
+                                onShowMore={closed.showMore}
+                                onQuickAdd={isAdmin ? quickAdd : undefined}
+                            />
+                        )}
+                    </div>
+                </CardFieldsContext.Provider>
             </KeyboardList>
             {isAdmin && <ProjectStatusesDialog projectId={projectId} open={managing} onOpenChange={setManaging} />}
+            {isAdmin && <ProjectFieldsDialog projectId={projectId} open={managingFields} onOpenChange={setManagingFields} />}
         </div>
     )
 }
