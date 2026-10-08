@@ -8,6 +8,7 @@ import { GoalsView } from "@/components/goals/GoalsView"
 import { HealthPill } from "@/components/projectUpdates/HealthPill"
 import { ProjectsTimeline } from "@/components/project/ProjectsTimeline"
 import { ProjectsWorkload } from "@/components/project/ProjectsWorkload"
+import { ReportsView } from "@/components/reports/ReportsView"
 import { SearchField } from "@/components/search/searchField"
 import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
@@ -41,8 +42,8 @@ import { app_project_path } from "@/types/paths"
 
 const isSort = (v: unknown): v is OverviewSort => OVERVIEW_SORTS.some((s) => s.value === v)
 const isFilter = (v: unknown): v is OverviewFilter => v === "all" || v === "attention"
-type OverviewView = "table" | "timeline" | "workload" | "goals"
-const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline" || v === "workload" || v === "goals"
+type OverviewView = "table" | "timeline" | "workload" | "goals" | "reports"
+const isView = (v: unknown): v is OverviewView => v === "table" || v === "timeline" || v === "workload" || v === "goals" || v === "reports"
 const href = (p: ProjectOverview) => `${app_project_path}/${p.project_uuid}`
 
 /** "6 open · 3 overdue · 2 done", the late part in red; nothing for a project with no tasks. */
@@ -159,6 +160,9 @@ export function ProjectsOverview() {
   if (view === "goals") {
     // Goals stand on their own: a workspace may have goals before it has projects.
     body = <GoalsView compact={!isDesktop} />
+  } else if (view === "reports") {
+    // Reports read their own numbers, across every project (or the ones chosen).
+    body = <ReportsView compact={!isDesktop} />
   } else if (isError && !projects) {
     body = <ErrorState subject="your projects" onRetry={() => void mutate()} />
   } else if (isLoading && !projects) {
@@ -246,9 +250,11 @@ export function ProjectsOverview() {
   }
 
   const goalsView = view === "goals"
-  const tools = (all.length > 0 || goalsView) && (
+  // Goals and reports have their own controls: no project search, filter or sort.
+  const ownTools = goalsView || view === "reports"
+  const tools = (all.length > 0 || ownTools) && (
     <div className={cn("flex flex-wrap items-center gap-2", isDesktop ? "px-4 pt-4" : "px-0 pb-1")}>
-      {!goalsView && <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "w-80 shrink-0" : "w-full"} />}
+      {!ownTools && <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "w-80 shrink-0" : "w-full"} />}
       <div className={cn("flex flex-wrap items-center gap-2", !isDesktop && "px-3")}>
         <ToggleGroup type="single" size="sm" value={view} onValueChange={(v) => isView(v) && choose(v)} aria-label="View as" className="rounded-md border p-0.5">
           <ToggleGroupItem value="table" className="h-7 px-2.5 text-xs">
@@ -263,8 +269,11 @@ export function ProjectsOverview() {
           <ToggleGroupItem value="goals" className="h-7 px-2.5 text-xs">
             Goals
           </ToggleGroupItem>
+          <ToggleGroupItem value="reports" className="h-7 px-2.5 text-xs">
+            Reports
+          </ToggleGroupItem>
         </ToggleGroup>
-        {!goalsView && (
+        {!ownTools && (
           <ToggleGroup type="single" size="sm" value={filter} onValueChange={(v) => isFilter(v) && setFilter(v)} aria-label="Show" className="rounded-md border p-0.5">
             <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
               All
@@ -275,7 +284,7 @@ export function ProjectsOverview() {
             </ToggleGroupItem>
           </ToggleGroup>
         )}
-        {view !== "workload" && !goalsView && (
+        {view !== "workload" && !ownTools && (
           <Select value={sort} onValueChange={(v) => isSort(v) && setSort(v)}>
             <SelectTrigger className="h-8 w-auto gap-1.5 text-xs" aria-label="Sort">
               <SelectValue />
@@ -299,7 +308,7 @@ export function ProjectsOverview() {
     return (
       <div className="flex h-full flex-col">
         {tools}
-        <div className={cn("flex-1", fills ? "flex min-h-0 flex-col px-3 pb-3 pt-2" : "overflow-y-auto")}>{body}</div>
+        <div className={cn("flex-1", fills ? "flex min-h-0 flex-col px-3 pb-3 pt-2" : "overflow-y-auto", view === "reports" && "px-3 pb-3 pt-2")}>{body}</div>
       </div>
     )
   }
@@ -307,10 +316,10 @@ export function ProjectsOverview() {
     <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         className="px-8 pt-8"
-        eyebrow={goalsView ? "Every goal in the workspace" : "Every project you're in"}
-        title={goalsView ? "Goals" : "Projects"}
+        eyebrow={goalsView ? "Every goal in the workspace" : view === "reports" ? "How work is going across your projects" : "Every project you're in"}
+        title={goalsView ? "Goals" : view === "reports" ? "Reports" : "Projects"}
         actions={
-          !goalsView && (
+          !ownTools && (
             <Button size="sm" className="gap-1.5" onClick={newProject}>
               <CirclePlus className="h-4 w-4" />
               New project
@@ -318,7 +327,7 @@ export function ProjectsOverview() {
           )
         }
       >
-        {!goalsView && summary.length > 0 && (
+        {!ownTools && summary.length > 0 && (
           <p className="text-sm text-muted-foreground">
             {summary.map((s, i) => (
               <span key={s.text}>

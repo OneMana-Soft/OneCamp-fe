@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
-import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, Bot, BarChart3, Target } from "@/lib/icons";
+import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, Bot, BarChart3, Target, TrendingUp } from "@/lib/icons";
 import { Plug } from "lucide-react";
 
 import {
@@ -370,6 +370,14 @@ export function CommandPalette() {
         icon: <Target className="mr-2 h-4 w-4" />,
         group: "Navigate",
         action: () => router.push(`${app_project_path}?view=goals`),
+      },
+      {
+        id: "nav-reports",
+        label: "Go to Reports",
+        keywords: ["reports", "dashboard", "analytics", "charts", "throughput", "overdue", "velocity", "portfolio", "burnup", "status report"],
+        icon: <TrendingUp className="mr-2 h-4 w-4" />,
+        group: "Navigate",
+        action: () => router.push(`${app_project_path}?view=reports`),
       },
       {
         id: "nav-teams",
