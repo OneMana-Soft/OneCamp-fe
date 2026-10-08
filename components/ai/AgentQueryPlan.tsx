@@ -39,7 +39,7 @@ import {
 import { runTableQueryPlan, type QueryPlanSpec } from "@/services/tableService";
 import { runDataSourceQueryPlan, type DataSourceQueryPlan } from "@/services/dataSourceService";
 import type { NormalizedChart } from "@/lib/utils/chartSpec";
-import AgentChart from "@/components/ai/AgentChart";
+import SvgChart from "@/components/charts/SvgChart";
 
 // RenderablePlan is the common shape both re-run endpoints return (native tables
 // and external data sources). matched_rows is optional because a data source
@@ -456,7 +456,7 @@ function PlanResultView({
                 </div>
             )}
 
-            {chart && <AgentChart chart={chart} className="mt-2" />}
+            {chart && <SvgChart chart={chart} className="mt-2" />}
         </div>
     );
 }

@@ -89,21 +89,17 @@ function externallyRenderedAIComponents(): Map<string, string[]> {
  * This list is the careful half of the rule. Everything here renders CONTENT THAT IS
  * ALREADY SAVED rather than offering a control that calls AI, so hiding it would not
  * remove a dead button, it would erase something the user can see and expects to keep
- * seeing. Both entries are dependency-free renderers that make no network calls at all,
+ * seeing. The entry is a dependency-free renderer that makes no network calls at all,
  * which is the test applied: does it invoke AI, or does it draw something AI produced
- * earlier?
+ * earlier? (The SVG chart passed the same test and moved out to components/charts.)
  *
- * Gating them would be an actively worse bug than the one this file exists to prevent,
+ * Gating it would be an actively worse bug than the one this file exists to prevent,
  * because it destroys visible data on the edition that HAS AI as well.
  */
 const NOT_GATED_ON_PURPOSE: Record<string, string> = {
     MarkdownMessage:
         "a self-contained safe markdown renderer with no network calls, also used by the " +
         "command palette and the in-call panel. Gating it would stop non-AI markdown rendering too.",
-    AgentChart:
-        "a self-contained SVG renderer for a saved NormalizedChart, mounted by the tiptap " +
-        "chart embed and by DataTableChart. A chart already embedded in a document must " +
-        "keep rendering whether or not AI is available to make another one.",
 }
 
 /** Does this component gate itself on AI availability? */

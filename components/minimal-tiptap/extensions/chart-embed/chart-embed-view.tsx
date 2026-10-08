@@ -4,10 +4,10 @@ import React from "react"
 import { NodeViewWrapper } from "@tiptap/react"
 import type { NodeViewProps } from "@tiptap/react"
 import { normalizeChartSpec } from "@/lib/utils/chartSpec"
-import AgentChart from "@/components/ai/AgentChart"
+import SvgChart from "@/components/charts/SvgChart"
 
 // ChartEmbedView renders the inline chart for a chartEmbed node. It reuses the
-// same normalizeChartSpec + AgentChart pipeline as the AI chat bubble, so a
+// same normalizeChartSpec + SvgChart pipeline as the AI chat bubble, so a
 // chart looks identical whether it appears in the assistant panel or in a
 // channel/DM message. The node's `spec` attribute is the raw JSON string; if it
 // can't be normalized into a safe, bounded chart the node renders nothing
@@ -19,7 +19,7 @@ export const ChartEmbedView: React.FC<NodeViewProps> = ({ node }) => {
   return (
     <NodeViewWrapper className="chart-embed" data-drag-handle={false}>
       <div contentEditable={false}>
-        {chart ? <AgentChart chart={chart} /> : null}
+        {chart ? <SvgChart chart={chart} /> : null}
       </div>
     </NodeViewWrapper>
   )

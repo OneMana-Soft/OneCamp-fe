@@ -2,7 +2,7 @@
 // chart block. An agent (or any AI surface) can visualize data by emitting a
 // fenced ```chart code block whose body is a small JSON spec; MarkdownMessage
 // detects that fence, runs the body through normalizeChartSpec, and renders the
-// result as a dependency-free inline SVG (see AgentChart.tsx).
+// result as a dependency-free inline SVG (see components/charts/SvgChart.tsx).
 //
 // This module is intentionally UI-free and total: it never throws and returns
 // null for anything it can't turn into a safe, bounded chart, so a malformed or

@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/helpers/cn";
 import { normalizeChartSpec } from "@/lib/utils/chartSpec";
-import AgentChart from "@/components/ai/AgentChart";
+import SvgChart from "@/components/charts/SvgChart";
 import AgentHtmlArtifact from "@/components/ai/AgentHtmlArtifact";
 import { normalizeQueryPlan } from "@/lib/utils/queryPlanSpec";
 import AgentQueryPlan from "@/components/ai/AgentQueryPlan";
@@ -247,7 +247,7 @@ function parseBlocks(src: string): React.ReactNode[] {
             if (fence[1] === "chart" && closed) {
                 const chart = normalizeChartSpec(code.join("\n"));
                 if (chart) {
-                    blocks.push(<AgentChart key={key++} chart={chart} />);
+                    blocks.push(<SvgChart key={key++} chart={chart} />);
                     continue;
                 }
             }

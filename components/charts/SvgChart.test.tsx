@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { render } from "@testing-library/react"
-import AgentChart from "@/components/ai/AgentChart"
+import SvgChart from "@/components/charts/SvgChart"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
 
-// Renders through the real normalizeChartSpec → AgentChart path so these tests
+// Renders through the real normalizeChartSpec → SvgChart path so these tests
 // exercise the exact SVG code that ships. They guard against runtime errors in
 // the drawing path (which can't be caught by type-checking alone) and lock the
 // rendering contract for each chart type.
@@ -14,7 +14,7 @@ function chartFrom(spec: unknown): NormalizedChart {
     return c
 }
 
-describe("AgentChart", () => {
+describe("SvgChart", () => {
     it("renders a titled SVG with bars for a bar chart", () => {
         const chart = chartFrom({
             type: "bar",
@@ -22,7 +22,7 @@ describe("AgentChart", () => {
             labels: ["Won", "Lost", "Open"],
             series: [{ name: "count", values: [3, 1, 2] }],
         })
-        const { container, getByText } = render(<AgentChart chart={chart} />)
+        const { container, getByText } = render(<SvgChart chart={chart} />)
         expect(container.querySelector("svg")).toBeTruthy()
         expect(getByText("Deals by stage")).toBeTruthy()
         // One <rect> per bar (plus none for a single series group).
@@ -35,7 +35,7 @@ describe("AgentChart", () => {
             labels: ["Jan", "Feb", "Mar"],
             series: [{ name: "revenue", values: [10, 20, 15] }],
         })
-        const { container } = render(<AgentChart chart={chart} />)
+        const { container } = render(<SvgChart chart={chart} />)
         expect(container.querySelector("svg")).toBeTruthy()
         expect(container.querySelector("path")).toBeTruthy()
         // Data points rendered as circles.
@@ -48,7 +48,7 @@ describe("AgentChart", () => {
             labels: ["a", "b"],
             series: [{ values: [1, 2] }],
         })
-        const { container } = render(<AgentChart chart={chart} />)
+        const { container } = render(<SvgChart chart={chart} />)
         // At least two paths: the filled area + the line stroke.
         expect(container.querySelectorAll("path").length).toBeGreaterThanOrEqual(2)
     })
@@ -60,7 +60,7 @@ describe("AgentChart", () => {
             labels: ["A", "B", "C"],
             series: [{ values: [5, 3, 2] }],
         })
-        const { container, getByText } = render(<AgentChart chart={chart} />)
+        const { container, getByText } = render(<SvgChart chart={chart} />)
         expect(container.querySelector("svg")).toBeTruthy()
         // Three slices (arc paths).
         expect(container.querySelectorAll("path").length).toBe(3)
@@ -79,7 +79,7 @@ describe("AgentChart", () => {
                 { name: "2025", values: [3, 4] },
             ],
         })
-        const { getByText, container } = render(<AgentChart chart={chart} />)
+        const { getByText, container } = render(<SvgChart chart={chart} />)
         getByText("2024")
         getByText("2025")
         // 2 series × 2 points = 4 bars.
@@ -88,7 +88,7 @@ describe("AgentChart", () => {
 
     it("renders a placeholder message for an all-zero pie", () => {
         const chart = chartFrom({ type: "pie", labels: ["a", "b"], series: [{ values: [0, 0] }] })
-        const { getByText } = render(<AgentChart chart={chart} />)
+        const { getByText } = render(<SvgChart chart={chart} />)
         getByText(/no positive values/i)
     })
 })

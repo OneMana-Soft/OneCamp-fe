@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { niceTicks, type NormalizedChart } from "@/lib/utils/chartSpec";
 
 /**
- * AgentChart — a tiny, dependency-free, theme-aware SVG chart for AI messages.
+ * SvgChart — a tiny, dependency-free, theme-aware SVG chart. It draws charts in AI
+ * answers, documents, table views and Reports, in both editions: it calls nothing.
  *
  * It renders a NormalizedChart (see chartSpec.ts) as inline SVG built from React
  * nodes — no charting library, no canvas, no dangerouslySetInnerHTML — so it
@@ -65,12 +66,12 @@ function valueBounds(chart: NormalizedChart): { min: number; max: number } {
     return { min, max };
 }
 
-interface AgentChartProps {
+interface SvgChartProps {
     chart: NormalizedChart;
     className?: string;
 }
 
-const AgentChart: React.FC<AgentChartProps> = ({ chart, className }) => {
+const SvgChart: React.FC<SvgChartProps> = ({ chart, className }) => {
     const isPie = chart.type === "pie";
 
     return (
@@ -333,4 +334,4 @@ const Legend: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
     );
 };
 
-export default AgentChart;
+export default SvgChart;

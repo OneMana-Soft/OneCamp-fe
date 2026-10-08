@@ -7,7 +7,7 @@ import { NodeViewWrapper } from "@tiptap/react"
  * Renders a unified diff as reviewable rows: additions, removals, hunk headers
  * and context, with old/new line numbers down the side.
  *
- * Dependency-free on purpose, matching AgentChart. A diff viewer library would
+ * Dependency-free on purpose, matching SvgChart. A diff viewer library would
  * be a large dependency in every message bundle to draw what is fundamentally a
  * list of coloured rows.
  *
