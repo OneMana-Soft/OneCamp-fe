@@ -26,6 +26,7 @@ import { LetterCaseCapitalizeIcon} from "@radix-ui/react-icons";
 import ToolbarButton from "@/components/minimal-tiptap/components/toolbar-button";
 import {useMedia} from "@/context/MediaQueryContext";
 import { Paperclip, X } from "@/lib/icons";
+import { ClipButton } from "@/components/clips/ClipButton";
 import { LucideIcon } from "lucide-react";
 import {Toggle} from "@/components/ui/toggle";
 import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
@@ -451,6 +452,10 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
                             <Button size={"icon"} variant={'ghost'} aria-label={attachmentLabel} className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4"/> </Button>
 
                         }
+                        {/* A clip goes where files go: the same upload as one dropped or pasted. */}
+                        {onActionFiles && attachmentOnclick && !(isMobile && toggledTextEditor) && (
+                            <ClipButton onRecorded={(file) => onActionFiles([file])} />
+                        )}
                       {SecondaryButtonIcon && wrappedSecondaryButtonOnclick && (
                           <Button aria-label={secondaryButtonLabel} onClick={wrappedSecondaryButtonOnclick} variant="ghost" size={"icon"} className="h-8 w-8 rounded-full text-destructive hover:text-destructive hover:bg-destructive/10">
                             <SecondaryButtonIcon className="h-4 w-4" />
