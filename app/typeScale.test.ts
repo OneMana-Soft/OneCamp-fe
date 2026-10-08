@@ -56,10 +56,10 @@ const FLOOR_PX = 10
  * worse and never makes them better, and the product went on rendering the same
  * caption at three sizes on three surfaces the whole time it was held.
  *
- * 1 remains: an emoji glyph sized at 18px, which is a picture rather than type
- * and has no business on a type scale.
+ * 0 remain: the emoji glyph once sized at 18px has gone too. Any new one has a
+ * named step to use.
  */
-const BYPASS_BASELINE = 1
+const BYPASS_BASELINE = 0
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = resolve(dir, entry.name)
