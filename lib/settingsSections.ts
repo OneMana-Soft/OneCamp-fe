@@ -27,7 +27,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     href: "/app/settings/notifications",
     label: "Notifications",
-    description: "Which emails you get, quiet hours, and the daily note from OneCamp AI.",
+    description: "Which emails you get, quiet hours, read receipts, and the daily note from OneCamp AI.",
     icon: Bell,
   },
   {

@@ -59,6 +59,9 @@ export enum MqttMessageType {
     // Task_Field mirrors backend MESSAGE_TASK_FIELD: a task's value of one of
     // its project's own fields changed; lists, boards and its panel show it.
     Task_Field,
+    // Chat_Seen mirrors backend MESSAGE_CHAT_SEEN: someone has seen a DM or
+    // group chat up to a time; its read receipts show it.
+    Chat_Seen,
 }
 
 /** MESSAGE_TASK_FIELD's data: a task's value of a field now (null once taken off), and who set it. */

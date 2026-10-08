@@ -15,6 +15,8 @@ import mqttService from "@/services/mqttService";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch} from "react-redux";
 import { appMutate as mutate } from "@/lib/swrMutate";
+import { applySeenEvent } from "@/hooks/useChatReceipts";
+import { receiptsKeyForEvent } from "@/lib/chat/readReceipts";
 import {
     updateTaskNameInTaskList,
     updateTaskStatusInTaskList,
@@ -361,6 +363,18 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
 
                     case MqttMessageType.Task_Field:
                         taskHandler.handleTaskFieldMessage(messageStr)
+                        break
+
+                    case MqttMessageType.Chat_Seen:
+                        // A read receipt: someone has seen a conversation up to a time.
+                        try {
+                            const seen = JSON.parse(messageStr)?.data
+                            if (seen?.chat_grp_id && seen?.user_uuid && seen?.seen_at) {
+                                applySeenEvent(receiptsKeyForEvent(seen.chat_grp_id, seen.user_uuid), seen.user_uuid, seen.seen_at)
+                            }
+                        } catch {
+                            // Not a receipt we can read: the next open fetches them.
+                        }
                         break
 
                     case MqttMessageType.Scheduled_Message:

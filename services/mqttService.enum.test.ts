@@ -17,4 +17,7 @@ describe("MQTT message types match the backend", () => {
     expect(MqttMessageType.Task_Dates).toBe(32)
     expect(MqttMessageType.Task_Field).toBe(33)
   })
+  it("Chat_Seen is 34", () => {
+    expect(MqttMessageType.Chat_Seen).toBe(34)
+  })
 })

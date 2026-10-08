@@ -12,6 +12,8 @@ export interface WorkspaceSettings {
     has_resend_api_key: boolean
     resend_source: "db" | "env" | "none"
     guest_access_enabled: boolean
+    /** Read receipts in DMs and group chats; each person can still turn theirs off. */
+    read_receipts_enabled: boolean
 }
 
 interface UpdateSettingsRequest {
@@ -23,6 +25,12 @@ interface UpdateSettingsRequest {
 export async function getWorkspaceSettings(): Promise<WorkspaceSettings | null> {
     const res = await axiosInstance.get(GetEndpointUrl.GetWorkspaceSettings)
     return (res.data as { data?: WorkspaceSettings })?.data ?? null
+}
+
+/** Turns read receipts on or off for the workspace; answers what applies now. */
+export async function setReadReceiptsPolicy(enabled: boolean): Promise<boolean> {
+    const res = await axiosInstance.post(PostEndpointUrl.SetReadReceiptsPolicy, { enabled })
+    return (res.data as { data?: { read_receipts_enabled?: boolean } })?.data?.read_receipts_enabled ?? enabled
 }
 
 export async function updateWorkspaceSettings(req: UpdateSettingsRequest): Promise<WorkspaceSettings | null> {
