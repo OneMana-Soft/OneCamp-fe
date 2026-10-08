@@ -4,15 +4,8 @@ import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { Plus } from "@/lib/icons"
-import {
-  TableField,
-  TableRow,
-  SelectOption,
-  parseFieldConfig,
-  parseRowValues,
-  createRow,
-  updateRow,
-} from "@/services/tableService"
+import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, createRow, updateRow, formulaOf } from "@/services/tableService"
+import { formulaText } from "@/lib/tables/formula"
 
 interface DataTableBoardProps {
   tableId: string
@@ -169,7 +162,8 @@ export function DataTableBoard({
                       .slice(0, 3)
                       .map((f) => {
                         const cellVal = values[f.id]
-                        const text = formatCardValue(cellVal)
+                        const text =
+                          f.type === "formula" ? formulaText(cellVal, formulaOf(f).result) : formatCardValue(cellVal)
                         if (!text) return null
                         return (
                           <p key={f.id} className="truncate text-xs text-muted-foreground">

@@ -1,5 +1,6 @@
 import axiosInstance from "@/lib/axiosInstance"
-import { PostEndpointUrl } from "@/services/endPoints"
+import { browserTZ } from "@/lib/utils/timeZone"
+import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 // Tables client: a first-class, Notion-style structured-data entity. A table
 // has fields (columns), rows, and saved views (grid/board/calendar). All
@@ -17,6 +18,7 @@ export type FieldType =
   | "url"
   | "email"
   | "relation"
+  | "formula"
 
 // A relation cell stores an array of these refs (id + cached label + entity
 // type) so the grid renders without resolving each entity on every load.
@@ -93,6 +95,31 @@ export function parseFieldConfig(f: TableField): { options?: SelectOption[]; [k:
   }
 }
 
+// What a formula field gives, as the server works it out on each read.
+export type FormulaResult = "number" | "text" | "date" | "checkbox"
+
+// A formula field's config as the server sends it: the formula with fields by
+// name, what it gives, and why it can't be worked out, when it can't.
+export function formulaOf(f: TableField): { formula: string; result: FormulaResult; error?: string } {
+  const cfg = parseFieldConfig(f)
+  const result = cfg.result
+  return {
+    formula: typeof cfg.formula === "string" ? cfg.formula : "",
+    result: result === "number" || result === "date" || result === "checkbox" ? result : "text",
+    error: typeof cfg.error === "string" ? cfg.error : undefined,
+  }
+}
+
+// A table read for this reader: formulas count TODAY() where they are.
+function inZone(path: string): string {
+  return `${path}${path.includes("?") ? "&" : "?"}tz=${encodeURIComponent(browserTZ())}`
+}
+
+// The key a table's bundle is fetched and cached under.
+export function tableBundleKey(tableId: string): string {
+  return inZone(`${GetEndpointUrl.GetTable}/${tableId}`)
+}
+
 export function parseRowValues(r: TableRow): Record<string, unknown> {
   try {
     return JSON.parse(r.values || "{}") || {}
@@ -147,7 +174,7 @@ export async function createRow(
   values: Record<string, unknown>,
   position = 0,
 ): Promise<TableRow> {
-  const res = await axiosInstance.post(`${PostEndpointUrl.CreateTableRow}/${tableId}/rows`, {
+  const res = await axiosInstance.post(inZone(`${PostEndpointUrl.CreateTableRow}/${tableId}/rows`), {
     values,
     position,
   })
@@ -161,7 +188,7 @@ export async function updateRow(
   position = 0,
 ): Promise<TableRow> {
   const res = await axiosInstance.post(
-    `${PostEndpointUrl.UpdateTableRow}/${tableId}/rows/${rowId}/update`,
+    inZone(`${PostEndpointUrl.UpdateTableRow}/${tableId}/rows/${rowId}/update`),
     { values, position },
   )
   return res.data?.data as TableRow
@@ -247,6 +274,22 @@ export async function updateField(
     `${PostEndpointUrl.UpdateTableField}/${tableId}/fields/${fieldId}/update`,
     input,
   )
+}
+
+// A formula being written, checked against the table's fields without saving
+// it: what it gives and its values in the first rows, or why it can't be read.
+export interface FormulaPreview {
+  result: FormulaResult
+  error?: string
+  values: unknown[]
+}
+
+export async function previewFormula(tableId: string, formula: string, fieldId?: string): Promise<FormulaPreview> {
+  const res = await axiosInstance.post(inZone(`${PostEndpointUrl.PreviewTableFormula}/${tableId}/formula/preview`), {
+    formula,
+    field_id: fieldId,
+  })
+  return res.data?.data as FormulaPreview
 }
 
 export async function deleteField(tableId: string, fieldId: string): Promise<void> {

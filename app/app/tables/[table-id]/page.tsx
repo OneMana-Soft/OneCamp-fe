@@ -3,7 +3,6 @@
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useFetch } from "@/hooks/useFetch"
-import { GetEndpointUrl } from "@/services/endPoints"
 import { Button } from "@/components/ui/button"
 import { Loader2, ArrowLeft, Globe, Lock, LayoutGrid, Kanban, CalendarDays, BarChart3, Sparkles, Share2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -15,14 +14,7 @@ import { DataTableBoard } from "@/components/table/DataTableBoard"
 import { DataTableCalendar } from "@/components/table/DataTableCalendar"
 import { DataTableChart } from "@/components/table/DataTableChart"
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
-import {
-  TableBundle,
-  updateTable,
-  Visibility,
-  ViewType,
-  parseFieldConfig,
-  parseViewConfig,
-} from "@/services/tableService"
+import { TableBundle, updateTable, Visibility, ViewType, parseFieldConfig, parseViewConfig, tableBundleKey } from "@/services/tableService"
 import { TableGlyph } from "@/components/table/TableGlyph"
 
 export default function TableDetailPage() {
@@ -31,7 +23,7 @@ export default function TableDetailPage() {
   const tableId = String(params["table-id"] || "")
 
   const { data, isLoading, mutate } = useFetch<{ data: TableBundle }>(
-    tableId ? `${GetEndpointUrl.GetTable}/${tableId}` : "",
+    tableId ? tableBundleKey(tableId) : "",
     undefined,
     undefined,
     // A deleted/inaccessible table 404s/403s; show the friendly "doesn't exist"

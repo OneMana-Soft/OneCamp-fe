@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Check, ChevronDown, Sparkles, Loader2 } from "@/lib/icons"
+import { Plus, Trash2, Check, ChevronDown, Sparkles, Loader2, AlertTriangle } from "@/lib/icons"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +21,7 @@ import {
   RelationTarget,
   parseFieldConfig,
   parseRowValues,
+  formulaOf,
   createRow,
   updateRow,
   deleteRow,
@@ -30,6 +31,8 @@ import {
   fillTableAIColumn,
 } from "@/services/tableService"
 import { RelationCell } from "@/components/table/RelationCell"
+import { FormulaEditor } from "@/components/table/FormulaEditor"
+import { showFormulaValue } from "@/lib/tables/formula"
 
 interface DataTableGridProps {
   tableId: string
@@ -50,6 +53,7 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "email", label: "Email" },
   { value: "person", label: "Person" },
   { value: "relation", label: "Relation" },
+  { value: "formula", label: "Formula" },
 ]
 
 const RELATION_TARGETS: { value: string; label: string }[] = [
@@ -87,6 +91,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: Da
   const [addingColumn, setAddingColumn] = React.useState(false)
   const [newColName, setNewColName] = React.useState("")
   const [newColType, setNewColType] = React.useState<FieldType>("text")
+  const [newColFormula, setNewColFormula] = React.useState("")
 
   const sortedFields = React.useMemo(
     () => [...fields].sort((a, b) => a.position - b.position),
@@ -138,9 +143,15 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: Da
     setBusy(true)
     try {
       const pos = sortedFields.length ? Math.max(...sortedFields.map((f) => f.position)) + 1 : 0
-      await createField(tableId, { name, type: newColType, position: pos })
+      await createField(tableId, {
+        name,
+        type: newColType,
+        position: pos,
+        config: newColType === "formula" ? { formula: newColFormula } : undefined,
+      })
       setNewColName("")
       setNewColType("text")
+      setNewColFormula("")
       setAddingColumn(false)
       onChange()
       toast({ title: "Column added" })
@@ -195,6 +206,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: Da
               <ColumnHeader
                 key={f.id}
                 field={f}
+                fields={sortedFields}
                 tableId={tableId}
                 canManage={canManage}
                 onSave={(input) => saveColumn(f, input)}
@@ -273,12 +285,22 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: Da
               </option>
             ))}
           </select>
-          <Button size="sm" onClick={handleAddColumn} disabled={busy || !newColName.trim()} className="gap-1.5">
+          <Button
+            size="sm"
+            onClick={handleAddColumn}
+            disabled={busy || !newColName.trim() || (newColType === "formula" && !newColFormula.trim())}
+            className="gap-1.5"
+          >
             <Check className="h-3.5 w-3.5" /> Add
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setAddingColumn(false)}>
             Cancel
           </Button>
+          {newColType === "formula" && (
+            <div className="w-full max-w-md">
+              <FormulaEditor tableId={tableId} fields={sortedFields} value={newColFormula} onChange={setNewColFormula} />
+            </div>
+          )}
         </div>
       )}
 
@@ -297,6 +319,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: Da
 // rename, change type, manage select options, and delete the column.
 function ColumnHeader({
   field,
+  fields,
   tableId,
   canManage,
   onSave,
@@ -304,6 +327,8 @@ function ColumnHeader({
   onFilled,
 }: {
   field: TableField
+  /** The table's fields, for a formula to use. */
+  fields: TableField[]
   tableId: string
   canManage: boolean
   onSave: (input: { name: string; type: FieldType; config?: Record<string, unknown> }) => void
@@ -321,6 +346,7 @@ function ColumnHeader({
   const [relationTarget, setRelationTarget] = React.useState<string>(
     () => (parseFieldConfig(field).relation_target as string) || "any",
   )
+  const [formula, setFormula] = React.useState<string>(() => formulaOf(field).formula)
   const [aiPrompt, setAiPrompt] = React.useState<string>(() => aiPromptOf(parseFieldConfig(field)))
   const [aiAuto, setAiAuto] = React.useState<boolean>(() => aiAutoOf(parseFieldConfig(field)))
   const [filling, setFilling] = React.useState(false)
@@ -331,6 +357,7 @@ function ColumnHeader({
       setType(field.type)
       setOptions(parseFieldConfig(field).options || [])
       setRelationTarget((parseFieldConfig(field).relation_target as string) || "any")
+      setFormula(formulaOf(field).formula)
       setAiPrompt(aiPromptOf(parseFieldConfig(field)))
       setAiAuto(aiAutoOf(parseFieldConfig(field)))
       setNewOption("")
@@ -339,19 +366,25 @@ function ColumnHeader({
 
   const isSelect = type === "select" || type === "multi_select"
   const isRelation = type === "relation"
+  const isFormula = type === "formula"
   // AI columns are plain content columns (text/number/url/email) driven by a
-  // prompt. Select/relation columns have their own structured config instead.
-  const aiEligible = !isSelect && !isRelation
+  // prompt. Select/relation columns have their own structured config instead,
+  // and a formula works its cells out itself.
+  const aiEligible = !isSelect && !isRelation && !isFormula
+  const formulaError = field.type === "formula" ? formulaOf(field).error : undefined
   const savedAiPrompt = aiPromptOf(parseFieldConfig(field))
 
   const save = () => {
     const trimmed = name.trim()
     if (!trimmed) return
+    if (isFormula && !formula.trim()) return
     const config: Record<string, unknown> = isSelect
       ? { options }
       : isRelation
         ? { relation_target: relationTarget }
-        : {}
+        : isFormula
+          ? { formula }
+          : {}
     if (aiEligible && aiPrompt.trim()) {
       config.ai = { prompt: aiPrompt.trim(), auto: aiAuto }
     }
@@ -389,6 +422,7 @@ function ColumnHeader({
       <th className="min-w-[160px] border-r border-border/40 px-3 py-2 text-left font-medium text-muted-foreground">
         {field.name}
         {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-brand" />}
+        {formulaError && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={formulaError} />}
         <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
       </th>
     )
@@ -402,12 +436,13 @@ function ColumnHeader({
             <span className="truncate">
               {field.name}
               {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-brand" />}
+              {formulaError && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={formulaError} />}
               <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
             </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-64 p-3" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DropdownMenuContent align="start" className={cn(isFormula ? "w-80" : "w-64", "p-3")} onCloseAutoFocus={(e) => e.preventDefault()}>
           <div className="space-y-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Name</label>
@@ -467,6 +502,13 @@ function ColumnHeader({
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {isFormula && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Formula</label>
+                <FormulaEditor tableId={tableId} fields={fields} fieldId={field.id} value={formula} onChange={setFormula} />
               </div>
             )}
 
@@ -538,7 +580,7 @@ function ColumnHeader({
               <Button size="sm" variant="ghost" className="text-destructive" onClick={onDelete}>
                 <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
               </Button>
-              <Button size="sm" onClick={save} disabled={!name.trim()}>
+              <Button size="sm" onClick={save} disabled={!name.trim() || (isFormula && !formula.trim())}>
                 <Check className="h-3.5 w-3.5 mr-1" /> Save
               </Button>
             </div>
@@ -559,6 +601,10 @@ function Cell({
   value: unknown
   onCommit: (value: unknown) => void
 }) {
+  if (field.type === "formula") {
+    return <FormulaCell field={field} value={value} />
+  }
+
   if (field.type === "checkbox") {
     return (
       <div className="flex justify-center py-1">
@@ -698,3 +744,34 @@ function TextCell({
   )
 }
 
+
+// FormulaCell shows what a formula field's formula gives for the row, as the
+// server worked it out. It can't be edited: change the formula instead.
+function FormulaCell({ field, value }: { field: TableField; value: unknown }) {
+  const shown = showFormulaValue(value, formulaOf(field).result)
+  switch (shown.kind) {
+    case "blank":
+      return <div className="h-8" />
+    case "error":
+      return (
+        <div className="flex h-8 items-center px-2 text-xs text-destructive" title={shown.message}>
+          <AlertTriangle className="mr-1 h-3 w-3 shrink-0" />
+          <span className="truncate">{shown.message}</span>
+        </div>
+      )
+    case "checkbox":
+      return (
+        <div className="flex h-8 items-center justify-center" aria-label={shown.checked ? "Yes" : "No"}>
+          {shown.checked && <Check className="h-4 w-4 text-foreground" />}
+        </div>
+      )
+    case "number":
+      return <div className="flex h-8 items-center justify-end px-2 text-sm tabular-nums">{shown.text}</div>
+    default:
+      return (
+        <div className="flex h-8 items-center px-2 text-sm" title={shown.text}>
+          <span className="truncate">{shown.text}</span>
+        </div>
+      )
+  }
+}
