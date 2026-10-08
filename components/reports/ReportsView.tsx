@@ -33,6 +33,7 @@ import {
   openOf,
   reportCSV,
   reportKey,
+  flowChart,
   throughputChart,
   totalHours,
   weekLabel,
@@ -230,6 +231,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   }
 
   const hours = hoursChart(report)
+  const flow = flowChart(report)
   const projectMax = Math.max(1, ...report.projects.map(openOf))
   const personMax = Math.max(1, ...report.people.map(openOf))
   const priorityMax = Math.max(1, ...report.priorities.map((p) => p.open))
@@ -279,6 +281,39 @@ export function ReportsView({ compact }: { compact?: boolean }) {
               ))}
             </tbody>
           </table>
+          {flow && report.flow && (
+            <>
+              <div className="grid gap-1">
+                <SvgChart chart={flow} className="my-0" />
+                <p className="px-1 text-xs text-muted-foreground">
+                  Where the tasks stood at the end of each week. A band that keeps widening is work piling up at that step; done rising steadily is work getting through.
+                </p>
+              </div>
+              <table className="sr-only">
+                <caption>The flow of work: at the end of each week, tasks to do, in progress, in review, and done since the report began</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Week of</th>
+                    <th scope="col">To do</th>
+                    <th scope="col">In progress</th>
+                    <th scope="col">In review</th>
+                    <th scope="col">Done</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.weeks.map((w, i) => (
+                    <tr key={w}>
+                      <th scope="row">{weekLabel(w)}</th>
+                      <td>{report.flow![i].to_do}</td>
+                      <td>{report.flow![i].in_progress}</td>
+                      <td>{report.flow![i].in_review}</td>
+                      <td>{report.flow![i].done}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
           <div className={cn("grid gap-3", !compact && "lg:grid-cols-2")}>
             <Section title="Open work by project" legend>
               <ul className="grid gap-3">

@@ -44,6 +44,10 @@ export interface NormalizedChart {
     title: string;
     labels: string[];
     series: NormalizedSeries[];
+    /** Area charts the app builds: each series a band on top of the ones
+     * before it (the first at the bottom), as a cumulative flow is drawn. An
+     * agent's spec can't set it. */
+    stacked?: boolean;
 }
 
 // Hard caps. Charts are meant to summarize, not to dump a whole dataset into
