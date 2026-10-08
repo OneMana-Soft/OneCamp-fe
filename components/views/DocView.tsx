@@ -199,6 +199,25 @@ export function DocView({ docId }: { docId: string }) {
 
     const editorReady = !needsCollabBeforeMount || !!provider || collabGraceElapsed;
 
+    // The banner is for a connection lost, not one being made: on opening, the
+    // saved text shows while the socket connects, and "Reconnecting…" there
+    // read as a fault and moved the page when it went. A first connection
+    // that's slow still says so, after five seconds.
+    const [everSynced, setEverSynced] = React.useState(false);
+    const [slowStart, setSlowStart] = React.useState(false);
+    React.useEffect(() => {
+        setEverSynced(false);
+        setSlowStart(false);
+    }, [docId]);
+    React.useEffect(() => {
+        if (collabSynced) setEverSynced(true);
+    }, [collabSynced]);
+    React.useEffect(() => {
+        if (everSynced || !collaborationConfig?.enabled) return;
+        const t = setTimeout(() => setSlowStart(true), 5000);
+        return () => clearTimeout(t);
+    }, [everSynced, collaborationConfig?.enabled, docId]);
+
     // HTTP fallback auto-save. Only active when collaboration is NOT enabled
     // (read-only viewers, or environments without the collab server). When
     // collaboration is on, the Hocuspocus server is the single source of truth
@@ -436,7 +455,7 @@ export function DocView({ docId }: { docId: string }) {
             )}
 
             {/* Connection status banner */}
-            {!focusMode && collaborationConfig?.enabled && (collabStatus === 'disconnected' || collabStatus === 'offline') && (
+            {!focusMode && collaborationConfig?.enabled && (collabStatus === 'offline' || (collabStatus === 'disconnected' && (everSynced || slowStart))) && (
                 <div className={cn(
                     "shrink-0 px-4 py-1.5 text-xs font-medium flex items-center justify-center gap-2",
                     collabStatus === 'offline'
@@ -451,7 +470,7 @@ export function DocView({ docId }: { docId: string }) {
                     ) : (
                         <>
                             <Loader2 className="h-3 w-3 animate-spin" />
-                            <span>Reconnecting to collaboration server…</span>
+                            <span>{everSynced ? "Reconnecting to the live editor…" : "Connecting to the live editor… You're reading the saved copy."}</span>
                         </>
                     )}
                 </div>

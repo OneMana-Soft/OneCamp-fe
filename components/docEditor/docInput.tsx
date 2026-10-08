@@ -35,6 +35,8 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
 import { useUploadFile } from '@/hooks/useUploadFile'
 import { HocuspocusProvider } from '@hocuspocus/provider'
+import { SafeHtml } from '@/components/safeHtml/SafeHtml'
+import { sanitizeRichHtml } from '@/lib/sanitizeHtml'
 import type { SaveStatus } from '@/hooks/useDocAutoSave'
 
 interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
@@ -276,6 +278,8 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
         const [charCount, setCharCount] = React.useState(0)
         const [readingTime, setReadingTime] = React.useState(0)
         const [isFullWidth, setIsFullWidth] = React.useState(false)
+        // The saved text stands in until a collaborative editor's first sync.
+        const snapshot = !!provider && !providerSynced && typeof value === 'string' && value.trim() !== ''
         const undoDataRef = React.useRef<{ originalText: string; from: number; replacedLength: number } | null>(null)
 
         // Word count + reading time tracking
@@ -403,11 +407,28 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                                 </div>
                             </>
                         )}
+                        {/* Until the live copy arrives (the first sync over the
+                            socket, two round trips after the page shows), the
+                            doc's saved text shows, read-only and drawn as the
+                            editor draws it, so opening a doc doesn't wait on the
+                            socket. The editor stays mounted underneath and takes
+                            over once it has the text. Nothing goes into the shared
+                            document: the server builds that from the same HTML. */}
+                        {snapshot && (
+                            <div
+                                aria-busy="true"
+                                data-doc-snapshot=""
+                                className={cn('minimal-tiptap-editor doc-editor flex-1', isFullWidth && 'full-width', editorContentClassName)}
+                            >
+                                <SafeHtml html={value as string} sanitizer={sanitizeRichHtml} className="ProseMirror" />
+                            </div>
+                        )}
                         <EditorContent
                             editor={editor}
                             className={cn(
                                 'minimal-tiptap-editor doc-editor flex-1 cursor-text',
                                 isFullWidth && 'full-width',
+                                snapshot && 'hidden',
                                 editorContentClassName
                             )}
                         />
