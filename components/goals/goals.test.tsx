@@ -6,7 +6,13 @@ import type { GoalDetail, GoalSummary } from "@/lib/goals"
 
 const pushed: string[] = []
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: (u: string) => pushed.push(u) }) }))
-vi.mock("next/link", () => ({ default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => <a href={href} {...rest}>{children}</a> }))
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}))
 const toast = vi.fn()
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 vi.mock("react-redux", () => ({ useSelector: (pick: (s: unknown) => unknown) => pick({ users: { userSidebar: { userChannels: [] } } }) }))
@@ -75,7 +81,15 @@ describe("the goals list", () => {
   it("shows open goals with their sub-goals under them, and which need a check-in", () => {
     list = [
       summary("Win 50 customers", { measure: "subgoals", subgoals: 1 }),
-      summary("Reach 500 teams", { parent_id: "Win 50 customers", measure: "number", current_value: 410, target_value: 500, unit: "teams", checked_in_at: undefined, health: undefined }),
+      summary("Reach 500 teams", {
+        parent_id: "Win 50 customers",
+        measure: "number",
+        current_value: 410,
+        target_value: 500,
+        unit: "teams",
+        checked_in_at: undefined,
+        health: undefined,
+      }),
       summary("Old goal", { status: "dropped" }),
     ]
     render(<GoalsView compact={false} />)
@@ -101,7 +115,15 @@ describe("the goals list", () => {
 
 describe("a goal's page", () => {
   const detail = (): GoalDetail => ({
-    ...summary("Reach 500 paying teams", { measure: "number", start_value: 320, target_value: 500, current_value: 410, unit: "teams", progress: 0.5, expected: 0.7 }),
+    ...summary("Reach 500 paying teams", {
+      measure: "number",
+      start_value: 320,
+      target_value: 500,
+      current_value: 410,
+      unit: "teams",
+      progress: 0.5,
+      expected: 0.7,
+    }),
     description: "",
     project_list: [],
     hidden_projects: 0,
@@ -141,5 +163,39 @@ describe("a goal's page", () => {
     expect(goalHook.postCheckIn).toHaveBeenCalledWith(expect.objectContaining({ health: "achieved" }))
     expect(goalHook.postCheckIn.mock.calls[0][0]).not.toHaveProperty("value")
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Goal closed" }))
+  })
+})
+
+describe("a number goal's check-in", () => {
+  it("sends no value it didn't change, even when the goal moved meanwhile, and none when closing", async () => {
+    const { UpdateComposer } = await import("@/components/projectUpdates/UpdateComposer")
+    const post = vi.fn().mockResolvedValue({})
+    const props = {
+      subject: "goal" as const,
+      hasAI: false,
+      endings: true,
+      draft: vi.fn().mockResolvedValue({ text: "Now at 410 teams.", health: "on_track" }),
+      aiDraft: vi.fn(),
+      post,
+      edit: vi.fn(),
+      onDone: vi.fn(),
+    }
+    const { rerender } = render(<UpdateComposer {...props} number={{ current: 410, unit: "teams" }} />)
+    await waitFor(() => expect((screen.getByLabelText(/Drafted from what serves the goal/) as HTMLTextAreaElement).value).toBe("Now at 410 teams."))
+    // Someone else moved it to 450 while this was open; the field wasn't touched.
+    rerender(<UpdateComposer {...props} number={{ current: 450, unit: "teams" }} />)
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Check in" })))
+    expect(post.mock.calls[0][0]).not.toHaveProperty("value")
+    expect(screen.getByText("Everyone in the workspace can read check-ins.")).toBeTruthy()
+
+    cleanup()
+    post.mockClear()
+    render(<UpdateComposer {...props} number={{ current: 410, unit: "teams" }} />)
+    await waitFor(() => expect(screen.getByLabelText("Where the number is now")).toBeTruthy())
+    fireEvent.change(screen.getByLabelText("Where the number is now"), { target: { value: "9999" } })
+    fireEvent.click(screen.getByRole("radio", { name: /Dropped/ }))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Close the goal" })))
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ health: "dropped" }))
+    expect(post.mock.calls[0][0]).not.toHaveProperty("value")
   })
 })
