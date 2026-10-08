@@ -2,8 +2,9 @@
 
 // Cycles in a project's task toolbar: Linear's sprints. The button names the
 // cycle the list is showing; the popover lists every cycle with its progress,
-// shows one by clicking it, and lets the project's admins start a cycle and
-// complete one (carrying unfinished tasks into the next).
+// shows one by clicking it, opens any cycle's burndown, and lets the
+// project's admins start a cycle and complete one (carrying unfinished tasks
+// into the next).
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
@@ -11,7 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Check, Loader2, Plus, RefreshCw, Trash2, X } from "@/lib/icons"
+import { Check, Loader2, Plus, RefreshCw, Trash2, TrendingDown, X } from "@/lib/icons"
+import { CycleBurndownDialog } from "@/components/task/cycleBurndownDialog"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
@@ -33,6 +35,10 @@ export function CyclesButton({
 }) {
   const [open, setOpen] = React.useState(false)
   const [making, setMaking] = React.useState(false)
+  const [chartFor, setChartFor] = React.useState<Cycle | null>(null)
+  // The burndown opens from the popover, which is gone by then: closing it
+  // puts focus back on the Cycles button.
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
   const { cycles, canEdit, isLoading } = useProjectCycles(projectId)
   const active = cycles.find((c) => c.id === activeCycleId)
   const shown = [...cycles].sort((a, b) => b.number - a.number)
@@ -41,7 +47,7 @@ export function CyclesButton({
     <div className="flex items-center">
       <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setMaking(false) }}>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className={cn("h-8 gap-1.5", active && "rounded-r-none border-primary/60")}>
+          <Button ref={triggerRef} variant="outline" size="sm" className={cn("h-8 gap-1.5", active && "rounded-r-none border-primary/60")}>
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />
             {active ? cycleLabel(active) : "Cycles"}
           </Button>
@@ -67,6 +73,7 @@ export function CyclesButton({
                       canEdit={canEdit}
                       active={c.id === activeCycleId}
                       onShow={() => { onShow(c.id); setOpen(false) }}
+                      onChart={() => { setChartFor(c); setOpen(false) }}
                     />
                   ))}
                 </ul>
@@ -81,15 +88,21 @@ export function CyclesButton({
         </PopoverContent>
       </Popover>
       {active && (
-        <Button variant="outline" size="icon" className="h-8 w-8 rounded-l-none border-l-0 border-primary/60" aria-label="Show all tasks" onClick={() => onShow(null)}>
-          <X className="h-3.5 w-3.5" />
-        </Button>
+        <>
+          <Button variant="outline" size="icon" className="h-8 w-8 rounded-none border-l-0 border-primary/60" aria-label={`${cycleLabel(active)} burndown`} title="Burndown" onClick={() => setChartFor(active)}>
+            <TrendingDown className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="outline" size="icon" className="h-8 w-8 rounded-l-none border-l-0 border-primary/60" aria-label="Show all tasks" onClick={() => onShow(null)}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </>
       )}
+      <CycleBurndownDialog projectId={projectId} cycle={chartFor} onClose={() => setChartFor(null)} returnFocus={triggerRef} />
     </div>
   )
 }
 
-function CycleRow({ projectId, cycle, canEdit, active, onShow }: { projectId: string; cycle: Cycle; canEdit: boolean; active: boolean; onShow: () => void }) {
+function CycleRow({ projectId, cycle, canEdit, active, onShow, onChart }: { projectId: string; cycle: Cycle; canEdit: boolean; active: boolean; onShow: () => void; onChart: () => void }) {
   const { complete, remove } = useProjectCycles(projectId)
   const { toast } = useToast()
   const [confirming, setConfirming] = React.useState(false)
@@ -134,31 +147,35 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow }: { projectId: st
           </span>
         )}
       </button>
-      {canEdit && !cycle.completed_at && (
-        confirming ? (
-          <div className="mt-2 grid gap-2 border-t pt-2">
-            {open > 0 && (
-              <label className="flex items-center gap-2 text-xs">
-                <input type="checkbox" checked={carry} onChange={(e) => setCarry(e.target.checked)} />
-                Move the {open} unfinished {open === 1 ? "task" : "tasks"} to the next cycle
-              </label>
-            )}
-            <div className="flex gap-1.5">
-              <Button size="sm" className="h-7" disabled={busy} onClick={() => run(async () => {
-                const r = await complete(cycle.id, carry)
-                toast({ title: `${cycleLabel(cycle)} complete`, description: r.carried ? `${r.carried} moved to ${r.next ? cycleLabel(r.next) : "the next cycle"}.` : `${r.done} done.` })
-                setConfirming(false)
-              })}>
-                {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Complete
-              </Button>
-              <Button size="sm" variant="ghost" className="h-7" onClick={() => setConfirming(false)}>Cancel</Button>
-            </div>
+      {canEdit && !cycle.completed_at && confirming ? (
+        <div className="mt-2 grid gap-2 border-t pt-2">
+          {open > 0 && (
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={carry} onChange={(e) => setCarry(e.target.checked)} />
+              Move the {open} unfinished {open === 1 ? "task" : "tasks"} to the next cycle
+            </label>
+          )}
+          <div className="flex gap-1.5">
+            <Button size="sm" className="h-7" disabled={busy} onClick={() => run(async () => {
+              const r = await complete(cycle.id, carry)
+              toast({ title: `${cycleLabel(cycle)} complete`, description: r.carried ? `${r.carried} moved to ${r.next ? cycleLabel(r.next) : "the next cycle"}.` : `${r.done} done.` })
+              setConfirming(false)
+            })}>
+              {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Complete
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7" onClick={() => setConfirming(false)}>Cancel</Button>
           </div>
-        ) : (
-          <div className="mt-1.5 flex gap-1">
-            {cycle.state !== "upcoming" && (
-              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setConfirming(true)}>Complete…</Button>
-            )}
+        </div>
+      ) : (
+        <div className="mt-1.5 flex gap-1">
+          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" aria-label={`${cycleLabel(cycle)} burndown`} onClick={onChart}>
+            <TrendingDown className="h-3.5 w-3.5" aria-hidden />
+            Burndown
+          </Button>
+          {canEdit && !cycle.completed_at && cycle.state !== "upcoming" && (
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setConfirming(true)}>Complete…</Button>
+          )}
+          {canEdit && !cycle.completed_at && (
             <Button size="icon" variant="ghost" className="ml-auto h-7 w-7 text-muted-foreground" aria-label={`Delete ${cycleLabel(cycle)}`} disabled={busy}
               onClick={() => run(async () => {
                 await remove(cycle.id)
@@ -166,8 +183,8 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow }: { projectId: st
               })}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
-          </div>
-        )
+          )}
+        </div>
       )}
     </li>
   )

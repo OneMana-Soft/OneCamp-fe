@@ -27,13 +27,23 @@ interface ChartSpecInput {
     values?: unknown;
 }
 
+/** A series ready to draw. Charts the app builds itself may also set how it's
+ * drawn; an agent's spec can't (normalizeChartSpec never sets these). */
+export interface NormalizedSeries extends Required<ChartSeries> {
+    /** Line and area charts: draw only the first `upTo` points, for a series
+     * that hasn't happened past them yet (a cycle's remaining work, to today). */
+    upTo?: number;
+    /** Line charts: a dashed line, for a guide such as an ideal pace. */
+    dashed?: boolean;
+}
+
 /** A validated, bounded, render-ready chart. Every series has the same length
  * as `labels`, and every value is a finite number. */
 export interface NormalizedChart {
     type: ChartType;
     title: string;
     labels: string[];
-    series: Required<ChartSeries>[];
+    series: NormalizedSeries[];
 }
 
 // Hard caps. Charts are meant to summarize, not to dump a whole dataset into

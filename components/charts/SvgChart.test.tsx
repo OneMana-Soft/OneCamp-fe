@@ -86,6 +86,29 @@ describe("SvgChart", () => {
         expect(container.querySelectorAll("rect").length).toBe(4)
     })
 
+    it("stops a line where its series hasn't happened yet, and dashes a guide", () => {
+        const chart: NormalizedChart = {
+            type: "line",
+            title: "Burndown",
+            labels: ["Mon", "Tue", "Wed", "Thu"],
+            series: [
+                { name: "Ideal pace", values: [4.5, 3, 1.5, 0], dashed: true },
+                { name: "Still to do", values: [6, 5, 0, 0], upTo: 2 },
+            ],
+        }
+        const { container, getByText } = render(<SvgChart chart={chart} />)
+        const [guide, left] = Array.from(container.querySelectorAll("path"))
+        expect(guide.getAttribute("stroke-dasharray")).toBe("5 4")
+        expect(left.getAttribute("stroke-dasharray")).toBeNull()
+        // Two points drawn, not the zeros that pad it to the end.
+        expect(left.getAttribute("d")!.split("L")).toHaveLength(2)
+        expect(container.querySelectorAll("circle")).toHaveLength(4 + 2)
+        getByText("Ideal pace")
+        // The guide's fractions don't make the count's axis fractional.
+        const ticks = Array.from(container.querySelectorAll("text")).map((t) => t.textContent)
+        expect(ticks.some((t) => t && t.includes("."))).toBe(false)
+    })
+
     it("renders a placeholder message for an all-zero pie", () => {
         const chart = chartFrom({ type: "pie", labels: ["a", "b"], series: [{ values: [0, 0] }] })
         const { getByText } = render(<SvgChart chart={chart} />)
