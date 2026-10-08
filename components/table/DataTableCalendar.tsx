@@ -10,6 +10,7 @@ import {
   TableRow,
   parseRowValues,
   createRow,
+  nextRowPosition,
 } from "@/services/tableService"
 
 interface DataTableCalendarProps {
@@ -21,6 +22,8 @@ interface DataTableCalendarProps {
   // date field.
   dateFieldId?: string
   onChange: () => void
+  /** Where a new row goes, when rows are filtered out of this view: after every row. */
+  nextPosition?: number
 }
 
 function parseDateValue(v: unknown): string | null {
@@ -44,6 +47,7 @@ export function DataTableCalendar({
   rows,
   dateFieldId,
   onChange,
+  nextPosition,
 }: DataTableCalendarProps) {
   const [cursor, setCursor] = React.useState(() => {
     const now = new Date()
@@ -103,7 +107,7 @@ export function DataTableCalendar({
 
   const addOnDay = async (d: Date) => {
     try {
-      const pos = rows.length ? Math.max(...rows.map((r) => r.position)) + 1 : 0
+      const pos = nextPosition ?? nextRowPosition(rows)
       await createRow(tableId, { [dateField.id]: localDay(d) }, pos)
       onChange()
     } catch {

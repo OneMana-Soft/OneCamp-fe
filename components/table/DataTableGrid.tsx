@@ -29,12 +29,15 @@ import {
   updateField,
   deleteField,
   fillTableAIColumn,
+  nextRowPosition,
 } from "@/services/tableService"
 import { RelationCell } from "@/components/table/RelationCell"
 import { FormulaEditor } from "@/components/table/FormulaEditor"
 import { showFormulaValue } from "@/lib/tables/formula"
 
 interface DataTableGridProps {
+  /** Where a new row goes, when rows are filtered out of this view: after every row. */
+  nextPosition?: number
   tableId: string
   fields: TableField[]
   rows: TableRow[]
@@ -83,7 +86,7 @@ function aiAutoOf(config: { [k: string]: unknown }): boolean {
   return Boolean(ai?.auto)
 }
 
-export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: DataTableGridProps) {
+export function DataTableGrid({ tableId, fields, rows, canManage, onChange, nextPosition }: DataTableGridProps) {
   const { toast } = useToast()
   const confirm = useConfirm()
   const [adding, setAdding] = React.useState(false)
@@ -115,7 +118,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange }: Da
   const handleAddRow = async () => {
     setAdding(true)
     try {
-      const pos = rows.length ? Math.max(...rows.map((r) => r.position)) + 1 : 0
+      const pos = nextPosition ?? nextRowPosition(rows)
       await createRow(tableId, {}, pos)
       onChange()
     } catch {

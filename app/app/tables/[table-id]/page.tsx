@@ -14,7 +14,9 @@ import { DataTableBoard } from "@/components/table/DataTableBoard"
 import { DataTableCalendar } from "@/components/table/DataTableCalendar"
 import { DataTableChart } from "@/components/table/DataTableChart"
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
-import { TableBundle, updateTable, Visibility, ViewType, parseFieldConfig, parseViewConfig, tableBundleKey } from "@/services/tableService"
+import { nextRowPosition, TableBundle, updateTable, Visibility, ViewType, parseFieldConfig, parseViewConfig, tableBundleKey } from "@/services/tableService"
+import { applyViewRules, loadViewRules, NO_RULES, saveViewRules, type ViewRules } from "@/lib/tables/viewRules"
+import { ViewRulesBar } from "@/components/table/ViewRulesBar"
 import { TableGlyph } from "@/components/table/TableGlyph"
 
 export default function TableDetailPage() {
@@ -69,6 +71,27 @@ export default function TableDetailPage() {
     for (const r of rs) if (r.updated_at > latest) latest = r.updated_at
     return `${rs.length}:${latest}`
   }, [bundle?.rows])
+
+  // Sort and filter: this reader's, for this table, kept in their browser.
+  // Read once the fields are known, so rules on fields deleted since are
+  // dropped. Above the early returns, with the other hooks.
+  const [rules, setRules] = React.useState<ViewRules>(NO_RULES)
+  const fieldsKnown = !!bundle?.fields
+  React.useEffect(() => {
+    if (fieldsKnown && bundle?.fields) setRules(loadViewRules(tableId, bundle.fields))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per table, when its fields arrive
+  }, [tableId, fieldsKnown])
+  const changeRules = React.useCallback(
+    (next: ViewRules) => {
+      setRules(next)
+      saveViewRules(tableId, next)
+    },
+    [tableId],
+  )
+  const shownRows = React.useMemo(
+    () => applyViewRules(bundle?.rows || [], bundle?.fields || [], rules),
+    [bundle?.rows, bundle?.fields, rules],
+  )
 
   const commitName = async () => {
     if (!bundle?.table || !bundle.can_manage) return
@@ -215,11 +238,22 @@ export default function TableDetailPage() {
       </div>
 
       <div className="rounded-xl border border-border/60">
+        {activeView !== "chart" && (
+          <ViewRulesBar
+            fields={[...fields].sort((a, b) => a.position - b.position)}
+            rules={rules}
+            onChange={changeRules}
+            shown={shownRows.length}
+            total={rows.length}
+            truncated={!!bundle.rows_truncated}
+          />
+        )}
         {activeView === "grid" && (
           <DataTableGrid
             tableId={tableId}
             fields={fields}
-            rows={rows}
+            rows={shownRows}
+            nextPosition={nextRowPosition(rows)}
             canManage={bundle.can_manage}
             onChange={mutate}
           />
@@ -228,7 +262,8 @@ export default function TableDetailPage() {
           <DataTableBoard
             tableId={tableId}
             fields={fields}
-            rows={rows}
+            rows={shownRows}
+            nextPosition={nextRowPosition(rows)}
             canManage={bundle.can_manage}
             onChange={mutate}
           />
@@ -237,7 +272,8 @@ export default function TableDetailPage() {
           <DataTableCalendar
             tableId={tableId}
             fields={fields}
-            rows={rows}
+            rows={shownRows}
+            nextPosition={nextRowPosition(rows)}
             canManage={bundle.can_manage}
             onChange={mutate}
           />

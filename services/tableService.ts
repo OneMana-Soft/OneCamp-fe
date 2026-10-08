@@ -79,6 +79,8 @@ export interface TableBundle {
   rows: TableRow[]
   can_manage: boolean
   mqtt_topic: string
+  /** The table has more rows than the bundle's first page carries. */
+  rows_truncated?: boolean
 }
 
 // Field select option, stored in field.config.options for select/multi_select.
@@ -118,6 +120,11 @@ function inZone(path: string): string {
 // The key a table's bundle is fetched and cached under.
 export function tableBundleKey(tableId: string): string {
   return inZone(`${GetEndpointUrl.GetTable}/${tableId}`)
+}
+
+/** Where a new row goes: after every row there is. */
+export function nextRowPosition(rows: TableRow[]): number {
+  return rows.length ? Math.max(...rows.map((r) => r.position)) + 1 : 0
 }
 
 export function parseRowValues(r: TableRow): Record<string, unknown> {
