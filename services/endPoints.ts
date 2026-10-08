@@ -116,6 +116,9 @@ export enum GetEndpointUrl {
     ProjectWorkload = "/project/workload",
     // The AI edition's draft of a project's next update (POST {project_uuid, tz}).
     AiProjectUpdateDraft = "/ai/project-update/draft",
+    // What a project's time is billed at: GET /project/{id}/rates, POST to
+    // set it, /rates/delete to stop billing. The project's admins only.
+    ProjectRates = "/project",
     // Goals: GET /goal/list?tz=, POST /goal/create; one goal is /goal/{id}?tz=,
     // with /edit, /delete, /reopen, /projects (+ /{project}/delete),
     // /checkins (+ /draft?tz=, /{checkin}/edit|delete). A project's goals are

@@ -22,6 +22,22 @@ describe("buildInvoice", () => {
   it("can bill by person", () => {
     expect(buildInvoice(report, { by: "person", rate: 100, taxPercent: 0 }).lines).toEqual([{ description: "Maya", hours: 1.78, rate: 100, amount: 178 }])
   })
+  it("bills at the project's rates when no rate is typed, and a typed rate overrides them", () => {
+    const priced = {
+      by_task: [{ id: "a", name: "Design", seconds: 7200, billable_seconds: 7200, amount_cents: 15000 }], // 2h by two people on different rates
+      by_person: [
+        { id: "p", name: "Maya", seconds: 3600, billable_seconds: 3600, amount_cents: 9000, rate_cents: 9000 },
+        { id: "q", name: "Sam", seconds: 3600, billable_seconds: 3600, amount_cents: 6000, rate_cents: 6000 },
+      ],
+    }
+    expect(buildInvoice(priced, { by: "person", rate: 0, taxPercent: 0 }).lines).toEqual([
+      { description: "Maya", hours: 1, rate: 90, amount: 90 },
+      { description: "Sam", hours: 1, rate: 60, amount: 60 },
+    ])
+    // A task done at two rates bills at what it averages out at.
+    expect(buildInvoice(priced, { by: "task", rate: 0, taxPercent: 0 }).lines).toEqual([{ description: "Design", hours: 2, rate: 75, amount: 150 }])
+    expect(buildInvoice(priced, { by: "task", rate: 100, taxPercent: 0 }).total).toBe(200)
+  })
   it("treats a missing or negative rate or tax as none", () => {
     const inv = buildInvoice(report, { by: "task", rate: Number.NaN, taxPercent: -5 })
     expect(inv.total).toBe(0)

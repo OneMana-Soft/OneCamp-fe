@@ -2,7 +2,8 @@
 
 // A project's time: how much was logged over a range, by person and by task,
 // billable and not, and every entry as a CSV file for an invoice. Any member
-// of the project can read it.
+// of the project can read it; its admins also set the project's rates and see
+// what the billable time comes to.
 
 import * as React from "react"
 import axiosInstance from "@/lib/axiosInstance"
@@ -13,12 +14,27 @@ import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
 import { serverMessage } from "@/lib/http/serverMessage"
 import { Download, FileText, Loader2 } from "@/lib/icons"
+import { ProjectRatesDialog } from "@/components/project/ProjectRatesDialog"
+import { formatCents } from "@/lib/rates"
 import { REPORT_PRESETS, formatDuration, formatHours, presetRange, type ReportPreset, type TimeLine, type TimeReport } from "@/lib/tasks/time"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { browserTZ } from "@/lib/utils/timeZone"
 
-export function ProjectTimeDialog({ projectId, projectName, open, onOpenChange }: { projectId: string; projectName?: string; open: boolean; onOpenChange: (o: boolean) => void }) {
+export function ProjectTimeDialog({
+  projectId,
+  projectName,
+  isAdmin = false,
+  open,
+  onOpenChange,
+}: {
+  projectId: string
+  projectName?: string
+  isAdmin?: boolean
+  open: boolean
+  onOpenChange: (o: boolean) => void
+}) {
   const { toast } = useToast()
+  const [ratesOpen, setRatesOpen] = React.useState(false)
   const [preset, setPreset] = React.useState<ReportPreset>("this-month")
   const [downloading, setDownloading] = React.useState(false)
   // The range is fixed when the preset is picked, so a report open across
@@ -26,8 +42,10 @@ export function ProjectTimeDialog({ projectId, projectName, open, onOpenChange }
   const range = React.useMemo(() => presetRange(preset, new Date()), [preset])
   const query = `from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}`
   const base = `${GetEndpointUrl.ProjectTime}/${projectId}/time`
-  const { data, isLoading, isError: error } = useFetch<{ data: TimeReport }>(open ? `${base}?${query}` : "")
+  const { data, isLoading, isError: error, mutate } = useFetch<{ data: TimeReport }>(open ? `${base}?${query}` : "")
   const report = data?.data
+  // Money, when the project has rates and the reader is one of its admins.
+  const priced = report?.currency && report.amount_cents !== undefined ? (cents: number) => formatCents(cents, report.currency!) : undefined
 
   const download = async () => {
     setDownloading(true)
@@ -65,7 +83,12 @@ export function ProjectTimeDialog({ projectId, projectName, open, onOpenChange }
               {REPORT_PRESETS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {isAdmin && (
+              <Button variant="outline" size="sm" className="h-9" onClick={() => setRatesOpen(true)}>
+                Rates
+              </Button>
+            )}
             <Button asChild variant="outline" size="sm" className={`h-9 gap-1.5 ${!report || report.billable_seconds === 0 ? "pointer-events-none opacity-50" : ""}`}>
               <a href={`/invoice/${projectId}?${query}`} target="_blank" rel="noopener" aria-disabled={!report || report.billable_seconds === 0}>
                 <FileText className="h-4 w-4" />
@@ -92,7 +115,11 @@ export function ProjectTimeDialog({ projectId, projectName, open, onOpenChange }
             <dl className="grid grid-cols-3 gap-2">
               <Stat label="Total" value={formatDuration(report.seconds)} />
               <Stat label="Billable" value={formatDuration(report.billable_seconds)} />
-              <Stat label="Billable hours" value={formatHours(report.billable_seconds)} />
+              {priced ? (
+                <Stat label="Comes to" value={priced(report.amount_cents ?? 0)} />
+              ) : (
+                <Stat label="Billable hours" value={formatHours(report.billable_seconds)} />
+              )}
             </dl>
             {report.running > 0 && (
               <p className="text-xs text-muted-foreground">
@@ -100,11 +127,21 @@ export function ProjectTimeDialog({ projectId, projectName, open, onOpenChange }
               </p>
             )}
             {report.truncated && <p className="text-xs text-destructive">This range has too many entries to add up at once. Pick a shorter one.</p>}
-            <Breakdown title="By person" lines={report.by_person} total={report.seconds} />
-            <Breakdown title="By task" lines={report.by_task} total={report.seconds} />
+            {isAdmin && !priced && (
+              <p className="text-xs text-muted-foreground">
+                Set the project&apos;s{" "}
+                <button type="button" className="font-medium text-foreground underline underline-offset-2" onClick={() => setRatesOpen(true)}>
+                  rates
+                </button>{" "}
+                to see what its billable time comes to, per person and per task.
+              </p>
+            )}
+            <Breakdown title="By person" lines={report.by_person} total={report.seconds} priced={priced} />
+            <Breakdown title="By task" lines={report.by_task} total={report.seconds} priced={priced} />
           </div>
         )}
       </DialogContent>
+      {isAdmin && <ProjectRatesDialog projectId={projectId} open={ratesOpen} onOpenChange={setRatesOpen} onSaved={() => void mutate()} />}
     </Dialog>
   )
 }
@@ -118,7 +155,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Breakdown({ title, lines, total }: { title: string; lines: TimeLine[]; total: number }) {
+function Breakdown({ title, lines, total, priced }: { title: string; lines: TimeLine[]; total: number; priced?: (cents: number) => string }) {
   return (
     <section className="grid gap-2">
       <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</h3>
@@ -130,6 +167,13 @@ function Breakdown({ title, lines, total }: { title: string; lines: TimeLine[]; 
               <span className="shrink-0 tabular-nums">
                 {formatDuration(l.seconds)}
                 {l.billable_seconds !== l.seconds && <span className="text-xs text-muted-foreground"> · {formatDuration(l.billable_seconds)} billable</span>}
+                {priced && l.amount_cents !== undefined && (
+                  <span className="text-xs text-muted-foreground">
+                    {" · "}
+                    <span className="font-medium text-foreground">{priced(l.amount_cents)}</span>
+                    {l.rate_cents !== undefined && ` at ${priced(l.rate_cents)}/h`}
+                  </span>
+                )}
               </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
