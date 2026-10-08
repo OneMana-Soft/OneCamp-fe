@@ -243,6 +243,7 @@ export {
   MoreVertical,
   GripVertical,
   BarChart3,
+  TrendingUp,
   LayoutGrid,
   LayoutTemplate,
   Maximize,

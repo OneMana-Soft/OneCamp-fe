@@ -110,6 +110,7 @@ export enum GetEndpointUrl {
     // Every project the reader is in, with where its tasks stand: ?tz=
     ProjectsOverview = "/project/overview",
     ProjectWorkload = "/project/workload",
+    ProjectReport = "/project/report",
     // The AI edition's draft of a project's next update (POST {project_uuid, tz}).
     AiProjectUpdateDraft = "/ai/project-update/draft",
     // A channel's automatic check-ins: GET/POST /ch/{channel}/checkins; one is
