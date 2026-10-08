@@ -135,7 +135,7 @@ describe("a goal's page", () => {
     goalHook.goal = detail()
     render(<GoalPage goalId="g1" />)
     expect(screen.getByText("50%")).toBeTruthy()
-    expect(screen.getByText("410 teams, from 320 teams to 500 teams")).toBeTruthy()
+    expect(screen.getByText("410 teams, from 320 to 500 teams")).toBeTruthy()
     expect(screen.getByText("20 points behind its time")).toBeTruthy()
   })
 
