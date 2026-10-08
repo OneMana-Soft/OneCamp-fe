@@ -21,6 +21,8 @@
 export { ArrowLeftRight, Columns2 } from "lucide-react";
 // A project's timeline tab, and its Unscheduled list.
 export { ChartGantt, CalendarOff, CirclePlus } from "lucide-react";
+// Goals: the view, a goal's page and its link from a project.
+export { Target } from "lucide-react";
 export {
   Home,
   Hash,

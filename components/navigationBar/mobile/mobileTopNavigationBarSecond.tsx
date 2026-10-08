@@ -95,6 +95,9 @@ export function MobileTopNavigationBarSecond() {
             case "templates":
                 return "Templates";
 
+            case "goals":
+                return "Goal";
+
             case "posts":
                 return "Your Posts"
 

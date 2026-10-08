@@ -61,6 +61,8 @@ export function MobileTopNavigationBarFirst() {
                     return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
                 break;
             case "settings":
+            case "goals":
+                // A goal is opened from the Goals view or a project's chip: back returns there.
             case "templates":
                 // Reached from the profile drawer, so back is the only way out that
                 // does not involve the browser gesture. There was no case here at

@@ -9,7 +9,7 @@ import { useCallback } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { type Health, type ProjectUpdate, type UpdateDraft } from "@/lib/projectUpdates"
+import { type Ending, type Health, type ProjectUpdate, type UpdateDraft } from "@/lib/projectUpdates"
 import { browserTZ } from "@/lib/utils/timeZone"
 
 /** The list the tab, the header chip and the reminder share (one request). */
@@ -17,11 +17,15 @@ export const UPDATES_SHOWN = 20
 
 const base = (projectId: string) => `${GetEndpointUrl.ProjectUpdates}/${projectId}/updates`
 
+/** What the update composer posts: a project update, or a goal's check-in. */
 export interface UpdateInput {
-  health: Health
+  health: Health | Ending
   body: string
-  shared_with_client: boolean
+  /** A project update: shown on the project's client link. */
+  shared_with_client?: boolean
   channel_uuid?: string
+  /** A number goal's check-in: the value the number moved to. */
+  value?: number
 }
 
 export interface Posted {

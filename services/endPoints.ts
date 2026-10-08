@@ -116,6 +116,16 @@ export enum GetEndpointUrl {
     ProjectWorkload = "/project/workload",
     // The AI edition's draft of a project's next update (POST {project_uuid, tz}).
     AiProjectUpdateDraft = "/ai/project-update/draft",
+    // Goals: GET /goal/list?tz=, POST /goal/create; one goal is /goal/{id}?tz=,
+    // with /edit, /delete, /reopen, /projects (+ /{project}/delete),
+    // /checkins (+ /draft?tz=, /{checkin}/edit|delete). A project's goals are
+    // /project/{id}/goals?tz=.
+    GoalList = "/goal/list",
+    GoalCreate = "/goal/create",
+    Goal = "/goal",
+    ProjectGoals = "/project",
+    // The AI edition's draft of a goal's next check-in (POST {goal_id, tz}).
+    AiGoalCheckInDraft = "/ai/goal-checkin/draft",
     // The AI edition's plan for a project from a sentence: POST {description}
     // starts a draft, GET /{draft_id} reads it until it's done.
     AiProjectPlanDraft = "/ai/project-template/draft",
