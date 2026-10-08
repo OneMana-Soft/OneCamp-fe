@@ -273,7 +273,8 @@ const ImportCard: React.FC = () => {
   const onRollback = async (jobId: string) => {
     confirm({
       title: "Roll back import",
-      description: "Roll back will soft-delete every entity this import created. Continue?",
+      description:
+        "This takes away what the import brought in: its tasks, comments, files and custom fields, and its projects and teams if nothing else is in them. Anything your team has added stays.",
       confirmText: "Roll back",
       onConfirm: async () => {
         try {
@@ -330,8 +331,8 @@ const ImportCard: React.FC = () => {
               Import from Asana, monday.com, ClickUp, Jira, Linear, Trello, Notion, Todoist
             </CardTitle>
             <CardDescription>
-              Generic import pipeline. Tasks, projects and members are created under your
-              chosen team. Re-imports of the same workspace are dedupped automatically.
+              Projects, tasks, subtasks, comments, files, people and custom fields come across into the
+              team you choose. Importing the same workspace again brings only what is new, without copies.
               {!isMqttHealthy && (
                 <span className="ml-1 text-warning">(Real-time off; polling.)</span>
               )}
