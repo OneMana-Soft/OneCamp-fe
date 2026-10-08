@@ -145,9 +145,11 @@ describe("serialise", () => {
   })
 
   // A page left while a request was on its way: the next load has no such
-  // request, so the entry mustn't say it does.
-  it("doesn't write down a request on its way", () => {
+  // request, so the entry mustn't say it does. Nor that it's loading: SWR
+  // takes a missing flag as loading, and screens showed a skeleton over the
+  // cached data.
+  it("writes an entry down at rest, neither on its way nor loading", () => {
     const out = JSON.parse(serialise(new Map([["/a", { data: 1, isValidating: true, isLoading: false, _k: "/a" }]])))
-    expect(out.entries).toEqual([["/a", { data: 1, _k: "/a" }]])
+    expect(out.entries).toEqual([["/a", { data: 1, isValidating: false, isLoading: false, _k: "/a" }]])
   })
 })

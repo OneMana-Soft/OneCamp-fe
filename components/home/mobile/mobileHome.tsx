@@ -1,7 +1,7 @@
 "use client"
 
 import { homeGreeting } from "@/lib/utils/homeGreeting"
-import { useHydrateUserSidebar } from "@/hooks/useHydrateUserSidebar"
+import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import SetupChecklist from "@/components/home/SetupChecklist"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
@@ -132,7 +132,7 @@ export function MobileHome() {
     )
 
     // Already fetched and deduped by the layout; a cache read, as on desktop.
-    const isAdmin = useHydrateUserSidebar().data?.data?.user_is_admin
+    const isAdmin = useSidenav().data?.data?.user_is_admin
     const greetingLine = homeGreeting(
         new Date().getHours(),
         selfProfile.data?.data?.user_full_name,
