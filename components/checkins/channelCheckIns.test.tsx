@@ -51,6 +51,17 @@ describe("a channel's check-ins", () => {
     expect(hook.setPaused).toHaveBeenCalledWith("c1", true)
   })
 
+  it("asks once for a double click", async () => {
+    let finish: () => void = () => {}
+    hook.askNow.mockImplementationOnce(() => new Promise<void>((r) => (finish = r)))
+    render(<ChannelCheckIns channelId="ch1" />)
+    const ask = screen.getByRole("button", { name: "Ask now" })
+    fireEvent.click(ask)
+    fireEvent.click(ask)
+    expect(hook.askNow).toHaveBeenCalledTimes(1)
+    await act(async () => finish())
+  })
+
   it("shows a member the check-ins without the controls", () => {
     hook.canEdit = false
     render(<ChannelCheckIns channelId="ch1" />)

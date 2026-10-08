@@ -125,13 +125,20 @@ export function ChannelCheckIns({ channelId }: { channelId: string }) {
   const { checkIns, canEdit, isLoading, create, edit, setPaused, remove, askNow } = useCheckIns(channelId)
   const [form, setForm] = useState<{ editing?: CheckIn } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
+  // The check-in a request is running for: its buttons wait, so a double
+  // click can't ask everyone twice.
+  const [pending, setPending] = useState<string | null>(null)
 
   if (isLoading || (!canEdit && checkIns.length === 0)) return null
 
-  const run = (fn: () => Promise<unknown>, done: string) => () =>
+  const run = (id: string, fn: () => Promise<unknown>, done: string) => () => {
+    if (pending) return
+    setPending(id)
     void fn()
       .then(() => toast({ title: done }))
       .catch(() => {})
+      .finally(() => setPending(null))
+  }
 
   return (
     <section className="grid gap-2" aria-label="Check-ins">
@@ -172,16 +179,28 @@ export function ChannelCheckIns({ channelId }: { channelId: string }) {
                       <Button size="sm" variant="ghost" className="h-7" onClick={() => setConfirming(null)}>
                         Keep
                       </Button>
-                      <Button size="sm" variant="destructive" className="h-7" onClick={run(() => remove(c.id), "Check-in deleted")}>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7"
+                        disabled={pending === c.id}
+                        onClick={run(c.id, () => remove(c.id), "Check-in deleted")}
+                      >
                         Delete
                       </Button>
                     </>
                   ) : (
                     <>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={run(() => askNow(c.id), "Asked in the channel")}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        disabled={pending === c.id}
+                        onClick={run(c.id, () => askNow(c.id), "Asked in the channel")}
+                      >
                         Ask now
                       </Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setForm({ editing: c })}>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={pending === c.id} onClick={() => setForm({ editing: c })}>
                         Edit
                       </Button>
                       <Button
@@ -189,11 +208,19 @@ export function ChannelCheckIns({ channelId }: { channelId: string }) {
                         variant="ghost"
                         className="h-7 w-7"
                         aria-label={c.paused ? "Resume the check-in" : "Pause the check-in"}
-                        onClick={run(() => setPaused(c.id, !c.paused), c.paused ? "Check-in resumed" : "Check-in paused")}
+                        disabled={pending === c.id}
+                        onClick={run(c.id, () => setPaused(c.id, !c.paused), c.paused ? "Check-in resumed" : "Check-in paused")}
                       >
                         {c.paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Delete the check-in" onClick={() => setConfirming(c.id)}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        aria-label="Delete the check-in"
+                        disabled={pending === c.id}
+                        onClick={() => setConfirming(c.id)}
+                      >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </>

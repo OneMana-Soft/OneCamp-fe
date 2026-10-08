@@ -17,7 +17,7 @@
  * because the thing it needs has changed once already.
  */
 
-export type BotKind = "assistant" | "agent" | "automation" | "bridge" | "bot"
+export type BotKind = "assistant" | "agent" | "automation" | "bridge" | "checkin" | "bot"
 
 interface BotProfileCopy {
     /** Dialog title and mobile sheet heading. */
@@ -77,6 +77,15 @@ export const BOT_PROFILE_COPY: Record<BotKind, BotProfileCopy> = {
         bio: "carries messages from a linked Slack channel. Each one starts with the name of the person who wrote it in Slack.",
         action: "Message",
         defaultName: "Slack",
+    },
+    checkin: {
+        title: "Check-ins",
+        badge: "Bot",
+        subtitle: "Asks your check-ins",
+        // It asks only what a channel's moderators set up; there's no AI in it.
+        bio: "asks the check-ins your channels set up, each on its own schedule. Answers go in the thread under each question.",
+        action: "Message",
+        defaultName: "Check-in",
     },
     bot: {
         title: "Bot",
