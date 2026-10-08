@@ -10,7 +10,7 @@ import { appMutate } from "@/lib/swrMutate"
 import { shiftedPatches, type ShiftedTask } from "@/lib/timeline"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { browserTZ } from "@/lib/utils/timeZone"
-import { weeksLater, workloadKey, type WorkloadData, type WorkloadPerson, type WorkloadTask } from "@/lib/workload"
+import { weeksLater, workloadKey, type Measure, type WorkloadData, type WorkloadPerson, type WorkloadTask } from "@/lib/workload"
 import { PostEndpointUrl } from "@/services/endPoints"
 
 /**
@@ -71,21 +71,32 @@ export function useWorkload() {
     [reassign],
   )
 
-  /** How many tasks a week someone takes on; null puts back the default. */
+  /** What someone takes on a week, in tasks or hours; null puts back the default. */
   const setCapacity = useCallback(
-    async (p: WorkloadPerson, tasks: number | null) => {
+    async (p: WorkloadPerson, measure: Measure, value: number | null) => {
+      const hours = measure === "hours"
       void appMutate(
         key,
         (current: { data?: WorkloadData } | undefined) => {
           if (!current?.data) return current
-          const capacity = tasks ?? current.data.default_capacity
-          const people = current.data.people.map((x) => (x.user_uuid === p.user_uuid ? { ...x, capacity, capacity_set: tasks !== null } : x))
-          return { ...current, data: { ...current.data, people } }
+          const d = current.data
+          const people = d.people.map((x) =>
+            x.user_uuid !== p.user_uuid
+              ? x
+              : hours
+                ? { ...x, hours: value ?? d.default_hours, hours_set: value !== null }
+                : { ...x, capacity: value ?? d.default_capacity, capacity_set: value !== null },
+          )
+          return { ...current, data: { ...d, people } }
         },
         { revalidate: false },
       )
       try {
-        await axiosInstance.post(PostEndpointUrl.SetWorkloadCapacity, { user_uuid: p.user_uuid, tasks_per_week: tasks ?? 0 }, OWN_ERRORS)
+        await axiosInstance.post(
+          PostEndpointUrl.SetWorkloadCapacity,
+          { user_uuid: p.user_uuid, [hours ? "hours_per_week" : "tasks_per_week"]: value ?? 0 },
+          OWN_ERRORS,
+        )
       } catch (err) {
         toast({
           variant: "destructive",

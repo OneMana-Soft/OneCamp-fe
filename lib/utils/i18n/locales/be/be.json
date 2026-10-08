@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Не атрымалася дадаць файлы да праекта",
   "removedAttachment": "Файл выдалены",
   "addedTaskDependency": "Дададзена залежнасць",
+  "updatedTaskEstimate": "Абноўлена ацэнка",
   "removedTaskDependency": "Залежнасць выдалена",
   "failedToRemoveAttachment": "Не атрымалася выдаліць файл",
   "updatedTaskStatus": "Абноўлены статус задачы",

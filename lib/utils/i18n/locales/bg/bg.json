@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Неуспешно добавяне на прикачен файл към проекта",
   "removedAttachment": "Файлът е премахнат",
   "addedTaskDependency": "Добавена е зависимост",
+  "updatedTaskEstimate": "Оценката е обновена",
   "removedTaskDependency": "Зависимостта е премахната",
   "failedToRemoveAttachment": "Неуспешно премахване на файл",
   "updatedTaskStatus": "Актуализиран статус на задачата",

@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Det gick inte att lägga till bilaga i projekt",
   "removedAttachment": "Bilaga borttagen",
   "addedTaskDependency": "Beroende tillagt",
+  "updatedTaskEstimate": "Uppskattningen uppdaterades",
   "removedTaskDependency": "Beroende borttaget",
   "failedToRemoveAttachment": "Det gick inte att ta bort bilaga",
   "updatedTaskStatus": "Uppgiftsstatus uppdaterad",

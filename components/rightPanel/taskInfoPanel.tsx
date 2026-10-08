@@ -61,6 +61,7 @@ import {DateField} from "@/components/task/taskDateField"
 import {TaskRepeatField} from "@/components/task/taskRepeatField"
 import {TaskCycleField} from "@/components/task/taskCycleField"
 import {TaskTimeSection} from "@/components/task/taskTimeSection"
+import { TaskEstimateField } from "@/components/task/taskEstimateField"
 import {TaskClientReview} from "@/components/task/taskClientReview"
 import {useDebounce} from "@/hooks/useDebounce"
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice"
@@ -1044,7 +1045,17 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         projectId={taskInfo.data?.data.task_project?.project_uuid}
                         isAdmin={isAdmin}
                     />
-                    {taskInfo.data?.data.task_project?.project_uuid && <TaskTimeSection taskUUID={taskUUID} />}
+                    {taskInfo.data?.data.task_project?.project_uuid && (
+                        <>
+                            <TaskEstimateField
+                                taskUUID={taskUUID}
+                                projectUUID={taskInfo.data.data.task_project.project_uuid}
+                                minutes={taskInfo.data.data.task_estimate_minutes}
+                                canEdit={isAdmin}
+                            />
+                            <TaskTimeSection taskUUID={taskUUID} estimateMinutes={taskInfo.data.data.task_estimate_minutes} />
+                        </>
+                    )}
                     <TaskClientReview taskUUID={taskUUID} />
 
                     <div className={fieldRow()}>

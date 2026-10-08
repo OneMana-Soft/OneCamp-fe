@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Failed to add attachment to project",
   "removedAttachment": "Removed attachment",
   "addedTaskDependency": "Added a dependency",
+  "updatedTaskEstimate": "Updated the estimate",
   "removedTaskDependency": "Removed a dependency",
   "failedToRemoveAttachment": "Failed to remove attachment",
   "updatedTaskStatus": "Updated task status",

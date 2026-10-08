@@ -4,7 +4,7 @@
 // they take on. The server reads the tasks (business/Project/workload.go);
 // this places them in the reader's own weeks.
 
-import { addDays, differenceInCalendarDays, format, isSameYear, startOfWeek } from "date-fns"
+import { addDays, differenceInCalendarDays, format, isSameYear, isWeekend, startOfWeek } from "date-fns"
 import { isClosedStatus } from "@/lib/taskStatus"
 import { spanOf, taskDate } from "@/lib/timeline"
 import { awayWorkingDays, capacityAfterTimeOff, type AwaySpan } from "@/lib/timeOff"
@@ -19,6 +19,9 @@ export interface WorkloadPerson {
   /** Tasks a week they take on; the default when capacity_set is false. */
   capacity: number
   capacity_set: boolean
+  /** Hours a week they work, for the workload counted in hours; the default when hours_set is false. */
+  hours: number
+  hours_set: boolean
   can_edit_capacity: boolean
   /** The projects they're in (a member or an admin): where a task can be handed to them. */
   project_uuids: string[]
@@ -39,6 +42,8 @@ export interface WorkloadTask {
   parent_name?: string
   /** The reader may move it or give it to someone else. */
   can_edit: boolean
+  /** How long it should take, in minutes; none for no estimate. */
+  task_estimate_minutes?: number
 }
 
 export interface WorkloadData {
@@ -47,6 +52,7 @@ export interface WorkloadData {
   /** Open tasks with no dates, by project and person (none for nobody's). */
   undated: { project_uuid: string; user_uuid?: string; count: number }[]
   default_capacity: number
+  default_hours: number
   /** Time off marked on people's calendars (Away events), as dates only. */
   away?: { user_uuid: string; start: string; end: string }[]
   /** More tasks than one view sends: the latest due are shown. */
@@ -78,11 +84,42 @@ export function weekLabel(week: Date, index: number, today: Date): string {
   return format(week, isSameYear(week, today) ? "d MMM" : "d MMM yyyy")
 }
 
+/** What the workload counts: tasks, or the hours they're estimated at. */
+export type Measure = "tasks" | "hours"
+
+/** A load as the grid shows it: "3", or "7.5h". */
+export function formatLoad(load: number, measure: Measure): string {
+  if (measure === "tasks") return String(load)
+  const h = Math.round(load * 2) / 2
+  return `${h}h`
+}
+
+/**
+ * The hours of a task's estimate in each week shown: the estimate spread
+ * evenly over the working days it runs (over all its days when it runs only on
+ * a weekend). Days before the first week shown are past; their share is gone.
+ */
+export function hoursByWeek(t: Pick<WorkloadTask, "task_start_date" | "task_due_date" | "task_estimate_minutes">, weeks: Date[]): number[] {
+  const out = weeks.map(() => 0)
+  const span = spanOf(t)
+  if (!span || !t.task_estimate_minutes) return out
+  const days: Date[] = []
+  for (let d = span.start; d <= span.end; d = addDays(d, 1)) days.push(d)
+  const working = days.filter((d) => !isWeekend(d))
+  const spread = working.length ? working : days
+  const perDay = t.task_estimate_minutes / 60 / spread.length
+  for (const d of spread) {
+    const i = Math.floor(differenceInCalendarDays(d, weeks[0]) / 7)
+    if (i >= 0 && i < weeks.length) out[i] += perDay
+  }
+  return out
+}
+
 /** A row of the workload: a person, or the tasks nobody has. */
 export interface WorkloadRow {
   key: string
   person: WorkloadPerson | null
-  /** Tasks a week they take on; none for nobody's tasks. */
+  /** What they take on a week, in the measure counted; none for nobody's tasks. */
   capacity: number | null
   /** Working days they're away in each week shown. */
   awayDays: number[]
@@ -92,6 +129,12 @@ export interface WorkloadRow {
   overdue: WorkloadTask[]
   /** The tasks running in each week shown. */
   weeks: WorkloadTask[][]
+  /** How much is in each week shown, in the measure counted: tasks, or hours. */
+  loads: number[]
+  /** How much is overdue, in the measure counted. */
+  overdueLoad: number
+  /** Tasks of theirs shown with no estimate, which hours can't count. */
+  unestimated: number
   /** Open tasks without dates, which no week can show. */
   undated: number
   /** Their fullest week shown, as a share of their capacity. */
@@ -100,17 +143,23 @@ export interface WorkloadRow {
 
 export const UNASSIGNED = "unassigned"
 
-const emptyRow = (key: string, person: WorkloadPerson | null, weeks: number): WorkloadRow => ({
-  key,
-  person,
-  capacity: person ? person.capacity : null,
-  awayDays: Array.from({ length: weeks }, () => 0),
-  capacities: Array.from({ length: weeks }, () => (person ? person.capacity : null)),
-  overdue: [],
-  weeks: Array.from({ length: weeks }, () => []),
-  undated: 0,
-  peak: 0,
-})
+const emptyRow = (key: string, person: WorkloadPerson | null, weeks: number, measure: Measure): WorkloadRow => {
+  const capacity = person ? (measure === "hours" ? person.hours : person.capacity) : null
+  return {
+    key,
+    person,
+    capacity,
+    awayDays: Array.from({ length: weeks }, () => 0),
+    capacities: Array.from({ length: weeks }, () => capacity),
+    overdue: [],
+    weeks: Array.from({ length: weeks }, () => []),
+    loads: Array.from({ length: weeks }, () => 0),
+    overdueLoad: 0,
+    unestimated: 0,
+    undated: 0,
+    peak: 0,
+  }
+}
 
 /**
  * The workload's rows for the weeks shown: everyone in the projects shown (all
@@ -118,20 +167,25 @@ const emptyRow = (key: string, person: WorkloadPerson | null, weeks: number): Wo
  * and a last row for the tasks nobody has. A finished task has no place (a
  * change made here may have just finished one).
  */
-export function workloadRows(data: WorkloadData, weeks: Date[], projects?: ReadonlySet<string>): { people: WorkloadRow[]; unassigned: WorkloadRow } {
+export function workloadRows(
+  data: WorkloadData,
+  weeks: Date[],
+  projects?: ReadonlySet<string>,
+  measure: Measure = "tasks",
+): { people: WorkloadRow[]; unassigned: WorkloadRow } {
   const shown = (project: string) => !projects || projects.has(project)
   const everyone = new Map(data.people.map((p) => [p.user_uuid, p]))
   const rows = new Map<string, WorkloadRow>()
   for (const p of data.people) {
-    if (p.project_uuids.some(shown)) rows.set(p.user_uuid, emptyRow(p.user_uuid, p, weeks.length))
+    if (p.project_uuids.some(shown)) rows.set(p.user_uuid, emptyRow(p.user_uuid, p, weeks.length, measure))
   }
-  const unassigned = emptyRow(UNASSIGNED, null, weeks.length)
+  const unassigned = emptyRow(UNASSIGNED, null, weeks.length, measure)
   // Someone taken off a project keeps its tasks, and their row.
   const rowOf = (who?: string) => {
     if (!who) return unassigned
     let row = rows.get(who)
     const p = everyone.get(who)
-    if (!row && p) rows.set(who, (row = emptyRow(who, p, weeks.length)))
+    if (!row && p) rows.set(who, (row = emptyRow(who, p, weeks.length, measure)))
     return row ?? unassigned
   }
   const first = weeks[0]
@@ -140,13 +194,23 @@ export function workloadRows(data: WorkloadData, weeks: Date[], projects?: Reado
     const span = spanOf(t)
     if (!span) continue
     const row = rowOf(t.assignee_uuid)
+    const estimated = !!t.task_estimate_minutes
     if (span.end < first) {
       row.overdue.push(t)
+      row.overdueLoad += measure === "hours" ? (t.task_estimate_minutes ?? 0) / 60 : 1
+      if (!estimated) row.unestimated++
       continue
     }
     const from = Math.max(0, Math.floor(differenceInCalendarDays(span.start, first) / 7))
     const to = Math.min(weeks.length - 1, Math.floor(differenceInCalendarDays(span.end, first) / 7))
+    if (from > to) continue
     for (let i = from; i <= to; i++) row.weeks[i].push(t)
+    if (!estimated) row.unestimated++
+    if (measure === "tasks") {
+      for (let i = from; i <= to; i++) row.loads[i]++
+    } else {
+      hoursByWeek(t, weeks).forEach((h, i) => (row.loads[i] += h))
+    }
   }
   for (const u of data.undated) {
     if (!shown(u.project_uuid)) continue
@@ -166,10 +230,13 @@ export function workloadRows(data: WorkloadData, weeks: Date[], projects?: Reado
       r.awayDays = weeks.map((w) => awayWorkingDays(spans, w))
       r.capacities = r.awayDays.map((d) => capacityAfterTimeOff(r.capacity!, d))
     }
+    // Hours to the hundredth, so a spread estimate adds back up exactly.
+    r.loads = r.loads.map((l) => Math.round(l * 100) / 100)
     // A week with no capacity left and work in it is fuller than any other.
-    r.peak = Math.max(0, ...r.weeks.map((w, i) => w.length / Math.max(0.5, r.capacities[i] ?? 1)))
+    r.peak = Math.max(0, ...r.loads.map((l, i) => l / Math.max(0.5, r.capacities[i] ?? 1)))
   }
-  const busy = (r: WorkloadRow) => r.weeks.reduce((n, w) => n + w.length, 0) + r.overdue.length
+  unassigned.loads = unassigned.loads.map((l) => Math.round(l * 100) / 100)
+  const busy = (r: WorkloadRow) => r.loads.reduce((n, l) => n + l, 0) + r.overdueLoad
   people.sort((a, b) => b.peak - a.peak || busy(b) - busy(a) || a.person!.user_name.localeCompare(b.person!.user_name))
   return { people, unassigned }
 }
@@ -202,15 +269,25 @@ export function weeksToNextWeek(t: Pick<WorkloadTask, "task_start_date" | "task_
   return Math.max(1, Math.floor(differenceInCalendarDays(weeks[1] ?? addDays(weeks[0], 7), startOfWeek(span.end, { weekStartsOn: 1 })) / 7))
 }
 
-/** What a row's week says to a screen reader: whose week, how many tasks, and how that sits with what they take on that week. */
-export function cellLabel(row: WorkloadRow, week: number, when: string, count: number): string {
+/** What a row's week says to a screen reader: whose week, how much is in it, and how that sits with what they take on that week. */
+export function cellLabel(row: WorkloadRow, week: number, when: string, measure: Measure = "tasks"): string {
   const who = row.person ? row.person.user_name : "Nobody"
-  const tasks = `${count} ${count === 1 ? "task" : "tasks"}`
+  const count = row.loads[week] ?? 0
+  const unit = (n: number) =>
+    measure === "hours" ? `${formatLoad(n, measure).slice(0, -1)} ${n === 1 ? "hour" : "hours"}` : `${n} ${n === 1 ? "task" : "tasks"}`
+  const tasks = unit(count)
   const capacity = row.capacities[week] ?? null
   if (capacity === null) return `${who}, ${when}: ${tasks}`
   const days = row.awayDays[week] ?? 0
   const off = days >= 5 ? ", away all week" : days > 0 ? `, away ${days} ${days === 1 ? "day" : "days"}` : ""
   const load = loadOf(count, capacity)
-  const against = load === "over" ? `${count - capacity} over their ${capacity}` : load === "full" ? "full" : `room for ${capacity - count} more`
+  const over = Math.round((count - capacity) * 10) / 10
+  const room = Math.round((capacity - count) * 10) / 10
+  const against =
+    load === "over"
+      ? `${formatLoad(over, measure).replace(/h$/, "")} over their ${capacity}`
+      : load === "full"
+        ? "full"
+        : `room for ${formatLoad(room, measure).replace(/h$/, "")} more`
   return `${who}, ${when}: ${tasks}${off}, ${against}`
 }

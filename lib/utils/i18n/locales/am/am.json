@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "فشل في إضافة مرفقات إلى المشروع",
   "removedAttachment": "تمت إزالة المرفق",
   "addedTaskDependency": "تمت إضافة تبعية",
+  "updatedTaskEstimate": "تم تحديث التقدير",
   "removedTaskDependency": "تمت إزالة تبعية",
   "failedToRemoveAttachment": "فشل في إزالة المرفق",
   "updatedTaskStatus": "تم تحديث حالة المهمة",

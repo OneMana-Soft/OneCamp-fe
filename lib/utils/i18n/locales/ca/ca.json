@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "No s'ha pogut afegir l'adjunt al projecte",
   "removedAttachment": "L'arxiu ha estat eliminat",
   "addedTaskDependency": "S'ha afegit una dependència",
+  "updatedTaskEstimate": "S'ha actualitzat l'estimació",
   "removedTaskDependency": "S'ha eliminat una dependència",
   "failedToRemoveAttachment": "No s'ha pogut eliminar l'arxiu",
   "updatedTaskStatus": "Estat de la tasca actualitzat",

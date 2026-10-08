@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Échec de l'ajout du fichier au projet",
   "removedAttachment": "Pièce jointe supprimée",
   "addedTaskDependency": "Dépendance ajoutée",
+  "updatedTaskEstimate": "Estimation mise à jour",
   "removedTaskDependency": "Dépendance supprimée",
   "failedToRemoveAttachment": "Échec de la suppression de la pièce jointe",
   "updatedTaskStatus": "Statut de la tâche mis à jour",

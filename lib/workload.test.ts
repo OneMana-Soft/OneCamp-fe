@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import {
   UNASSIGNED,
   cellLabel,
+  formatLoad,
+  hoursByWeek,
   isWorkloadKey,
   loadOf,
   weekLabel,
@@ -26,6 +28,8 @@ const person = (id: string, more: Partial<WorkloadPerson> = {}): WorkloadPerson 
   user_name: id,
   capacity: 5,
   capacity_set: false,
+  hours: 40,
+  hours_set: false,
   can_edit_capacity: false,
   project_uuids: ["p1"],
   ...more,
@@ -44,6 +48,7 @@ const data = (people: WorkloadPerson[], tasks: WorkloadTask[], undated: Workload
   tasks,
   undated,
   default_capacity: 5,
+  default_hours: 40,
   truncated: false,
 })
 
@@ -182,11 +187,14 @@ describe("workloadRows", () => {
 
   it("takes time off out of the weeks it falls in", () => {
     const { people } = workloadRows(
-      { ...data([person("alice"), person("bob")], [task("1", { assignee_uuid: "bob", task_due_date: iso(2026, 10, 13, 17) })]), away: [
-        // Bob is away Monday to Wednesday of next week, Alice all of the week after.
-        { user_uuid: "bob", start: local(2026, 10, 12).toISOString(), end: local(2026, 10, 15).toISOString() },
-        { user_uuid: "alice", start: local(2026, 10, 17).toISOString(), end: local(2026, 10, 26).toISOString() },
-      ] },
+      {
+        ...data([person("alice"), person("bob")], [task("1", { assignee_uuid: "bob", task_due_date: iso(2026, 10, 13, 17) })]),
+        away: [
+          // Bob is away Monday to Wednesday of next week, Alice all of the week after.
+          { user_uuid: "bob", start: local(2026, 10, 12).toISOString(), end: local(2026, 10, 15).toISOString() },
+          { user_uuid: "alice", start: local(2026, 10, 17).toISOString(), end: local(2026, 10, 26).toISOString() },
+        ],
+      },
       weeks,
     )
     const bob = people.find((r) => r.key === "bob")!
@@ -233,16 +241,54 @@ describe("how full a week is", () => {
       capacity: 3,
       awayDays: [0, 0, 0, 2],
       capacities: [3, 3, 3, 2],
+      loads: [4, 3, 1, 2],
+      overdueLoad: 0,
+      unestimated: 0,
       overdue: [],
       weeks: [],
       undated: 0,
       peak: 0,
     }
-    expect(cellLabel(row, 0, "this week", 4)).toBe("Alice, this week: 4 tasks, 1 over their 3")
-    expect(cellLabel(row, 1, "next week", 3)).toBe("Alice, next week: 3 tasks, full")
-    expect(cellLabel(row, 2, "19 Oct", 1)).toBe("Alice, 19 Oct: 1 task, room for 2 more")
-    expect(cellLabel(row, 3, "26 Oct", 2)).toBe("Alice, 26 Oct: 2 tasks, away 2 days, full")
-    expect(cellLabel({ ...row, person: null, capacity: null, capacities: [null] }, 0, "this week", 2)).toBe("Nobody, this week: 2 tasks")
+    expect(cellLabel(row, 0, "this week")).toBe("Alice, this week: 4 tasks, 1 over their 3")
+    expect(cellLabel(row, 1, "next week")).toBe("Alice, next week: 3 tasks, full")
+    expect(cellLabel(row, 2, "19 Oct")).toBe("Alice, 19 Oct: 1 task, room for 2 more")
+    expect(cellLabel(row, 3, "26 Oct")).toBe("Alice, 26 Oct: 2 tasks, away 2 days, full")
+    expect(cellLabel({ ...row, person: null, capacity: null, capacities: [null] }, 0, "this week")).toBe("Nobody, this week: 4 tasks")
+    const hours = { ...row, capacity: 40, capacities: [40, 40, 40, 24], loads: [42.5, 12, 0, 24] }
+    expect(cellLabel(hours, 0, "this week", "hours")).toBe("Alice, this week: 42.5 hours, 2.5 over their 40")
+    expect(cellLabel(hours, 1, "next week", "hours")).toBe("Alice, next week: 12 hours, room for 28 more")
+  })
+})
+
+describe("counting hours", () => {
+  it("spreads an estimate over the working days a task runs", () => {
+    // 10 hours from Thursday 8 to Wednesday 14 Oct: 5 working days, 2 hours each,
+    // 2 days this week (Thu, Fri) and 3 next (Mon to Wed).
+    const t = { task_start_date: iso(2026, 10, 8, 9), task_due_date: iso(2026, 10, 14, 17), task_estimate_minutes: 600 }
+    expect(hoursByWeek(t, weeks)).toEqual([4, 6, 0, 0])
+  })
+  it("puts a weekend-only task's hours on its days, and nothing without an estimate", () => {
+    expect(hoursByWeek({ task_due_date: iso(2026, 10, 10, 17), task_estimate_minutes: 90 }, weeks)).toEqual([1.5, 0, 0, 0])
+    expect(hoursByWeek({ task_due_date: iso(2026, 10, 9, 17) }, weeks)).toEqual([0, 0, 0, 0])
+  })
+  it("loads each week with hours against the hours they work, and counts tasks with no estimate", () => {
+    const { people } = workloadRows(
+      data(
+        [person("alice", { hours: 20 })],
+        [
+          task("big", { assignee_uuid: "alice", task_start_date: iso(2026, 10, 5, 9), task_due_date: iso(2026, 10, 9, 17), task_estimate_minutes: 25 * 60 }),
+          task("guess", { assignee_uuid: "alice", task_due_date: iso(2026, 10, 9, 17) }),
+        ],
+      ),
+      weeks,
+      undefined,
+      "hours",
+    )
+    expect(people[0].loads[0]).toBe(25)
+    expect(people[0].capacities[0]).toBe(20)
+    expect(loadOf(people[0].loads[0], people[0].capacities[0])).toBe("over")
+    expect(people[0].unestimated).toBe(1)
+    expect(formatLoad(7.25, "hours")).toBe("7.5h")
   })
 })
 

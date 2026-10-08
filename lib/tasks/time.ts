@@ -40,9 +40,9 @@ export interface TimeReport {
 /**
  * Minutes from what a person types: "1h 30m", "1h30", "90m", "90", "1.5h",
  * "1:30". A bare number is minutes. Null when it can't be read or is not
- * between a minute and a day.
+ * between a minute and maxMinutes (a day, unless said: an estimate allows more).
  */
-export function parseDuration(input: string): number | null {
+export function parseDuration(input: string, maxMinutes = 24 * 60): number | null {
   const s = input.trim().toLowerCase().replace(/\s+/g, " ")
   if (!s) return null
   let minutes: number | null = null
@@ -51,7 +51,7 @@ export function parseDuration(input: string): number | null {
   else if ((m = s.match(/^(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?$/))) minutes = Math.round(Number(m[1]) * 60)
   else if ((m = s.match(/^(\d+)\s*h(?:ours?|rs?)?\s*(\d+)\s*m?(?:in(?:ute)?s?)?$/))) minutes = Number(m[1]) * 60 + Number(m[2])
   else if ((m = s.match(/^(\d+)\s*m(?:in(?:ute)?s?)?$/)) || (m = s.match(/^(\d+)$/))) minutes = Number(m[1])
-  if (minutes === null || !Number.isFinite(minutes) || minutes < 1 || minutes > 24 * 60) return null
+  if (minutes === null || !Number.isFinite(minutes) || minutes < 1 || minutes > maxMinutes) return null
   return minutes
 }
 

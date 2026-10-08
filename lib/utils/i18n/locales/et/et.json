@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Ei õnnestunud faili projekti lisada",
   "removedAttachment": "Fail eemaldatud",
   "addedTaskDependency": "Sõltuvus lisatud",
+  "updatedTaskEstimate": "Hinnang uuendati",
   "removedTaskDependency": "Sõltuvus eemaldatud",
   "failedToRemoveAttachment": "Ei õnnestunud faili eemaldada",
   "updatedTaskStatus": "Ülesande staatus uuendatud",

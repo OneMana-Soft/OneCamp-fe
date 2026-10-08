@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Fehler beim Hinzufügen des Anhangs zum Projekt",
   "removedAttachment": "Anhang entfernt",
   "addedTaskDependency": "Abhängigkeit hinzugefügt",
+  "updatedTaskEstimate": "Schätzung aktualisiert",
   "removedTaskDependency": "Abhängigkeit entfernt",
   "failedToRemoveAttachment": "Fehler beim Entfernen des Anhangs",
   "updatedTaskStatus": "Aufgabenstatus aktualisiert",

@@ -482,6 +482,7 @@ export enum PostEndpointUrl {
     // A task waits on another of its project: {task_uuid, blocked_by_uuid}
     AddTaskDependency = "/task/dependency",
     SetWorkloadCapacity = "/project/workload/capacity",
+    UpdateTaskEstimate = "/task/updateTaskEstimate",
     RemoveTaskDependency = "/task/dependency/delete",
     SetTaskRecurrence = "/task/recurrence",
     SetTaskCycle = "/task/cycle",

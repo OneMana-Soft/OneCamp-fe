@@ -39,6 +39,9 @@ export const taskActivityConst: Record<string, TaskActivityKey> = {
     "dependencyRemove": {
         "key": "removedTaskDependency",
     },
+    "estimate": {
+        "key": "updatedTaskEstimate",
+    },
     "subTaskAdd": {
         "key": "createSubTask",
     },

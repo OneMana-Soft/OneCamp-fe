@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "לא הצלחנו להוסיף קובץ לפרויקט",
   "removedAttachment": "הסרת קובץ",
   "addedTaskDependency": "נוספה תלות",
+  "updatedTaskEstimate": "ההערכה עודכנה",
   "removedTaskDependency": "הוסרה תלות",
   "failedToRemoveAttachment": "לא הצלחנו להסיר קובץ",
   "updatedTaskStatus": "סטטוס משימה עודכן",

@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Не удалось добавить вложения в проект",
   "removedAttachment": "Вложение удалено",
   "addedTaskDependency": "Добавлена зависимость",
+  "updatedTaskEstimate": "Оценка обновлена",
   "removedTaskDependency": "Зависимость удалена",
   "failedToRemoveAttachment": "Не удалось удалить вложение",
   "updatedTaskStatus": "Статус задачи обновлён",

@@ -149,6 +149,7 @@ export const useTaskUpdate = () => {
             for (const field of ["task_name", "task_status", "task_custom_status", "task_custom_status_name", "task_start_date", "task_due_date"] as const) {
                 if (p[field] !== undefined) next[field] = p[field] ?? undefined;
             }
+            if (p.task_estimate_minutes !== undefined) next.task_estimate_minutes = p.task_estimate_minutes || undefined;
             if ("task_assignee" in p) next.assignee_uuid = p.task_assignee?.user_uuid || undefined;
             return next;
         };

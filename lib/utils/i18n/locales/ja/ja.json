@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "プロジェクトへの添付ファイル追加に失敗しました",
   "removedAttachment": "添付ファイルが削除されました",
   "addedTaskDependency": "依存関係が追加されました",
+  "updatedTaskEstimate": "見積もりが更新されました",
   "removedTaskDependency": "依存関係が削除されました",
   "failedToRemoveAttachment": "添付ファイルの削除に失敗しました",
   "updatedTaskStatus": "タスクのステータスが更新されました",

@@ -117,6 +117,7 @@
   "failedToAddAttachmentToProject": "Bestanden bijvoegen bij project mislukt",
   "removedAttachment": "Bestand verwijderd",
   "addedTaskDependency": "Afhankelijkheid toegevoegd",
+  "updatedTaskEstimate": "Schatting bijgewerkt",
   "removedTaskDependency": "Afhankelijkheid verwijderd",
   "failedToRemoveAttachment": "Bestand verwijderen mislukt",
   "updatedTaskStatus": "Taakstatus bijgewerkt",
