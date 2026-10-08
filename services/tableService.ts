@@ -256,7 +256,7 @@ export async function aggregateTable(
   query: AggregateQuery,
 ): Promise<AggregateResult> {
   const res = await axiosInstance.post(
-    `${PostEndpointUrl.AggregateTable}/${tableId}/aggregate`,
+    inZone(`${PostEndpointUrl.AggregateTable}/${tableId}/aggregate`),
     query,
   )
   return res.data?.data as AggregateResult

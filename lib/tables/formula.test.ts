@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { FORMULA_FUNCTIONS, fieldRef, insertAt, showFormulaValue } from "@/lib/tables/formula"
+import { FORMULA_FUNCTIONS, cardTitle, fieldRef, insertAt, showFormulaValue } from "@/lib/tables/formula"
 
 // The server's functions (business/DataTable/formula/funcs.go), less CONCAT,
 // which is CONCATENATE's other name. Change both when one changes.
 const SERVER = [
-  "ABS", "AND", "AVERAGE", "BLANK", "CEILING", "CONCATENATE", "DATEADD", "DATETIME_DIFF", "DAY", "FIND", "FLOOR",
+  "ABS", "AND", "AVERAGE", "BLANK", "CEILING", "CONCATENATE", "DATEADD", "DATETIME_DIFF", "DAY", "FALSE", "FIND", "FLOOR",
   "IF", "ISBLANK", "ISERROR", "LEFT", "LEN", "LOWER", "MAX", "MID", "MIN", "MOD", "MONTH", "NOT", "NOW", "OR",
   "POWER", "REPT", "RIGHT", "ROUND", "ROUNDDOWN", "ROUNDUP", "SQRT", "SUBSTITUTE", "SUM", "SWITCH", "TODAY",
-  "TRIM", "UPPER", "VALUE", "WEEKDAY", "WORKDAY_DIFF", "YEAR",
+  "TRIM", "TRUE", "UPPER", "VALUE", "WEEKDAY", "WORKDAY_DIFF", "YEAR",
 ]
 
 describe("the functions the editor lists", () => {
@@ -56,5 +56,15 @@ describe("writing a formula", () => {
   it("inserts at the caret, over a selection", () => {
     expect(insertAt("{Price} * ", 10, 10, "{Quantity}")).toEqual({ text: "{Price} * {Quantity}", caret: 20 })
     expect(insertAt("SUM(x)", 4, 5, "{Price}")).toEqual({ text: "SUM({Price})", caret: 11 })
+  })
+})
+
+describe("a card's title", () => {
+  const field = (type: string, config = "{}") => ({ id: "f", table_id: "t", name: "F", type, config, position: 0 }) as never
+  it("shows a formula as its cell does, and anything else as written", () => {
+    expect(cardTitle(field("formula", JSON.stringify({ result: "number" })), 1200)).toBe((1200).toLocaleString())
+    expect(cardTitle(field("formula", JSON.stringify({ result: "text" })), { error: "Divided by zero" })).toBe("Error")
+    expect(cardTitle(field("text"), "Launch film")).toBe("Launch film")
+    expect(cardTitle(field("text"), undefined)).toBe("")
   })
 })

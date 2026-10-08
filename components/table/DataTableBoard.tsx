@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { Plus } from "@/lib/icons"
 import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, createRow, updateRow, formulaOf, nextRowPosition } from "@/services/tableService"
-import { formulaText } from "@/lib/tables/formula"
+import { formulaText, cardTitle } from "@/lib/tables/formula"
 
 interface DataTableBoardProps {
   tableId: string
@@ -147,7 +147,7 @@ export function DataTableBoard({
           <div className="flex flex-col gap-2 px-2 pb-2">
             {(rowsByColumn[col.key] || []).map((row) => {
               const values = parseRowValues(row)
-              const title = titleField ? String(values[titleField.id] ?? "") : ""
+              const title = titleField ? cardTitle(titleField, values[titleField.id]) : ""
               return (
                 <div
                   key={row.id}

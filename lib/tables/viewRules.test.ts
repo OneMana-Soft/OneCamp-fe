@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest"
-import { applyViewRules, kindOfField, loadViewRules, NO_RULES, saveViewRules, type ViewRules } from "@/lib/tables/viewRules"
+import { applyViewRules, fitRules, kindOfField, loadViewRules, NO_RULES, saveViewRules, type ViewRules } from "@/lib/tables/viewRules"
 import type { TableField, TableRow } from "@/services/tableService"
 
 const field = (id: string, type: TableField["type"], config: object = {}): TableField => ({
@@ -123,5 +123,19 @@ describe("remembering a table's rules", () => {
     saveViewRules("t", { sort: [{ field: "cost", dir: "asc" }], filters: [], match: "all" })
     saveViewRules("t", NO_RULES)
     expect(localStorage.getItem("onecamp:tableView:t")).toBeNull()
+  })
+})
+
+describe("a field whose type changes", () => {
+  // Item was text, filtered "contains Booth"; now it's a number, which has no
+  // "contains". The filter stopped working while the menu showed another
+  // condition; now it goes.
+  it("drops filters that no longer fit it, and keeps the rest", () => {
+    const retyped = fields.map((f) => (f.id === "item" ? { ...f, type: "number" as const } : f))
+    const r = rules({ filters: [{ field: "item", op: "contains", value: "Booth" }, { field: "paid", op: "checked" }], sort: [{ field: "item", dir: "asc" }] })
+    expect(fitRules(r, retyped)).toEqual({ ...r, filters: [{ field: "paid", op: "checked" }] })
+    expect(ids(applyViewRules(rows, retyped, r))).toEqual(["film"])
+    // Rules that fit come back as they were.
+    expect(fitRules(r, fields)).toBe(r)
   })
 })
