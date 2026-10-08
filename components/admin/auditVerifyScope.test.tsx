@@ -10,11 +10,17 @@ vi.mock("@/services/settingsService", async (importOriginal) => {
   return {
     ...actual,
     verifyAuditLog: vi.fn(),
-    getAuditLog: vi.fn().mockResolvedValue({ entries: [], categories: [] }),
+    getAdminAuditLog: vi.fn(async () => ({ entries: [], categories: [], initiators: [] })),
+    listEvidenceReceipts: vi.fn(async () => []),
     exportAuditLog: vi.fn(),
-    exportEvidencePack: vi.fn(),
+    downloadEvidencePack: vi.fn(),
   }
 })
+
+// The plan comes from GET /admin/seats; nothing is locked, as on a licensed workspace.
+vi.mock("@/hooks/usePlan", () => ({
+  usePlan: () => ({ freePlan: false, isLocked: () => false, upgradeUrl: undefined }),
+}))
 
 import { verifyAuditLog } from "@/services/settingsService"
 

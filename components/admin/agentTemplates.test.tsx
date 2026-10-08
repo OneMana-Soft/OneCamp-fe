@@ -3,6 +3,12 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import { AgentEditDialog } from "@/components/admin/AgentEditDialog"
 
+// The dialog's lists (channels, projects, models, MCP servers, what AI can do)
+// aren't what's under test; it opens with none of them loaded.
+vi.mock("@/hooks/useFetch", () => ({
+    useFetch: () => ({ data: undefined, isLoading: false, isError: undefined, mutate: vi.fn() }),
+}))
+
 vi.mock("@/services/agentService", async (orig) => ({
     ...(await orig<typeof import("@/services/agentService")>()),
     listAgentSkills: vi.fn().mockResolvedValue([]),

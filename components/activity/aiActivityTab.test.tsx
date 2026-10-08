@@ -8,6 +8,11 @@ vi.mock("@/hooks/useClientConfig", async (importOriginal) => ({
   useFeature: () => aiOn,
 }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: [] }, isLoading: false }) }))
+// The drill button shows only where the workspace has the drill set up; here it hasn't.
+vi.mock("@/services/governanceDrillService", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/governanceDrillService")>()),
+  getMyDrillStatus: vi.fn(async () => undefined),
+}))
 let search = ""
 vi.mock("next/navigation", () => ({
   usePathname: () => "/app/activity",
