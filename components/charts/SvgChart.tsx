@@ -107,7 +107,8 @@ const CartesianChart: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
     const bounds = valueBounds(chart);
     const n = chart.labels.length;
     // Round ticks, and the axis runs from the first to the last of them.
-    const integers = chart.series.every((s) => s.values.every((v) => Number.isInteger(v)));
+    // A dashed guide (an ideal pace) doesn't make a count's axis fractional.
+    const integers = chart.series.every((s) => s.dashed || s.values.every((v) => Number.isInteger(v)));
     const ticks = niceTicks(bounds.min, bounds.max, 4, integers);
     const min = ticks[0];
     const max = ticks[ticks.length - 1];
@@ -227,27 +228,28 @@ const LineSeries: React.FC<{
     return (
         <>
             {chart.series.map((s, si) => {
-                const pts = s.values.map((v, i) => `${xCenter(i)},${yOf(v)}`);
+                // A series that hasn't happened past upTo yet stops there.
+                const shown = s.values.slice(0, s.upTo ?? s.values.length);
+                if (shown.length === 0) return null;
+                const pts = shown.map((v, i) => `${xCenter(i)},${yOf(v)}`);
                 const linePath = "M" + pts.join(" L");
-                const areaPath =
-                    pts.length > 0
-                        ? `M${xCenter(0)},${baselineY} L${pts.join(" L")} L${xCenter(s.values.length - 1)},${baselineY} Z`
-                        : "";
+                const areaPath = `M${xCenter(0)},${baselineY} L${pts.join(" L")} L${xCenter(shown.length - 1)},${baselineY} Z`;
                 return (
                     <g key={`ln-${si}`}>
-                        {area && areaPath && (
+                        {area && !s.dashed && (
                             <path d={areaPath} fill={colorAt(si)} opacity={0.15} />
                         )}
                         <path
                             d={linePath}
                             fill="none"
                             stroke={colorAt(si)}
-                            strokeWidth={2}
+                            strokeWidth={s.dashed ? 1.5 : 2}
+                            strokeDasharray={s.dashed ? "5 4" : undefined}
                             strokeLinejoin="round"
                             strokeLinecap="round"
                         />
-                        {s.values.map((v, i) => (
-                            <circle key={`pt-${si}-${i}`} cx={xCenter(i)} cy={yOf(v)} r={2.5} fill={colorAt(si)}>
+                        {shown.map((v, i) => (
+                            <circle key={`pt-${si}-${i}`} cx={xCenter(i)} cy={yOf(v)} r={s.dashed ? 1.5 : 2.5} fill={colorAt(si)}>
                                 <title>{`${s.name}${chart.labels[i] ? ` · ${chart.labels[i]}` : ""}: ${fmtNumber(v)}`}</title>
                             </circle>
                         ))}
@@ -318,7 +320,7 @@ const Legend: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
     const items =
         chart.type === "pie"
             ? chart.labels.map((label, i) => ({ label, color: colorAt(i) }))
-            : chart.series.map((s, i) => ({ label: s.name, color: colorAt(i) }));
+            : chart.series.map((s, i) => ({ label: s.name, color: colorAt(i), dashed: s.dashed }));
 
     if (items.length <= 1 && chart.type !== "pie") return null;
 
@@ -326,7 +328,11 @@ const Legend: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
         <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
             {items.map((it, i) => (
                 <li key={`lg-${i}`} className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-                    <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: it.color }} />
+                    {"dashed" in it && it.dashed ? (
+                        <span className="inline-block w-3 border-t-2 border-dashed" style={{ borderColor: it.color }} />
+                    ) : (
+                        <span className="inline-block h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: it.color }} />
+                    )}
                     <span className="[overflow-wrap:anywhere]">{it.label}</span>
                 </li>
             ))}
