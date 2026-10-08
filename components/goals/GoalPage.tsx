@@ -34,7 +34,19 @@ import { useGoal, useGoals } from "@/hooks/useGoals"
 import { useProjectsOverview } from "@/hooks/useProjectsOverview"
 import { useToast } from "@/hooks/use-toast"
 import { Megaphone, MoreHorizontal, Target, X } from "@/lib/icons"
-import { amount, checkInDue, dueLabel, measureLine, overdue, paceGap, paceLine, percent, type GoalCheckIn, type GoalProjectLine } from "@/lib/goals"
+import {
+  amount,
+  checkInDue,
+  dueLabel,
+  measureLine,
+  overdue,
+  paceGap,
+  paceLine,
+  percent,
+  progressSource,
+  type GoalCheckIn,
+  type GoalProjectLine,
+} from "@/lib/goals"
 import { cn } from "@/lib/utils/helpers/cn"
 import { daysAgo } from "@/lib/utils/relativeTime"
 import { localDay } from "@/lib/utils/timeZone"
@@ -290,13 +302,7 @@ export function GoalPage({ goalId }: { goalId: string }) {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="font-display text-4xl font-semibold tabular-nums tracking-tight">{goal.progress === null ? "—" : percent(goal.progress)}</p>
-              <p className="text-sm text-muted-foreground">
-                {goal.measure === "number" && goal.current_value !== undefined && goal.start_value !== undefined && goal.target_value !== undefined
-                  ? `${amount(goal.current_value, goal.unit)}, from ${amount(goal.start_value, goal.unit)} to ${amount(goal.target_value, goal.unit)}`
-                  : goal.measure === "projects"
-                    ? `The projects serving it: ${measureLine(goal).toLowerCase()}, each counting the same`
-                    : `The average of its sub-goals: ${measureLine(goal).toLowerCase()}`}
-              </p>
+              <p className="text-sm text-muted-foreground">{progressSource(goal)}</p>
             </div>
             {gap !== undefined && (
               <p className={cn("text-sm font-medium", gap <= -25 ? "text-destructive" : gap <= -10 ? "text-warning" : "text-success")}>{paceLine(gap)}</p>

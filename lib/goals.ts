@@ -121,18 +121,50 @@ export function amount(v: number, unit = ""): string {
 }
 
 /** What a goal's progress is made of, in a few words: "410 of 500 teams", "2 projects", "3 sub-goals". Pure. */
-export function measureLine(g: Pick<GoalSummary, "measure" | "current_value" | "target_value" | "unit" | "projects" | "subgoals">): string {
+type NumberGoal = Pick<GoalSummary, "measure" | "start_value" | "current_value" | "target_value" | "unit">
+
+/** Whether a unit is a word ("teams"), said once, rather than a sign ("$", "%") written on every number. Pure. */
+const wordUnit = (unit?: string) => !!unit && unit !== "%" && !CURRENCY_SIGN.test(unit)
+
+/** Whether a number goal counts down: a faster reply, fewer open bugs. Pure. */
+const countsDown = (g: NumberGoal) => g.start_value !== undefined && g.target_value !== undefined && g.target_value < g.start_value
+
+export function measureLine(g: NumberGoal & Pick<GoalSummary, "projects" | "subgoals">): string {
   switch (g.measure) {
     case "number": {
       if (g.current_value === undefined || g.target_value === undefined) return "A number"
+      // Counting down, "of" would read backwards ("3.5 of 2 hours").
+      if (countsDown(g)) return `${amount(g.current_value, g.unit)} now, aiming for ${amount(g.target_value, g.unit)}`
       // A word unit is said once ("410 of 500 teams"); a sign goes on both ("$2,000 of $5,000").
-      const word = !!g.unit && g.unit !== "%" && !CURRENCY_SIGN.test(g.unit)
-      return `${amount(g.current_value, word ? "" : g.unit)} of ${amount(g.target_value, g.unit)}`
+      return `${amount(g.current_value, wordUnit(g.unit) ? "" : g.unit)} of ${amount(g.target_value, g.unit)}`
     }
     case "projects":
       return g.projects === 0 ? "No projects yet" : g.projects === 1 ? "1 project" : `${g.projects} projects`
     default:
       return g.subgoals === 0 ? "No sub-goals yet" : g.subgoals === 1 ? "1 sub-goal" : `${g.subgoals} sub-goals`
+  }
+}
+
+/**
+ * Where a goal's progress comes from, as its page says it: "410 teams, from
+ * 320 to 500", "From the tasks done in the one project serving it", "The
+ * average of its 3 sub-goals". Pure.
+ */
+export function progressSource(g: NumberGoal & Pick<GoalSummary, "projects" | "subgoals">): string {
+  switch (g.measure) {
+    case "number": {
+      if (g.current_value === undefined || g.start_value === undefined || g.target_value === undefined) return "A number"
+      const each = wordUnit(g.unit) ? "" : g.unit
+      return `${amount(g.current_value, g.unit)}, from ${amount(g.start_value, each)} ${countsDown(g) ? "down " : ""}to ${amount(g.target_value, wordUnit(g.unit) ? g.unit : each)}`
+    }
+    case "projects":
+      if (g.projects === 0) return "No project serves it yet"
+      if (g.projects === 1) return "From the tasks done in the one project serving it"
+      return `The average of the ${g.projects} projects serving it, each counting the same`
+    default:
+      if (g.subgoals === 0) return "No sub-goals yet"
+      if (g.subgoals === 1) return "From its one sub-goal"
+      return `The average of its ${g.subgoals} sub-goals`
   }
 }
 

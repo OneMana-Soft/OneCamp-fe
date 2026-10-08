@@ -30,9 +30,9 @@ const isStatus = (v: unknown): v is "open" | "closed" => v === "open" || v === "
 function Standing({ goal, now }: { goal: GoalSummary; now: number }) {
   if (goal.status !== "open") return <HealthPill health={goal.status} />
   if (checkInDue(goal, now)) {
-    return <span className="text-xs font-medium text-warning">{goal.health ? "Check-in due" : "No check-in yet"}</span>
+    return <span className="whitespace-nowrap text-xs font-medium text-warning">{goal.health ? "Check-in due" : "No check-in yet"}</span>
   }
-  if (!goal.health) return <span className="text-xs text-muted-foreground">No check-in yet</span>
+  if (!goal.health) return <span className="whitespace-nowrap text-xs text-muted-foreground">No check-in yet</span>
   return <HealthPill health={goal.health} />
 }
 

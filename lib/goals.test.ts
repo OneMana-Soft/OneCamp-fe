@@ -10,6 +10,7 @@ import {
   paceLine,
   parentChoices,
   percent,
+  progressSource,
   quarterEnd,
   type GoalSummary,
 } from "@/lib/goals"
@@ -45,8 +46,26 @@ describe("goals", () => {
   it("says what progress is made of", () => {
     expect(measureLine(goal("n", { measure: "number", current_value: 410, target_value: 500, unit: "teams" }))).toBe("410 of 500 teams")
     expect(measureLine(goal("m", { measure: "number", current_value: 2000, target_value: 5000, unit: "$" }))).toBe("$2,000 of $5,000")
+    expect(measureLine(goal("d", { measure: "number", start_value: 6, current_value: 3.5, target_value: 2, unit: "hours" }))).toBe(
+      "3.5 hours now, aiming for 2 hours",
+    )
     expect(measureLine(goal("p", { projects: 0 }))).toBe("No projects yet")
     expect(measureLine(goal("s", { measure: "subgoals", subgoals: 3 }))).toBe("3 sub-goals")
+  })
+
+  it("says where progress comes from, a word unit once", () => {
+    expect(progressSource(goal("n", { measure: "number", start_value: 320, current_value: 410, target_value: 500, unit: "teams" }))).toBe(
+      "410 teams, from 320 to 500 teams",
+    )
+    expect(progressSource(goal("m", { measure: "number", start_value: 1000, current_value: 2500, target_value: 5000, unit: "$" }))).toBe(
+      "$2,500, from $1,000 to $5,000",
+    )
+    expect(progressSource(goal("d", { measure: "number", start_value: 6, current_value: 3.5, target_value: 2, unit: "hours" }))).toBe(
+      "3.5 hours, from 6 down to 2 hours",
+    )
+    expect(progressSource(goal("p", { projects: 1 }))).toBe("From the tasks done in the one project serving it")
+    expect(progressSource(goal("q", { projects: 3 }))).toBe("The average of the 3 projects serving it, each counting the same")
+    expect(progressSource(goal("s", { measure: "subgoals", subgoals: 2 }))).toBe("The average of its 2 sub-goals")
   })
 
   it("compares progress with the goal's time", () => {
