@@ -51,6 +51,16 @@ export interface Report {
   priorities: ReportPriorityRow[]
   all_projects: { project_uuid: string; project_name: string }[]
   truncated: boolean
+  /** Where the tasks stood at the end of each week (missing from servers before it). */
+  flow?: FlowWeek[]
+}
+
+/** The flow of work at the end of one week: the open tasks by where they stand, and what got done since the report began. */
+export interface FlowWeek {
+  to_do: number
+  in_progress: number
+  in_review: number
+  done: number
 }
 
 /** The report's address in the cache: the reader's zone, how many weeks, which projects (none for all). */
@@ -84,6 +94,28 @@ export function throughputChart(r: Report): NormalizedChart {
     series: [
       { name: "Done", values: r.done },
       { name: "Added", values: r.added },
+    ],
+  }
+}
+
+/**
+ * The flow of work, week by week, as stacked bands: done at the bottom, then
+ * in review, in progress and to do. A band that keeps widening is work piling
+ * up at that step. Null when there's no flow to show. Pure.
+ */
+export function flowChart(r: Report): NormalizedChart | null {
+  const flow = r.flow
+  if (!flow || flow.length !== r.weeks.length || flow.every((w) => w.to_do + w.in_progress + w.in_review + w.done === 0)) return null
+  return {
+    type: "area",
+    stacked: true,
+    title: "Flow of work",
+    labels: r.weeks.map((w) => weekLabel(w)),
+    series: [
+      { name: "Done", values: flow.map((w) => w.done) },
+      { name: "In review", values: flow.map((w) => w.in_review) },
+      { name: "In progress", values: flow.map((w) => w.in_progress) },
+      { name: "To do", values: flow.map((w) => w.to_do) },
     ],
   }
 }

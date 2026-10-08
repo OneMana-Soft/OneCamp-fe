@@ -109,6 +109,29 @@ describe("SvgChart", () => {
         expect(ticks.some((t) => t && t.includes("."))).toBe(false)
     })
 
+    it("stacks area bands, the first at the bottom, and scales to their total", () => {
+        const { container } = render(
+            <SvgChart
+                chart={{
+                    type: "area",
+                    stacked: true,
+                    title: "Flow",
+                    labels: ["a", "b"],
+                    series: [
+                        { name: "Done", values: [1, 2] },
+                        { name: "To do", values: [3, 3] },
+                    ],
+                }}
+            />
+        )
+        const bands = container.querySelectorAll("path[data-band]")
+        expect([...bands].map((b) => b.getAttribute("data-band"))).toEqual(["Done", "To do"])
+        // The axis reaches the stacked total (5), not the largest single value (3).
+        expect([...container.querySelectorAll("text")].some((t) => t.textContent === "5" || t.textContent === "6")).toBe(true)
+        // A point's tip gives the band's own value.
+        expect([...container.querySelectorAll("circle title")].map((t) => t.textContent)).toContain("To do · b: 3")
+    })
+
     it("renders a placeholder message for an all-zero pie", () => {
         const chart = chartFrom({ type: "pie", labels: ["a", "b"], series: [{ values: [0, 0] }] })
         const { getByText } = render(<SvgChart chart={chart} />)

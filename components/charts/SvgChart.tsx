@@ -102,9 +102,22 @@ const SvgChart: React.FC<SvgChartProps> = ({ chart, className }) => {
     );
 };
 
+// stackedTotals is, for a stacked area chart, each series' top edge: its
+// values plus every series below it.
+function stackedTotals(chart: NormalizedChart): number[][] {
+    const out: number[][] = [];
+    chart.series.forEach((s, si) => {
+        out.push(s.values.map((v, i) => v + (si > 0 ? out[si - 1][i] : 0)));
+    });
+    return out;
+}
+
 // CartesianChart draws bar / line / area on a shared x/y grid.
 const CartesianChart: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
-    const bounds = valueBounds(chart);
+    const stacked = chart.type === "area" && !!chart.stacked && chart.series.length > 0;
+    const bounds = stacked
+        ? valueBounds({ ...chart, series: [{ ...chart.series[0], values: stackedTotals(chart)[chart.series.length - 1] }] })
+        : valueBounds(chart);
     const n = chart.labels.length;
     // Round ticks, and the axis runs from the first to the last of them.
     // A dashed guide (an ideal pace) doesn't make a count's axis fractional.
@@ -173,7 +186,9 @@ const CartesianChart: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
             {chart.type === "bar" && (
                 <BarSeries chart={chart} slotW={slotW} xCenter={xCenter} yOf={yOf} baselineY={baselineY} />
             )}
-            {(chart.type === "line" || chart.type === "area") && (
+            {stacked ? (
+                <StackedAreaSeries chart={chart} xCenter={xCenter} yOf={yOf} baselineY={baselineY} />
+            ) : (chart.type === "line" || chart.type === "area") && (
                 <LineSeries chart={chart} xCenter={xCenter} yOf={yOf} baselineY={baselineY} area={chart.type === "area"} />
             )}
         </>
@@ -214,6 +229,41 @@ const BarSeries: React.FC<{
                     );
                 })
             )}
+        </>
+    );
+};
+
+// StackedAreaSeries draws each series as a band on the ones before it, the
+// first at the bottom. A point's tip gives the series' own value, not the
+// running total its edge sits at.
+const StackedAreaSeries: React.FC<{
+    chart: NormalizedChart;
+    xCenter: (i: number) => number;
+    yOf: (v: number) => number;
+    baselineY: number;
+}> = ({ chart, xCenter, yOf, baselineY }) => {
+    const tops = stackedTotals(chart);
+    const n = chart.labels.length;
+    if (n === 0) return null;
+    return (
+        <>
+            {chart.series.map((s, si) => {
+                const top = tops[si].map((v, i) => `${xCenter(i)},${yOf(v)}`);
+                const bottom = si > 0
+                    ? tops[si - 1].map((v, i) => `${xCenter(i)},${yOf(v)}`).reverse()
+                    : [`${xCenter(n - 1)},${baselineY}`, `${xCenter(0)},${baselineY}`];
+                return (
+                    <g key={`band-${si}`}>
+                        <path data-band={s.name} d={`M${top.join(" L")} L${bottom.join(" L")} Z`} fill={colorAt(si)} opacity={0.55} />
+                        <path d={"M" + top.join(" L")} fill="none" stroke={colorAt(si)} strokeWidth={1.5} strokeLinejoin="round" />
+                        {s.values.map((v, i) => (
+                            <circle key={`bp-${si}-${i}`} cx={xCenter(i)} cy={yOf(tops[si][i])} r={2} fill={colorAt(si)}>
+                                <title>{`${s.name}${chart.labels[i] ? ` · ${chart.labels[i]}` : ""}: ${fmtNumber(v)}`}</title>
+                            </circle>
+                        ))}
+                    </g>
+                );
+            })}
         </>
     );
 };
