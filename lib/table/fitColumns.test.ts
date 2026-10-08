@@ -23,12 +23,13 @@ describe("columns that step aside in a narrow table", () => {
     expect(columnsToHide(750, ALL, { task_created_at: true })).not.toHaveProperty("task_created_at")
   })
 
-  it("steps a project's own field columns aside first, the last first", () => {
+  it("steps a project's own field columns aside after the created date, the last first", () => {
     const withFields = [...ALL, "field_a", "field_b"]
     // The built-in columns want 985px; each field 120px more.
-    expect(Object.keys(columnsToHide(1150, withFields))).toEqual(["field_b"])
-    expect(Object.keys(columnsToHide(1000, withFields))).toEqual(["field_b", "field_a"])
-    expect(Object.keys(columnsToHide(900, withFields))).toEqual(["field_b", "field_a", "task_created_at"])
+    expect(Object.keys(columnsToHide(1150, withFields))).toEqual(["task_created_at"])
+    expect(Object.keys(columnsToHide(1000, withFields))).toEqual(["task_created_at", "field_b"])
+    expect(Object.keys(columnsToHide(870, withFields))).toEqual(["task_created_at", "field_b", "field_a"])
+    expect(Object.keys(columnsToHide(800, withFields))).toEqual(["task_created_at", "field_b", "field_a", "task_start_date"])
   })
 
   it("counts a column the person hid as already gone", () => {
