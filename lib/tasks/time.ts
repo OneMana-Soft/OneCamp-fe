@@ -23,6 +23,10 @@ export interface TimeLine {
   name: string
   seconds: number
   billable_seconds: number
+  /** With the project's rates (its admins only): what the billable time comes to, in minor units. */
+  amount_cents?: number
+  /** A person's line: the hourly rate they were charged at, in minor units. */
+  rate_cents?: number
 }
 
 export interface TimeReport {
@@ -35,6 +39,9 @@ export interface TimeReport {
   by_person: TimeLine[]
   by_task: TimeLine[]
   truncated: boolean
+  /** With the project's rates (its admins only): the currency and what the billable time comes to. */
+  currency?: string
+  amount_cents?: number
 }
 
 /**

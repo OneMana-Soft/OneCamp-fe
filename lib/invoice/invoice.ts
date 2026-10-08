@@ -1,6 +1,7 @@
 // An invoice from a project's billable time: one line per task or per person,
-// at one hourly rate, with tax on the subtotal. Pure, so the page and its
-// tests agree on every number.
+// at the project's rates (each person's own, or the project's) or at one
+// hourly rate typed for this invoice, with tax on the subtotal. Pure, so the
+// page and its tests agree on every number.
 
 import type { TimeReport } from "@/lib/tasks/time"
 
@@ -8,7 +9,7 @@ export type LineBy = "task" | "person"
 
 export interface InvoiceOptions {
   by: LineBy
-  /** Per hour, in the invoice's currency. */
+  /** Per hour, in the invoice's currency. 0 or empty: the project's rates, where it has them. */
   rate: number
   /** Percent, e.g. 18 for 18% GST. */
   taxPercent: number
@@ -41,6 +42,14 @@ export function buildInvoice(report: Pick<TimeReport, "by_person" | "by_task">, 
   const lines = source
     .map((l) => {
       const hours = billableHours(l.billable_seconds)
+      // Priced by the project's rates: the server's amount, at the person's
+      // rate, or for a task (done by people on different rates) the rate it
+      // averages out at. A rate typed on the invoice overrides them all.
+      if (!rate && l.amount_cents !== undefined) {
+        const amount = round2(l.amount_cents / 100)
+        const each = l.rate_cents !== undefined ? round2(l.rate_cents / 100) : hours > 0 ? round2(amount / hours) : 0
+        return { description: l.name, hours, rate: each, amount }
+      }
       return { description: l.name, hours, rate, amount: round2(hours * rate) }
     })
     .filter((l) => l.hours > 0)
@@ -60,7 +69,7 @@ export function money(currency: string, locale?: string) {
   }
 }
 
-export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AUD", "CAD", "SGD", "AED"] as const
+export const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AUD", "CAD", "SGD", "AED", "JPY", "CHF", "NZD", "ZAR"] as const
 
 /** A suggested invoice number: the project's initials and the month, e.g. "Q4L-2026-10". */
 export function suggestNumber(project: string, at: Date): string {

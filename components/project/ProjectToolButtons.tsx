@@ -28,7 +28,7 @@ export function ProjectToolButtons({ projectId, projectName, isAdmin, isMember }
       {isAdmin && tool("forms", "Forms that make tasks", ClipboardList)}
       {isAdmin && tool("share", "Share with a client", Globe)}
       {isAdmin && tool("template", "Save as a template", LayoutTemplate)}
-      <ProjectTimeDialog projectId={projectId} projectName={projectName} open={open === "time"} onOpenChange={set("time")} />
+      <ProjectTimeDialog projectId={projectId} projectName={projectName} isAdmin={isAdmin} open={open === "time"} onOpenChange={set("time")} />
       {isAdmin && <ProjectFormsDialog projectId={projectId} open={open === "forms"} onOpenChange={set("forms")} />}
       {isAdmin && <ProjectShareDialog projectId={projectId} open={open === "share"} onOpenChange={set("share")} />}
       {isAdmin && <SaveAsTemplateDialog projectId={projectId} projectName={projectName} open={open === "template"} onOpenChange={set("template")} />}

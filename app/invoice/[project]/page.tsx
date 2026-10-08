@@ -82,7 +82,10 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     ])
       .then(([time, info]) => {
         if (cancelled) return
-        setReport(time.data.data)
+        const r = time.data.data as TimeReport
+        setReport(r)
+        // Priced at the project's rates: the invoice is in the project's currency.
+        if (r.currency) setClient((c) => ({ ...c, currency: r.currency! }))
         const name = info.data?.data?.project_name ?? ""
         setProjectName(name)
         setNumber((n) => n || suggestNumber(name, range.from))
@@ -116,7 +119,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
 
           <Group title="Rate">
             <div className="grid grid-cols-[1fr_7rem] gap-2">
-              <Field label="Hourly rate"><Input inputMode="decimal" value={client.rate} onChange={(e) => setClient({ ...client, rate: e.target.value })} placeholder="2000" /></Field>
+              <Field label="Hourly rate"><Input inputMode="decimal" value={client.rate} onChange={(e) => setClient({ ...client, rate: e.target.value })} placeholder={report.amount_cents !== undefined ? "Project's rates" : "2000"} /></Field>
               <Field label="Currency">
                 <Select value={client.currency} onValueChange={(v) => setClient({ ...client, currency: v })}>
                   <SelectTrigger aria-label="Currency"><SelectValue /></SelectTrigger>
@@ -124,6 +127,13 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
                 </Select>
               </Field>
             </div>
+            {report.amount_cents !== undefined && (
+              <p className="text-xs text-muted-foreground">
+                {client.rate.trim()
+                  ? "Everything bills at the rate typed here. Clear it to use the project's rates."
+                  : "Each person bills at their rate on this project. Type one rate here to bill everything at it instead."}
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <Field label="Tax %"><Input inputMode="decimal" value={client.taxPercent} onChange={(e) => setClient({ ...client, taxPercent: e.target.value })} /></Field>
               <Field label="One line per">
