@@ -116,5 +116,6 @@ export function clearChatUnread(groupingId: string): void {
  * feed is the whole reset.
  */
 export function clearActivityUnread(): void {
-    patchSidenav((data) => withField(data, "user_total_unread_activity_count", 0));
+    // The server leaves a zero count out, so nothing there is nothing to clear.
+    patchSidenav((data) => (data.user_total_unread_activity_count ? withField(data, "user_total_unread_activity_count", 0) : data));
 }

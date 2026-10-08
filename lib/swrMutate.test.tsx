@@ -112,6 +112,19 @@ describe("dataToSeed", () => {
     expect(dataToSeed("/seen", corrected)).toBeNull()
   })
 
+  // A refetch landing between the render and the seed: the store takes the
+  // corrected answer it was handed, but the cache keeps the newer one.
+  it("doesn't write its correction over a newer answer in the cache", () => {
+    const old = { n: 3 }
+    const cache = new Map<string, { data?: N; isValidating?: boolean }>([["/moved", { isValidating: true }]])
+    const mutate = vi.fn()
+    bindAppMutate(mutate as never, cache as never)
+    patchCached("/moved", zero)
+    cache.set("/moved", { data: { n: 7 } })
+    expect(dataToSeed("/moved", old)).toEqual({ n: 0 })
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
   it("drops a correction that waited longer than half a minute", () => {
     vi.useFakeTimers()
     try {
