@@ -1,5 +1,7 @@
 import { mutate as globalMutate, type Cache, type ScopedMutator } from "swr"
 
+import { onSessionEnd } from "@/lib/sessionEnd"
+
 /**
  * The app's SWR mutate, bound to its cache.
  *
@@ -84,6 +86,12 @@ function waitFor(key: string, update: (data: unknown) => unknown) {
 /** The answer each Redux store was last seeded from, by key. */
 const seededFrom = new Map<string, unknown>()
 
+// The member's answers, held for their session only (lib/sessionEnd).
+onSessionEnd(() => {
+  seededFrom.clear()
+  waiting.clear()
+})
+
 /**
  * A response to seed a Redux store from (the sidebar, the chat list), or null
  * when the store has it already.
@@ -102,6 +110,12 @@ export function dataToSeed<T>(key: string, data: T | undefined): T | null {
   for (const w of waiting.get(key) ?? []) if (w.until > now) next = w.update(next)
   waiting.delete(key)
   seededFrom.set(key, next)
-  if (next !== data) void appMutate(key, next, { revalidate: false })
+  if (next !== data) {
+    // Only over the answer it was made from, should a newer one have landed
+    // since the render; and as in patchCached, one on its way would be
+    // dropped, so it's asked for again.
+    const entry = boundCache?.get(key)
+    if (entry?.data === data) void appMutate(key, (d: unknown) => (d === data ? next : d), { revalidate: entry.isValidating === true })
+  }
   return next as T
 }
