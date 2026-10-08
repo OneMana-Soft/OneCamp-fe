@@ -52,6 +52,8 @@ const AUDIO_EXTS = new Set([
     "aac",
     "flac",
     "opus",
+    // Audio-only WebM: how a voice clip recorded in Chrome or Firefox is saved.
+    "weba",
 ])
 
 const DOC_EXTS = new Set([
