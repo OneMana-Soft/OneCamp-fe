@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 // Types only: the library itself (about 400 KB) loads when a connection is
 // first made, so it isn't part of the code every page needs to show.
 import type { IClientPublishOptions, ISubscriptionMap, MqttClient } from "mqtt"
+import { loadConnect } from "@/lib/mqtt/loadConnect"
 import {ConnectionConfig, mqttConfigRes, MqttConnectionState} from "@/types/mqtt";
 import { getCookie } from "@/lib/utils/helpers/getCookie";
 
@@ -507,7 +508,7 @@ export const useMqttConnection = ({
                 }
 
                 try {
-                    const { connect } = await import("mqtt")
+                    const connect = await loadConnect()
                     // The first connection waits for the library: the page may
                     // have gone in the meantime.
                     if (isUnmounted.current) {
