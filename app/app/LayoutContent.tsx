@@ -24,6 +24,7 @@ import { SplitPane } from "@/components/split/SplitPane";
 import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
 import { KeyboardTip } from "@/components/onboarding/KeyboardTip";
 import { Fragment } from "react";
+import { useBotKinds } from "@/hooks/useBotKinds";
 
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,8 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   // Split view is for a screen with room for it.
   const { panes, active, focused } = useSplitView(!isMobile);
   useGoKeys(!isMobile);
+  // Which bots are agents, read before the first message draws its tag.
+  useBotKinds();
   // Focus shows one view alone. The others stay mounted, only hidden, so
   // their scroll, drafts and calls are as they were when it ends.
   const shows = (view: number) => focused === null || focused === view

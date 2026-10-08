@@ -1,5 +1,5 @@
 import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
-import { PrincipalTag } from "@/components/ui/principalTag";
+import { BotTag } from "@/components/ui/botTag";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
 import {cn} from "@/lib/utils/helpers/cn";
 import { Check, X } from "@/lib/icons";
@@ -197,7 +197,8 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                 <ChannelMessageAvatar
                     userName={userInfoState?.userName || chatInfo.chat_from.user_name}
                     userProfileKey={userInfoState?.profileKey ?? chatInfo.chat_from.user_profile_object_key}
-                    isAgent={!!chatInfo.chat_from?.is_bot}
+                    isBot={!!chatInfo.chat_from?.is_bot}
+                    userUUID={chatInfo.chat_from?.user_uuid}
                 />
 
             </div>
@@ -206,7 +207,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                     <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
                         {userInfoState?.userName || chatInfo.chat_from.user_name}
                     </div>
-                    {chatInfo.chat_from?.is_bot && <PrincipalTag kind="ai" />}
+                    {chatInfo.chat_from?.is_bot && <BotTag userUUID={chatInfo.chat_from.user_uuid} />}
                     <div className='text-2xs tabular-nums text-muted-foreground shrink-0'>
                         {formatTimeForPostOrComment(chatInfo.chat_created_at, true)}
 

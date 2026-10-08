@@ -97,6 +97,20 @@ export const BOT_PROFILE_COPY: Record<BotKind, BotProfileCopy> = {
     },
 }
 
+/**
+ * Whether an AI is behind a bot of this kind: the assistant and agents. The
+ * rest relay people (Slack, channel guests) or ask what someone set up
+ * (check-ins, workflows), and an unknown kind is never assumed to be AI.
+ */
+export function isAIBot(kind: string | null | undefined): boolean {
+    return kind === "assistant" || kind === "agent"
+}
+
+/** The line under a bot's name in member lists and pickers. */
+export function botSubtitle(kind: string | null | undefined): string {
+    return isAIBot(kind) ? "AI teammate" : botProfileCopy(kind).subtitle
+}
+
 function isBotKind(kind: string): kind is BotKind {
     return Object.prototype.hasOwnProperty.call(BOT_PROFILE_COPY, kind)
 }

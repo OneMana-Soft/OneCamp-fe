@@ -3,7 +3,7 @@
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { cn } from "@/lib/utils/helpers/cn"
-import { PrincipalTag } from "@/components/ui/principalTag"
+import { BotTag } from "@/components/ui/botTag"
 import { Check, X, Languages, Loader2 } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { useTranslateText } from "@/services/aiService"
@@ -385,7 +385,8 @@ export const BaseMessageCard = React.memo(({
           <ChannelMessageAvatar
             userName={userInfoState?.userName || message.from.user_name}
             userProfileKey={userInfoState?.profileKey ?? message.from.user_profile_object_key}
-            isAgent={!!message.from.is_bot}
+            isBot={!!message.from.is_bot}
+            userUUID={message.from.user_uuid}
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -399,7 +400,7 @@ export const BaseMessageCard = React.memo(({
                 {userInfoState?.userName || message.from.user_name}
               </button>
               {message.from.is_bot && (
-                <PrincipalTag kind="ai" />
+                <BotTag userUUID={message.from.user_uuid} />
               )}
               <span className="text-2xs tabular-nums text-muted-foreground">
                 {formatTimeForPostOrComment(message.createdAt, true)}

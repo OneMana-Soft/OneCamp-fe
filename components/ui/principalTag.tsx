@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge"
+import { isAIBot } from "@/lib/botCopy"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /**
@@ -30,7 +31,7 @@ import { cn } from "@/lib/utils/helpers/cn"
  * this exists to remove.
  */
 
-type PrincipalKind = "ai" | "guest"
+export type PrincipalKind = "ai" | "guest" | "bot"
 
 interface PrincipalKindSpec {
   /** Short form, what the eye reads. */
@@ -61,6 +62,20 @@ const PRINCIPAL_KINDS: Record<PrincipalKind, PrincipalKindSpec> = {
   // Neutral, because "outside the company" is a fact about scope rather than a
   // problem; colouring it as a warning would editorialise every guest's name.
   guest: { label: "Guest", spoken: "Guest user", title: "Guest: outside this workspace", variant: "secondary" },
+  // Every other bot: the Check-in, Slack and channel-guest relays, workflows'
+  // automation account, and any kind this build doesn't know. Neutral, and it
+  // claims nothing about AI, because none of them has one behind it.
+  bot: { label: "Bot", spoken: "Automated account", title: "Bot: an automated account, not a person", variant: "secondary" },
+}
+
+/**
+ * The tag a bot's name carries, from its kind (see lib/botCopy): "Agent" only
+ * when an AI is behind it. Unknown or not yet loaded reads as a plain bot.
+ */
+export function botTagKind(kind: string | null | undefined): PrincipalKind {
+  if (isAIBot(kind)) return "ai"
+  if (kind === "guest") return "guest"
+  return "bot"
 }
 
 export function PrincipalTag({
