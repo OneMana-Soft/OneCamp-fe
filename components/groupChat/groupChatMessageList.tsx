@@ -11,7 +11,6 @@ import {CreateChatPaginationResRaw} from "@/types/chat";
 import {ChatInfo} from "@/types/chat";
 import {useMessageResync} from "@/hooks/useMessageResync";
 import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
-import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
 import {RawUserDMInterface} from "@/types/user";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {
@@ -57,8 +56,6 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
     const chatMessageState = useSelector((state: RootState) => state.groupChat.chatMessages[grpId] || EMPTY_CHATS);
 
     const rawChatTyping = useSelector((state: RootState) => state.typing.groupChatTyping[grpId] || []);
-    // Read receipts: whose they are (a DM by the other person, a group by its id).
-    const receiptTarget = useMemo(() => ({ kind: "group" as const, grpId }), [grpId]);
     const chatTypingState = useMemo(() => (rawChatTyping as any[]).map(item => item.user), [rawChatTyping]);
 
     const [hasMoreChat, setHasMoreChat] = useState(true)
@@ -214,7 +211,6 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
                 clickedScrollToBottom={handleClickedScrollToBottom}
                 grpId={grpId}
             />
-            <SeenReceiptLine target={receiptTarget} latest={hasMoreNewChat ? undefined : chatMessageState[chatMessageState.length - 1]} hidden={chatTypingState.length > 0} />
             <TypingIndicatorBar users={chatTypingState} />
         </div>
     )

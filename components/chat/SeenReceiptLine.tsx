@@ -1,30 +1,35 @@
 "use client"
 
 // "Seen" under your latest message in a DM, "Seen by Maya and Jonas" in a
-// group chat (lib/chat/readReceipts). It reads the receipts itself, so the
-// memoised message list never re-renders for one, and marks the conversation
-// seen while it's on screen. It gives way to the typing indicator.
+// group chat (lib/chat/readReceipts). The message list renders it in the
+// newest message's row, so it sits right under that message, and the
+// conversation is marked seen only while that row is on screen: a message
+// scrolled out of view hasn't been seen. It reads the receipts and the typing
+// state itself, so the memoised list never re-renders for one, and gives way
+// to the typing indicator.
 
 import { memo, useEffect, useMemo, useState } from "react"
+import { useSelector } from "react-redux"
 import { useChatReceipts, useMarkChatSeen } from "@/hooks/useChatReceipts"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { seenLine, type ChatTarget } from "@/lib/chat/readReceipts"
 import { Eye } from "@/lib/icons"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { ChatInfo } from "@/types/chat"
+import type { RootState } from "@/store/store"
 import type { RawUserDMInterface, UserProfileInterface } from "@/types/user"
 
 export const SeenReceiptLine = memo(function SeenReceiptLine({
   target,
   latest,
-  hidden,
 }: {
   target: ChatTarget
-  /** The conversation's newest message. */
+  /** The conversation's newest message, the one whose row this is in. */
   latest: ChatInfo | undefined
-  /** Someone is typing: the typing indicator has the spot. */
-  hidden: boolean
 }) {
+  const typing = useSelector((state: RootState) =>
+    target.kind === "dm" ? (state.typing.chatTyping[target.otherUUID]?.length ?? 0) > 0 : (state.typing.groupChatTyping[target.grpId]?.length ?? 0) > 0,
+  )
   const self = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const me = self.data?.data.user_uuid
   const mine = !!latest && !!me && latest.chat_from?.user_uuid === me
@@ -51,18 +56,11 @@ export const SeenReceiptLine = memo(function SeenReceiptLine({
     })
   }, [receipts.data, people.data, latest, mine, me, target.kind])
 
-  if (!line || hidden) return null
-  // Where the typing indicator sits (TypingIndicatorBar): under the list on a
-  // desktop, just above the composer's drawer on a phone.
+  if (!line || typing) return null
   return (
-    <div
-      className="pointer-events-none fixed inset-x-0 z-[100] px-3 pb-1 md:pointer-events-auto md:static md:inset-x-auto md:z-auto md:shrink-0"
-      style={{ bottom: "var(--mobile-drawer-h, 126px)" }}
-    >
-      <p className="flex items-center justify-end gap-1 px-1 text-2xs text-muted-foreground" title={line.title} aria-live="polite">
-        <Eye className="h-3 w-3" aria-hidden />
-        {line.text}
-      </p>
-    </div>
+    <p className="flex items-center justify-end gap-1 px-4 pb-1 text-2xs text-muted-foreground" title={line.title} aria-live="polite">
+      <Eye className="h-3 w-3" aria-hidden />
+      {line.text}
+    </p>
   )
 })

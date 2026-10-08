@@ -1,5 +1,7 @@
 // src/components/channel/ChannelMessages.tsx
 import { useCallback, useEffect, useMemo, useRef} from "react";
+import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
+import type {ChatTarget} from "@/lib/chat/readReceipts";
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import {groupByDate} from "@/lib/utils/date/groupByDate";
 import {getGroupDateHeading} from "@/lib/utils/date/getMessageGroupDate";
@@ -339,6 +341,9 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         return items;
     }, [groupedChats]);
 
+    // Read receipts: whose they are (a DM by the other person, a group by its id).
+    const receiptTarget = useMemo<ChatTarget>(() => ({ kind: "dm", otherUUID: chatId }), [chatId]);
+
     const renderItem = useCallback((chat: ChatInfo, index: number, total: number) => {
         const isPriority = index >= total - 5;
         return (
@@ -369,8 +374,9 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                     priority={isPriority}
                 />
             }
+            {index === total - 1 && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
         </div>
-    )}, [isMobile, selfProfile.data?.data, chatId]);
+    )}, [isMobile, selfProfile.data?.data, chatId, hasMoreNewMsg, receiptTarget]);
 
     const containerRef = useRef<VListHandle>(null);
 
