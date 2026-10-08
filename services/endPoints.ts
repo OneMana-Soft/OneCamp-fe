@@ -112,6 +112,9 @@ export enum GetEndpointUrl {
     ProjectWorkload = "/project/workload",
     // The AI edition's draft of a project's next update (POST {project_uuid, tz}).
     AiProjectUpdateDraft = "/ai/project-update/draft",
+    // A channel's automatic check-ins: GET/POST /ch/{channel}/checkins; one is
+    // /ch/checkins/{id}/edit|pause|delete|ask.
+    CheckIns = "/ch",
     // What a project's time is billed at: GET /project/{id}/rates, POST to
     // set it, /rates/delete to stop billing. The project's admins only.
     ProjectRates = "/project",
