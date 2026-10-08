@@ -56,6 +56,7 @@ import {
   type DiscoverItem,
   disconnectImport,
   discoverImportResources,
+  importProviderLabel,
 } from "@/services/importService"
 
 // Lazy-load the provider-specific dialogs. They're heavy (form
@@ -229,6 +230,11 @@ const ImportCard: React.FC = () => {
         // one workspace; for single-workspace tokens it's optional.
         if (pickedDiscoverId) opts.workspace_id = pickedDiscoverId
         break
+      case "monday":
+        // monday discovery returns workspaces (plus "main" for the Main
+        // workspace). Empty pick = every board the token can open.
+        if (pickedDiscoverId) opts.workspace_id = pickedDiscoverId
+        break
     }
     setCreating(true)
     try {
@@ -321,7 +327,7 @@ const ImportCard: React.FC = () => {
           <div>
             <CardTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold tracking-tight">
               <Database className="h-5 w-5 text-primary" />
-              Import from Asana, Jira, Trello, Notion, Todoist
+              Import from Asana, monday.com, ClickUp, Jira, Linear, Trello, Notion, Todoist
             </CardTitle>
             <CardDescription>
               Generic import pipeline. Tasks, projects and members are created under your
@@ -346,7 +352,7 @@ const ImportCard: React.FC = () => {
                 onClick={() => setSelectedProvider(p.name)}
                 size="sm"
               >
-                {capitalise(p.name)}
+                {importProviderLabel(p.name)}
               </Button>
             ))}
         </div>
@@ -381,7 +387,7 @@ const ImportCard: React.FC = () => {
                 </div>
               ) : (
                 <Button size="sm" variant="outline" onClick={() => setConnectOpen(true)}>
-                  <Plug className="mr-2 h-4 w-4" /> Connect {capitalise(selectedProvider)}
+                  <Plug className="mr-2 h-4 w-4" /> Connect {importProviderLabel(selectedProvider)}
                 </Button>
               )}
             </div>
@@ -405,6 +411,7 @@ const ImportCard: React.FC = () => {
                       {selectedProvider === "jira" && "Pick a Jira project"}
                       {selectedProvider === "notion" && "Pick a Notion database"}
                       {selectedProvider === "todoist" && "Pick a Todoist project"}
+                      {selectedProvider === "monday" && "Pick a monday.com workspace (optional)"}
                     </Label>
                     <select
                       id="discover"
@@ -475,7 +482,7 @@ const ImportCard: React.FC = () => {
               <div className="text-sm font-medium">Recent jobs</div>
               {jobs.length === 0 ? (
                 <div className="rounded border bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">
-                  No jobs yet for {capitalise(selectedProvider)}.
+                  No jobs yet for {importProviderLabel(selectedProvider)}.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -595,10 +602,6 @@ const ImportCard: React.FC = () => {
       </CardContent>
     </Card>
   )
-}
-
-function capitalise(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 export default ImportCard

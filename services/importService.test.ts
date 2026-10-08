@@ -22,6 +22,7 @@ import {
   finalizeImportUpload,
   getImportErrors,
   getImportJob,
+  importProviderLabel,
   listImportConnections,
   listImportJobs,
   listImportProviders,
@@ -268,5 +269,16 @@ describe("importService — presign + finalize", () => {
     ax.delete.mockResolvedValueOnce({ data: {} })
     await deleteImportStagedZip("job-1")
     expect(ax.delete).toHaveBeenCalledWith("/admin/import/jobs/job-1/staged-zip")
+  })
+})
+
+describe("importProviderLabel", () => {
+  it("uses the brand's own spelling for monday.com", () => {
+    expect(importProviderLabel("monday")).toBe("monday.com")
+  })
+
+  it("capitalises every other provider id", () => {
+    expect(importProviderLabel("asana")).toBe("Asana")
+    expect(importProviderLabel("linear")).toBe("Linear")
   })
 })

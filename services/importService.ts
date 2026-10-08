@@ -9,7 +9,16 @@
 import axiosInstance from "@/lib/axiosInstance"
 
 // Provider names mirror models/postgres/Import.ProviderXxx on the BE.
-export type ImportProvider = "trello" | "asana" | "jira" | "notion" | "todoist" | "linear" | "clickup"
+export type ImportProvider = "trello" | "asana" | "jira" | "notion" | "todoist" | "linear" | "clickup" | "monday"
+
+// Display names for providers whose brand isn't the capitalised id.
+const PROVIDER_LABELS: Partial<Record<ImportProvider, string>> = {
+  monday: "monday.com",
+}
+
+export function importProviderLabel(provider: string): string {
+  return PROVIDER_LABELS[provider as ImportProvider] ?? provider.charAt(0).toUpperCase() + provider.slice(1)
+}
 
 export interface ProviderInfo {
   name: ImportProvider

@@ -16,6 +16,8 @@
  *   ClickUp  — Personal API Token (app.clickup.com/settings/apps) or
  *              OAuth access token. Single token, workspace selected
  *              via discover dialog.
+ *   monday   — Personal API token (avatar → Developers → My access
+ *              tokens). Single token; workspace picked via discover.
  *
  * Tokens are sent over the admin-only API and encrypted at rest with
  * AES-256-GCM. The dialog never reads them back — re-connecting
@@ -35,7 +37,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { connectImport, type ImportProvider } from "@/services/importService"
+import { connectImport, importProviderLabel, type ImportProvider } from "@/services/importService"
 import { Loader2 } from "lucide-react"
 
 interface Props {
@@ -53,6 +55,13 @@ const HELP_LINK: Record<ImportProvider, string> = {
   todoist: "https://todoist.com/app/settings/integrations/developer",
   linear: "https://linear.app/settings/api",
   clickup: "https://app.clickup.com/settings/apps",
+  monday: "https://developer.monday.com/api-reference/docs/authentication",
+}
+
+// Where the token lives when the help link can't point at it directly
+// (monday's token page sits under each account's own subdomain).
+const TOKEN_HINT: Partial<Record<ImportProvider, string>> = {
+  monday: "In monday.com, click your avatar, then Developers → My access tokens → Show, and copy the personal API token. Imports see the boards that user can open.",
 }
 
 export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenChange, onConnected }) => {
@@ -100,7 +109,7 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
         source_account_name: accountName.trim() || undefined,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       })
-      toast({ title: `${provider} connected`, description: "Token saved securely." })
+      toast({ title: `${importProviderLabel(provider)} connected`, description: "Token saved securely." })
       setAccessToken("")
       setApiKey("")
       setEmail("")
@@ -120,7 +129,7 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Connect {capitalise(provider)}</DialogTitle>
+          <DialogTitle>Connect {importProviderLabel(provider)}</DialogTitle>
           <DialogDescription>
             Paste the credentials below. Stored encrypted at rest with
             AES-256-GCM and never returned in API responses.{" "}
@@ -180,6 +189,9 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
               placeholder="Paste the token"
               autoComplete="off"
             />
+            {TOKEN_HINT[provider] && (
+              <p className="text-xs text-muted-foreground">{TOKEN_HINT[provider]}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="accountName">Workspace label (optional)</Label>
@@ -209,8 +221,4 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
       </DialogContent>
     </Dialog>
   )
-}
-
-function capitalise(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }
