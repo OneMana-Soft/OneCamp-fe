@@ -51,13 +51,20 @@ describe("Seen under your latest message", () => {
     vi.useFakeTimers()
     receipts = { data: { on: true, seen: [] } }
     const target = { kind: "group" as const, grpId: "g1" }
-    const { rerender } = render(<SeenReceiptLine target={target} latest={msg("maya", "2026-10-08T09:00:00Z")} />)
+    let { rerender } = render(<SeenReceiptLine target={target} latest={msg("maya", "2026-10-08T09:00:00Z")} />)
     await act(async () => void vi.advanceTimersByTime(700))
     expect(post).toHaveBeenCalledTimes(1)
     expect(post.mock.calls[0][0]).toBe("/groupChat/seen/g1")
     rerender(<SeenReceiptLine target={target} latest={msg("me", "2026-10-08T09:01:00Z")} />)
     await act(async () => void vi.advanceTimersByTime(700))
     expect(post).toHaveBeenCalledTimes(1)
+    // A row that opens on your own message doesn't mark either.
+    cleanup()
+    render(<SeenReceiptLine target={target} latest={msg("me", "2026-10-08T09:01:30Z")} />)
+    await act(async () => void vi.advanceTimersByTime(700))
+    expect(post).toHaveBeenCalledTimes(1)
+    cleanup()
+    rerender = render(<SeenReceiptLine target={target} latest={msg("me", "2026-10-08T09:01:30Z")} />).rerender
     rerender(<SeenReceiptLine target={target} latest={msg("jonas", "2026-10-08T09:02:00Z")} />)
     await act(async () => void vi.advanceTimersByTime(700))
     expect(post).toHaveBeenCalledTimes(2)
