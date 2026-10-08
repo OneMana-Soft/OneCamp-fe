@@ -221,7 +221,7 @@ function DependencyWayEditor({
   const lagId = React.useId()
   const lag = parseLag(lagText)
   const short = wayShort(way)
-  const chip = "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] leading-4 text-muted-foreground tabular-nums"
+  const chip = "shrink-0 rounded-md px-1.5 py-0.5 text-2xs text-muted-foreground tabular-nums"
 
   if (!canEdit) {
     return (
