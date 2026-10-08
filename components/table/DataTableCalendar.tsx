@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, Plus } from "@/lib/icons"
 import { localDay } from "@/lib/utils/timeZone"
+import { cardTitle } from "@/lib/tables/formula"
 import {
   TableField,
   TableRow,
@@ -191,7 +192,7 @@ export function DataTableCalendar({
               <div className="mt-1 space-y-1">
                 {dayRows.map((row) => {
                   const values = parseRowValues(row)
-                  const title = titleField ? String(values[titleField.id] ?? "") : ""
+                  const title = titleField ? cardTitle(titleField, values[titleField.id]) : ""
                   return (
                     <div
                       key={row.id}

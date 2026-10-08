@@ -208,7 +208,7 @@ function compareCells(kind: FieldKind, a: unknown, b: unknown): number {
  */
 export function applyViewRules(rows: TableRow[], fields: TableField[], rules: ViewRules): TableRow[] {
   const byId = new Map(fields.map((f) => [f.id, f]))
-  const filters = rules.filters.filter((r) => byId.has(r.field))
+  const filters = rules.filters.filter((r) => fits(byId.get(r.field), r))
   const sorts = rules.sort.filter((r) => byId.has(r.field))
   if (filters.length === 0 && sorts.length === 0) return rows
   let out = rows.map((row) => ({ row, values: parseRowValues(row) }))
@@ -239,6 +239,19 @@ export function applyViewRules(rows: TableRow[], fields: TableField[], rules: Vi
   return out.map((x) => x.row)
 }
 
+/** Whether a filter still fits its field: the field is there, and takes that condition (a field's type can change). */
+function fits(field: TableField | undefined, rule: FilterRule): boolean {
+  return !!field && OPS_FOR[kindOfField(field)].some((o) => o.op === rule.op)
+}
+
+/** A table's rules without any for fields that are gone, or filters that no longer fit their field. */
+export function fitRules(rules: ViewRules, fields: TableField[]): ViewRules {
+  const byId = new Map(fields.map((f) => [f.id, f]))
+  const sort = rules.sort.filter((s) => byId.has(s.field))
+  const filters = rules.filters.filter((r) => fits(byId.get(r.field), r))
+  return sort.length === rules.sort.length && filters.length === rules.filters.length ? rules : { ...rules, sort, filters }
+}
+
 const storageKey = (tableId: string) => `onecamp:tableView:${tableId}`
 
 const FILTER_OPS = new Set<string>(Object.values(OPS_FOR).flatMap((ops) => ops.map((o) => o.op)))
@@ -249,12 +262,14 @@ export function loadViewRules(tableId: string, fields: TableField[]): ViewRules 
   try {
     const saved = JSON.parse(window.localStorage.getItem(storageKey(tableId)) || "null") as Partial<ViewRules> | null
     if (!saved) return NO_RULES
-    const ids = new Set(fields.map((f) => f.id))
-    return {
-      sort: (saved.sort || []).filter((s) => ids.has(s.field) && (s.dir === "asc" || s.dir === "desc")),
-      filters: (saved.filters || []).filter((f) => ids.has(f.field) && FILTER_OPS.has(f.op)),
-      match: saved.match === "any" ? "any" : "all",
-    }
+    return fitRules(
+      {
+        sort: (saved.sort || []).filter((s) => s.dir === "asc" || s.dir === "desc"),
+        filters: (saved.filters || []).filter((f) => FILTER_OPS.has(f.op)),
+        match: saved.match === "any" ? "any" : "all",
+      },
+      fields,
+    )
   } catch {
     return NO_RULES
   }

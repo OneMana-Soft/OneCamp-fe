@@ -15,7 +15,7 @@ import { DataTableCalendar } from "@/components/table/DataTableCalendar"
 import { DataTableChart } from "@/components/table/DataTableChart"
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
 import { nextRowPosition, TableBundle, updateTable, Visibility, ViewType, parseFieldConfig, parseViewConfig, tableBundleKey } from "@/services/tableService"
-import { applyViewRules, loadViewRules, NO_RULES, saveViewRules, type ViewRules } from "@/lib/tables/viewRules"
+import { applyViewRules, fitRules, loadViewRules, NO_RULES, saveViewRules, type ViewRules } from "@/lib/tables/viewRules"
 import { ViewRulesBar } from "@/components/table/ViewRulesBar"
 import { TableGlyph } from "@/components/table/TableGlyph"
 
@@ -88,6 +88,11 @@ export default function TableDetailPage() {
     },
     [tableId],
   )
+  // A field deleted or retyped since takes its rules with it.
+  React.useEffect(() => {
+    if (!bundle?.fields) return
+    setRules((r) => fitRules(r, bundle.fields))
+  }, [bundle?.fields])
   const shownRows = React.useMemo(
     () => applyViewRules(bundle?.rows || [], bundle?.fields || [], rules),
     [bundle?.rows, bundle?.fields, rules],

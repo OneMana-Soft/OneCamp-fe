@@ -3,7 +3,7 @@
 // functions (business/DataTable/formula); formula.test.ts keeps this list
 // the same as its own.
 
-import type { FormulaResult } from "@/services/tableService"
+import { formulaOf, type FormulaResult, type TableField } from "@/services/tableService"
 
 export interface FormulaFunction {
   name: string
@@ -23,6 +23,8 @@ export const FORMULA_FUNCTIONS: { group: string; items: FormulaFunction[] }[] = 
       { name: "ISBLANK", syntax: "ISBLANK(value)", about: "Whether it's empty" },
       { name: "ISERROR", syntax: "ISERROR(value)", about: "Whether it can't be worked out" },
       { name: "BLANK", syntax: "BLANK()", about: "Nothing" },
+      { name: "TRUE", syntax: "TRUE()", about: "Yes, as a value; TRUE on its own works too" },
+      { name: "FALSE", syntax: "FALSE()", about: "No, as a value; FALSE on its own works too" },
     ],
   },
   {
@@ -128,6 +130,12 @@ export function formulaText(value: unknown, result: FormulaResult): string {
     default:
       return shown.text
   }
+}
+
+/** A card's title from its title field: a formula as its cell shows it, anything else as written. */
+export function cardTitle(field: TableField, value: unknown): string {
+  if (field.type === "formula") return formulaText(value, formulaOf(field).result)
+  return value === null || value === undefined ? "" : String(value)
 }
 
 /** A field's name as a formula writes it: in braces, with } and \ escaped. */

@@ -256,7 +256,7 @@ export async function aggregateTable(
   query: AggregateQuery,
 ): Promise<AggregateResult> {
   const res = await axiosInstance.post(
-    `${PostEndpointUrl.AggregateTable}/${tableId}/aggregate`,
+    inZone(`${PostEndpointUrl.AggregateTable}/${tableId}/aggregate`),
     query,
   )
   return res.data?.data as AggregateResult
@@ -325,7 +325,7 @@ export async function runTableQueryPlan(
   plan: QueryPlanSpec,
 ): Promise<PlanResult> {
   const res = await axiosInstance.post(
-    `${PostEndpointUrl.RunTableQueryPlan}/${tableId}/query-plan`,
+    inZone(`${PostEndpointUrl.RunTableQueryPlan}/${tableId}/query-plan`),
     plan,
   )
   return res.data?.data as PlanResult
