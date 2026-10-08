@@ -19,7 +19,11 @@ export const COLUMN_MIN_WIDTH: Record<string, number> = {
   task_created_at: 120,
 }
 
-/** The order columns are hidden in when space runs out. */
+/**
+ * The order the built-in columns are hidden in when space runs out. A
+ * project's own field columns go in after the first, the created date: a
+ * team added them on purpose, so they outrank it but nothing else.
+ */
 export const DROP_ORDER = ["task_created_at", "task_start_date", "task_assignee_name", "task_project_name", "task_priority"]
 
 const DEFAULT_MIN = 120
@@ -34,8 +38,9 @@ export function columnsToHide(
   const need = (cols: string[]) => cols.reduce((sum, c) => sum + (COLUMN_MIN_WIDTH[c] ?? DEFAULT_MIN), 0)
   const hide: Record<string, false> = {}
   let visible = shown
-  // A project's own field columns step aside first, the last one first.
-  const order = [...shown.filter((c) => c.startsWith("field_")).reverse(), ...DROP_ORDER]
+  // The created date steps aside first, then the field columns (the last one first), then the rest.
+  const fields = shown.filter((c) => c.startsWith("field_")).reverse()
+  const order = [DROP_ORDER[0], ...fields, ...DROP_ORDER.slice(1)]
   for (const c of order) {
     if (need(visible) <= width) break
     if (!visible.includes(c) || c in userVisibility) continue
