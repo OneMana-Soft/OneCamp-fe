@@ -82,10 +82,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     ])
       .then(([time, info]) => {
         if (cancelled) return
-        const r = time.data.data as TimeReport
-        setReport(r)
-        // Priced at the project's rates: the invoice is in the project's currency.
-        if (r.currency) setClient((c) => ({ ...c, currency: r.currency! }))
+        setReport(time.data.data as TimeReport)
         const name = info.data?.data?.project_name ?? ""
         setProjectName(name)
         setNumber((n) => n || suggestNumber(name, range.from))
@@ -100,7 +97,11 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
     () => (report ? buildInvoice(report, { by: client.by, rate: Number(client.rate), taxPercent: Number(client.taxPercent) }) : null),
     [report, client.by, client.rate, client.taxPercent],
   )
-  const fmt = money(client.currency)
+  // At the project's rates (no rate typed here), the invoice is in the
+  // project's currency; the currency saved for a typed rate stays as it was.
+  const byProject = !!report?.currency && report.amount_cents !== undefined && !client.rate.trim()
+  const currency = byProject ? report!.currency! : client.currency
+  const fmt = money(currency)
   const lastDay = new Date(range.to.getTime() - 1)
 
   if (error) return <Centered><p className="text-sm text-destructive">{error}</p></Centered>
@@ -121,7 +122,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
             <div className="grid grid-cols-[1fr_7rem] gap-2">
               <Field label="Hourly rate"><Input inputMode="decimal" value={client.rate} onChange={(e) => setClient({ ...client, rate: e.target.value })} placeholder={report.amount_cents !== undefined ? "Project's rates" : "2000"} /></Field>
               <Field label="Currency">
-                <Select value={client.currency} onValueChange={(v) => setClient({ ...client, currency: v })}>
+                <Select value={currency} onValueChange={(v) => setClient({ ...client, currency: v })} disabled={byProject}>
                   <SelectTrigger aria-label="Currency"><SelectValue /></SelectTrigger>
                   <SelectContent>{CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>

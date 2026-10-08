@@ -27,6 +27,8 @@ export interface TimeLine {
   amount_cents?: number
   /** A person's line: the hourly rate they were charged at, in minor units. */
   rate_cents?: number
+  /** A task's line: its billable time at each rate (people on different rates may share a task). */
+  rated?: { rate_cents: number; billable_seconds: number }[]
 }
 
 export interface TimeReport {

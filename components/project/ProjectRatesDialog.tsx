@@ -4,7 +4,7 @@
 // everyone, and a rate of their own for anyone who differs. Its admins set it;
 // the time report and invoices then say what the billable time comes to.
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -39,31 +39,45 @@ export function ProjectRatesDialog({
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState("")
 
-  // The form starts from what's saved, once it has loaded.
+  // The form starts from what's saved, once per opening: a read again in the
+  // background (back to the tab) must not wipe what someone is typing.
   const saved = rates.data?.data
+  const filled = useRef(false)
   useEffect(() => {
-    if (!saved) return
+    if (!open) filled.current = false
+  }, [open])
+  useEffect(() => {
+    if (!saved || filled.current) return
+    filled.current = true
     if (saved.set) setCurrency(saved.currency ?? "USD")
     setEveryone(saved.set ? fromCents(saved.default_rate_cents) : "")
     setOwn(Object.fromEntries(saved.people.map((p) => [p.user_uuid, fromCents(p.rate_cents)])))
   }, [saved])
 
+  // Everyone on the project, by name, and anyone with a rate who has since
+  // left: their rate still prices the time they logged, so it stays.
   const people = useMemo(() => {
     const seen = new Set<string>()
-    const all = [...(members.data?.data?.project_admins ?? []), ...(members.data?.data?.project_members ?? [])]
-    return all.filter((u) => u.user_uuid && !u.is_bot && !seen.has(u.user_uuid) && seen.add(u.user_uuid))
-  }, [members.data])
+    const now = (members.data?.data?.project_members ?? [])
+      .filter((u) => u.user_uuid && !u.is_bot && !seen.has(u.user_uuid) && seen.add(u.user_uuid))
+      .map((u) => ({ id: u.user_uuid, name: u.user_full_name || u.user_name || "A member", left: false }))
+    const gone = (saved?.people ?? [])
+      .filter((p) => !seen.has(p.user_uuid))
+      .map((p) => ({ id: p.user_uuid, name: "Someone no longer on the project", left: true }))
+    return [...now, ...gone]
+  }, [members.data, saved])
 
   const save = async () => {
-    const base = everyone.trim() === "" ? 0 : centsOf(everyone)
-    if (base === null) return setProblem("The rate for everyone isn't a number of money, like 85 or 85.50.")
+    if (everyone.trim() === "") return setProblem("Give the rate for everyone. Use 0 if their time isn't billed.")
+    const base = centsOf(everyone)
+    if (base === null) return setProblem("The rate for everyone isn't an amount of money, like 85 or 85.50.")
     const list: { user_uuid: string; rate_cents: number }[] = []
     for (const p of people) {
-      const v = (own[p.user_uuid] ?? "").trim()
+      const v = (own[p.id] ?? "").trim()
       if (v === "") continue
       const cents = centsOf(v)
-      if (cents === null) return setProblem(`${p.user_full_name || p.user_name}'s rate isn't a number of money.`)
-      list.push({ user_uuid: p.user_uuid, rate_cents: cents })
+      if (cents === null) return setProblem(`${p.left ? "A former member" : p.name}'s rate isn't an amount of money, like 85 or 85.50.`)
+      list.push({ user_uuid: p.id, rate_cents: cents })
     }
     setProblem("")
     setBusy(true)
@@ -119,7 +133,7 @@ export function ProjectRatesDialog({
             <div className="grid grid-cols-[1fr_8rem] gap-3">
               <div className="grid gap-1.5">
                 <Label htmlFor="rate-everyone">Everyone, per hour</Label>
-                <Input id="rate-everyone" inputMode="decimal" value={everyone} placeholder="85" onChange={(e) => setEveryone(e.target.value)} />
+                <Input id="rate-everyone" inputMode="decimal" value={everyone} placeholder="e.g. 85" required onChange={(e) => setEveryone(e.target.value)} />
               </div>
               <div className="grid gap-1.5">
                 <Label>Currency</Label>
@@ -143,16 +157,16 @@ export function ProjectRatesDialog({
                 <p className="text-xs text-muted-foreground">Leave a rate empty and they bill at the rate for everyone.</p>
                 <ul className="grid gap-2">
                   {people.map((p) => (
-                    <li key={p.user_uuid} className="grid grid-cols-[1fr_8rem] items-center gap-3">
-                      <Label htmlFor={`rate-${p.user_uuid}`} className="truncate font-normal">
-                        {p.user_full_name || p.user_name}
+                    <li key={p.id} className="grid grid-cols-[1fr_8rem] items-center gap-3">
+                      <Label htmlFor={`rate-${p.id}`} className={p.left ? "truncate font-normal italic text-muted-foreground" : "truncate font-normal"}>
+                        {p.name}
                       </Label>
                       <Input
-                        id={`rate-${p.user_uuid}`}
+                        id={`rate-${p.id}`}
                         inputMode="decimal"
-                        value={own[p.user_uuid] ?? ""}
-                        placeholder={everyone || "—"}
-                        onChange={(e) => setOwn({ ...own, [p.user_uuid]: e.target.value })}
+                        value={own[p.id] ?? ""}
+                        placeholder={everyone.trim() ? `${everyone.trim()}, as everyone` : "As everyone"}
+                        onChange={(e) => setOwn({ ...own, [p.id]: e.target.value })}
                       />
                     </li>
                   ))}
