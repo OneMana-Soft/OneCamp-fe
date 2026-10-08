@@ -2,7 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils/helpers/cn";
-import type { NormalizedChart } from "@/lib/utils/chartSpec";
+import { niceTicks, type NormalizedChart } from "@/lib/utils/chartSpec";
 
 /**
  * AgentChart — a tiny, dependency-free, theme-aware SVG chart for AI messages.
@@ -65,13 +65,6 @@ function valueBounds(chart: NormalizedChart): { min: number; max: number } {
     return { min, max };
 }
 
-// Evenly spaced y tick values (including bounds) for the value axis.
-function yTicks(min: number, max: number, count = 4): number[] {
-    const ticks: number[] = [];
-    for (let i = 0; i <= count; i++) ticks.push(min + ((max - min) * i) / count);
-    return ticks;
-}
-
 interface AgentChartProps {
     chart: NormalizedChart;
     className?: string;
@@ -110,9 +103,13 @@ const AgentChart: React.FC<AgentChartProps> = ({ chart, className }) => {
 
 // CartesianChart draws bar / line / area on a shared x/y grid.
 const CartesianChart: React.FC<{ chart: NormalizedChart }> = ({ chart }) => {
-    const { min, max } = valueBounds(chart);
+    const bounds = valueBounds(chart);
     const n = chart.labels.length;
-    const ticks = yTicks(min, max);
+    // Round ticks, and the axis runs from the first to the last of them.
+    const integers = chart.series.every((s) => s.values.every((v) => Number.isInteger(v)));
+    const ticks = niceTicks(bounds.min, bounds.max, 4, integers);
+    const min = ticks[0];
+    const max = ticks[ticks.length - 1];
 
     // Map a value to a y pixel (top-down SVG coords).
     const yOf = (v: number) => PAD.top + PLOT_H - ((v - min) / (max - min)) * PLOT_H;

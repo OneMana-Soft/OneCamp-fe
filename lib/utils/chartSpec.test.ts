@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { normalizeChartSpec } from "@/lib/utils/chartSpec"
+import { niceTicks, normalizeChartSpec } from "@/lib/utils/chartSpec"
 
 describe("normalizeChartSpec", () => {
     it("returns null for invalid / empty / non-object input", () => {
@@ -101,3 +101,23 @@ describe("normalizeChartSpec", () => {
         expect(long!.title.length).toBe(120)
     })
 })
+
+describe("niceTicks", () => {
+    it("rounds an axis to a step of 1, 2, 2.5 or 5 times a power of ten", () => {
+        expect(niceTicks(0, 5.5)).toEqual([0, 2, 4, 6]);
+        expect(niceTicks(0, 100)).toEqual([0, 25, 50, 75, 100]);
+        expect(niceTicks(0, 0.9)).toEqual([0, 0.25, 0.5, 0.75, 1]);
+        expect(niceTicks(-3, 7)).toEqual([-5, -2.5, 0, 2.5, 5, 7.5]);
+    });
+
+    it("never gives counts a fractional step", () => {
+        expect(niceTicks(0, 6, 4, true)).toEqual([0, 2, 4, 6]);
+        expect(niceTicks(0, 3, 4, true)).toEqual([0, 1, 2, 3]);
+        expect(niceTicks(0, 1, 4, true)).toEqual([0, 1]);
+    });
+
+    it("covers a flat series", () => {
+        expect(niceTicks(0, 0)).toEqual([0, 0.25, 0.5, 0.75, 1]);
+    });
+});
+
