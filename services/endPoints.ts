@@ -44,6 +44,9 @@ export enum GetEndpointUrl {
     GetChannelLatestPost = "/po/latestPosts",
     GetChatLatestMessage = "/dm/latestChat",
     GetGroupChatLatestMessage = "/groupChat/latestChat",
+    // Read receipts: GET who has seen a DM or group chat, POST to mark it seen.
+    DmSeen = "/dm/seen",
+    GroupChatSeen = "/groupChat/seen",
     GetNewPostIncludingCurrentPost = "/po/newPostsIncludingCurrent",
     GetNewChatIncludingCurrentChat = "/dm/newChatsIncludingCurrentChat",
     GetNewGroupChatIncludingCurrentChat = "/groupChat/newChatsIncludingCurrentChat",
@@ -445,6 +448,7 @@ export enum PostEndpointUrl {
     CreateInstantMeeting = "/meet/instant",
     CreateGuestLink = "/guest/links",
     SetGuestAccess = "/admin/guest-access",
+    SetReadReceiptsPolicy = "/admin/read-receipts",
     StartChannelCallRecording = "/ch/startCallRecording",
     StopChannelCallRecording = "/ch/stopCallRecording",
     StartDmCallRecording = "/dm/startCallRecording",

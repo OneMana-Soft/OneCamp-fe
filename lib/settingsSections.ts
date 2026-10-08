@@ -27,7 +27,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     href: "/app/settings/notifications",
     label: "Notifications",
-    description: "Which emails you get, and quiet hours.",
+    description: "Which emails you get, quiet hours, and read receipts.",
     icon: Bell,
   },
   {

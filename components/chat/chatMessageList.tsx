@@ -11,6 +11,7 @@ import {ChatInfo, CreateChatPaginationResRaw} from "@/types/chat";
 import {updateChats, updateChatScrollToBottom, mergeChats} from "@/store/slice/chatSlice";
 import {useMessageResync} from "@/hooks/useMessageResync";
 import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
+import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
@@ -70,6 +71,8 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
     );
     
     // Memoize the mapped result to prevent creating a new array on every render
+    // Read receipts: whose they are (a DM by the other person, a group by its id).
+    const receiptTarget = useMemo(() => ({ kind: "dm" as const, otherUUID: chatId }), [chatId]);
     const chatTypingState = useMemo(() => 
         (rawChatTypingState || []).map(item => item.user),
         [rawChatTypingState]
@@ -250,6 +253,7 @@ export const ChatMessageList = memo(function ChatMessageList({chatId,  messageId
               the message column. On mobile it floats just above the
               DraggableDrawer (which publishes --mobile-drawer-h).
             */}
+            <SeenReceiptLine target={receiptTarget} latest={hasMoreNewChat ? undefined : safeChatMessageState[safeChatMessageState.length - 1]} hidden={chatTypingState.length > 0} />
             <TypingIndicatorBar users={chatTypingState} />
         </div>
     )
