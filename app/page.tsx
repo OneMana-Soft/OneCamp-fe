@@ -180,15 +180,24 @@ export default function SignUp() {
       }
     }
 
+    // Asked for at once, beside the session probe rather than after it: a
+    // visitor without a session (everyone arriving from "Try the demo") was
+    // waiting for the probe, a refresh attempt and then these, one after
+    // another, before the page could show or the demo start. A visitor who
+    // turns out to be signed in costs two small public requests.
+    const loginUI = Promise.all([
+      authService.getEnabledProviders(),
+      authService.checkAdminSetupRequired(),
+    ]);
+    // Read in resolveLoginUI; until then a failure mustn't go unhandled.
+    loginUI.catch(() => {});
+
     // Resolve providers + admin-setup gate. Kept in a helper so both the
     // "already logged in" and "needs to log in" paths can reuse it, and so
     // the loading screen always resolves even if the session probe throws.
     const resolveLoginUI = async () => {
       try {
-        const [runtimeProviders, adminRequired] = await Promise.all([
-          authService.getEnabledProviders(),
-          authService.checkAdminSetupRequired(),
-        ]);
+        const [runtimeProviders, adminRequired] = await loginUI;
         if (cancelled) return;
 
         if (runtimeProviders) {
