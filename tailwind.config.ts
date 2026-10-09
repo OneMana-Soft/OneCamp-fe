@@ -53,10 +53,15 @@ export default {
   				'5': 'hsl(var(--chart-5))'
   			}
   		},
+  		// Mirrors the four-step scale in app/globals.css (@theme), which is
+  		// what Tailwind v4 actually reads: this file is not loaded (no @config)
+  		// and stays only for the shadcn CLI (components.json).
   		borderRadius: {
-  			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			sm: 'calc(var(--radius) - 2px)',
+  			md: 'var(--radius)',
+  			lg: 'calc(var(--radius) + 4px)',
+  			xl: 'calc(var(--radius) + 4px)',
+  			'2xl': 'calc(var(--radius) + 8px)'
   		},
   		keyframes: {
   			blink: {

@@ -35,10 +35,29 @@
   --text-3xs: 0.625rem;
   /* 10px — the floor: uppercase eyebrows, counts */
   --text-3xs--line-height: 0.875rem;
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
+  /* Four radii, from --radius (6px): 4 chips, 6 controls, 10 surfaces, 14
+     dialogs. xl folds into lg and 3xl into 2xl, so the 130 rounded-xl and the
+     odd rounded-3xl land on the scale without a per-file edit. */
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 8px);
+  /* SHADOWS ARE FOR THINGS THAT FLOAT, one per layer. The small steps are a
+     transparent no-op rather than `none`, because Tailwind joins the shadow
+     into one box-shadow list with the ring, and `none` inside a list would void
+     the ring as well. A card, an input or a button that asks for shadow-sm is
+     in the page, so it gets nothing; a menu or popover (md, lg) gets the
+     popover layer; a dialog or sheet (xl, 2xl) gets the dialog layer. */
+  --shadow: 0 0 #0000;
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: 0 4px 16px rgb(0 0 0 / 0.08);
+  --shadow-lg: 0 4px 16px rgb(0 0 0 / 0.08);
+  --shadow-xl: 0 16px 48px rgb(0 0 0 / 0.16);
+  --shadow-2xl: 0 16px 48px rgb(0 0 0 / 0.16);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -51,6 +70,8 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  /* text-faint-foreground: placeholders and disabled only (text-3). */
+  --color-faint-foreground: var(--faint-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -61,6 +82,7 @@
   --color-ink: var(--ink);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-text: var(--brand-text);
   --color-brand-muted: var(--brand-muted);
   /* Agents, as utilities: bg-agent-muted, text-agent, ring-agent. */
   --color-agent: var(--agent);
@@ -123,182 +145,171 @@
 }
 
 :root {
-  --scroll-bar-color: #cfc9c2;
+  --scroll-bar-color: #d3d5da;
   --scroll-bar-bg-color: 0 0% 100%;
-  --radius: 0.625rem;
+  /* FOUR RADII: 4 for chips, kbd and checkboxes (rounded-sm), 6 for buttons,
+     inputs and nav items (rounded-md), 10 for cards, popovers, menus and the
+     main panel (rounded-lg and rounded-xl), 14 for dialogs and sheets
+     (rounded-2xl). Six were in heavy use before, which is how a screen ends up
+     with three slightly different corners side by side. The mapping lives in
+     @theme above; this is the one number it is derived from. */
+  --radius: 0.375rem;
 
   /* ── OneCamp identity ─────────────────────────────────────────────────────
-     One accent, and neutrals that carry a trace of its hue.
+     One accent on graphite.
 
-     Every neutral here used to be oklch(L 0 0). That second number is chroma,
-     and zero means a grey with no colour in it whatsoever: the shadcn default,
-     unmodified, which is the visual signature of every AI-assisted SaaS built
-     since 2023. These carry roughly 0.005 chroma at the brand's hue, which is
-     far too little to read as orange and exactly enough that the greys look
-     chosen rather than inherited.
+     The accent is a cleaner signal orange (#CC4A0B), closer to the logo's own
+     #FF8A00→#FF3D00 than the old #B94A00, and still AA under white text. The
+     neutrals are a cool graphite (hue about 265, chroma under 0.02) instead of
+     the warm hue-75 ramp: orange on cream read like a bakery, orange on
+     graphite reads like an instrument panel, and the cool ground makes the
+     orange carry with less of it.
 
-     Worth stating what was actually wrong, because it was not taste. The light
-     theme was neutral grey, the dark theme was tinted BLUE (chroma 0.028 at hue
-     261), and the storefront was orange. Three temperature stories inside one
-     product. There is one now, and the storefront shares it.
+     ACCENT BUDGET: one primary button per view, the focus ring, the current
+     selection, links and the logo. Never headings, eyebrows, icons, mention
+     chips or progress bars; those are neutral. A colour spent everywhere stops
+     marking anything.
 
-     PRIMARY STAYS INK rather than becoming the brand. A near-black primary
-     button is current practice and not a dated one, and spending the accent on
-     every button leaves nothing to mark the thing that actually matters on a
-     screen. The brand carries STATE: focus rings, active navigation, selection,
-     links. That is the difference between a product with a colour and a product
-     painted a colour. */
-  --brand: oklch(0.55 0.16 45);
-  --brand-foreground: oklch(0.99 0.01 85);
-  /* A tinted ground for brand surfaces: selected rows, active nav, callouts.
-     Never for text. */
-  --brand-muted: oklch(0.955 0.022 60);
+     Every value below is the shared table in the design direction
+     (release-1010/design/DESIGN_DIRECTION.md, "Palette tokens"), written in
+     OKLCH; sharedTokens.test.ts pins the sRGB triples, and the storefront pins
+     the same ones. */
+  --brand: oklch(0.5808 0.1764 40.35);
+  --brand-foreground: oklch(1 0 0);
+  /* The accent as text (accent-text in the direction): links, and anything
+     else that writes in the accent. One step darker than the fill, because
+     the fill on the page is 4.50:1 to two decimals and 4.4997 underneath,
+     while this is 5.05:1. --primary reads it (see body), so a primary button
+     is this shade too; the difference on a fill is not visible. */
+  --brand-text: oklch(0.5534 0.1739 38.40);
+  /* A tinted ground for the current selection: active nav, a selected row,
+     a callout. Never for text. */
+  --brand-muted: oklch(0.9667 0.0194 55.15);
 
-  /* AGENTS HAVE A COLOUR OF THEIR OWN. An agent is the one participant in this
-     product that is not a person, and until now it was drawn exactly like one: a
-     pastel initials circle, with a small tag in the brand orange that also marks
-     selection, links and focus. An indigo, a quarter-turn from the brand on the
-     hue wheel, reads as a different kind of thing at a glance and cannot be
-     mistaken for "selected". Used only for agent identity: avatar, tag, and
-     anything an agent did. Guarded by paletteContrast.test.ts. */
-  --agent: oklch(0.5 0.17 278);
-  --agent-foreground: oklch(0.99 0.005 278);
-  --agent-muted: oklch(0.955 0.025 278);
+  /* AGENTS HAVE A COLOUR OF THEIR OWN: an indigo, a quarter-turn from the
+     brand, used only for agent identity (tag, avatar, anything an agent did),
+     so an agent never reads as "selected". Guarded by paletteContrast.test.ts. */
+  --agent: oklch(0.5316 0.1855 273.99);
+  --agent-foreground: oklch(1 0 0);
+  --agent-muted: oklch(0.9574 0.0175 279.06);
 
-  --background: oklch(0.995 0.002 75);
-  --foreground: oklch(0.19 0.008 75);
-  --card: oklch(1 0.001 75);
-  --card-foreground: oklch(0.19 0.008 75);
-  --popover: oklch(1 0.001 75);
-  --popover-foreground: oklch(0.19 0.008 75);
-  /* PRIMARY IS THE ACCENT, and this is the correction to a call I got wrong.
-     I had set it to ink, reasoning that a near-black primary button is current
-     practice. It is, in a product with no accent picker. This one HAS one, and
-     Button's default variant and three of Badge's variants read --primary, so
-     with primary pinned to ink the picker changed a focus ring and nothing a
-     person would notice. Choosing green and getting black buttons is the bug
-     being reported, and it was mine.
-
-     Derived rather than repeated: a theme sets --brand and everything that
-     carries the accent follows, so there is still exactly one value per theme
-     and no way for the button and the ring to disagree. */
-  /* Kept for the surfaces that genuinely want ink rather than the accent. */
-  --ink: oklch(0.22 0.01 75);
-  --secondary: oklch(0.968 0.004 75);
-  --secondary-foreground: oklch(0.22 0.01 75);
-  --muted: oklch(0.968 0.004 75);
-  --muted-foreground: oklch(0.525 0.012 75);
-  --accent: oklch(0.965 0.005 70);
-  --accent-foreground: oklch(0.22 0.01 75);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
+  /* bg: the page. surface: cards, popovers, inputs. surface-2 (muted,
+     secondary, accent, canvas): the sidebar, a table header, hover. surface-3
+     (sidebar-accent): pressed and selected. */
+  --background: oklch(0.9913 0.0013 286.38);
+  --foreground: oklch(0.1998 0.0086 264.36);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.1998 0.0086 264.36);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.1998 0.0086 264.36);
+  /* PRIMARY IS THE ACCENT, derived on body below so the theme picker moves it;
+     --ink is kept for the surfaces that genuinely want ink. */
+  --ink: oklch(0.1998 0.0086 264.36);
+  --secondary: oklch(0.9727 0.0017 247.84);
+  --secondary-foreground: oklch(0.1998 0.0086 264.36);
+  --muted: oklch(0.9727 0.0017 247.84);
+  /* text-2: secondary text, 5.8:1 on the page. */
+  --muted-foreground: oklch(0.5031 0.0200 267.61);
+  /* text-3: placeholders and disabled only. It does not pass AA as body text
+     and is not meant to carry anything a person has to read. */
+  --faint-foreground: oklch(0.6491 0.0160 264.46);
+  --accent: oklch(0.9727 0.0017 247.84);
+  --accent-foreground: oklch(0.1998 0.0086 264.36);
+  --destructive: oklch(0.5619 0.2013 21.13);
+  --destructive-foreground: oklch(1 0 0);
 
   /* STATUS COLOUR RULE - four meanings, four tokens. Never a raw hue.
      success / warning / info / destructive. If a colour is carrying meaning it
-     comes from here; if it isn't carrying meaning it should be neutral.
-
-     This existed only as `destructive` before, so components reached for raw
-     Tailwind hues instead: 156 tinted surfaces across THIRTEEN hues, for roughly
-     four meanings. The same "positive" state was text-green-600 in some files and
-     text-emerald-600 in others - and two components used both, so one meaning was
-     drawn in two greens inside a single view. That is what the token set fixes:
-     it is an inconsistency, not a matter of taste.
-
-     Each token is mode-aware, which collapses the 43 hand-written
-     `text-x-600 dark:text-x-400` pairs into one class. */
-  --success: var(--color-emerald-600);
+     comes from here; if it isn't carrying meaning it should be neutral. Each is
+     mode-aware, so one class replaces a `text-x-600 dark:text-x-400` pair. */
+  --success: oklch(0.5599 0.1335 152.55);
   --success-foreground: var(--color-emerald-50);
-  --warning: var(--color-amber-600);
+  --warning: oklch(0.5927 0.1321 65.82);
   --warning-foreground: var(--color-amber-50);
-  --info: var(--color-blue-600);
+  --info: oklch(0.5608 0.1782 260.27);
   --info-foreground: var(--color-blue-50);
 
-  --border: oklch(0.918 0.005 75);
-  --input: oklch(0.918 0.005 75);
-  /* Focus is the most common place the brand appears, and the one place it must
-     never be decorative: it is how a keyboard user knows where they are. */
+  /* line: hairlines, structure only. line-strong: input borders. */
+  --border: oklch(0.9220 0.0042 271.37);
+  --input: oklch(0.8729 0.0072 268.54);
   --chart-1: var(--color-blue-300);
   --chart-2: var(--color-blue-500);
   --chart-3: var(--color-blue-600);
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
   /* The canvas is the frame the work sits on: the sidebar, the top bar and the
-     gutter around the sheet share it, so the chrome reads as one quiet L and
-     the page is the brightest thing on screen. */
-  --canvas: oklch(0.962 0.006 75);
+     gutter around the sheet share it (surface-2), so the chrome reads as one
+     quiet L and the page is the brightest thing on screen. */
+  --canvas: oklch(0.9727 0.0017 247.84);
   --sidebar: var(--canvas);
-  --sidebar-foreground: oklch(0.19 0.008 75);
-  --sidebar-accent: oklch(0.955 0.006 70);
-  --sidebar-accent-foreground: oklch(0.22 0.01 75);
-  --sidebar-border: oklch(0.918 0.005 75);
-  --surface: oklch(0.975 0.004 75);
+  --sidebar-foreground: oklch(0.1998 0.0086 264.36);
+  --sidebar-accent: oklch(0.9489 0.0029 264.54);
+  --sidebar-accent-foreground: oklch(0.1998 0.0086 264.36);
+  --sidebar-border: oklch(0.9220 0.0042 271.37);
+  --surface: oklch(0.9727 0.0017 247.84);
   --surface-foreground: var(--foreground);
   --code: var(--surface);
   --code-foreground: var(--surface-foreground);
-  --code-highlight: oklch(0.955 0.006 70);
-  --code-number: oklch(0.56 0.01 75);
+  --code-highlight: oklch(0.9489 0.0029 264.54);
+  --code-number: oklch(0.6491 0.0160 264.46);
 }
 
 .dark {
-  --scroll-bar-color: #332e2a;
-  --scroll-bar-bg-color: 30 6% 8%;
+  --scroll-bar-color: #33363d;
+  --scroll-bar-bg-color: 220 10% 6%;
 
-  /* The dark theme is warm now for the same reason the light one is, and the
-     brand lifts rather than darkens: the same orange that reads as confident on
-     paper reads as muddy on a dark ground, so this is a lighter, slightly less
-     saturated cut of the same hue rather than the light value reused. */
-  --brand: oklch(0.74 0.14 45);
-  --brand-foreground: oklch(0.18 0.02 60);
-  --brand-muted: oklch(0.28 0.04 50);
-  --agent: oklch(0.78 0.11 278);
-  --agent-foreground: oklch(0.2 0.04 278);
-  --agent-muted: oklch(0.29 0.05 278);
+  /* The brand lifts rather than darkens: the orange that reads as confident on
+     paper reads as mud on a dark ground. Its label is dark (#0E0F11), not
+     white, which is what keeps a lighter orange at AA. */
+  --brand: oklch(0.7250 0.1811 45.30);
+  --brand-foreground: oklch(0.1682 0.0045 264.45);
+  --brand-text: oklch(0.7514 0.1610 46.76);
+  --brand-muted: oklch(0.2356 0.0313 52.65);
+  --agent: oklch(0.7629 0.1064 278.81);
+  --agent-foreground: oklch(0.1682 0.0045 264.45);
+  --agent-muted: oklch(0.2621 0.0577 277.45);
 
-  --background: oklch(0.17 0.008 70);
-  --foreground: oklch(0.975 0.003 85);
-  --card: oklch(0.202 0.009 70);
-  --card-foreground: oklch(0.975 0.003 85);
-  --popover: oklch(0.202 0.009 70);
-  --popover-foreground: oklch(0.975 0.003 85);
-  --ink: oklch(0.92 0.005 80);
-  --secondary: oklch(0.27 0.008 70);
-  --secondary-foreground: oklch(0.975 0.003 85);
-  --muted: oklch(0.27 0.008 70);
-  --muted-foreground: oklch(0.715 0.012 75);
-  --accent: oklch(0.28 0.01 70);
-  --accent-foreground: oklch(0.975 0.003 85);
-  /* The 400 shades - exactly what the hand-written dark: variants used, so the
-     token reproduces those pairs rather than reinterpreting them. */
-  --success: var(--color-emerald-400);
-  --warning: var(--color-amber-400);
-  --info: var(--color-blue-400);
-  --destructive: oklch(0.704 0.191 22.216);
-  /* Dark text on the destructive surface, not light.
-     This was near-white, inherited from the light theme where the red is dark.
-     In dark mode the red LIFTS to #ff6467, so white on it measured 2.77:1 and
-     the label on every Delete button failed AA. Nothing flagged it because
-     nothing was measuring; the contrast guard found it on its first run. */
-  --destructive-foreground: oklch(0.2 0.03 25);
-  --border: oklch(0.275 0.008 70);
-  --input: oklch(0.275 0.008 70);
+  --background: oklch(0.1682 0.0045 264.45);
+  --foreground: oklch(0.9489 0.0029 264.54);
+  --card: oklch(0.2086 0.0085 264.37);
+  --card-foreground: oklch(0.9489 0.0029 264.54);
+  --popover: oklch(0.2086 0.0085 264.37);
+  --popover-foreground: oklch(0.9489 0.0029 264.54);
+  --ink: oklch(0.9489 0.0029 264.54);
+  --secondary: oklch(0.2426 0.0105 260.69);
+  --secondary-foreground: oklch(0.9489 0.0029 264.54);
+  --muted: oklch(0.2426 0.0105 260.69);
+  --muted-foreground: oklch(0.7049 0.0156 264.47);
+  --faint-foreground: oklch(0.5443 0.0167 264.43);
+  --accent: oklch(0.2426 0.0105 260.69);
+  --accent-foreground: oklch(0.9489 0.0029 264.54);
+  --success: oklch(0.7350 0.1362 159.28);
+  --warning: oklch(0.8069 0.1373 78.17);
+  --info: oklch(0.7156 0.1322 258.28);
+  --destructive: oklch(0.6625 0.1926 22.29);
+  /* Dark text on the destructive surface: the red lifts in dark mode, and
+     white on it fails AA. */
+  --destructive-foreground: oklch(0.1682 0.0045 264.45);
+  --border: oklch(0.2769 0.0096 268.32);
+  --input: oklch(0.3327 0.0130 267.15);
   --chart-1: var(--color-blue-300);
   --chart-2: var(--color-blue-500);
   --chart-3: var(--color-blue-600);
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
-  /* Darker than the page in dark mode, so the sheet lifts off it. */
-  --canvas: oklch(0.142 0.007 70);
+  /* surface-2, as in light: the sidebar steps up from the page. */
+  --canvas: oklch(0.2426 0.0105 260.69);
   --sidebar: var(--canvas);
-  --sidebar-foreground: oklch(0.975 0.003 85);
-  --sidebar-accent: oklch(0.27 0.008 70);
-  --sidebar-accent-foreground: oklch(0.975 0.003 85);
-  --sidebar-border: oklch(0.275 0.008 70);
-  --surface: oklch(0.232 0.008 70);
-  --surface-foreground: oklch(0.715 0.012 75);
+  --sidebar-foreground: oklch(0.9489 0.0029 264.54);
+  --sidebar-accent: oklch(0.2763 0.0119 264.36);
+  --sidebar-accent-foreground: oklch(0.9489 0.0029 264.54);
+  --sidebar-border: oklch(0.2769 0.0096 268.32);
+  --surface: oklch(0.2426 0.0105 260.69);
+  --surface-foreground: oklch(0.7049 0.0156 264.47);
   --code: var(--surface);
   --code-foreground: var(--surface-foreground);
-  --code-highlight: oklch(0.27 0.008 70);
-  --code-number: oklch(0.72 0.01 75);
+  --code-highlight: oklch(0.2763 0.0119 264.36);
+  --code-number: oklch(0.5443 0.0167 264.43);
 }
 
 @keyframes blink {
@@ -366,7 +377,7 @@
  * rather than reasoned about, because the two look identical in the source.
  */
 body {
-  --primary: var(--brand);
+  --primary: var(--brand-text);
   --primary-foreground: var(--brand-foreground);
   --ring: var(--brand);
   --sidebar-primary: var(--brand);
@@ -547,6 +558,11 @@ body {
    background or border change — see hover-surface below. */
 @utility shadow-overlay {
   @apply shadow-lg ring-1 ring-black/[0.06] dark:ring-white/10;
+}
+
+/* The dialog layer, for dialogs and sheets. */
+@utility shadow-dialog {
+  @apply shadow-xl ring-1 ring-black/[0.06] dark:ring-white/10;
 }
 
 @utility hover-surface {
@@ -923,40 +939,28 @@ html[data-media-collapsed="true"] [data-message-media] {
 
 /* The sheet: the one raised surface in the app, where the work is. The canvas
    around it carries the navigation, so the page is always the brightest,
-   nearest thing on screen (the inverted-L frame). A hairline and a soft shadow
-   in light; the border alone in dark, where shadows do not read. */
+   nearest thing on screen (the inverted-L frame). A hairline and no shadow:
+   the sheet is the page, not something floating over it. */
 @layer components {
   .app-sheet {
     background: var(--background);
-    border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+    border: 1px solid var(--border);
     border-radius: calc(var(--radius) + 4px);
-    box-shadow:
-      0 1px 2px oklch(0.2 0.01 70 / 0.04),
-      0 8px 24px -12px oklch(0.2 0.01 70 / 0.10);
-  }
-  .dark .app-sheet {
-    box-shadow: none;
   }
 
-  /* Navigation on the canvas. The current place is a small piece of the sheet
-     (same ground, same hairline), so where you are and where you work read as
-     one material. Hover is a faint tint of the ink, which works on either
-     ground. */
+  /* Navigation on the canvas. The current place is the one spot of accent in
+     the sidebar: the soft accent ground under ink text, no border and no
+     shadow. Hover is a neutral step (surface-3), so only the selection is
+     warm. */
   .nav-active {
-    background: var(--background);
+    background: var(--brand-muted);
     color: var(--foreground);
-    box-shadow: 0 0 0 1px color-mix(in oklch, var(--border) 70%, transparent),
-      0 1px 2px oklch(0.2 0.01 70 / 0.05);
-  }
-  .dark .nav-active {
-    background: var(--accent);
-    box-shadow: none;
   }
   .nav-idle {
-    color: color-mix(in oklch, var(--foreground) 72%, transparent);
+    color: var(--muted-foreground);
   }
   .nav-idle:hover {
-    background: color-mix(in oklch, var(--foreground) 5%, transparent);
+    background: var(--sidebar-accent);
     color: var(--foreground);
   }
 }
@@ -970,13 +974,13 @@ html[data-media-collapsed="true"] [data-message-media] {
 /* An invoice is paper: light in any theme, on screen and when printed. The
    same values as the light :root tokens, scoped to the invoice. */
 .invoice-paper {
-  --background: oklch(0.995 0.002 75);
-  --foreground: oklch(0.19 0.008 75);
-  --card: oklch(1 0.001 75);
-  --card-foreground: oklch(0.19 0.008 75);
-  --muted: oklch(0.968 0.004 75);
-  --muted-foreground: oklch(0.525 0.012 75);
-  --border: oklch(0.918 0.005 75);
+  --background: oklch(0.9913 0.0013 286.38);
+  --foreground: oklch(0.1998 0.0086 264.36);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.1998 0.0086 264.36);
+  --muted: oklch(0.9727 0.0017 247.84);
+  --muted-foreground: oklch(0.5031 0.0200 267.61);
+  --border: oklch(0.9220 0.0042 271.37);
   color-scheme: light;
 }
 @media print {

@@ -481,7 +481,7 @@ function ColumnHeader({
     return (
       <th className="min-w-[160px] border-r border-border/40 px-3 py-2 text-left font-medium text-muted-foreground">
         {field.name}
-        {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-brand" />}
+        {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-primary" />}
         {problem && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={problem} />}
         <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
       </th>
@@ -495,7 +495,7 @@ function ColumnHeader({
           <button className="flex w-full items-center justify-between gap-1 rounded-md px-2 py-1 hover:bg-muted/50">
             <span className="truncate">
               {field.name}
-              {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-brand" />}
+              {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-primary" />}
               {problem && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={problem} />}
               <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
             </span>
@@ -585,7 +585,7 @@ function ColumnHeader({
 
             {aiEligible && (
               <div className="space-y-1 rounded-md border border-brand/30 bg-brand/5 p-2">
-                <label className="flex items-center gap-1 text-xs font-medium text-brand">
+                <label className="flex items-center gap-1 text-xs font-medium text-primary">
                   <Sparkles className="h-3 w-3" /> AI autofill
                 </label>
                 <textarea
@@ -607,7 +607,7 @@ function ColumnHeader({
                     className="mt-0.5 h-3.5 w-3.5 accent-[var(--brand)]"
                   />
                   <span>
-                    <span className="font-medium text-brand">Autofill on change</span>
+                    <span className="font-medium text-primary">Autofill on change</span>
                     {": recompute each cell automatically when a row is added or edited."}
                   </span>
                 </label>
@@ -615,7 +615,7 @@ function ColumnHeader({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="w-full gap-1.5 border-brand/40 text-brand hover:bg-brand/10"
+                    className="w-full gap-1.5 border-brand/40 text-primary hover:bg-brand/10"
                     disabled={filling}
                     onClick={handleFill}
                   >

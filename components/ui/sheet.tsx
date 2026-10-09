@@ -38,7 +38,7 @@ const sheetVariants = cva(
   //
   // dvh, not vh: on mobile Safari vh is measured as if the address bar were
   // hidden, so a 92vh sheet still runs under the bar when it is not.
-  "fixed z-[var(--z-modal)] gap-4 overflow-y-auto overscroll-contain bg-background p-6 shadow-xl transition ease-out data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  "fixed z-[var(--z-modal)] gap-4 overflow-y-auto overscroll-contain bg-background p-6 shadow-dialog transition ease-out data-[state=closed]:duration-200 data-[state=open]:duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out",
   {
     variants: {
       side: {

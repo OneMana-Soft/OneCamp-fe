@@ -115,7 +115,7 @@ const WorkflowsCard = () => {
             <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                 <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2 text-lg">
-                        <Zap className="h-5 w-5 text-brand" />
+                        <Zap className="h-5 w-5 text-primary" />
                         Workflows
                     </CardTitle>
                     <CardDescription className="max-w-xl">
@@ -137,7 +137,7 @@ const WorkflowsCard = () => {
                 ) : workflows.length === 0 ? (
                     <div className="flex flex-col items-center justify-center text-center py-12 px-4 gap-3">
                         <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-brand/10">
-                            <Zap className="h-6 w-6 text-brand" />
+                            <Zap className="h-6 w-6 text-primary" />
                         </div>
                         <div className="space-y-1 max-w-sm">
                             <p className="text-sm font-medium">No workflows yet</p>

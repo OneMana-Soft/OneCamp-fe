@@ -67,7 +67,7 @@ describe("elevation rule", () => {
 
   for (const file of FLOATING_PRIMITIVES) {
     it(`${file} keeps an elevation, since it floats`, () => {
-      expect(classSource(file)).toMatch(/shadow-(?:overlay|lg|xl|md)/)
+      expect(classSource(file)).toMatch(/shadow-(?:overlay|dialog|lg|xl|md)/)
     })
   }
 

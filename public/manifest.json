@@ -5,8 +5,8 @@
   "description": "Your workspace, unified.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fefdfc",
-  "theme_color": "#f5f2ee",
+  "background_color": "#fcfcfd",
+  "theme_color": "#f5f6f7",
   "icons": [
     {
       "src": "/icons/icon-maskable-192.png",
