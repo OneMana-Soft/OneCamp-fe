@@ -18,7 +18,8 @@ import {
   type GuestTaskCard,
   type GuestTaskView,
 } from "@/services/guestService"
-import { GUEST_POLL_MS, GuestComposer, GuestLinkGone, GuestLoading, GuestMessageView, GuestNameForm, useGuestName } from "@/components/guest/guestUi"
+import { GUEST_POLL_MS, GuestComposer, GuestLinkGone, GuestMessageView, GuestNameForm, GuestNotYet, GuestTroubleNote, useGuestName } from "@/components/guest/guestUi"
+import { publicTrouble, sendFailedText, type PublicTrouble } from "@/services/publicApi"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
 import { GuestUpdates } from "@/components/guest/GuestUpdates"
@@ -70,6 +71,8 @@ function useNarrow() {
 export default function GuestProjectPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const [state, setState] = useState<"loading" | "ready" | "missing">("loading")
+  // Why the board can't refresh just now; it keeps trying.
+  const [trouble, setTrouble] = useState<PublicTrouble | null>(null)
   const [view, setView] = useState<GuestProjectView | null>(null)
   const [open, setOpen] = useState<string | null>(null)
   const [mode, setMode] = useStoredState<GuestMode>(`oc_guest_view:${token}`, "board", isMode)
@@ -79,10 +82,14 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
   const refresh = useCallback(async (poll: boolean) => {
     const res = await getGuestProject(token, poll)
     if (!res.ok) {
-      // A dropped connection keeps what's shown; a dead link replaces it.
-      setState((s) => (s === "ready" && res.status === 0 ? s : "missing"))
+      // A dead link replaces what's shown; a busy or unreachable server keeps
+      // it, says so, and the next poll tries again.
+      const t = publicTrouble(res.status)
+      if (t === "gone") setState("missing")
+      else setTrouble(t)
       return
     }
+    setTrouble(null)
     setView(res.data)
     setState("ready")
   }, [token])
@@ -95,7 +102,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
     return () => clearInterval(t)
   }, [refresh])
 
-  if (state === "loading") return <GuestLoading />
+  if (state === "loading") return <GuestNotYet trouble={trouble} />
   if (state === "missing" || !view) return <GuestLinkGone />
 
   const pct = view.total_tasks ? Math.round((view.done_tasks / view.total_tasks) * 100) : 0
@@ -113,6 +120,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
           <span className="tabular-nums">{view.done_tasks} of {view.total_tasks} done</span>
         </div>
       </header>
+      <GuestTroubleNote trouble={trouble} />
       <div className="flex min-h-0 flex-1">
         <section className={`min-w-0 flex-1 overflow-auto p-4 ${open ? "hidden md:block" : ""}`}>
           <div className="max-w-3xl">
@@ -201,7 +209,7 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
     if (res.ok) {
       setTask(res.data)
       setMissing(false)
-    } else if (res.status !== 0) setMissing(true)
+    } else if (publicTrouble(res.status) === "gone") setMissing(true)
   }, [token, taskId])
 
   useEffect(() => {
@@ -255,7 +263,7 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
                     void load()
                     onCommented()
                   }
-                  return res.ok ? null : res.msg
+                  return res.ok ? null : sendFailedText(res)
                 }}
               />
             )}
@@ -283,7 +291,7 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
                 void load()
                 onCommented()
               }
-              return res.ok ? null : res.msg
+              return res.ok ? null : sendFailedText(res)
             }}
           />
         ) : (

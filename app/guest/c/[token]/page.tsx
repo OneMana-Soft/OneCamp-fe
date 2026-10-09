@@ -13,16 +13,20 @@ import {
   GUEST_POLL_MS as POLL_MS,
   GuestComposer as Composer,
   GuestLinkGone,
-  GuestLoading,
   GuestMessageView as MessageView,
   GuestNameForm,
+  GuestNotYet,
+  GuestTroubleNote,
   useGuestName,
 } from "@/components/guest/guestUi"
+import { publicTrouble, sendFailedText, type PublicTrouble } from "@/services/publicApi"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 export default function GuestChannelPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const [state, setState] = useState<"loading" | "ready" | "missing">("loading")
+  // Why the page can't refresh just now; it keeps trying.
+  const [trouble, setTrouble] = useState<PublicTrouble | null>(null)
   const [channel, setChannel] = useState("")
   const [canPost, setCanPost] = useState(false)
   const [messages, setMessages] = useState<GuestChannelMessage[]>([]) // oldest first
@@ -40,9 +44,14 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
   const refresh = useCallback(async (scroll = false) => {
     const res = await getGuestChannel(token)
     if (!res.ok) {
-      setState((s) => (s === "ready" && res.status === 0 ? s : "missing"))
+      // A dead link replaces what's shown; a busy or unreachable server is
+      // said, and the next poll tries again.
+      const t = publicTrouble(res.status)
+      if (t === "gone") setState("missing")
+      else setTrouble(t)
       return
     }
+    setTrouble(null)
     setChannel(res.data.channel)
     setCanPost(res.data.can_post)
     const page = [...res.data.messages].reverse()
@@ -78,7 +87,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
     setHasMore(res.data.has_more)
   }
 
-  if (state === "loading") return <GuestLoading />
+  if (state === "loading") return <GuestNotYet trouble={trouble} />
   if (state === "missing") return <GuestLinkGone />
 
   return (
@@ -89,6 +98,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
         <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">You&apos;re a guest</span>
         <MadeWithOneCamp surface="guest-channel" className="hidden sm:block" />
       </header>
+      <GuestTroubleNote trouble={trouble} />
       <div className="flex min-h-0 flex-1">
         <section className={`flex min-w-0 flex-1 flex-col ${thread ? "hidden sm:flex" : ""}`}>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
@@ -120,7 +130,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
                 onSend={async (text) => {
                   const res = await postGuestMessage(token, { display_name: name, text })
                   if (res.ok) void refresh(true)
-                  return res.ok ? null : res.msg
+                  return res.ok ? null : sendFailedText(res)
                 }}
                 name={name}
                 onRename={() => setName("")}
@@ -144,7 +154,7 @@ function Thread({ token, postId, canPost, name, onClose, onReplied }: { token: s
   const load = useCallback(async () => {
     const res = await getGuestThread(token, postId)
     if (res.ok) setData(res.data)
-    else setMissing(true)
+    else if (publicTrouble(res.status) === "gone") setMissing(true)
   }, [token, postId])
   useEffect(() => {
     void load()
@@ -183,7 +193,7 @@ function Thread({ token, postId, canPost, name, onClose, onReplied }: { token: s
               void load()
               onReplied()
             }
-            return res.ok ? null : res.msg
+            return res.ok ? null : sendFailedText(res)
           }}
         />
       )}

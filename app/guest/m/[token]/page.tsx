@@ -1,31 +1,26 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useState } from "react";
 import { VideoConference } from "@/components/livekit/VideoConference";
 import { PreJoin } from "@/components/livekit/PreJoin";
 import { getGuestMeetingStatus, joinGuestMeeting } from "@/services/guestService";
-import { Loader2, Video, AlertCircle } from "@/lib/icons";
+import { GuestCentered as Centered, GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { publicTrouble, sendFailedText } from "@/services/publicApi";
+import { Loader2, Video } from "@/lib/icons";
 
-type Phase = "validating" | "prejoin" | "joining" | "in-call" | "ended" | "unavailable";
+type Phase = "prejoin" | "joining" | "in-call" | "ended" | "unavailable";
+
+const gone = <GuestLinkGone detail="The meeting may have ended, or the invite has expired or been revoked. Ask the host for a new link." />;
 
 export default function GuestMeetingPage({ params }: { params: Promise<{ token: string }> }) {
     const { token } = use(params);
 
-    const [phase, setPhase] = useState<Phase>("validating");
+    // 1. Validate the link before showing the join form, trying again while
+    //    the server is busy or out of reach.
+    const { data: status, trouble } = useGuestAnswer(`meet:${token}`, () => getGuestMeetingStatus(token));
+    const [phase, setPhase] = useState<Phase>("prejoin");
     const [liveToken, setLiveToken] = useState("");
     const [errorMsg, setErrorMsg] = useState("");
-
-    // 1. Validate the link before showing the join form.
-    useEffect(() => {
-        let alive = true;
-        getGuestMeetingStatus(token).then((status) => {
-            if (!alive) return;
-            setPhase(status === "available" ? "prejoin" : "unavailable");
-        });
-        return () => {
-            alive = false;
-        };
-    }, [token]);
 
     const handleJoin = async (values: { audioEnabled: boolean; videoEnabled: boolean; displayName?: string }) => {
         setErrorMsg("");
@@ -36,13 +31,19 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
             values.audioEnabled,
             values.videoEnabled,
         );
-        if (res.ok && res.token) {
-            setLiveToken(res.token);
+        if (res.ok && res.data?.token) {
+            setLiveToken(res.data.token);
             setPhase("in-call");
             return;
         }
-        if (res.error === "name") {
+        if (!res.ok && res.status === 400) {
             setErrorMsg("Please enter your name.");
+            setPhase("prejoin");
+            return;
+        }
+        // A busy or unreachable server is worth another try; a dead link isn't.
+        if (!res.ok && publicTrouble(res.status) !== "gone") {
+            setErrorMsg(sendFailedText(res));
             setPhase("prejoin");
             return;
         }
@@ -51,28 +52,22 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
 
     const handleDisconnect = () => setPhase("ended");
 
-    if (phase === "validating") {
+    if (!status) {
         return (
-            <Centered>
-                <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Checking your invite…</p>
-            </Centered>
+            <GuestNotYet
+                trouble={trouble}
+                gone={gone}
+                loading={
+                    <Centered>
+                        <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                        <p className="text-sm text-muted-foreground">Checking your invite…</p>
+                    </Centered>
+                }
+            />
         );
     }
 
-    if (phase === "unavailable") {
-        return (
-            <Centered>
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                    <AlertCircle className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="text-base font-semibold text-foreground">This link is no longer available</p>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                    The meeting may have ended, or the invite has expired or been revoked. Ask the host for a new link.
-                </p>
-            </Centered>
-        );
-    }
+    if (phase === "unavailable") return gone;
 
     if (phase === "ended") {
         return (
@@ -119,14 +114,6 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
             )}
-        </div>
-    );
-}
-
-function Centered({ children }: { children: React.ReactNode }) {
-    return (
-        <div className="flex min-h-screen w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">
-            {children}
         </div>
     );
 }

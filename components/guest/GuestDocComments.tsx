@@ -24,6 +24,8 @@ import {
   createGuestDocComment,
   type GuestDocComment,
 } from "@/services/guestService"
+import { retryingText, sendFailedText } from "@/services/publicApi"
+import { useGuestAnswer } from "@/components/guest/guestUi"
 import { formatDistanceToNow } from "date-fns"
 
 const NAME_KEY = "oc_guest_name"
@@ -34,9 +36,11 @@ interface GuestDocCommentsProps {
 
 export function GuestDocComments({ token }: GuestDocCommentsProps) {
   const { toast } = useToast()
-  const [loading, setLoading] = React.useState(true)
-  const [canComment, setCanComment] = React.useState(false)
-  const [comments, setComments] = React.useState<GuestDocComment[]>([])
+  // Asked for again while the server is busy or out of reach.
+  const { data, trouble } = useGuestAnswer(`doc-comments:${token}`, () => listGuestDocComments(token))
+  const [posted, setPosted] = React.useState<GuestDocComment[]>([])
+  const canComment = data?.capability === "comment"
+  const comments = [...(data?.comments ?? []), ...posted]
   const [name, setName] = React.useState("")
   const [draft, setDraft] = React.useState("")
   const [posting, setPosting] = React.useState(false)
@@ -47,17 +51,6 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
       if (saved) setName(saved)
     } catch {
       /* localStorage may be blocked; name stays empty */
-    }
-    let alive = true
-    listGuestDocComments(token)
-      .then((res) => {
-        if (!alive) return
-        setCanComment(res.capability === "comment")
-        setComments(res.comments)
-      })
-      .finally(() => alive && setLoading(false))
-    return () => {
-      alive = false
     }
   }, [token])
 
@@ -77,25 +70,22 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
     const res = await createGuestDocComment(token, name, body)
     setPosting(false)
     if (res.ok) {
-      setComments((prev) => [...prev, res.comment])
+      setPosted((prev) => [...prev, res.data])
       setDraft("")
       return
     }
-    toast({
-      title:
-        res.error === "view_only"
-          ? "This link is view only"
-          : res.error === "empty"
-            ? "Please enter a comment"
-            : "Couldn't post your comment",
-      variant: "destructive",
-    })
+    // The server's words for a view-only link or an empty comment; why to
+    // wait for a busy or unreachable server.
+    toast({ title: sendFailedText(res), variant: "destructive" })
   }
 
-  if (loading) {
+  if (!data) {
+    // A dead link is said by the page around this.
+    if (trouble === "gone") return null
     return (
-      <div className="flex items-center justify-center py-8 text-muted-foreground">
+      <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
+        {trouble && <span role="status">{retryingText[trouble]}</span>}
       </div>
     )
   }
