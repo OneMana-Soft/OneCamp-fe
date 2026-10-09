@@ -1,14 +1,13 @@
 import { eyebrowClass } from "@/components/ui/eyebrow"
 import { cn } from "@/lib/utils/helpers/cn"
 import {zodResolver} from "@hookform/resolvers/zod";
-import {useForm} from "react-hook-form";
-import {z} from "zod";
+import {useForm, type Resolver} from "react-hook-form";
 
 import {Button} from "@/components/ui/button";
 import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage,} from "@/components/ui/form";
 import {Input} from "@/components/ui/input";
 
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,} from "../ui/dialog";
 
@@ -35,24 +34,9 @@ import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 import { TwoFactorSection } from "@/components/profile/TwoFactorSection";
 import { PasskeySection } from "@/components/profile/PasskeySection";
-import { nameSchema, optionalNameSchema } from "@/lib/validation/names";
+import { profileFormSchema, profileNamesPayload, type ProfileFormValues, type SavedNames } from "@/lib/validation/profileForm";
 
-const profileFormSchema = z.object({
-    fullName: nameSchema("person", "Full name")
-        .transform((e) => (e === "" ? undefined : e)),
-    displayName: nameSchema("person", "Display name")
-        .transform((e) => (e === "" ? undefined : e)),
-    jobTitle: optionalNameSchema("label", "Job title")
-        .transform((e) => (e === "" ? undefined : e)),
-    hobbies: optionalNameSchema("label", "Interests")
-        .transform((e) => (e === "" ? undefined : e)),
-    language: z.string({
-        required_error: "Please select a language.",
-    }),
-    status: z.boolean({})
-});
-
-type ProfileFormValues = z.infer<typeof profileFormSchema>;
+const NO_NAMES: SavedNames = { fullName: "", displayName: "", handle: "" }
 
 interface editProfileDialogProps {
     dialogOpenState: boolean;
@@ -87,10 +71,21 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
         }
     }, [imageSrc]);
 
+    // What is saved now: a name or handle left as it is is never checked
+    // again (lib/validation/profileForm).
+    const saved = useMemo<SavedNames>(() => ({
+        fullName: profileInfo.data?.data.user_full_name || "",
+        displayName: profileInfo.data?.data.user_name || "",
+        handle: profileInfo.data?.data.user_handle || "",
+    }), [profileInfo.data])
+    const savedRef = useRef<SavedNames>(NO_NAMES)
+    savedRef.current = saved
+
     useEffect(() => {
         if (profileInfo.data?.data) {
             const defaultValues: Partial<ProfileFormValues> = {
                 fullName: profileInfo.data?.data.user_full_name || "",
+                handle: profileInfo.data?.data.user_handle || "",
                 jobTitle: profileInfo.data?.data.user_job_title || "",
                 displayName: profileInfo.data?.data.user_name || "",
                 language: profileInfo.data?.data.user_app_lang || "en",
@@ -182,10 +177,11 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
         }
 
 
-            post.makeRequest<UserProfileUpdateInterface>({
+        const names = profileNamesPayload(data, saved)
+        try {
+            await post.makeRequest<UserProfileUpdateInterface>({
                 payload: {
-                    user_name: data.displayName || profileInfo.data?.data.user_name || "",
-                    user_full_name: data.fullName || profileInfo.data?.data.user_full_name || "",
+                    ...names,
                     user_job_title:
                         data.jobTitle || profileInfo.data?.data.user_job_title || "",
                     user_profile_object_key: profileKey,
@@ -196,39 +192,39 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                 },
                 apiEndpoint: PostEndpointUrl.UpdateUserProfile
 
-            }).then(()=>{
-                dispatch(updateUserInfoStatus({
-                    userUUID: profileInfo.data?.data.user_uuid || '',
-                    profileKey: profileKey,
-                    userName: data.displayName || profileInfo.data?.data.user_name || "",
-                    status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
-
-                }))
-                profileInfo.mutate({
-                    ...profileInfo.data,
-                    data: {
-                        ...profileInfo.data?.data,
-                        user_uuid: profileInfo.data?.data.user_uuid || '',
-                        user_name: data.displayName || profileInfo.data?.data.user_name || "",
-                        user_full_name: data.fullName || profileInfo.data?.data.user_full_name || "",
-                        user_job_title:
-                            data.jobTitle || profileInfo.data?.data.user_job_title || "",
-                        user_profile_object_key: profileKey,
-                        user_app_lang:
-                            data.language || profileInfo.data?.data.user_app_lang || "en",
-                        user_hobbies: data.hobbies || profileInfo.data?.data.user_hobbies || "",
-                        user_status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
-
-                    }
-                }, false)
             })
+        } catch {
+            // The server's reason is shown (a taken handle, a name the rule
+            // refuses), and the dialog stays open to fix it.
+            return
+        }
+        dispatch(updateUserInfoStatus({
+            userUUID: profileInfo.data?.data.user_uuid || '',
+            profileKey: profileKey,
+            userName: names.user_name,
+            status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
 
+        }))
+        profileInfo.mutate({
+            ...profileInfo.data,
+            data: {
+                ...profileInfo.data?.data,
+                user_uuid: profileInfo.data?.data.user_uuid || '',
+                user_name: names.user_name,
+                user_full_name: names.user_full_name,
+                user_handle: names.user_handle ?? profileInfo.data?.data.user_handle,
+                user_job_title:
+                    data.jobTitle || profileInfo.data?.data.user_job_title || "",
+                user_profile_object_key: profileKey,
+                user_app_lang:
+                    data.language || profileInfo.data?.data.user_app_lang || "en",
+                user_hobbies: data.hobbies || profileInfo.data?.data.user_hobbies || "",
+                user_status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
 
+            }
+        }, false)
 
-
-        // profileInfo.mutate();
-
-        closeModal(); // Close dialog after submission
+        closeModal(); // Close dialog after a save that worked
     };
 
     function closeModal() {
@@ -248,11 +244,18 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
         }
     };
 
+    // Built for what is saved at the moment it validates, which the profile
+    // only says once it has loaded.
+    const resolver = useMemo<Resolver<ProfileFormValues>>(
+        () => (values, context, options) => zodResolver(profileFormSchema(savedRef.current))(values, context, options),
+        [],
+    )
     const form = useForm<ProfileFormValues>({
-        resolver: zodResolver(profileFormSchema),
+        resolver,
         defaultValues: {
             fullName: "",
             displayName: "",
+            handle: "",
             jobTitle: "",
             hobbies: "",
             language: "en",
@@ -348,6 +351,22 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                                 <FormControl>
                                                     <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
                                                 </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="handle"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className={eyebrowClass}>Handle</FormLabel>
+                                                <div className="relative">
+                                                    <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">@</span>
+                                                    <FormControl>
+                                                        <Input {...field} autoCapitalize="off" autoCorrect="off" spellCheck={false} className="bg-muted/20 border-0 focus-visible:ring-1 h-10 pl-7" />
+                                                    </FormControl>
+                                                </div>
                                                 <FormMessage />
                                             </FormItem>
                                         )}

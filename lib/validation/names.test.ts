@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isValidName, nameProblem, nameSchema } from "./names"
+import { handleProblem, isValidName, nameProblem, nameSchema, normalizeHandle } from "./names"
 
 describe("names", () => {
   it.each(["qa", "launch-week", "Q4 launch", "design_ops", "विपणन", "製品"])("accepts the workspace name %s", (v) =>
@@ -20,5 +20,10 @@ describe("names", () => {
     expect(nameProblem("person", "Your name", "José O'Brien")).toBe("")
     expect(nameProblem("person", "Your name", "")).toBe("Your name can't be empty")
     expect(nameProblem("person", "Your name", "a<b")).toMatch(/^Your name can use letters/)
+  })
+  it("keeps a handle one way, and checks it by its own rule", () => {
+    expect(normalizeHandle("  @Sam.Smith ")).toBe("sam.smith")
+    for (const ok of ["sam", "sam-2", "priya.raman", "jo_ann", "josé-obrien", "李雷"]) expect(handleProblem(ok)).toBe("")
+    for (const bad of ["s", "-sam", "sam smith", "sam@x", "a".repeat(31)]) expect(handleProblem(bad)).toMatch(/^A handle can use/)
   })
 })

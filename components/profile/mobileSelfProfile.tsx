@@ -1,15 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Eyebrow, eyebrowClass } from "@/components/ui/eyebrow"
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { useConfirm } from "@/hooks/useConfirm";
 import { updateUserInfoStatus } from "@/store/slice/userSlice";
 
-import { useForm } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { profileFormSchema, profileNamesPayload, type ProfileFormValues, type SavedNames } from "@/lib/validation/profileForm";
 
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { useUploadFile } from "@/hooks/useUploadFile";
@@ -38,36 +38,9 @@ import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
 
-const profileFormSchema = z.object({
-    fullName: z
-        .string()
-        .trim()
-        .min(4, "Full name must be at least 4 characters")
-        .max(30, "Full name must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Full name must only contain letters, numbers, and underscores")
-        .transform((e) => (e === "" ? undefined : e)),
-    displayName: z
-        .string()
-        .trim()
-        .min(4, "Display name must be at least 4 characters")
-        .max(30, "Display name must be at most 30 characters")
-        .regex(/^[A-Za-z0-9_\s]+$/, "Display name must only contain letters, numbers, and underscores")
-        .transform((e) => (e === "" ? undefined : e)),
-    jobTitle: z
-        .union([z.string().length(0), z.string().min(4).max(30)])
-        .optional()
-        .transform((e) => (e === "" ? undefined : e)),
-    hobbies: z
-        .union([z.string().length(0), z.string().min(4).max(30)])
-        .optional()
-        .transform((e) => (e === "" ? undefined : e)),
-    language: z.string({
-        required_error: "Please select a language.",
-    }),
-    status: z.boolean({})
-});
-
-type ProfileFormValues = z.infer<typeof profileFormSchema>;
+// The same rules as the desktop editor (lib/validation/profileForm): names in
+// any language, a handle of one's own, and nothing already saved checked again.
+const NO_NAMES: SavedNames = { fullName: "", displayName: "", handle: "" };
 
 export function MobileSelfProfile() {
     const router = useRouter();
@@ -90,11 +63,24 @@ export function MobileSelfProfile() {
         }
     }, [imageSrc]);
 
+    const saved = useMemo<SavedNames>(() => ({
+        fullName: profileInfo.data?.data.user_full_name || "",
+        displayName: profileInfo.data?.data.user_name || "",
+        handle: profileInfo.data?.data.user_handle || "",
+    }), [profileInfo.data]);
+    const savedRef = useRef<SavedNames>(NO_NAMES);
+    savedRef.current = saved;
+    const resolver = useMemo<Resolver<ProfileFormValues>>(
+        () => (values, context, options) => zodResolver(profileFormSchema(savedRef.current))(values, context, options),
+        [],
+    );
+
     const form = useForm<ProfileFormValues>({
-        resolver: zodResolver(profileFormSchema),
+        resolver,
         defaultValues: {
             fullName: "",
             displayName: "",
+            handle: "",
             jobTitle: "",
             hobbies: "",
             language: "en",
@@ -107,6 +93,7 @@ export function MobileSelfProfile() {
         if (profileInfo.data?.data) {
             const defaultValues: Partial<ProfileFormValues> = {
                 fullName: profileInfo.data?.data.user_full_name || "",
+                handle: profileInfo.data?.data.user_handle || "",
                 jobTitle: profileInfo.data?.data.user_job_title || "",
                 displayName: profileInfo.data?.data.user_name || "",
                 language: profileInfo.data?.data.user_app_lang || "en",
@@ -148,10 +135,10 @@ export function MobileSelfProfile() {
             }
         }
 
+        const names = profileNamesPayload(data, saved);
         post.makeRequest<UserProfileUpdateInterface>({
             payload: {
-                user_name: data.displayName || profileInfo.data?.data.user_name || "",
-                user_full_name: data.fullName || profileInfo.data?.data.user_full_name || "",
+                ...names,
                 user_job_title: data.jobTitle || profileInfo.data?.data.user_job_title || "",
                 user_profile_object_key: profileKey,
                 user_app_lang: data.language || profileInfo.data?.data.user_app_lang || "en",
@@ -163,7 +150,7 @@ export function MobileSelfProfile() {
             dispatch(updateUserInfoStatus({
                 userUUID: profileInfo.data?.data.user_uuid || '',
                 profileKey: profileKey,
-                userName: data.displayName || profileInfo.data?.data.user_name || "",
+                userName: names.user_name,
                 status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
             }));
             
@@ -172,8 +159,9 @@ export function MobileSelfProfile() {
                 data: {
                     ...profileInfo.data?.data,
                     user_uuid: profileInfo.data?.data.user_uuid || '',
-                    user_name: data.displayName || profileInfo.data?.data.user_name || "",
-                    user_full_name: data.fullName || profileInfo.data?.data.user_full_name || "",
+                    user_name: names.user_name,
+                    user_full_name: names.user_full_name,
+                    user_handle: names.user_handle ?? profileInfo.data?.data.user_handle,
                     user_job_title: data.jobTitle || profileInfo.data?.data.user_job_title || "",
                     user_profile_object_key: profileKey,
                     user_app_lang: data.language || profileInfo.data?.data.user_app_lang || "en",
@@ -183,6 +171,9 @@ export function MobileSelfProfile() {
             }, false);
 
             router.back();
+        }).catch(() => {
+            // The server's reason is shown (a taken handle, a name the rule
+            // refuses), and the page stays to fix it.
         });
     };
 
@@ -323,6 +314,22 @@ export function MobileSelfProfile() {
                                             <FormControl>
                                                 <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="Enter a display name" />
                                             </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="handle"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className={eyebrowClass}>Handle</FormLabel>
+                                            <div className="relative">
+                                                <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-muted-foreground">@</span>
+                                                <FormControl>
+                                                    <Input {...field} autoCapitalize="off" autoCorrect="off" spellCheck={false} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1 pl-7' placeholder="your-handle" />
+                                                </FormControl>
+                                            </div>
                                             <FormMessage />
                                         </FormItem>
                                     )}

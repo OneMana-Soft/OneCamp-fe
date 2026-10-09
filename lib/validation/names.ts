@@ -60,3 +60,27 @@ export function nameProblem(kind: NameKind, what: string, value: string): string
   const checked = nameSchema(kind, what).safeParse(value)
   return checked.success ? "" : checked.error.issues[0]?.message || `${what} can't be used`
 }
+
+// A person's @handle: short, unique, lowercase, made from their name when they
+// join. Its own rule, the server's (helpers.IsValidHandle), checked only when
+// someone changes it.
+export const HANDLE_RULE = {
+  min: 2,
+  max: 30,
+  pattern: /^[\p{L}\p{N}][\p{L}\p{M}\p{N}._-]*$/u,
+  allows: "lowercase letters, numbers, full stops, hyphens and underscores, starting with a letter or number",
+}
+
+/** A handle as typed, in the form it is kept: trimmed, without a leading @, lowercase. */
+export function normalizeHandle(value: string): string {
+  return value.trim().replace(/^@/, "").toLowerCase()
+}
+
+/** Why a (normalized) handle can't be had, or "" when it can. */
+export function handleProblem(handle: string): string {
+  const n = [...handle].length
+  if (n < HANDLE_RULE.min || n > HANDLE_RULE.max || !HANDLE_RULE.pattern.test(handle)) {
+    return `A handle can use ${HANDLE_RULE.min} to ${HANDLE_RULE.max} ${HANDLE_RULE.allows}.`
+  }
+  return ""
+}
