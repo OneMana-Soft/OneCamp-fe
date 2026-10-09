@@ -27,8 +27,8 @@ import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {SaveToMemoryButton} from "@/components/ai/SaveToMemoryButton";
-import { useGuestAuthor } from "@/hooks/useGuestAuthor";
-import { GuestAvatar } from "@/components/message/guestAvatar";
+import { useRelayedAuthor } from "@/hooks/useRelayedAuthor";
+import { RelayedAvatar } from "@/components/message/relayedAvatar";
 
 interface MessageContentProps {
     userInfo?: UserProfileDataInterface
@@ -91,15 +91,17 @@ export const MessageContent = ({
     // guest_comments table, so we suppress those affordances and the profile
     // open, and badge the author instead of exposing a member profile surface.
     const isGuest = !!userInfo?.user_uuid?.startsWith("guest-")
-    // A channel guest's message or reply, posted by the Guests bot: drawn as
-    // theirs (see lib/guestAuthor). Unlike a doc guest's comment it lives in
-    // the ordinary store, so members still react to it and admins delete it.
-    const channelGuest = useGuestAuthor(isGuest ? undefined : userInfo, content)
-    const guestDisplayName = channelGuest
-        ? channelGuest.name
+    // A channel guest's or Slack person's message or reply, posted by the
+    // Guests or Slack bot: drawn as theirs (see lib/relayedAuthor). Unlike a
+    // doc guest's comment it lives in the ordinary store, so members still
+    // react to it and admins delete it.
+    const relayed = useRelayedAuthor(isGuest ? undefined : userInfo, content)
+    const guestDisplayName = relayed
+        ? relayed.name
         : (userInfo?.user_name || "").replace(/^Guest:\s*/i, "").trim() || "Guest"
-    const asGuest = isGuest || !!channelGuest
-    const body = channelGuest ? channelGuest.body : content
+    const asGuest = isGuest || !!relayed
+    const tagKind = relayed ? relayed.kind : "guest"
+    const body = relayed ? relayed.body : content
 
     const handleEmojiClick = (emojiId: string) => {
         if(userSelectedOption.emojiId == emojiId) {
@@ -184,7 +186,7 @@ export const MessageContent = ({
             </div>}
             <div className="h-12 w-12 flex-shrink-0" onClick={asGuest ? undefined : handleUserClick}>
                 {asGuest ? (
-                    <GuestAvatar name={guestDisplayName} />
+                    <RelayedAvatar name={guestDisplayName} />
                 ) : (
                     <ChannelMessageAvatar
                         userName={userStatusState?.userName || userInfo?.user_name || ''}
@@ -203,7 +205,7 @@ export const MessageContent = ({
                         {asGuest ? guestDisplayName : userInfo?.user_name}
                     </div>
                     {asGuest && (
-                        <PrincipalTag kind="guest" />
+                        <PrincipalTag kind={tagKind} />
                     )}
                     {!asGuest && userInfo?.is_bot && (
                         <BotTag userUUID={userInfo?.user_uuid} />

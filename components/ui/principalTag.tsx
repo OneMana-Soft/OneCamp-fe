@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils/helpers/cn"
  * this exists to remove.
  */
 
-export type PrincipalKind = "ai" | "guest" | "bot"
+export type PrincipalKind = "ai" | "guest" | "bridge" | "bot"
 
 interface PrincipalKindSpec {
   /** Short form, what the eye reads. */
@@ -62,6 +62,9 @@ const PRINCIPAL_KINDS: Record<PrincipalKind, PrincipalKindSpec> = {
   // Neutral, because "outside the company" is a fact about scope rather than a
   // problem; colouring it as a warning would editorialise every guest's name.
   guest: { label: "Guest", spoken: "Guest user", title: "Guest: outside this workspace", variant: "secondary" },
+  // A person in a linked Slack channel, named as the author of what the Slack
+  // bridge carried across. Neutral for the same reason as a guest.
+  bridge: { label: "Slack", spoken: "Person in Slack", title: "Slack: written in the linked Slack channel", variant: "secondary" },
   // Every other bot: the Check-in, Slack and channel-guest relays, workflows'
   // automation account, and any kind this build doesn't know. Neutral, and it
   // claims nothing about AI, because none of them has one behind it.

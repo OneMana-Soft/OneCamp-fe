@@ -5,6 +5,7 @@ import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/helpers/cn";
+import { relayedAuthorOf, relayInitials } from "@/lib/relayedAuthor";
 
 /**
  * ThreadParticipants — a small avatar facepile of the people who replied in a
@@ -19,6 +20,28 @@ export interface ThreadParticipant {
     uuid: string;
     name: string;
     profileKey?: string;
+    /** A guest or Slack person, not a member: neutral initials, no image. */
+    relayed?: boolean;
+}
+
+/**
+ * The people who replied, from a thread's replies. A reply the Guests or
+ * Slack bot posted is its person's (see lib/relayedAuthor), so two guests are
+ * two faces and neither is the bot's. kinds is every bot's kind by uuid
+ * (useBotKindMap); while it loads, replies read as their posters. Pure.
+ */
+export function replyParticipants(
+    comments: { comment_by?: { user_uuid?: string; user_name?: string; user_profile_object_key?: string; is_bot?: boolean }; comment_text?: string }[],
+    kinds: Record<string, string> | undefined,
+): ThreadParticipant[] {
+    return comments.map((c) => {
+        const by = c.comment_by;
+        const relayed = by?.is_bot && by.user_uuid ? relayedAuthorOf(kinds?.[by.user_uuid], c.comment_text) : null;
+        if (relayed) {
+            return { uuid: `${by?.user_uuid}:${relayed.kind}:${relayed.name}`, name: relayed.name, relayed: true };
+        }
+        return { uuid: by?.user_uuid || "", name: by?.user_name || "", profileKey: by?.user_profile_object_key };
+    });
 }
 
 interface Props {
@@ -28,7 +51,7 @@ interface Props {
 }
 
 function ParticipantAvatar({ p }: { p: ThreadParticipant }) {
-    const { src } = useUserAvatar(p.profileKey);
+    const { src } = useUserAvatar(p.relayed ? undefined : p.profileKey);
     return (
         <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
@@ -43,7 +66,7 @@ function ParticipantAvatar({ p }: { p: ThreadParticipant }) {
                             }}
                         />
                     ) : (
-                        getNameInitials(p.name || "?")
+                        p.relayed ? relayInitials(p.name) : getNameInitials(p.name || "?")
                     )}
                 </div>
             </TooltipTrigger>

@@ -24,8 +24,8 @@ import {app_user} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
-import { useGuestAuthor } from "@/hooks/useGuestAuthor";
-import { GuestAvatar } from "@/components/message/guestAvatar";
+import { useRelayedAuthor } from "@/hooks/useRelayedAuthor";
+import { RelayedAvatar } from "@/components/message/relayedAvatar";
 import { PrincipalTag } from "@/components/ui/principalTag";
 
 interface mobileMessageProps {
@@ -64,10 +64,10 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
     const [userSelectedOption, setUserSelectedOption] = useState<UserSelectedOptionInterface>({} as UserSelectedOptionInterface)
     const [reactions, setReactions] = useState<{ [key: string]: string[] }>({});
 
-    // A channel guest's message or reply is drawn as theirs (see lib/guestAuthor).
-    const guest = useGuestAuthor(userInfo, content)
-    const authorName = guest ? guest.name : userInfo.user_name
-    const body = guest ? guest.body : content
+    // A channel guest's or Slack person's message or reply is drawn as theirs (see lib/relayedAuthor).
+    const relayed = useRelayedAuthor(userInfo, content)
+    const authorName = relayed ? relayed.name : userInfo.user_name
+    const body = relayed ? relayed.body : content
 
     const [updatedText, setUpdatedText] = useState<string>(content);
     const updatedTextRef = useRef<string>(content);
@@ -278,11 +278,11 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
     const handleUserClick = useCallback((e: React.MouseEvent)=>{
         e.preventDefault()
         e.stopPropagation()
-        // A guest has no profile: the Guests bot's would stand in for them.
-        if (guest) return
+        // A guest or Slack person has no profile: the relaying bot's would stand in.
+        if (relayed) return
         router.push(`${app_user}/${userInfo.user_uuid}`);
 
-    },[userInfo.user_uuid, guest])
+    },[userInfo.user_uuid, relayed])
 
 
     const handleSelectAttachment = useCallback((attachment: AttachmentMediaReq) => {
@@ -310,8 +310,8 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
             >
 
                 <div className='h-12 w-12 flex-shrink-0' onClick={handleUserClick}>
-                    {guest
-                        ? <GuestAvatar name={guest.name}/>
+                    {relayed
+                        ? <RelayedAvatar name={relayed.name}/>
                         : <ChannelMessageAvatar userName={authorName} userProfileKey={userInfo.user_profile_object_key} isBot={!!userInfo.is_bot} userUUID={userInfo.user_uuid}/>}
 
                 </div>
@@ -320,7 +320,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                         <div className='font-semibold text-m' onClick={handleUserClick}>
                             {authorName}
                         </div>
-                        {guest && <PrincipalTag kind="guest" />}
+                        {relayed && <PrincipalTag kind={relayed.kind} />}
                         <div className='text-xs text-muted-foreground text'>
                             {formatTimeForPostOrComment(createdAt)}
 

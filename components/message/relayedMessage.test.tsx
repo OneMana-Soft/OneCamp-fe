@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 
-// The Guests bot ("guests") and an agent ("captain"), as the server names
-// their kinds.
-const KINDS: Record<string, string> = { guests: "guest", captain: "agent" }
+// The Guests bot ("guests"), the Slack bot ("slack") and an agent
+// ("captain"), as the server names their kinds.
+const KINDS: Record<string, string> = { guests: "guest", slack: "bridge", captain: "agent" }
 vi.mock("@/hooks/useBotKinds", () => ({
   useBotKind: (uuid: string | undefined, isBot: boolean | undefined) => (isBot && uuid ? KINDS[uuid] : undefined),
+  useBotKindMap: () => KINDS,
 }))
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: () => ({ data: undefined, isLoading: false, mutate: () => {} }),
   useFetchOnlyOnce: () => ({ data: undefined }),
@@ -31,16 +33,22 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }), usePa
 vi.mock("@/components/message/AgentResultCards", () => ({ AgentResultCards: () => null }))
 vi.mock("@/components/message/WorkLinkCards", () => ({ WorkLinkCards: () => null }))
 
+const { TooltipProvider } = await import("@/components/ui/tooltip")
 const { default: store } = await import("@/store/store")
 const { BaseMessageCard } = await import("@/components/message/baseMessageCard")
 const { ChannelMessageMobile } = await import("@/components/channel/channelMessageMobile")
 const { MessageContent } = await import("@/components/rightPanel/messageContent")
 
-function renderMessage(from: { user_uuid: string; user_name: string; is_bot?: boolean }, bodyText: string) {
+function renderMessage(
+  from: { user_uuid: string; user_name: string; is_bot?: boolean },
+  bodyText: string,
+  comments?: { comment_uuid: string; comment_text: string; comment_created_at: string; comment_by: unknown }[],
+) {
   return render(
     <Provider store={store}>
+      <TooltipProvider>
       <BaseMessageCard
-        message={{ uuid: "p1", bodyText, from: from as never, createdAt: "2026-10-10T09:00:00Z" }}
+        message={{ uuid: "p1", bodyText, from: from as never, createdAt: "2026-10-10T09:00:00Z", comments: comments as never, commentCount: comments?.length }}
         mediaGetUrl=""
         rightPanelConfig={{}}
         hoverOptionsConfig={{}}
@@ -49,6 +57,7 @@ function renderMessage(from: { user_uuid: string; user_name: string; is_bot?: bo
         removePost={() => {}}
         updatePost={() => {}}
       />
+      </TooltipProvider>
     </Provider>,
   )
 }
@@ -68,7 +77,7 @@ describe("a channel guest's message", () => {
     expect(container.querySelectorAll('[aria-hidden="true"]')[0]?.textContent).toBe("Guest")
     expect(container.textContent?.match(/guest/gi)?.length, "one Guest tag, its spoken form, nothing else").toBe(2)
     expect(screen.getByTestId("body").textContent).toBe("<p>Looks good, ship it</p>")
-    expect(container.querySelector("[data-guest-avatar]")?.textContent).toBe("P")
+    expect(container.querySelector("[data-relayed-avatar]")?.textContent).toBe("P")
     // A guest has no profile to open.
     expect(screen.queryByRole("button", { name: "Priya (Acme)" })).toBeNull()
   })
@@ -89,7 +98,7 @@ describe("a channel guest's message elsewhere", () => {
     expect(screen.queryByText("Guests")).toBeNull()
     expect(container.textContent?.match(/guest/gi)?.length).toBe(2)
     expect(screen.getByTestId("body").textContent).toBe("<p>Looks good, ship it</p>")
-    expect(container.querySelector("[data-guest-avatar]")).toBeTruthy()
+    expect(container.querySelector("[data-relayed-avatar]")).toBeTruthy()
   }
 
   it("reads the same in the mobile list", () => {
@@ -127,5 +136,42 @@ describe("a channel guest's message elsewhere", () => {
       </Provider>,
     )
     expectGuest(container)
+  })
+})
+
+// A Slack person's message, carried by the Slack bot with the same label.
+describe("a Slack person's message", () => {
+  afterEach(cleanup)
+
+  it("is by the person, tagged Slack, and says only what they wrote", () => {
+    const { container } = renderMessage(
+      { user_uuid: "slack", user_name: "Slack", is_bot: true },
+      "<p><strong>[Ana Ruiz]</strong></p><p>On it</p>",
+    )
+    expect(screen.getByText("Ana Ruiz")).toBeTruthy()
+    expect(container.querySelector('[aria-hidden="true"]')?.textContent).toBe("Slack")
+    expect(screen.queryByText("Bot")).toBeNull()
+    expect(screen.getByTestId("body").textContent).toBe("<p>On it</p>")
+    expect(container.querySelector("[data-relayed-avatar]")?.textContent).toBe("AR")
+  })
+})
+
+// The faces beside "N replies" were the Guests bot's, one for every guest.
+describe("the reply avatars under a message", () => {
+  afterEach(cleanup)
+
+  it("are the guests who replied, not the bot that carried them", () => {
+    const reply = (id: string, name: string) => ({
+      comment_uuid: id,
+      comment_created_at: "2026-10-10T09:05:00Z",
+      comment_text: `<p><strong>[${name} (guest)]</strong></p><p>ok</p>`,
+      comment_by: GUESTS_BOT,
+    })
+    const { container } = renderMessage({ user_uuid: "u1", user_name: "Maya Chen" }, "<p>Ship it?</p>", [
+      reply("c1", "Priya (Acme)"),
+      reply("c2", "Tom Hale"),
+    ])
+    const faces = [...container.querySelectorAll(".size-5")].map((f) => f.textContent)
+    expect(faces).toEqual(["TH", "P"])
   })
 })
