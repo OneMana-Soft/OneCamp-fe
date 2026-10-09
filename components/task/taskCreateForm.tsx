@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ProjectInfoInterface, ProjectInfoListRawInterface } from "@/types/project";
+import { ProjectInfoListRawInterface } from "@/types/project";
 import { UserProfileDataInterface } from "@/types/user";
 import { priorities } from "@/types/table";
 import { useUploadFile } from "@/hooks/useUploadFile";
@@ -150,7 +150,6 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const [popOpenProjectName, setPopOpenProjectName] = useState(false);
   const [popOpenUserName, setPopOpenUserName] = useState(false);
   const [popOpenPriority, setPopOpenPriority] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<ProjectInfoInterface | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserProfileDataInterface | null>(null);
   
   const uploadFile = useUploadFile();
@@ -188,6 +187,12 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   const taskProjectUUID = watch("task_project_uuid");
   const taskAssigneeUUID = watch("task_assignee_uuid");
 
+  // The project picked, as the latest list has it: its name, and its members
+  // for the assignee picker. A copy kept in state stayed as an older list had
+  // it (SWR shows its cached answer while it asks again).
+  const projectChoices = projectsInfo.data?.data
+  const selectedProject = projectChoices?.find((p) => p.project_uuid === taskProjectUUID) ?? null
+
   // From My Tasks a task is yours, or it would vanish from the list you made
   // it in. Applied once a project you belong to is picked; you can change it.
   const self = useFetchOnlyOnce<UserProfileInterface>(assignToMe ? GetEndpointUrl.SelfProfile : "");
@@ -201,13 +206,18 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   }, [assignToMe, selfUUID, taskAssigneeUUID, taskProjectUUID, projectsInfo.data, setValue]);
 
   // Opened from outside a project, start where the task most likely goes: the
-  // project a task was last made in here, or the only one there is.
-  const projectChoices = projectsInfo.data?.data
+  // project a task was last made in here, or the only one there is. That pick
+  // can come from an older list, so when the list that comes back no longer
+  // has the project picked (deleted, or no longer one you run), it's picked
+  // again the same way. The caller's project stays: the list holds only the
+  // projects you run.
   useEffect(() => {
-    if (taskProjectUUID) return
+    if (!projectChoices) return
+    const gone = !!taskProjectUUID && taskProjectUUID !== defaultProjectId && !projectChoices.some((p) => p.project_uuid === taskProjectUUID)
+    if (taskProjectUUID && !gone) return
     const start = startingProject(projectChoices, lastTaskProject())
-    if (start) setValue("task_project_uuid", start, { shouldValidate: true })
-  }, [projectChoices, taskProjectUUID, setValue]);
+    if (start || gone) setValue("task_project_uuid", start, { shouldValidate: !!start })
+  }, [projectChoices, taskProjectUUID, defaultProjectId, setValue]);
 
   // Uploads live in Redux (for their progress), keyed by the project picked in
   // this form; copy the finished ones into the form so they are sent with the
@@ -226,17 +236,6 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
     }));
     setValue("task_attachments", attachments);
   }, [uploadedForProject, taskProjectUUID, setValue]);
-
-  useEffect(() => {
-    if (
-      projectsInfo.data?.data &&
-      taskProjectUUID &&
-      (!selectedProject || selectedProject.project_uuid !== taskProjectUUID)
-    ) {
-      const project = projectsInfo.data.data.find(p => p.project_uuid === taskProjectUUID);
-      setSelectedProject(project || null);
-    }
-  }, [projectsInfo.data, taskProjectUUID, selectedProject]);
 
   useEffect(() => {
     if (
@@ -336,10 +335,12 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
   return (
     <div>
       {/* Create is never a dead end: pressed without a project, it says so and
-          opens the picker, where a disabled button gave no reason at all. */}
+          opens the picker, where a disabled button gave no reason at all. Only
+          when the project is all that's missing: with another field wrong,
+          focus goes to that field, and the picker would open and shut again. */}
       <form
         onSubmit={handleSubmit(handleCreateTask, (invalid) => {
-          if (invalid.task_project_uuid) setPopOpenProjectName(true);
+          if (invalid.task_project_uuid && Object.keys(invalid).length === 1) setPopOpenProjectName(true);
         })}
         className="grid gap-4 py-4"
       >
@@ -577,13 +578,17 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                   render={({ field }) => (
                     <Input
                       id="github-url"
+                      ref={field.ref}
                       placeholder="https://github.com/owner/repo/issues/123"
                       value={field.value || ""}
                       onChange={(e) => field.onChange(e.target.value || undefined)}
+                      onBlur={field.onBlur}
+                      aria-invalid={!!errors.task_github_issue_url}
                       className="mt-1"
                     />
                   )}
                 />
+                {errors.task_github_issue_url && <p className="text-destructive text-sm">{errors.task_github_issue_url.message}</p>}
                 <p className="text-xs text-muted-foreground mt-1">Link this task to an existing GitHub issue or pull request.</p>
               </div>
             )}
@@ -602,7 +607,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                     )}
                 />
                 {startDateWatch && (
-                  <Button aria-label="Clear start date" variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_start_date", undefined)}>
+                  <Button type="button" aria-label="Clear start date" variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_start_date", undefined)}>
                     <X className="h-3 w-3" />
                   </Button>
                 )}
@@ -622,7 +627,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                     )}
                 />
                 {dueDateWatch && (
-                  <Button aria-label="Clear due date" variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_due_date", undefined)}>
+                  <Button type="button" aria-label="Clear due date" variant="ghost" size="icon" className="absolute -right-4 top-0 transform rounded-full" onClick={() => setValue("task_due_date", undefined)}>
                     <X className="h-3 w-3" />
                   </Button>
                 )}
