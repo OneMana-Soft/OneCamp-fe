@@ -33,6 +33,7 @@ import {
   SANDBOX_TOOL_GROUP,
   CODE_PR_TOOL_GROUP,
   EVENT_TRIGGER_OPTIONS,
+  WITHDRAWN_EVENT_LABELS,
   SCHEDULE_PRESETS,
   createAgent,
   updateAgent,
@@ -942,6 +943,17 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
             {triggerType === "event" && (
               <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3">
                 <Label className="text-xs">Run when…</Label>
+                {WITHDRAWN_EVENT_LABELS[eventType] && (
+                  <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning" />
+                    <span className="text-pretty">
+                      This agent runs when “{WITHDRAWN_EVENT_LABELS[eventType]}”. GitHub events can no longer set off
+                      an agent: anyone who can write on the repository writes what they carry, so it answers in words
+                      only and uses none of its tools. To save changes, choose another event below, or have it run when
+                      mentioned or on a schedule.
+                    </span>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1.5">
                   {EVENT_TRIGGER_OPTIONS.map((o) => (
                     <button

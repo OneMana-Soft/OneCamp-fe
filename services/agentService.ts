@@ -294,13 +294,19 @@ export const EVENT_TRIGGER_OPTIONS: { value: string; label: string }[] = [
   { value: "user.joined", label: "Someone joins a channel" },
   { value: "table.row.created", label: "A table row is added" },
   { value: "table.row.updated", label: "A table row is updated" },
-  // GitHub events (require a linked GitHub repo). Let an agent follow PRs:
-  // react when one opens, a review lands, or CI finishes.
-  { value: "github.pr.opened", label: "A GitHub pull request is opened" },
-  { value: "github.pr.review_submitted", label: "A GitHub PR review is submitted" },
-  { value: "github.check_run.completed", label: "A pull request's CI finishes (all checks pass/fail)" },
-  { value: "github.issue.opened", label: "A GitHub issue is opened" },
 ]
+
+// GitHub events an agent can no longer be set up on. What they carry is
+// written by anyone who can write on the repository, so the server runs an
+// agent on one as asked for by nobody, refusing every tool, and refuses to
+// save an agent set up on one. An agent set up on one before still runs on
+// it; its form names the event and says so.
+export const WITHDRAWN_EVENT_LABELS: Record<string, string> = {
+  "github.pr.opened": "A GitHub pull request is opened",
+  "github.pr.review_submitted": "A GitHub PR review is submitted",
+  "github.check_run.completed": "A pull request's CI finishes",
+  "github.issue.opened": "A GitHub issue is opened",
+}
 
 // Schedule presets (minutes) offered in the builder; a custom value is also
 // accepted.
