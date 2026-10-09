@@ -6,6 +6,7 @@ import type { Editor } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react'
 import { LinkEditBlock } from '../link/link-edit-block'
 import { LinkPopoverBlock } from '../link/link-popover-block'
+import { isSafeHref } from '@/lib/utils/safeHref'
 
 interface LinkBubbleMenuProps {
   editor: Editor
@@ -62,6 +63,9 @@ export const LinkBubbleMenu: React.FC<LinkBubbleMenuProps> = ({ editor, hide }) 
 
   const onSetLink = React.useCallback(
     (url: string, text?: string, openInNewTab?: boolean) => {
+      // insertContent below doesn't ask the link extension, so an unsafe href
+      // would reach the document as a mark. LinkEditBlock says why it can't.
+      if (!isSafeHref(url)) return
       editor
         .chain()
         .focus()

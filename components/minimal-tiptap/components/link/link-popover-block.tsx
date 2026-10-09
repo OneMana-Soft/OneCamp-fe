@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Separator } from '@/components/ui/separator'
 import { ToolbarButton } from '../toolbar-button'
 import { CopyIcon, ExternalLinkIcon, LinkBreak2Icon } from '@radix-ui/react-icons'
+import { isSafeHref } from '@/lib/utils/safeHref'
 
 interface LinkPopoverBlockProps {
   url: string
@@ -28,7 +29,10 @@ export const LinkPopoverBlock: React.FC<LinkPopoverBlockProps> = ({ url, onClear
     [url]
   )
 
+  // The href comes from the document, where a collaborator's edit can put one
+  // that was never parsed, so it's checked as the rendered link is.
   const handleOpenLink = React.useCallback(() => {
+    if (!isSafeHref(url)) return
     window.open(url, '_blank', 'noopener,noreferrer')
   }, [url])
 
