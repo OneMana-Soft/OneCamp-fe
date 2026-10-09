@@ -67,9 +67,8 @@ describe("accepting an invitation", () => {
     nav.search = "token=tok-ana"
     render(<SignupPage />)
     await screen.findByText("ana@example.com")
-    const password = screen.getAllByPlaceholderText(/password/i)
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "ana" } })
-    for (const field of password) fireEvent.change(field, { target: { value: "a long enough password" } })
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Ana" } })
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a long enough password" } })
     await act(async () => void fireEvent.submit(screen.getByRole("button", { name: /create account/i }).closest("form")!))
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(LANDING))
   })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isValidName, nameSchema } from "./names"
+import { isValidName, nameProblem, nameSchema } from "./names"
 
 describe("names", () => {
   it.each(["qa", "launch-week", "Q4 launch", "design_ops", "विपणन", "製品"])("accepts the workspace name %s", (v) =>
@@ -15,5 +15,10 @@ describe("names", () => {
     const r = nameSchema("workspace", "Channel name").safeParse("a/b")
     expect(r.success).toBe(false)
     expect(r.error?.issues[0].message).toMatch(/Channel name can use letters/)
+  })
+  it("says what is wrong with a name, or nothing", () => {
+    expect(nameProblem("person", "Your name", "José O'Brien")).toBe("")
+    expect(nameProblem("person", "Your name", "")).toBe("Your name can't be empty")
+    expect(nameProblem("person", "Your name", "a<b")).toMatch(/^Your name can use letters/)
   })
 })

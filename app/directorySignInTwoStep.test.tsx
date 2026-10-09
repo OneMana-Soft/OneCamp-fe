@@ -131,3 +131,15 @@ describe("signing in with an email password with two-step on", () => {
     expect(sent.find((r) => r.path.endsWith("auth/login/totp"))?.body).toEqual({ challenge: CHALLENGE, code: "654321" })
   })
 })
+
+// The sign-up page sends someone joining through the directory here: the
+// directory's own form opens, rather than the standard one.
+describe("arriving from the sign-up page to use the directory", () => {
+  afterEach(() => window.history.replaceState(null, "", "/"))
+
+  it("opens on the directory form", async () => {
+    window.history.replaceState(null, "", "/?tab=directory")
+    render(<SignInPage />)
+    expect(await screen.findByRole("button", { name: "Sign in via Directory" })).toBeTruthy()
+  })
+})
