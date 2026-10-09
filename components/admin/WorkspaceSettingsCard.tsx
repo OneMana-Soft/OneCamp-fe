@@ -137,14 +137,23 @@ export default function WorkspaceSettingsCard() {
                         <h3 className="text-sm font-medium">Sign-up allow-list</h3>
                         {settings && <SourceBadge source={settings.allowed_users_source} />}
                     </div>
-                    <Label className="text-xs">Allowed emails (comma-separated). Leave empty for invite-only.</Label>
+                    <Label htmlFor="allowed-users" className="text-xs">
+                        Allowed emails and domains (comma-separated). Leave empty for invite-only.
+                    </Label>
                     <Textarea
+                        id="allowed-users"
                         value={allowedUsers}
                         onChange={(e) => setAllowedUsers(e.target.value)}
-                        placeholder="alice@example.com, bob@example.com"
+                        placeholder="alice@example.com, @example.com"
                         rows={3}
                         disabled={loading}
+                        aria-describedby="allowed-users-help"
                     />
+                    <p id="allowed-users-help" className="text-2xs text-muted-foreground">
+                        People on this list join by signing in with Google or GitHub, without an invitation. An entry
+                        like @example.com lets in anyone whose Google or GitHub account has a verified address at
+                        example.com. Don&apos;t add a public domain like @gmail.com: anyone with an address there could join.
+                    </p>
                     <Button size="sm" onClick={saveAccess} disabled={savingAccess || loading}>
                         {savingAccess ? "Saving…" : "Save allow-list"}
                     </Button>
