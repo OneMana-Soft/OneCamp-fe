@@ -4,7 +4,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { Plus } from "@/lib/icons"
-import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, createRow, updateRow, formulaOf, nextRowPosition } from "@/services/tableService"
+import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, createRow, updateRow, isComputed, computedOf, nextRowPosition, writableValues } from "@/services/tableService"
 import { formulaText, cardTitle } from "@/lib/tables/formula"
 
 interface DataTableBoardProps {
@@ -107,7 +107,7 @@ export function DataTableBoard({
     const nextVal = toColumn === NO_VALUE ? "" : toColumn
     if ((current[groupField.id] || "") === nextVal) return
     try {
-      await updateRow(tableId, row.id, { ...current, [groupField.id]: nextVal }, row.position)
+      await updateRow(tableId, row.id, writableValues(fields, { ...current, [groupField.id]: nextVal }), row.position)
       onChange()
     } catch {
       onChange()
@@ -166,7 +166,7 @@ export function DataTableBoard({
                       .map((f) => {
                         const cellVal = values[f.id]
                         const text =
-                          f.type === "formula" ? formulaText(cellVal, formulaOf(f).result) : formatCardValue(cellVal)
+                          isComputed(f) ? formulaText(cellVal, computedOf(f).result) : formatCardValue(cellVal)
                         if (!text) return null
                         return (
                           <p key={f.id} className="truncate text-xs text-muted-foreground">

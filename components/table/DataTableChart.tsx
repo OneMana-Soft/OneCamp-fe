@@ -11,7 +11,7 @@ import {
 import { Loader2 } from "@/lib/icons"
 import SvgChart from "@/components/charts/SvgChart"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
-import { aggregateTable, type AggregateOp, type AggregateResult, type TableField, formulaOf } from "@/services/tableService"
+import { aggregateTable, type AggregateOp, type AggregateResult, type TableField, isComputed, computedOf } from "@/services/tableService"
 import { partialNote } from "@/lib/tables/chartNote"
 
 // DataTableChart — a Notion-style "chart view" for a table. The user picks a
@@ -84,8 +84,8 @@ function loadConfig(tableId: string, fields: TableField[], numericFields: TableF
 
 export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartProps) {
     const numericFields = React.useMemo(
-        // A formula that gives a number adds up like a number field.
-        () => fields.filter((f) => NUMERIC_FIELD_TYPES.has(f.type) || (f.type === "formula" && formulaOf(f).result === "number")),
+        // A formula or a rollup that gives a number adds up like a number field.
+        () => fields.filter((f) => NUMERIC_FIELD_TYPES.has(f.type) || (isComputed(f) && computedOf(f).result === "number")),
         [fields],
     )
 

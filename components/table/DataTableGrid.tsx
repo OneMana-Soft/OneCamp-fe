@@ -18,10 +18,13 @@ import {
   FieldType,
   SelectOption,
   RelationRef,
-  RelationTarget,
   parseFieldConfig,
   parseRowValues,
   formulaOf,
+  relationOf,
+  rollupOf,
+  computedOf,
+  fieldProblem,
   createRow,
   updateRow,
   deleteRow,
@@ -30,9 +33,20 @@ import {
   deleteField,
   fillTableAIColumn,
   nextRowPosition,
+  writableValues,
+  changeLinks,
 } from "@/services/tableService"
 import { RelationCell } from "@/components/table/RelationCell"
 import { FormulaEditor } from "@/components/table/FormulaEditor"
+import {
+  RelationSettings,
+  RollupSettings,
+  relationDraftOf,
+  relationReady,
+  rollupReady,
+  type RelationDraft,
+  type RollupDraft,
+} from "@/components/table/LinkSettings"
 import { showFormulaValue } from "@/lib/tables/formula"
 
 interface DataTableGridProps {
@@ -57,16 +71,18 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "person", label: "Person" },
   { value: "relation", label: "Relation" },
   { value: "formula", label: "Formula" },
+  { value: "rollup", label: "Rollup" },
 ]
 
-const RELATION_TARGETS: { value: string; label: string }[] = [
-  { value: "any", label: "Anything" },
-  { value: "task", label: "Tasks" },
-  { value: "doc", label: "Docs" },
-  { value: "board", label: "Boards" },
-  { value: "project", label: "Projects" },
-  { value: "user", label: "People" },
-]
+const NO_ROLLUP: RollupDraft = { relation: "", field: "", aggregate: "" }
+
+/** Whether a field's settings are complete enough to save. */
+function settingsReady(type: FieldType, formula: string, relation: RelationDraft, rollup: RollupDraft): boolean {
+  if (type === "formula") return !!formula.trim()
+  if (type === "relation") return relationReady(relation)
+  if (type === "rollup") return rollupReady(rollup)
+  return true
+}
 
 // Local working copy of a row's values for snappy inline editing.
 type RowValues = Record<string, unknown>
@@ -95,6 +111,8 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
   const [newColName, setNewColName] = React.useState("")
   const [newColType, setNewColType] = React.useState<FieldType>("text")
   const [newColFormula, setNewColFormula] = React.useState("")
+  const [newColRelation, setNewColRelation] = React.useState<RelationDraft>(() => relationDraftOf())
+  const [newColRollup, setNewColRollup] = React.useState<RollupDraft>(NO_ROLLUP)
 
   const sortedFields = React.useMemo(
     () => [...fields].sort((a, b) => a.position - b.position),
@@ -105,12 +123,23 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
   const commitCell = async (row: TableRow, fieldId: string, value: unknown) => {
     const current = parseRowValues(row)
     if (current[fieldId] === value) return
-    const next: RowValues = { ...current, [fieldId]: value }
+    const next: RowValues = writableValues(fields, { ...current, [fieldId]: value })
     try {
       await updateRow(tableId, row.id, next, row.position)
       onChange()
     } catch {
       // interceptor surfaces the error; revalidate to reset the cell
+      onChange()
+    }
+  }
+
+  // Link a row to rows of the table a field links to, or unlink it.
+  const linkCell = async (row: TableRow, fieldId: string, change: { add?: string[]; remove?: string[] }) => {
+    try {
+      await changeLinks(tableId, row.id, fieldId, change)
+    } catch {
+      // surfaced by the interceptor
+    } finally {
       onChange()
     }
   }
@@ -150,11 +179,20 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
         name,
         type: newColType,
         position: pos,
-        config: newColType === "formula" ? { formula: newColFormula } : undefined,
+        config:
+          newColType === "formula"
+            ? { formula: newColFormula }
+            : newColType === "relation"
+              ? { ...newColRelation }
+              : newColType === "rollup"
+                ? { ...newColRollup }
+                : undefined,
       })
       setNewColName("")
       setNewColType("text")
       setNewColFormula("")
+      setNewColRelation(relationDraftOf())
+      setNewColRollup(NO_ROLLUP)
       setAddingColumn(false)
       onChange()
       toast({ title: "Column added" })
@@ -244,6 +282,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
                       field={f}
                       value={values[f.id]}
                       onCommit={(v) => commitCell(row, f.id, v)}
+                      onLink={(change) => linkCell(row, f.id, change)}
                     />
                   </td>
                 ))}
@@ -291,7 +330,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
           <Button
             size="sm"
             onClick={handleAddColumn}
-            disabled={busy || !newColName.trim() || (newColType === "formula" && !newColFormula.trim())}
+            disabled={busy || !newColName.trim() || !settingsReady(newColType, newColFormula, newColRelation, newColRollup)}
             className="gap-1.5"
           >
             <Check className="h-3.5 w-3.5" /> Add
@@ -302,6 +341,16 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
           {newColType === "formula" && (
             <div className="w-full max-w-md">
               <FormulaEditor tableId={tableId} fields={sortedFields} value={newColFormula} onChange={setNewColFormula} />
+            </div>
+          )}
+          {newColType === "relation" && (
+            <div className="w-full max-w-xs">
+              <RelationSettings tableId={tableId} draft={newColRelation} onChange={setNewColRelation} />
+            </div>
+          )}
+          {newColType === "rollup" && (
+            <div className="w-full max-w-xs">
+              <RollupSettings fields={sortedFields} draft={newColRollup} onChange={setNewColRollup} />
             </div>
           )}
         </div>
@@ -346,9 +395,11 @@ function ColumnHeader({
     () => parseFieldConfig(field).options || [],
   )
   const [newOption, setNewOption] = React.useState("")
-  const [relationTarget, setRelationTarget] = React.useState<string>(
-    () => (parseFieldConfig(field).relation_target as string) || "any",
-  )
+  const [relation, setRelation] = React.useState<RelationDraft>(() => relationDraftOf(field))
+  const [rollup, setRollup] = React.useState<RollupDraft>(() => {
+    const r = rollupOf(field)
+    return { relation: r.relation, field: r.field, aggregate: r.aggregate }
+  })
   const [formula, setFormula] = React.useState<string>(() => formulaOf(field).formula)
   const [aiPrompt, setAiPrompt] = React.useState<string>(() => aiPromptOf(parseFieldConfig(field)))
   const [aiAuto, setAiAuto] = React.useState<boolean>(() => aiAutoOf(parseFieldConfig(field)))
@@ -359,7 +410,9 @@ function ColumnHeader({
       setName(field.name)
       setType(field.type)
       setOptions(parseFieldConfig(field).options || [])
-      setRelationTarget((parseFieldConfig(field).relation_target as string) || "any")
+      setRelation(relationDraftOf(field))
+      const r = rollupOf(field)
+      setRollup({ relation: r.relation, field: r.field, aggregate: r.aggregate })
       setFormula(formulaOf(field).formula)
       setAiPrompt(aiPromptOf(parseFieldConfig(field)))
       setAiAuto(aiAutoOf(parseFieldConfig(field)))
@@ -370,24 +423,28 @@ function ColumnHeader({
   const isSelect = type === "select" || type === "multi_select"
   const isRelation = type === "relation"
   const isFormula = type === "formula"
+  const isRollup = type === "rollup"
   // AI columns are plain content columns (text/number/url/email) driven by a
   // prompt. Select/relation columns have their own structured config instead,
-  // and a formula works its cells out itself.
-  const aiEligible = !isSelect && !isRelation && !isFormula
-  const formulaError = field.type === "formula" ? formulaOf(field).error : undefined
+  // and a formula or a rollup works its cells out itself.
+  const aiEligible = !isSelect && !isRelation && !isFormula && !isRollup
+  const problem = fieldProblem(field)
+  const ready = settingsReady(type, formula, relation, rollup)
   const savedAiPrompt = aiPromptOf(parseFieldConfig(field))
 
   const save = () => {
     const trimmed = name.trim()
     if (!trimmed) return
-    if (isFormula && !formula.trim()) return
+    if (!ready) return
     const config: Record<string, unknown> = isSelect
       ? { options }
       : isRelation
-        ? { relation_target: relationTarget }
+        ? { ...relation }
         : isFormula
           ? { formula }
-          : {}
+          : isRollup
+            ? { ...rollup }
+            : {}
     if (aiEligible && aiPrompt.trim()) {
       config.ai = { prompt: aiPrompt.trim(), auto: aiAuto }
     }
@@ -425,7 +482,7 @@ function ColumnHeader({
       <th className="min-w-[160px] border-r border-border/40 px-3 py-2 text-left font-medium text-muted-foreground">
         {field.name}
         {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-brand" />}
-        {formulaError && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={formulaError} />}
+        {problem && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={problem} />}
         <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
       </th>
     )
@@ -439,13 +496,13 @@ function ColumnHeader({
             <span className="truncate">
               {field.name}
               {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-brand" />}
-              {formulaError && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={formulaError} />}
+              {problem && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={problem} />}
               <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
             </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className={cn(isFormula ? "w-80" : "w-64", "p-3")} onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DropdownMenuContent align="start" className={cn(isFormula || isRollup || isRelation ? "w-80" : "w-64", "p-3")} onCloseAutoFocus={(e) => e.preventDefault()}>
           <div className="space-y-2">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Name</label>
@@ -515,21 +572,15 @@ function ColumnHeader({
               </div>
             )}
 
-            {isRelation && (
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Links to</label>
-                <select
-                  value={relationTarget}
-                  onChange={(e) => setRelationTarget(e.target.value)}
-                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
-                >
-                  {RELATION_TARGETS.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {isRelation && <RelationSettings tableId={tableId} field={field.type === "relation" ? field : undefined} draft={relation} onChange={setRelation} />}
+
+            {isRollup && <RollupSettings fields={fields.filter((f) => f.id !== field.id)} draft={rollup} onChange={setRollup} />}
+
+            {problem && (
+              <p className="flex items-start gap-1 text-2xs leading-snug text-destructive">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                {problem}
+              </p>
             )}
 
             {aiEligible && (
@@ -583,7 +634,7 @@ function ColumnHeader({
               <Button size="sm" variant="ghost" className="text-destructive" onClick={onDelete}>
                 <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
               </Button>
-              <Button size="sm" onClick={save} disabled={!name.trim() || (isFormula && !formula.trim())}>
+              <Button size="sm" onClick={save} disabled={!name.trim() || !ready}>
                 <Check className="h-3.5 w-3.5 mr-1" /> Save
               </Button>
             </div>
@@ -599,13 +650,16 @@ function Cell({
   field,
   value,
   onCommit,
+  onLink,
 }: {
   field: TableField
   value: unknown
   onCommit: (value: unknown) => void
+  /** Links or unlinks rows of the table a relation links to. */
+  onLink: (change: { add?: string[]; remove?: string[] }) => void
 }) {
-  if (field.type === "formula") {
-    return <FormulaCell field={field} value={value} />
+  if (field.type === "formula" || field.type === "rollup") {
+    return <ComputedCell field={field} value={value} />
   }
 
   if (field.type === "checkbox") {
@@ -684,11 +738,16 @@ function Cell({
   }
 
   if (field.type === "relation") {
-    const target = (parseFieldConfig(field).relation_target as RelationTarget) || "any"
+    const { target, tableId, tableName } = relationOf(field)
+    const linksTable = target === "table"
     return (
       <RelationCell
         value={value}
         target={target}
+        tableId={tableId}
+        // A table the reader can't open comes without its name: its links show, but stay as they are.
+        readOnly={linksTable && !tableName}
+        onLink={linksTable ? onLink : undefined}
         onCommit={(refs: RelationRef[]) => onCommit(refs)}
       />
     )
@@ -748,10 +807,10 @@ function TextCell({
 }
 
 
-// FormulaCell shows what a formula field's formula gives for the row, as the
-// server worked it out. It can't be edited: change the formula instead.
-function FormulaCell({ field, value }: { field: TableField; value: unknown }) {
-  const shown = showFormulaValue(value, formulaOf(field).result)
+// ComputedCell shows what a formula or a rollup gives for the row, as the
+// server worked it out. It can't be edited: change the field instead.
+function ComputedCell({ field, value }: { field: TableField; value: unknown }) {
+  const shown = showFormulaValue(value, computedOf(field).result)
   switch (shown.kind) {
     case "blank":
       return <div className="h-8" />
