@@ -29,11 +29,15 @@ const buildTimeDefaults = {
   ldap:   process.env.NEXT_PUBLIC_AUTH_LDAP   === "true",
 };
 
-// Allowlist of SSO error codes the BE can return. Any unknown code is mapped
-// to a generic message so attackers can't render arbitrary text via
-// /?error=x&message=<phishing-text>.
+// Allowlist of SSO error codes the BE can return (it sends them through
+// SignInErrorURL). Any unknown code is mapped to a generic message so attackers
+// can't render arbitrary text via /?error=x&message=<phishing-text>.
 const knownErrorMessages: Record<string, string> = {
-  // OAuth (Google/GitHub)
+  // OAuth (Google/GitHub). A refusal names its reason; `unauthorized` is what
+  // servers sent for every refusal before these codes existed.
+  oauth_email_unverified: "Google or GitHub hasn't verified this email address. Verify it there (on GitHub, your primary address), then sign in again.",
+  oauth_not_invited:      "This email address isn't invited to this workspace. Ask your administrator to invite you, or to add your address to the sign-up allow-list.",
+  oauth_failed:           "Signing in with Google or GitHub didn't finish. Please try again.",
   unauthorized:           "Your account is not authorized to access this workspace. Please contact your administrator for an invitation.",
   // OIDC
   oidc_disabled:          "OIDC sign-in is currently disabled.",
