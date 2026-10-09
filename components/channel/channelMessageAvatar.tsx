@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sparkles } from "@/lib/icons"
 import { useBotKind } from "@/hooks/useBotKinds"
 import { isAIBot } from "@/lib/botCopy"
+import { guestInitials } from "@/lib/guestAuthor"
 
 interface ChannelMessageAvatarProps {
     userProfileKey?: string
@@ -22,6 +23,12 @@ interface ChannelMessageAvatarProps {
     isBot?: boolean
     /** Whose avatar, for a bot to be told apart by its kind. */
     userUUID?: string
+    /**
+     * Someone outside the workspace (a channel or doc guest), named by userName.
+     * A person, so a circle, but neutral: no profile image (they have none; the
+     * Guests bot's would stand in for every guest) and no member's colour.
+     */
+    guest?: boolean
 }
 
 export const ChannelMessageAvatar = ({
@@ -29,10 +36,21 @@ export const ChannelMessageAvatar = ({
     userProfileKey,
     isBot = false,
     userUUID,
+    guest = false,
 }: ChannelMessageAvatarProps) => {
-    const { src: imageSrc } = useUserAvatar(userProfileKey)
-    const kind = useBotKind(userUUID, isBot)
+    const { src: imageSrc } = useUserAvatar(guest ? undefined : userProfileKey)
+    const kind = useBotKind(userUUID, isBot && !guest)
     const nameInitial = getNameInitials(userName)
+
+    if (guest) {
+        return (
+            <Avatar className="h-full w-full" data-guest-avatar="">
+                <AvatarFallback className="bg-muted text-2xs font-semibold text-muted-foreground">
+                    {guestInitials(userName)}
+                </AvatarFallback>
+            </Avatar>
+        )
+    }
 
     if (isBot && !isAIBot(kind)) {
         return (

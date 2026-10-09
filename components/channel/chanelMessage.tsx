@@ -9,6 +9,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { setChannelReplyTarget } from "@/store/slice/channelSlice"
 import { htmlToPreviewText } from "@/lib/utils/htmlToPreviewText"
 import type { PostsRes } from "@/types/post"
+import { useGuestAuthor } from "@/hooks/useGuestAuthor"
 
 interface ChannelMessageProps {
   postInfo: PostsRes
@@ -23,6 +24,8 @@ interface ChannelMessageProps {
 export const ChannelMessage = ({ updatePost, postInfo, addReaction, removeReaction, isAdmin, removePost, priority }: ChannelMessageProps) => {
   const channelId = usePathname().split("/")[3]
   const dispatch = useDispatch()
+  // Replying to a channel guest quotes them by name (see lib/guestAuthor).
+  const guest = useGuestAuthor(postInfo.post_by, postInfo.post_text)
 
   const handleUserClick = useCallback(() => {
     dispatch(openUI({ key: "otherUserProfile", data: { userUUID: postInfo.post_by.user_uuid } }))
@@ -34,11 +37,11 @@ export const ChannelMessage = ({ updatePost, postInfo, addReaction, removeReacti
       setChannelReplyTarget({
         channelId,
         uuid: postInfo.post_uuid,
-        authorName: postInfo.post_by.user_name,
-        text: htmlToPreviewText(postInfo.post_text),
+        authorName: guest ? guest.name : postInfo.post_by.user_name,
+        text: htmlToPreviewText(guest ? guest.body : postInfo.post_text),
       }),
     )
-  }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by.user_name, postInfo.post_text])
+  }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by.user_name, postInfo.post_text, guest])
 
   return (
     <BaseMessageCard
