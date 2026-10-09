@@ -1,0 +1,75 @@
+import { Suspense } from "react"
+import { act, cleanup, render, screen } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type { GuestChannelPage as Page } from "@/services/guestService"
+import type { PublicResult } from "@/services/publicApi"
+
+const getGuestChannel = vi.fn<(token: string, before?: string) => Promise<PublicResult<Page>>>()
+vi.mock("@/services/guestService", () => ({
+  getGuestChannel: (token: string, before?: string) => getGuestChannel(token, before),
+  getGuestThread: vi.fn(),
+  postGuestMessage: vi.fn(),
+}))
+
+import GuestChannelPage from "@/app/guest/c/[token]/page"
+import { GUEST_POLL_MS } from "./guestUi"
+
+const page: Page = {
+  channel: "acme-launch",
+  can_post: false,
+  has_more: false,
+  messages: [{ id: "m1", author: "Ada", text: "Launch is Friday", created_at: "2026-10-09T10:00:00Z", reply_count: 0 }],
+}
+const fail = (status: number): PublicResult<Page> => ({ ok: false, status, msg: "" })
+
+async function open() {
+  await act(async () => {
+    render(
+      <Suspense fallback={null}>
+        <GuestChannelPage params={Promise.resolve({ token: "tok" })} />
+      </Suspense>,
+    )
+  })
+}
+const poll = () => act(() => vi.advanceTimersByTimeAsync(GUEST_POLL_MS))
+
+describe("a shared channel whose server stops answering", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true })
+    getGuestChannel.mockReset()
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  it("keeps the messages, says it's retrying, and carries on when the server is back", async () => {
+    getGuestChannel.mockResolvedValueOnce({ ok: true, data: page }).mockResolvedValueOnce(fail(503)).mockResolvedValue({ ok: true, data: page })
+    await open()
+    expect(screen.getByText("Launch is Friday")).toBeInTheDocument()
+
+    await poll()
+    expect(screen.getByText("Launch is Friday")).toBeInTheDocument()
+    expect(screen.getByRole("status")).toHaveTextContent("Couldn't reach the server, retrying…")
+    expect(screen.queryByText("This link is no longer available")).not.toBeInTheDocument()
+
+    await poll()
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  })
+
+  it("says so when the server is busy before the first answer", async () => {
+    getGuestChannel.mockResolvedValueOnce(fail(429)).mockResolvedValue({ ok: true, data: page })
+    await open()
+    expect(screen.getByRole("status")).toHaveTextContent("Too many requests, wait a minute.")
+    await poll()
+    expect(screen.getByText("Launch is Friday")).toBeInTheDocument()
+  })
+
+  it("shows a dead link only when the link is gone", async () => {
+    getGuestChannel.mockResolvedValueOnce({ ok: true, data: page }).mockResolvedValue(fail(404))
+    await open()
+    await poll()
+    expect(screen.getByText("This link is no longer available")).toBeInTheDocument()
+  })
+})

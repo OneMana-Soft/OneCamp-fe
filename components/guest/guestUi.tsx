@@ -1,8 +1,10 @@
 "use client"
 
 // The pieces every guest page shares: the name a guest is known by, how a
-// message reads, the box they write in, and the page a dead link shows. A
-// guest has no account, so their name lives in this browser, per link.
+// message reads, the box they write in, the page a dead link shows, and what a
+// page says while the server is busy or out of reach (it keeps trying; only a
+// dead link stops it). A guest has no account, so their name lives in this
+// browser, per link.
 
 import { useEffect, useState } from "react"
 import { AlertCircle, Loader2, Send } from "@/lib/icons"
@@ -10,8 +12,43 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { GuestChannelMessage } from "@/services/guestService"
+import { publicTrouble, retryingText, type PublicResult, type PublicTrouble } from "@/services/publicApi"
 
 export const GUEST_POLL_MS = 5000
+
+/** After "too many requests", a minute before asking again. */
+export const GUEST_BUSY_RETRY_MS = 60_000
+
+/**
+ * A guest page's first answer, asked for again while the server is busy or
+ * out of reach (trouble says which), and given up on only when the link is
+ * gone. One asker per key.
+ */
+export function useGuestAnswer<T>(key: string, ask: () => Promise<PublicResult<T>>) {
+  const [answer, setAnswer] = useState<{ data: T | null; trouble: PublicTrouble | null }>({ data: null, trouble: null })
+  useEffect(() => {
+    let alive = true
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const attempt = async () => {
+      const res = await ask()
+      if (!alive) return
+      if (res.ok) {
+        setAnswer({ data: res.data, trouble: null })
+        return
+      }
+      const trouble = publicTrouble(res.status)
+      setAnswer({ data: null, trouble })
+      if (trouble !== "gone") timer = setTimeout(attempt, trouble === "busy" ? GUEST_BUSY_RETRY_MS : GUEST_POLL_MS)
+    }
+    void attempt()
+    return () => {
+      alive = false
+      clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one asker per key
+  }, [key])
+  return answer
+}
 
 export const guestWhen = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })
@@ -123,12 +160,34 @@ export function GuestLoading() {
   return <GuestCentered><Loader2 className="h-7 w-7 animate-spin text-primary" /></GuestCentered>
 }
 
-export function GuestLinkGone() {
+export function GuestLinkGone({ detail = "It may have expired or been turned off. Ask the person who invited you for a new one." }: { detail?: string }) {
   return (
     <GuestCentered>
       <AlertCircle className="h-8 w-8 text-muted-foreground" />
       <p className="text-base font-semibold">This link is no longer available</p>
-      <p className="max-w-sm text-sm text-muted-foreground">It may have expired or been turned off. Ask the person who invited you for a new one.</p>
+      <p className="max-w-sm text-sm text-muted-foreground">{detail}</p>
     </GuestCentered>
   )
+}
+
+/**
+ * What a guest page shows before its first answer: loading, why it's still
+ * trying, or the dead link.
+ */
+export function GuestNotYet({ trouble, loading = <GuestLoading />, gone = <GuestLinkGone /> }: { trouble: PublicTrouble | null; loading?: React.ReactNode; gone?: React.ReactNode }) {
+  if (trouble === "gone") return <>{gone}</>
+  if (trouble)
+    return (
+      <GuestCentered>
+        <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" aria-hidden />
+        <p role="status" className="text-sm text-muted-foreground">{retryingText[trouble]}</p>
+      </GuestCentered>
+    )
+  return <>{loading}</>
+}
+
+/** Above a page still showing what it last had, while it can't refresh. */
+export function GuestTroubleNote({ trouble }: { trouble: PublicTrouble | null }) {
+  if (!trouble || trouble === "gone") return null
+  return <p role="status" className="border-b bg-muted px-4 py-1.5 text-center text-xs text-muted-foreground">{retryingText[trouble]}</p>
 }

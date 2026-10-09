@@ -2,6 +2,7 @@ import axiosInstance from "@/lib/axiosInstance"
 import { browserTZ } from "@/lib/utils/timeZone"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { publicCall } from "@/services/publicApi"
+import type { DataTable, TableField, TableRow } from "@/services/tableService"
 
 // --- Member: start an instant meeting (authed) ---
 
@@ -30,59 +31,20 @@ export function guestMeetingLink(rawToken: string): string {
     return `${window.location.origin}/guest/m/${rawToken}`
 }
 
-// --- Public (no auth): guest validate + join. Uses plain fetch so the
-//     authed axios instance (refresh/CSRF/logout) is never involved. ---
+// --- Public (no auth): guest validate + join. publicCall uses plain fetch so
+//     the authed axios instance (refresh/CSRF/logout) is never involved, and
+//     a failure keeps its status, so a page can tell a dead link from a
+//     server that didn't answer (publicTrouble). ---
 
-const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "")
+export const getGuestMeetingStatus = (token: string) =>
+    publicCall<{ available: boolean }>(`/guest/meet/${encodeURIComponent(token)}`)
 
-type GuestMeetingStatus = "available" | "unavailable"
-
-export async function getGuestMeetingStatus(token: string): Promise<GuestMeetingStatus> {
-    try {
-        const res = await fetch(`${backendBase}/guest/meet/${encodeURIComponent(token)}`, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-        })
-        return res.ok ? "available" : "unavailable"
-    } catch {
-        return "unavailable"
-    }
-}
-
-interface GuestJoinResult {
-    ok: boolean
-    token?: string
-    room?: string
-    // error kind for UI: 'name' (bad name → fixable) | 'unavailable' (terminal)
-    error?: "name" | "unavailable"
-}
-
-export async function joinGuestMeeting(
-    token: string,
-    displayName: string,
-    audioEnabled: boolean,
-    videoEnabled: boolean,
-): Promise<GuestJoinResult> {
-    try {
-        const res = await fetch(`${backendBase}/guest/meet/${encodeURIComponent(token)}/join`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({
-                display_name: displayName,
-                audio_enabled: audioEnabled,
-                video_enabled: videoEnabled,
-            }),
-        })
-        if (res.ok) {
-            const body = (await res.json()) as { data?: { token?: string; room?: string } }
-            return { ok: true, token: body.data?.token, room: body.data?.room }
-        }
-        if (res.status === 400) return { ok: false, error: "name" }
-        return { ok: false, error: "unavailable" }
-    } catch {
-        return { ok: false, error: "unavailable" }
-    }
-}
+/** A 400 is the name, for the guest to fix. */
+export const joinGuestMeeting = (token: string, displayName: string, audioEnabled: boolean, videoEnabled: boolean) =>
+    publicCall<{ token: string; room: string }>(`/guest/meet/${encodeURIComponent(token)}/join`, {
+        method: "POST",
+        body: JSON.stringify({ display_name: displayName, audio_enabled: audioEnabled, video_enabled: videoEnabled }),
+    })
 
 // --- Member: create a scoped, read-only external share link for a doc/board ---
 
@@ -146,7 +108,7 @@ export function guestResourceLink(resourceType: GuestResourceType, rawToken: str
 // --- Public (no auth): exchange a share-link token for a short-lived,
 //     read-only collab session (JWT + Hocuspocus document name). ---
 
-interface GuestCollabSession {
+export interface GuestCollabSession {
     collab_token: string
     document_name: string
     resource_type: "doc" | "board"
@@ -154,40 +116,29 @@ interface GuestCollabSession {
     capability?: "view" | "comment"
 }
 
-export async function getGuestCollabSession(
-    token: string,
-    displayName?: string,
-): Promise<GuestCollabSession | null> {
-    try {
-        const res = await fetch(`${backendBase}/guest/collab/${encodeURIComponent(token)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({ display_name: (displayName || "").trim() }),
-        })
-        if (!res.ok) return null
-        const body = (await res.json()) as { data?: GuestCollabSession }
-        return body.data ?? null
-    } catch {
-        return null
-    }
+export const getGuestCollabSession = (token: string, displayName?: string) =>
+    publicCall<GuestCollabSession>(`/guest/collab/${encodeURIComponent(token)}`, {
+        method: "POST",
+        body: JSON.stringify({ display_name: (displayName || "").trim() }),
+    })
+
+/** A fresh collab token for the viewer's (re)connect, or "" when there is none. */
+export async function guestCollabToken(token: string): Promise<string> {
+    const res = await getGuestCollabSession(token)
+    return res.ok ? res.data?.collab_token || "" : ""
 }
 
 // --- Public (no auth): read-only table bundle for a guest. ---
 
-export async function getGuestTable(token: string): Promise<any | null> {
-    try {
-        // The guest's time zone, where a table's formulas count TODAY().
-        const res = await fetch(`${backendBase}/guest/table/${encodeURIComponent(token)}?tz=${encodeURIComponent(browserTZ())}`, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-        })
-        if (!res.ok) return null
-        const body = (await res.json()) as { data?: unknown }
-        return body.data ?? null
-    } catch {
-        return null
-    }
+export interface GuestTableBundle {
+    table: DataTable
+    fields: TableField[]
+    rows: TableRow[]
 }
+
+/** The guest's time zone goes along: it's where a table's formulas count TODAY(). */
+export const getGuestTable = (token: string) =>
+    publicCall<GuestTableBundle>(`/guest/table/${encodeURIComponent(token)}?tz=${encodeURIComponent(browserTZ())}`)
 
 // --- Public (no auth): guest doc comments (capability = comment). ---
 
@@ -203,47 +154,15 @@ interface GuestDocCommentsResult {
     comments: GuestDocComment[]
 }
 
-export async function listGuestDocComments(token: string): Promise<GuestDocCommentsResult> {
-    try {
-        const res = await fetch(`${backendBase}/guest/doc-comments/${encodeURIComponent(token)}`, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-        })
-        if (!res.ok) return { capability: "view", comments: [] }
-        const body = (await res.json()) as { data?: GuestDocCommentsResult }
-        return body.data ?? { capability: "view", comments: [] }
-    } catch {
-        return { capability: "view", comments: [] }
-    }
-}
+export const listGuestDocComments = (token: string) =>
+    publicCall<GuestDocCommentsResult>(`/guest/doc-comments/${encodeURIComponent(token)}`)
 
-type GuestCommentResult =
-    | { ok: true; comment: GuestDocComment }
-    | { ok: false; error: "view_only" | "empty" | "unavailable" }
-
-export async function createGuestDocComment(
-    token: string,
-    displayName: string,
-    commentBody: string,
-): Promise<GuestCommentResult> {
-    try {
-        const res = await fetch(`${backendBase}/guest/doc-comments/${encodeURIComponent(token)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({ display_name: (displayName || "").trim(), body: commentBody }),
-        })
-        if (res.ok) {
-            const body = (await res.json()) as { data?: GuestDocComment }
-            if (body.data) return { ok: true, comment: body.data }
-            return { ok: false, error: "unavailable" }
-        }
-        if (res.status === 403) return { ok: false, error: "view_only" }
-        if (res.status === 400) return { ok: false, error: "empty" }
-        return { ok: false, error: "unavailable" }
-    } catch {
-        return { ok: false, error: "unavailable" }
-    }
-}
+/** A 403 is a view-only link; a 400 says what to fix. */
+export const createGuestDocComment = (token: string, displayName: string, commentBody: string) =>
+    publicCall<GuestDocComment>(`/guest/doc-comments/${encodeURIComponent(token)}`, {
+        method: "POST",
+        body: JSON.stringify({ display_name: (displayName || "").trim(), body: commentBody }),
+    })
 
 export interface GuestGrant {
     id: string

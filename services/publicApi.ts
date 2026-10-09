@@ -19,3 +19,36 @@ export async function publicCall<T>(path: string, init?: RequestInit): Promise<P
     return { ok: false, status: 0, msg: "Couldn't reach the server. Check your connection and try again." }
   }
 }
+
+/**
+ * What a failed public call means to a page that keeps itself up to date:
+ * "gone" when the server answered that the thing isn't there (or isn't for
+ * this person), "busy" when too many requests came from here (429), and
+ * "unreachable" when nothing answered or the server failed (5xx). The last two
+ * pass, so the page waits and tries again instead of saying the link is dead.
+ */
+export type PublicTrouble = "gone" | "busy" | "unreachable"
+
+export function publicTrouble(status: number): PublicTrouble {
+  if (status === 429) return "busy"
+  if (status === 0 || status >= 500) return "unreachable"
+  return "gone"
+}
+
+/** What a page says while it waits out a trouble that passes. */
+export const retryingText: Record<Exclude<PublicTrouble, "gone">, string> = {
+  busy: "Too many requests, wait a minute.",
+  unreachable: "Couldn't reach the server, retrying…",
+}
+
+/** What to tell someone whose send failed: why to wait and try again, or the server's own words. */
+export function sendFailedText(res: { status: number; msg: string }): string {
+  switch (publicTrouble(res.status)) {
+    case "busy":
+      return "Too many requests, wait a minute and try again."
+    case "unreachable":
+      return "Couldn't reach the server. Try again in a moment."
+    default:
+      return res.msg
+  }
+}
