@@ -37,7 +37,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { connectImport, importProviderLabel, type ImportProvider } from "@/services/importService"
+import { connectImport, importProblemOf, importProviderLabel, type ImportProvider } from "@/services/importService"
 import { Loader2 } from "lucide-react"
 
 interface Props {
@@ -72,6 +72,9 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
   const [siteURL, setSiteURL] = useState("")
   const [accountName, setAccountName] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  // What the provider said about the token, kept in the dialog so the admin
+  // can fix the field it is about instead of chasing a toast.
+  const [problem, setProblem] = useState("")
 
   const needsApiKey = provider === "trello"
   const needsEmail = provider === "jira"
@@ -98,6 +101,7 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
       }
     }
     setSubmitting(true)
+    setProblem("")
     try {
       const metadata: Record<string, string> = {}
       if (needsApiKey) metadata.api_key = apiKey.trim()
@@ -109,7 +113,7 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
         source_account_name: accountName.trim() || undefined,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       })
-      toast({ title: `${importProviderLabel(provider)} connected`, description: "Token saved securely." })
+      toast({ title: `${importProviderLabel(provider)} connected`, description: "It accepted the token, and it's saved securely." })
       setAccessToken("")
       setApiKey("")
       setEmail("")
@@ -117,9 +121,8 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
       setAccountName("")
       onConnected()
       onOpenChange(false)
-    } catch (err: any) {
-      const msg = err?.response?.data?.error || err?.message || "Connection failed"
-      toast({ title: "Connection failed", description: msg, variant: "destructive" })
+    } catch (err: unknown) {
+      setProblem(importProblemOf(err, "Couldn't connect. Try again.").message)
     } finally {
       setSubmitting(false)
     }
@@ -131,8 +134,8 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
         <DialogHeader>
           <DialogTitle>Connect {importProviderLabel(provider)}</DialogTitle>
           <DialogDescription>
-            Paste the credentials below. Stored encrypted at rest with
-            AES-256-GCM and never returned in API responses.{" "}
+            Paste the credentials below. {importProviderLabel(provider)} is asked to accept them before they are
+            saved, encrypted at rest and never returned in API responses.{" "}
             <a href={HELP_LINK[provider]} target="_blank" rel="noopener noreferrer"
                className="underline">Where to find them</a>.
           </DialogDescription>
@@ -204,6 +207,12 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
           </div>
         </div>
 
+        {problem && (
+          <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {problem}
+          </p>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
@@ -211,7 +220,7 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
           <Button onClick={handleSubmit} disabled={submitting}>
             {submitting ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Connecting…
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Checking with {importProviderLabel(provider)}…
               </>
             ) : (
               "Connect"

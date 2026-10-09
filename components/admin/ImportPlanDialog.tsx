@@ -30,7 +30,10 @@ import { useToast } from "@/hooks/use-toast"
 import {
   type ImportJob,
   type ImportPlan,
+  type ImportProblem,
   type ProviderInfo,
+  importProblemOf,
+  needsReconnect,
   planImportJob,
   runImportJob,
 } from "@/services/importService"
@@ -45,6 +48,8 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   onStarted: () => void
+  /** Opens the provider's connect dialog, for a plan refused over its token. */
+  onReconnect?: () => void
 }
 
 export const ImportPlanDialog: React.FC<Props> = ({
@@ -53,6 +58,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
   open,
   onOpenChange,
   onStarted,
+  onReconnect,
 }) => {
   const { toast } = useToast()
   const [plan, setPlan] = useState<ImportPlan | null>(null)
@@ -60,12 +66,17 @@ export const ImportPlanDialog: React.FC<Props> = ({
   const [priorityMap, setPriorityMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // Why planning failed, shown in the dialog. A failure used to leave the
+  // dialog spinning for good behind a toast.
+  const [problem, setProblem] = useState<ImportProblem | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
     ;(async () => {
       setLoading(true)
+      setProblem(null)
       try {
         const result = await planImportJob(job.id, {})
         if (cancelled) return
@@ -87,12 +98,8 @@ export const ImportPlanDialog: React.FC<Props> = ({
           initialPriority[key] = job.priority_mappings?.[key] ?? pdef[key] ?? "medium"
         }
         setPriorityMap(initialPriority)
-      } catch (err: any) {
-        toast({
-          title: "Plan failed",
-          description: err?.response?.data?.error || err?.message,
-          variant: "destructive",
-        })
+      } catch (err: unknown) {
+        if (!cancelled) setProblem(importProblemOf(err, "Couldn't plan this import. Try again."))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -100,7 +107,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
     return () => {
       cancelled = true
     }
-  }, [open, job.id])
+  }, [open, job.id, attempt])
 
   const summary = useMemo(() => {
     if (!plan) return []
@@ -147,7 +154,17 @@ export const ImportPlanDialog: React.FC<Props> = ({
           </DialogDescription>
         </DialogHeader>
 
-        {loading || !plan ? (
+        {problem && !loading ? (
+          <div role="alert" className="space-y-3 py-4">
+            <p className="break-words text-sm text-destructive">{problem.message}</p>
+            <div className="flex flex-wrap gap-2">
+              {needsReconnect(problem) && onReconnect && (
+                <Button size="sm" onClick={onReconnect}>Reconnect</Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+            </div>
+          </div>
+        ) : loading || !plan ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>

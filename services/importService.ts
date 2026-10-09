@@ -128,8 +128,9 @@ interface ConnectInput {
   metadata?: Record<string, string>
 }
 
+/** Connects a provider. The server tests the token first and says what is wrong with it. */
 export async function connectImport(provider: ImportProvider, input: ConnectInput): Promise<void> {
-  await axiosInstance.post(`/admin/import/${encodeURIComponent(provider)}/connect`, input)
+  await axiosInstance.post(`/admin/import/${encodeURIComponent(provider)}/connect`, input, OWN_ERRORS)
 }
 
 export async function disconnectImport(provider: ImportProvider): Promise<void> {
@@ -192,6 +193,7 @@ export async function planImportJob(jobId: string, input: PlanInput = {}): Promi
   const res = await axiosInstance.post(
     `/admin/import/jobs/${encodeURIComponent(jobId)}/plan`,
     input,
+    OWN_ERRORS,
   )
   return res.data
 }
@@ -203,6 +205,7 @@ export async function runImportJob(jobId: string, input: PlanInput = {}): Promis
   )
 }
 
+/** Stops a running import, or discards one still waiting to be planned or run. */
 export async function cancelImportJob(jobId: string): Promise<void> {
   await axiosInstance.post(`/admin/import/jobs/${encodeURIComponent(jobId)}/cancel`)
 }
@@ -271,16 +274,39 @@ export async function discoverImportResources(provider: ImportProvider): Promise
   try {
     const res = await axiosInstance.post(
       `/admin/import/${encodeURIComponent(provider)}/discover`,
+      undefined,
+      OWN_ERRORS,
     )
     return res.data?.items ?? []
   } catch (err: any) {
     const code = err?.response?.data?.code
-    if (err?.response?.status === 404 || code === "no_discover") {
+    if (code === "no_discover") {
       return []
     }
     throw err
   }
 }
+
+/**
+ * What went wrong talking to an import source, as the server said it. code is
+ * "token_rejected" or "not_connected" when reconnecting is the way out, and
+ * also "unreachable", "rate_limited", "active_job", "file_gone",
+ * "plan_failed" or "provider_error".
+ */
+export interface ImportProblem {
+  code?: string
+  message: string
+}
+
+export function importProblemOf(err: unknown, fallback = "That didn't work. Try again."): ImportProblem {
+  const e = err as { response?: { data?: { error?: string; msg?: string; code?: string } } }
+  const data = e?.response?.data
+  if (!e?.response) return { message: "Couldn't reach the server. Check your connection and try again." }
+  return { code: data?.code, message: data?.error || data?.msg || fallback }
+}
+
+/** Whether connecting again is the way out of a problem. */
+export const needsReconnect = (p: ImportProblem | null | undefined) => p?.code === "token_rejected" || p?.code === "not_connected"
 
 
 /**
