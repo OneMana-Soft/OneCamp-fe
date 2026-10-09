@@ -1,6 +1,6 @@
 // Admin workspace-settings service. All routes are admin-gated server-side.
 
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 export interface WorkspaceSettings {
@@ -59,8 +59,13 @@ export async function setDefaultChannels(channelUUIDs: string[]): Promise<Defaul
     return (res.data as { data?: DefaultChannels })?.data ?? null
 }
 
-export async function updateWorkspaceSettings(req: UpdateSettingsRequest): Promise<WorkspaceSettings | null> {
-    const res = await axiosInstance.post(PostEndpointUrl.UpdateWorkspaceSettings, req)
+/**
+ * Saves admin settings. ownErrors: the caller shows a refusal itself (the
+ * allow-list says why an entry can't be saved, beside the field), so the
+ * global error toast stays quiet.
+ */
+export async function updateWorkspaceSettings(req: UpdateSettingsRequest, opts?: { ownErrors?: boolean }): Promise<WorkspaceSettings | null> {
+    const res = await axiosInstance.post(PostEndpointUrl.UpdateWorkspaceSettings, req, opts?.ownErrors ? OWN_ERRORS : undefined)
     return (res.data as { data?: WorkspaceSettings })?.data ?? null
 }
 

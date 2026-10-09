@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Settings } from "@/lib/icons"
 import { getWorkspaceSettings, updateWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 import { appMutate as globalMutate } from "@/lib/swrMutate";
+import { serverMessage } from "@/lib/http/serverMessage"
 
 const SOURCE_LABEL: Record<string, string> = {
     db: "Saved here",
@@ -34,6 +35,8 @@ export default function WorkspaceSettingsCard() {
     const [allowedUsers, setAllowedUsers] = useState("")
     const [savingUpload, setSavingUpload] = useState(false)
     const [savingAccess, setSavingAccess] = useState(false)
+    // Why the server wouldn't save the allow-list (a public email domain, say).
+    const [accessRefusal, setAccessRefusal] = useState("")
 
     const load = () => {
         setLoading(true)
@@ -76,11 +79,12 @@ export default function WorkspaceSettingsCard() {
         setSavingAccess(true)
         try {
             const list = allowedUsers.split(",").map((s) => s.trim()).filter(Boolean)
-            const s = await updateWorkspaceSettings({ allowed_users: list })
+            setAccessRefusal("")
+            const s = await updateWorkspaceSettings({ allowed_users: list }, { ownErrors: true })
             setSettings(s)
             toast({ title: "Allow-list updated" })
-        } catch {
-            toast({ title: "Failed to update allow-list", variant: "destructive" })
+        } catch (err) {
+            setAccessRefusal(serverMessage(err, "Couldn't save the allow-list. Try again."))
         } finally {
             setSavingAccess(false)
         }
@@ -143,16 +147,23 @@ export default function WorkspaceSettingsCard() {
                     <Textarea
                         id="allowed-users"
                         value={allowedUsers}
-                        onChange={(e) => setAllowedUsers(e.target.value)}
+                        onChange={(e) => {
+                            setAllowedUsers(e.target.value)
+                            setAccessRefusal("")
+                        }}
                         placeholder="alice@example.com, @example.com"
                         rows={3}
                         disabled={loading}
-                        aria-describedby="allowed-users-help"
+                        aria-describedby={accessRefusal ? "allowed-users-refusal allowed-users-help" : "allowed-users-help"}
                     />
+                    {accessRefusal && (
+                        <p id="allowed-users-refusal" role="alert" className="text-sm text-destructive">{accessRefusal}</p>
+                    )}
                     <p id="allowed-users-help" className="text-2xs text-muted-foreground">
-                        People on this list join by signing in with Google or GitHub, without an invitation. An entry
-                        like @example.com lets in anyone whose Google or GitHub account has a verified address at
-                        example.com. Don&apos;t add a public domain like @gmail.com: anyone with an address there could join.
+                        People on this list join by signing in, without an invitation. An address on it gets in through
+                        Google or GitHub. An entry like @example.com lets in anyone who signs in with a Google Workspace
+                        account that example.com manages: not GitHub, and not a personal Google account with an address
+                        there. Public email domains like @gmail.com can&apos;t be added.
                     </p>
                     <Button size="sm" onClick={saveAccess} disabled={savingAccess || loading}>
                         {savingAccess ? "Saving…" : "Save allow-list"}
