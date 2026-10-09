@@ -6,31 +6,30 @@
 // dead link stops it). A guest has no account, so their name lives in this
 // browser, per link.
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AlertCircle, Loader2, Send } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { GuestChannelMessage } from "@/services/guestService"
-import { publicTrouble, retryingText, type PublicResult, type PublicTrouble } from "@/services/publicApi"
+import { publicTrouble, retryDelayMs, retryingText, type PublicResult, type PublicTrouble } from "@/services/publicApi"
 
 export const GUEST_POLL_MS = 5000
 
 /** How much of a guest's name the server keeps (business/Guest maxGuestNameLen). */
 export const GUEST_NAME_MAX = 40
 
-/** After "too many requests", a minute before asking again. */
-export const GUEST_BUSY_RETRY_MS = 60_000
-
 /**
  * A guest page's first answer, asked for again while the server is busy or
- * out of reach (trouble says which), and given up on only when the link is
- * gone. One asker per key.
+ * out of reach (trouble says which), waiting longer after each failure and as
+ * long as the server's Retry-After says (retryDelayMs), and given up on only
+ * when the link is gone. One asker per key.
  */
 export function useGuestAnswer<T>(key: string, ask: () => Promise<PublicResult<T>>) {
   const [answer, setAnswer] = useState<{ data: T | null; trouble: PublicTrouble | null }>({ data: null, trouble: null })
   useEffect(() => {
     let alive = true
+    let failures = 0
     let timer: ReturnType<typeof setTimeout> | undefined
     const attempt = async () => {
       const res = await ask()
@@ -41,7 +40,7 @@ export function useGuestAnswer<T>(key: string, ask: () => Promise<PublicResult<T
       }
       const trouble = publicTrouble(res.status)
       setAnswer({ data: null, trouble })
-      if (trouble !== "gone") timer = setTimeout(attempt, trouble === "busy" ? GUEST_BUSY_RETRY_MS : GUEST_POLL_MS)
+      if (trouble !== "gone") timer = setTimeout(attempt, retryDelayMs(failures++, res.retryAfter))
     }
     void attempt()
     return () => {
@@ -51,6 +50,46 @@ export function useGuestAnswer<T>(key: string, ask: () => Promise<PublicResult<T
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one asker per key
   }, [key])
   return answer
+}
+
+/** What one poll came to: whether it worked, and the server's Retry-After when it didn't. */
+export type GuestPollOutcome = { ok: boolean; retryAfter?: number }
+
+/** A poll's outcome from a public call's result. Pure. */
+export const pollOutcome = (res: PublicResult<unknown>): GuestPollOutcome => (res.ok ? { ok: true } : { ok: false, retryAfter: res.retryAfter })
+
+/**
+ * Keeps a guest page up to date: tick now (first is true), then every everyMs
+ * while the page is shown. After a failure it waits longer each time, from 5
+ * seconds up to a minute, and as long as the server's Retry-After says
+ * (retryDelayMs), so a page left open on a server that is down or busy asks
+ * less and less instead of every few seconds. One poller per key.
+ */
+export function useGuestPoll(key: string, everyMs: number, tick: (first: boolean) => Promise<GuestPollOutcome>) {
+  const latest = useRef(tick)
+  useEffect(() => {
+    latest.current = tick
+  })
+  useEffect(() => {
+    let alive = true
+    let failures = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const run = async (first: boolean) => {
+      if (!first && document.visibilityState !== "visible") {
+        timer = setTimeout(() => void run(false), everyMs)
+        return
+      }
+      const out = await latest.current(first)
+      if (!alive) return
+      if (out.ok) failures = 0
+      timer = setTimeout(() => void run(false), out.ok ? everyMs : retryDelayMs(failures++, out.retryAfter))
+    }
+    void run(true)
+    return () => {
+      alive = false
+      clearTimeout(timer)
+    }
+  }, [key, everyMs])
 }
 
 export const guestWhen = (iso: string) =>

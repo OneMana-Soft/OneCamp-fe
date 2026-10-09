@@ -18,7 +18,18 @@ import {
   type GuestTaskCard,
   type GuestTaskView,
 } from "@/services/guestService"
-import { GUEST_POLL_MS, GuestComposer, GuestLinkGone, GuestMessageView, GuestNameForm, GuestNotYet, GuestTroubleNote, useGuestName } from "@/components/guest/guestUi"
+import {
+  GUEST_POLL_MS,
+  GuestComposer,
+  GuestLinkGone,
+  GuestMessageView,
+  GuestNameForm,
+  GuestNotYet,
+  GuestTroubleNote,
+  pollOutcome,
+  useGuestName,
+  useGuestPoll,
+} from "@/components/guest/guestUi"
 import { publicTrouble, sendFailedText, type PublicTrouble } from "@/services/publicApi"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { ReviewBadge } from "@/components/guest/ReviewBadge"
@@ -83,24 +94,19 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
     const res = await getGuestProject(token, poll)
     if (!res.ok) {
       // A dead link replaces what's shown; a busy or unreachable server keeps
-      // it, says so, and the next poll tries again.
+      // it, says so, and the poll tries again, waiting longer each time.
       const t = publicTrouble(res.status)
       if (t === "gone") setState("missing")
       else setTrouble(t)
-      return
+      return pollOutcome(res)
     }
     setTrouble(null)
     setView(res.data)
     setState("ready")
+    return pollOutcome(res)
   }, [token])
 
-  useEffect(() => {
-    void refresh(false)
-    const t = setInterval(() => {
-      if (document.visibilityState === "visible") void refresh(true)
-    }, BOARD_POLL_MS)
-    return () => clearInterval(t)
-  }, [refresh])
+  useGuestPoll(token, BOARD_POLL_MS, (first) => refresh(!first))
 
   if (state === "loading") return <GuestNotYet trouble={trouble} />
   if (state === "missing" || !view) return <GuestLinkGone />
@@ -210,16 +216,11 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
       setTask(res.data)
       setMissing(false)
     } else if (publicTrouble(res.status) === "gone") setMissing(true)
+    return pollOutcome(res)
   }, [token, taskId])
 
-  useEffect(() => {
-    setTask(null)
-    void load()
-    const t = setInterval(() => {
-      if (document.visibilityState === "visible") void load()
-    }, GUEST_POLL_MS * 2)
-    return () => clearInterval(t)
-  }, [load])
+  useEffect(() => setTask(null), [taskId])
+  useGuestPoll(`${token}:${taskId}`, GUEST_POLL_MS * 2, load)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()

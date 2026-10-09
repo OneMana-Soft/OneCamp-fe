@@ -4,7 +4,7 @@
 
 const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/$/, "")
 
-export type PublicResult<T> = { ok: true; data: T } | { ok: false; status: number; msg: string }
+export type PublicResult<T> = { ok: true; data: T } | { ok: false; status: number; msg: string; retryAfter?: number }
 
 export async function publicCall<T>(path: string, init?: RequestInit): Promise<PublicResult<T>> {
   try {
@@ -14,7 +14,12 @@ export async function publicCall<T>(path: string, init?: RequestInit): Promise<P
     })
     const body = await res.json().catch(() => ({}))
     if (res.ok) return { ok: true, data: (body as { data: T }).data }
-    return { ok: false, status: res.status, msg: (body as { msg?: string }).msg || "Something went wrong. Try again." }
+    return {
+      ok: false,
+      status: res.status,
+      msg: (body as { msg?: string }).msg || "Something went wrong. Try again.",
+      retryAfter: retryAfterSeconds(res.headers?.get?.("Retry-After") ?? null),
+    }
   } catch {
     return { ok: false, status: 0, msg: "Couldn't reach the server. Check your connection and try again." }
   }
@@ -51,4 +56,28 @@ export function sendFailedText(res: { status: number; msg: string }): string {
     default:
       return res.msg
   }
+}
+
+/** A Retry-After header in seconds (it is either a number of seconds or a date), or undefined. Pure. */
+export function retryAfterSeconds(header: string | null, now = Date.now()): number | undefined {
+  if (!header) return undefined
+  const h = header.trim()
+  if (/^\d+$/.test(h)) return Number(h)
+  const at = Date.parse(h)
+  return Number.isNaN(at) ? undefined : Math.max(0, Math.ceil((at - now) / 1000))
+}
+
+const RETRY_MIN_MS = 5_000
+const RETRY_MAX_MS = 60_000
+
+/**
+ * How long a page waits before asking again after its attempt-th failure in a
+ * row (0 for the first): 5 seconds, doubling up to a minute, spread a quarter
+ * either way so a page full of guests whose server restarted doesn't come back
+ * all at once, and never sooner than the server's Retry-After. Pure given random.
+ */
+export function retryDelayMs(attempt: number, retryAfter?: number, random: () => number = Math.random): number {
+  const base = Math.min(RETRY_MAX_MS, RETRY_MIN_MS * 2 ** Math.max(0, attempt))
+  const spread = Math.min(RETRY_MAX_MS, Math.max(RETRY_MIN_MS, base * (0.75 + 0.5 * random())))
+  return retryAfter && retryAfter > 0 ? Math.max(spread, retryAfter * 1000) : spread
 }
