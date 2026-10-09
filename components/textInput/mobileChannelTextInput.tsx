@@ -26,7 +26,7 @@ import { GetEndpointUrl } from "@/services/endPoints";
 import CommandSurface from "@/components/command/CommandSurface";
 
 
-export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: string, handleSend: (latestContent?: string)=>void }) => {
+export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { channelId: string, handleSend: (latestContent?: string)=>void, autoFocus?: boolean }) => {
     const scheduleSend = useScheduleSend()
     const editorRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
@@ -87,6 +87,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
                 <div ref={editorRef}>
                     {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
+                        autoFocus={autoFocus}
                         attachmentOnclick={() => { dispatch(openUI({ key: 'channelFileUpload' })) }}
                         onActionFiles={async (files) => {
                             if (!files?.length) return;

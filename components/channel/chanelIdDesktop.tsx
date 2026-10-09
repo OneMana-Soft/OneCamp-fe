@@ -50,7 +50,7 @@ import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
 const EMPTY_TYPING_LIST: any[] = []
 
-export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
+export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number, focusComposer?: boolean}) => {
     const scheduleSend = useScheduleSend()
 
     const dispatch = useDispatch()
@@ -217,6 +217,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
         {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
         <MinimalTiptapTextInput
             throttleDelay={300}
+            autoFocus={focusComposer}
             attachmentOnclick = {()=>{dispatch(openUI({ key: 'channelFileUpload' }))}}
             onActionFiles={async (files) => {
                 if (!files?.length) return;

@@ -15,6 +15,7 @@ import {app_home_path} from "@/types/paths";
 import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
 import { Input } from "@/components/ui/input"
+import { landingPath } from "@/lib/landing"
 
 // Build-time defaults. These are fallbacks ONLY — the runtime
 // /auth/providers endpoint is the source of truth, so admins can flip a
@@ -182,7 +183,8 @@ export default function SignUp() {
   const followLoginOutcome = (result: LoginOutcome, showFailure: (failure: { msg: string; auth_method?: string }) => void) => {
     switch (result.status) {
       case "success":
-        router.push(app_home_path);
+        // Someone who has just joined opens on the channel they were put in.
+        router.push(landingPath(result.landing) ?? app_home_path);
         break;
       case "totp_required":
         // The password was correct and there is NO session yet. Routing here would land the user in

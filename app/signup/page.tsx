@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { useEffect, useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
+import { landingPath } from "@/lib/landing"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Input } from "@/components/ui/input"
@@ -76,7 +77,8 @@ function SignupForm() {
     try {
       const result = await authService.signup(token, username, password)
       if (result.ok) {
-        router.push(app_home_path)
+        // Into the channel they were put in, with the message box ready.
+        router.push(landingPath(result.landing) ?? app_home_path)
       } else {
         setError(result.msg)
       }

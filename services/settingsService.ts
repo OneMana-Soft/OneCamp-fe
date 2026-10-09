@@ -33,6 +33,33 @@ export async function setReadReceiptsPolicy(enabled: boolean): Promise<boolean> 
     return (res.data as { data?: { read_receipts_enabled?: boolean } })?.data?.read_receipts_enabled ?? enabled
 }
 
+/** A channel by id and name, as the server lists the ones new members may join. */
+export interface ChannelChoice {
+    ch_uuid: string
+    ch_name: string
+}
+
+/**
+ * The channels every new member is put in as they join, whether an admin chose
+ * them (until one does, it is #general), and the public channels to choose from.
+ */
+export interface DefaultChannels {
+    channels: ChannelChoice[]
+    chosen: boolean
+    available: ChannelChoice[]
+}
+
+export async function getDefaultChannels(): Promise<DefaultChannels | null> {
+    const res = await axiosInstance.get(GetEndpointUrl.GetDefaultChannels)
+    return (res.data as { data?: DefaultChannels })?.data ?? null
+}
+
+/** Saves the channels new members join; an empty list means none. Answers what applies now. */
+export async function setDefaultChannels(channelUUIDs: string[]): Promise<DefaultChannels | null> {
+    const res = await axiosInstance.post(PostEndpointUrl.SetDefaultChannels, { channel_uuids: channelUUIDs })
+    return (res.data as { data?: DefaultChannels })?.data ?? null
+}
+
 export async function updateWorkspaceSettings(req: UpdateSettingsRequest): Promise<WorkspaceSettings | null> {
     const res = await axiosInstance.post(PostEndpointUrl.UpdateWorkspaceSettings, req)
     return (res.data as { data?: WorkspaceSettings })?.data ?? null

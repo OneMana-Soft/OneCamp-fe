@@ -27,6 +27,7 @@ import {markChannelSeen} from "@/services/channelService";
 import {MessageInputState} from "@/store/slice/channelSlice";
 import {useToast} from "@/hooks/use-toast";
 import {NOT_SENT_TOAST, type Draft} from "@/lib/chat/unsentMessage";
+import {useComposeOnArrival} from "@/hooks/useComposeOnArrival";
 
 
 const EMPTY_POSTS: PostsRes[] = []
@@ -55,6 +56,9 @@ export function ChannelView({ channelId }: { channelId: string }) {
     const unreadCountRef = useRef(channelInSidebar?.unread_post_count || 0);
 
     const { isMobile, isDesktop } = useMedia();
+
+    // A new member lands here with the message box ready (lib/landing.ts).
+    const focusComposer = useComposeOnArrival(channelId);
 
     useEffect(() => {
 
@@ -201,9 +205,9 @@ export function ChannelView({ channelId }: { channelId: string }) {
         <>
 
             <ScheduleSendContext.Provider value={{ kind: "channel", target: channelId, schedule: handleSchedule }}>
-            {isMobile && <ChannelIdMobile channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current}/>}
+            {isMobile && <ChannelIdMobile channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current} focusComposer={focusComposer}/>}
 
-            {isDesktop && <ChannelIdDesktop channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current}/>}
+            {isDesktop && <ChannelIdDesktop channelId={channelId} handleSend={handleSend} unreadCount={unreadCountRef.current} focusComposer={focusComposer}/>}
             </ScheduleSendContext.Provider>
         </>
     );
