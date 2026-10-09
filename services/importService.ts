@@ -442,7 +442,9 @@ export async function inviteImportedPeople(
         run.seatLimit = { msg, notInvited: people.slice(i) }
         break
       }
-      if (status === 400 && /already exists/i.test(msg)) {
+      // Invited in the meantime: the server refuses a second invitation while
+      // one is live (409, "is already invited"; it was a 400 "already exists").
+      if ((status === 409 || status === 400) && /already (invited|exists)/i.test(msg)) {
         run.alreadyInvited.push(person)
       } else {
         run.failed.push({ person, msg })
