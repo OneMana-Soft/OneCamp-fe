@@ -10,6 +10,16 @@ describe("what an import's progress event makes stale", () => {
     expect(stale({ not: "a key" })).toBe(false)
   })
 
+  // Every other provider's progress stood still: only Slack's list was
+  // refreshed. A job's people aren't a progress tick's business.
+  it("keeps every provider's job list live", () => {
+    const stale = importProgressStale("running")
+    expect(stale("/admin/import/jobs")).toBe(true)
+    expect(stale("/admin/import/jobs?provider=jira")).toBe(true)
+    expect(stale("/admin/import/jobs/abc/people")).toBe(false)
+    expect(stale("/admin/import/jobs/abc/errors?limit=100")).toBe(false)
+  })
+
   // The admin banner tells the admin who started an import how it ended; it
   // is asked again only when one has.
   it("refreshes how imports ended only when one ends", () => {

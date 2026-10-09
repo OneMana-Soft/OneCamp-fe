@@ -92,10 +92,12 @@ const ImportCard: React.FC = () => {
   )
   const connections = useMemo(() => conResp?.connections ?? [], [conResp])
 
+  // Every provider's jobs until one is picked (Slack's have their own card),
+  // so an admin coming back sees how their imports are doing first.
   const { data: jobsResp, mutate: refetchJobs } = useFetch<{ jobs: ImportJob[] }>(
     `/admin/import/jobs${selectedProvider ? `?provider=${selectedProvider}` : ""}`,
   )
-  const jobs = useMemo(() => jobsResp?.jobs ?? [], [jobsResp])
+  const jobs = useMemo(() => (jobsResp?.jobs ?? []).filter((j) => j.provider !== "slack"), [jobsResp])
   const runningJobs = useMemo(() => jobs.filter((j) => isLive(j.status)), [jobs])
 
   // Connect dialog
@@ -142,10 +144,6 @@ const ImportCard: React.FC = () => {
   // and our polling fallback short-circuits. We don't need a
   // per-card MQTT subscription here.
 
-  const providerInfo = useMemo(
-    () => providers.find((p) => p.name === selectedProvider) ?? null,
-    [providers, selectedProvider],
-  )
   const connection = useMemo(
     () => connections.find((c) => c.provider === selectedProvider),
     [connections, selectedProvider],
@@ -463,34 +461,36 @@ const ImportCard: React.FC = () => {
               </div>
             )}
 
-            {/* Jobs list */}
-            <Separator />
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Recent jobs</div>
-              {jobs.length === 0 ? (
-                <div className="rounded border bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">
-                  No jobs yet for {importProviderLabel(selectedProvider)}.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {jobs.map((j) => (
-                    <ImportJobRow
-                      key={j.id}
-                      job={j}
-                      onPlan={() => setPlanJob(j)}
-                      onDiscard={() => onDiscard(j)}
-                      onCancel={() => onCancel(j.id)}
-                      onRollback={() => onRollback(j.id)}
-                      onRetryFailed={() => onRetryFailed(j.id)}
-                      onInvite={() => setInviteJob(j)}
-                      onShowErrors={() => setErrorsJobId(j.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
           </>
         )}
+
+        {/* Jobs list: every provider's until one is picked. */}
+        <Separator />
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Recent imports</div>
+          {jobs.length === 0 ? (
+            <div className="rounded border bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">
+              {selectedProvider ? `No imports from ${importProviderLabel(selectedProvider)} yet.` : "No imports yet."}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {jobs.map((j) => (
+                <ImportJobRow
+                  key={j.id}
+                  job={j}
+                  showProvider={!selectedProvider}
+                  onPlan={() => setPlanJob(j)}
+                  onDiscard={() => onDiscard(j)}
+                  onCancel={() => onCancel(j.id)}
+                  onRollback={() => onRollback(j.id)}
+                  onRetryFailed={() => onRetryFailed(j.id)}
+                  onInvite={() => setInviteJob(j)}
+                  onShowErrors={() => setErrorsJobId(j.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Dialogs are lazy-loaded; the Suspense boundary renders
              nothing while the chunk fetches because the dialogs
@@ -509,13 +509,16 @@ const ImportCard: React.FC = () => {
           {planJob && (
             <ImportPlanDialog
               job={planJob}
-              providerInfo={providerInfo}
+              // The job's own provider: it may be planned from the list of
+              // every provider's jobs, with none picked.
+              providerInfo={providers.find((p) => p.name === planJob.provider) ?? null}
               open={!!planJob}
               onOpenChange={(o) => {
                 if (!o) setPlanJob(null)
               }}
               onStarted={() => refetchJobs()}
               onReconnect={() => {
+                if (planJob.provider !== "slack") setSelectedProvider(planJob.provider)
                 setPlanJob(null)
                 setConnectOpen(true)
               }}

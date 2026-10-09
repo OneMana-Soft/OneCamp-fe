@@ -64,3 +64,20 @@ describe("the import card", () => {
     expect(screen.queryByRole("alert")).toBeNull()
   })
 })
+
+describe("the import card before a provider is picked", () => {
+  // Jobs were listed only once a provider was picked, so an admin coming
+  // back couldn't see how their imports were doing.
+  it("lists every provider's imports, Slack's left to their own card", () => {
+    discover = async () => []
+    jobs = [
+      { id: "a", provider: "jira", source_workspace_name: "Acme", source: "api", status: "running", stage: "tasks", options: {}, created_at: new Date().toISOString(), updated_at: "", chunks_total: 2, chunks_done: 1, chunks_failed: 0, items_imported: 40, errors_total: 0 },
+      { id: "b", provider: "slack", source_workspace_name: "Acme Slack", source: "export_zip", status: "completed", options: {}, created_at: new Date().toISOString(), updated_at: "", chunks_total: 1, chunks_done: 1, chunks_failed: 0, items_imported: 9, errors_total: 0 },
+    ]
+    render(<ImportCard />)
+    expect(asked).toContain("/admin/import/jobs")
+    expect(screen.getByText(/Jira ·/)).toBeTruthy()
+    expect(screen.getByText("Acme")).toBeTruthy()
+    expect(screen.queryByText("Acme Slack")).toBeNull()
+  })
+})
