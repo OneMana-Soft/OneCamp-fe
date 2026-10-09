@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
 
 // A sign-in that fails says why. Every Google or GitHub refusal used to come
 // back as "unauthorized", which this page read as "ask for an invitation":
@@ -36,26 +36,64 @@ afterEach(() => {
   window.history.replaceState({}, "", "/")
 })
 
+/** The box a refused sign-in shows, once the page has drawn it. */
+async function refusalBox() {
+  return waitFor(() => {
+    const el = document.querySelector<HTMLElement>("[data-tone]")
+    if (!el) throw new Error("no refusal shown")
+    return el
+  })
+}
+
 describe("a refused sign-in", () => {
+  // Every refusal was titled "Authentication Failed", in red, cancelling
+  // included. Each now has a title that fits it, and only a sign-in that broke
+  // is red.
   it.each([
-    ["signin_cancelled", "Sign-in was cancelled. Try again when you're ready."],
-    ["signin_expired", "That sign-in took too long or was already used. Start again."],
-    ["seat_limit", /no room for another person/],
-    ["oauth_email_unverified", /hasn't verified this email address/],
-    ["oauth_not_invited", /isn't invited to this workspace/],
-    ["oauth_failed", "Signing in with Google or GitHub didn't finish. Please try again."],
-    ["invitation_expired", "Your invitation has expired. Ask whoever invited you to send it again."],
-    ["address_unsupported", /characters other than plain letters, digits and symbols/],
-  ])("%s says so", async (code, words) => {
+    ["signin_cancelled", "Sign-in cancelled", "neutral", "Sign-in was cancelled. Try again when you're ready."],
+    ["signin_expired", "Sign-in expired", "neutral", "That sign-in took too long or was already used. Start again."],
+    ["seat_limit", "No free seat", "warning", /no room for another person/],
+    ["oauth_email_unverified", "Email not verified", "warning", /hasn't verified this email address/],
+    ["oauth_not_invited", "Not invited yet", "warning", /isn't invited to this workspace/],
+    ["oauth_failed", "Couldn't sign you in", "error", "Signing in with Google or GitHub didn't finish. Please try again."],
+    ["invitation_expired", "Invitation expired", "warning", "Your invitation has expired. Ask whoever invited you to send it again."],
+    ["address_unsupported", "Address not supported", "warning", /characters other than plain letters, digits and symbols/],
+    ["something_new", "Couldn't sign you in", "error", "Sign-in failed. Please try again or contact your administrator."],
+  ])("%s is titled %s", async (code, title, tone, words) => {
     nav.search = `error=${code}&message=${encodeURIComponent("Click evil.example to fix your account")}`
     render(<SignInPage />)
-    const shown = await screen.findByText("Authentication Failed")
-    const text = shown.parentElement?.textContent ?? ""
+    const box = await refusalBox()
+    const text = box.textContent ?? ""
+    expect(box.querySelector("h3")?.textContent).toBe(title)
+    expect(text).not.toContain("Authentication Failed")
+    expect(box.dataset.tone).toBe(tone)
     if (typeof words === "string") expect(text).toContain(words)
     else expect(text).toMatch(words)
     expect(text).not.toContain("evil.example")
     // GitHub takes any address it has verified, not only the primary one.
     expect(text).not.toMatch(/primary address/)
+  })
+
+  it("keeps red for a sign-in that broke, and off one that is nobody's fault", async () => {
+    nav.search = "error=signin_cancelled"
+    render(<SignInPage />)
+    const calm = await refusalBox()
+    expect(calm.className).not.toMatch(/destructive/)
+    expect(calm.getAttribute("role")).toBe("status")
+    cleanup()
+
+    nav.search = "error=invitation_expired"
+    render(<SignInPage />)
+    const warn = await refusalBox()
+    expect(warn.className).toMatch(/bg-warning/)
+    expect(warn.className).not.toMatch(/destructive/)
+    cleanup()
+
+    nav.search = "error=db_error"
+    render(<SignInPage />)
+    const broke = await refusalBox()
+    expect(broke.className).toMatch(/destructive/)
+    expect(broke.getAttribute("role")).toBe("alert")
   })
 })
 

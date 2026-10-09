@@ -1,6 +1,7 @@
 "use client"
 
-import { LoaderCircle, Rocket, AlertCircle, Mail, Lock, Eye, EyeOff, Fingerprint } from "@/lib/icons";
+import { LoaderCircle, Rocket, AlertCircle, AlertTriangle, Info, Mail, Lock, Eye, EyeOff, Fingerprint } from "@/lib/icons";
+import { signInRefusal, type RefusalTone } from "@/lib/auth/signInRefusal";
 import { signInWithPasskey } from "@/services/passkeyService";
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn";
 import { Button } from "@/components/ui/button"
@@ -29,48 +30,6 @@ const buildTimeDefaults = {
   ldap:   process.env.NEXT_PUBLIC_AUTH_LDAP   === "true",
 };
 
-// Allowlist of SSO error codes the BE can return (it sends them through
-// SignInErrorURL). Any unknown code is mapped to a generic message so attackers
-// can't render arbitrary text via /?error=x&message=<phishing-text>.
-const knownErrorMessages: Record<string, string> = {
-  // OAuth (Google/GitHub). A refusal names its reason; `unauthorized` is what
-  // servers sent for every refusal before these codes existed.
-  oauth_email_unverified: "Google or GitHub hasn't verified this email address. Verify it there, then sign in again.",
-  oauth_not_invited:      "This email address isn't invited to this workspace. Ask your administrator to invite you, or to add your address to the sign-up allow-list.",
-  oauth_failed:           "Signing in with Google or GitHub didn't finish. Please try again.",
-  invitation_expired:     "Your invitation has expired. Ask whoever invited you to send it again.",
-  unauthorized:           "Your account is not authorized to access this workspace. Please contact your administrator for an invitation.",
-  // Any provider: an address written with characters outside ASCII, which is
-  // matched to no account; cancelled there; or a sign-in that outlived its
-  // state (taken too long, or opened twice).
-  address_unsupported:    "That account's email address has characters other than plain letters, digits and symbols, so it can't sign in here. Use an account whose address is written in plain letters, or ask your administrator.",
-  signin_cancelled:       "Sign-in was cancelled. Try again when you're ready.",
-  signin_expired:         "That sign-in took too long or was already used. Start again.",
-  // OIDC
-  oidc_disabled:          "OIDC sign-in is currently disabled.",
-  oidc_misconfigured:     "OIDC is not fully configured. Contact your administrator.",
-  oidc_invalid_request:   "The OIDC sign-in request was incomplete. Please try again.",
-  oidc_invalid_state:     "That sign-in took too long or was already used. Start again.",
-  oidc_state_mint_failed: "Could not start OIDC sign-in. Please try again later.",
-  oidc_invalid_code:      "OIDC authorization failed. Please try again.",
-  oidc_no_token:          "Your identity provider did not return an ID token.",
-  oidc_verification_failed: "Could not verify the response from your identity provider.",
-  oidc_invalid_claims:    "Could not read your identity provider's response.",
-  oidc_no_email:          "Your identity provider did not provide a valid email.",
-  oidc_email_unverified:  "Your identity provider reports this email as unverified. Verify it and try again.",
-  // SAML
-  saml_disabled:          "SAML sign-in is currently disabled.",
-  saml_invalid:           "Invalid SAML response from your identity provider.",
-  saml_no_email:          "Your SAML response did not include a usable email.",
-  // Shared
-  provision_failed:       "Could not provision your account. Please contact your administrator.",
-  seat_limit:             "This workspace is on OneCamp's free plan and has no room for another person. Ask your administrator to free a place or remove the limit.",
-  plan_required:          "Single sign-on needs a OneCamp licence, and this workspace is on the free plan. Sign in with your email, or ask your administrator.",
-  session_failed:         "Could not start your session. Please try again.",
-  db_error:               "A temporary database issue occurred. Please try again.",
-  resolution_failed:      "Could not resolve your account. Please try again.",
-};
-
 // ssoMethodHint maps an auth_method value the backend returns ("google",
 // "github", "oidc", "saml", "ldap") to a friendly nudge. Empty for unknown.
 function ssoMethodHint(method: string): string {
@@ -90,21 +49,35 @@ function ssoMethodHint(method: string): string {
   }
 }
 
+// How loud each kind of refusal reads: red only for a sign-in that broke;
+// the theme's warning tint for one with something to do first; neutral for
+// one that is nobody's fault (cancelled, timed out).
+const REFUSAL_STYLE: Record<RefusalTone, { box: string; icon: string; Icon: typeof AlertCircle }> = {
+  error: { box: "bg-destructive/10 border-destructive text-destructive", icon: "text-destructive", Icon: AlertCircle },
+  warning: { box: "bg-warning/10 border-warning text-foreground", icon: "text-warning", Icon: AlertTriangle },
+  neutral: { box: "bg-muted border-border text-foreground", icon: "text-muted-foreground", Icon: Info },
+};
+
 function AuthErrorMessage() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
   if (!error) return null;
 
-  // Use the allowlist; never display the raw `message` query param.
-  const msg = knownErrorMessages[error] || "Sign-in failed. Please try again or contact your administrator.";
+  // An allowlist by code; never display the raw `message` query param.
+  const refusal = signInRefusal(error);
+  const { box, icon, Icon } = REFUSAL_STYLE[refusal.tone];
 
   return (
-    <div className="bg-destructive/10 border-l-4 border-destructive text-destructive p-4 rounded-md shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
+    <div
+      role={refusal.tone === "error" ? "alert" : "status"}
+      data-tone={refusal.tone}
+      className={`${box} border-l-4 p-4 rounded-md shadow-sm animate-in fade-in slide-in-from-top-4 duration-300`}
+    >
       <div className="flex items-start">
-        <AlertCircle className="h-5 w-5 mr-3 mt-0.5 shrink-0" />
+        <Icon aria-hidden="true" className={`h-5 w-5 mr-3 mt-0.5 shrink-0 ${icon}`} />
         <div>
-          <h3 className="font-semibold text-sm">Authentication Failed</h3>
-          <p className="text-sm mt-1">{msg}</p>
+          <h3 className="font-semibold text-sm">{refusal.title}</h3>
+          <p className="text-sm mt-1">{refusal.message}</p>
         </div>
       </div>
     </div>
