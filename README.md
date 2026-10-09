@@ -14,7 +14,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OneMana-Soft/OneCamp-fe?style=flat-square&color=yellow)](https://github.com/OneMana-Soft/OneCamp-fe/stargazers)
 
-[**Live Demo**](https://onecamp.onemana.dev) · [**Server (AGPL-3.0)**](https://github.com/OneMana-Soft/OneCamp/tree/without-ai) · [**Free for up to 25 people**](https://onemana.dev/free) · [**Desktop app**](https://github.com/OneMana-Soft/OneCamp-desktop/releases/latest) · [**Docs**](https://onemana.dev/docs) · [**Report a Bug**](https://github.com/OneMana-Soft/OneCamp-fe/issues)
+[**Live Demo**](https://onemana.dev/demo) · [**Server (AGPL-3.0)**](https://github.com/OneMana-Soft/OneCamp/tree/without-ai) · [**Free for up to 25 people**](https://onemana.dev/free) · [**Desktop app**](https://github.com/OneMana-Soft/OneCamp-desktop/releases/latest) · [**Docs**](https://onemana.dev/docs) · [**Report a Bug**](https://github.com/OneMana-Soft/OneCamp-fe/issues)
 
 </div>
 
