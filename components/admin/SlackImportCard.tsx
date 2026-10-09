@@ -188,6 +188,26 @@ const SlackImportCard: React.FC = () => {
     })
   }
 
+  const handleDiscard = (job: SlackImportJob) => {
+    confirm({
+      title: "Discard this export?",
+      description: `${job.slack_workspace_name} hasn't been imported yet. Discarding it deletes the uploaded file and lets you start a new import of this workspace.`,
+      confirmText: "Discard",
+      onConfirm: async () => {
+        try {
+          setBusyJobId(job.id)
+          await cancelSlackImport(job.id)
+          toast({ title: "Discarded" })
+          swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
+        } catch (err) {
+          toast({ title: "Couldn't discard it", description: errorMessage(err), variant: "destructive" })
+        } finally {
+          setBusyJobId(null)
+        }
+      },
+    })
+  }
+
   const handleRollback = async (job: SlackImportJob) => {
     const confirm1 = window.prompt(
       `Type "ROLLBACK" to soft-delete every entity created by the import of ${job.slack_workspace_name}.\n\nThis cannot be reversed automatically; you would need to re-import.`,
@@ -290,6 +310,7 @@ const SlackImportCard: React.FC = () => {
               onDeleteZip={() => handleDeleteStagedZip(job)}
               onShowErrors={() => setErrorsJobId(job.id)}
               onInvite={() => setInviteJob(job)}
+              onDiscard={() => handleDiscard(job)}
             />
           ))}
         </CardContent>
@@ -340,11 +361,13 @@ interface JobRowProps {
   onShowErrors: () => void
   /** Invite the people who came across; offered once the import finished. */
   onInvite?: () => void
+  /** Discard an export still waiting to be planned or run. */
+  onDiscard?: () => void
 }
 
 // Exported for tests. The card around it needs polling, MQTT and endpoint
 // config to mount, none of which the row's own rendering depends on.
-export const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors, onInvite }) => {
+export const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors, onInvite, onDiscard }) => {
   const status = STATUS_BADGE[job.status] ?? STATUS_BADGE.pending
   const stageLabel = (job.stage && STAGE_LABELS[job.stage]) || job.stage || ""
   const total = Math.max(1, job.chunks_total)
@@ -377,10 +400,20 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCanc
               Plan
             </Button>
           )}
-          {(job.status === "planned" || job.status === "failed") && (
+          {(job.status === "planned" || (job.status === "failed" && job.plan)) && (
             <Button size="sm" onClick={onRun} disabled={busy}>
               <PlayCircle className="h-4 w-4 mr-1.5" />
-              Run
+              {job.status === "failed" ? "Run again" : "Run"}
+            </Button>
+          )}
+          {job.status === "failed" && (
+            <Button size="sm" variant={job.plan ? "outline" : "default"} onClick={onPlan} disabled={busy}>
+              Plan again
+            </Button>
+          )}
+          {(job.status === "pending" || job.status === "validating" || job.status === "planned") && onDiscard && (
+            <Button size="sm" variant="outline" onClick={onDiscard} disabled={busy}>
+              Discard
             </Button>
           )}
           {(job.status === "running" || job.status === "paused") && (

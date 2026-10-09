@@ -21,8 +21,6 @@
 import React, { useEffect, useMemo, useState, Suspense, lazy } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,20 +29,7 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
-import {
-  CheckCircle2,
-  Clock,
-  Loader2,
-  PlayCircle,
-  RotateCcw,
-  XCircle,
-  AlertTriangle,
-  Plug,
-  Plus,
-  Database,
-  RefreshCw,
-  Users,
-} from "lucide-react"
+import { CheckCircle2, Loader2, Plug, Plus, Database } from "lucide-react"
 import {
   createImportJob,
   cancelImportJob,
@@ -58,7 +43,11 @@ import {
   disconnectImport,
   discoverImportResources,
   importProviderLabel,
+  importProblemOf,
+  needsReconnect,
+  type ImportProblem,
 } from "@/services/importService"
+import { ImportJobRow } from "@/components/admin/ImportJobRow"
 import { ALL_OF_THEM, allOfThemLabel, optionsForPick, pickLabel } from "@/lib/importPick"
 
 // Lazy-load the provider-specific dialogs. They're heavy (form
@@ -83,17 +72,6 @@ const ImportInviteDialog = lazy(() =>
 const POLL_INTERVAL_MS = 6000
 const POLL_CAP_MS = 10 * 60 * 1000
 
-const STATUS_BADGE: Record<string, { className: string; icon: React.ReactNode }> = {
-  pending: { className: "bg-warning/10 text-warning border-warning/20", icon: <Clock className="h-3.5 w-3.5" /> },
-  validating: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" /> },
-  planned: { className: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  running: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" /> },
-  paused: { className: "bg-warning/10 text-warning border-warning/20", icon: <Clock className="h-3.5 w-3.5" /> },
-  completed: { className: "bg-success/10 text-success border-success/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  failed: { className: "bg-destructive/10 text-destructive border-destructive/20", icon: <XCircle className="h-3.5 w-3.5" /> },
-  cancelled: { className: "bg-gray-500/10 text-gray-600 border-gray-500/20", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
-  rolled_back: { className: "bg-purple-500/10 text-purple-600 border-purple-500/20", icon: <RotateCcw className="h-3.5 w-3.5" /> },
-}
 
 function isLive(s: ImportJob["status"]) {
   return s === "running" || s === "validating" || s === "paused" || s === "pending"
@@ -134,6 +112,10 @@ const ImportCard: React.FC = () => {
   const [discoverItems, setDiscoverItems] = useState<DiscoverItem[]>([])
   const [discoverLoading, setDiscoverLoading] = useState(false)
   const [pickedDiscoverId, setPickedDiscoverId] = useState("")
+  // Why the list couldn't load. It used to be swallowed, so a refused token
+  // looked like an account with nothing in it.
+  const [discoverProblem, setDiscoverProblem] = useState<ImportProblem | null>(null)
+  const [discoverAttempt, setDiscoverAttempt] = useState(0)
 
   // Plan / Errors dialogs
   const [planJob, setPlanJob] = useState<ImportJob | null>(null)
@@ -179,6 +161,7 @@ const ImportCard: React.FC = () => {
     }
     let cancelled = false
     setDiscoverLoading(true)
+    setDiscoverProblem(null)
     discoverImportResources(selectedProvider)
       .then((items) => {
         if (cancelled) return
@@ -186,8 +169,10 @@ const ImportCard: React.FC = () => {
         // A token that sees one Asana workspace has nothing to choose.
         if (selectedProvider === "asana" && items.length === 1) setPickedDiscoverId(items[0].id)
       })
-      .catch(() => {
-        if (!cancelled) setDiscoverItems([])
+      .catch((err) => {
+        if (cancelled) return
+        setDiscoverItems([])
+        setDiscoverProblem(importProblemOf(err, "Couldn't load the list. Try again."))
       })
       .finally(() => {
         if (!cancelled) setDiscoverLoading(false)
@@ -195,7 +180,7 @@ const ImportCard: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [selectedProvider, connection?.updated_at])
+  }, [selectedProvider, connection?.updated_at, discoverAttempt])
 
   const startNewJob = async () => {
     if (!selectedProvider) return
@@ -243,6 +228,22 @@ const ImportCard: React.FC = () => {
     } catch (err: any) {
       toast({ title: "Cancel failed", description: err?.response?.data?.error, variant: "destructive" })
     }
+  }
+  const onDiscard = (job: ImportJob) => {
+    confirm({
+      title: "Discard this import?",
+      description: `${job.source_workspace_name} hasn't brought anything in yet. Discarding it lets you start a new import of it.`,
+      confirmText: "Discard",
+      onConfirm: async () => {
+        try {
+          await cancelImportJob(job.id)
+          toast({ title: "Discarded" })
+          refetchJobs()
+        } catch (err: unknown) {
+          toast({ title: "Couldn't discard it", description: importProblemOf(err).message, variant: "destructive" })
+        }
+      },
+    })
   }
   const onRollback = async (jobId: string) => {
     confirm({
@@ -410,6 +411,21 @@ const ImportCard: React.FC = () => {
                     Loading workspaces…
                   </div>
                 )}
+                {discoverProblem && !discoverLoading && (
+                  <div role="alert" className="flex flex-col gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm sm:flex-row sm:items-center">
+                    <p className="min-w-0 flex-1 break-words text-destructive">{discoverProblem.message}</p>
+                    <div className="flex shrink-0 gap-2">
+                      {needsReconnect(discoverProblem) && (
+                        <Button size="sm" onClick={() => setConnectOpen(true)}>
+                          <Plug className="mr-1.5 h-4 w-4" /> Reconnect
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" onClick={() => setDiscoverAttempt((n) => n + 1)}>
+                        Try again
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-1.5">
@@ -457,83 +473,19 @@ const ImportCard: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {jobs.map((j) => {
-                    const badge = STATUS_BADGE[j.status]
-                    const totalChunks = j.chunks_total || 1
-                    const pct = Math.min(100, Math.round((j.chunks_done / totalChunks) * 100))
-                    return (
-                      <div key={j.id} className="rounded border bg-card p-3">
-                        <div className="mb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <div className="space-y-0.5 min-w-0">
-                            <div className="font-medium truncate">{j.source_workspace_name}</div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                              <Badge variant="outline" className={badge?.className}>
-                                <span className="flex items-center gap-1">
-                                  {badge?.icon}
-                                  {j.status}
-                                </span>
-                              </Badge>
-                              {j.stage && <span>· {j.stage}</span>}
-                              <span>· {new Date(j.created_at).toLocaleString()}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 flex-wrap shrink-0">
-                            {j.status === "planned" && (
-                              <Button size="sm" variant="default" onClick={() => setPlanJob(j)}>
-                                <PlayCircle className="mr-1 h-4 w-4" /> Plan
-                              </Button>
-                            )}
-                            {j.status === "validating" && (
-                              <Button size="sm" variant="default" onClick={() => setPlanJob(j)}>
-                                <PlayCircle className="mr-1 h-4 w-4" /> Plan
-                              </Button>
-                            )}
-                            {j.status === "failed" && (
-                              <Button size="sm" variant="default" onClick={() => setPlanJob(j)}>
-                                <PlayCircle className="mr-1 h-4 w-4" /> Retry plan
-                              </Button>
-                            )}
-                            {(j.status === "running" || j.status === "paused") && (
-                              <Button size="sm" variant="outline" onClick={() => onCancel(j.id)}>
-                                Cancel
-                              </Button>
-                            )}
-                            {(j.status === "completed" || j.status === "failed" || j.status === "cancelled") && (
-                              <Button size="sm" variant="outline" onClick={() => onRollback(j.id)}>
-                                <RotateCcw className="mr-1 h-4 w-4" /> Rollback
-                              </Button>
-                            )}
-                            {(j.status === "failed" || j.status === "cancelled") && j.chunks_failed > 0 && (
-                              <Button size="sm" variant="outline" onClick={() => onRetryFailed(j.id)}>
-                                <RefreshCw className="mr-1 h-4 w-4" /> Retry failed
-                              </Button>
-                            )}
-                            {j.status === "completed" && (
-                              <Button size="sm" variant="default" onClick={() => setInviteJob(j)}>
-                                <Users className="mr-1 h-4 w-4" /> Invite people
-                              </Button>
-                            )}
-                            {j.errors_total > 0 && (
-                              <Button size="sm" variant="ghost" onClick={() => setErrorsJobId(j.id)}>
-                                <AlertTriangle className="mr-1 h-4 w-4 text-warning" />
-                                {j.errors_total} errors
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        <Progress value={pct} className="h-1.5" />
-                        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                          <span>
-                            {j.chunks_done}/{j.chunks_total} chunks
-                          </span>
-                          <span>{j.items_imported.toLocaleString()} items</span>
-                          {j.error_message && (
-                            <span className="text-destructive">{j.error_message}</span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {jobs.map((j) => (
+                    <ImportJobRow
+                      key={j.id}
+                      job={j}
+                      onPlan={() => setPlanJob(j)}
+                      onDiscard={() => onDiscard(j)}
+                      onCancel={() => onCancel(j.id)}
+                      onRollback={() => onRollback(j.id)}
+                      onRetryFailed={() => onRetryFailed(j.id)}
+                      onInvite={() => setInviteJob(j)}
+                      onShowErrors={() => setErrorsJobId(j.id)}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -563,6 +515,10 @@ const ImportCard: React.FC = () => {
                 if (!o) setPlanJob(null)
               }}
               onStarted={() => refetchJobs()}
+              onReconnect={() => {
+                setPlanJob(null)
+                setConnectOpen(true)
+              }}
             />
           )}
           {inviteJob && (

@@ -82,9 +82,11 @@ describe("importService — providers / connections", () => {
   it("connectImport posts to per-provider connect endpoint", async () => {
     ax.post.mockResolvedValueOnce({ data: {} })
     await connectImport("linear", { access_token: "tok" })
+    // The dialog shows the server's reason itself, so the global toast stays quiet.
     expect(ax.post).toHaveBeenCalledWith(
       "/admin/import/linear/connect",
       { access_token: "tok" },
+      { suppressErrorToast: true },
     )
   })
 
@@ -96,6 +98,7 @@ describe("importService — providers / connections", () => {
     await connectImport("clickup", { access_token: "x" })
     expect(ax.post).toHaveBeenCalledWith(
       "/admin/import/clickup/connect",
+      expect.any(Object),
       expect.any(Object),
     )
   })
@@ -129,7 +132,7 @@ describe("importService — jobs", () => {
   it("planImportJob defaults the body to {} when no input is given", async () => {
     ax.post.mockResolvedValueOnce({ data: { user_count: 12 } })
     const plan = await planImportJob("job-1")
-    expect(ax.post).toHaveBeenCalledWith("/admin/import/jobs/job-1/plan", {})
+    expect(ax.post).toHaveBeenCalledWith("/admin/import/jobs/job-1/plan", {}, { suppressErrorToast: true })
     expect(plan.user_count).toBe(12)
   })
 
@@ -207,18 +210,27 @@ describe("importService — discovery", () => {
   it("discoverImportResources returns the items array", async () => {
     ax.post.mockResolvedValueOnce({ data: { items: [{ id: "1", name: "Team A", kind: "team" }] } })
     const items = await discoverImportResources("linear")
-    expect(ax.post).toHaveBeenCalledWith("/admin/import/linear/discover")
+    expect(ax.post).toHaveBeenCalledWith("/admin/import/linear/discover", undefined, { suppressErrorToast: true })
     expect(items).toHaveLength(1)
     expect(items[0].id).toBe("1")
   })
 
-  it("discoverImportResources returns [] when BE responds 404", async () => {
+  it("discoverImportResources returns [] when the provider has no list (404, no_discover)", async () => {
     // Simulating axios's error shape: { response: { status, data } }
     ax.post.mockRejectedValueOnce({
       response: { status: 404, data: { code: "no_discover" } },
     })
     const items = await discoverImportResources("trello")
     expect(items).toEqual([])
+  })
+
+  // The list used to swallow every failure into "nothing to pick", so a
+  // refused token looked like an empty account.
+  it("discoverImportResources rethrows a refused token for the card to offer Reconnect", async () => {
+    ax.post.mockRejectedValueOnce({
+      response: { status: 400, data: { code: "token_rejected", error: "Trello didn't accept that API key and token." } },
+    })
+    await expect(discoverImportResources("trello")).rejects.toMatchObject({ response: { status: 400 } })
   })
 
   it("discoverImportResources returns [] when BE responds with code:no_discover", async () => {
@@ -334,5 +346,18 @@ describe("importService — the people who came across", () => {
     ax.post.mockRejectedValueOnce(new Error("Network Error"))
     const run = await inviteImportedPeople([person(1)])
     expect(run.failed[0].msg).toMatch(/Couldn't reach the server/)
+  })
+})
+
+describe("importService — problems", () => {
+  it("reads the server's reason and code, and says when the server couldn't be reached", async () => {
+    const { importProblemOf, needsReconnect } = await import("./importService")
+    const refused = importProblemOf({ response: { status: 400, data: { code: "token_rejected", error: "Jira didn't accept that email and API token." } } })
+    expect(refused).toEqual({ code: "token_rejected", message: "Jira didn't accept that email and API token." })
+    expect(needsReconnect(refused)).toBe(true)
+    expect(needsReconnect(importProblemOf({ response: { status: 400, data: { code: "not_connected", error: "x" } } }))).toBe(true)
+    expect(needsReconnect(importProblemOf({ response: { status: 409, data: { code: "active_job", error: "x" } } }))).toBe(false)
+    expect(importProblemOf(new Error("Network Error")).message).toMatch(/Couldn't reach the server/)
+    expect(importProblemOf({ response: { status: 500, data: {} } }, "Plan failed.").message).toBe("Plan failed.")
   })
 })
