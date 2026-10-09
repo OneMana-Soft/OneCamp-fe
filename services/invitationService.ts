@@ -6,6 +6,7 @@
 // error toast and hand the words back.
 
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { serverMessage } from "@/lib/http/serverMessage"
 import { PostEndpointUrl } from "@/services/endPoints"
 
 /** What the server answers when an invitation is made or sent again. */
@@ -27,11 +28,7 @@ export type InviteOutcome =
   | { ok: false; msg: string }
 
 /** The server's reason for a failure, or a plain one when there is none to read. */
-function reason(err: unknown): string {
-  const msg = (err as { response?: { data?: { msg?: unknown } } })?.response?.data?.msg
-  if (typeof msg === "string" && msg) return msg
-  return "Couldn't send the invitation. Check your connection and try again."
-}
+const reason = (err: unknown) => serverMessage(err, "Couldn't send the invitation. Check your connection and try again.")
 
 async function post(endpoint: PostEndpointUrl, email: string): Promise<InviteOutcome> {
   try {
