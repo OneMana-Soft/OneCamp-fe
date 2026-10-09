@@ -28,6 +28,7 @@ import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import SetupChecklist from "@/components/home/SetupChecklist"
+import { NoChannelsYet } from "@/components/home/NoChannelsYet"
 import { GlanceLine, todayEyebrow } from "@/components/home/GlanceLine"
 import { PageHeader } from "@/components/ui/pageHeader"
 import BriefingCard from "@/components/ai/BriefingCard"
@@ -134,6 +135,9 @@ export function DesktopDashboard() {
                 {/* Setup, while there is any left. Self-hides when the workspace
                     is actually configured, not when somebody ticks a box. */}
                 <SetupChecklist isAdmin={isAdmin} />
+
+                {/* In no channel at all: where the team talks, and the way in. */}
+                <NoChannelsYet />
 
                 {/* What needs me now — cross-surface action queue; self-hides when empty */}
                 <AttentionCard />

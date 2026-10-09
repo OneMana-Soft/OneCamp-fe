@@ -7,7 +7,7 @@ import { ChannelListTabArchive } from "@/components/channel/channelListTabArchiv
 import { ChannelListTabAllActive } from "@/components/channel/channelListTabAllActive"
 import { debounceUtil } from "@/lib/utils/helpers/debounce"
 
-export const ChannelListTabContent = ({ selectedTab }: { selectedTab: string }) => {
+export const ChannelListTabContent = ({ selectedTab, onDiscover }: { selectedTab: string; onDiscover?: () => void }) => {
     const [inputValue, setInputValue] = useState("")
     const [searchQuery, setSearchQuery] = useState("")
 
@@ -27,7 +27,7 @@ export const ChannelListTabContent = ({ selectedTab }: { selectedTab: string }) 
     const renderTabs = useMemo(() => {
         switch (selectedTab) {
             case "active":
-                return <ChannelListTabActive searchQuery={searchQuery} />
+                return <ChannelListTabActive searchQuery={searchQuery} onDiscover={onDiscover} />
             case "archived":
                 return <ChannelListTabArchive searchQuery={searchQuery} />
             case "join":
@@ -35,7 +35,7 @@ export const ChannelListTabContent = ({ selectedTab }: { selectedTab: string }) 
             default:
                 return null
         }
-    }, [searchQuery, selectedTab])
+    }, [searchQuery, selectedTab, onDiscover])
 
     return (
         <div className="flex flex-col flex-1 min-h-0">

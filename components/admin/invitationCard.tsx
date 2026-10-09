@@ -139,7 +139,7 @@ const InvitationCard = () => {
               </span>
             </div>
             <CardDescription className="text-sm text-muted-foreground">
-              Invite new users by email. They&apos;ll receive a magic link to set up their account.
+              Invite people by email. Each invitation is a link, good for seven days, that lets them join this workspace.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">

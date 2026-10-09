@@ -36,6 +36,8 @@ export enum GetEndpointUrl {
     TeamListUserIsAdmin = "/team/teamListByAdminUID",
     CheckChannelNameAvailability = "/ch/chNameIsAvailable",
     ChannelBasicInfo = "/ch/channelBasicInfo",
+    // The channel Home offers a member who is in none (#general).
+    SuggestedChannel = "/ch/suggested",
     ChannelRecordingList = "/ch/getRecordingList",
     ChatRecordingList = "/dm/getRecordingList",
     GroupChatRecordingList = "/groupChat/getRecordingList",

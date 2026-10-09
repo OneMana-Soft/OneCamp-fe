@@ -12,7 +12,13 @@ import {Button} from "@/components/ui/button";
 import {useDispatch} from "react-redux";
 import {openUI} from "@/store/slice/uiSlice";
 
-export const ChannelListTabActive = ({searchQuery}:{searchQuery: string}) => {
+/**
+ * The channels you're in. Empty, it offers the ones you could join (onDiscover
+ * opens the Discover tab) before making a new one: it used to offer only
+ * "Create a Channel", to someone whose team already talks in channels they
+ * hadn't found.
+ */
+export const ChannelListTabActive = ({searchQuery, onDiscover}:{searchQuery: string; onDiscover?: () => void}) => {
     const post = usePost();
     const dispatch = useDispatch();
     
@@ -128,14 +134,21 @@ export const ChannelListTabActive = ({searchQuery}:{searchQuery: string}) => {
                     <div className="p-4">
                         <StatePlaceholder 
                             type={searchQuery.trim().length > 0 ? 'search' : 'empty'}
-                            title={searchQuery.trim().length > 0 ? "No matches found" : "No active channels"}
+                            title={searchQuery.trim().length > 0 ? "No matches found" : "You're not in any channels yet"}
                             description={searchQuery.trim().length > 0 
                                 ? `We couldn't find any channels matching "${searchQuery}"`
-                                : "You haven't joined any active channels yet. Start by creating a new one or join an existing one."}
+                                : "Find the channels your team already talks in, or start a new one."}
                             action={searchQuery.trim().length === 0 && (
-                                <Button onClick={() => dispatch(openUI({ key: 'createChannel' }))} variant="outline" size="sm">
-                                    Create a Channel
-                                </Button>
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    {onDiscover && (
+                                        <Button onClick={onDiscover} size="sm">
+                                            Discover channels
+                                        </Button>
+                                    )}
+                                    <Button onClick={() => dispatch(openUI({ key: 'createChannel' }))} variant="outline" size="sm">
+                                        Create a channel
+                                    </Button>
+                                </div>
                             )}
                         />
                     </div>
