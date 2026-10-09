@@ -32,7 +32,7 @@ export const ChannelListResult = ({
 
     if (channelList.length === 0 && !isLoading) {
         return (
-            <PageContainer className="flex items-center justify-center">
+            <PageContainer align="center" className="flex items-center justify-center">
                 <EmptyState
                     icon={Inbox}
                     title="No results"

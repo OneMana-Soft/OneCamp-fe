@@ -62,14 +62,14 @@ export const ActivityMentionListResult = () => {
     // conclusion they must not reach from a request that simply failed.
     if (isError) {
         return (
-            <PageContainer className="flex items-center justify-center">
+            <PageContainer align="center" className="flex items-center justify-center">
                 <ErrorState subject="your mentions" onRetry={() => void mutate()} />
             </PageContainer>
         )
     }
     if (!isLoading && allMentions.length === 0) {
         return (
-            <PageContainer className="flex items-center justify-center">
+            <PageContainer align="center" className="flex items-center justify-center">
                 <EmptyState
                     icon={AtSign}
                     title="No mentions yet"

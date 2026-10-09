@@ -76,7 +76,11 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
                     strokeWidth={1.75}
                 />
             )}
-            {ch.project_uuid && <ColorIcon name={ch.project_uuid} size={'xs'}/>}
+            {ch.project_uuid && (
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
+                    <ColorIcon name={ch.project_uuid} size="dot" />
+                </span>
+            )}
             <span
                 className={cn(
                     "truncate flex-1 min-w-0",
@@ -193,12 +197,17 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                         onOpenChange={link.setIsOpen}
                                         className="w-full"
                                     >
+                                        {/* The label sits on the same left edge as the rows' icons,
+                                            12px in muted text, with the chevron after it. The chevron
+                                            shows on hover and focus, and stays while the group is
+                                            closed so a closed group still says it opens. An empty
+                                            group has nothing to open, so it never shows one. */}
                                         <div className="group/section flex items-center justify-between mb-0.5">
                                             <CollapsibleTrigger asChild>
                                                 <button
                                                     className={cn(
-                                                        "flex-1 flex items-center gap-1.5 h-6 px-1.5 rounded-md",
-                                                        "text-xs font-medium capitalize",
+                                                        "flex-1 flex items-center gap-1 h-6 px-2 rounded-md",
+                                                        "text-2xs font-medium capitalize",
                                                         "text-muted-foreground hover:text-foreground",
                                                         "transition-colors duration-100 cursor-pointer text-left",
                                                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
@@ -206,16 +215,21 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                                     type="button"
                                                     aria-expanded={link.isOpen}
                                                 >
-                                                    <ChevronRight
-                                                        className={cn(
-                                                            "shrink-0 h-3 w-3 transition-transform duration-150 ease-in-out",
-                                                            link.isOpen ? "rotate-90" : "rotate-0",
-                                                        )}
-                                                        strokeWidth={2.25}
-                                                    />
                                                     <span className={cn("truncate", link.className)}>
                                                         {link.title}
                                                     </span>
+                                                    {link.children.length > 0 && (
+                                                        <ChevronRight
+                                                            aria-hidden="true"
+                                                            className={cn(
+                                                                "shrink-0 h-3 w-3 transition-[transform,opacity] duration-150 ease-in-out",
+                                                                link.isOpen
+                                                                    ? "rotate-90 opacity-0 group-hover/section:opacity-100 group-focus-within/section:opacity-100"
+                                                                    : "rotate-0",
+                                                            )}
+                                                            strokeWidth={2.25}
+                                                        />
+                                                    )}
                                                     {link.label && (
                                                         <Badge variant="sidebar" className="ml-1">
                                                             {link.label}
