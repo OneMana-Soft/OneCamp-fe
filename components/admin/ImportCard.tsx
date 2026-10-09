@@ -518,6 +518,7 @@ const ImportCard: React.FC = () => {
                 if (!o) setPlanJob(null)
               }}
               onStarted={() => refetchJobs()}
+              onChanged={() => refetchJobs()}
               onReconnect={() => {
                 if (planJob.provider !== "slack") setSelectedProvider(planJob.provider)
                 setPlanJob(null)

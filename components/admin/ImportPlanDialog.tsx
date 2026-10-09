@@ -33,6 +33,7 @@ import {
   type ImportProblem,
   type ProviderInfo,
   importProblemOf,
+  jobChanged,
   needsReconnect,
   planImportJob,
   runImportJob,
@@ -50,6 +51,8 @@ interface Props {
   onStarted: () => void
   /** Opens the provider's connect dialog, for a plan refused over its token. */
   onReconnect?: () => void
+  /** Loads the import again, when it moved on while it was being planned. */
+  onChanged?: () => void
 }
 
 export const ImportPlanDialog: React.FC<Props> = ({
@@ -59,6 +62,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
   onOpenChange,
   onStarted,
   onReconnect,
+  onChanged,
 }) => {
   const { toast } = useToast()
   const [plan, setPlan] = useState<ImportPlan | null>(null)
@@ -99,7 +103,12 @@ export const ImportPlanDialog: React.FC<Props> = ({
         }
         setPriorityMap(initialPriority)
       } catch (err: unknown) {
-        if (!cancelled) setProblem(importProblemOf(err, "Couldn't plan this import. Try again."))
+        if (cancelled) return
+        const p = importProblemOf(err, "Couldn't plan this import. Try again.")
+        setProblem(p)
+        // Run started it from another tab, say: the import is loaded again
+        // behind the dialog, to show what it is now.
+        if (jobChanged(p)) onChanged?.()
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -161,7 +170,9 @@ export const ImportPlanDialog: React.FC<Props> = ({
               {needsReconnect(problem) && onReconnect && (
                 <Button size="sm" onClick={onReconnect}>Reconnect</Button>
               )}
-              <Button size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+              {!jobChanged(problem) && (
+                <Button size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+              )}
             </div>
           </div>
         ) : loading || !plan ? (

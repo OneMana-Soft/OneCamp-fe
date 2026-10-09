@@ -37,20 +37,25 @@ import {
   type SlackImportOptions,
   type SlackImportPlan,
 } from "@/services/slackImportService"
+import { importProblemOf, jobChanged } from "@/services/importService"
 
 interface Props {
   jobId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   onComplete: () => void
+  /** Loads the import again, when it moved on while it was being planned. */
+  onChanged?: () => void
 }
 
-export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChange, onComplete }) => {
+export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChange, onComplete, onChanged }) => {
   const { toast } = useToast()
 
   const [planning, setPlanning] = useState(true)
   const [running, setRunning] = useState(false)
   const [plan, setPlan] = useState<SlackImportPlan | null>(null)
+  // Said in place of a plan when the import moved on while it was planned.
+  const [changed, setChanged] = useState<string | null>(null)
 
   // Operator-tunable knobs. Defaults match backend defaults.
   const [skipSubtypes, setSkipSubtypes] = useState(true)
@@ -63,12 +68,19 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
     let cancelled = false
     ;(async () => {
       setPlanning(true)
+      setChanged(null)
       try {
         const opts = currentOptions()
         const p = await planSlackImport(jobId, opts)
         if (!cancelled) setPlan(p)
       } catch (err) {
-        if (!cancelled) {
+        const problem = importProblemOf(err)
+        if (!cancelled && jobChanged(problem)) {
+          // Run started it from another tab, say: said here, and the import
+          // loaded again behind the dialog to show what it is now.
+          setChanged(problem.message)
+          onChanged?.()
+        } else if (!cancelled) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const e = err as any
           toast({
@@ -223,9 +235,13 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
         )}
 
         {!planning && !plan && (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            Could not produce a plan. Check the job&apos;s error message and try again.
-          </div>
+          changed ? (
+            <p role="alert" className="py-8 text-center text-sm text-destructive">{changed}</p>
+          ) : (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              Could not produce a plan. Check the job&apos;s error message and try again.
+            </div>
+          )
         )}
 
         <DialogFooter>

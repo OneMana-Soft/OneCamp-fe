@@ -289,9 +289,10 @@ export async function discoverImportResources(provider: ImportProvider): Promise
 
 /**
  * What went wrong talking to an import source, as the server said it. code is
- * "token_rejected" or "not_connected" when reconnecting is the way out, and
- * also "unreachable", "rate_limited", "active_job", "file_gone",
- * "plan_failed" or "provider_error".
+ * "token_rejected" or "not_connected" when reconnecting is the way out,
+ * "job_changed" when the import moved on meanwhile (Run started it from
+ * another tab, say), and also "unreachable", "rate_limited", "active_job",
+ * "file_gone", "plan_failed" or "provider_error".
  */
 export interface ImportProblem {
   code?: string
@@ -307,6 +308,12 @@ export function importProblemOf(err: unknown, fallback = "That didn't work. Try 
 
 /** Whether connecting again is the way out of a problem. */
 export const needsReconnect = (p: ImportProblem | null | undefined) => p?.code === "token_rejected" || p?.code === "not_connected"
+
+/**
+ * Whether the import moved on while it was being planned: there is nothing to
+ * try again, only the import to load again and show as it is now.
+ */
+export const jobChanged = (p: ImportProblem | null | undefined) => p?.code === "job_changed"
 
 
 /**
