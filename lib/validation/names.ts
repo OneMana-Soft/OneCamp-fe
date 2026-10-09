@@ -54,3 +54,9 @@ export function nameSchema(kind: NameKind, what: string) {
 export function optionalNameSchema(kind: NameKind, what: string) {
   return z.union([z.string().trim().length(0), nameSchema(kind, what)]).optional()
 }
+
+/** The rule's words for a name it refuses, or "" for one it accepts; `what` starts them. */
+export function nameProblem(kind: NameKind, what: string, value: string): string {
+  const checked = nameSchema(kind, what).safeParse(value)
+  return checked.success ? "" : checked.error.issues[0]?.message || `${what} can't be used`
+}

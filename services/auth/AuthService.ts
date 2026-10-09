@@ -30,6 +30,15 @@ function loginOutcome(ok: boolean, data: { status?: string; challenge?: string; 
     return { status: 'failed', msg: data?.msg || '', auth_method: data?.auth_method };
 }
 
+/** What accepting an invitation answered: the name kept, the @handle made from it, and where to open. */
+export interface SignupOutcome {
+    ok: boolean;
+    msg: string;
+    landing?: string;
+    handle?: string;
+    name?: string;
+}
+
 /** The outcome of answering a second-factor challenge. */
 type TOTPLoginOutcome =
     | { status: 'success' }
@@ -167,8 +176,12 @@ class AuthService {
         }
     }
 
-    /** landing is where the new member opens: the channel they were put in (lib/landing.ts). */
-    static async signup(token: string, username: string, password: string): Promise<{ ok: boolean; msg: string; landing?: string }> {
+    /**
+     * Accepts an invitation with a name and a password. The server makes the @handle from the name
+     * and answers with it, the name as it was kept, and landing: where the new member opens, the
+     * channel they were put in (lib/landing.ts).
+     */
+    static async signup(token: string, name: string, password: string): Promise<SignupOutcome> {
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/signup`,
@@ -176,11 +189,18 @@ class AuthService {
                     method: 'POST',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token, username, password }),
+                    body: JSON.stringify({ token, name, password }),
                 }
             );
             const data = await res.json();
-            return { ok: res.ok, msg: data.msg || '', landing: typeof data.landing === 'string' ? data.landing : undefined };
+            const text = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+            return {
+                ok: res.ok,
+                msg: data.msg || '',
+                landing: text(data.landing),
+                handle: text(data.handle),
+                name: text(data.name),
+            };
         } catch (error) {
             console.error('Signup failed:', error);
             return { ok: false, msg: 'Network error. Please try again.' };
@@ -270,16 +290,17 @@ class AuthService {
         }
     }
 
-    static async validateInvitationToken(token: string): Promise<{ valid: boolean; email: string; msg: string }> {
+    /** name: the name to suggest, one an import already knows them by, or "". */
+    static async validateInvitationToken(token: string): Promise<{ valid: boolean; email: string; name: string; msg: string }> {
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/validate-token?token=${encodeURIComponent(token)}`,
                 { credentials: 'include' }
             );
             const data = await res.json();
-            return { valid: data.valid === true, email: data.email || '', msg: data.msg || '' };
+            return { valid: data.valid === true, email: data.email || '', name: typeof data.name === 'string' ? data.name : '', msg: data.msg || '' };
         } catch {
-            return { valid: false, email: '', msg: 'Network error' };
+            return { valid: false, email: '', name: '', msg: 'Network error' };
         }
     }
 
