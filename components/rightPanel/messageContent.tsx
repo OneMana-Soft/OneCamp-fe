@@ -27,6 +27,7 @@ import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import { useGuestAuthor } from "@/hooks/useGuestAuthor";
+import { GuestAvatar } from "@/components/message/guestAvatar";
 
 interface MessageContentProps {
     userInfo?: UserProfileDataInterface
@@ -171,13 +172,16 @@ export const MessageContent = ({
                 />
             </div>}
             <div className="h-12 w-12 flex-shrink-0" onClick={asGuest ? undefined : handleUserClick}>
-                <ChannelMessageAvatar
-                    userName={asGuest ? guestDisplayName : (userStatusState?.userName || userInfo?.user_name || '')}
-                    userProfileKey={asGuest ? undefined : (userStatusState?.userName ? userStatusState?.profileKey : userInfo?.user_profile_object_key)}
-                    isBot={!asGuest && !!userInfo?.is_bot}
-                    userUUID={userInfo?.user_uuid}
-                    guest={asGuest}
-                />
+                {asGuest ? (
+                    <GuestAvatar name={guestDisplayName} />
+                ) : (
+                    <ChannelMessageAvatar
+                        userName={userStatusState?.userName || userInfo?.user_name || ''}
+                        userProfileKey={userStatusState?.userName ? userStatusState?.profileKey : userInfo?.user_profile_object_key}
+                        isBot={!!userInfo?.is_bot}
+                        userUUID={userInfo?.user_uuid}
+                    />
+                )}
             </div>
             <div className="flex-1 min-w-0 mb-4">
                 <div className="flex items-baseline space-x-2 mb-1">

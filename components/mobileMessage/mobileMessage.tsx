@@ -25,6 +25,7 @@ import {useRouter} from "next/navigation";
 import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
 import { useGuestAuthor } from "@/hooks/useGuestAuthor";
+import { GuestAvatar } from "@/components/message/guestAvatar";
 import { PrincipalTag } from "@/components/ui/principalTag";
 
 interface mobileMessageProps {
@@ -309,7 +310,9 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
             >
 
                 <div className='h-12 w-12 flex-shrink-0' onClick={handleUserClick}>
-                    <ChannelMessageAvatar userName={authorName} userProfileKey={userInfo.user_profile_object_key} isBot={!!userInfo.is_bot} userUUID={userInfo.user_uuid} guest={!!guest}/>
+                    {guest
+                        ? <GuestAvatar name={guest.name}/>
+                        : <ChannelMessageAvatar userName={authorName} userProfileKey={userInfo.user_profile_object_key} isBot={!!userInfo.is_bot} userUUID={userInfo.user_uuid}/>}
 
                 </div>
                 <div className='w-full'>

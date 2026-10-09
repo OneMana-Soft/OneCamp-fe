@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { BotTag } from "@/components/ui/botTag"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { useGuestAuthor } from "@/hooks/useGuestAuthor"
+import { GuestAvatar } from "@/components/message/guestAvatar"
 import { Check, X, Languages, Loader2 } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { useTranslateText } from "@/services/aiService"
@@ -389,13 +390,16 @@ export const BaseMessageCard = React.memo(({
           </div>
         )}
         <div className="h-9 w-9 shrink-0 mt-0.5" onClick={guest ? undefined : onAvatarClick}>
-          <ChannelMessageAvatar
-            userName={authorName}
-            userProfileKey={userInfoState?.profileKey ?? message.from.user_profile_object_key}
-            isBot={!!message.from.is_bot}
-            userUUID={message.from.user_uuid}
-            guest={!!guest}
-          />
+          {guest ? (
+            <GuestAvatar name={guest.name} />
+          ) : (
+            <ChannelMessageAvatar
+              userName={authorName}
+              userProfileKey={userInfoState?.profileKey ?? message.from.user_profile_object_key}
+              isBot={!!message.from.is_bot}
+              userUUID={message.from.user_uuid}
+            />
+          )}
         </div>
         <div className="flex-1 min-w-0">
           {!isMessageEditEnabled && (
