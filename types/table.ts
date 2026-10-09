@@ -19,45 +19,55 @@ export interface prioritiesInterface {
         IconProps & React.RefAttributes<SVGSVGElement>
     >;
     color: string
+    /** The 6px dot beside the label: the one colour a priority shows in a list. */
+    dot?: string
 }
 
-
+// Each status and priority carries a `dot`, from the status tokens: a list
+// shows it as a dot beside plain text. `color`, the tinted pill, is kept for
+// the few places that draw a chip on purpose (a board column's filter).
 export const taskStatuses = [
     {
         value: "backlog",
         label: taskStatusLabel("backlog"),
         icon: QuestionMarkCircledIcon,
         color: "bg-zinc-500/10 text-zinc-700 dark:text-zinc-300",
+        dot: "bg-faint-foreground",
     },
     {
         value: "todo",
         label: taskStatusLabel("todo"),
         icon: CircleIcon,
-        color: "bg-slate-500/10 text-slate-700 dark:text-slate-300"
+        color: "bg-slate-500/10 text-slate-700 dark:text-slate-300",
+        dot: "bg-muted-foreground",
     },
     {
         value: "inProgress",
         label: taskStatusLabel("inProgress"),
         icon: StopwatchIcon,
-        color: "bg-blue-500/10 text-blue-700 dark:text-blue-300"
+        color: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
+        dot: "bg-info",
     },
     {
         value: "inReview",
         label: taskStatusLabel("inReview"),
         icon: CircleEllipsis,
-        color: "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+        color: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+        dot: "bg-warning",
     },
     {
         value: "done",
         label: taskStatusLabel("done"),
         icon: CheckCircledIcon,
-        color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+        color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+        dot: "bg-success",
     },
     {
         value: "canceled",
         label: taskStatusLabel("canceled"),
         icon: CrossCircledIcon,
-        color: "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+        color: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
+        dot: "bg-faint-foreground",
     },
 ];
 
@@ -66,19 +76,22 @@ export const priorities = [
         label: "Low",
         value: "low",
         icon: ArrowDownIcon,
-        color: "bg-sky-500/10 text-sky-700 dark:text-sky-300"
+        color: "bg-sky-500/10 text-sky-700 dark:text-sky-300",
+        dot: "bg-faint-foreground",
     },
     {
         label: "Medium",
         value: "medium",
         icon: ArrowRightIcon,
-        color: "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+        color: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+        dot: "bg-warning",
     },
     {
         label: "High",
         value: "high",
         icon: ArrowUpIcon,
-        color: "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+        color: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
+        dot: "bg-destructive",
     },
 ];
 

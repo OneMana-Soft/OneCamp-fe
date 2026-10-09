@@ -46,6 +46,8 @@ export interface StatusOption {
   icon?: ComponentType<{ className?: string }>
   /** Classes for the status pill. */
   color: string
+  /** Classes for the 6px dot a list shows beside the label. */
+  dot?: string
   /** The palette name, for custom statuses. */
   swatch?: string
 }
@@ -92,11 +94,6 @@ export function colorDot(color: string): string {
   return DOT[color] ?? DOT.slate
 }
 
-/** The pill (tint and text) for a palette colour: a status, a field's option. */
-export function colorPill(color: string): string {
-  return PILL[color] ?? PILL.slate
-}
-
 export const BUILT_IN_STATUSES: StatusOption[] = taskStatuses.map((s) => ({
   value: s.value,
   label: s.label,
@@ -104,6 +101,7 @@ export const BUILT_IN_STATUSES: StatusOption[] = taskStatuses.map((s) => ({
   custom: false,
   icon: s.icon,
   color: s.color,
+  dot: s.dot,
 }))
 
 export function isBuiltInStatus(value: string): value is StatusCategory {
@@ -132,6 +130,7 @@ function customOption(c: Pick<CustomTaskStatus, "id" | "name" | "category" | "co
     // It counts as its category, so it wears that shape.
     icon: builtIn(c.category)?.icon,
     color: PILL[c.color] ?? PILL.slate,
+    dot: DOT[c.color] ?? DOT.slate,
     swatch: c.color,
   }
 }
