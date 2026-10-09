@@ -7,8 +7,8 @@ import {ResizableHandle, ResizablePanel, ResizablePanelGroup} from "@/components
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import {cn} from "@/lib/utils/helpers/cn";
 import {DesktopChildrenNavType, DesktopNavType} from "@/types/nav";
-import { Users, Hash, MessageCircle, Clock, Star } from "@/lib/icons";
-import { CircleCheck, ClipboardList, File as FileIcon, LayoutDashboard, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from "@/lib/icons";
+import { Users, Hash, MessageCircle, Star } from "@/lib/icons";
+import { ClipboardList, File as FileIcon, LayoutDashboard, MoreHorizontal, PanelLeftClose, PanelLeftOpen } from "@/lib/icons";
 import {DesktopSideNavigationBar} from "@/components/navigationBar/desktop/desktopSideNavigationBar";
 import DesktopNavigationTopBar from "@/components/navigationBar/desktop/desktopNavigationTopBar";
 import {useHydrateUserSidebar} from "@/hooks/useHydrateUserSidebar";
@@ -61,7 +61,6 @@ export function DesktopNavigationBar({
     const [isTeamOpen, setIsTeamOpen] = useSidebarDisclosure("teams", false);
     const [isChannelOpen, setIsChannelOpen] = useSidebarDisclosure("channels", true);
     const [isChatOpen, setIsChatOpen] = useSidebarDisclosure("chats", false);
-    const [isRecentOpen, setIsRecentOpen] = useSidebarDisclosure("recent", true);
     const [isFavOpen, setIsFavOpen] = useSidebarDisclosure("favorites", true);
     const [isDocsOpen, setIsDocsOpen] = useSidebarDisclosure("docs", true);
     const [isBoardsOpen, setIsBoardsOpen] = useSidebarDisclosure("boards", false);
@@ -75,13 +74,11 @@ export function DesktopNavigationBar({
     const userSideNav = useHydrateUserSidebar()
 
     const userSidebarState = useSelector((state: RootState) => state.users.userSidebar)
-    const recentItems = useSelector((state: RootState) => state.recentItems.items)
 
     const projectNavGrp = [] as DesktopChildrenNavType[]
     const teamNavGrp = [] as DesktopChildrenNavType[]
     const channelNavGrp = [] as DesktopChildrenNavType[]
     const dmNavGrp = [] as DesktopChildrenNavType[]
-    const recentNavGrp = [] as DesktopChildrenNavType[]
 
     const channelCallStatus = useSelector((state: RootState) => state.channel.channelCallStatus);
     const chatCallStatus = useSelector((state: RootState) => state.chat.chatCallStatus);
@@ -259,36 +256,10 @@ export function DesktopNavigationBar({
         })
     }
 
-    for (const item of recentItems.slice(0, 8)) {
-        const typeIconMap: Record<string, any> = {
-            task: CircleCheck,
-            channel: Hash,
-            doc: FileIcon,
-            project: ClipboardList,
-            team: Users,
-            chat: MessageCircle,
-            user: Users,
-        };
-        recentNavGrp.push({
-            title: item.title,
-            path: item.path,
-            variant: isCurrentPath(pathname, item.path) ? "sidebarActive" : "ghost",
-            icon: typeIconMap[item.type] || CircleCheck,
-        });
-    }
-
-    const recentNavLinks: DesktopNavType[] = recentNavGrp.length > 0 ? [
-        {
-            title: 'Recent',
-            label: "",
-            icon: Clock,
-            variant: "ghost",
-            path: "#",
-            isOpen: isRecentOpen,
-            setIsOpen: setIsRecentOpen,
-            children: recentNavGrp,
-        },
-    ] : [];
+    // There is no Recent group. It listed the place you were already in a
+    // second time (and a third, with the active state), so #engineering showed
+    // up under Recent, under Channels and highlighted. ⌘K and Home already
+    // carry recent places; the sidebar lists each thing once.
 
     const favNavLinks: DesktopNavType[] = favChannelNavGrp.length > 0 ? [
         {
@@ -406,7 +377,7 @@ export function DesktopNavigationBar({
     // the sidebar. Opening it on arrival (rather than forcing it open) keeps the
     // chevron working: collapse it again and it stays collapsed until you move.
     useEffect(() => {
-        for (const group of [...recentNavLinks, ...favNavLinks, ...secondaryNavLinks]) {
+        for (const group of [...favNavLinks, ...secondaryNavLinks]) {
             if (!group.isOpen && group.setIsOpen && group.children?.some((c) => c.variant === "sidebarActive")) {
                 group.setIsOpen(true)
             }
@@ -519,11 +490,6 @@ export function DesktopNavigationBar({
                         {favNavLinks.length > 0 && (
                             <div className="pt-1">
                                 <DesktopSideNavigationBar isCollapsed={isCollapsed} links={favNavLinks} />
-                            </div>
-                        )}
-                        {recentNavLinks.length > 0 && (
-                            <div className="pt-1">
-                                <DesktopSideNavigationBar isCollapsed={isCollapsed} links={recentNavLinks} />
                             </div>
                         )}
                         <div className="flex-1 overflow-y-scroll pb-4">

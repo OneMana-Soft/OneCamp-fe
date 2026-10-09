@@ -3,7 +3,7 @@ import { LucideIcon } from "lucide-react";
 
 interface ProjectIconProps {
     name: string
-    size?: "sm" | "xs" | "md" | "lg" | "xl"
+    size?: "dot" | "sm" | "xs" | "md" | "lg" | "xl"
     className?: string
     InnerIcon?: LucideIcon
 }
@@ -25,6 +25,9 @@ const colors = [
 ]
 
 const sizeClasses = {
+    // A 6px dot: the project's colour as a marker beside its name, where a
+    // filled square read as a second icon.
+    dot: "h-1.5 w-1.5 !rounded-full",
     xs: "h-4 w-4 text-xs",
     sm: "h-8 w-8 text-xs",
     md: "h-10 w-10 text-sm",

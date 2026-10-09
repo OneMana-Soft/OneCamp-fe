@@ -148,7 +148,7 @@ export const ActivityAllListResult = ({
     // conclusion they must not reach from a request that simply failed.
     if (isError) {
         return (
-            <PageContainer className="flex items-center justify-center">
+            <PageContainer align="center" className="flex items-center justify-center">
                 <ErrorState subject="your activity" onRetry={() => void mutate()} />
             </PageContainer>
         )
@@ -187,7 +187,7 @@ export const ActivityAllListResult = ({
 
     if (!isLoading && visibleActivities.length === 0) {
         return (
-            <PageContainer className="flex items-center justify-center">
+            <PageContainer align="center" className="flex items-center justify-center">
                 <EmptyState
                     icon={priorityOnly ? CheckCircle2 : Bell}
                     title={priorityOnly ? "You're all caught up" : "No activity yet"}

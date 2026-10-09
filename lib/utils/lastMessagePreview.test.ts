@@ -68,4 +68,10 @@ describe("getLastMessagePreview", () => {
         expect(getLastMessagePreview("", [])).toBe("");
         expect(getLastMessagePreview(undefined, undefined)).toBe("");
     });
+    it("keeps a space between blocks, so a heading does not run into the next line", () => {
+        expect(getLastMessagePreview("<h3>What did you work on today?</h3><p>Check-in for Friday</p>")).toBe(
+            "What did you work on today? Check-in for Friday",
+        )
+        expect(getLastMessagePreview("<p>one<br>two</p>")).toBe("one two")
+    })
 });

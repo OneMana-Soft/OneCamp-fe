@@ -88,7 +88,11 @@ export function getLastMessagePreview(
     attachments?: AttachmentMediaReq[] | null,
 ): string {
     const html = htmlBody || "";
-    const text = decodeHtmlEntities(removeHtmlTags(html)).trim();
+    // A block boundary is a space in the preview. Stripping the tags alone ran
+    // a heading into the paragraph after it: "What did you work on
+    // today?Check-in for Friday".
+    const spaced = html.replace(/<\/(?:p|h[1-6]|li|div|blockquote|pre)>|<br\s*\/?>/gi, "$& ");
+    const text = decodeHtmlEntities(removeHtmlTags(spaced)).replace(/\s+/g, " ").trim();
 
     // 1. Real text wins (it is rendered as plain text in the preview, so HTML
     //    entities like &#39; are decoded here — JSX would otherwise show them
