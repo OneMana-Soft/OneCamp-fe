@@ -10,6 +10,7 @@
 // archived can be chosen: a private one would hand every newcomer a channel
 // its members never opened to them.
 
+import { serverMessage } from "@/lib/http/serverMessage"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,10 +27,7 @@ export function sameChoice(a: string[], b: string[]): boolean {
 }
 
 /** The server's refusal, in its own words, or a plain fallback. */
-function refusal(err: unknown): string {
-    const msg = (err as { response?: { data?: { msg?: unknown } } })?.response?.data?.msg
-    return typeof msg === "string" && msg ? msg : "Try again in a moment."
-}
+const refusal = (err: unknown) => serverMessage(err, "Try again in a moment.")
 
 export default function DefaultChannelsCard() {
     const { toast } = useToast()
