@@ -15,6 +15,8 @@ export interface UserProfileDataInterface {
     user_email_id?: string;
     user_name: string;
     user_full_name?: string;
+    /** Their @handle; only on their own profile. */
+    user_handle?: string;
     user_tasks?: TaskInfoInterface[];
     user_tasks_todo?: TaskInfoInterface[];
     user_tasks_in_progress?: TaskInfoInterface[];
@@ -90,6 +92,8 @@ export interface UserProfileInterface {
 export interface UserProfileUpdateInterface {
     user_name: string
     user_full_name: string
+    /** Sent only when it changes. */
+    user_handle?: string
     user_job_title: string
     user_profile_object_key: string
     user_hobbies: string
