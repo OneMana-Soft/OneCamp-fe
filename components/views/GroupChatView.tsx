@@ -16,6 +16,7 @@ import {ChatGrpIdDesktop} from "@/components/groupChat/chatGrpIdDesktop";
 import {GrpChatIdMobile} from "@/components/groupChat/grpChatIdMobile";
 import {
     clearGroupChatInputState,
+    restoreUnsentGroupChatMessage,
     createGroupChat,
     LocallyCreatedGrpInfoInterface,
     updateGroupChatScrollToBottom,
@@ -25,6 +26,8 @@ import {UpdateMessageInChatList, UpdateUnreadCountToZero} from "@/store/slice/ch
 import {resetUserChatUnread} from "@/store/slice/userSlice";
 import { clearChatUnread } from "@/services/unreadCache";
 import {useEffect, useRef} from "react";
+import {useToast} from "@/hooks/use-toast";
+import {NOT_SENT_TOAST, type Draft} from "@/lib/chat/unsentMessage";
 
 
 const EMPTY_CHATS: ChatInfo[] = []
@@ -37,6 +40,7 @@ export function GroupChatView({ grpId }: { grpId: string }) {
 
     const post = usePost()
     const scheduleMessage = useScheduleMessage()
+    const { toast } = useToast()
 
     const chatMessageState = useSelector((state: RootState) => state.groupChat.chatMessages[grpId] || EMPTY_CHATS);
 
@@ -81,6 +85,17 @@ export function GroupChatView({ grpId }: { grpId: string }) {
         const body = removeEmptyPTags(rawBody)
 
         if(body.length==0) return
+
+        // Kept until the server has it. The composer empties now, so the next
+        // message can be typed, and this goes back into it if the send fails.
+        const unsent: Draft = {
+            html: body,
+            files: chatState.filesUploaded,
+            previews: chatState.filesPreview,
+            replyToUuid: chatState.replyToUuid,
+            replyToAuthorName: chatState.replyToAuthorName,
+            replyToText: chatState.replyToText,
+        }
 
         // Discord-style inline reply: carry the armed reply target (if any) so
         // the backend sets the reply edge, and build an optimistic preview.
@@ -156,6 +171,9 @@ export function GroupChatView({ grpId }: { grpId: string }) {
 
                 }
 
+            }, () => {
+                dispatch(restoreUnsentGroupChatMessage({grpId, unsent}))
+                toast(NOT_SENT_TOAST)
             })
         dispatch(clearGroupChatInputState({grpId}))
     }

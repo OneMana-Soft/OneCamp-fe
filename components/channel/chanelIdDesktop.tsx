@@ -222,6 +222,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount}: {channelI
             editorContentClassName="overflow-auto mb-2"
             output="html"
             content={channelState.inputTextHTML}
+            contentRevision={channelState.restoredUnsent}
             placeholder={"Message #" + channelDisplayName}
             editable={true}
             ButtonIcon={SendHorizontal}

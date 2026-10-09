@@ -8,6 +8,7 @@ import {GroupedReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {PostsRes} from "@/types/post";
 import { ExtendedChats, chatContentDiffers } from "./chatSlice";
+import { withUnsent, type Draft } from "@/lib/chat/unsentMessage";
 import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
 
 
@@ -20,6 +21,10 @@ export interface ChatInputState {
     replyToUuid?: string
     replyToAuthorName?: string
     replyToText?: string
+    // Changes each time a message that wasn't sent is put back (sending
+    // clears it). The composer hands it to the editor as contentRevision, so
+    // the editor shows the message even while it has focus.
+    restoredUnsent?: number
 }
 
 interface CreateChat {
@@ -76,6 +81,11 @@ interface UpdatePreviewFilesUUID {
 
 interface ClearDocComment {
     grpId: string
+}
+
+interface RestoreUnsent {
+    grpId: string
+    unsent: Draft
 }
 
 interface createOrUpdateCommentBody {
@@ -273,6 +283,22 @@ const groupChatSlice = createSlice({
 
             state.chatInputState[grpId] = { chatBody: '', filesUploaded: [] , filesPreview: [] };
 
+        },
+
+        // A message that wasn't sent goes back into the composer (lib/chat/unsentMessage).
+        restoreUnsentGroupChatMessage: (state, action: {payload: RestoreUnsent}) => {
+            const { grpId, unsent } = action.payload;
+            const current = state.chatInputState[grpId] || { chatBody: '', filesUploaded: [], filesPreview: [] };
+            const draft = withUnsent({ ...current, html: current.chatBody || '', files: current.filesUploaded || [], previews: current.filesPreview || [] }, unsent);
+            state.chatInputState[grpId] = {
+                chatBody: draft.html,
+                filesUploaded: draft.files,
+                filesPreview: draft.previews,
+                replyToUuid: draft.replyToUuid,
+                replyToAuthorName: draft.replyToAuthorName,
+                replyToText: draft.replyToText,
+                restoredUnsent: (current.restoredUnsent || 0) + 1,
+            };
         },
 
         // setGroupChatReplyTarget arms the composer to reply to a message.
@@ -543,6 +569,7 @@ export const {
     addGroupChatUploadedFiles,
     removeGroupChatUploadedFiles,
     clearGroupChatInputState,
+    restoreUnsentGroupChatMessage,
     updateGroupChatByChatId,
     updateGroupChats,
     removeGroupChatByChatId,

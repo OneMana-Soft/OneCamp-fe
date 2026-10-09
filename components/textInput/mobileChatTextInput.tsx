@@ -85,6 +85,7 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatInputState.chatBody}
+                        contentRevision={chatInputState.restoredUnsent}
                         placeholder={"Type a message…"}
                         editable={true}
                         buttonOnclick={handleSend}

@@ -37,6 +37,13 @@ interface MinimalTiptapProps
   value?: Content;
   isOutputText?: boolean;
   noBorder?: boolean;
+  /**
+   * Bumped by the parent when `content` must replace what the editor holds
+   * even while it has focus: a message that wasn't sent, put back. A new
+   * `content` alone waits for the editor to lose focus, since it may be an
+   * echo of older typing.
+   */
+  contentRevision?: number;
   onChange?: (value: Content) => void;
   className?: string;
   editorContentClassName?: string;
@@ -186,6 +193,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
             aiSlot,
             editorContentClassName,
           content,
+            contentRevision,
             fixedToolbarToBottom,
             onActionFiles,
             output,
@@ -362,6 +370,9 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
         }
       };
 
+      // The contentRevision the editor last took its content at.
+      const syncedRevision = useRef(contentRevision);
+
       useEffect(() => {
         if (!editor) return;
 
@@ -387,7 +398,13 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
            const editorIsFocused = editor.isFocused;
            // ProseMirror exposes the active composition flag on the view.
            const isComposing = Boolean((editor as any).view?.composing);
+           // Except when the parent says its content must replace the
+           // editor's (a new contentRevision): a message that wasn't sent,
+           // put back where the person may still be typing.
+           const restoring = contentRevision !== syncedRevision.current;
+           syncedRevision.current = contentRevision;
            const allowExternalSync =
+               restoring ||
                (!editorIsFocused && !isComposing) ||
                (isNewContentEmpty && !isEditorEmpty);
 
@@ -405,7 +422,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
         if (editor.isEditable !== (editable ?? false)) {
             editor.setEditable(editable ?? false);
         }
-      }, [editor, content, editable]);
+      }, [editor, content, editable, contentRevision]);
 
 
 

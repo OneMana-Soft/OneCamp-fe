@@ -95,6 +95,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={channelInputState.inputTextHTML}
+                        contentRevision={channelInputState.restoredUnsent}
                         placeholder={`Message #${channelDisplayName}`}
                         editable={true}
                         buttonOnclick={handleSend}

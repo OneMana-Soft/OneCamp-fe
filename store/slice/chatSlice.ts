@@ -8,6 +8,7 @@ import {UserDMInterface, UserProfileDataInterface} from "@/types/user";
 import {GroupedReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {PostsRes} from "@/types/post";
+import { withUnsent, type Draft } from "@/lib/chat/unsentMessage";
 
 
 // chatContentDiffers reports whether a freshly-fetched server message differs
@@ -34,6 +35,10 @@ interface ChatInputState {
     replyToUuid?: string
     replyToAuthorName?: string
     replyToText?: string
+    // Changes each time a message that wasn't sent is put back (sending
+    // clears it). The composer hands it to the editor as contentRevision, so
+    // the editor shows the message even while it has focus.
+    restoredUnsent?: number
 }
 
 
@@ -94,6 +99,11 @@ interface UpdatePreviewFilesUUID {
 
 interface ClearDocComment {
     chatUUID: string
+}
+
+interface RestoreUnsent {
+    chatUUID: string
+    unsent: Draft
 }
 
 interface createOrUpdateCommentBody {
@@ -313,6 +323,22 @@ const chatSlice = createSlice({
 
             state.chatInputState[chatUUID] = { chatBody: '', filesUploaded: [] , filesPreview: [] };
 
+        },
+
+        // A message that wasn't sent goes back into the composer (lib/chat/unsentMessage).
+        restoreUnsentChatMessage: (state, action: {payload: RestoreUnsent}) => {
+            const { chatUUID, unsent } = action.payload;
+            const current = state.chatInputState[chatUUID] || { chatBody: '', filesUploaded: [], filesPreview: [] };
+            const draft = withUnsent({ ...current, html: current.chatBody || '', files: current.filesUploaded || [], previews: current.filesPreview || [] }, unsent);
+            state.chatInputState[chatUUID] = {
+                chatBody: draft.html,
+                filesUploaded: draft.files,
+                filesPreview: draft.previews,
+                replyToUuid: draft.replyToUuid,
+                replyToAuthorName: draft.replyToAuthorName,
+                replyToText: draft.replyToText,
+                restoredUnsent: (current.restoredUnsent || 0) + 1,
+            };
         },
 
         // setChatReplyTarget arms the composer to reply to a specific message.
@@ -750,6 +776,7 @@ export const {
     addChatUploadedFiles,
     removeChatUploadedFiles,
     clearChatInputState,
+    restoreUnsentChatMessage,
     updateChatByChatId,
     updateChats,
     removeChatByChatId,

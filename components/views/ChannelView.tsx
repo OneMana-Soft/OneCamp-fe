@@ -8,6 +8,7 @@ import {CreateOrUpdatePostsReq, CreatePostPaginationResRaw, CreatePostsRes, Post
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {
     clearChannelInputState,
+    restoreUnsentChannelPost,
     createPostLocally,
     updateChannelCallStatus,
     updateChannelScrollToBottom
@@ -24,6 +25,8 @@ import {addUserChannelList, resetUserChannelUnread} from "@/store/slice/userSlic
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {markChannelSeen} from "@/services/channelService";
 import {MessageInputState} from "@/store/slice/channelSlice";
+import {useToast} from "@/hooks/use-toast";
+import {NOT_SENT_TOAST, type Draft} from "@/lib/chat/unsentMessage";
 
 
 const EMPTY_POSTS: PostsRes[] = []
@@ -33,6 +36,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
 
     const post = usePost()
     const scheduleMessage = useScheduleMessage()
+    const { toast } = useToast()
 
     const channelPostState = useSelector((state: RootState) => state.channel.channelPosts[channelId] || EMPTY_POSTS);
 
@@ -123,6 +127,16 @@ export function ChannelView({ channelId }: { channelId: string }) {
 
         if(body.length==0) return
 
+        // Kept until the server has it. The composer empties now, so the next
+        // message can be typed, and this goes back into it if the send fails.
+        const unsent: Draft = {
+            html: body,
+            files: channelState.filesUploaded,
+            previews: channelState.filePreview,
+            replyToUuid: channelState.replyToUuid,
+            replyToAuthorName: channelState.replyToAuthorName,
+            replyToText: channelState.replyToText,
+        }
 
         // Discord-style inline reply: carry the armed reply target (if any) so
         // the backend sets the reply edge, and build an optimistic parent
@@ -176,6 +190,9 @@ export function ChannelView({ channelId }: { channelId: string }) {
 
                 }
 
+            }, () => {
+                dispatch(restoreUnsentChannelPost({channelId, unsent}))
+                toast(NOT_SENT_TOAST)
             })
         dispatch(clearChannelInputState({channelId}))
     }
