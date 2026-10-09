@@ -112,7 +112,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
   const summary = useMemo(() => {
     if (!plan) return []
     const out: { label: string; value: string }[] = []
-    if (plan.user_count) out.push({ label: "Users", value: `${plan.user_count} (${plan.user_new} new, ${plan.user_merge} merged)` })
+    if (plan.user_count) out.push({ label: "People", value: peopleLine(plan) })
     if (plan.team_count) out.push({ label: "Teams", value: String(plan.team_count) })
     if (plan.project_count) out.push({ label: "Projects", value: String(plan.project_count) })
     if (plan.task_count) out.push({ label: "Tasks", value: String(plan.task_count) })
@@ -286,6 +286,16 @@ export const ImportPlanDialog: React.FC<Props> = ({
       </DialogContent>
     </Dialog>
   )
+}
+
+/**
+ * The people line of a plan. Only an import that counts who is new and who
+ * is already here says so; the others said "(0 new, 0 merged)" about every
+ * person they found. Pure.
+ */
+export function peopleLine(plan: Pick<ImportPlan, "user_count" | "user_new" | "user_merge">): string {
+  if (!plan.user_new && !plan.user_merge) return String(plan.user_count)
+  return `${plan.user_count} (${plan.user_new} new, ${plan.user_merge} already here)`
 }
 
 function formatBytes(b: number): string {

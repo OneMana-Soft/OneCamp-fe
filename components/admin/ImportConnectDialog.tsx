@@ -48,7 +48,8 @@ interface Props {
 }
 
 const HELP_LINK: Record<ImportProvider, string> = {
-  trello: "https://trello.com/app-key",
+  // trello.com/app-key no longer issues keys: a key now comes from a Power-Up.
+  trello: "https://trello.com/power-ups/admin",
   asana: "https://app.asana.com/0/my-apps",
   jira: "https://id.atlassian.com/manage-profile/security/api-tokens",
   notion: "https://www.notion.so/my-integrations",
@@ -61,6 +62,10 @@ const HELP_LINK: Record<ImportProvider, string> = {
 // Where the token lives when the help link can't point at it directly
 // (monday's token page sits under each account's own subdomain).
 const TOKEN_HINT: Partial<Record<ImportProvider, string>> = {
+  trello:
+    "Trello gives API keys to Power-Ups now. Open trello.com/power-ups/admin, create a Power-Up (any name, in your Workspace), open its API key page and generate a key. Copy the API key, then follow the Token link beside it, allow access, and copy the token.",
+  jira:
+    "Use a classic API token: at id.atlassian.com, open Security, then Create and manage API tokens, and choose Create API token (not the one with scopes). Use the email you sign in to Jira with.",
   monday: "In monday.com, click your avatar, then Developers → My access tokens → Show, and copy the personal API token. Imports see the boards that user can open.",
 }
 

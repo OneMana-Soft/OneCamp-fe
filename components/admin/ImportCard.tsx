@@ -304,8 +304,9 @@ const ImportCard: React.FC = () => {
               Import from Asana, monday.com, ClickUp, Jira, Linear, Trello, Notion, Todoist
             </CardTitle>
             <CardDescription>
-              Projects, tasks, subtasks, comments, files, people and custom fields come across into the
-              team you choose. Importing the same workspace again brings only what is new, without copies.
+              Projects, tasks, subtasks, comments, files, people and custom fields come across, into the
+              source&apos;s own teams or a team named after it. Importing the same workspace again brings only what
+              is new, without copies.
               {!isMqttHealthy && (
                 <span className="ml-1 text-warning">(Real-time off; polling.)</span>
               )}
