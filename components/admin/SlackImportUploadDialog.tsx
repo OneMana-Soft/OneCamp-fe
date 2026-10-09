@@ -24,7 +24,9 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Progress } from "@/components/ui/progress"
 import { Upload, AlertCircle, FileArchive } from "@/lib/icons"
-import { uploadSlackExport, uploadSlackExportPresigned } from "@/services/slackImportService"
+import { SLACK_IMPORT_LIMITS_KEY, uploadSlackExport, uploadSlackExportPresigned } from "@/services/slackImportService"
+import { useFetch } from "@/hooks/useFetch"
+import { readableBytes } from "@/lib/readableBytes"
 
 interface Props {
   open: boolean
@@ -37,7 +39,16 @@ interface Props {
 // different ranges (Chrome: ~no fixed cap; Firefox: ~32 GB; Safari:
 // ~10 GB). For workspaces beyond that, a desktop client or chunked
 // upload would be needed; that's a future enhancement.
-const MAX_BYTES = 50 * 1024 * 1024 * 1024
+const BROWSER_MAX_BYTES = 50 * 1024 * 1024 * 1024
+
+/**
+ * The largest export the dialog accepts: the server's own limit
+ * (EXPORT_MAX_BYTES, 5 GB unless raised), never more than a browser can
+ * send. It used to say 50 GB whatever the server took. Pure.
+ */
+export function exportLimit(serverMax?: number): number {
+  return serverMax && serverMax > 0 ? Math.min(serverMax, BROWSER_MAX_BYTES) : BROWSER_MAX_BYTES
+}
 
 // Files smaller than this go through the simple multipart endpoint;
 // larger ones use the presigned PUT path which streams browser→MinIO
@@ -52,6 +63,8 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
   const [workspaceName, setWorkspaceName] = useState("")
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const { data: limits } = useFetch<{ max_bytes: number }>(open ? SLACK_IMPORT_LIMITS_KEY : "")
+  const maxBytes = exportLimit(limits?.max_bytes)
 
   const reset = () => {
     setFile(null)
@@ -76,10 +89,10 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
       toast({ title: "Not a ZIP file", description: "Slack exports come as a .zip archive.", variant: "destructive" })
       return
     }
-    if (f.size > MAX_BYTES) {
+    if (f.size > maxBytes) {
       toast({
         title: "File too large",
-        description: `Maximum upload is ${(MAX_BYTES / (1024 * 1024 * 1024)).toFixed(0)} GB.`,
+        description: `That export is ${readableBytes(f.size)}, and this server takes exports up to ${readableBytes(maxBytes)}.`,
         variant: "destructive",
       })
       return
@@ -189,8 +202,9 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
             <Upload className="h-5 w-5" /> Upload Slack export
           </DialogTitle>
           <DialogDescription>
-            Drop the .zip file you downloaded from Slack&apos;s Workspace settings. We&apos;ll
-            stage it, then preview what would be imported before any changes are made.
+            Drop the .zip file you downloaded from Slack&apos;s Workspace settings (up to{" "}
+            {readableBytes(maxBytes)} on this server). We&apos;ll stage it, then preview what would be imported
+            before any changes are made.
           </DialogDescription>
         </DialogHeader>
 
@@ -223,7 +237,7 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
             {file && (
               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <FileArchive className="h-4 w-4" />
-                {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB
+                {file.name} · {readableBytes(file.size)}
                 {file.size > PRESIGN_THRESHOLD && (
                   <span className="ml-1 text-info">
                     · uploads direct to storage

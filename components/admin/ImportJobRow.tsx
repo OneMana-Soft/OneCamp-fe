@@ -37,6 +37,20 @@ export function isWaiting(status: ImportJob["status"]): boolean {
   return status === "pending" || status === "validating" || status === "planned"
 }
 
+/**
+ * Why a running import isn't moving, when a provider has paused it: monday.com's
+ * daily API limit, say, with the local time it lifts. The import carries on by
+ * itself; it used to sit "running" for hours without a word. Pure apart from
+ * the clock.
+ */
+export function pauseLine(j: Pick<ImportJob, "progress">, now: number = Date.now()): string | null {
+  const until = typeof j.progress?.paused_until === "string" ? Date.parse(j.progress.paused_until) : NaN
+  if (!Number.isFinite(until) || until <= now) return null
+  const reason = typeof j.progress?.pause_reason === "string" ? j.progress.pause_reason : ""
+  const at = new Date(until).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })
+  return `Waiting${reason ? `: ${reason}` : ""}. It carries on by itself around ${at}.`
+}
+
 export interface ImportJobRowProps {
   job: ImportJob
   /** Shows which provider the job is from, for a list of every provider's jobs. */
@@ -128,6 +142,7 @@ export function ImportJobRow({ job: j, showProvider, onPlan, onDiscard, onCancel
           </div>
         </>
       )}
+      {j.status === "running" && pauseLine(j) && <p className="mt-1 break-words text-xs text-warning">{pauseLine(j)}</p>}
       {j.error_message && <p className="mt-1 break-words text-xs text-destructive">{j.error_message}</p>}
     </div>
   )

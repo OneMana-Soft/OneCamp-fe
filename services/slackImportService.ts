@@ -136,6 +136,10 @@ export async function runSlackImport(
   )
 }
 
+/** The SWR key of the largest export this server takes ({ max_bytes }). */
+export const SLACK_IMPORT_LIMITS_KEY = "/admin/import/slack/limits"
+
+/** Stops a running Slack import, or discards an export still waiting to be planned or run. */
 export async function cancelSlackImport(jobId: string): Promise<void> {
   await axiosInstance.post(
     `${PostEndpointUrl.SlackImportCancel}/${encodeURIComponent(jobId)}`,
