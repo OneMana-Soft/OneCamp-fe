@@ -104,6 +104,28 @@ describe("links that reach the editor without being parsed", () => {
   })
 })
 
+// The app has a utility class for nearly anything, so a link that kept the
+// classes it was stored with could cover the page ("fixed inset-0 z-50").
+describe("a link's classes", () => {
+  const OVERLAY = "fixed inset-0 z-50 bg-background"
+
+  it("are only the editor's when read from stored HTML", () => {
+    const editor = editorWith(`<p><a class="${OVERLAY}" href="https://evil.example/login">Sign in</a></p>`)
+    const [a] = linksIn(editor)
+    expect(a.getAttribute("class")).toBe("link")
+    expect(a.getAttribute("href")).toBe("https://evil.example/login")
+    expect(editor.getHTML()).not.toMatch(/fixed|inset-0|z-50/)
+  })
+
+  it("are only the editor's when the link reached the editor without being parsed", () => {
+    const editor = editorWith({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "Sign in", marks: [{ type: "link", attrs: { href: "https://x.io", class: OVERLAY } }] }] }],
+    })
+    expect(linksIn(editor)[0].getAttribute("class")).toBe("link")
+  })
+})
+
 describe("making a link", () => {
   it("refuses an unsafe href and takes a safe one", () => {
     const editor = editorWith("<p>the notes</p>", true)

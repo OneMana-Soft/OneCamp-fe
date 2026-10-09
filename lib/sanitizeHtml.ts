@@ -34,9 +34,13 @@
  *     DOMPurify hook below.
  *   - SVG is BLOCKED. SVG can carry inline JavaScript and is the
  *     classic stored-XSS vector for "image" uploads.
+ *   - Classes are only the ones the editor writes (lib/contentClasses).
+ *     The app has a utility class for nearly anything, so any other class
+ *     could lay the page out: a message as a full-screen overlay.
  */
 
 import DOMPurify from "dompurify"
+import { contentClasses } from "@/lib/contentClasses"
 
 // dompurify is browser-only. On the server we return "" so that:
 //   - the SSR HTML for any sanitised div is empty
@@ -52,10 +56,16 @@ function ensureHooks() {
     if (hooksInstalled || !isBrowser) return
     hooksInstalled = true
 
-    // Force every external link to open in a new tab with security
-    // attributes — protects against tabnabbing attacks where the new
-    // page can rewrite window.opener.
     DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+        // Only the classes the editor writes, in every sanitiser here.
+        if (node.hasAttribute?.("class")) {
+            const kept = contentClasses(node.getAttribute("class"))
+            if (kept) node.setAttribute("class", kept)
+            else node.removeAttribute("class")
+        }
+        // Force every external link to open in a new tab with security
+        // attributes — protects against tabnabbing attacks where the new
+        // page can rewrite window.opener.
         if (node.tagName === "A") {
             const a = node as HTMLAnchorElement
             const href = a.getAttribute("href") || ""
