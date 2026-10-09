@@ -28,6 +28,7 @@ import {
   type TaskRecurrence,
 } from "@/lib/tasks/recurrence"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { browserTZ } from "@/lib/utils/timeZone"
 
 const UNITS: { value: Freq; one: string; many: string }[] = [
   { value: "DAILY", one: "day", many: "days" },
@@ -70,9 +71,11 @@ export function TaskRepeatField({
     setOpen(o)
   }
   const save = async (rule: string) => {
-    const res = await makeRequest<{ task_uuid: string; rule: string; mode: string }, TaskRecurrence | null>({
+    const res = await makeRequest<{ task_uuid: string; rule: string; mode: string; tz: string }, TaskRecurrence | null>({
       apiEndpoint: PostEndpointUrl.SetTaskRecurrence,
-      payload: { task_uuid: taskUUID, rule, mode: spec.mode },
+      // The days in the rule are this person's days: the server works the
+      // next date out in their zone, not in UTC.
+      payload: { task_uuid: taskUUID, rule, mode: spec.mode, tz: browserTZ() },
       showErrorToast: true,
     })
     if (res === undefined) return
