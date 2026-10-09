@@ -1,13 +1,14 @@
 import { Suspense } from "react"
-import { act, cleanup, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { GuestChannelPage as Page } from "@/services/guestService"
 import type { PublicResult } from "@/services/publicApi"
 
 const getGuestChannel = vi.fn<(token: string, before?: string) => Promise<PublicResult<Page>>>()
+const getGuestThread = vi.fn()
 vi.mock("@/services/guestService", () => ({
   getGuestChannel: (token: string, before?: string) => getGuestChannel(token, before),
-  getGuestThread: vi.fn(),
+  getGuestThread: (token: string, postId: string) => getGuestThread(token, postId),
   postGuestMessage: vi.fn(),
 }))
 
@@ -73,3 +74,24 @@ describe("a shared channel whose server stops answering", () => {
     expect(screen.getByText("This link is no longer available")).toBeInTheDocument()
   })
 })
+
+describe("a guest who opens a thread before giving their name", () => {
+  afterEach(() => {
+    cleanup()
+    localStorage.clear()
+  })
+
+  it("is asked for it in the thread, which is all a phone shows", async () => {
+    getGuestChannel.mockReset().mockResolvedValue({ ok: true, data: { ...page, can_post: true } })
+    getGuestThread.mockReset().mockResolvedValue({ ok: true, data: { message: page.messages[0], replies: [] } })
+    await open()
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Reply" })))
+    const thread = screen.getByRole("complementary")
+    const nameBox = within(thread).getByRole("textbox", { name: "Your name" })
+    expect(nameBox).toHaveAttribute("maxLength", "40")
+    fireEvent.change(nameBox, { target: { value: "Priya" } })
+    await act(async () => fireEvent.click(within(thread).getByRole("button", { name: "Continue" })))
+    expect(within(thread).getByRole("textbox", { name: "Reply" })).toBeInTheDocument()
+  })
+})
+

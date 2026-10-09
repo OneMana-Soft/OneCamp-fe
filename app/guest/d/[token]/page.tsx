@@ -44,11 +44,11 @@ export default function GuestDocPage({ params }: { params: Promise<{ token: stri
     return (
         <div className="min-h-screen w-full bg-background">
             <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-card px-4 py-2.5">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                         <FileText className="h-3.5 w-3.5" />
                     </span>
-                    Shared document
+                    <h1 className="truncate">{session.title || "Shared document"}</h1>
                 </div>
                 <div className="flex items-center gap-3">
                     <MadeWithOneCamp surface="guest-doc" className="hidden sm:block" />

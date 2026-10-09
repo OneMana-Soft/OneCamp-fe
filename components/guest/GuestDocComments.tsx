@@ -25,7 +25,7 @@ import {
   type GuestDocComment,
 } from "@/services/guestService"
 import { retryingText, sendFailedText } from "@/services/publicApi"
-import { useGuestAnswer } from "@/components/guest/guestUi"
+import { GUEST_NAME_MAX, useGuestAnswer } from "@/components/guest/guestUi"
 import { formatDistanceToNow } from "date-fns"
 
 const NAME_KEY = "oc_guest_name"
@@ -133,7 +133,7 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
-            maxLength={80}
+            maxLength={GUEST_NAME_MAX}
             className="h-9 text-sm"
           />
           <textarea

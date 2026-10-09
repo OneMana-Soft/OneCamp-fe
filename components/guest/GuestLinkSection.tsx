@@ -46,31 +46,37 @@ const EXPIRY_OPTIONS = [
 
 // What each kind of shared resource is called and what its guest may do. A
 // resource with a write capability offers it as the second permission.
+// start is the permission a new link begins with: what that kind of guest is
+// usually invited for.
 const RESOURCE: Record<GuestResourceType, {
   noun: string
   write: GuestCapability | null
+  start: GuestCapability
   viewLabel: string
   writeLabel?: string
   title: string
   blurb: string
+  /** Under the permission, when one choice holds back something people expect. */
+  note?: string
 }> = {
-  doc: { noun: "document", write: "comment", viewLabel: "Can view", writeLabel: "Can comment", title: "Create an external link", blurb: "Anyone with the link can view this document, read only. No account needed." },
-  board: { noun: "board", write: null, viewLabel: "Can view", title: "Create an external link", blurb: "Anyone with the link can view this board, read only. No account needed." },
-  table: { noun: "table", write: null, viewLabel: "Can view", title: "Create an external link", blurb: "Anyone with the link can view this table, read only. No account needed." },
+  doc: { noun: "document", write: "comment", start: "view", viewLabel: "Can view", writeLabel: "Can comment", title: "Create an external link", blurb: "Anyone with the link can view this document, read only. No account needed." },
+  board: { noun: "board", write: null, start: "view", viewLabel: "Can view", title: "Create an external link", blurb: "Anyone with the link can view this board, read only. No account needed." },
+  table: { noun: "table", write: null, start: "view", viewLabel: "Can view", title: "Create an external link", blurb: "Anyone with the link can view this table, read only. No account needed." },
   channel: {
-    noun: "channel", write: "post", viewLabel: "Can read", writeLabel: "Can read and post", title: "Invite a guest",
+    noun: "channel", write: "post", start: "post", viewLabel: "Can read", writeLabel: "Can read and post", title: "Invite a guest",
     blurb: "Invite someone from another company to this channel. They read and reply from the link, with no account, and see nothing else of the workspace.",
   },
   project: {
-    noun: "project", write: "comment", viewLabel: "Can see tasks", writeLabel: "Can see and comment", title: "Share with a client",
-    blurb: "A client follows this project's tasks from a link: names, status, dates, assignees and descriptions. With comments on, they also read and write each task's comments. No account needed.",
+    noun: "project", write: "comment", start: "comment", viewLabel: "Can see tasks", writeLabel: "Can see and comment", title: "Share with a client",
+    blurb: "A client follows this project's tasks from a link: names, status, dates, assignees and descriptions. With comments on, they also read and write each task's comments, and approve tasks or ask for changes. No account needed.",
+    note: "Approving tasks and asking for changes need “Can see and comment”.",
   },
 }
 
 export function GuestLinkSection({ resourceType, resourceId, canShare, embedded = false }: GuestLinkSectionProps) {
   const { toast } = useToast()
   const [ttlHours, setTtlHours] = React.useState(EXPIRY_OPTIONS[1].hours) // 14 days
-  const [capability, setCapability] = React.useState<GuestCapability>(resourceType === "channel" ? "post" : "view")
+  const [capability, setCapability] = React.useState<GuestCapability>(RESOURCE[resourceType].start)
   const [creating, setCreating] = React.useState(false)
   const [link, setLink] = React.useState("")
   const [copied, setCopied] = React.useState(false)
@@ -189,6 +195,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
           </Button>
         </div>
       )}
+      {open && !link && kind.note && <p className="text-xs text-muted-foreground">{kind.note}</p>}
 
       {link && (
         <div className="space-y-2">
