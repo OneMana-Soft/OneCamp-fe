@@ -6,9 +6,11 @@ import { downloadTextFile } from '@/lib/utils/file/downloadTextFile'
  */
 
 export function htmlToMarkdown(html: string): string {
-  const temp = document.createElement('div')
-  temp.innerHTML = html
-  return nodeToMarkdown(temp)
+  // Parsed into a document of its own, which runs nothing: the stored body was
+  // put in an element of the page, where <img src=x onerror=…> ran its handler
+  // as the person exporting.
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  return nodeToMarkdown(doc.body)
 }
 
 function nodeToMarkdown(node: Node): string {
