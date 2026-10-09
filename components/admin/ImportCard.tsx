@@ -59,6 +59,7 @@ import {
   discoverImportResources,
   importProviderLabel,
 } from "@/services/importService"
+import { ALL_OF_THEM, allOfThemLabel, optionsForPick, pickLabel } from "@/lib/importPick"
 
 // Lazy-load the provider-specific dialogs. They're heavy (form
 // validation, mappings UI, error pagination) and only render when the
@@ -180,7 +181,10 @@ const ImportCard: React.FC = () => {
     setDiscoverLoading(true)
     discoverImportResources(selectedProvider)
       .then((items) => {
-        if (!cancelled) setDiscoverItems(items)
+        if (cancelled) return
+        setDiscoverItems(items)
+        // A token that sees one Asana workspace has nothing to choose.
+        if (selectedProvider === "asana" && items.length === 1) setPickedDiscoverId(items[0].id)
       })
       .catch(() => {
         if (!cancelled) setDiscoverItems([])
@@ -199,48 +203,13 @@ const ImportCard: React.FC = () => {
       toast({ title: "Source workspace name required", variant: "destructive" })
       return
     }
-    // Each provider has its own "what id are we importing" option.
-    // The discover dropdown populates pickedDiscoverId, which we map
-    // to the right option key per provider.
-    const opts: Record<string, unknown> = {}
-    switch (selectedProvider) {
-      case "trello":
-        if (!pickedDiscoverId && !boardId.trim()) {
-          toast({ title: "Pick a Trello board", variant: "destructive" })
-          return
-        }
-        opts.board_id = pickedDiscoverId || boardId.trim()
-        break
-      case "notion":
-        if (pickedDiscoverId) opts.databases = [pickedDiscoverId]
-        break
-      case "asana":
-      case "jira":
-      case "todoist":
-        // Asana resolves workspace by name; Jira uses metadata.site_url;
-        // Todoist token grants global access. The discover pick is
-        // currently informational for these — the workspace_name field
-        // is what scopes the import.
-        if (pickedDiscoverId) opts.discover_id = pickedDiscoverId
-        break
-      case "linear":
-        // Linear discovery returns teams; the picked id narrows the
-        // import to a single team. Empty pick = import every team
-        // visible to the token.
-        if (pickedDiscoverId) opts.team_id = pickedDiscoverId
-        break
-      case "clickup":
-        // ClickUp tokens often see multiple workspaces. The picked
-        // discover id MUST be supplied for tokens that span more than
-        // one workspace; for single-workspace tokens it's optional.
-        if (pickedDiscoverId) opts.workspace_id = pickedDiscoverId
-        break
-      case "monday":
-        // monday discovery returns workspaces (plus "main" for the Main
-        // workspace). Empty pick = every board the token can open.
-        if (pickedDiscoverId) opts.workspace_id = pickedDiscoverId
-        break
+    // Each provider reads its own key for what was picked (lib/importPick).
+    const pick = optionsForPick(selectedProvider, pickedDiscoverId, discoverItems, boardId)
+    if ("error" in pick) {
+      toast({ title: pick.error, variant: "destructive" })
+      return
     }
+    const opts = pick.options
     setCreating(true)
     try {
       const { job_id } = await createImportJob(selectedProvider, {
@@ -411,14 +380,7 @@ const ImportCard: React.FC = () => {
                     a stale label. */}
                 {discoverItems.length > 0 && (
                   <div className="space-y-1.5">
-                    <Label htmlFor="discover">
-                      {selectedProvider === "trello" && "Pick a Trello board"}
-                      {selectedProvider === "asana" && "Pick an Asana workspace"}
-                      {selectedProvider === "jira" && "Pick a Jira project"}
-                      {selectedProvider === "notion" && "Pick a Notion database"}
-                      {selectedProvider === "todoist" && "Pick a Todoist project"}
-                      {selectedProvider === "monday" && "Pick a monday.com workspace (optional)"}
-                    </Label>
+                    <Label htmlFor="discover">{pickLabel(selectedProvider)}</Label>
                     <select
                       id="discover"
                       value={pickedDiscoverId}
@@ -430,6 +392,9 @@ const ImportCard: React.FC = () => {
                       className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                     >
                       <option value="">Pick one</option>
+                      {allOfThemLabel(selectedProvider, discoverItems.length) && (
+                        <option value={ALL_OF_THEM}>{allOfThemLabel(selectedProvider, discoverItems.length)}</option>
+                      )}
                       {discoverItems.map((d) => (
                         <option key={d.id} value={d.id}>
                           {d.name}
