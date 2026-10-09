@@ -35,7 +35,7 @@ const buildTimeDefaults = {
 const knownErrorMessages: Record<string, string> = {
   // OAuth (Google/GitHub). A refusal names its reason; `unauthorized` is what
   // servers sent for every refusal before these codes existed.
-  oauth_email_unverified: "Google or GitHub hasn't verified this email address. Verify it there (on GitHub, your primary address), then sign in again.",
+  oauth_email_unverified: "Google or GitHub hasn't verified this email address. Verify it there, then sign in again.",
   oauth_not_invited:      "This email address isn't invited to this workspace. Ask your administrator to invite you, or to add your address to the sign-up allow-list.",
   oauth_failed:           "Signing in with Google or GitHub didn't finish. Please try again.",
   invitation_expired:     "Your invitation has expired. Ask whoever invited you to send it again.",

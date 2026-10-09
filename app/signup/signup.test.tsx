@@ -56,6 +56,8 @@ describe("accepting an invitation", () => {
     expect(sent.find((r) => r.path.endsWith("auth/signup"))?.body).toEqual({ token: "tok-ana", name: "José O'Brien", password: "a long enough password" })
     expect(await screen.findByText("@josé-obrien")).toBeTruthy()
     expect(screen.getByText(/You're in, José O'Brien/)).toBeTruthy()
+    // Mentions pick people by name, so the handle isn't sold as what they're mentioned by.
+    expect(document.body.textContent).not.toMatch(/mention/i)
     fireEvent.click(screen.getByRole("button", { name: "Continue" }))
     expect(router.push).toHaveBeenCalledWith(LANDING)
   })
@@ -106,5 +108,7 @@ describe("accepting an invitation", () => {
     expect(await screen.findByRole("button", { name: "Continue with GitHub" })).toBeTruthy()
     expect(screen.queryByLabelText("Password")).toBeNull()
     expect(screen.queryByRole("button", { name: "Create account" })).toBeNull()
+    // Nor offers one in words.
+    expect(screen.getByText(/Use the account for ana@example.com/).textContent).toBe("Use the account for ana@example.com.")
   })
 })

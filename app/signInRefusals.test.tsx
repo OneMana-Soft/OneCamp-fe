@@ -54,6 +54,8 @@ describe("a refused sign-in", () => {
     if (typeof words === "string") expect(text).toContain(words)
     else expect(text).toMatch(words)
     expect(text).not.toContain("evil.example")
+    // GitHub takes any address it has verified, not only the primary one.
+    expect(text).not.toMatch(/primary address/)
   })
 })
 

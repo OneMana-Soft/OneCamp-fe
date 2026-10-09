@@ -156,8 +156,8 @@ function SignupForm() {
         <CheckCircle className="h-12 w-12 text-success mx-auto" />
         <h1 className="text-2xl font-semibold tracking-tight">You&apos;re in, {joined.name}</h1>
         <p className="text-sm text-muted-foreground">
-          Your handle is <span className="font-medium text-foreground">@{joined.handle}</span>. People can mention you with it,
-          and you can change it in your profile.
+          Your handle is <span className="font-medium text-foreground">@{joined.handle}</span>. You can change it in your
+          profile.
         </p>
         <Button className="w-full h-11 md:h-10" onClick={() => router.push(joined.destination)}>
           Continue
@@ -188,7 +188,9 @@ function SignupForm() {
       {hasOtherWays && (
         <div className="space-y-4">
           <p className="text-xs text-center text-muted-foreground">
-            Use the account for {invitationEmail}, or set a password below.
+            {providers.email
+              ? <>Use the account for {invitationEmail}, or set a password below.</>
+              : <>Use the account for {invitationEmail}.</>}
           </p>
           {hasOAuth && (
             <OAuthButtons
