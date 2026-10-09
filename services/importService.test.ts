@@ -330,7 +330,7 @@ describe("importService — the people who came across", () => {
   it("stops at a full plan, keeps going past someone already invited, and reports a refusal", async () => {
     ax.post
       .mockResolvedValueOnce({ data: { email_sent: false, msg: "Invitation created. Today's emails are used up (a few are kept for password resets), so share the link yourself, or resend it tomorrow." } })
-      .mockRejectedValueOnce(refusal(400, { msg: "invitation already exists", status: "failed" }))
+      .mockRejectedValueOnce(refusal(409, { msg: "p2@acme.test is already invited and the invitation hasn't been used. Copy its link or send it again from the list.", status: "failed" }))
       .mockRejectedValueOnce(refusal(400, { msg: "failed to add invitation", status: "failed" }))
       .mockRejectedValueOnce(refusal(403, { msg: "The plan is full.", code: "seat_limit" }))
     const run = await inviteImportedPeople([person(1), person(2), person(3), person(4), person(5)])
