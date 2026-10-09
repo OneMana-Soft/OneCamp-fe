@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Settings, Trash2, Mail, Save, RefreshCw } from "@/lib/icons";
 import { ImagePlus } from "lucide-react";
-import { useFetch } from "@/hooks/useFetch"
+import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
+import type { UserProfileInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
@@ -19,20 +20,34 @@ import axiosInstance from "@/lib/axiosInstance"
 
 interface EmailConfigResponse {
   has_logo: boolean
+  /** The sender an admin chose, or "" for none. */
   sender_email: string
+  /** Where invitations come from when no sender is chosen. */
+  default_sender?: string
+  /** What is sent: one never changed reads as today's default. */
   invitation_email_subject: string
   invitation_email_template: string
 }
 
-const DEFAULT_SUBJECT = "You're invited to OneCamp!"
-const DEFAULT_TEMPLATE = `<h2>Welcome to OneCamp!</h2>
+// Today's defaults, as the server has them (business/User/invitationEmail.go):
+// the email says who invited them and to which workspace, and a reply goes to
+// whoever invited them.
+const DEFAULT_SUBJECT = "{{inviter_name}} invited you to OneCamp"
+const DEFAULT_TEMPLATE = `<h2>{{inviter_name}} invited you to OneCamp</h2>
 {{logo_image}}
-<p>You've been invited to join. Click the link below to set up your account:</p>
-<p><a href="{{signup_link}}">Accept Invitation</a></p>
-<p>This link expires in 7 days.</p>`
+<p>{{inviter_name}} invited you to join them at {{workspace_url}}.</p>
+<p><a href="{{signup_link}}">Accept the invitation</a></p>
+<p>The link works for 7 days. Reply to this email to reach {{inviter_name}}.</p>`
+
+/** Fills the variables an invitation's subject and template can use, for the preview. Pure. */
+export function fillPreview(text: string, values: Record<string, string>): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (whole, key: string) => (key in values ? values[key] : whole))
+}
 
 const EmailSettingsCard = () => {
   const { data: configData, isLoading, mutate } = useFetch<{ data: EmailConfigResponse }>(GetEndpointUrl.GetEmailConfig)
+  // The preview names whoever is looking as the one inviting.
+  const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const post = usePost()
   const { toast } = useToast()
   
@@ -170,10 +185,17 @@ const EmailSettingsCard = () => {
   // Safe URL for preview so anchor tags don't break. Built from this install's
   // own address; it was hard-coded to ours, so every customer's preview showed
   // them a link to somebody else's workspace.
-  const previewSignupLink = `${(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "")}/signup?token=preview`
-  const previewHtml = formData.template
-    .replace(/\{\{signup_link\}\}/g, previewSignupLink)
-    .replace(/\{\{logo_image\}\}/g, hasLogo ? `<img src="${getPublicLogoUrl()}" alt="Logo" style="max-height:80px; max-width:200px;" />` : '')
+  const appURL = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "")
+  const previewSignupLink = `${appURL}/signup?token=preview`
+  const previewWorkspace = appURL.replace(/^https?:\/\//, "") || (typeof window !== "undefined" ? window.location.host : "")
+  const previewInviter = selfProfile.data?.data?.user_name || "Your name"
+  const previewHtml = fillPreview(formData.template, {
+    signup_link: previewSignupLink,
+    logo_image: hasLogo ? `<img src="${getPublicLogoUrl()}" alt="Logo" style="max-height:80px; max-width:200px;" />` : "",
+    inviter_name: previewInviter,
+    workspace_url: previewWorkspace,
+  })
+  const previewSubject = fillPreview(formData.subject, { inviter_name: previewInviter, workspace_url: previewWorkspace })
 
   return (
     <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
@@ -296,7 +318,9 @@ const EmailSettingsCard = () => {
                       placeholder="HTML goes here…"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Available variables: <code className="bg-muted px-1 rounded">{"{{signup_link}}"}</code>, <code className="bg-muted px-1 rounded">{"{{logo_image}}"}</code>
+                      Available variables: <code className="bg-muted px-1 rounded">{"{{inviter_name}}"}</code> (who sent it),{" "}
+                      <code className="bg-muted px-1 rounded">{"{{workspace_url}}"}</code>, <code className="bg-muted px-1 rounded">{"{{signup_link}}"}</code>,{" "}
+                      <code className="bg-muted px-1 rounded">{"{{logo_image}}"}</code>. Replies go to whoever sent the invitation.
                     </p>
                   </div>
                 </div>
@@ -335,14 +359,14 @@ const EmailSettingsCard = () => {
                     <div className="flex items-start">
                       <span className="text-gray-400 font-medium w-16">From:</span> 
                       <span className="font-medium text-gray-800 break-all">
-                        {formData.sender_email || (
+                        {formData.sender_email || configData?.data?.default_sender || (
                           <span className="italic text-gray-500">your workspace default</span>
                         )}
                       </span>
                     </div>
                     <div className="flex items-start">
                       <span className="text-gray-400 font-medium w-16">Subject:</span> 
-                      <span className="font-bold text-gray-900">{formData.subject || "No subject"}</span>
+                      <span className="font-bold text-gray-900">{previewSubject || "No subject"}</span>
                     </div>
                     <div className="flex items-start">
                       <span className="text-gray-400 font-medium w-16">To:</span> 

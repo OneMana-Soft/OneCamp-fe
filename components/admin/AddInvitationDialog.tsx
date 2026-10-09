@@ -11,13 +11,13 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { MailPlus, Check, Copy, Link2 } from "lucide-react";
+import { MailPlus, Link2 } from "@/lib/icons"
 
 import { useFetch } from "@/hooks/useFetch"
 import { InvitationListResponseInterface } from "@/types/user"
 import { useClientConfig } from "@/hooks/useClientConfig"
-import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { invite, type InvitationAnswer } from "@/services/invitationService"
+import { InvitationOutcome, describeInvitation } from "@/components/invite/InvitationOutcome"
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,14 +34,13 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
   onSuccess,
 }) => {
   const [email, setEmail] = useState("")
-  // Second stage: the invitation exists and this is how it reaches the person.
-  const [created, setCreated] = useState<InvitationAnswer | null>(null)
+  // Second stage: the invitation exists, whether its email went, and the link.
+  const [created, setCreated] = useState<{ answer: InvitationAnswer; email: string } | null>(null)
   // Why the server would not invite them, said where the admin is looking:
   // they are already a member, or their invitation is still live.
   const [refusal, setRefusal] = useState("")
   const [sending, setSending] = useState(false)
   const { email_enabled } = useClientConfig()
-  const { copied, copy } = useCopyToClipboard()
   const { mutate } = useFetch<InvitationListResponseInterface>(GetEndpointUrl.GetAdminInvitationList)
 
   const close = (next: boolean) => {
@@ -68,11 +67,11 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
     }
     void mutate()
     onSuccess()
-    // Stay open. Whether or not an email went out, the link is the admin's to
+    // Stay open. Whether or not the email went, the link is the admin's to
     // hand over, and closing on "sent" is how the old version hid that nothing
     // had been sent at all.
     if (outcome.answer.invite_link) {
-      setCreated(outcome.answer)
+      setCreated({ answer: outcome.answer, email: trimmedEmail })
     } else {
       setEmail("")
       onOpenChange(false)
@@ -80,38 +79,18 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
   }
 
   if (created) {
-    const link = created.invite_link || ""
     return (
       <Dialog open={open} onOpenChange={close}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Link2 className="h-5 w-5 text-primary" />
-              {created.email_sent ? "Invitation sent" : "Invitation created"}
+              {describeInvitation(created.answer, created.email).title}
             </DialogTitle>
-            <DialogDescription>
-              {created.email_sent
-                ? "An email is on its way. This is the same link, in case it does not arrive."
-                : "This server cannot send email yet, so nothing was sent. Share this link with them yourself."}
-            </DialogDescription>
+            <DialogDescription>An invitation for {created.email}.</DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-2 py-2">
-            <Label htmlFor="invite-link">Invitation link</Label>
-            <div className="flex gap-2">
-              <Input id="invite-link" readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void copy(link, "Invitation link copied")}
-                aria-label="Copy invitation link"
-                className="shrink-0"
-              >
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">Works for seven days, for that address only.</p>
-          </div>
+          <InvitationOutcome answer={created.answer} email={created.email} />
 
           <DialogFooter>
             <Button type="button" onClick={() => close(false)}>

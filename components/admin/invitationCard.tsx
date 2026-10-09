@@ -16,6 +16,7 @@ import { openUI } from "@/store/slice/uiSlice"
 import { toast } from "@/hooks/use-toast"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { resendInvitation } from "@/services/invitationService"
+import { couldntEmail } from "@/components/invite/InvitationOutcome"
 
 const InvitationCard = () => {
   const dispatch = useDispatch()
@@ -71,10 +72,10 @@ const InvitationCard = () => {
     )
   }
 
-  // Resend answers with the link and whether an email actually went out, the
-  // same as creating one does. With mail set up the toast confirms it; without,
-  // the link is put on the clipboard, because "resent" on a server that cannot
-  // send is the same lie the create dialog used to tell.
+  // Resend answers with the link and whether the email provider took the
+  // email, or why not, the same as creating one does. Sent, the toast says so;
+  // not sent, it says why and the link is put on the clipboard, because
+  // "resent" for an email that never went is the lie the dialogs used to tell.
   const handleResendInvitation = async (email: string) => {
     if (!email || resendingEmail) return
     setResendingEmail(email)
@@ -87,14 +88,14 @@ const InvitationCard = () => {
       const answer = outcome.answer
       mutate()
       if (answer?.email_sent) {
-        toast({ title: "Invitation resent", description: `A new email is on its way to ${email}.` })
+        toast({ title: "Email sent", description: `A new link is on its way to ${email}. The old one no longer works.` })
       } else if (answer?.invite_link) {
         const ok = await copy(answer.invite_link)
         toast({
           title: "Invitation link ready",
           description: ok
-            ? "This server cannot send email, so the new link is on your clipboard. Share it yourself."
-            : `This server cannot send email. Share this link yourself: ${answer.invite_link}`,
+            ? `${couldntEmail(answer)}. The new link is on your clipboard to send yourself.`
+            : `${couldntEmail(answer)}. Send this link yourself: ${answer.invite_link}`,
         })
       }
     } catch (error) {

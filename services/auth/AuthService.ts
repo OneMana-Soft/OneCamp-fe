@@ -291,16 +291,29 @@ class AuthService {
     }
 
     /** name: the name to suggest, one an import already knows them by, or "". */
-    static async validateInvitationToken(token: string): Promise<{ valid: boolean; email: string; name: string; msg: string }> {
+    /**
+     * Checks an invitation's link before the sign-up form shows: the address
+     * it is for, a name an import knows them by, who invited them and to which
+     * workspace (its address), or why the link can't be used.
+     */
+    static async validateInvitationToken(token: string): Promise<{ valid: boolean; email: string; name: string; inviterName: string; workspace: string; msg: string }> {
+        const text = (v: unknown) => (typeof v === 'string' ? v : '');
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/validate-token?token=${encodeURIComponent(token)}`,
                 { credentials: 'include' }
             );
             const data = await res.json();
-            return { valid: data.valid === true, email: data.email || '', name: typeof data.name === 'string' ? data.name : '', msg: data.msg || '' };
+            return {
+                valid: data.valid === true,
+                email: text(data.email),
+                name: text(data.name),
+                inviterName: text(data.inviter_name),
+                workspace: text(data.workspace),
+                msg: text(data.msg),
+            };
         } catch {
-            return { valid: false, email: '', name: '', msg: 'Network error' };
+            return { valid: false, email: '', name: '', inviterName: '', workspace: '', msg: "Couldn't check the invitation. Check your connection and try again." };
         }
     }
 
