@@ -1,0 +1,89 @@
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import type { ImportPeople, InviteRun } from "@/services/importService"
+
+// The dialog's data and the one call that sends: everything else is real.
+let people: ImportPeople | undefined
+const refetch = vi.fn()
+vi.mock("@/hooks/useFetch", () => ({
+  useFetch: (url: string) => ({ data: url ? people : undefined, isError: false, isLoading: false, mutate: refetch }),
+}))
+const sent: string[][] = []
+let answer: Partial<InviteRun> = {}
+vi.mock("@/services/importService", async (orig) => ({
+  ...(await orig<typeof import("@/services/importService")>()),
+  inviteImportedPeople: vi.fn(async (chosen: { email: string }[], onProgress?: (d: number, t: number) => void) => {
+    sent.push(chosen.map((p) => p.email))
+    chosen.forEach((_, i) => onProgress?.(i + 1, chosen.length))
+    return { invited: chosen, alreadyInvited: [], failed: [], seatLimit: null, emailSent: true, ...answer }
+  }),
+}))
+vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn() }))
+
+const { ImportInviteDialog } = await import("./ImportInviteDialog")
+
+afterEach(() => {
+  cleanup()
+  sent.length = 0
+  answer = {}
+})
+
+const offer = (left: number | null, n = 3): ImportPeople => ({
+  people: Array.from({ length: n }, (_, i) => ({ user_id: `u${i}`, name: `Person ${i}`, email: `p${i}@acme.test` })),
+  already_members: 2,
+  already_invited: 0,
+  no_email: 1,
+  left: 0,
+  seats: { used: left === null ? 3 : 25 - left, limit: left === null ? 0 : 25, left },
+})
+
+describe("Invite the people who came across", () => {
+  it("lists everyone, says who isn't listed and why, and invites them all in one step", async () => {
+    people = offer(null)
+    render(<ImportInviteDialog jobId="j1" label="Acme" open onOpenChange={() => {}} />)
+    expect(screen.getByText("Not listed: 2 already here, 1 without an email address.")).toBeTruthy()
+    expect(screen.queryByText(/free plan/)).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Invite 3 people" }))
+    await waitFor(() => expect(screen.getByText("Invited 3 people. Each gets an email with a link to join.")).toBeTruthy())
+    expect(sent).toEqual([["p0@acme.test", "p1@acme.test", "p2@acme.test"]])
+    expect(refetch).toHaveBeenCalled()
+  })
+
+  // A free plan with room for two: two are ticked, the third can't be until
+  // one is unticked, and the plan's room is said plainly.
+  it("ticks only as many as the plan has room for", async () => {
+    people = offer(2)
+    render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
+    expect(screen.getByText("Your free plan has room for 2 more people (23 of 25 places taken).")).toBeTruthy()
+    const boxes = screen.getAllByRole("checkbox")
+    expect(boxes.map((b) => b.getAttribute("aria-checked"))).toEqual(["true", "true", "false"])
+    expect((boxes[2] as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(boxes[0])
+    expect((screen.getAllByRole("checkbox")[2] as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(screen.getAllByRole("checkbox")[2])
+    fireEvent.click(screen.getByRole("button", { name: "Invite 2 people" }))
+    await waitFor(() => expect(sent).toEqual([["p1@acme.test", "p2@acme.test"]]))
+  })
+
+  it("can't invite anyone into a full plan, and says so", () => {
+    people = offer(0)
+    render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
+    expect(screen.getByText(/Your free plan is full/)).toBeTruthy()
+    expect((screen.getByRole("button", { name: "Invite 0 people" }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it("says when the plan filled up partway", async () => {
+    people = offer(null, 2)
+    answer = { invited: [], seatLimit: { msg: "This workspace is full.", notInvited: offer(null, 2).people } }
+    render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
+    fireEvent.click(screen.getByRole("button", { name: "Invite 2 people" }))
+    await waitFor(() => expect(screen.getByText("This workspace is full. 2 people weren't invited.")).toBeTruthy())
+  })
+
+  it("says when there is nobody left to invite", () => {
+    people = { ...offer(null, 0), already_invited: 4 }
+    render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
+    expect(screen.getByText(/Nobody left to invite/)).toBeTruthy()
+    expect(screen.getByText("Not listed: 2 already here, 4 already invited, 1 without an email address.")).toBeTruthy()
+  })
+})

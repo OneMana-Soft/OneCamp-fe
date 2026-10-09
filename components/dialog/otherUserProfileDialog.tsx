@@ -30,6 +30,7 @@ import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
 import { botProfileCopy } from "@/lib/botCopy";
+import { InvitePlaceholder } from "@/components/admin/InvitePlaceholder";
 
 
 interface editProfileDialogProps {
@@ -192,9 +193,17 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                             </Button>
                         )}
                         {profileInfo.data?.data && isExternal && !isBot && (
-                            <p className="text-xs text-muted-foreground text-center max-w-[220px] leading-relaxed">
-                                External contacts can&apos;t be messaged directly. Mention them in a task or comment to collaborate.
-                            </p>
+                            <>
+                                <p className="text-xs text-muted-foreground text-center max-w-[220px] leading-relaxed">
+                                    External contacts can&apos;t be messaged directly. Mention them in a task or comment to collaborate.
+                                </p>
+                                {/* An admin can bring an imported placeholder in. */}
+                                <InvitePlaceholder
+                                    userUUID={userUUID}
+                                    email={profileInfo.data.data.user_email_id}
+                                    name={profileInfo.data.data.user_full_name || profileInfo.data.data.user_name}
+                                />
+                            </>
                         )}
                     </div>
 

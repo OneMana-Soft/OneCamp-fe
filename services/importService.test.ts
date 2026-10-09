@@ -9,6 +9,7 @@ vi.mock("@/lib/axiosInstance", () => ({
     post: vi.fn(),
     delete: vi.fn(),
   },
+  OWN_ERRORS: { suppressErrorToast: true },
 }))
 
 import axiosInstance from "@/lib/axiosInstance"
@@ -22,6 +23,9 @@ import {
   finalizeImportUpload,
   getImportErrors,
   getImportJob,
+  getImportPeople,
+  inviteImportedPeople,
+  markImportOutcomeSeen,
   importProviderLabel,
   listImportConnections,
   listImportJobs,
@@ -280,5 +284,55 @@ describe("importProviderLabel", () => {
   it("capitalises every other provider id", () => {
     expect(importProviderLabel("asana")).toBe("Asana")
     expect(importProviderLabel("linear")).toBe("Linear")
+  })
+})
+
+describe("importService — the people who came across", () => {
+  const person = (n: number) => ({ user_id: `u${n}`, name: `P${n}`, email: `p${n}@acme.test` })
+  const refusal = (status: number, data: Record<string, unknown>) => Object.assign(new Error("refused"), { response: { status, data } })
+
+  it("asks for an import's people and dismisses its news, showing its own errors", async () => {
+    ax.get.mockResolvedValueOnce({ data: { people: [person(1)] } })
+    const out = await getImportPeople("job 1")
+    expect(ax.get).toHaveBeenCalledWith("/admin/import/jobs/job%201/people", { suppressErrorToast: true })
+    expect(out.people).toHaveLength(1)
+
+    ax.post.mockResolvedValueOnce({ data: { ok: true } })
+    await markImportOutcomeSeen("job 1")
+    expect(ax.post).toHaveBeenCalledWith("/admin/import/jobs/job%201/outcome-seen", undefined, { suppressErrorToast: true })
+  })
+
+  // One step for the admin: each person through the workspace's own
+  // invitation endpoint, one after another.
+  it("invites everyone through the invitation endpoint, one at a time", async () => {
+    ax.post.mockResolvedValue({ data: { email_sent: true, invite_link: "https://x/signup?token=t" } })
+    const seen: number[] = []
+    const run = await inviteImportedPeople([person(1), person(2), person(3)], (done) => seen.push(done))
+    expect(ax.post.mock.calls.map((c) => c[1])).toEqual([{ email: "p1@acme.test" }, { email: "p2@acme.test" }, { email: "p3@acme.test" }])
+    expect(ax.post.mock.calls.every((c) => c[0] === "/admin/addInvitation" && c[2]?.suppressErrorToast)).toBe(true)
+    expect(run.invited).toHaveLength(3)
+    expect(run.emailSent).toBe(true)
+    expect(seen).toEqual([1, 2, 3])
+  })
+
+  it("stops at a full plan, keeps going past someone already invited, and reports a refusal", async () => {
+    ax.post
+      .mockResolvedValueOnce({ data: { email_sent: false } })
+      .mockRejectedValueOnce(refusal(400, { msg: "invitation already exists", status: "failed" }))
+      .mockRejectedValueOnce(refusal(400, { msg: "failed to add invitation", status: "failed" }))
+      .mockRejectedValueOnce(refusal(403, { msg: "The plan is full.", code: "seat_limit" }))
+    const run = await inviteImportedPeople([person(1), person(2), person(3), person(4), person(5)])
+    expect(ax.post).toHaveBeenCalledTimes(4)
+    expect(run.invited.map((p) => p.user_id)).toEqual(["u1"])
+    expect(run.emailSent).toBe(false)
+    expect(run.alreadyInvited.map((p) => p.user_id)).toEqual(["u2"])
+    expect(run.failed).toEqual([{ person: person(3), msg: "failed to add invitation" }])
+    expect(run.seatLimit).toEqual({ msg: "The plan is full.", notInvited: [person(4), person(5)] })
+  })
+
+  it("says the server couldn't be reached when there was no answer", async () => {
+    ax.post.mockRejectedValueOnce(new Error("Network Error"))
+    const run = await inviteImportedPeople([person(1)])
+    expect(run.failed[0].msg).toMatch(/Couldn't reach the server/)
   })
 })

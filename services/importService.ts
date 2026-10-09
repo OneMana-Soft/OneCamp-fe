@@ -6,7 +6,8 @@
  * because its plan/upload UX is custom to channels-and-messages.
  */
 
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { PostEndpointUrl } from "@/services/endPoints"
 
 // Provider names mirror models/postgres/Import.ProviderXxx on the BE.
 export type ImportProvider = "trello" | "asana" | "jira" | "notion" | "todoist" | "linear" | "clickup" | "monday"
@@ -296,4 +297,113 @@ export async function retryFailedImportChunks(jobId: string): Promise<{ reset: n
     `/admin/import/jobs/${encodeURIComponent(jobId)}/retry-failed`,
   )
   return res.data
+}
+
+// ─── The people who came across ──────────────────────────────────────
+
+/** Someone an import brought across who can be invited now. */
+export interface InvitablePerson {
+  user_id: string
+  name: string
+  email: string
+}
+
+/** The free plan's room. left is null when there is no limit. */
+export interface SeatRoom {
+  used: number
+  limit: number
+  left: number | null
+}
+
+/** Who an import brought across, as its admin is offered them. */
+export interface ImportPeople {
+  people: InvitablePerson[]
+  already_members: number
+  already_invited: number
+  no_email: number
+  left: number
+  seats: SeatRoom
+}
+
+/** The SWR key of an import's invitation offer. */
+export const importPeopleKey = (jobId: string) => `/admin/import/jobs/${encodeURIComponent(jobId)}/people`
+
+export async function getImportPeople(jobId: string): Promise<ImportPeople> {
+  const res = await axiosInstance.get(importPeopleKey(jobId), OWN_ERRORS)
+  return res.data
+}
+
+/** How one of the caller's imports ended, until they dismiss it. */
+export interface ImportOutcome {
+  job_id: string
+  provider: ImportProvider | "slack"
+  label: string
+  status: "completed" | "failed"
+  error?: string
+  items_imported: number
+  finished_at: string
+  people_to_invite: number
+}
+
+/** The SWR key of the caller's unseen import outcomes (the admin banner). */
+export const IMPORT_OUTCOMES_KEY = "/admin/import/outcomes"
+
+export async function markImportOutcomeSeen(jobId: string): Promise<void> {
+  await axiosInstance.post(`/admin/import/jobs/${encodeURIComponent(jobId)}/outcome-seen`, undefined, OWN_ERRORS)
+}
+
+/** What inviting the people from an import came to. */
+export interface InviteRun {
+  invited: InvitablePerson[]
+  /** Already had an invitation (someone else invited them in the meantime). */
+  alreadyInvited: InvitablePerson[]
+  failed: { person: InvitablePerson; msg: string }[]
+  /** The plan filled before everyone was invited: its message, and who is left. */
+  seatLimit: { msg: string; notInvited: InvitablePerson[] } | null
+  /** Whether the server sends email; when it doesn't, links must be shared by hand. */
+  emailSent: boolean
+}
+
+function errorMsgOf(err: unknown): { status?: number; code?: string; msg: string } {
+  const e = err as { response?: { status?: number; data?: { msg?: string; error?: string; code?: string } }; message?: string }
+  const data = e?.response?.data
+  return {
+    status: e?.response?.status,
+    code: data?.code,
+    msg: data?.msg || data?.error || (e?.response ? "That didn't work. Try again." : "Couldn't reach the server. Check your connection and try again."),
+  }
+}
+
+/**
+ * Invites the people one after another through the workspace's invitation
+ * endpoint, the one every invitation goes through, so each gets its seat check,
+ * its email and its link. Stops at a full plan (the rest would be refused the
+ * same way); someone invited in the meantime is counted, not an error.
+ */
+export async function inviteImportedPeople(
+  people: InvitablePerson[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<InviteRun> {
+  const run: InviteRun = { invited: [], alreadyInvited: [], failed: [], seatLimit: null, emailSent: true }
+  for (let i = 0; i < people.length; i++) {
+    const person = people[i]
+    try {
+      const res = await axiosInstance.post(PostEndpointUrl.AddInvitation, { email: person.email }, OWN_ERRORS)
+      run.invited.push(person)
+      if (res.data?.email_sent === false) run.emailSent = false
+    } catch (err) {
+      const { status, code, msg } = errorMsgOf(err)
+      if (code === "seat_limit") {
+        run.seatLimit = { msg, notInvited: people.slice(i) }
+        break
+      }
+      if (status === 400 && /already exists/i.test(msg)) {
+        run.alreadyInvited.push(person)
+      } else {
+        run.failed.push({ person, msg })
+      }
+    }
+    onProgress?.(i + 1, people.length)
+  }
+  return run
 }

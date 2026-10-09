@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
 import { botProfileCopy } from "@/lib/botCopy";
 import { AgentCardDetails } from "@/components/ai/AgentCardDetails";
+import { InvitePlaceholder } from "@/components/admin/InvitePlaceholder";
 
 export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const router = useRouter();
@@ -125,9 +126,17 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                             </Button>
                         )}
                         {profileInfo.data?.data && isExternal && !isBot && (
-                            <p className="mt-6 text-xs text-muted-foreground text-center max-w-[260px] leading-relaxed">
-                                External contacts can&apos;t be messaged directly. Mention them in a task or comment to collaborate.
-                            </p>
+                            <div className="mt-6 flex w-full max-w-[260px] flex-col items-center gap-3">
+                                <p className="text-xs text-muted-foreground text-center leading-relaxed">
+                                    External contacts can&apos;t be messaged directly. Mention them in a task or comment to collaborate.
+                                </p>
+                                {/* An admin can bring an imported placeholder in. */}
+                                <InvitePlaceholder
+                                    userUUID={userUUID}
+                                    email={profileInfo.data.data.user_email_id}
+                                    name={profileInfo.data.data.user_full_name || profileInfo.data.data.user_name}
+                                />
+                            </div>
                         )}
                     </div>
 
