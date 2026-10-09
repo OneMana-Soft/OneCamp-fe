@@ -32,12 +32,21 @@ interface EmailConfigResponse {
 // Today's defaults, as the server has them (business/User/invitationEmail.go):
 // the email says who invited them and to which workspace, and a reply goes to
 // whoever invited them.
-const DEFAULT_SUBJECT = "{{inviter_name}} invited you to OneCamp"
+// The inviter's name is in the body, never the subject: a display name is
+// whatever its owner typed, and the subject is shown before anyone opens the
+// email. In a subject, {{inviter_name}} reads "A teammate" (the server's
+// RenderInvitation does the same).
+export const DEFAULT_SUBJECT = "You're invited to join {{workspace_url}} on OneCamp"
 const DEFAULT_TEMPLATE = `<h2>{{inviter_name}} invited you to OneCamp</h2>
 {{logo_image}}
 <p>{{inviter_name}} invited you to join them at {{workspace_url}}.</p>
 <p><a href="{{signup_link}}">Accept the invitation</a></p>
 <p>The link works for 7 days. Reply to this email to reach {{inviter_name}}.</p>`
+
+/** The subject as sent: {{inviter_name}} is "A teammate" there, never the inviter's own name. Pure. */
+export function subjectPreview(subject: string, workspace: string): string {
+  return fillPreview(subject, { inviter_name: "A teammate", workspace_url: workspace })
+}
 
 /** Fills the variables an invitation's subject and template can use, for the preview. Pure. */
 export function fillPreview(text: string, values: Record<string, string>): string {
@@ -195,7 +204,7 @@ const EmailSettingsCard = () => {
     inviter_name: previewInviter,
     workspace_url: previewWorkspace,
   })
-  const previewSubject = fillPreview(formData.subject, { inviter_name: previewInviter, workspace_url: previewWorkspace })
+  const previewSubject = subjectPreview(formData.subject, previewWorkspace)
 
   return (
     <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
@@ -318,7 +327,8 @@ const EmailSettingsCard = () => {
                       placeholder="HTML goes here…"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Available variables: <code className="bg-muted px-1 rounded">{"{{inviter_name}}"}</code> (who sent it),{" "}
+                      Available variables: <code className="bg-muted px-1 rounded">{"{{inviter_name}}"}</code> (who sent it; a subject says
+                      &quot;A teammate&quot; instead),{" "}
                       <code className="bg-muted px-1 rounded">{"{{workspace_url}}"}</code>, <code className="bg-muted px-1 rounded">{"{{signup_link}}"}</code>,{" "}
                       <code className="bg-muted px-1 rounded">{"{{logo_image}}"}</code>. Replies go to whoever sent the invitation.
                     </p>
