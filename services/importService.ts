@@ -341,6 +341,17 @@ export interface SeatRoom {
   left: number | null
 }
 
+/**
+ * Whether invitations are emailed, and how many more can be today. left is
+ * null when the day has no cap; lent email on OneCamp Cloud has one, and the
+ * server keeps a few of it for password resets. Anyone invited past it is
+ * invited all the same, with a link the admin shares.
+ */
+export interface EmailRoom {
+  on: boolean
+  left: number | null
+}
+
 /** Who an import brought across, as its admin is offered them. */
 export interface ImportPeople {
   people: InvitablePerson[]
@@ -349,6 +360,7 @@ export interface ImportPeople {
   no_email: number
   left: number
   seats: SeatRoom
+  email: EmailRoom
 }
 
 /** The SWR key of an import's invitation offer. */
@@ -386,8 +398,10 @@ export interface InviteRun {
   failed: { person: InvitablePerson; msg: string }[]
   /** The plan filled before everyone was invited: its message, and who is left. */
   seatLimit: { msg: string; notInvited: InvitablePerson[] } | null
-  /** Whether the server sends email; when it doesn't, links must be shared by hand. */
-  emailSent: boolean
+  /** Invited, but their email didn't go (email off, today's used up, refused): their links are in Admin → Invitations. */
+  notEmailed: InvitablePerson[]
+  /** The server's words for the first email that didn't go. */
+  unsentMsg: string | null
 }
 
 function errorMsgOf(err: unknown): { status?: number; code?: string; msg: string } {
@@ -410,13 +424,18 @@ export async function inviteImportedPeople(
   people: InvitablePerson[],
   onProgress?: (done: number, total: number) => void,
 ): Promise<InviteRun> {
-  const run: InviteRun = { invited: [], alreadyInvited: [], failed: [], seatLimit: null, emailSent: true }
+  const run: InviteRun = { invited: [], alreadyInvited: [], failed: [], seatLimit: null, notEmailed: [], unsentMsg: null }
   for (let i = 0; i < people.length; i++) {
     const person = people[i]
     try {
       const res = await axiosInstance.post(PostEndpointUrl.AddInvitation, { email: person.email }, OWN_ERRORS)
       run.invited.push(person)
-      if (res.data?.email_sent === false) run.emailSent = false
+      // email_sent is whether the email was accepted, not whether email is
+      // set up: a day's allowance or a refused address leaves it false.
+      if (res.data?.email_sent !== true) {
+        run.notEmailed.push(person)
+        run.unsentMsg ??= res.data?.msg ?? null
+      }
     } catch (err) {
       const { status, code, msg } = errorMsgOf(err)
       if (code === "seat_limit") {

@@ -20,9 +20,9 @@ type Answer = { tone: "ok" | "error"; text: string }
 /** What one invitation from a profile came to, in a sentence. Pure. */
 export function placeholderInviteAnswer(run: Awaited<ReturnType<typeof inviteImportedPeople>>): Answer {
   if (run.invited.length) {
-    return run.emailSent
-      ? { tone: "ok", text: "Invited. They get an email with a link to join." }
-      : { tone: "ok", text: "Invitation created. Email isn't set up on this server, so copy their link from Admin, Invitations." }
+    return run.notEmailed.length
+      ? { tone: "ok", text: run.unsentMsg || "Invitation created, but no email went out: copy their link from Admin → Invitations." }
+      : { tone: "ok", text: "Invited. They get an email with a link to join." }
   }
   if (run.alreadyInvited.length) return { tone: "ok", text: "They were already invited." }
   if (run.seatLimit) return { tone: "error", text: run.seatLimit.msg }

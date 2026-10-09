@@ -36,7 +36,7 @@ import {
   type InviteRun,
 } from "@/services/importService"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { initialSelection, inviteSummary, notListedLine, roomForAnother, seatLine } from "@/lib/importInvites"
+import { emailLine, initialSelection, inviteSummary, notListedLine, roomForAnother, seatLine } from "@/lib/importInvites"
 
 interface Props {
   jobId: string
@@ -57,7 +57,7 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
   // Ticked afresh whenever the list arrives: after a run, the people invited
   // leave it and the plan's room changes.
   useEffect(() => {
-    if (data) setSelected(initialSelection(data.people, data.seats))
+    if (data) setSelected(initialSelection(data.people, data.seats, data.email))
   }, [data])
 
   useEffect(() => {
@@ -91,6 +91,7 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
   const seatsText = data ? seatLine(seats) : null
   const notListed = data ? notListedLine(data) : ""
   const count = selected.size
+  const emailText = data ? emailLine(data.email, count) : null
 
   return (
     <Dialog open={open} onOpenChange={(o) => !sending && onOpenChange(o)}>
@@ -115,7 +116,7 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
           <ErrorState subject="the people from this import" onRetry={() => void mutate()} />
         ) : run ? (
           <ul className="space-y-2 text-sm" aria-label="What happened">
-            {inviteSummary(run).map((line) => (
+            {inviteSummary(run, data?.email).map((line) => (
               <li key={line} className="break-words">{line}</li>
             ))}
           </ul>
@@ -124,6 +125,7 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
             {seatsText && (
               <p className={seats.left === 0 ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{seatsText}</p>
             )}
+            {emailText && <p className="text-sm text-muted-foreground">{emailText}</p>}
             {people.length === 0 ? (
               <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
                 Nobody left to invite: everyone who came across is already here or invited.
