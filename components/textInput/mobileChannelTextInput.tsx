@@ -100,6 +100,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend }: { channelId: s
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={channelInputState.inputTextHTML}
+                        contentRevision={channelInputState.restoredUnsent}
                         placeholder={channelComposerPlaceholder(channelDisplayName, channelAgents.map((a) => a.name), { compact: true })}
                         editable={true}
                         buttonOnclick={handleSend}

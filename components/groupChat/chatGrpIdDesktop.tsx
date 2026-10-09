@@ -244,6 +244,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatState.chatBody}
+                        contentRevision={chatState.restoredUnsent}
                         placeholder={"Type a message…"}
                         editable={true}
                         ButtonIcon={SendHorizontal}

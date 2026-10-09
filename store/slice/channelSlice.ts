@@ -8,6 +8,7 @@ import {AttachmentMediaReq, AttachmentType} from "@/types/attachment";
 import {GroupedReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {ChatInfo} from "@/types/chat";
+import { withUnsent, type Draft } from "@/lib/chat/unsentMessage";
 
 
 // postContentDiffers reports whether a freshly-fetched server post differs
@@ -43,6 +44,10 @@ export interface MessageInputState {
     replyToUuid?: string
     replyToAuthorName?: string
     replyToText?: string
+    // Changes each time a message that wasn't sent is put back (sending
+    // clears it). The composer hands it to the editor as contentRevision, so
+    // the editor shows the message even while it has focus.
+    restoredUnsent?: number
 }
 
 interface ChannelScrollPosition {
@@ -109,6 +114,11 @@ interface RemoveUploadedFiles {
 
 interface ClearInputState {
     channelId: string,
+}
+
+interface RestoreUnsent {
+    channelId: string,
+    unsent: Draft,
 }
 
 interface UpdatePreviewFiles {
@@ -303,6 +313,22 @@ const channelSlice = createSlice({
         clearChannelInputState: (state, action: {payload: ClearInputState}) => {
             const { channelId } = action.payload;
             state.channelInputState[channelId] = { inputTextHTML: '', filesUploaded: [], filePreview: [] };
+        },
+
+        // A post that wasn't sent goes back into the composer (lib/chat/unsentMessage).
+        restoreUnsentChannelPost: (state, action: {payload: RestoreUnsent}) => {
+            const { channelId, unsent } = action.payload;
+            const current = state.channelInputState[channelId] || { inputTextHTML: '', filesUploaded: [], filePreview: [] };
+            const draft = withUnsent({ ...current, html: current.inputTextHTML, files: current.filesUploaded, previews: current.filePreview }, unsent);
+            state.channelInputState[channelId] = {
+                inputTextHTML: draft.html,
+                filesUploaded: draft.files,
+                filePreview: draft.previews,
+                replyToUuid: draft.replyToUuid,
+                replyToAuthorName: draft.replyToAuthorName,
+                replyToText: draft.replyToText,
+                restoredUnsent: (current.restoredUnsent || 0) + 1,
+            };
         },
 
         updateChannelPosts: (state, action: {payload: UpdateChannelPosts}) => {
@@ -612,6 +638,7 @@ export const {
     addChannelUploadedFiles,
     removeChannelUploadedFiles,
     clearChannelInputState,
+    restoreUnsentChannelPost,
     updateChannelPosts,
     updatePostReactionPostId,
     createPostReactionPostId,

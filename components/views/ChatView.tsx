@@ -21,6 +21,7 @@ import {
 import {
   AddUserInChatList,
   clearChatInputState,
+  restoreUnsentChatMessage,
   createChat, updateChatCallStatus,
   updateChatScrollToBottom,
   UpdateMessageInChatList,
@@ -35,12 +36,15 @@ import { NotificationType } from "@/types/channel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Lock } from "@/lib/icons";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
+import { useToast } from "@/hooks/use-toast";
+import { NOT_SENT_TOAST, type Draft } from "@/lib/chat/unsentMessage";
 
 export function ChatView({ chatId }: { chatId: string }) {
 
   const post = usePost();
   const scheduleMessage = useScheduleMessage();
   const dispatch = useDispatch();
+  const { toast } = useToast();
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
     GetEndpointUrl.SelfProfile
@@ -131,6 +135,17 @@ export function ChatView({ chatId }: { chatId: string }) {
     // this; we just save a round-trip and a confusing toast.
     if (isExternalUser(otherUserInfo.data?.data)) return;
 
+    // Kept until the server has it. The composer empties now, so the next
+    // message can be typed, and this goes back into it if the send fails.
+    const unsent: Draft = {
+      html: body,
+      files: chatState.filesUploaded ?? [],
+      previews: chatState.filesPreview ?? [],
+      replyToUuid: chatState.replyToUuid,
+      replyToAuthorName: chatState.replyToAuthorName,
+      replyToText: chatState.replyToText,
+    };
+
     // Discord-style inline reply: carry the armed reply target (if any) so the
     // backend sets the reply edge, and build an optimistic parent preview.
     const replyToUuid = chatState.replyToUuid;
@@ -198,6 +213,9 @@ export function ChatView({ chatId }: { chatId: string }) {
             updateChatScrollToBottom({ chatId: chatId, scrollToBottom: true })
           );
         }
+      }, () => {
+        dispatch(restoreUnsentChatMessage({ chatUUID: chatId, unsent }));
+        toast(NOT_SENT_TOAST);
       });
     dispatch(clearChatInputState({ chatUUID: chatId }));
   };

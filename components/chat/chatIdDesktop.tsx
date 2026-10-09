@@ -271,6 +271,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatState.chatBody}
+                        contentRevision={chatState.restoredUnsent}
                         placeholder={"Type a message…"}
                         editable={true}
                         ButtonIcon={SendHorizontal}
