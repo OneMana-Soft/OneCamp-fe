@@ -8,6 +8,8 @@ import { RootState } from "@/store/store";
 import { PageContainer } from "@/components/ui/pageContainer";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Inbox } from "@/lib/icons";
+import { useBotKindMap } from "@/hooks/useBotKinds";
+import { relayedAuthorOf } from "@/lib/relayedAuthor";
 
 export const ChannelListResult = ({
     channelList,
@@ -23,6 +25,10 @@ export const ChannelListResult = ({
     const channelCallStatus = useSelector(
         (state: RootState) => state.channel.channelCallStatus,
     );
+    // Bots' kinds, so a channel whose latest message a guest or Slack person
+    // wrote reads "Priya (Acme): text", not "Guests: [Priya (Acme) (guest)]text"
+    // (see lib/relayedAuthor).
+    const botKinds = useBotKindMap();
 
     if (channelList.length === 0 && !isLoading) {
         return (
@@ -37,6 +43,9 @@ export const ChannelListResult = ({
     }
 
     const renderItem = (channel: ChannelInfoInterface) => {
+        const last = channel.ch_posts?.[0];
+        const by = last?.post_by;
+        const relayed = by?.is_bot && by.user_uuid ? relayedAuthorOf(botKinds?.[by.user_uuid], last?.post_text) : null;
         return (
             <Link
                 key={channel.ch_uuid}
@@ -48,8 +57,8 @@ export const ChannelListResult = ({
                 className="block focus:outline-none"
             >
                 <ChannelListChannel
-                    lastUsername={channel.ch_posts?.[0]?.post_by?.user_name || ""}
-                    lastUserMessage={channel.ch_posts?.[0]?.post_text || ""}
+                    lastUsername={relayed ? relayed.name : by?.user_name || ""}
+                    lastUserMessage={relayed ? relayed.body : last?.post_text || ""}
                     lastMessageTime={channel.ch_posts?.[0]?.post_created_at || ""}
                     channelName={channel.ch_name}
                     unseenMessageCount={channel.unread_post_count || 0}

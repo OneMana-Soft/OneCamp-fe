@@ -258,13 +258,17 @@ export const usePostMessageHandlers = ({ userUuid }: UsePostMessageHandlersProps
                         dispatch(
                             updateChannelMessageReplyIncrement({
                                 comment: {
-                                    comment_text:  '',
+                                    // The text and is_bot let the reply avatars show a
+                                    // guest or Slack person, not the bot that relayed
+                                    // them (components/message/threadParticipants).
+                                    comment_text: mqttPostCommentCount.data.body_text || '',
                                     comment_uuid: mqttPostCommentCount.data.comment_uuid,
                                     comment_created_at: mqttPostCommentCount.data.created_at,
                                     comment_by: {
                                         user_uuid: mqttPostCommentCount.data.user_uuid,
                                         user_name: mqttPostCommentCount.data.user_name,
                                         user_profile_object_key: mqttPostCommentCount.data.user_profile_object_key,
+                                        is_bot: mqttPostCommentCount.data.is_bot,
                                     }
                                 },
                                 messageId: mqttPostCommentCount.data.post_id,

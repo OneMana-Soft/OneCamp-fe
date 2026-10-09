@@ -39,3 +39,12 @@ export function useBotKind(userUUID: string | undefined, isBot: boolean | undefi
   }, [isBot, userUUID, kinds, kind, mutate])
   return kind
 }
+
+/**
+ * Every bot's kind by uuid, for a list that names many authors at once (reply
+ * avatars, the channel list, search); undefined while it loads. The same read
+ * as useBotKind, so it is usually in already.
+ */
+export function useBotKindMap(): Record<string, string> | undefined {
+  return useBotKindsRequest(true).data?.data
+}

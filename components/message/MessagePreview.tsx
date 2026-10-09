@@ -6,8 +6,8 @@ import {MessagePreviewAvatar} from "@/components/message/MessagePreviewAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
 import {Button} from "@/components/ui/button";
 import {PrincipalTag} from "@/components/ui/principalTag";
-import {useGuestAuthor} from "@/hooks/useGuestAuthor";
-import {GuestAvatar} from "@/components/message/guestAvatar";
+import {useRelayedAuthor} from "@/hooks/useRelayedAuthor";
+import {RelayedAvatar} from "@/components/message/relayedAvatar";
 
 interface MsgPreviewProps {
     msgText?: string
@@ -19,8 +19,8 @@ interface MsgPreviewProps {
     vewFooter?:boolean
 }
 export function MessagePreview (msgInfo : MsgPreviewProps) {
-    // A quoted channel guest's message names the guest (see lib/guestAuthor).
-    const guest = useGuestAuthor(msgInfo.msgBy, msgInfo.msgText)
+    // A quoted guest or Slack person is named as themselves (see lib/relayedAuthor).
+    const relayed = useRelayedAuthor(msgInfo.msgBy, msgInfo.msgText)
 
     return (
 
@@ -30,17 +30,17 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
             <div className='flex-col pl-4'>
 
                 <div className='flex space-x-2'>
-                    {guest ? (
+                    {relayed ? (
                         <div className='h-9 w-9 shrink-0'>
-                            <GuestAvatar name={guest.name}/>
+                            <RelayedAvatar name={relayed.name}/>
                         </div>
                     ) : (
                         <MessagePreviewAvatar userInfo={msgInfo.msgBy}/>
                     )}
                     <div>
                         <div className='flex items-baseline gap-1.5 text-sm'>
-                            {guest ? guest.name : (msgInfo.msgBy?.user_name || msgInfo.msgChannelName)}
-                            {guest && <PrincipalTag kind="guest"/>}
+                            {relayed ? relayed.name : (msgInfo.msgBy?.user_name || msgInfo.msgChannelName)}
+                            {relayed && <PrincipalTag kind={relayed.kind}/>}
                         </div>
                         <div className='text-xs text-muted-foreground text'>
                             {msgInfo.msgCreatedAt && formatTimeForPostOrComment(msgInfo.msgCreatedAt)}
@@ -58,7 +58,7 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                     className={cn("max-w-full rounded-xl h-auto border-none mt-2")}
                     editorContentClassName="overflow-auto "
                     output="html"
-                    content={guest ? guest.body : msgInfo.msgText}
+                    content={relayed ? relayed.body : msgInfo.msgText}
                     placeholder={""}
                     editable={false}
                     ButtonIcon={SendHorizontal}

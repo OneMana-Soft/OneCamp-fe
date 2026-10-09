@@ -2,8 +2,8 @@
 
 import { BotTag } from "@/components/ui/botTag"
 import { PrincipalTag } from "@/components/ui/principalTag"
-import { useGuestAuthor } from "@/hooks/useGuestAuthor"
-import { GuestAvatar } from "@/components/message/guestAvatar"
+import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
+import { RelayedAvatar } from "@/components/message/relayedAvatar"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import type { PostsRes } from "@/types/post"
@@ -31,6 +31,8 @@ import type { AttachmentMediaReq } from "@/types/attachment"
 import { openUI, closeUI } from "@/store/slice/uiSlice"
 import { ConditionalWrap } from "../conditionalWrap/conditionalWrap"
 import { MessageReplyCount } from "@/components/message/messageReplyCount"
+import { replyParticipants } from "@/components/message/threadParticipants"
+import { useBotKindMap } from "@/hooks/useBotKinds"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import {useUserInfoState} from "@/hooks/useUserInfoState";
@@ -67,10 +69,12 @@ const ChannelMessageMobileComponent = ({
     const [isMessageEditEnabled, setIsMessageEditEnabled] = useState(false)
 
     const userInfoState = useUserInfoState(postInfo.post_by.user_uuid)
-    // A channel guest's message is drawn as theirs (see lib/guestAuthor).
-    const guest = useGuestAuthor(postInfo.post_by, postInfo.post_text)
-    const authorName = guest ? guest.name : (userInfoState.userName || postInfo.post_by.user_name)
-    const postText = guest ? guest.body : postInfo.post_text
+    // A channel guest's or Slack person's message is drawn as theirs (see lib/relayedAuthor).
+    const relayed = useRelayedAuthor(postInfo.post_by, postInfo.post_text)
+    // Bots' kinds, so a reply avatar is the guest or Slack person, not their bot.
+    const botKinds = useBotKindMap()
+    const authorName = relayed ? relayed.name : (userInfoState.userName || postInfo.post_by.user_name)
+    const postText = relayed ? relayed.body : postInfo.post_text
 
     // Route internal /app deep links through client navigation; off while editing.
     const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
@@ -89,11 +93,11 @@ const ChannelMessageMobileComponent = ({
     const handleUserClick = useCallback((e: React.MouseEvent)=>{
         e.preventDefault()
         e.stopPropagation()
-        // A guest has no profile: the Guests bot's would stand in for them.
-        if (guest) return
+        // A guest or Slack person has no profile: the relaying bot's would stand in.
+        if (relayed) return
         router.push(`${app_user}/${postInfo.post_by.user_uuid}`);
 
-    },[postInfo.post_by.user_uuid, guest])
+    },[postInfo.post_by.user_uuid, relayed])
 
     useEffect(() => {
         setUserSelectedOption({} as UserSelectedOptionInterface)
@@ -154,11 +158,11 @@ const ChannelMessageMobileComponent = ({
             setChannelReplyTarget({
                 channelId,
                 uuid: postInfo.post_uuid,
-                authorName: guest ? guest.name : postInfo.post_by.user_name,
+                authorName: relayed ? relayed.name : postInfo.post_by.user_name,
                 text: htmlToPreviewText(postText),
             }),
         )
-    }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by.user_name, postText, guest])
+    }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by.user_name, postText, relayed])
 
     const onLongPress = useCallback(() => {
         // The instruction implies removing the old drawer slice calls and replacing with openUI.
@@ -187,12 +191,12 @@ const ChannelMessageMobileComponent = ({
                 },
                 messageText: removeHtmlTags(postText || ""),
                 makeTask: () => {
-                    const action = makeTaskAction({ html: postText, authorName: guest ? guest.name : postInfo.post_by?.user_name, channelUUID: channelId, postUUID: postInfo.post_uuid }, window.location.origin)
+                    const action = makeTaskAction({ html: postText, authorName: relayed ? relayed.name : postInfo.post_by?.user_name, channelUUID: channelId, postUUID: postInfo.post_uuid }, window.location.origin)
                     if (action) dispatch(action)
                 },
             }
         }))
-    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postText, guest, postInfo.post_by?.user_name])
+    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postText, relayed, postInfo.post_by?.user_name])
 
     const longPressEvent = useLongPress(onLongPress, {
         threshold: 500,
@@ -230,8 +234,8 @@ const ChannelMessageMobileComponent = ({
         <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
             <div id={messageDomId(postInfo.post_uuid)} className="flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100" {...longPressEvent}>
                 <div className="h-9 w-9 mt-0.5 flex-shrink-0" onClick={handleUserClick}>
-                    {guest ? (
-                        <GuestAvatar name={guest.name} />
+                    {relayed ? (
+                        <RelayedAvatar name={relayed.name} />
                     ) : (
                         <ChannelMessageAvatar
                             userName={authorName}
@@ -244,7 +248,7 @@ const ChannelMessageMobileComponent = ({
                 <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
                         <div className="text-sm font-semibold text-foreground truncate" onClick={handleUserClick}>{authorName}</div>
-                        {guest ? <PrincipalTag kind="guest" /> : postInfo.post_by.is_bot && <BotTag userUUID={postInfo.post_by.user_uuid} />}
+                        {relayed ? <PrincipalTag kind={relayed.kind} /> : postInfo.post_by.is_bot && <BotTag userUUID={postInfo.post_by.user_uuid} />}
                         <div className="text-2xs tabular-nums text-muted-foreground shrink-0">
                             {formatTimeForPostOrComment(postInfo.post_created_at, true)}
                         </div>
@@ -326,14 +330,7 @@ const ChannelMessageMobileComponent = ({
                             <MessageReplyCount
                                 replyCount={postInfo.post_comment_count}
                                 lastCommentCreatedAt={postInfo.post_comments[postInfo.post_comments.length - 1].comment_created_at}
-                                participants={postInfo.post_comments
-                                    .slice()
-                                    .reverse()
-                                    .map((c) => ({
-                                        uuid: c.comment_by?.user_uuid || "",
-                                        name: c.comment_by?.user_name || "",
-                                        profileKey: c.comment_by?.user_profile_object_key,
-                                    }))}
+                                participants={replyParticipants(postInfo.post_comments.slice().reverse(), botKinds)}
                             />
                         </div>
                     )}

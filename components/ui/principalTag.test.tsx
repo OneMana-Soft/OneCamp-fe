@@ -68,6 +68,13 @@ describe("PrincipalTag", () => {
     expect(container.innerHTML).not.toMatch(/\bAI\b|agent/i)
   })
 
+  it("says a Slack person is in Slack, and claims no AI for them", () => {
+    const { container } = render(<PrincipalTag kind="bridge" />)
+    expect(container.querySelector('[aria-hidden="true"]')?.textContent).toBe("Slack")
+    expect(container.querySelector(".sr-only")?.textContent).toBe("Person in Slack")
+    expect(container.innerHTML).not.toMatch(/\bAI\b|agent/i)
+  })
+
   it("tags only the assistant and agents as agents", () => {
     expect(botTagKind("assistant")).toBe("ai")
     expect(botTagKind("agent")).toBe("ai")

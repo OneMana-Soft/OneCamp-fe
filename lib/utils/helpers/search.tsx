@@ -11,6 +11,8 @@ import { getAttachmentType } from "@/lib/utils/file/getAttachmentType"
 import { AttachmentMediaReq } from "@/types/attachment"
 import { sanitizePlainHtml } from "@/lib/sanitizeHtml"
 import { SafeHtml } from "@/components/safeHtml/SafeHtml"
+import { useBotKindMap } from "@/hooks/useBotKinds"
+import { relayKindOf, splitPlainRelayLabel, type RelayedAuthor } from "@/lib/relayedAuthor"
 
 const HighlightedText = memo(({ text, highlights, field }: { text: string, highlights?: any, field: string }) => {
     if (!highlights || !highlights[field]) return <span>{text}</span>
@@ -41,7 +43,7 @@ const getTitle = (result: SearchResult): string => {
     }
 }
 
-export const getContext = (result: SearchResult): string => {
+const contextText = (result: SearchResult): string => {
     switch (result.type) {
         case "chat": return `Chat message`
         case "post": return `Post in ${result.post?.post_ch_name}`
@@ -87,7 +89,49 @@ export const getIcon = (result: SearchResult, iconClassName = "h-4 w-4") => {
     }
 }
 
-export const getHighlightedTitle = (result: SearchResult) => {
+/**
+ * The guest or Slack person behind a message or reply hit, when the Guests or
+ * Slack bot posted it (see lib/relayedAuthor): search indexes the stored text
+ * with its "[Priya (Acme) (guest)]" label, and names the bot as the author.
+ * kinds is every bot's kind by uuid. Pure.
+ */
+export function relayedHit(result: SearchResult, kinds: Record<string, string> | undefined): RelayedAuthor | null {
+    if (!kinds) return null
+    if (result.type === "post") return splitPlainRelayLabel(result.post?.post_body, relayKindOf(kinds[result.post?.post_by_user_id]))
+    if (result.type === "comment") return splitPlainRelayLabel(result.comment?.comment_body, relayKindOf(kinds[result.comment?.comment_by_user_id]))
+    return null
+}
+
+// A relayed hit reads "Priya (Acme): what she wrote", as the channel list
+// does, rather than "[Priya (Acme) (guest)]what she wrote" under the bot.
+function HitTitle({ result }: { result: SearchResult }) {
+    const relayed = relayedHit(result, useBotKindMap())
+    if (!relayed) return plainHighlightedTitle(result)
+    const highlight: string | undefined = result.highlight?.[result.type === "post" ? "post_body" : "comment_body"]?.[0]
+    return (
+        <span>
+            <span className="font-medium">{relayed.name}:</span>{" "}
+            {highlight ? (
+                <SafeHtml as="span" html={splitPlainRelayLabel(highlight, relayed.kind)?.body ?? highlight} sanitizer={sanitizePlainHtml} />
+            ) : (
+                relayed.body
+            )}
+        </span>
+    )
+}
+
+function HitContext({ result }: { result: SearchResult }) {
+    const relayed = relayedHit(result, useBotKindMap())
+    if (relayed && result.type === "comment" && !result.comment?.comment_doc_id) return <>Comment by {relayed.name}</>
+    return <>{contextText(result)}</>
+}
+
+/** Where a hit is from, and for a reply, who wrote it. */
+export const getContext = (result: SearchResult) => <HitContext result={result} />
+
+export const getHighlightedTitle = (result: SearchResult) => <HitTitle result={result} />
+
+const plainHighlightedTitle = (result: SearchResult) => {
     const title = getTitle(result)
     if (!result.highlight) return <span>{title}</span>
 

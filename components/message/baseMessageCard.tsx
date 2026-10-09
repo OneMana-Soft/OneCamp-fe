@@ -5,8 +5,8 @@ import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOr
 import { cn } from "@/lib/utils/helpers/cn"
 import { BotTag } from "@/components/ui/botTag"
 import { PrincipalTag } from "@/components/ui/principalTag"
-import { useGuestAuthor } from "@/hooks/useGuestAuthor"
-import { GuestAvatar } from "@/components/message/guestAvatar"
+import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
+import { RelayedAvatar } from "@/components/message/relayedAvatar"
 import { Check, X, Languages, Loader2 } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { useTranslateText } from "@/services/aiService"
@@ -22,6 +22,8 @@ import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import type { AttachmentMediaReq } from "@/types/attachment"
 import { MessageReplyCount } from "@/components/message/messageReplyCount"
+import { replyParticipants } from "@/components/message/threadParticipants"
+import { useBotKindMap } from "@/hooks/useBotKinds"
 import { AgentResultCards } from "@/components/message/AgentResultCards"
 import { WorkLinkCards } from "@/components/message/WorkLinkCards"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
@@ -225,11 +227,13 @@ export const BaseMessageCard = React.memo(({
   const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
 
   const userInfoState = useUserInfoState(message.from.user_uuid)
-  // A channel guest's message is drawn as theirs: their name, a Guest tag, and
-  // only what they wrote (see lib/guestAuthor).
-  const guest = useGuestAuthor(message.from, message.bodyText)
-  const authorName = guest ? guest.name : messageAuthorName(message.from, userInfoState?.userName)
-  const bodyText = guest ? guest.body : message.bodyText
+  // A channel guest's or Slack person's message is drawn as theirs: their name,
+  // a Guest or Slack tag, and only what they wrote (see lib/relayedAuthor).
+  const relayed = useRelayedAuthor(message.from, message.bodyText)
+  // Bots' kinds, so a reply avatar is the guest or Slack person, not their bot.
+  const botKinds = useBotKindMap()
+  const authorName = relayed ? relayed.name : messageAuthorName(message.from, userInfoState?.userName)
+  const bodyText = relayed ? relayed.body : message.bodyText
 
   // Inline AI translation (Notion/Slack-style). One click translates the
   // message into the viewer's browser language and shows it beneath the
@@ -389,9 +393,9 @@ export const BaseMessageCard = React.memo(({
             />
           </div>
         )}
-        <div className="h-9 w-9 shrink-0 mt-0.5" onClick={guest ? undefined : onAvatarClick}>
-          {guest ? (
-            <GuestAvatar name={guest.name} />
+        <div className="h-9 w-9 shrink-0 mt-0.5" onClick={relayed ? undefined : onAvatarClick}>
+          {relayed ? (
+            <RelayedAvatar name={relayed.name} />
           ) : (
             <ChannelMessageAvatar
               userName={authorName}
@@ -404,8 +408,8 @@ export const BaseMessageCard = React.memo(({
         <div className="flex-1 min-w-0">
           {!isMessageEditEnabled && (
             <div className="flex items-baseline gap-2">
-              {guest ? (
-                // A guest has no profile to open: the name is only a name.
+              {relayed ? (
+                // A guest or Slack person has no profile to open: the name is only a name.
                 <span className="text-sm font-semibold text-foreground truncate">{authorName}</span>
               ) : (
                 <button
@@ -416,8 +420,8 @@ export const BaseMessageCard = React.memo(({
                   {authorName}
                 </button>
               )}
-              {guest ? (
-                <PrincipalTag kind="guest" />
+              {relayed ? (
+                <PrincipalTag kind={relayed.kind} />
               ) : message.from.is_bot && (
                 <BotTag userUUID={message.from.user_uuid} />
               )}
@@ -528,14 +532,7 @@ export const BaseMessageCard = React.memo(({
                 openDesktopThread={handleOpenThread}
                 replyCount={message.commentCount}
                 lastCommentCreatedAt={message.comments![message.comments!.length - 1].comment_created_at}
-                participants={message.comments!
-                  .slice()
-                  .reverse()
-                  .map((c) => ({
-                    uuid: c.comment_by?.user_uuid || "",
-                    name: c.comment_by?.user_name || "",
-                    profileKey: c.comment_by?.user_profile_object_key,
-                  }))}
+                participants={replyParticipants(message.comments!.slice().reverse(), botKinds)}
               />
             </div>
           )}
