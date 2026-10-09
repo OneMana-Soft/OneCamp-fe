@@ -14,16 +14,15 @@ let answer: { invite_link?: string; email_sent?: boolean } = {
     invite_link: "https://onecamp.example.com/signup?token=abc",
     email_sent: false,
 }
-const makeRequest = vi.fn(async () => answer)
+let refusal = ""
+const invite = vi.fn(async () => (refusal ? { ok: false, msg: refusal } : { ok: true, answer }))
 
 vi.mock("@/hooks/useClientConfig", () => ({
     useClientConfig: () => ({ email_enabled: emailEnabled }),
 }))
-vi.mock("@/hooks/usePost", () => ({
-    usePost: () => ({ makeRequest, isSubmitting: false }),
-}))
+vi.mock("@/services/invitationService", () => ({ invite }))
 vi.mock("@/hooks/useFetch", () => ({
-    useFetch: () => ({ data: { data: [] }, mutate: async (fn?: () => Promise<unknown>) => (fn ? fn() : undefined) }),
+    useFetch: () => ({ data: { data: [] }, mutate: async () => undefined }),
 }))
 vi.mock("@/hooks/useCopyToClipboard", () => ({
     useCopyToClipboard: () => ({ copied: false, copy: vi.fn(async () => true) }),
@@ -34,7 +33,8 @@ const { AddInvitationDialog } = await import("./AddInvitationDialog")
 afterEach(() => {
     cleanup()
     emailEnabled = true
-    makeRequest.mockClear()
+    refusal = ""
+    invite.mockClear()
 })
 
 function open() {
@@ -81,5 +81,24 @@ describe("inviting someone when email works", () => {
 
         await waitFor(() => expect(screen.getByText(/invitation sent/i)).toBeTruthy())
         expect(screen.getByText(/in case it does not arrive/i)).toBeTruthy()
+    })
+})
+
+describe("inviting someone who is already here", () => {
+    it("says why, in the dialog, and keeps the form so the address can be fixed", async () => {
+        refusal = "sam@example.com is already a member of this workspace."
+        const onOpenChange = open()
+
+        fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "Sam@Example.com" } })
+        fireEvent.submit(screen.getByRole("button", { name: /send invitation/i }).closest("form")!)
+
+        expect((await screen.findByRole("alert")).textContent).toBe("sam@example.com is already a member of this workspace.")
+        expect(invite).toHaveBeenCalledWith("sam@example.com", true)
+        expect(screen.queryByRole("textbox", { name: "Invitation link" })).toBeNull()
+        expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+        // Typing again clears it.
+        fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "sky@example.com" } })
+        expect(screen.queryByRole("alert")).toBeNull()
     })
 })

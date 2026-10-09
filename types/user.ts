@@ -133,9 +133,14 @@ export interface Invitation {
     id: string;
     email: string;
     invited_by: string;
+    /** sent (or pending, from before tokens) while it can be used; expired once its link has run out; joined once used. */
     status: string;
     token?: string;
     token_expires_at?: string;
+    /** Days its link has left, rounded up, while it can still be used. */
+    expires_in_days?: number;
+    /** The link it was sent with, while it can still be used. */
+    invite_link?: string;
     created_at: string;
 }
 
