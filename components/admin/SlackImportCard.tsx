@@ -328,6 +328,7 @@ const SlackImportCard: React.FC = () => {
             open={!!planJobId}
             onOpenChange={(open) => !open && setPlanJobId(null)}
             onComplete={onPlanRan}
+            onChanged={() => refetch()}
           />
         )}
         {inviteJob && (

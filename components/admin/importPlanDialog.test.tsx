@@ -40,6 +40,18 @@ describe("planning an import", () => {
     expect(screen.queryByRole("alert")).toBeNull()
   })
 
+  // Run started it from another tab while it was planned: said, the import
+  // loaded again, and no "Try again", which could only be refused.
+  it("says so and loads the import again when it changed in the meantime", async () => {
+    answers = [{ response: { status: 409, data: { code: "job_changed", error: "This import changed in the meantime." } } }]
+    const onChanged = vi.fn()
+    render(<ImportPlanDialog job={job} providerInfo={null} open onOpenChange={() => {}} onStarted={() => {}} onReconnect={() => {}} onChanged={onChanged} />)
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/This import changed in the meantime\./))
+    expect(onChanged).toHaveBeenCalledOnce()
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Reconnect" })).toBeNull()
+  })
+
   it("offers no reconnect for a problem reconnecting can't fix", async () => {
     answers = [{ response: { status: 409, data: { code: "active_job", error: "Another import of this workspace is waiting or running." } } }]
     render(<ImportPlanDialog job={job} providerInfo={null} open onOpenChange={() => {}} onStarted={() => {}} onReconnect={() => {}} />)
