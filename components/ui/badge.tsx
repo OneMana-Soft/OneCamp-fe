@@ -15,7 +15,7 @@ const badgeVariants = cva(
        */
       size: {
         default: "px-2.5 py-0.5 text-xs",
-        sm: "px-1.5 py-0.5 text-3xs",
+        sm: "px-1.5 py-0.5 text-2xs",
       },
       /**
        * Uppercase treatment for short category and status labels. Bundled with

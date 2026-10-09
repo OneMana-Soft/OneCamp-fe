@@ -176,11 +176,11 @@ const ScimProvisioningCard = () => {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium">{t.name}</span>
                       <code className="rounded bg-muted px-1.5 py-0.5 text-2xs">{t.token_prefix}…</code>
-                      {t.revoked_at && <Badge variant="secondary" className="text-3xs">Revoked</Badge>}
+                      {t.revoked_at && <Badge variant="secondary" className="text-2xs">Revoked</Badge>}
                       {/* Expired is called out separately from revoked. Both are dead, but only one of
                           them was intended, and an operator whose directory stopped syncing needs to
                           see which. */}
-                      {expired && <Badge variant="secondary" className="text-3xs">Expired</Badge>}
+                      {expired && <Badge variant="secondary" className="text-2xs">Expired</Badge>}
                     </div>
                     <p className="text-2xs text-muted-foreground">
                       {/* last_used_at is the only signal that a connected directory is alive. A SCIM

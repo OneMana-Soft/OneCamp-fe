@@ -550,7 +550,7 @@ const AIModelsCard = () => {
                 <h4 className="text-sm font-semibold flex items-center gap-2">
                   Local-only AI
                   {config.local_only_pinned_by_env && (
-                    <Badge variant="secondary" className="text-3xs">Locked by env</Badge>
+                    <Badge variant="secondary" className="text-2xs">Locked by env</Badge>
                   )}
                 </h4>
                 <p className="text-xs text-muted-foreground">
@@ -2758,7 +2758,7 @@ function Metric({ label, value, sub }: { label: string; value: string; sub?: str
     <div className="rounded-md border border-border/60 bg-background/40 px-3 py-2">
       <div className="text-lg font-semibold tabular-nums">{value}</div>
       <div className="text-2xs font-medium text-muted-foreground">{label}</div>
-      {sub ? <div className="text-3xs text-muted-foreground/70 tabular-nums">{sub}</div> : null}
+      {sub ? <div className="text-2xs text-muted-foreground/70 tabular-nums">{sub}</div> : null}
     </div>
   )
 }

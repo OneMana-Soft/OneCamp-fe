@@ -229,7 +229,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
         <div className="p-5">
         {selectedText && !streamText && !hookIsStreaming && (
           <div className="bg-primary/5 border border-primary/10 rounded-xl p-3 mb-5">
-            <span className={cn(eyebrowClass, "text-3xs mb-1 block")}>Context Selection</span>
+            <span className={cn(eyebrowClass, "text-2xs mb-1 block")}>Context Selection</span>
             <div className="line-clamp-2 text-xs text-muted-foreground italic">"{selectedText}"</div>
           </div>
         )}
@@ -327,7 +327,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
                        >
                          <ArrowLeft className="h-3 w-3" />
                        </button>
-                       <span className={cn(eyebrowClass, "text-3xs text-primary")}>AI Result</span>
+                       <span className={cn(eyebrowClass, "text-2xs text-primary")}>AI Result</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200 hover:bg-accent/10 hover:text-foreground" title="Copy to clipboard">
@@ -430,7 +430,7 @@ const DocAiAssistantPanelUngated: React.FC<DocAiAssistantPanelProps> = ({
          {hookError && (
           <div className="mt-4 bg-destructive/10 border border-destructive/20 rounded-xl p-3 flex justify-between items-center text-destructive">
             <span className="text-xs">⚠️ {hookError}</span>
-            <Button variant="ghost" onClick={resetState} className="h-auto p-0 text-3xs underline hover:bg-transparent">Dismiss</Button>
+            <Button variant="ghost" onClick={resetState} className="h-auto p-0 text-2xs underline hover:bg-transparent">Dismiss</Button>
           </div>
         )}
       </div>

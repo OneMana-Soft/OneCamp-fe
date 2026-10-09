@@ -169,7 +169,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                                     }`}
                                 >
                                     <span className="block truncate font-medium">{s.name}</span>
-                                    <span className="text-3xs text-muted-foreground">
+                                    <span className="text-2xs text-muted-foreground">
                                         {s.agent_count} agent{s.agent_count === 1 ? "" : "s"}
                                     </span>
                                 </button>

@@ -95,7 +95,7 @@ export function CardFields({ values }: { values?: FieldValues }) {
               <span className="sr-only">{f.name}: </span>
               {ids.map((id) => {
                 const o = optionOf(f, id)
-                return o ? <OptionPill key={id} label={o.label} color={o.color} className="py-0 text-3xs" /> : null
+                return o ? <OptionPill key={id} label={o.label} color={o.color} className="py-0 text-2xs" /> : null
               })}
             </span>
           )

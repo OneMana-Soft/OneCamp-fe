@@ -131,13 +131,13 @@ const McpServersCard = () => {
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium">{s.name}</span>
-                      {!s.enabled && <Badge variant="secondary" className="text-3xs">Disabled</Badge>}
+                      {!s.enabled && <Badge variant="secondary" className="text-2xs">Disabled</Badge>}
                       {s.auth_secret_unreadable ? (
-                        <Badge variant="destructive" className="text-3xs">Secret unreadable</Badge>
+                        <Badge variant="destructive" className="text-2xs">Secret unreadable</Badge>
                       ) : s.last_error ? (
-                        <Badge variant="destructive" className="text-3xs">Connection error</Badge>
+                        <Badge variant="destructive" className="text-2xs">Connection error</Badge>
                       ) : (
-                        <Badge variant="outline" className="text-3xs">{tools.length} tool{tools.length === 1 ? "" : "s"}</Badge>
+                        <Badge variant="outline" className="text-2xs">{tools.length} tool{tools.length === 1 ? "" : "s"}</Badge>
                       )}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">{s.url}</p>
@@ -214,7 +214,7 @@ const McpServersCard = () => {
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{c.name}</span>
-                      <Badge variant="outline" className="text-3xs font-normal">{c.category}</Badge>
+                      <Badge variant="outline" className="text-2xs font-normal">{c.category}</Badge>
                     </div>
                     <p className="line-clamp-2 text-2xs text-muted-foreground">{c.description}</p>
                     <a
@@ -227,7 +227,7 @@ const McpServersCard = () => {
                     </a>
                   </div>
                   {c.installed ? (
-                    <Badge variant="secondary" className="shrink-0 gap-1 text-3xs">
+                    <Badge variant="secondary" className="shrink-0 gap-1 text-2xs">
                       <Check className="h-3 w-3" /> Installed
                     </Badge>
                   ) : (

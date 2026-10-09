@@ -135,7 +135,7 @@ export function MobileBottomNavigationBar() {
                                                 className={cn(
                                                     "absolute -top-1.5 -right-2 inline-flex h-4 min-w-4 px-1",
                                                     "items-center justify-center rounded-full",
-                                                    "bg-primary text-3xs font-semibold text-primary-foreground",
+                                                    "bg-primary text-2xs font-semibold text-primary-foreground",
                                                     "ring-2 ring-background",
                                                 )}
                                             >

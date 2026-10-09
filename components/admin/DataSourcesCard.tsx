@@ -133,17 +133,17 @@ const DataSourcesCard = () => {
                   <div className="min-w-0 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="truncate font-medium">{s.name}</span>
-                      <Badge variant="outline" className="text-3xs uppercase">{s.engine}</Badge>
+                      <Badge variant="outline" className="text-2xs uppercase">{s.engine}</Badge>
                       <Badge
                         variant={s.visibility === "workspace" ? "secondary" : "outline"}
-                        className="gap-1 text-3xs"
+                        className="gap-1 text-2xs"
                       >
                         {s.visibility === "private" && <Lock className="h-2.5 w-2.5" />}
                         {s.visibility}
                       </Badge>
-                      {!s.enabled && <Badge variant="secondary" className="text-3xs">Disabled</Badge>}
+                      {!s.enabled && <Badge variant="secondary" className="text-2xs">Disabled</Badge>}
                       {!s.has_password && (
-                        <Badge variant="outline" className="gap-1 text-3xs text-warning">
+                        <Badge variant="outline" className="gap-1 text-2xs text-warning">
                           <AlertTriangle className="h-2.5 w-2.5" /> no password
                         </Badge>
                       )}
@@ -285,7 +285,7 @@ const SchemaBrowser = ({ id }: { id: string }) => {
             {t.columns.map((c) => (
               <span
                 key={c.name}
-                className="inline-flex items-center gap-1 rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-3xs text-muted-foreground"
+                className="inline-flex items-center gap-1 rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-2xs text-muted-foreground"
                 title={c.native_type}
               >
                 {c.name}

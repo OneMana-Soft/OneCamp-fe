@@ -232,7 +232,7 @@ function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
                 <Database className="h-3.5 w-3.5 text-primary" />
                 <span className="text-xs font-semibold text-foreground">Query plan</span>
                 {plan.table ? <span className="truncate font-mono text-2xs text-muted-foreground">{plan.table}</span> : null}
-                <span className="ml-auto rounded-full border border-success/30 bg-success/10 px-1.5 py-px text-3xs font-medium text-success">
+                <span className="ml-auto rounded-full border border-success/30 bg-success/10 px-1.5 py-px text-2xs font-medium text-success">
                     deterministic
                 </span>
             </div>
@@ -372,7 +372,7 @@ function AgentQueryPlan({ plan }: { plan: NormalizedQueryPlan }) {
                             Reset
                         </button>
                     )}
-                    <span className="ml-auto text-3xs text-muted-foreground">
+                    <span className="ml-auto text-2xs text-muted-foreground">
                         {dirty ? "Edited: runs the same method, your inputs" : "Runs exactly what the agent ran"}
                     </span>
                 </div>

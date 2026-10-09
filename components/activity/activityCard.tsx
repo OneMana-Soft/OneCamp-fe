@@ -157,7 +157,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
                 <span className="font-normal text-muted-foreground">{meta.title}</span>
             </span>
             {activity.priority === "high" && (
-                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-primary/10 px-1.5 py-0.5 text-3xs font-medium text-primary">
+                <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs font-medium text-primary">
                     Needs reply
                 </span>
             )}

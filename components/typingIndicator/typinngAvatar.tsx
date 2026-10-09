@@ -18,7 +18,7 @@ export const TypingAvatar = ({ userProfileObjKey, userName }: TypingAvatarProps)
             <AvatarImage src={imageSrc} className="rounded-full" />
             <AvatarFallback
                 className={cn(
-                    "text-3xs font-semibold",
+                    "text-2xs font-semibold",
                     getAvatarFallbackClass(userName),
                 )}
             >

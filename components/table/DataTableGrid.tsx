@@ -483,7 +483,7 @@ function ColumnHeader({
         {field.name}
         {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-primary" />}
         {problem && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={problem} />}
-        <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
+        <span className="ml-1 text-2xs uppercase opacity-50">{field.type}</span>
       </th>
     )
   }
@@ -497,7 +497,7 @@ function ColumnHeader({
               {field.name}
               {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-primary" />}
               {problem && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={problem} />}
-              <span className="ml-1 text-3xs uppercase opacity-50">{field.type}</span>
+              <span className="ml-1 text-2xs uppercase opacity-50">{field.type}</span>
             </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
           </button>

@@ -241,7 +241,7 @@ const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; o
 
     return (
         <div className="mt-2.5 pt-2.5 border-t border-border/70 min-w-0">
-            <p className="text-3xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-1.5">
+            <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-1.5">
                 Sources
             </p>
             <div className="flex flex-col gap-1 min-w-0">
@@ -634,7 +634,7 @@ const AiChatPanel: React.FC = () => {
                         </p>
                         <p className="text-2xs text-muted-foreground/60 m-0 inline-flex items-center gap-1">
                             Tip: press
-                            <kbd className="inline-flex items-center rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-3xs">
+                            <kbd className="inline-flex items-center rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-2xs">
                                 Ctrl J
                             </kbd>
                             anywhere to open this
@@ -878,7 +878,7 @@ const AiChatPanel: React.FC = () => {
                     have, it is a permanent line of chrome telling them something
                     they just did — so it disappears. */}
                 {!input.trim() && (
-                    <p className="mt-1.5 px-1 text-3xs leading-tight text-muted-foreground/70">
+                    <p className="mt-1.5 px-1 text-2xs leading-tight text-muted-foreground/70">
                         Enter to send, Shift+Enter for a new line.
                     </p>
                 )}

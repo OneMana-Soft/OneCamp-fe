@@ -304,7 +304,7 @@ const CatalogCard: React.FC<{
           <div className="flex items-center gap-1.5">
             <h5 className="text-sm font-medium truncate">{model.display_name}</h5>
             {model.recommended && (
-              <Badge variant="secondary" className="h-4 px-1.5 text-3xs">
+              <Badge variant="secondary" className="h-5 px-1.5 text-2xs">
                 Recommended
               </Badge>
             )}
@@ -329,7 +329,7 @@ const CatalogCard: React.FC<{
           return (
             <span
               key={c}
-              className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground"
+              className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground"
             >
               <Icon className="h-2.5 w-2.5" />
               {label}
@@ -337,17 +337,17 @@ const CatalogCard: React.FC<{
           )
         })}
         {model.parameters ? (
-          <span className="text-3xs text-muted-foreground">· {model.parameters}</span>
+          <span className="text-2xs text-muted-foreground">· {model.parameters}</span>
         ) : null}
         {model.size_bytes ? (
-          <span className="text-3xs text-muted-foreground">· {formatBytes(model.size_bytes)}</span>
+          <span className="text-2xs text-muted-foreground">· {formatBytes(model.size_bytes)}</span>
         ) : null}
       </div>
 
       {/* Feasibility hint */}
       {!model.installed && model.fit && model.fit !== "ok" && (
         <p
-          className={`flex items-start gap-1 text-3xs ${
+          className={`flex items-start gap-1 text-2xs ${
             model.fit === "risky" ? "text-destructive" : "text-warning"
           }`}
         >
@@ -359,7 +359,7 @@ const CatalogCard: React.FC<{
       {/* Install / progress row */}
       {pulling ? (
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-3xs text-muted-foreground">
+          <div className="flex items-center justify-between text-2xs text-muted-foreground">
             <span className="truncate">{progress?.status || "working…"}</span>
             <button type="button" onClick={cancel} className="hover:text-destructive flex items-center gap-0.5">
               <X className="h-3 w-3" /> cancel

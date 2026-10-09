@@ -36,8 +36,13 @@ import { resolve } from "node:path"
 const root = resolve(__dirname, "..")
 /** Any arbitrary pixel font-size, e.g. text-[11px]. */
 const ARBITRARY_PX = /text-\[(\d+(?:\.\d+)?)px\]/g
-/** The documented floor, in px. Mirrors the --text-3xs comment in globals.css. */
-const FLOOR_PX = 10
+/**
+ * The documented floor, in px. Mirrors the --text-3xs comment in globals.css.
+ * It was 10 until the app scale of 10 Oct 2026 moved the default to 14px and
+ * every dense step up by one (3xs 11, 2xs 12, xs 13): 11px is now kept for
+ * counts only, and nothing an arbitrary value writes may go under it.
+ */
+const FLOOR_PX = 11
 /**
  * Arbitrary sizes that duplicate a named step and so are pure noise. Pinned with
  * the rest rather than called out separately; listed here to document intent.
@@ -115,7 +120,22 @@ describe("dense type scale", () => {
     }
   })
 
-  it("keeps the 10px floor absolutely — no allowance, no baseline", () => {
+  it("declares the app scale: 3xs 11, 2xs 12, xs 13, sm 14, and 14px on body", () => {
+    const css = readFileSync(resolve(root, "app/globals.css"), "utf8")
+    const theme = css.slice(css.indexOf("@theme inline {"), css.indexOf("\n}", css.indexOf("@theme inline {")))
+    const px = (token: string) => {
+      const m = new RegExp(`--text-${token}:\\s*([\\d.]+)rem;`).exec(theme)
+      return m ? Number(m[1]) * 16 : NaN
+    }
+    expect(px("3xs")).toBe(11)
+    expect(px("2xs")).toBe(12)
+    expect(px("xs")).toBe(13)
+    expect(px("sm")).toBe(14)
+    // The default size is the body's, and it is the default UI size.
+    expect(css).toMatch(/@apply bg-background text-foreground text-sm;/)
+  })
+
+  it("keeps the 11px floor absolutely — no allowance, no baseline", () => {
     const offenders: string[] = []
     for (const file of files) {
       const rel = file.slice(root.length + 1)
@@ -125,7 +145,7 @@ describe("dense type scale", () => {
     }
     expect(
       offenders,
-      `Type below ${FLOOR_PX}px is not readable. Use text-3xs (10px), the floor.`,
+      `Type below ${FLOOR_PX}px is not readable. Use text-3xs (11px), the floor.`,
     ).toEqual([])
   })
 
@@ -134,7 +154,7 @@ describe("dense type scale", () => {
     expect(
       total,
       `Arbitrary pixel font sizes went UP (${total} > ${BYPASS_BASELINE}). ` +
-        "Use text-3xs (10px), text-2xs (11px), or text-xs (12px) instead of an " +
+        "Use text-3xs (11px), text-2xs (12px), or text-xs (13px) instead of an " +
         "arbitrary value, and lower the baseline when you convert existing ones.",
     ).toBeLessThanOrEqual(BYPASS_BASELINE)
   })

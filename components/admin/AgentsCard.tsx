@@ -124,7 +124,7 @@ const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) =
   if (!summary || summary.scenario_count === 0) return null
   if (summary.scored === 0) {
     return (
-      <Badge variant="secondary" className="text-3xs" title={`${summary.scenario_count} test(s), not run yet`}>
+      <Badge variant="secondary" className="text-2xs" title={`${summary.scenario_count} test(s), not run yet`}>
         {summary.scenario_count} test{summary.scenario_count === 1 ? "" : "s"}
       </Badge>
     )
@@ -143,7 +143,7 @@ const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) =
     return (
       <Badge
         variant="secondary"
-        className="text-3xs text-muted-foreground"
+        className="text-2xs text-muted-foreground"
         title={`Was ${summary.passed}/${summary.scored} passing before this agent was edited. Tests rerun automatically.`}
       >
         {rate}% · rechecking
@@ -153,7 +153,7 @@ const AgentEvalBadge: React.FC<{ summary?: AgentEvalSummary }> = ({ summary }) =
 
   const tone = rate >= 90 ? "text-success" : rate >= 70 ? "text-warning" : "text-destructive"
   return (
-    <Badge variant="secondary" className={cn("text-3xs", tone)} title={`${summary.passed}/${summary.scored} tests passing`}>
+    <Badge variant="secondary" className={cn("text-2xs", tone)} title={`${summary.passed}/${summary.scored} tests passing`}>
       {rate}% tests
     </Badge>
   )
@@ -180,7 +180,7 @@ const AgentOutcomeBadge: React.FC<{ outcome?: AgentOutcome }> = ({ outcome }) =>
     return (
       <Badge
         variant="secondary"
-        className="text-3xs text-muted-foreground"
+        className="text-2xs text-muted-foreground"
         title={`${outcome.expired} proposal${outcome.expired === 1 ? "" : "s"} expired with nobody deciding. This agent may not be worth running.`}
       >
         mostly ignored
@@ -192,7 +192,7 @@ const AgentOutcomeBadge: React.FC<{ outcome?: AgentOutcome }> = ({ outcome }) =>
   return (
     <Badge
       variant="secondary"
-      className={cn("text-3xs", tone)}
+      className={cn("text-2xs", tone)}
       title={`People approved ${outcome.approved} of ${outcome.decided} thing${outcome.decided === 1 ? "" : "s"} this agent proposed`}
     >
       {outcome.approved}/{outcome.decided} kept
@@ -323,23 +323,23 @@ const AgentsCard = () => {
                     <div className="flex flex-wrap items-center gap-2">
                       <AgentHealthDot health={health?.data?.[a.id]} />
                       <span className="truncate font-medium">{a.name}</span>
-                      <Badge variant="outline" className="text-3xs">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</Badge>
-                      {!a.is_active && <Badge variant="secondary" className="text-3xs">Paused</Badge>}
-                      {a.dm_able && <Badge variant="secondary" className="text-3xs text-primary">DM</Badge>}
+                      <Badge variant="outline" className="text-2xs">{TRIGGER_LABEL[a.trigger_type] || a.trigger_type}</Badge>
+                      {!a.is_active && <Badge variant="secondary" className="text-2xs">Paused</Badge>}
+                      {a.dm_able && <Badge variant="secondary" className="text-2xs text-primary">DM</Badge>}
                       {a.agui_endpoint && (
-                        <Badge variant="secondary" className="text-3xs" title={"Reasons at " + a.agui_endpoint + ". This workspace supplies the tools, the rules and the record."}>
+                        <Badge variant="secondary" className="text-2xs" title={"Reasons at " + a.agui_endpoint + ". This workspace supplies the tools, the rules and the record."}>
                           Remote
                         </Badge>
                       )}
-                      {a.run_in_background && <Badge variant="secondary" className="text-3xs" title="Answers mentions & DMs as durable background runs with live status">Background</Badge>}
-                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-3xs text-warning">Approval</Badge>}
-                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-3xs text-warning">Plan-approve</Badge>}
+                      {a.run_in_background && <Badge variant="secondary" className="text-2xs" title="Answers mentions & DMs as durable background runs with live status">Background</Badge>}
+                      {a.autonomy === "approval" && <Badge variant="secondary" className="text-2xs text-warning">Approval</Badge>}
+                      {a.autonomy === "plan" && <Badge variant="secondary" className="text-2xs text-warning">Plan-approve</Badge>}
                       {(a.max_daily_tokens ?? 0) > 0 && (
-                        <Badge variant="secondary" className="text-3xs">{fmtTokens(a.max_daily_tokens as number)}/day</Badge>
+                        <Badge variant="secondary" className="text-2xs">{fmtTokens(a.max_daily_tokens as number)}/day</Badge>
                       )}
                       <AgentEvalBadge summary={evalSummary?.data?.[a.id]} />
                       <AgentOutcomeBadge outcome={outcomes?.data?.[a.id]} />
-                      {a.last_error && <Badge variant="destructive" className="text-3xs">Last run failed</Badge>}
+                      {a.last_error && <Badge variant="destructive" className="text-2xs">Last run failed</Badge>}
                     </div>
                     {/* Whose permissions bound it. Every other badge on this row
                         says what the agent may do; this is the only line that

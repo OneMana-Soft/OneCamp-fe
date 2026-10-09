@@ -48,7 +48,7 @@ describe("PrincipalTag", () => {
   it("uses the named type token, so it cannot drift off the scale", () => {
     const { container } = render(<PrincipalTag kind="ai" />)
     const cls = container.firstElementChild?.className || ""
-    expect(cls).toContain("text-3xs")
+    expect(cls).toContain("text-2xs")
     // An arbitrary pixel size here would reintroduce exactly the bypass the
     // type-scale ratchet is draining.
     expect(cls).not.toMatch(/text-\[\d+px\]/)

@@ -102,6 +102,18 @@
   @apply z-0 outline-0;
 }
 
+/* Message and doc bodies read at 15/22, a step above the 14px UI around them
+   (design direction, "App scale"). They used to inherit the page's 16px, which
+   made every message louder than the list it sat in. Docs keep a little more
+   leading, since they are read at length. */
+.minimal-tiptap-editor .ProseMirror {
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+}
+.minimal-tiptap-editor.doc-editor .ProseMirror {
+  line-height: 1.5rem;
+}
+
 .minimal-tiptap-editor .ProseMirror>div.editor {
   @apply block flex-1 whitespace-pre-wrap;
 }
@@ -127,7 +139,7 @@
 }
 
 .minimal-tiptap-editor .ProseMirror li {
-  @apply leading-7;
+  line-height: inherit;
 }
 
 .minimal-tiptap-editor .ProseMirror p {

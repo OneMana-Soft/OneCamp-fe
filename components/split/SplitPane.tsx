@@ -80,7 +80,7 @@ export function SplitPane({ pane, index, active, focused }: { pane: Pane; index:
       >
         <Icon className="h-3.5 w-3.5" />
         <span>{label}</span>
-        <kbd className="hidden rounded border border-border/70 px-1 font-mono text-3xs text-muted-foreground lg:inline" title={`Ctrl + Alt + ${index + 2} comes here`}>
+        <kbd className="hidden rounded border border-border/70 px-1 font-mono text-2xs text-muted-foreground lg:inline" title={`Ctrl + Alt + ${index + 2} comes here`}>
           {index + 2}
         </kbd>
         <div className="ml-auto flex items-center gap-0.5">

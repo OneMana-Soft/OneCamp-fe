@@ -419,7 +419,7 @@ const CompactionDivider: React.FC<{ compaction: AgentRunCompaction }> = ({ compa
         <span className={rule} />
         <span
           className={
-            "inline-flex items-center gap-1 text-3xs uppercase tracking-wide " +
+            "inline-flex items-center gap-1 text-2xs uppercase tracking-wide " +
             (compaction.rescue ? "text-warning" : "text-muted-foreground")
           }
         >
@@ -440,7 +440,7 @@ const CompactionDivider: React.FC<{ compaction: AgentRunCompaction }> = ({ compa
 // the one thing in a transcript that isn't the agent's own doing.
 const SteeringNote: React.FC<{ steering: string[] }> = ({ steering }) => (
   <div className="rounded-md border-l-2 border-primary/50 bg-primary/5 px-2 py-1.5">
-    <div className="flex items-center gap-1 text-3xs font-medium uppercase tracking-wide text-primary/80">
+    <div className="flex items-center gap-1 text-2xs font-medium uppercase tracking-wide text-primary/80">
       <MessageSquare className="h-3 w-3" />
       New instruction while working
     </div>
@@ -471,11 +471,11 @@ const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
       return (
         <div key={i} className="rounded-md border border-border/60 bg-muted/30 p-2 text-xs">
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" className="text-3xs">{toolLabel(tc.tool)}</Badge>
+            <Badge variant="outline" className="text-2xs">{toolLabel(tc.tool)}</Badge>
             {tc.remote && (
               <Badge
                 variant="secondary"
-                className="text-3xs"
+                className="text-2xs"
                 title="The remote agent ran this itself, on its own machine. This workspace did not run it and could not have refused it; this is the remote's own account."
               >
                 remote
@@ -484,15 +484,15 @@ const StepView: React.FC<{ step: AgentRunStep }> = ({ step }) => (
             {gov ? (
               <Badge
                 variant="outline"
-                className="gap-1 border-warning/40 bg-warning/10 text-3xs text-warning"
+                className="gap-1 border-warning/40 bg-warning/10 text-2xs text-warning"
               >
                 {gov.tone === "approval" ? <AlertTriangle size={10} /> : <ShieldAlert size={10} />}
                 {gov.label}
               </Badge>
             ) : (
               <>
-                {tc.skipped && <Badge variant="secondary" className="text-3xs">skipped</Badge>}
-                {tc.error && <Badge variant="destructive" className="text-3xs">error</Badge>}
+                {tc.skipped && <Badge variant="secondary" className="text-2xs">skipped</Badge>}
+                {tc.error && <Badge variant="destructive" className="text-2xs">error</Badge>}
               </>
             )}
           </div>
@@ -556,7 +556,7 @@ const RunProvenance: React.FC<{ run: AgentRun; current: Map<string, string> }> =
                 key={sk.id}
                 title={changed ? "This skill has been edited since this run" : undefined}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-3xs",
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs",
                   // The semantic warning token rather than a raw hue: this chip
                   // means the same thing as every other "needs a second look"
                   // mark in the product, and it has to keep meaning it in both
@@ -590,7 +590,7 @@ export const RunRow: React.FC<{ run: AgentRun; currentSkills: Map<string, string
       >
         <span className="flex min-w-0 items-center gap-2">
           {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-          <Badge variant={STATUS_VARIANT[run.status]} className="text-3xs capitalize">{run.status}</Badge>
+          <Badge variant={STATUS_VARIANT[run.status]} className="text-2xs capitalize">{run.status}</Badge>
           <span className="truncate text-xs text-muted-foreground">
             {run.trigger_source} · {formatWhen(run.started_at)}
           </span>

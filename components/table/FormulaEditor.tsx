@@ -151,7 +151,7 @@ export function FormulaEditor({
           <div className="mt-1 max-h-48 space-y-2 overflow-y-auto pr-1">
             {FORMULA_FUNCTIONS.map((g) => (
               <div key={g.group}>
-                <p className="text-3xs font-semibold uppercase tracking-wide text-muted-foreground">{g.group}</p>
+                <p className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">{g.group}</p>
                 {g.items.map((fn) => (
                   <button
                     key={fn.name}

@@ -23,7 +23,7 @@ export const FwdMsgToProfileAvatar = ({
             <AvatarImage src={imageSrc} />
             <AvatarFallback
                 className={cn(
-                    "text-3xs font-semibold",
+                    "text-2xs font-semibold",
                     getAvatarFallbackClass(userName),
                 )}
             >

@@ -98,13 +98,13 @@ const AgentActivityFeed: React.FC = () => {
                   {it.tools_used.slice(0, 6).map((t) => (
                     <span
                       key={t}
-                      className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground"
+                      className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground"
                     >
                       {t.replace(/_/g, " ")}
                     </span>
                   ))}
                   {it.action_count > 0 && (
-                    <span className="inline-flex items-center text-3xs text-muted-foreground/70">
+                    <span className="inline-flex items-center text-2xs text-muted-foreground/70">
                       {it.action_count} action{it.action_count === 1 ? "" : "s"}
                     </span>
                   )}

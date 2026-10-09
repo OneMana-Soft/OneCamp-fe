@@ -32,7 +32,7 @@ const ScoreBadge: React.FC<{ score?: EvalScore }> = ({ score }) => {
   if (!score) return <span className="text-2xs text-muted-foreground">not run yet</span>
   if (score.inconclusive) {
     return (
-      <Badge variant="secondary" className="text-3xs" title={score.reason || "inconclusive"}>
+      <Badge variant="secondary" className="text-2xs" title={score.reason || "inconclusive"}>
         Inconclusive
       </Badge>
     )

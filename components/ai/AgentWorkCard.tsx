@@ -81,7 +81,7 @@ function AgentWorkCardInner() {
                         <div className="flex items-baseline gap-2">
                             <span className="text-xs font-medium text-foreground truncate">{item.agent_name}</span>
                             {item.status === "failed" && (
-                                <span className="text-3xs text-destructive shrink-0">failed</span>
+                                <span className="text-2xs text-destructive shrink-0">failed</span>
                             )}
                         </div>
                         <p className="mt-0.5 text-2xs text-muted-foreground line-clamp-2">{item.summary}</p>

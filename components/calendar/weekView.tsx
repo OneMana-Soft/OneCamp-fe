@@ -186,7 +186,7 @@ export function WeekView({
           const isToday = isSameDay(day, now);
           return (
             <div key={i} className="flex-1 min-w-[90px] border-r border-border/60 py-2 text-center">
-              <div className={cn(eyebrowClass, "text-3xs")}>
+              <div className={cn(eyebrowClass, "text-2xs")}>
                 {format(day, "EEE")}
               </div>
               <div
@@ -204,7 +204,7 @@ export function WeekView({
 
       {/* All-day rail */}
       <div className="flex border-b border-border/60 bg-muted/20">
-        <div className="flex w-14 shrink-0 items-center justify-center border-r border-border/60 py-1 text-3xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="flex w-14 shrink-0 items-center justify-center border-r border-border/60 py-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
           All day
         </div>
         {allDayByDay.map((items, i) => (
@@ -214,7 +214,7 @@ export function WeekView({
                 key={`${it.uuid}-${i}`}
                 onClick={() => (it.isTask ? onTaskClick(it.uuid) : onEventClick(it.uuid))}
                 className={cn(
-                  "block w-full truncate rounded px-1.5 py-0.5 text-left text-3xs font-medium",
+                  "block w-full truncate rounded px-1.5 py-0.5 text-left text-2xs font-medium",
                   calendarTone(it).block,
                 )}
               >
@@ -233,7 +233,7 @@ export function WeekView({
             {hours.map((h) => (
               <div key={h} className="relative" style={{ height: `${HOUR_HEIGHT}px` }}>
                 {h > 0 && (
-                  <span className="absolute -top-2 right-1.5 text-3xs tabular-nums text-muted-foreground">
+                  <span className="absolute -top-2 right-1.5 text-2xs tabular-nums text-muted-foreground">
                     {format(new Date(2000, 0, 1, h), "h a")}
                   </span>
                 )}
@@ -286,7 +286,7 @@ export function WeekView({
                       width: `calc(${widthPct}% - 4px)`,
                     }}
                     className={cn(
-                      "absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-3xs font-medium leading-tight",
+                      "absolute z-10 overflow-hidden rounded-md px-1.5 py-0.5 text-left text-2xs font-medium leading-tight",
                       calendarTone(it).block,
                     )}
                   >

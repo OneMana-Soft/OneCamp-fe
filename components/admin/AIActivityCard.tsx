@@ -92,7 +92,7 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
             <span className={`shrink-0 text-2xs font-medium ${statusTone(it.status)}`}>{statusLabel(it.status)}</span>
           )}
           {it.source && (
-            <Badge variant="outline" className="shrink-0 text-3xs font-normal text-muted-foreground">
+            <Badge variant="outline" className="shrink-0 text-2xs font-normal text-muted-foreground">
               {it.source}
             </Badge>
           )}

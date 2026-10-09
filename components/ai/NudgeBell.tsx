@@ -197,7 +197,7 @@ function NudgeBell() {
                                                 <p className="text-xs text-muted-foreground mt-0.5 leading-snug line-clamp-3">{n.body}</p>
                                             )}
                                             <div className="flex items-center gap-2 mt-1.5">
-                                                <span className="text-3xs text-muted-foreground tabular-nums">
+                                                <span className="text-2xs text-muted-foreground tabular-nums">
                                                     {formatTimeForReplyCount(n.created_at)}
                                                 </span>
                                                 {n.cta_text && (

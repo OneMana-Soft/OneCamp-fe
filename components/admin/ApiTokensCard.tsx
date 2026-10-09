@@ -190,12 +190,12 @@ const ApiTokensCard = () => {
                           fine print: it changes who the audit log names, what budget the
                           spend lands on, and whether deactivating an agent stops it. */}
                       {t.agent_id && (
-                        <Badge variant="outline" className="gap-1 text-3xs font-normal">
+                        <Badge variant="outline" className="gap-1 text-2xs font-normal">
                           <Sparkles className="h-3 w-3" />
                           {agentsById.get(t.agent_id)?.name || "Agent"}
                         </Badge>
                       )}
-                      {revoked && <Badge variant="secondary" className="text-3xs">Revoked</Badge>}
+                      {revoked && <Badge variant="secondary" className="text-2xs">Revoked</Badge>}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {parseScopes(t).map((s) => (
@@ -400,7 +400,7 @@ const ApiTokensCard = () => {
                           </p>
                           <div className="flex flex-wrap gap-1">
                             {boundAgentTools.map((tool) => (
-                              <Badge key={tool} variant="outline" className="text-3xs font-normal">
+                              <Badge key={tool} variant="outline" className="text-2xs font-normal">
                                 {toolLabel(tool)}
                               </Badge>
                             ))}

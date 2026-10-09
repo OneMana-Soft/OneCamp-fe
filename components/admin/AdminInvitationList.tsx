@@ -33,21 +33,21 @@ function getStatusBadge(status: string) {
   switch (status) {
     case "sent":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-blue-500/10 text-info">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-blue-500/10 text-info">
           <Clock className="h-3 w-3" />
           Sent
         </span>
       )
     case "joined":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-success/10 text-success">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-success/10 text-success">
           <CheckCircle className="h-3 w-3" />
           Joined
         </span>
       )
     case "expired":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-destructive/10 text-destructive">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-destructive/10 text-destructive">
           <XCircle className="h-3 w-3" />
           Expired
         </span>
@@ -55,7 +55,7 @@ function getStatusBadge(status: string) {
     case "pending":
     default:
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-3xs font-medium bg-warning/10 text-warning">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-warning/10 text-warning">
           <AlertCircle className="h-3 w-3" />
           Pending
         </span>

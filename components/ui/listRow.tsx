@@ -189,7 +189,7 @@ export function UnreadBadge({ count, className }: { count: number; className?: s
                 // Flat: an unread pill sits in the row, it doesn't hover over it.
                 // text-3xs is the named 10px token; the fixed h-[18px] makes the
                 // token's line-height irrelevant here, so this is a pure rename.
-                "bg-primary px-1 text-3xs font-semibold text-primary-foreground",
+                "bg-primary px-1 text-2xs font-semibold text-primary-foreground",
                 className,
             )}
         >

@@ -258,26 +258,32 @@ test.describe("dense type scale, as rendered", () => {
    * class of labels quietly changing size with a green test suite. These probe the
    * computed font-size instead.
    */
-  test("text-2xs computes to 11px, with the deliberate line-height", async ({ page }) => {
+  test("text-2xs computes to 12px, with the deliberate line-height", async ({ page }) => {
     await page.goto(PRIMITIVES_PAGE)
-    expect(await probeUtility(page, "text-2xs", "font-size")).toBe("11px")
+    expect(await probeUtility(page, "text-2xs", "font-size")).toBe("12px")
     expect(await probeUtility(page, "text-2xs", "line-height")).toBe("16px")
   })
 
-  test("text-3xs computes to 10px, the documented floor", async ({ page }) => {
+  test("text-3xs computes to 11px, the documented floor", async ({ page }) => {
     await page.goto(PRIMITIVES_PAGE)
-    expect(await probeUtility(page, "text-3xs", "font-size")).toBe("10px")
+    expect(await probeUtility(page, "text-3xs", "font-size")).toBe("11px")
     expect(await probeUtility(page, "text-3xs", "line-height")).toBe("14px")
   })
 
-  test("the floor is really a floor — nothing in the scale renders below 10px", async ({
+  test("the floor is really a floor — nothing in the scale renders below 11px", async ({
     page,
   }) => {
     await page.goto(PRIMITIVES_PAGE)
     for (const cls of ["text-3xs", "text-2xs", "text-xs", "text-sm"]) {
       const px = parseFloat(await probeUtility(page, cls, "font-size"))
-      expect(px, `${cls} must not render below the 10px floor`).toBeGreaterThanOrEqual(10)
+      expect(px, `${cls} must not render below the 11px floor`).toBeGreaterThanOrEqual(11)
     }
+  })
+
+  test("text-xs is 13px and text-sm 14px, the app scale's meta and default", async ({ page }) => {
+    await page.goto(PRIMITIVES_PAGE)
+    expect(await probeUtility(page, "text-xs", "font-size")).toBe("13px")
+    expect(await probeUtility(page, "text-sm", "font-size")).toBe("14px")
   })
 })
 

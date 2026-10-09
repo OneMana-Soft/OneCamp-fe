@@ -191,7 +191,7 @@ export function RelationCell({
                     )}
                   >
                     {ref.type !== "row" && (
-                      <span className="rounded bg-muted px-1 text-3xs uppercase text-muted-foreground">{ref.type}</span>
+                      <span className="rounded bg-muted px-1 text-2xs uppercase text-muted-foreground">{ref.type}</span>
                     )}
                     <span className="min-w-0 flex-1 truncate">{ref.label}</span>
                   </button>

@@ -68,7 +68,7 @@ export function McpToolRiskBadge({ tool, compact, className }: McpToolRiskBadgeP
     <Badge
       variant="outline"
       title={title}
-      className={cn("gap-1 border-border/60 px-1.5 py-0 text-3xs font-normal", tone, className)}
+      className={cn("gap-1 border-border/60 px-1.5 py-0 text-2xs font-normal", tone, className)}
     >
       <Icon className="h-3 w-3" aria-hidden="true" />
       {label}

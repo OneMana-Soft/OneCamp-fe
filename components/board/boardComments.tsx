@@ -449,7 +449,7 @@ function ThreadMessageRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="truncate text-xs font-medium">{message.authorName}</span>
-          {relative && <span className="text-3xs text-muted-foreground">{relative}</span>}
+          {relative && <span className="text-2xs text-muted-foreground">{relative}</span>}
         </div>
         <p className="whitespace-pre-wrap break-words text-xs text-foreground/90">{message.body}</p>
 

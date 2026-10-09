@@ -1062,7 +1062,7 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                     >
                       {on ? <Check className="h-3 w-3" /> : null}{s.name}
                       {s.agent_count > 1 && (
-                        <span className="text-3xs opacity-60">{s.agent_count}</span>
+                        <span className="text-2xs opacity-60">{s.agent_count}</span>
                       )}
                     </button>
                   )

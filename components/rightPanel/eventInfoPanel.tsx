@@ -253,7 +253,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         <ScrollArea className="h-full">
             <div className="p-6 space-y-6 flex flex-col h-full bg-background relative">
                 <div className="flex items-center justify-between mb-2">
-                    <Badge variant="outline" className={cn(eyebrowClass, "text-3xs font-medium text-primary border-primary/20")}>Personal Event</Badge>
+                    <Badge variant="outline" className={cn(eyebrowClass, "text-2xs font-medium text-primary border-primary/20")}>Personal Event</Badge>
                     {!isEditing ? (
                         <div className="flex items-center gap-2">
                             {(isCreator || isParticipant) && (
@@ -274,7 +274,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     </Button>
                                 </>
                             ) : isParticipant ? (
-                                <Button variant="outline" size="sm" className="h-7 text-3xs px-2 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={handleLeave}>
+                                <Button variant="outline" size="sm" className="h-7 text-2xs px-2 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={handleLeave}>
                                     Leave
                                 </Button>
                             ) : null}
@@ -320,7 +320,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                         ) : (
                                             <div className="flex flex-col gap-0.5">
                                                 <span>{format(start, "MMM d, h:mm a")}</span>
-                                                <span className="text-3xs opacity-70">to {format(end, "MMM d, h:mm a")}</span>
+                                                <span className="text-2xs opacity-70">to {format(end, "MMM d, h:mm a")}</span>
                                             </div>
                                         )}
                                     </span>
@@ -372,7 +372,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     <Users className="h-3.5 w-3.5" />
                                     participants
                                 </div>
-                                <span className="text-3xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full font-medium">
+                                <span className="text-2xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full font-medium">
                                     {event.event_participants?.length || 0}
                                 </span>
                             </div>
@@ -389,7 +389,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                             </Avatar>
                                             <div className="flex flex-col">
                                                 <span className="text-sm font-medium text-foreground/90 leading-none">{participant.user_name}</span>
-                                                <span className="text-3xs text-muted-foreground">{participant.user_email_id}</span>
+                                                <span className="text-2xs text-muted-foreground">{participant.user_email_id}</span>
                                             </div>
                                         </div>
                                     ))
@@ -470,7 +470,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     Participants
                                     <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
                                         <PopoverTrigger asChild>
-                                            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-3xs text-primary hover:bg-primary/10">
+                                            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-2xs text-primary hover:bg-primary/10">
                                                 <Plus className="h-3 w-3 mr-1" /> Add
                                             </Button>
                                         </PopoverTrigger>
@@ -510,7 +510,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 </FormLabel>
                                 <div className="flex flex-wrap gap-2">
                                     {participants.map((p) => (
-                                        <Badge key={p.user_uuid} variant="secondary" className="gap-1 px-2 py-0.5 text-3xs">
+                                        <Badge key={p.user_uuid} variant="secondary" className="gap-1 px-2 py-0.5 text-2xs">
                                             {p.user_name}
                                             <X 
                                                 className="h-2 w-2 cursor-pointer hover:text-destructive" 

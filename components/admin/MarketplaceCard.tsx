@@ -225,7 +225,7 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
                     <div className="flex items-center gap-1.5">
                         <span className="font-medium text-sm truncate">{item.name}</span>
                         {item.featured && (
-                            <Badge variant="secondary" className="text-3xs">Popular</Badge>
+                            <Badge variant="secondary" className="text-2xs">Popular</Badge>
                         )}
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{item.description}</p>
@@ -234,7 +234,7 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
 
             <div className="flex flex-wrap gap-1 mt-2">
                 {(item.commands || []).slice(0, 4).map((c) => (
-                    <span key={c} className="inline-flex items-center gap-0.5 text-3xs text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono">
+                    <span key={c} className="inline-flex items-center gap-0.5 text-2xs text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono">
                         <Terminal className="h-2.5 w-2.5" />/{c}
                     </span>
                 ))}

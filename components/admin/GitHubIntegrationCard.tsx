@@ -323,12 +323,12 @@ const GitHubIntegrationCard = () => {
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <a href={`https://github.com/${link.repo_owner}/${link.repo_name}`} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:underline flex items-center gap-1 truncate">{link.repo_owner}/{link.repo_name}<ExternalLink className="h-3 w-3 shrink-0" /></a>
-                              <Badge variant="outline" className="text-3xs">{getProjectName(link.project_id)}</Badge>
+                              <Badge variant="outline" className="text-2xs">{getProjectName(link.project_id)}</Badge>
                             </div>
                             <div className="flex gap-2 mt-1 flex-wrap">
-                              {link.sync_issues && <Badge variant="outline" className="text-3xs">Issues</Badge>}
-                              {link.sync_prs && <Badge variant="outline" className="text-3xs">PRs</Badge>}
-                              {link.auto_create_tasks && <Badge variant="secondary" className="text-3xs">Auto-create tasks</Badge>}
+                              {link.sync_issues && <Badge variant="outline" className="text-2xs">Issues</Badge>}
+                              {link.sync_prs && <Badge variant="outline" className="text-2xs">PRs</Badge>}
+                              {link.auto_create_tasks && <Badge variant="secondary" className="text-2xs">Auto-create tasks</Badge>}
                             </div>
                           </div>
                         </div>
@@ -509,8 +509,8 @@ const GitHubIntegrationCard = () => {
                         <div className="min-w-0 flex-1 pr-2">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm truncate">{repo.full_name}</span>
-                            {repo.private && <Badge variant="secondary" className="text-3xs shrink-0">Private</Badge>}
-                            {alreadyLinked && <Badge variant="outline" className="text-3xs shrink-0">Already linked</Badge>}
+                            {repo.private && <Badge variant="secondary" className="text-2xs shrink-0">Private</Badge>}
+                            {alreadyLinked && <Badge variant="outline" className="text-2xs shrink-0">Already linked</Badge>}
                           </div>
                           {repo.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{repo.description}</p>}
                         </div>

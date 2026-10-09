@@ -113,7 +113,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                                 <BotTag userUUID={userInfo.user_uuid} />
                             )}
                             {isSelf && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-3xs font-medium bg-muted text-muted-foreground">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-2xs font-medium bg-muted text-muted-foreground">
                                     You
                                 </span>
                             )}

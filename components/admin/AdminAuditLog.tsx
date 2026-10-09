@@ -74,7 +74,7 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
         <div className="flex items-start gap-3 px-2 py-2.5">
             <Badge
                 variant="outline"
-                className={`text-3xs capitalize shrink-0 ${CATEGORY_STYLES[entry.category] ?? FALLBACK_CATEGORY_STYLE}`}
+                className={`text-2xs capitalize shrink-0 ${CATEGORY_STYLES[entry.category] ?? FALLBACK_CATEGORY_STYLE}`}
             >
                 {entry.category}
             </Badge>
@@ -129,7 +129,7 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
                         {meta?.malformed ? (
                             // Surfaced rather than dropped: an unparseable blob is still
                             // evidence, and hiding it would lose it entirely.
-                            <pre className="mt-1.5 overflow-x-auto rounded bg-muted/40 p-2 text-3xs text-muted-foreground">
+                            <pre className="mt-1.5 overflow-x-auto rounded bg-muted/40 p-2 text-2xs text-muted-foreground">
                                 {meta.raw}
                             </pre>
                         ) : (
@@ -261,7 +261,7 @@ export default function AdminAuditLog() {
                         {verifyResult && (
                             <Badge
                                 variant="outline"
-                                className={`text-3xs ${verifyResult.ok ? "text-success border-success/30" : "text-destructive border-destructive/30"}`}
+                                className={`text-2xs ${verifyResult.ok ? "text-success border-success/30" : "text-destructive border-destructive/30"}`}
                                 title={verifyResult.message}
                             >
                                 {verifyResult.ok

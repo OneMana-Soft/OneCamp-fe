@@ -126,7 +126,7 @@ const ChatHistoryMenuUngated: React.FC<Props> = ({ onResume }) => {
                         >
                             <span className="min-w-0 flex-1">
                                 <span className="block truncate text-xs">{s.title || "Untitled conversation"}</span>
-                                <span className="block text-3xs text-muted-foreground">
+                                <span className="block text-2xs text-muted-foreground">
                                     {s.message_count} message{s.message_count === 1 ? "" : "s"}
                                 </span>
                             </span>
