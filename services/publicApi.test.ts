@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { publicTrouble, sendFailedText } from "./publicApi"
+import { publicTrouble, retryAfterSeconds, retryDelayMs, sendFailedText } from "./publicApi"
 
 describe("a failed public call", () => {
   it("is a dead link only when the server said so", () => {
@@ -16,3 +16,28 @@ describe("a failed public call", () => {
     expect(sendFailedText({ status: 400, msg: "Keep messages under 4,000 characters." })).toBe("Keep messages under 4,000 characters.")
   })
 })
+
+describe("asking again", () => {
+  it("waits 5 seconds, doubling to a minute, spread a quarter either way", () => {
+    const mid = () => 0.5
+    expect([0, 1, 2, 3, 4, 9].map((n) => retryDelayMs(n, undefined, mid))).toEqual([5_000, 10_000, 20_000, 40_000, 60_000, 60_000])
+    expect(retryDelayMs(1, undefined, () => 0)).toBe(7_500)
+    expect(retryDelayMs(1, undefined, () => 1)).toBe(12_500)
+    expect(retryDelayMs(0, undefined, () => 0)).toBe(5_000) // never sooner than 5 s
+    expect(retryDelayMs(6, undefined, () => 1)).toBe(60_000) // never later than a minute
+  })
+
+  it("never sooner than the server's Retry-After", () => {
+    expect(retryDelayMs(0, 120, () => 0.5)).toBe(120_000)
+    expect(retryDelayMs(3, 2, () => 0.5)).toBe(40_000)
+  })
+
+  it("reads Retry-After as seconds or as a date", () => {
+    const now = Date.parse("2026-10-09T10:00:00Z")
+    expect(retryAfterSeconds("30", now)).toBe(30)
+    expect(retryAfterSeconds("Fri, 09 Oct 2026 10:02:00 GMT", now)).toBe(120)
+    expect(retryAfterSeconds("soon", now)).toBeUndefined()
+    expect(retryAfterSeconds(null, now)).toBeUndefined()
+  })
+})
+

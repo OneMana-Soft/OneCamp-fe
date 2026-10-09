@@ -5,7 +5,7 @@
 // and it opens this one channel and nothing else. New messages arrive by
 // polling, since a guest has no session for the live connection.
 
-import { use, useCallback, useEffect, useRef, useState } from "react"
+import { use, useCallback, useRef, useState } from "react"
 import { ArrowLeft, Hash, Loader2, MessageSquare } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { getGuestChannel, getGuestThread, postGuestMessage, type GuestChannelMessage } from "@/services/guestService"
@@ -17,7 +17,9 @@ import {
   GuestNameForm,
   GuestNotYet,
   GuestTroubleNote,
+  pollOutcome,
   useGuestName,
+  useGuestPoll,
 } from "@/components/guest/guestUi"
 import { publicTrouble, sendFailedText, type PublicTrouble } from "@/services/publicApi"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
@@ -45,11 +47,11 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
     const res = await getGuestChannel(token)
     if (!res.ok) {
       // A dead link replaces what's shown; a busy or unreachable server is
-      // said, and the next poll tries again.
+      // said, and the poll tries again, waiting longer each time.
       const t = publicTrouble(res.status)
       if (t === "gone") setState("missing")
       else setTrouble(t)
-      return
+      return pollOutcome(res)
     }
     setTrouble(null)
     setChannel(res.data.channel)
@@ -66,16 +68,10 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
     }
     setState("ready")
     if (scroll) requestAnimationFrame(() => bottom.current?.scrollIntoView({ block: "end" }))
+    return pollOutcome(res)
   }, [token])
 
-  useEffect(() => {
-    void refresh(true)
-    const t = setInterval(() => {
-      if (document.visibilityState === "visible") void refresh()
-    }, POLL_MS)
-    return () => clearInterval(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one poller per token
-  }, [token])
+  useGuestPoll(token, POLL_MS, (first) => refresh(first))
 
   const loadOlder = async () => {
     if (!messages.length) return
@@ -155,12 +151,9 @@ function Thread({ token, postId, canPost, name, onName, onClose, onReplied }: { 
     const res = await getGuestThread(token, postId)
     if (res.ok) setData(res.data)
     else if (publicTrouble(res.status) === "gone") setMissing(true)
+    return pollOutcome(res)
   }, [token, postId])
-  useEffect(() => {
-    void load()
-    const t = setInterval(() => document.visibilityState === "visible" && void load(), POLL_MS)
-    return () => clearInterval(t)
-  }, [load])
+  useGuestPoll(`${token}:${postId}`, POLL_MS, load)
 
   return (
     <aside className="flex w-full min-w-0 flex-col border-l sm:w-96">

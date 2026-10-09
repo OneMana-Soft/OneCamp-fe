@@ -37,11 +37,13 @@ const poll = () => act(() => vi.advanceTimersByTimeAsync(GUEST_POLL_MS))
 describe("a shared channel whose server stops answering", () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.spyOn(Math, "random").mockReturnValue(0.5) // a retry waits exactly 5 s, then 10 s
     Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true })
     getGuestChannel.mockReset()
   })
   afterEach(() => {
     cleanup()
+    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
