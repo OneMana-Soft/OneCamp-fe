@@ -15,7 +15,7 @@ vi.mock("@/services/importService", async (orig) => ({
   inviteImportedPeople: vi.fn(async (chosen: { email: string }[], onProgress?: (d: number, t: number) => void) => {
     sent.push(chosen.map((p) => p.email))
     chosen.forEach((_, i) => onProgress?.(i + 1, chosen.length))
-    return { invited: chosen, alreadyInvited: [], failed: [], seatLimit: null, emailSent: true, ...answer }
+    return { invited: chosen, alreadyInvited: [], failed: [], seatLimit: null, notEmailed: [], unsentMsg: null, ...answer }
   }),
 }))
 vi.mock("@/lib/swrMutate", () => ({ appMutate: vi.fn() }))
@@ -28,13 +28,14 @@ afterEach(() => {
   answer = {}
 })
 
-const offer = (left: number | null, n = 3): ImportPeople => ({
+const offer = (left: number | null, n = 3, email: ImportPeople["email"] = { on: true, left: null }): ImportPeople => ({
   people: Array.from({ length: n }, (_, i) => ({ user_id: `u${i}`, name: `Person ${i}`, email: `p${i}@acme.test` })),
   already_members: 2,
   already_invited: 0,
   no_email: 1,
   left: 0,
   seats: { used: left === null ? 3 : 25 - left, limit: left === null ? 0 : 25, left },
+  email,
 })
 
 describe("Invite the people who came across", () => {
@@ -85,5 +86,31 @@ describe("Invite the people who came across", () => {
     render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
     expect(screen.getByText(/Nobody left to invite/)).toBeTruthy()
     expect(screen.getByText("Not listed: 2 already here, 4 already invited, 1 without an email address.")).toBeTruthy()
+  })
+
+  // OneCamp Cloud lends a workspace its email, with a daily allowance shared
+  // with password resets: no more are ticked than can be emailed today, and
+  // the dialog says how many get one and where the rest's links are.
+  it("ticks only as many as can be emailed today, and says where the other links are", async () => {
+    people = offer(null, 5, { on: true, left: 3 })
+    render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
+    const boxes = screen.getAllByRole("checkbox")
+    expect(boxes.map((b) => b.getAttribute("aria-checked"))).toEqual(["true", "true", "true", "false", "false"])
+    expect(screen.getByText("Each person ticked gets an email (3 more invitation emails can go out today).")).toBeTruthy()
+    fireEvent.click(boxes[3])
+    expect(screen.getByText("Only 3 can be emailed today, so 1 person ticked won't get one: copy their links from Admin → Invitations.")).toBeTruthy()
+    answer = { notEmailed: [offer(null, 5).people[3]] }
+    fireEvent.click(screen.getByRole("button", { name: "Invite 4 people" }))
+    await waitFor(() =>
+      expect(screen.getByText("Invited 4 people. 3 got an email; the other 1 didn't, so copy their links from Admin → Invitations.")).toBeTruthy(),
+    )
+  })
+
+  it("says plainly when today's emails are used up, and still lets the admin invite with links", () => {
+    people = offer(null, 2, { on: true, left: 0 })
+    render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
+    expect(screen.getAllByRole("checkbox").map((b) => b.getAttribute("aria-checked"))).toEqual(["false", "false"])
+    expect(screen.getByText(/Today's invitation emails are used up/)).toBeTruthy()
+    expect((screen.getAllByRole("checkbox")[0] as HTMLButtonElement).disabled).toBe(false)
   })
 })

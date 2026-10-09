@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { initialSelection, inviteSummary, isPlaceholderEmail, notListedLine, roomForAnother, seatLine } from "./importInvites"
+import { emailLine, initialSelection, inviteSummary, isPlaceholderEmail, notListedLine, roomForAnother, seatLine } from "./importInvites"
 import type { InvitablePerson, InviteRun } from "@/services/importService"
 
 const person = (n: number): InvitablePerson => ({ user_id: `u${n}`, name: `P${n}`, email: `p${n}@acme.test` })
@@ -36,6 +36,23 @@ describe("inviting the people an import brought across", () => {
     expect(roomForAnother(400, { used: 0, limit: 0, left: null })).toBe(true)
   })
 
+  it("ticks no more than can be emailed today, unless email is off or has no daily cap", () => {
+    const people = [person(1), person(2), person(3)]
+    const noLimit = { used: 4, limit: 0, left: null }
+    expect([...initialSelection(people, noLimit, { on: true, left: 2 })]).toEqual(["u1", "u2"])
+    expect([...initialSelection(people, { used: 24, limit: 25, left: 1 }, { on: true, left: 2 })]).toEqual(["u1"])
+    expect([...initialSelection(people, noLimit, { on: true, left: null })]).toEqual(["u1", "u2", "u3"])
+    expect([...initialSelection(people, noLimit, { on: false, left: 0 })]).toEqual(["u1", "u2", "u3"])
+  })
+
+  it("says how many get an email, and where the rest's links are", () => {
+    expect(emailLine({ on: true, left: null }, 9)).toBeNull()
+    expect(emailLine({ on: true, left: 15 }, 3)).toBe("Each person ticked gets an email (15 more invitation emails can go out today).")
+    expect(emailLine({ on: true, left: 2 }, 5)).toBe("Only 2 can be emailed today, so 3 people ticked won't get one: copy their links from Admin → Invitations.")
+    expect(emailLine({ on: true, left: 0 }, 1)).toMatch(/^Today's invitation emails are used up/)
+    expect(emailLine({ on: false, left: null }, 1)).toMatch(/^Email isn't set up on this server/)
+  })
+
   it("says the plan's room plainly, and nothing without a limit", () => {
     expect(seatLine({ used: 4, limit: 0, left: null })).toBeNull()
     expect(seatLine({ used: 23, limit: 25, left: 2 })).toBe("Your free plan has room for 2 more people (23 of 25 places taken).")
@@ -56,16 +73,20 @@ describe("inviting the people an import brought across", () => {
       alreadyInvited: [person(3)],
       failed: [{ person: person(4), msg: "failed to add invitation" }],
       seatLimit: { msg: "The plan is full.", notInvited: [person(5), person(6)] },
-      emailSent: false,
+      notEmailed: [person(1), person(2)],
+      unsentMsg: "Invitation created. Email is not set up on this server, so share the link yourself.",
     }
-    expect(inviteSummary(run)).toEqual([
-      "Invited 2 people. Email isn't set up on this server, so nothing was sent: copy their links from Admin, Invitations.",
+    expect(inviteSummary(run, { on: false, left: null })).toEqual([
+      "Invited 2 people. Email isn't set up on this server, so nothing was sent: copy their links from Admin → Invitations.",
       "1 person was already invited.",
       "The plan is full. 2 people weren't invited.",
       "Couldn't invite P4 (p4@acme.test): failed to add invitation",
     ])
-    expect(inviteSummary({ ...run, alreadyInvited: [], failed: [], seatLimit: null, emailSent: true })).toEqual([
-      "Invited 2 people. Each gets an email with a link to join.",
+    const sent = { ...run, alreadyInvited: [], failed: [], seatLimit: null }
+    expect(inviteSummary({ ...sent, notEmailed: [] })).toEqual(["Invited 2 people. Each gets an email with a link to join."])
+    expect(inviteSummary({ ...sent, notEmailed: [person(2)] }, { on: true, left: 1 })).toEqual([
+      "Invited 2 people. 1 got an email; the other 1 didn't, so copy their links from Admin → Invitations.",
     ])
+    expect(inviteSummary(sent, { on: true, left: 0 })).toEqual(["Invited 2 people, but no email went out: copy their links from Admin → Invitations."])
   })
 })

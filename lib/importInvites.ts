@@ -1,7 +1,7 @@
 // Inviting the people an import brought across: the words and the choices the
 // invite dialog, the admin banner and a placeholder's profile share. Pure.
 
-import type { ImportPeople, InvitablePerson, InviteRun, SeatRoom } from "@/services/importService"
+import type { EmailRoom, ImportPeople, InvitablePerson, InviteRun, SeatRoom } from "@/services/importService"
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
@@ -21,10 +21,31 @@ export function isPlaceholderEmail(email?: string | null): boolean {
   return local.includes("+x-") || local.includes("+slack-")
 }
 
-/** Who is ticked when the dialog opens: everyone, or as many as the plan has room for. */
-export function initialSelection(people: InvitablePerson[], seats: SeatRoom): Set<string> {
-  const room = seats.left === null ? people.length : Math.max(0, seats.left)
-  return new Set(people.slice(0, room).map((p) => p.user_id))
+/**
+ * Who is ticked when the dialog opens: everyone, or as many as the plan has
+ * room for and, under a daily email allowance, as many as can be emailed
+ * today. More can still be ticked; they get a link to share instead.
+ */
+export function initialSelection(people: InvitablePerson[], seats: SeatRoom, email?: EmailRoom): Set<string> {
+  const seatRoom = seats.left === null ? people.length : Math.max(0, seats.left)
+  const mailRoom = email?.on && email.left !== null ? Math.max(0, email.left) : people.length
+  return new Set(people.slice(0, Math.min(seatRoom, mailRoom)).map((p) => p.user_id))
+}
+
+const LINKS = "Admin → Invitations"
+
+/** How many of the people ticked get an email, in a sentence, or null when all do and nothing limits it. */
+export function emailLine(email: EmailRoom | undefined, selected: number): string | null {
+  if (!email) return null
+  if (!email.on) return `Email isn't set up on this server, so nobody gets an email: copy their links from ${LINKS}.`
+  if (email.left === null) return null
+  if (email.left === 0) {
+    return `Today's invitation emails are used up, so nobody you invite now gets one: copy their links from ${LINKS}, or invite them tomorrow.`
+  }
+  if (selected <= email.left) {
+    return `Each person ticked gets an email (${plural(email.left, "more invitation email", "more invitation emails")} can go out today).`
+  }
+  return `Only ${email.left} can be emailed today, so ${plural(selected - email.left, "person", "people")} ticked won't get one: copy their links from ${LINKS}.`
 }
 
 /** Whether one more person can be ticked without going past the plan's room. */
@@ -53,13 +74,19 @@ export function notListedLine(p: Pick<ImportPeople, "already_members" | "already
 }
 
 /** What a finished run of invitations says, a line at a time. */
-export function inviteSummary(run: InviteRun): string[] {
+export function inviteSummary(run: InviteRun, email?: EmailRoom): string[] {
   const lines: string[] = []
-  if (run.invited.length) {
+  const invited = run.invited.length
+  const unsent = run.notEmailed.length
+  if (invited && !unsent) {
+    lines.push(`Invited ${plural(invited, "person", "people")}. Each gets an email with a link to join.`)
+  } else if (invited && email && !email.on) {
+    lines.push(`Invited ${plural(invited, "person", "people")}. Email isn't set up on this server, so nothing was sent: copy their links from ${LINKS}.`)
+  } else if (invited && unsent === invited) {
+    lines.push(`Invited ${plural(invited, "person", "people")}, but no email went out: copy their links from ${LINKS}.`)
+  } else if (invited) {
     lines.push(
-      run.emailSent
-        ? `Invited ${plural(run.invited.length, "person", "people")}. Each gets an email with a link to join.`
-        : `Invited ${plural(run.invited.length, "person", "people")}. Email isn't set up on this server, so nothing was sent: copy their links from Admin, Invitations.`,
+      `Invited ${plural(invited, "person", "people")}. ${invited - unsent} got an email; the other ${unsent} didn't, so copy their links from ${LINKS}.`,
     )
   }
   if (run.alreadyInvited.length) {

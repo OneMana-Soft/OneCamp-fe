@@ -6,12 +6,12 @@ vi.mock("@/hooks/useFetch", () => ({
   useFetch: () => ({ data: { data: { user_is_admin: isAdmin } } }),
 }))
 const sent: string[] = []
-let emailSent = true
+let unsent: string | null = null
 vi.mock("@/services/importService", async (orig) => ({
   ...(await orig<typeof import("@/services/importService")>()),
   inviteImportedPeople: vi.fn(async (people: { email: string }[]) => {
     sent.push(...people.map((p) => p.email))
-    return { invited: people, alreadyInvited: [], failed: [], seatLimit: null, emailSent }
+    return { invited: people, alreadyInvited: [], failed: [], seatLimit: null, notEmailed: unsent === null ? [] : people, unsentMsg: unsent }
   }),
 }))
 
@@ -21,7 +21,7 @@ afterEach(() => {
   cleanup()
   sent.length = 0
   isAdmin = true
-  emailSent = true
+  unsent = null
 })
 
 describe("inviting a placeholder from their profile", () => {
@@ -33,11 +33,11 @@ describe("inviting a placeholder from their profile", () => {
     expect(screen.queryByRole("button", { name: /Invite/ })).toBeNull()
   })
 
-  it("says where the link is when the server can't send email", async () => {
-    emailSent = false
+  it("says why no email went, in the server's words", async () => {
+    unsent = "Invitation created. Today's emails are used up (a few are kept for password resets), so share the link yourself, or resend it tomorrow."
     render(<InvitePlaceholder userUUID="u1" email="priya@acme.com" />)
     fireEvent.click(screen.getByRole("button", { name: /Invite to the workspace/ }))
-    await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/copy their link from Admin, Invitations/))
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe(unsent))
   })
 
   it("explains instead when their address was made up", () => {
