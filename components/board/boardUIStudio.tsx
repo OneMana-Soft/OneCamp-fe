@@ -5,7 +5,7 @@
 // a sandboxed iframe inside a realistic device frame (phone / browser), and let
 // the user regenerate, switch device, and export to PNG / HTML (for Figma via
 // the html.to.design plugin, or Canva via PNG). The generated markup is treated
-// as untrusted: scripts are stripped server-side and the iframe is sandboxed.
+// as untrusted: see uiStudioFrame for what the frame lets it do.
 
 import * as React from "react"
 import { createPortal } from "react-dom"
@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import AiModelPicker from "@/components/ai/AiModelPicker"
+import { PREVIEW_SANDBOX, frameDocument } from "@/components/board/uiStudioFrame"
 import {
   Sparkles,
   X,
@@ -56,20 +57,6 @@ const EXAMPLES: Record<Device, string[]> = {
     "A project management board with a sidebar and kanban columns",
     "A CRM contact detail page with activity timeline",
   ],
-}
-
-// Wrap the AI body markup in a render host: Tailwind + Inter + a strict CSP.
-// (Scripts in the markup are already stripped server-side; the only script the
-// CSP allows is the Tailwind CDN.)
-function buildSrcDoc(bodyHtml: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src https://cdn.tailwindcss.com 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; connect-src https://cdn.tailwindcss.com https://fonts.googleapis.com;"/>
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-<style>*{box-sizing:border-box}html,body{margin:0;padding:0}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.12);border-radius:8px}</style>
-</head><body>${bodyHtml}</body></html>`
 }
 
 function downloadFile(name: string, content: string, mime: string) {
@@ -115,7 +102,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
   React.useEffect(() => setMounted(true), [])
 
   const dims = DEVICE_DIMS[device]
-  const srcDoc = React.useMemo(() => (html ? buildSrcDoc(html) : ""), [html])
+  const srcDoc = React.useMemo(() => (html ? frameDocument(html) : ""), [html])
 
   const generate = React.useCallback(
     (p: string, d: Device) => {
@@ -211,7 +198,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
   const handleCopy = React.useCallback(async () => {
     if (!html) return
     try {
-      await navigator.clipboard.writeText(buildSrcDoc(html))
+      await navigator.clipboard.writeText(frameDocument(html))
       setCopied(true)
       setTimeout(() => setCopied(false), 1600)
     } catch {
@@ -221,10 +208,12 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
 
   const handleDownloadHtml = React.useCallback(() => {
     if (!html) return
-    downloadFile(`onecamp-design-${device}.html`, buildSrcDoc(html), "text/html")
+    downloadFile(`onecamp-design-${device}.html`, frameDocument(html), "text/html")
   }, [html, device])
 
   const handleDownloadPng = React.useCallback(async () => {
+    // Read from the preview frame, which only its allow-same-origin permits
+    // (PREVIEW_SANDBOX).
     const doc = iframeRef.current?.contentDocument
     const node = (doc?.body?.firstElementChild as HTMLElement) || doc?.body
     if (!node) {
@@ -441,7 +430,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
                           ref={iframeRef}
                           title="UI preview"
                           srcDoc={srcDoc}
-                          sandbox="allow-scripts allow-same-origin"
+                          sandbox={PREVIEW_SANDBOX}
                           style={{ width: dims.w, height: dims.h, border: 0, display: "block" }}
                         />
                       </div>
@@ -458,7 +447,7 @@ function BoardUIStudio({ boardId, open, onClose, initialPrompt, initialDevice }:
                         ref={iframeRef}
                         title="UI preview"
                         srcDoc={srcDoc}
-                        sandbox="allow-scripts allow-same-origin"
+                        sandbox={PREVIEW_SANDBOX}
                         style={{ width: dims.w, height: dims.h, border: 0, display: "block" }}
                       />
                     </div>
