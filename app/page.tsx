@@ -8,7 +8,7 @@ import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn";
 import { Button } from "@/components/ui/button"
 import {ThemeToggle} from "@/components/themeProvider/theme-toggle";
 import {useEffect, useState, useCallback, Suspense} from "react";
-import authService from "@/services/auth/AuthService";
+import authService, { type LoginOutcome } from "@/services/auth/AuthService";
 import { assertUnreachable } from "@/lib/utils/assertUnreachable";
 import { TwoFactorPrompt } from "@/components/auth/TwoFactorPrompt";
 import {app_home_path} from "@/types/paths";
@@ -143,14 +143,17 @@ export default function SignUp() {
 
   const router = useRouter();
 
-  // Returns to the password step. The password is cleared as well as the challenge: an expired challenge
-  // means re-authenticating, and leaving the field populated invites a click on "Sign in" that looks
-  // like a resume but is a fresh credential submission.
+  // Returns to the password step, of whichever form asked: email or directory (the tab is left as it
+  // was). The password is cleared as well as the challenge: an expired challenge means
+  // re-authenticating, and leaving the field populated invites a click on "Sign in" that looks like a
+  // resume but is a fresh credential submission.
   const cancelTwoFactor = useCallback(() => {
     setTotpChallenge("");
     setTotpPrompt("");
     setPassword("");
     setEmailError("");
+    setLdapPass("");
+    setLdapError("");
   }, []);
 
   // Answers the challenge. Returns the failure for the prompt to render, or null on success.
@@ -168,6 +171,36 @@ export default function SignUp() {
     },
     [router, totpChallenge],
   );
+
+  // What both password forms do with the answer: go in, ask for the code, or say why not, each form
+  // in its own place. Shared, so the directory form asks for the second step exactly as the email form
+  // does: the server asks after either password, and the same code step completes both.
+  const followLoginOutcome = (result: LoginOutcome, showFailure: (failure: { msg: string; auth_method?: string }) => void) => {
+    switch (result.status) {
+      case "success":
+        router.push(app_home_path);
+        break;
+      case "totp_required":
+        // The password was correct and there is NO session yet. Routing here would land the user in
+        // an app that 401s every request and bounces them back to this screen — which is what the
+        // old `if (result.ok)` did, because the server answers this case with HTTP 200.
+        setTotpChallenge(result.challenge);
+        setTotpPrompt(result.msg);
+        break;
+      case "failed":
+        showFailure(result);
+        break;
+      // Makes the switch exhaustive as a BUILD constraint. Verified by deleting the totp_required
+      // case: without this line tsc passes and the prompt simply never appears, which is the original
+      // bug wearing a better type. With it, the build fails and names the missing case.
+      //
+      // Its runtime throw — reachable only if the server sends a status this build does not know —
+      // lands in the caller's catch, so the user gets an error and a working form rather than a dead
+      // button, and the console gets the unknown status.
+      default:
+        assertUnreachable(result, "login outcome");
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -294,35 +327,13 @@ export default function SignUp() {
     setIsLoading(true);
     try {
       const result = await authService.loginWithEmail(email, password);
-      switch (result.status) {
-        case "success":
-          router.push(app_home_path);
-          break;
-        case "totp_required":
-          // The password was correct and there is NO session yet. Routing here would land the user in
-          // an app that 401s every request and bounces them back to this screen — which is what the
-          // old `if (result.ok)` did, because the server answers this case with HTTP 200.
-          setTotpChallenge(result.challenge);
-          setTotpPrompt(result.msg);
-          break;
-        case "failed": {
-          // When the backend reports the account uses a different auth method
-          // (Google, GitHub, OIDC, SAML, LDAP), surface a method-specific hint
-          // so the user knows where to click instead of just "invalid".
-          const methodHint = result.auth_method ? ssoMethodHint(result.auth_method) : "";
-          setEmailError(methodHint || result.msg);
-          break;
-        }
-        // Makes the switch exhaustive as a BUILD constraint. Verified by deleting the totp_required
-        // case: without this line tsc passes and the prompt simply never appears, which is the original
-        // bug wearing a better type. With it, the build fails and names the missing case.
-        //
-        // Its runtime throw — reachable only if the server sends a status this build does not know —
-        // lands in the catch below, so the user gets an error and a working form rather than a dead
-        // button, and the console gets the unknown status.
-        default:
-          assertUnreachable(result, "login outcome");
-      }
+      followLoginOutcome(result, (failure) => {
+        // When the backend reports the account uses a different auth method
+        // (Google, GitHub, OIDC, SAML, LDAP), surface a method-specific hint
+        // so the user knows where to click instead of just "invalid".
+        const methodHint = failure.auth_method ? ssoMethodHint(failure.auth_method) : "";
+        setEmailError(methodHint || failure.msg);
+      });
     } catch (error) {
       console.error('Email login error:', error);
       setEmailError("Something went wrong. Please try again.");
@@ -337,11 +348,7 @@ export default function SignUp() {
     setIsLoading(true);
     try {
       const result = await authService.loginWithLDAP(ldapUser, ldapPass);
-      if (result.ok) {
-        router.push(app_home_path);
-      } else {
-        setLdapError(result.msg);
-      }
+      followLoginOutcome(result, (failure) => setLdapError(failure.msg));
     } catch (error) {
       console.error('LDAP login error:', error);
       setLdapError("Failed to reach directory server. Please try again.");

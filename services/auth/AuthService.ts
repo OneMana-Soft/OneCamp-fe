@@ -7,10 +7,27 @@ import { withCsrfHeader } from "@/lib/utils/csrf";
  * It arrives as HTTP 200 with no cookies, so any shape that reduces this to a boolean reports it as
  * success — see loginWithEmail for what that cost.
  */
-type LoginOutcome =
+export type LoginOutcome =
     | { status: 'success' }
     | { status: 'totp_required'; challenge: string; msg: string }
     | { status: 'failed'; msg: string; auth_method?: string };
+
+/**
+ * What the server says to a password, for both sign-ins that send one: the email password and the
+ * directory's (LDAP). Both ask for the second step the same way.
+ *
+ * `totp_required` is checked BEFORE `ok`, because that case IS a 200. Ordering it after would let the
+ * success branch claim it.
+ */
+function loginOutcome(ok: boolean, data: { status?: string; challenge?: string; msg?: string; auth_method?: string } | null): LoginOutcome {
+    if (data?.status === 'totp_required' && typeof data?.challenge === 'string') {
+        return { status: 'totp_required', challenge: data.challenge, msg: data.msg || '' };
+    }
+    if (ok) {
+        return { status: 'success' };
+    }
+    return { status: 'failed', msg: data?.msg || '', auth_method: data?.auth_method };
+}
 
 /** The outcome of answering a second-factor challenge. */
 type TOTPLoginOutcome =
@@ -106,17 +123,7 @@ class AuthService {
                     body: JSON.stringify({ email, password }),
                 }
             );
-            const data = await res.json();
-
-            // Checked BEFORE res.ok, because this case IS a 200. Ordering it after would let the
-            // success branch claim it.
-            if (data?.status === 'totp_required' && typeof data?.challenge === 'string') {
-                return { status: 'totp_required', challenge: data.challenge, msg: data.msg || '' };
-            }
-            if (res.ok) {
-                return { status: 'success' };
-            }
-            return { status: 'failed', msg: data?.msg || '', auth_method: data?.auth_method };
+            return loginOutcome(res.ok, await res.json());
         } catch (error) {
             console.error('Email login failed:', error);
             return { status: 'failed', msg: 'Network error. Please try again.' };
@@ -371,7 +378,12 @@ class AuthService {
         window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL}saml/login`;
     }
 
-    static async loginWithLDAP(usernameOrEmail: string, password: string): Promise<{ ok: boolean; msg: string }> {
+    /**
+     * Exchanges a directory (LDAP) name and password for a session or a second-factor challenge, as
+     * loginWithEmail does. The server asks someone with two-step on for the code here too, with a 200,
+     * a challenge and no cookie; completeTOTPLogin finishes it, the same as after an email password.
+     */
+    static async loginWithLDAP(usernameOrEmail: string, password: string): Promise<LoginOutcome> {
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/ldap-login`,
@@ -382,11 +394,10 @@ class AuthService {
                     body: JSON.stringify({ username_or_email: usernameOrEmail, password }),
                 }
             );
-            const data = await res.json();
-            return { ok: res.ok, msg: data.msg || '' };
+            return loginOutcome(res.ok, await res.json());
         } catch (error) {
             console.error('LDAP authentication failed:', error);
-            return { ok: false, msg: 'Directory server unreachable.' };
+            return { status: 'failed', msg: 'Directory server unreachable.' };
         }
     }
 
