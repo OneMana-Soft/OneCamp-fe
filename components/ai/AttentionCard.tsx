@@ -51,7 +51,7 @@ const SOURCE_ICON: Record<string, React.ComponentType<{ className?: string }>> =
   calendar: Calendar,
 }
 const SOURCE_TINT: Record<string, string> = {
-  approval: "text-brand",
+  approval: "text-primary",
 }
 
 function AttentionCard() {
@@ -183,7 +183,7 @@ function AttentionCard() {
   return (
     <div className="ai-panel">
       <div className="ai-panel-head">
-        <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
+        <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
         <h2 className="text-sm font-medium text-foreground">What needs me now</h2>
         <span className="text-xs text-muted-foreground">{items.length}</span>
       </div>
@@ -285,7 +285,7 @@ function AttentionCardSkeleton() {
   return (
     <div className="ai-panel" role="status" aria-label="Loading what needs you">
       <div className="ai-panel-head">
-        <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
+        <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
         <h2 className="text-sm font-medium text-foreground">What needs me now</h2>
       </div>
       <div className="flex items-start gap-2.5 px-4 py-2.5">

@@ -134,7 +134,7 @@ export function InCallAIPanel({
                 {!statusLoading && aiEnabled && items.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center gap-4 px-2">
                         <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-white/5">
-                            <Sparkles className="h-6 w-6 text-brand" />
+                            <Sparkles className="h-6 w-6 text-primary" />
                         </div>
                         <div className="space-y-1">
                             <p className="text-sm font-medium text-white/90">Ask about the call</p>

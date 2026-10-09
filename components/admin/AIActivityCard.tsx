@@ -35,7 +35,7 @@ function statusTone(status?: string): string {
     case "allowed":
       return "text-success"
     case "refused":
-      return "text-brand"
+      return "text-primary"
     case "failed":
       return "text-destructive"
     case "running":

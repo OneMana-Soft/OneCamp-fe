@@ -85,7 +85,7 @@ export const viewport: Viewport = {
   // then keeps the tag equal to the background the user actually chose.
   // Matches --canvas in the light theme, the colour of the top bar the browser
   // chrome continues. The manifest carries the same value.
-  themeColor: "#f5f2ee",
+  themeColor: "#f5f6f7",
 };
 
 export default function RootLayout({

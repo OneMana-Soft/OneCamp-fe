@@ -27,7 +27,7 @@ describe("a refusal in the activity feed", () => {
     )
     expect(el, "no refused status rendered").toBeTruthy()
     expect(el?.className).not.toContain("text-destructive")
-    expect(el?.className).toContain("text-brand")
+    expect(el?.className).toContain("text-primary")
   })
 
   // Colour alone never carries it.

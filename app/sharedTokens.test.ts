@@ -10,33 +10,50 @@ import { resolve } from "node:path"
  * shared colour in both repos, or neither.
  */
 const SHARED: Record<"light" | "dark", Record<string, [number, number, number]>> = {
+  // The graphite palette of 10 Oct 2026 (design direction, "Palette tokens"):
+  // signal orange on cool graphite neutrals.
   light: {
-    brand: [185, 74, 0],
-    background: [254, 253, 252],
-    foreground: [22, 19, 16],
-    card: [255, 255, 254],
-    muted: [246, 244, 241],
-    "muted-foreground": [111, 105, 99],
-    accent: [246, 243, 240],
-    "accent-foreground": [29, 26, 22],
-    border: [230, 227, 224],
-    "agent": [81, 82, 193],
-    "agent-foreground": [251, 251, 255],
-    "agent-muted": [236, 239, 255],
+    brand: [204, 74, 11], // #CC4A0B
+    "brand-muted": [255, 241, 232], // #FFF1E8
+    background: [252, 252, 253], // #FCFCFD bg
+    foreground: [20, 22, 26], // #14161A text
+    card: [255, 255, 255], // #FFFFFF surface
+    muted: [245, 246, 247], // #F5F6F7 surface-2
+    "muted-foreground": [95, 100, 112], // #5F6470 text-2
+    "faint-foreground": [138, 143, 153], // #8A8F99 text-3
+    accent: [245, 246, 247],
+    "accent-foreground": [20, 22, 26],
+    border: [228, 229, 232], // #E4E5E8 line
+    input: [211, 213, 218], // #D3D5DA line-strong
+    "agent": [79, 91, 213], // #4F5BD5
+    "agent-foreground": [255, 255, 255],
+    "agent-muted": [238, 240, 253], // #EEF0FD
+    success: [31, 138, 76],
+    warning: [178, 107, 0],
+    destructive: [209, 41, 61],
+    info: [47, 111, 219],
   },
   dark: {
-    brand: [242, 140, 92],
-    background: [18, 15, 12],
-    foreground: [248, 247, 244],
-    card: [25, 22, 18],
-    muted: [41, 38, 34],
-    "muted-foreground": [168, 162, 155],
-    accent: [44, 40, 36],
-    "accent-foreground": [248, 247, 244],
-    border: [42, 39, 35],
-    "agent": [167, 176, 253],
-    "agent-foreground": [18, 20, 40],
-    "agent-muted": [38, 41, 68],
+    brand: [255, 122, 51], // #FF7A33
+    "brand-foreground": [14, 15, 17],
+    "brand-muted": [42, 26, 16], // #2A1A10
+    background: [14, 15, 17], // #0E0F11
+    foreground: [237, 238, 240], // #EDEEF0
+    card: [22, 24, 28], // #16181C
+    muted: [29, 32, 37], // #1D2025
+    "muted-foreground": [155, 160, 170], // #9BA0AA
+    "faint-foreground": [107, 112, 122], // #6B707A
+    accent: [29, 32, 37],
+    "accent-foreground": [237, 238, 240],
+    border: [38, 40, 45], // #26282D
+    input: [51, 54, 61], // #33363D
+    "agent": [163, 171, 245], // #A3ABF5
+    "agent-foreground": [14, 15, 17],
+    "agent-muted": [30, 33, 64], // #1E2140
+    success: [76, 195, 138],
+    warning: [240, 180, 76],
+    destructive: [242, 85, 90],
+    info: [110, 164, 245],
   },
 }
 

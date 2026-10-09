@@ -113,7 +113,7 @@ function MyAssistantsCard() {
           {PROMISES.map((p) => (
             <li key={p.title} className="rounded-lg border border-border/60 p-3">
               <p className="flex items-center gap-1.5 text-sm font-medium">
-                <ShieldCheck className="h-3.5 w-3.5 text-brand" aria-hidden="true" />
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                 {p.title}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{p.body}</p>

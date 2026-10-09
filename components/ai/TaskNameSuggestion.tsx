@@ -43,7 +43,7 @@ function TaskNameSuggestionInner({ text, current, onUse }: TaskNameSuggestionPro
       onClick={() => onUse(suggestion)}
       className="flex w-fit max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
-      <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden="true" />
+      <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
       <span className="truncate">
         Use “{suggestion}”
       </span>

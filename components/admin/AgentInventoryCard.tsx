@@ -97,7 +97,7 @@ function InventoryAgentRow({
         <p className="mt-1 flex flex-wrap gap-x-3 text-xs tabular-nums text-muted-foreground">
           <span>{plural(a.runs_7d, "run")}</span>
           <span>{plural(a.actions_7d, "action")}</span>
-          <span className={cn(a.refusals_7d > 0 && "font-medium text-brand")}>
+          <span className={cn(a.refusals_7d > 0 && "font-medium text-primary")}>
             {plural(a.refusals_7d, "refusal")}
             {a.last_refusal_at && a.refusals_7d > 0 && `, last ${relativeTime(a.last_refusal_at)}`}
           </span>
@@ -145,7 +145,7 @@ function InventoryCredentialRow({
         <p className="mt-1 flex flex-wrap gap-x-3 text-xs tabular-nums text-muted-foreground">
           <span>{c.last_used_at ? `used ${relativeTime(c.last_used_at)}` : "never used"}</span>
           {c.refusals_7d > 0 && (
-            <span className="font-medium text-brand">{plural(c.refusals_7d, "refusal")}</span>
+            <span className="font-medium text-primary">{plural(c.refusals_7d, "refusal")}</span>
           )}
           {c.expires_at && <span>expires {new Date(c.expires_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>}
         </p>

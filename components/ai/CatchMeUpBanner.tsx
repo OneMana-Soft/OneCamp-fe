@@ -125,7 +125,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
         >
             {state === "idle" && (
                 <div className="flex items-center gap-3 flex-wrap">
-                    <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
+                    <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
                     <div className="flex-1 text-sm text-muted-foreground min-w-0">
                         <span className="font-semibold text-foreground">
                             {unreadCount} unread messages
@@ -160,7 +160,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
             {state === "loading" && (
                 <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-3">
-                        <Sparkles className="h-4 w-4 shrink-0 text-brand animate-pulse" strokeWidth={1.75} aria-hidden="true" />
+                        <Sparkles className="h-4 w-4 shrink-0 text-primary animate-pulse" strokeWidth={1.75} aria-hidden="true" />
                         <span className="flex-1 text-sm text-muted-foreground">
                             Reading {unreadCount} messages…
                         </span>
@@ -176,7 +176,7 @@ const CatchMeUpBanner: React.FC<CatchMeUpBannerProps> = ({
             {state === "summary" && (
                 <div className="flex flex-col gap-2.5">
                     <div className="flex items-center gap-3">
-                        <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
+                        <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
                         <span className="flex-1 text-sm font-semibold text-foreground truncate">
                             AI summary: {subjectLabel}
                         </span>

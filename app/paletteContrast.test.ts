@@ -67,7 +67,9 @@ const PAIRS: Array<[string, string, number, string]> = [
   ["muted-foreground", "card", 4.5, "secondary text on a card"],
   ["primary-foreground", "primary", 4.5, "the label on a primary button"],
   ["brand-foreground", "brand", 4.5, "the label on a brand surface"],
-  ["brand", "background", 4.5, "a link or an active item in the accent"],
+  ["primary", "background", 4.5, "a link or other text in the accent (--brand-text)"],
+  ["brand-text", "card", 4.5, "a link on a card"],
+  ["brand", "background", 3.0, "the accent as a marker: focus ring, selection, the logo"],
   ["destructive-foreground", "destructive", 4.5, "the label on a destructive button"],
   ["ring", "background", 3.0, "the focus ring, which is how a keyboard user knows where they are"],
   ["border", "background", 1.2, "a hairline has to be visible at all"],
@@ -90,20 +92,22 @@ describe.each(["light", "dark"] as const)("%s palette meets WCAG AA", (mode) => 
   })
 })
 
-describe("the neutrals are tinted, not grey", () => {
-  // The whole diagnosis was that every neutral was oklch(L 0 0): grey with no
-  // colour in it, which is the shadcn default and reads as inherited. A token
-  // that drifts back to zero chroma undoes the identity one line at a time.
-  it.each(["background", "foreground", "muted", "muted-foreground", "border", "card"])(
-    "--%s carries the brand's hue",
+describe("the neutrals are graphite, not shadcn grey", () => {
+  // The neutrals carry a trace of a cool graphite hue (about 250 to 290, chroma
+  // under 0.03): orange on graphite reads like an instrument panel, orange on
+  // cream like a bakery. oklch(L 0 0) is the shadcn default and reads as
+  // inherited; a warm hue drifting back would undo the swap one line at a time.
+  // The card is exempt: pure white is the one neutral with no hue to carry.
+  it.each(["background", "foreground", "muted", "muted-foreground", "border"])(
+    "--%s carries the graphite hue",
     (name) => {
       for (const mode of ["light", "dark"] as const) {
         const parsed = parseOklch(token(name, mode))
         expect(parsed, `--${name} in ${mode} is not oklch`).not.toBeNull()
-        expect(
-          parsed!.c,
-          `--${name} in ${mode} has zero chroma, which is the shadcn default grey`,
-        ).toBeGreaterThan(0)
+        expect(parsed!.c, `--${name} in ${mode} has zero chroma`).toBeGreaterThan(0)
+        expect(parsed!.c, `--${name} in ${mode} is coloured, not a neutral`).toBeLessThan(0.03)
+        expect(parsed!.h, `--${name} in ${mode} has left the graphite hue`).toBeGreaterThanOrEqual(240)
+        expect(parsed!.h, `--${name} in ${mode} has left the graphite hue`).toBeLessThanOrEqual(290)
       }
     },
   )
@@ -135,7 +139,11 @@ describe("every selectable accent meets WCAG AA", () => {
         mode === "light"
           ? THEMES_CSS.slice(THEMES_CSS.indexOf(`.theme-${name} {`))
           : THEMES_CSS.slice(THEMES_CSS.indexOf(`.dark .theme-${name}`))
-      const m = /--brand:\s*([^;]+);/.exec(block)
+      // The accent as text is --brand-text: a shade of its own in the house
+      // theme, and the accent itself (var(--brand)) in every other.
+      const blockEnd = block.indexOf("}")
+      const own = /--brand-text:\s*(oklch\([^;]+\));/.exec(block.slice(0, blockEnd))
+      const m = own ?? /--brand:\s*([^;]+);/.exec(block)
       expect(m, `.theme-${name} has no --brand in ${mode}`).not.toBeNull()
       const parsed = parseOklch(m![1].trim())
       expect(parsed, `.theme-${name} ${mode} --brand is not oklch`).not.toBeNull()

@@ -281,7 +281,7 @@ export function MobileHome() {
                 onClick={() => router.push("/app/ai")}
                 className="flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-3"
             >
-                <Sparkles className="h-5 w-5 shrink-0 text-brand" strokeWidth={1.75} />
+                <Sparkles className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} />
                 <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-foreground">
                         Ask OneCamp AI

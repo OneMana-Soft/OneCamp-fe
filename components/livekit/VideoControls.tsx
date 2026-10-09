@@ -196,7 +196,7 @@ export function VideoControls({
             label={isAIOpen ? "Hide OneCamp AI" : "Ask AI"}
             onClick={onToggleAI}
             isActive={isAIOpen}
-            activeClass="bg-brand/20 text-brand hover:bg-brand/30 border-brand/50"
+            activeClass="bg-brand/20 text-primary hover:bg-brand/30 border-brand/50"
         >
             <Sparkles className="h-5 w-5" />
         </ControlBtn>

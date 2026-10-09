@@ -240,7 +240,7 @@ export function DesktopDashboard() {
                                                     </span>
                                                 )}
                                                 {unread && (
-                                                    <span className="shrink-0 font-mono text-xs tabular-nums text-brand">
+                                                    <span className="shrink-0 font-mono text-xs tabular-nums text-primary">
                                                         {channel.unread_post_count > 99 ? "99+" : channel.unread_post_count}
                                                     </span>
                                                 )}
@@ -324,7 +324,7 @@ function QuickAction({ icon: Icon, label, onClick, active = false }: { icon: typ
         >
             <Icon className="h-4 w-4 text-muted-foreground group-hover:text-foreground" strokeWidth={1.75} />
             <span className="text-sm font-medium">{label}</span>
-            {active && <span className="ml-auto text-3xs font-medium text-brand">Open</span>}
+            {active && <span className="ml-auto text-3xs font-medium text-primary">Open</span>}
         </button>
     )
 }

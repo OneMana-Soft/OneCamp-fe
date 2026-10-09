@@ -171,7 +171,7 @@ function WhileYouWereAwayCard({
       aria-labelledby="away-recap-heading"
     >
       <div className="ai-panel-head">
-        <Sparkles className="h-4 w-4 shrink-0 text-brand" strokeWidth={1.75} aria-hidden="true" />
+        <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden="true" />
         <h2 id="away-recap-heading" className="text-sm font-medium text-foreground">
           While you were away
         </h2>
