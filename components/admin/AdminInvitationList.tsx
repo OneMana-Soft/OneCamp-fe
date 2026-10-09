@@ -3,18 +3,30 @@
 import React from "react"
 import { Invitation } from "@/types/user"
 import { Button } from "@/components/ui/button"
-import { Trash2, Mail, RefreshCw, CheckCircle, Clock, AlertCircle, XCircle } from "@/lib/icons"
+import { Trash2, Mail, RefreshCw, CheckCircle, Clock, AlertCircle, XCircle, Copy } from "@/lib/icons"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface AdminInvitationListProps {
   invitations: Invitation[]
   onDelete: (email: string) => void
   onResend: (email: string) => void
+  /** Copies a live invitation's link, for the admin to hand over themselves. */
+  onCopyLink: (link: string) => void
   isSubmitting: boolean
   resendingEmail: string | null
   isLoading?: boolean
   isFiltered?: boolean
   totalLoaded?: number
+}
+
+/**
+ * How long a live invitation's link has left, as the server counts it (days,
+ * rounded up), or nothing once it can no longer be used. Pure.
+ */
+export function expiryText(inv: Pick<Invitation, "status" | "expires_in_days">): string {
+  if (inv.status === "joined" || inv.status === "expired" || inv.expires_in_days == null) return ""
+  if (inv.expires_in_days <= 1) return "Expires within a day"
+  return `Expires in ${inv.expires_in_days} days`
 }
 
 function getStatusBadge(status: string) {
@@ -55,6 +67,7 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
   invitations,
   onDelete,
   onResend,
+  onCopyLink,
   isSubmitting,
   resendingEmail,
   isLoading,
@@ -118,10 +131,29 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
                     {new Date(inv.created_at).toLocaleDateString()}
                   </span>
                   {getStatusBadge(inv.status)}
+                  {expiryText(inv) && (
+                    <span className="text-2xs text-muted-foreground">{expiryText(inv)}</span>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-center gap-1 shrink-0">
+                {inv.invite_link && inv.status !== "joined" && inv.status !== "expired" && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                        onClick={() => onCopyLink(inv.invite_link!)}
+                        aria-label={`Copy the invitation link for ${inv.email}`}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copy link</TooltipContent>
+                  </Tooltip>
+                )}
                 {inv.status !== "joined" && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -131,7 +163,11 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
                         className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
                         onClick={() => onResend(inv.email)}
                         disabled={isSubmitting || resendingEmail === inv.email}
-                        aria-label={`Resend invitation to ${inv.email}`}
+                        aria-label={
+                          inv.status === "expired"
+                            ? `Send ${inv.email} a new invitation link`
+                            : `Resend invitation to ${inv.email}`
+                        }
                       >
                         <RefreshCw
                           className={`h-4 w-4 ${
@@ -140,7 +176,9 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
                         />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Resend invitation</TooltipContent>
+                    <TooltipContent>
+                      {inv.status === "expired" ? "Send a new link" : "Send again with a new link"}
+                    </TooltipContent>
                   </Tooltip>
                 )}
                 <Tooltip>

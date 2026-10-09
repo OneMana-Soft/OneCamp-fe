@@ -12,10 +12,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { usePost } from "@/hooks/usePost"
-import { PostEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
 import { MailPlus } from "@/lib/icons"
+import { invite } from "@/services/invitationService"
 
 interface Props {
     open: boolean
@@ -28,24 +27,27 @@ interface Props {
 // capability-gated /invitations endpoint.
 export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const [email, setEmail] = useState("")
-    const post = usePost()
+    // Why the server would not invite them (already a member, already
+    // invited), said in the dialog rather than in a toast that vanishes.
+    const [refusal, setRefusal] = useState("")
+    const [sending, setSending] = useState(false)
     const { toast } = useToast()
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         const trimmed = email.trim().toLowerCase()
-        if (!trimmed || post.isSubmitting) return
-        try {
-            await post.makeRequest({
-                apiEndpoint: PostEndpointUrl.CreateInvitation,
-                payload: { email: trimmed },
-            })
-            toast({ title: "Invitation sent", description: `Invited ${trimmed}` })
-            setEmail("")
-            onOpenChange(false)
-        } catch {
-            // axios interceptor surfaces the error toast
+        if (!trimmed || sending) return
+        setRefusal("")
+        setSending(true)
+        const outcome = await invite(trimmed, false)
+        setSending(false)
+        if (!outcome.ok) {
+            setRefusal(outcome.msg)
+            return
         }
+        toast({ title: "Invitation sent", description: `Invited ${trimmed}` })
+        setEmail("")
+        onOpenChange(false)
     }
 
     return (
@@ -70,19 +72,26 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                                 type="email"
                                 placeholder="teammate@example.com"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => {
+                                    setEmail(e.target.value)
+                                    setRefusal("")
+                                }}
                                 required
                                 autoFocus
+                                aria-describedby={refusal ? "member-invite-refusal" : undefined}
                             />
+                            {refusal && (
+                                <p id="member-invite-refusal" role="alert" className="text-sm text-destructive">{refusal}</p>
+                            )}
                         </div>
                     </div>
 
                     <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={post.isSubmitting}>
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={!email || post.isSubmitting}>
-                            {post.isSubmitting ? "Inviting…" : "Send invitation"}
+                        <Button type="submit" disabled={!email || sending}>
+                            {sending ? "Inviting…" : "Send invitation"}
                         </Button>
                     </DialogFooter>
                 </form>

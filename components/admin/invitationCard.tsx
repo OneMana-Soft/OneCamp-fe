@@ -15,6 +15,7 @@ import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import { toast } from "@/hooks/use-toast"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
+import { resendInvitation } from "@/services/invitationService"
 
 const InvitationCard = () => {
   const dispatch = useDispatch()
@@ -78,11 +79,12 @@ const InvitationCard = () => {
     if (!email || resendingEmail) return
     setResendingEmail(email)
     try {
-      const answer = await post.makeRequest<{ email: string }, { invite_link?: string; email_sent?: boolean }>({
-        apiEndpoint: PostEndpointUrl.ResendInvitation,
-        payload: { email },
-        method: "POST",
-      })
+      const outcome = await resendInvitation(email)
+      if (!outcome.ok) {
+        toast({ title: "Couldn't send it again", description: outcome.msg, variant: "destructive" })
+        return
+      }
+      const answer = outcome.answer
       mutate()
       if (answer?.email_sent) {
         toast({ title: "Invitation resent", description: `A new email is on its way to ${email}.` })
@@ -100,6 +102,13 @@ const InvitationCard = () => {
     } finally {
       setResendingEmail(null)
     }
+  }
+
+  // A live invitation's link, for the admin to hand over themselves: the same
+  // link its email carries, which keeps working until it expires.
+  const handleCopyLink = async (link: string) => {
+    const ok = await copy(link, "Invitation link copied")
+    if (!ok) toast({ title: "Couldn't copy the link", description: link })
   }
 
   const normalisedSearch = search.trim().toLowerCase()
@@ -161,6 +170,7 @@ const InvitationCard = () => {
           invitations={filteredInvitations}
           onDelete={handleDeleteInvitation}
           onResend={handleResendInvitation}
+          onCopyLink={handleCopyLink}
           isSubmitting={post.isSubmitting}
           resendingEmail={resendingEmail}
           isLoading={isLoading}

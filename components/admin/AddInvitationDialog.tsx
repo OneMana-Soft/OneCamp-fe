@@ -10,32 +10,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { usePost } from "@/hooks/usePost"
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { GetEndpointUrl } from "@/services/endPoints"
 import { MailPlus, Check, Copy, Link2 } from "lucide-react";
 
 import { useFetch } from "@/hooks/useFetch"
-import { Invitation, InvitationListResponseInterface } from "@/types/user"
+import { InvitationListResponseInterface } from "@/types/user"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
+import { invite, type InvitationAnswer } from "@/services/invitationService"
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-
-/**
- * What the server answers when an invitation is created.
- *
- * The link is here so the admin can hand it over themselves, and email_sent is
- * here because a fresh install cannot send mail until somebody adds a key. The
- * dialog used to close on "sent successfully" regardless, so the first thing a
- * new admin did after setting up was invite a colleague and wait for an email
- * that was never going to come.
- */
-interface InvitationCreated {
-  invite_link?: string
-  email_sent?: boolean
-  msg?: string
-}
 
 interface AddInvitationDialogProps {
   open: boolean
@@ -50,18 +35,20 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
 }) => {
   const [email, setEmail] = useState("")
   // Second stage: the invitation exists and this is how it reaches the person.
-  const [created, setCreated] = useState<InvitationCreated | null>(null)
-  const post = usePost()
+  const [created, setCreated] = useState<InvitationAnswer | null>(null)
+  // Why the server would not invite them, said where the admin is looking:
+  // they are already a member, or their invitation is still live.
+  const [refusal, setRefusal] = useState("")
+  const [sending, setSending] = useState(false)
   const { email_enabled } = useClientConfig()
   const { copied, copy } = useCopyToClipboard()
-  const { data: response, mutate } = useFetch<InvitationListResponseInterface>(
-    GetEndpointUrl.GetAdminInvitationList
-  )
+  const { mutate } = useFetch<InvitationListResponseInterface>(GetEndpointUrl.GetAdminInvitationList)
 
   const close = (next: boolean) => {
     if (!next) {
       setCreated(null)
       setEmail("")
+      setRefusal("")
     }
     onOpenChange(next)
   }
@@ -69,59 +56,28 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
   const handleAddInvitation = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmedEmail = email.trim().toLowerCase()
-    if (!trimmedEmail || post.isSubmitting) return
+    if (!trimmedEmail || sending) return
 
-    const invitations = response?.data || []
-    
-    // New optimistic invitation
-    const optimisticInvitation: Invitation = {
-      id: "optimistic-id-" + Date.now(),
-      email: trimmedEmail,
-      invited_by: "", // Will be filled by server
-      status: "sent",
-      created_at: new Date().toISOString()
+    setRefusal("")
+    setSending(true)
+    const outcome = await invite(trimmedEmail, true)
+    setSending(false)
+    if (!outcome.ok) {
+      setRefusal(outcome.msg)
+      return
     }
-
-    let answer: InvitationCreated | undefined
-    await mutate(
-      async () => {
-        answer = await post.makeRequest<{ email: string }, InvitationCreated>({
-          apiEndpoint: PostEndpointUrl.AddInvitation,
-          payload: {
-            email: trimmedEmail,
-          },
-        })
-
-        // With mutate, we return the expected new state; revalidate below fetches
-        // the real row.
-        return { 
-          ...response, 
-          data: [optimisticInvitation, ...invitations] 
-        } as InvitationListResponseInterface
-      },
-      {
-        optimisticData: { 
-          ...response, 
-          data: [optimisticInvitation, ...invitations] 
-        } as InvitationListResponseInterface,
-        rollbackOnError: true,
-        revalidate: true // This will fetch the real data (with correct ID/invited_by) after the call
-      }
-    )
-
+    void mutate()
     onSuccess()
     // Stay open. Whether or not an email went out, the link is the admin's to
     // hand over, and closing on "sent" is how the old version hid that nothing
     // had been sent at all.
-    if (answer?.invite_link) {
-      setCreated(answer)
+    if (outcome.answer.invite_link) {
+      setCreated(outcome.answer)
     } else {
       setEmail("")
       onOpenChange(false)
     }
   }
-
-
 
   if (created) {
     const link = created.invite_link || ""
@@ -191,10 +147,17 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
                 type="email"
                 placeholder="user@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  setRefusal("")
+                }}
                 required
                 autoFocus
+                aria-describedby={refusal ? "invite-refusal" : undefined}
               />
+              {refusal && (
+                <p id="invite-refusal" role="alert" className="text-sm text-destructive">{refusal}</p>
+              )}
             </div>
           </div>
 
@@ -203,12 +166,12 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
               type="button"
               variant="outline"
               onClick={() => close(false)}
-              disabled={post.isSubmitting}
+              disabled={sending}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!email || post.isSubmitting}>
-              {post.isSubmitting ? "Inviting…" : email_enabled ? "Send invitation" : "Create invitation"}
+            <Button type="submit" disabled={!email || sending}>
+              {sending ? "Inviting…" : email_enabled ? "Send invitation" : "Create invitation"}
             </Button>
           </DialogFooter>
         </form>
