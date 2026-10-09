@@ -5,6 +5,7 @@ import TiptapLink from '@tiptap/extension-link'
 import type { EditorView } from '@tiptap/pm/view'
 import { getMarkRange } from '@tiptap/react'
 import { Plugin, TextSelection } from '@tiptap/pm/state'
+import { isSafeHref } from '@/lib/utils/safeHref'
 
 export const Link = TiptapLink.extend({
   /*
@@ -16,14 +17,29 @@ export const Link = TiptapLink.extend({
   /*
    * Match all <a> elements that have an href attribute, except for:
    * - <a> elements with a data-type attribute set to button
-   * - <a> elements with an href attribute that contains 'javascript:'
+   * - <a> elements whose href isn't a safe link (isSafeHref): their text is
+   *   kept, as plain text. A check on the selector alone missed a scheme
+   *   hidden behind a tab or a character reference ("java&#x09;script:").
    */
   parseHTML() {
-    return [{ tag: 'a[href]:not([data-type="button"]):not([href *= "javascript:" i])' }]
+    return [
+      {
+        tag: 'a[href]:not([data-type="button"])',
+        getAttrs: dom => (isSafeHref((dom as HTMLElement).getAttribute('href')) ? null : false),
+      },
+    ]
   },
 
+  /*
+   * Checked again here, because a link can reach the document without being
+   * parsed from HTML: from a collaborator's edit or from stored JSON. Read-only
+   * messages and docs are shown by this editor, and a click follows the href,
+   * so an unsafe one is left out: the link goes nowhere. (Saved again, it has
+   * no href, so it's plain text the next time it's read.)
+   */
   renderHTML({ HTMLAttributes }) {
-    return ['a', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+    const href = isSafeHref(HTMLAttributes.href) ? HTMLAttributes.href : null
+    return ['a', mergeAttributes(this.options.HTMLAttributes, { ...HTMLAttributes, href }), 0]
   },
 
   addOptions() {
@@ -32,7 +48,10 @@ export const Link = TiptapLink.extend({
       openOnClick: false,
       HTMLAttributes: {
         class: 'link'
-      }
+      },
+      // setLink, toggleLink, links made as you type and links in pasted text
+      // all ask this, so they allow only what parsing and rendering allow.
+      isAllowedUri: (url: string) => isSafeHref(url),
     }
   },
 

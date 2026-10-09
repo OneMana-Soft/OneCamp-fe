@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils/helpers/cn'
+import { isSafeHref } from '@/lib/utils/safeHref'
 
 interface LinkEditorProps extends React.HTMLAttributes<HTMLDivElement> {
   defaultUrl?: string
@@ -17,6 +18,7 @@ interface LinkEditorProps extends React.HTMLAttributes<HTMLDivElement> {
 export const LinkEditBlock = React.forwardRef<HTMLDivElement, LinkEditorProps>(
   ({ onSave, defaultIsNewTab, defaultUrl, defaultText, className }, ref) => {
     const formRef = React.useRef<HTMLDivElement>(null)
+    const urlRef = React.useRef<HTMLInputElement>(null)
     const [url, setUrl] = React.useState(defaultUrl || '')
     const [text, setText] = React.useState(defaultText || '')
     const [isNewTab, setIsNewTab] = React.useState(defaultIsNewTab || false)
@@ -24,6 +26,8 @@ export const LinkEditBlock = React.forwardRef<HTMLDivElement, LinkEditorProps>(
     const handleSave = React.useCallback(
       (e: React.FormEvent) => {
         e.preventDefault()
+        // A type="url" field accepts any scheme, "javascript:" too.
+        urlRef.current?.setCustomValidity(!url || isSafeHref(url) ? '' : 'Use a web (https://), email (mailto:) or phone (tel:) link')
         if (formRef.current) {
           const isValid = Array.from(formRef.current.querySelectorAll('input')).every(input => input.checkValidity())
 
@@ -48,7 +52,17 @@ export const LinkEditBlock = React.forwardRef<HTMLDivElement, LinkEditorProps>(
         <div className={cn('space-y-4', className)}>
           <div className="space-y-1">
             <Label>URL</Label>
-            <Input type="url" required placeholder="Enter URL" value={url} onChange={e => setUrl(e.target.value)} />
+            <Input
+              ref={urlRef}
+              type="url"
+              required
+              placeholder="Enter URL"
+              value={url}
+              onChange={e => {
+                e.target.setCustomValidity('')
+                setUrl(e.target.value)
+              }}
+            />
           </div>
 
           <div className="space-y-1">
