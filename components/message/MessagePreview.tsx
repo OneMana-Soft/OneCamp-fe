@@ -5,9 +5,9 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {MessagePreviewAvatar} from "@/components/message/MessagePreviewAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
 import {Button} from "@/components/ui/button";
-import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
 import {PrincipalTag} from "@/components/ui/principalTag";
 import {useGuestAuthor} from "@/hooks/useGuestAuthor";
+import {GuestAvatar} from "@/components/message/guestAvatar";
 
 interface MsgPreviewProps {
     msgText?: string
@@ -32,7 +32,7 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                 <div className='flex space-x-2'>
                     {guest ? (
                         <div className='h-9 w-9 shrink-0'>
-                            <ChannelMessageAvatar userName={guest.name} guest/>
+                            <GuestAvatar name={guest.name}/>
                         </div>
                     ) : (
                         <MessagePreviewAvatar userInfo={msgInfo.msgBy}/>

@@ -3,6 +3,7 @@
 import { BotTag } from "@/components/ui/botTag"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { useGuestAuthor } from "@/hooks/useGuestAuthor"
+import { GuestAvatar } from "@/components/message/guestAvatar"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import type { PostsRes } from "@/types/post"
@@ -229,13 +230,16 @@ const ChannelMessageMobileComponent = ({
         <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
             <div id={messageDomId(postInfo.post_uuid)} className="flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100" {...longPressEvent}>
                 <div className="h-9 w-9 mt-0.5 flex-shrink-0" onClick={handleUserClick}>
-                    <ChannelMessageAvatar
-                        userName={authorName}
-                        userProfileKey={userInfoState.profileKey ?? postInfo.post_by.user_profile_object_key}
-                        isBot={!!postInfo.post_by.is_bot}
-                        userUUID={postInfo.post_by.user_uuid}
-                        guest={!!guest}
-                    />
+                    {guest ? (
+                        <GuestAvatar name={guest.name} />
+                    ) : (
+                        <ChannelMessageAvatar
+                            userName={authorName}
+                            userProfileKey={userInfoState.profileKey ?? postInfo.post_by.user_profile_object_key}
+                            isBot={!!postInfo.post_by.is_bot}
+                            userUUID={postInfo.post_by.user_uuid}
+                        />
+                    )}
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
