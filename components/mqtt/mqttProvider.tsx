@@ -51,7 +51,10 @@ const MQTT_CONNECTION_CONFIG = {
 export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
 
     const dispatch = useDispatch();
-    const mqttConfigRes = useFetchOnlyOnce<{data: mqttConfigRes}>(GetEndpointUrl.GetMqttConfig);
+    // Asked for on every mount: the credentials and topics are the signed-in
+    // member's, so a copy from anywhere else (an earlier member's) mustn't
+    // connect. The response cache never writes them down (lib/swrCache).
+    const mqttConfigRes = useFetchOnlyOnce<{data: mqttConfigRes}>(GetEndpointUrl.GetMqttConfig, undefined, { revalidateOnMount: true });
     
     useEffect(() => {
         if (mqttConfigRes.isError) {
