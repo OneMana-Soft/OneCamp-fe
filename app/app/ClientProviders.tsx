@@ -41,8 +41,9 @@ export default function ClientProviders({
 
   return (
     // SWRConfig with the localStorage cache provider gives users an
-    // instant first paint of cached lists (channels, tasks, import jobs,
-    // …) after a page reload — the network revalidation still runs in
+    // instant first paint of cached lists (channels, chats, tasks, …)
+    // after a page reload, once the profile has said they're the member
+    // they were kept for — the network revalidation still runs in
     // the background and updates the UI. Without this every reload was
     // a cold-start blank state.
     //

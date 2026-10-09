@@ -67,14 +67,15 @@ export const useFetch = <T>(url: string, schema?: z.ZodSchema<T>, config?: SWRCo
 };
 
 
-export const useFetchOnlyOnce = <T>(url: string, schema?: z.ZodSchema<T>) => {
+export const useFetchOnlyOnce = <T>(url: string, schema?: z.ZodSchema<T>, config?: SWRConfiguration) => {
     const { data, error, isLoading, isValidating, mutate } = useSWR<T>(
         url == '' ? null : url, 
         () => fetcher<T>(url, schema), 
         {
             revalidateOnFocus: false, // Disable refetch on window focus
             revalidateOnReconnect: false, // Disable refetch on reconnect
-            revalidateIfStale: false
+            revalidateIfStale: false,
+            ...config,
         }
     );
 

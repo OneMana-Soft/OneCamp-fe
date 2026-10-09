@@ -14,7 +14,10 @@ import {updateUserConnectedDeviceCount, updateUserEmojiStatus, updateUserStatus}
 import { UserProfileResponseSchema } from "@/lib/validations/schemas";
 import axios from "axios";
 import { ErrorState } from "@/components/ui/error-state";
-import store, { persistor, RESET_STORE_ACTION } from "@/store/store";
+import { endSession, onSessionEndedElsewhere } from "@/lib/sessionEnd";
+// The store registers its own reset for endSession; importing it makes sure
+// that registration has run.
+import "@/store/store";
 
 /**
  * Whether the profile request failed because the session is gone: the server
@@ -29,13 +32,20 @@ export function sessionGone(error: unknown): boolean {
 
 export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
 
-    const userProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile, UserProfileResponseSchema as any);
+    // Asked for on every mount, and the app waits for the answer: it says
+    // whose session this is, and the response cache lets in what it kept only
+    // when that's the member it kept it for (lib/swrCache).
+    const userProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile, UserProfileResponseSchema as any, { revalidateOnMount: true });
     const router = useRouter();
     const dispatch = useDispatch();
     // Guard against double-firing the redirect under StrictMode and against
     // the effect re-running while we wait on the BE logout.
     const handledRef = useRef(false);
 
+    // Signed out in another tab: that tab has told this one, which has let go
+    // of the member's things (lib/sessionEnd). A full load of the login page
+    // drops what's still on screen and the realtime connection.
+    useEffect(() => onSessionEndedElsewhere(() => window.location.replace(app_login_path)), []);
 
 
     useEffect(() => {
@@ -82,16 +92,12 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
             axios
                 .post(url, null, { withCredentials: true })
                 .catch(() => {})
-                .finally(() => {
-                    // Reset + purge persisted Redux so the previous user's
-                    // state (e.g. the sidebar "Recent" items) can't leak into
-                    // the next session — same rationale as useLogout.
-                    try {
-                        store.dispatch({ type: RESET_STORE_ACTION });
-                        void persistor.purge();
-                    } catch {
-                        /* ignore */
-                    }
+                .finally(async () => {
+                    // Let go of everything kept for the member (Redux and its
+                    // persisted blob, the response cache, the collaboration
+                    // token) and tell the other tabs, before storage is
+                    // cleared — same rationale as useLogout.
+                    await endSession();
                     localStorage.clear();
                     sessionStorage.clear();
                     // Full-page nav. router.replace inside SPA wouldn't drop

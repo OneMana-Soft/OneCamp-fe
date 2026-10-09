@@ -15,6 +15,7 @@ vi.mock("@/store/store", () => ({ default: { dispatch: vi.fn() }, persistor: { p
 vi.mock("@/lib/pendingConnect", () => ({ takePendingConnect: () => null }))
 
 import { AppProtectedRoute, sessionGone } from "@/components/protectedRoute/appProtectedRoute"
+import { SESSION_ENDED_KEY, onSessionEnd } from "@/lib/sessionEnd"
 
 const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { response: { status } })
 const page = () => render(<AppProtectedRoute><p>the app</p></AppProtectedRoute>)
@@ -73,6 +74,53 @@ describe("signing out from a protected page", () => {
     await act(async () => {})
     expect(screen.getByText("the app")).toBeTruthy()
     expect(logout).not.toHaveBeenCalled()
+  })
+})
+
+describe("a session that ends", () => {
+  const realLocation = window.location
+  const replace = vi.fn()
+  beforeEach(() => {
+    replace.mockClear()
+    Object.defineProperty(window, "location", { value: { ...realLocation, replace, href: realLocation.href }, writable: true })
+  })
+  afterEach(() => {
+    Object.defineProperty(window, "location", { value: realLocation, writable: true })
+    localStorage.clear()
+  })
+
+  it("lets go of the member's things and tells the other tabs before storage is cleared", async () => {
+    localStorage.setItem("onecamp-app-cache", "the member's responses")
+    let storedWhenForgotten: string | null = null
+    const off = onSessionEnd(() => {
+      storedWhenForgotten = localStorage.getItem("onecamp-app-cache")
+    })
+    profile = { isLoading: false, isValidating: false, isError: httpError(401), data: undefined }
+    page()
+    await act(async () => {})
+    await act(async () => {})
+    expect(storedWhenForgotten).toBe("the member's responses")
+    expect(localStorage.getItem("onecamp-app-cache")).toBeNull()
+    off()
+  })
+
+  it("in another tab sends this one to the login page", async () => {
+    profile = { isLoading: false, isValidating: false, isError: undefined, data: { data: { user_uuid: "u", user_name: "Sam" } } }
+    page()
+    await act(async () => {})
+    window.dispatchEvent(new StorageEvent("storage", { key: SESSION_ENDED_KEY, newValue: "1" }))
+    await act(async () => {})
+    expect(replace).toHaveBeenCalledWith("/")
+  })
+
+  it("in another tab sends nothing anywhere once the app has gone", async () => {
+    profile = { isLoading: false, isValidating: false, isError: undefined, data: { data: { user_uuid: "u", user_name: "Sam" } } }
+    page()
+    await act(async () => {})
+    cleanup()
+    window.dispatchEvent(new StorageEvent("storage", { key: SESSION_ENDED_KEY, newValue: "1" }))
+    await act(async () => {})
+    expect(replace).not.toHaveBeenCalled()
   })
 })
 

@@ -21,19 +21,72 @@
  *   - Avoid persisting transient/error states: SWR stores errors and
  *     in-flight states in the same Map; we strip them so an offline
  *     tick doesn't poison the next reload.
+ *   - Only what the first screens show is written down (KEPT), and nothing
+ *     that carries a credential. Every response used to be: the realtime
+ *     connection's token and topics among them, which the next load used
+ *     without asking again, so whoever signed in next on that browser was
+ *     connected as the member before them.
+ *   - It's one member's. It's written down with their id, and held back on
+ *     the next load until the profile, asked for afresh, says who is signed
+ *     in: their own cache is used, anyone else's is dropped unseen
+ *     (MemberCache). It ends with the session, in every tab (lib/sessionEnd).
  */
 
 import type { Cache } from "swr"
 
 import { onSessionEnd } from "@/lib/sessionEnd"
+import { GetEndpointUrl } from "@/services/endPoints"
 
 const CACHE_KEY = "onecamp-app-cache"
-const CACHE_VERSION = 2 // bump when the serialised shape changes
+const CACHE_VERSION = 3 // bump when the serialised shape changes
 // Written down for the next load: parsing it blocks the first paint, so it
 // stays small; the newest responses are what that paint needs.
 export const MAX_CACHE_BYTES = 2 * 1024 * 1024
 // Responses kept in memory. A screen reads a few dozen; this is many screens.
 export const MAX_ENTRIES = 300
+
+/**
+ * The responses written down for the next load: what the first screens show
+ * (the sidebar, the lists, a conversation's latest messages), so they paint
+ * from the last visit while they're asked for again. Each is read with
+ * useFetch, which asks again on mount. Everything else lives for the page
+ * only: above all the realtime connection's token and topics, the profile
+ * (whose session this is, so it's always asked for), signed file links,
+ * guest and share links, tokens and admin settings.
+ */
+const KEPT: readonly string[] = [
+  GetEndpointUrl.SelfProfileSideNav,
+  GetEndpointUrl.GetUserActiveChannelList,
+  GetEndpointUrl.ChannelBasicInfo,
+  GetEndpointUrl.GetChannelLatestPost,
+  GetEndpointUrl.GetUserLatestChatList,
+  GetEndpointUrl.GetChatLatestMessage,
+  GetEndpointUrl.GetGroupChatLatestMessage,
+  GetEndpointUrl.GetUnifiedActivity,
+  GetEndpointUrl.GetMentionActivity,
+  GetEndpointUrl.GetUserTaskList,
+  GetEndpointUrl.GetUserTaskListForKanban,
+  GetEndpointUrl.GetUserProjectList,
+  GetEndpointUrl.GetUserTeamList,
+  GetEndpointUrl.GetUserPrivateDocList,
+  GetEndpointUrl.GetUserPublicDocList,
+  GetEndpointUrl.GetAllUser,
+  GetEndpointUrl.BotKinds,
+]
+
+/** Whether a response is written down for the next load (KEPT). Pure. */
+export function isKept(key: unknown): key is string {
+  return typeof key === "string" && KEPT.some((path) => key === path || key.startsWith(`${path}/`) || key.startsWith(`${path}?`))
+}
+
+/** The response that says who is signed in. */
+const PROFILE_KEY: string = GetEndpointUrl.SelfProfile
+
+/** The member a cached profile response is for, or null. */
+function memberOf(value: unknown): string | null {
+  const uuid = (value as { data?: { data?: { user_uuid?: unknown } } } | null | undefined)?.data?.data?.user_uuid
+  return typeof uuid === "string" && uuid !== "" ? uuid : null
+}
 
 /**
  * A Map that forgets the entries read or written least recently beyond its
@@ -91,7 +144,77 @@ export class RecentCache<V> extends Map<string, V> {
 }
 
 type SerialisedEntry = [string, unknown]
-type SerialisedCache = { v: number; entries: SerialisedEntry[] }
+type SerialisedCache = { v: number; member: string; entries: SerialisedEntry[] }
+
+function dropStored(): void {
+  try {
+    localStorage.removeItem(CACHE_KEY)
+  } catch {
+    /* storage unavailable: nothing was written either */
+  }
+}
+
+/**
+ * The cache SWR uses: a RecentCache that knows whose responses it holds.
+ *
+ * What the last load wrote down is held back, out of SWR's sight, until the
+ * profile is set: SWR sets it from the server's answer, since the profile is
+ * never written down. If that answer is the member the cache was written for,
+ * their responses are let in; if it's anyone else, they're dropped, from
+ * storage too. The app shows nothing until the profile has answered
+ * (AppProtectedRoute), so the screens never show the last member's.
+ */
+export class MemberCache extends RecentCache<unknown> {
+  /** Whose responses these are, once the profile has said; null until then. */
+  member: string | null = null
+  // Someone else's profile was set after the member's: the page's responses
+  // are no one's to write down.
+  private retired = false
+  private held: SerialisedEntry[]
+  private heldFor: string | null
+
+  constructor(held: SerialisedEntry[] = [], heldFor: string | null = null) {
+    super()
+    this.held = held
+    this.heldFor = heldFor
+  }
+
+  set(key: string, value: unknown): this {
+    super.set(key, value)
+    if (key === PROFILE_KEY) this.signedIn(memberOf(value))
+    return this
+  }
+
+  clear(): void {
+    this.held = []
+    this.heldFor = null
+    super.clear()
+  }
+
+  private signedIn(member: string | null): void {
+    if (!member || member === this.member || this.retired) return
+    if (this.member) {
+      // The session changed under this page (someone signed in in another
+      // tab). What it has is the last member's.
+      this.retired = true
+      this.member = null
+      dropStored()
+      return
+    }
+    this.member = member
+    const held = this.held
+    const heldFor = this.heldFor
+    this.held = []
+    this.heldFor = null
+    if (heldFor !== member) {
+      if (heldFor !== null) dropStored()
+      return
+    }
+    for (const [key, value] of held) if (!this.has(key)) super.set(key, value)
+    // Recent again, so letting the others in never pushes it out.
+    this.get(PROFILE_KEY)
+  }
+}
 
 /**
  * Returns true if the value is "interesting" enough to persist.
@@ -124,18 +247,18 @@ function atRest(value: unknown): unknown {
 }
 
 /**
- * The cache as written down: the most recently read entries that fit in
- * budget, oldest first so a reload restores their order. Each entry is
- * serialised once (this used to re-serialise the whole cache once per entry
- * it dropped when over budget). Pure, for its test.
+ * The cache as written down for `member`: the most recently read entries that
+ * are kept (isKept) and fit in budget, oldest first so a reload restores their
+ * order. Each entry is serialised once (this used to re-serialise the whole
+ * cache once per entry it dropped when over budget). Pure, for its test.
  */
-export function serialise(map: Map<string, unknown>, budget = MAX_CACHE_BYTES): string {
+export function serialise(map: Map<string, unknown>, member: string, budget = MAX_CACHE_BYTES): string {
   const recentFirst: [string, unknown][] =
     map instanceof RecentCache ? map.recentFirst().map((k) => [k, Map.prototype.get.call(map, k)]) : [...map.entries()].reverse()
   const parts: string[] = []
   let used = 0
   for (const [key, value] of recentFirst) {
-    if (typeof key !== "string" || key.startsWith("$req$") || !isPersistable(value)) continue
+    if (!isKept(key) || !isPersistable(value)) continue
     let part: string
     try {
       part = JSON.stringify([key, atRest(value)] satisfies SerialisedEntry)
@@ -147,12 +270,15 @@ export function serialise(map: Map<string, unknown>, budget = MAX_CACHE_BYTES): 
     parts.push(part)
     used += part.length + 1
   }
-  return `{"v":${CACHE_VERSION},"entries":[${parts.reverse().join(",")}]}`
+  return `{"v":${CACHE_VERSION},"member":${JSON.stringify(member)},"entries":[${parts.reverse().join(",")}]}`
 }
 
-function persist(map: Map<string, unknown>): void {
+function persist(map: MemberCache): void {
+  // Until the profile has said whose page this is, what's written down stays
+  // as it was: the next load holds it back and checks it again.
+  if (!map.member) return
   try {
-    localStorage.setItem(CACHE_KEY, serialise(map))
+    localStorage.setItem(CACHE_KEY, serialise(map, map.member))
   } catch {
     // QuotaExceeded, JSON cyclic refs, etc. Cache is best-effort —
     // a failure here means the next reload won't have hydrated state,
@@ -160,44 +286,40 @@ function persist(map: Map<string, unknown>): void {
   }
 }
 
-function rehydrate(): Map<string, unknown> {
-  if (typeof window === "undefined") return new Map()
+function rehydrate(): MemberCache {
   try {
     const raw = localStorage.getItem(CACHE_KEY)
-    if (!raw) return new RecentCache()
-    const parsed = JSON.parse(raw) as SerialisedCache | unknown
+    if (!raw) return new MemberCache()
+    const parsed = JSON.parse(raw) as Partial<SerialisedCache> | null
     // Migration safety: if the stored shape doesn't match the current
-    // version, discard it instead of mounting partially-broken values.
+    // version, or doesn't say whose it is, discard it instead of mounting
+    // partially-broken values.
     if (
       !parsed ||
       typeof parsed !== "object" ||
-      (parsed as SerialisedCache).v !== CACHE_VERSION ||
-      !Array.isArray((parsed as SerialisedCache).entries)
+      parsed.v !== CACHE_VERSION ||
+      typeof parsed.member !== "string" ||
+      parsed.member === "" ||
+      !Array.isArray(parsed.entries)
     ) {
-      localStorage.removeItem(CACHE_KEY)
-      return new RecentCache()
+      dropStored()
+      return new MemberCache()
     }
-    // Defensive: filter out any non-string keys that might exist in a
-    // tampered payload. SWR keys are always strings in this codebase.
-    const safeEntries = (parsed as SerialisedCache).entries.filter(
-      (e): e is SerialisedEntry => Array.isArray(e) && typeof e[0] === "string"
-    )
-    return new RecentCache(safeEntries)
+    // Defensive: only what this build keeps, under string keys, from a
+    // tampered or older payload.
+    const kept = parsed.entries.filter((e): e is SerialisedEntry => Array.isArray(e) && isKept(e[0]))
+    return new MemberCache(kept, parsed.member)
   } catch {
     // Corrupt JSON. Drop and start fresh.
-    try {
-      localStorage.removeItem(CACHE_KEY)
-    } catch {
-      /* ignore */
-    }
-    return new RecentCache()
+    dropStored()
+    return new MemberCache()
   }
 }
 
 // The map SWR is using now, which is the one written down. Null once the
 // session has ended, so a response that lands while the page is on its way out
 // is never kept for whoever signs in next.
-let current: Map<string, unknown> | null = null
+let current: MemberCache | null = null
 let registered = false
 
 function flush(): void {
@@ -246,11 +368,7 @@ export function localStorageProvider(): Cache<unknown> {
 function forgetCache(): void {
   current?.clear()
   current = null
-  try {
-    localStorage.removeItem(CACHE_KEY)
-  } catch {
-    /* storage unavailable: nothing was written either */
-  }
+  dropStored()
 }
 
 onSessionEnd(forgetCache)
