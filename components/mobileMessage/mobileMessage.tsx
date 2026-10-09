@@ -24,6 +24,8 @@ import {app_user} from "@/types/paths";
 import {useRouter} from "next/navigation";
 import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
+import { useGuestAuthor } from "@/hooks/useGuestAuthor";
+import { PrincipalTag } from "@/components/ui/principalTag";
 
 interface mobileMessageProps {
     userInfo: UserProfileDataInterface
@@ -60,6 +62,11 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
     const [userSelectedOption, setUserSelectedOption] = useState<UserSelectedOptionInterface>({} as UserSelectedOptionInterface)
     const [reactions, setReactions] = useState<{ [key: string]: string[] }>({});
+
+    // A channel guest's message or reply is drawn as theirs (see lib/guestAuthor).
+    const guest = useGuestAuthor(userInfo, content)
+    const authorName = guest ? guest.name : userInfo.user_name
+    const body = guest ? guest.body : content
 
     const [updatedText, setUpdatedText] = useState<string>(content);
     const updatedTextRef = useRef<string>(content);
@@ -118,10 +125,10 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
     }, [dispatch, handleEmojiClick]);
 
     const copyText = useCallback(() => {
-        const t = removeHtmlTags(content)
+        const t = removeHtmlTags(body)
 
         copyToClipboard.copy(t, 'copied body text')
-    }, [content, copyToClipboard]);
+    }, [body, copyToClipboard]);
 
     const handleLongPressPostComment = useCallback(() => {
         if(postUUID && channelUUID && !commentUUID) {
@@ -142,7 +149,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                     handleEmojiClick: handleEmojiClick,
                     copyTextToClipboard: copyText,
                     makeTask: () => {
-                        const action = makeTaskAction({ html: content, authorName: userInfo?.user_name, channelUUID, postUUID }, window.location.origin)
+                        const action = makeTaskAction({ html: body, authorName, channelUUID, postUUID }, window.location.origin)
                         if (action) dispatch(action)
                     },
                 }
@@ -258,7 +265,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
             }))
         }
 
-    }, [postUUID, channelUUID, commentUUID, chatMessageUUID, chatUUID, grpId, docId, dispatch, addEmojiReaction, setIsMessageEditEnabled, deleteMessage, selfProfile.data?.data?.user_uuid, userInfo.user_uuid, isAdmin, handleEmojiClick, copyText]);
+    }, [postUUID, channelUUID, commentUUID, chatMessageUUID, chatUUID, grpId, docId, dispatch, addEmojiReaction, setIsMessageEditEnabled, deleteMessage, selfProfile.data?.data?.user_uuid, userInfo.user_uuid, isAdmin, handleEmojiClick, copyText, body, authorName]);
 
     const longPressEvent = useLongPress(handleLongPressPostComment, {
         threshold: 500, // Reduced from 800ms to 500ms for quicker long press
@@ -270,9 +277,11 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
     const handleUserClick = useCallback((e: React.MouseEvent)=>{
         e.preventDefault()
         e.stopPropagation()
+        // A guest has no profile: the Guests bot's would stand in for them.
+        if (guest) return
         router.push(`${app_user}/${userInfo.user_uuid}`);
 
-    },[userInfo.user_uuid])
+    },[userInfo.user_uuid, guest])
 
 
     const handleSelectAttachment = useCallback((attachment: AttachmentMediaReq) => {
@@ -300,14 +309,15 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
             >
 
                 <div className='h-12 w-12 flex-shrink-0' onClick={handleUserClick}>
-                    <ChannelMessageAvatar userName={userInfo.user_name} userProfileKey={userInfo.user_profile_object_key} isBot={!!userInfo.is_bot} userUUID={userInfo.user_uuid}/>
+                    <ChannelMessageAvatar userName={authorName} userProfileKey={userInfo.user_profile_object_key} isBot={!!userInfo.is_bot} userUUID={userInfo.user_uuid} guest={!!guest}/>
 
                 </div>
                 <div className='w-full'>
                     <div className='flex items-baseline space-x-2'>
                         <div className='font-semibold text-m' onClick={handleUserClick}>
-                            {userInfo.user_name}
+                            {authorName}
                         </div>
+                        {guest && <PrincipalTag kind="guest" />}
                         <div className='text-xs text-muted-foreground text'>
                             {formatTimeForPostOrComment(createdAt)}
 
@@ -333,7 +343,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                             className={cn("w-full rounded-xl h-auto", isMessageEditEnabled ? "p-2" : "border-none")}
                             editorContentClassName="overflow-auto "
                             output="html"
-                            content={content}
+                            content={body}
                             placeholder={"Edit message…"}
                             editable={isMessageEditEnabled}
                             PrimaryButtonIcon={Check}

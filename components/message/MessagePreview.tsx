@@ -5,6 +5,9 @@ import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {MessagePreviewAvatar} from "@/components/message/MessagePreviewAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
 import {Button} from "@/components/ui/button";
+import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
+import {PrincipalTag} from "@/components/ui/principalTag";
+import {useGuestAuthor} from "@/hooks/useGuestAuthor";
 
 interface MsgPreviewProps {
     msgText?: string
@@ -16,7 +19,8 @@ interface MsgPreviewProps {
     vewFooter?:boolean
 }
 export function MessagePreview (msgInfo : MsgPreviewProps) {
-
+    // A quoted channel guest's message names the guest (see lib/guestAuthor).
+    const guest = useGuestAuthor(msgInfo.msgBy, msgInfo.msgText)
 
     return (
 
@@ -26,9 +30,18 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
             <div className='flex-col pl-4'>
 
                 <div className='flex space-x-2'>
-                    <MessagePreviewAvatar userInfo={msgInfo.msgBy}/>
+                    {guest ? (
+                        <div className='h-9 w-9 shrink-0'>
+                            <ChannelMessageAvatar userName={guest.name} guest/>
+                        </div>
+                    ) : (
+                        <MessagePreviewAvatar userInfo={msgInfo.msgBy}/>
+                    )}
                     <div>
-                        <div className='text-sm'>{msgInfo.msgBy?.user_name || msgInfo.msgChannelName}</div>
+                        <div className='flex items-baseline gap-1.5 text-sm'>
+                            {guest ? guest.name : (msgInfo.msgBy?.user_name || msgInfo.msgChannelName)}
+                            {guest && <PrincipalTag kind="guest"/>}
+                        </div>
                         <div className='text-xs text-muted-foreground text'>
                             {msgInfo.msgCreatedAt && formatTimeForPostOrComment(msgInfo.msgCreatedAt)}
 
@@ -45,7 +58,7 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                     className={cn("max-w-full rounded-xl h-auto border-none mt-2")}
                     editorContentClassName="overflow-auto "
                     output="html"
-                    content={msgInfo.msgText}
+                    content={guest ? guest.body : msgInfo.msgText}
                     placeholder={""}
                     editable={false}
                     ButtonIcon={SendHorizontal}

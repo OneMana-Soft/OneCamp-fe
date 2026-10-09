@@ -4,6 +4,8 @@ import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { cn } from "@/lib/utils/helpers/cn"
 import { BotTag } from "@/components/ui/botTag"
+import { PrincipalTag } from "@/components/ui/principalTag"
+import { useGuestAuthor } from "@/hooks/useGuestAuthor"
 import { Check, X, Languages, Loader2 } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { useTranslateText } from "@/services/aiService"
@@ -223,6 +225,11 @@ export const BaseMessageCard = React.memo(({
   const handleInternalLinkClick = useInternalLinkRouter(!isMessageEditEnabled)
 
   const userInfoState = useUserInfoState(message.from.user_uuid)
+  // A channel guest's message is drawn as theirs: their name, a Guest tag, and
+  // only what they wrote (see lib/guestAuthor).
+  const guest = useGuestAuthor(message.from, message.bodyText)
+  const authorName = guest ? guest.name : messageAuthorName(message.from, userInfoState?.userName)
+  const bodyText = guest ? guest.body : message.bodyText
 
   // Inline AI translation (Notion/Slack-style). One click translates the
   // message into the viewer's browser language and shows it beneath the
@@ -237,7 +244,7 @@ export const BaseMessageCard = React.memo(({
       setShowTranslation((v) => !v)
       return
     }
-    const text = (message.bodyText || "").trim()
+    const text = (bodyText || "").trim()
     if (!text) return
     const target = typeof navigator !== "undefined" ? navigator.language : "English"
     const res = await translateText(text, target)
@@ -245,7 +252,7 @@ export const BaseMessageCard = React.memo(({
       setTranslation(res.translation)
       setShowTranslation(true)
     }
-  }, [translation, message.bodyText, translateText])
+  }, [translation, bodyText, translateText])
 
   const reactions = useMemo(() => {
     const r: { [key: string]: string[] } = {}
@@ -331,7 +338,7 @@ export const BaseMessageCard = React.memo(({
       className={cn("max-w-full h-auto", isMessageEditEnabled && "mt-1 mb-2")}
       editorContentClassName="overflow-auto mb-2"
       output="html"
-      content={message.bodyText}
+      content={bodyText}
       placeholder="Edit message…"
       editable={isMessageEditEnabled}
       PrimaryButtonIcon={Check}
@@ -378,33 +385,41 @@ export const BaseMessageCard = React.memo(({
               setEmojiPopupState={setIsEmojiPickerOpen}
               onReactionSelect={handleEmojiClick}
               setIsDropdownOpen={setIsDropdownOpen}
-              messageText={message.bodyText}
-              authorName={messageAuthorName(message.from, userInfoState?.userName)}
+              messageText={bodyText}
+              authorName={authorName}
               onReply={onReply}
-              onTranslate={message.bodyText ? handleTranslate : undefined}
+              onTranslate={bodyText ? handleTranslate : undefined}
               {...hoverOptionsConfig}
             />
           </div>
         )}
-        <div className="h-9 w-9 shrink-0 mt-0.5" onClick={onAvatarClick}>
+        <div className="h-9 w-9 shrink-0 mt-0.5" onClick={guest ? undefined : onAvatarClick}>
           <ChannelMessageAvatar
-            userName={messageAuthorName(message.from, userInfoState?.userName)}
+            userName={authorName}
             userProfileKey={userInfoState?.profileKey ?? message.from.user_profile_object_key}
             isBot={!!message.from.is_bot}
             userUUID={message.from.user_uuid}
+            guest={!!guest}
           />
         </div>
         <div className="flex-1 min-w-0">
           {!isMessageEditEnabled && (
             <div className="flex items-baseline gap-2">
-              <button
-                type="button"
-                onClick={handleUserClick}
-                className="text-sm font-semibold text-foreground hover:underline truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded"
-              >
-                {messageAuthorName(message.from, userInfoState?.userName)}
-              </button>
-              {message.from.is_bot && (
+              {guest ? (
+                // A guest has no profile to open: the name is only a name.
+                <span className="text-sm font-semibold text-foreground truncate">{authorName}</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleUserClick}
+                  className="text-sm font-semibold text-foreground hover:underline truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded"
+                >
+                  {authorName}
+                </button>
+              )}
+              {guest ? (
+                <PrincipalTag kind="guest" />
+              ) : message.from.is_bot && (
                 <BotTag userUUID={message.from.user_uuid} />
               )}
               <span className="text-2xs tabular-nums text-muted-foreground">

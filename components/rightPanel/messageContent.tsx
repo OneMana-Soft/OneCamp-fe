@@ -27,6 +27,7 @@ import {openUI} from "@/store/slice/uiSlice";
 import {useDispatch} from "react-redux";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {SaveToMemoryButton} from "@/components/ai/SaveToMemoryButton";
+import { useGuestAuthor } from "@/hooks/useGuestAuthor";
 
 interface MessageContentProps {
     userInfo?: UserProfileDataInterface
@@ -89,8 +90,15 @@ export const MessageContent = ({
     // guest_comments table, so we suppress those affordances and the profile
     // open, and badge the author instead of exposing a member profile surface.
     const isGuest = !!userInfo?.user_uuid?.startsWith("guest-")
-    const guestDisplayName =
-        (userInfo?.user_name || "").replace(/^Guest:\s*/i, "").trim() || "Guest"
+    // A channel guest's message or reply, posted by the Guests bot: drawn as
+    // theirs (see lib/guestAuthor). Unlike a doc guest's comment it lives in
+    // the ordinary store, so members still react to it and admins delete it.
+    const channelGuest = useGuestAuthor(isGuest ? undefined : userInfo, content)
+    const guestDisplayName = channelGuest
+        ? channelGuest.name
+        : (userInfo?.user_name || "").replace(/^Guest:\s*/i, "").trim() || "Guest"
+    const asGuest = isGuest || !!channelGuest
+    const body = channelGuest ? channelGuest.body : content
 
     const handleEmojiClick = (emojiId: string) => {
         if(userSelectedOption.emojiId == emojiId) {
@@ -173,26 +181,27 @@ export const MessageContent = ({
                     }
                 />
             </div>}
-            <div className="h-12 w-12 flex-shrink-0" onClick={isGuest ? undefined : handleUserClick}>
+            <div className="h-12 w-12 flex-shrink-0" onClick={asGuest ? undefined : handleUserClick}>
                 <ChannelMessageAvatar
-                    userName={isGuest ? guestDisplayName : (userStatusState?.userName || userInfo?.user_name || '')}
-                    userProfileKey={isGuest ? undefined : (userStatusState?.userName ? userStatusState?.profileKey : userInfo?.user_profile_object_key)}
-                    isBot={!isGuest && !!userInfo?.is_bot}
+                    userName={asGuest ? guestDisplayName : (userStatusState?.userName || userInfo?.user_name || '')}
+                    userProfileKey={asGuest ? undefined : (userStatusState?.userName ? userStatusState?.profileKey : userInfo?.user_profile_object_key)}
+                    isBot={!asGuest && !!userInfo?.is_bot}
                     userUUID={userInfo?.user_uuid}
+                    guest={asGuest}
                 />
             </div>
             <div className="flex-1 min-w-0 mb-4">
                 <div className="flex items-baseline space-x-2 mb-1">
                     <div
                         className="font-medium text-sm"
-                        onClick={isGuest ? undefined : handleUserClick}
+                        onClick={asGuest ? undefined : handleUserClick}
                     >
-                        {isGuest ? guestDisplayName : userInfo?.user_name}
+                        {asGuest ? guestDisplayName : userInfo?.user_name}
                     </div>
-                    {isGuest && (
+                    {asGuest && (
                         <PrincipalTag kind="guest" />
                     )}
-                    {!isGuest && userInfo?.is_bot && (
+                    {!asGuest && userInfo?.is_bot && (
                         <BotTag userUUID={userInfo?.user_uuid} />
                     )}
                      <div className="text-xs text-muted-foreground">{formatTimeForPostOrComment(createdAt || '')}</div>
@@ -219,7 +228,7 @@ export const MessageContent = ({
                         )}
                         editorContentClassName="overflow-auto mb-2 text-sm"
                         output="html"
-                        content={content}
+                        content={body}
                         placeholder="Edit message…"
                         editable={isMessageEditEnabled}
 
