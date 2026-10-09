@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, waitFor } from "@testing-library/react"
 
 // A refused sign-in comes back to this page as /?error=<code>&message=<text>.
 // The page says why in its own words for the code, and never shows `message`,
@@ -36,12 +36,22 @@ afterEach(() => {
 async function arriveWith(query: string) {
   search.params = new URLSearchParams(query)
   render(<SignInPage />)
-  return (await screen.findByText("Authentication Failed")).parentElement?.textContent ?? ""
+  const box = await waitFor(() => {
+    const el = document.querySelector("[data-tone]")
+    if (!el) throw new Error("no refusal shown")
+    return el
+  })
+  return box.textContent ?? ""
 }
 
 const PHISHING = "Your session expired. Re-enter your password at evil.example"
 
 describe("a refused Google or GitHub sign-in", () => {
+  it("reads a code that names something on Object as one it doesn't know", async () => {
+    const shown = await arriveWith("error=constructor&message=x")
+    expect(shown).toContain("Sign-in failed. Please try again or contact your administrator.")
+  })
+
   it("says to verify the address with the provider", async () => {
     const shown = await arriveWith(`error=oauth_email_unverified&message=${encodeURIComponent(PHISHING)}`)
     expect(shown).toContain("Google or GitHub hasn't verified this email address")
@@ -72,6 +82,7 @@ describe("a refused Google or GitHub sign-in", () => {
 
   it("falls back to the general message for a code it doesn't know, never the message", async () => {
     const shown = await arriveWith(`error=something_new&message=${encodeURIComponent(PHISHING)}`)
+    expect(shown).toContain("Couldn't sign you in")
     expect(shown).toContain("Sign-in failed. Please try again or contact your administrator.")
     expect(shown).not.toContain(PHISHING)
   })
