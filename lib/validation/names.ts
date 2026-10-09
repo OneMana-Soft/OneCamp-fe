@@ -31,23 +31,53 @@ export const NAME_RULES: Record<NameKind, Rule> = {
   label: { min: 1, max: 60, pattern: /^[^\p{Cc}]+$/u, allows: "" },
 }
 
-/** Whether a name follows its rule; the value is trimmed first. */
+// Characters that can't be seen: format characters (a zero-width space or
+// joiner) and variation selectors.
+const UNSEEN = /[\p{Cf}\u{FE00}-\u{FE0F}\u{E0100}-\u{E01EF}]/u
+
+/**
+ * Whether every character of a person's name can be seen where it is, as the
+ * server's helpers.IsValidPersonName asks: no format character or variation
+ * selector, every accent on a letter or number, and at least one letter or
+ * number. Two names that look the same can't then differ invisibly, and
+ * "..." isn't anybody's name. Takes the name in NFC.
+ */
+export function seenAsTyped(name: string): boolean {
+  if (UNSEEN.test(name)) return false
+  let hasLetter = false
+  let prevBase = false
+  for (const ch of name) {
+    if (/\p{M}/u.test(ch)) {
+      if (!prevBase) return false
+      continue
+    }
+    prevBase = /[\p{L}\p{N}]/u.test(ch)
+    hasLetter ||= prevBase
+  }
+  return hasLetter
+}
+
+/** Whether a name follows its rule; the value is trimmed (and, for a person, put in NFC) first. */
 export function isValidName(kind: NameKind, value: string): boolean {
   const r = NAME_RULES[kind]
-  const v = value.trim()
+  const v = kind === "person" ? value.trim().normalize("NFC") : value.trim()
   const n = [...v].length
-  return n >= r.min && n <= r.max && r.pattern.test(v)
+  return n >= r.min && n <= r.max && r.pattern.test(v) && (kind !== "person" || seenAsTyped(v))
 }
 
 /** A zod schema for a name; `what` starts the error, e.g. "Channel name". */
 export function nameSchema(kind: NameKind, what: string) {
   const r = NAME_RULES[kind]
-  return z
+  const schema = z
     .string()
     .trim()
     .refine((v) => [...v].length >= r.min, r.min === 1 ? `${what} can't be empty` : `${what} needs at least ${r.min} characters`)
     .refine((v) => [...v].length <= r.max, `${what} can be at most ${r.max} characters`)
     .refine((v) => v === "" || r.pattern.test(v), r.allows ? `${what} can use ${r.allows}` : `${what} can't contain control characters`)
+  if (kind !== "person") return schema
+  return schema
+    .refine((v) => v === "" || /[\p{L}\p{N}]/u.test(v), `${what} needs at least one letter or number`)
+    .refine((v) => v === "" || seenAsTyped(v.normalize("NFC")), `${what} has a character that can't be seen, or an accent on its own. Type it again without it.`)
 }
 
 /** An optional field: empty, or a valid name. */
@@ -71,13 +101,25 @@ export const HANDLE_RULE = {
   allows: "lowercase letters, numbers, full stops, hyphens and underscores, starting with a letter or number",
 }
 
-/** A handle as typed, in the form it is kept: trimmed, without a leading @, lowercase. */
+/**
+ * Words a mention means for a group of people, so nobody's handle may be one
+ * (the server's helpers.HandleIsReserved).
+ */
+export const RESERVED_HANDLES = ["everyone", "here", "channel", "all", "admin"]
+
+/** A handle as typed, in the form it is kept: trimmed, without a leading @, lowercase, in NFC. */
 export function normalizeHandle(value: string): string {
-  return value.trim().replace(/^@/, "").toLowerCase()
+  return value.trim().replace(/^@/, "").toLowerCase().normalize("NFC")
 }
 
 /** Why a (normalized) handle can't be had, or "" when it can. */
 export function handleProblem(handle: string): string {
+  if (RESERVED_HANDLES.includes(handle)) {
+    return `@${handle} means a group of people in a mention, so it can't be anyone's handle. Try another.`
+  }
+  if (UNSEEN.test(handle)) {
+    return `A handle can use ${HANDLE_RULE.min} to ${HANDLE_RULE.max} ${HANDLE_RULE.allows}.`
+  }
   const n = [...handle].length
   if (n < HANDLE_RULE.min || n > HANDLE_RULE.max || !HANDLE_RULE.pattern.test(handle)) {
     return `A handle can use ${HANDLE_RULE.min} to ${HANDLE_RULE.max} ${HANDLE_RULE.allows}.`
