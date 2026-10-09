@@ -53,6 +53,7 @@ import { useSplitActions } from "@/hooks/useSplitView"
 import { openShortcuts } from "@/components/shortcuts/ShortcutsDialog"
 import { Columns2, Keyboard, Maximize2 } from "@/lib/icons"
 import { FEATURE_AI, FEATURE_CALLS, useClientConfig } from "@/hooks/useClientConfig"
+import { projectAt } from "@/lib/task/startingProject"
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -419,7 +420,12 @@ export function CommandPalette() {
         keywords: ["new task", "add task", "todo"],
         icon: <Plus className="mr-2 h-4 w-4" />,
         group: "Create",
-        action: () => dispatch(openUI({ key: "createTask" })),
+        // On a project's page the task starts in that project, as the page's
+        // own New task button does.
+        action: () => {
+          const projectId = projectAt(pathname)
+          dispatch(openUI(projectId ? { key: "createTask", data: { projectId } } : { key: "createTask" }))
+        },
       },
       {
         id: "create-channel",
