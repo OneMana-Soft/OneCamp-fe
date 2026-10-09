@@ -12,9 +12,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
-import { MailPlus } from "@/lib/icons"
-import { invite } from "@/services/invitationService"
+import { MailPlus, Link2 } from "@/lib/icons"
+import { invite, type InvitationAnswer } from "@/services/invitationService"
+import { InvitationOutcome, describeInvitation } from "@/components/invite/InvitationOutcome"
 
 interface Props {
     open: boolean
@@ -23,15 +23,27 @@ interface Props {
 
 // MemberInviteDialog is the lightweight, member-facing invite surface. Unlike
 // the admin invitation card it does NOT read the workspace's full invitation
-// list (that's admin governance) — it only sends a single invite via the
-// capability-gated /invitations endpoint.
+// list (that's admin governance); it only sends a single invite via the
+// capability-gated /invitations endpoint. Once it has, it says whether the
+// email went, or why not, with the link to hand over; it used to toast
+// "Invitation sent" and close whether or not anything was sent.
 export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     const [email, setEmail] = useState("")
     // Why the server would not invite them (already a member, already
     // invited), said in the dialog rather than in a toast that vanishes.
     const [refusal, setRefusal] = useState("")
     const [sending, setSending] = useState(false)
-    const { toast } = useToast()
+    // Once made: what happened to its email, and the link.
+    const [created, setCreated] = useState<{ answer: InvitationAnswer; email: string } | null>(null)
+
+    const close = (next: boolean) => {
+        if (!next) {
+            setCreated(null)
+            setEmail("")
+            setRefusal("")
+        }
+        onOpenChange(next)
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -45,13 +57,33 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             setRefusal(outcome.msg)
             return
         }
-        toast({ title: "Invitation sent", description: `Invited ${trimmed}` })
-        setEmail("")
-        onOpenChange(false)
+        setCreated({ answer: outcome.answer, email: trimmed })
+    }
+
+    if (created) {
+        return (
+            <Dialog open={open} onOpenChange={close}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Link2 className="h-5 w-5 text-primary" />
+                            {describeInvitation(created.answer, created.email).title}
+                        </DialogTitle>
+                        <DialogDescription>An invitation for {created.email}.</DialogDescription>
+                    </DialogHeader>
+                    <InvitationOutcome answer={created.answer} email={created.email} />
+                    <DialogFooter>
+                        <Button type="button" onClick={() => close(false)}>
+                            Done
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        )
     }
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={close}>
             <DialogContent className="sm:max-w-[425px]">
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>
@@ -87,7 +119,7 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                     </div>
 
                     <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={sending}>
+                        <Button type="button" variant="outline" onClick={() => close(false)} disabled={sending}>
                             Cancel
                         </Button>
                         <Button type="submit" disabled={!email || sending}>

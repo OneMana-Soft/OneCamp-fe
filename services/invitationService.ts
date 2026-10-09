@@ -12,8 +12,13 @@ import { PostEndpointUrl } from "@/services/endPoints"
 export interface InvitationAnswer {
   /** The link the invitation carries, for the admin to hand over themselves. */
   invite_link?: string
-  /** Whether an email went out with it. */
+  /** Whether the email provider took the email. */
   email_sent?: boolean
+  /**
+   * Why it didn't, when it didn't: a phrase that follows "Couldn't email it: "
+   * ("email isn't set up on this server").
+   */
+  email_error?: string
   msg?: string
 }
 

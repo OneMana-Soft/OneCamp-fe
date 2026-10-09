@@ -14,6 +14,7 @@ import SignupPage from "./page"
 const LANDING = "/app/channel/6f1c3a52-9d3e-4c9e-a7b1-2f0e5d4c3b2a?compose=1"
 let providers: Record<string, boolean>
 let suggested: string
+let invitedBy: Record<string, string>
 const sent: { path: string; body: unknown }[] = []
 
 beforeEach(() => {
@@ -21,12 +22,13 @@ beforeEach(() => {
   sent.length = 0
   providers = { email: true, google: true, github: false, oidc: true, saml: false, ldap: true }
   suggested = ""
+  invitedBy = {}
   vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input).split("?")[0]
     sent.push({ path, body: init?.body ? JSON.parse(String(init.body)) : undefined })
     let body: unknown
     if (path.endsWith("auth/providers")) body = { providers }
-    else if (path.endsWith("auth/validate-token")) body = { valid: true, email: "ana@example.com", name: suggested }
+    else if (path.endsWith("auth/validate-token")) body = { valid: true, email: "ana@example.com", name: suggested, ...invitedBy }
     else if (path.endsWith("auth/signup")) body = { status: "success", landing: LANDING, handle: "josé-obrien", name: "José O'Brien" }
     else throw new Error(`no route for ${path}`)
     return { ok: true, status: 200, json: async () => body } as Response
@@ -81,6 +83,21 @@ describe("accepting an invitation", () => {
     expect(screen.getByRole("button", { name: /OIDC SSO/ })).toBeTruthy()
     expect(screen.queryByRole("button", { name: /SAML/ })).toBeNull()
     expect(screen.getByRole("link", { name: /directory account/ }).getAttribute("href")).toBe("/?tab=directory")
+  })
+
+  it("says who invited them, and to which workspace", async () => {
+    invitedBy = { inviter_name: "Sam Rivera", workspace: "team.example.com" }
+    render(<SignupPage />)
+    await screen.findByLabelText("Your name")
+    const line = screen.getByText(/invited you/)
+    expect(line.textContent).toBe("Sam Rivera invited you to team.example.com.")
+  })
+
+  it("says only what it knows when the inviter has gone", async () => {
+    invitedBy = { inviter_name: "", workspace: "team.example.com" }
+    render(<SignupPage />)
+    await screen.findByLabelText("Your name")
+    expect(screen.getByText(/You're invited/).textContent).toBe("You're invited to team.example.com.")
   })
 
   it("leaves the password out when the workspace has turned it off", async () => {

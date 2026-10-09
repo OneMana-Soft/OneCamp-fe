@@ -10,7 +10,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
  */
 
 let emailEnabled = true
-let answer: { invite_link?: string; email_sent?: boolean } = {
+let answer: { invite_link?: string; email_sent?: boolean; email_error?: string } = {
     invite_link: "https://onecamp.example.com/signup?token=abc",
     email_sent: false,
 }
@@ -53,7 +53,7 @@ describe("inviting someone on a server that cannot send email", () => {
 
     it("stays open and hands over the link", async () => {
         emailEnabled = false
-        answer = { invite_link: "https://onecamp.example.com/signup?token=abc", email_sent: false }
+        answer = { invite_link: "https://onecamp.example.com/signup?token=abc", email_sent: false, email_error: "email isn't set up on this server" }
         const onOpenChange = open()
 
         fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "sam@example.com" } })
@@ -64,7 +64,7 @@ describe("inviting someone on a server that cannot send email", () => {
             "https://onecamp.example.com/signup?token=abc",
         )
         expect(screen.getByRole("button", { name: /copy invitation link/i })).toBeTruthy()
-        expect(screen.getByText(/nothing was sent/i)).toBeTruthy()
+        expect(screen.getByRole("alert").textContent).toBe("Couldn't email it: email isn't set up on this server. Copy the link instead.")
         expect(onOpenChange).not.toHaveBeenCalledWith(false)
     })
 })
@@ -79,8 +79,8 @@ describe("inviting someone when email works", () => {
         fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "sam@example.com" } })
         fireEvent.submit(screen.getByRole("button", { name: /send invitation/i }).closest("form")!)
 
-        await waitFor(() => expect(screen.getByText(/invitation sent/i)).toBeTruthy())
-        expect(screen.getByText(/in case it does not arrive/i)).toBeTruthy()
+        await waitFor(() => expect(screen.getByRole("heading", { name: "Email sent" })).toBeTruthy())
+        expect(screen.getByText(/in case it doesn't arrive/i)).toBeTruthy()
     })
 })
 

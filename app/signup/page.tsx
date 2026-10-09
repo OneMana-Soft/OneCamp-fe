@@ -7,7 +7,8 @@
 // and one password with a show button, not two; and it offers every way of
 // signing in this workspace has turned on, because an invitation admits its
 // address through Google, GitHub or single sign-on as well as by password.
-// Someone an import already knows finds their name filled in.
+// Someone an import already knows finds their name filled in. It says who
+// invited them and to which workspace, as the email did.
 
 import { LoaderCircle, User, Lock, Eye, EyeOff, AlertCircle, CheckCircle, Users } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
@@ -46,6 +47,8 @@ function SignupForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [isValidating, setIsValidating] = useState(true)
   const [invitationEmail, setInvitationEmail] = useState("")
+  // Who invited them, and the workspace's address; either may be unknown.
+  const [invitedBy, setInvitedBy] = useState({ inviter: "", workspace: "" })
   const [error, setError] = useState("")
   const [tokenInvalid, setTokenInvalid] = useState(false)
   // Until /auth/providers answers, a password is the one way offered.
@@ -66,6 +69,7 @@ function SignupForm() {
     authService.validateInvitationToken(token).then((result) => {
       if (result.valid) {
         setInvitationEmail(result.email)
+        setInvitedBy({ inviter: result.inviterName, workspace: result.workspace })
         // A name an import already knows them by; theirs to change.
         if (result.name) setName((typed) => typed || result.name)
       } else {
@@ -170,6 +174,12 @@ function SignupForm() {
     <div className="space-y-6">
       <div className="text-center space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Join the workspace</h1>
+        {(invitedBy.inviter || invitedBy.workspace) && (
+          <p className="text-sm text-muted-foreground">
+            {invitedBy.inviter ? <><span className="font-medium text-foreground">{invitedBy.inviter}</span> invited you</> : "You're invited"}
+            {invitedBy.workspace && <> to <span className="font-medium text-foreground">{invitedBy.workspace}</span></>}.
+          </p>
+        )}
         <p className="text-sm text-muted-foreground">
           You were invited as <span className="font-medium text-foreground">{invitationEmail}</span>
         </p>
