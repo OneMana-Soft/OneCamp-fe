@@ -38,12 +38,17 @@ const knownErrorMessages: Record<string, string> = {
   oauth_email_unverified: "Google or GitHub hasn't verified this email address. Verify it there (on GitHub, your primary address), then sign in again.",
   oauth_not_invited:      "This email address isn't invited to this workspace. Ask your administrator to invite you, or to add your address to the sign-up allow-list.",
   oauth_failed:           "Signing in with Google or GitHub didn't finish. Please try again.",
+  invitation_expired:     "Your invitation has expired. Ask whoever invited you to send it again.",
   unauthorized:           "Your account is not authorized to access this workspace. Please contact your administrator for an invitation.",
+  // Any provider: cancelled there, or a sign-in that outlived its state
+  // (taken too long, or opened twice).
+  signin_cancelled:       "Sign-in was cancelled. Try again when you're ready.",
+  signin_expired:         "That sign-in took too long or was already used. Start again.",
   // OIDC
   oidc_disabled:          "OIDC sign-in is currently disabled.",
   oidc_misconfigured:     "OIDC is not fully configured. Contact your administrator.",
   oidc_invalid_request:   "The OIDC sign-in request was incomplete. Please try again.",
-  oidc_invalid_state:     "Your sign-in session expired or was tampered with. Please try again.",
+  oidc_invalid_state:     "That sign-in took too long or was already used. Start again.",
   oidc_state_mint_failed: "Could not start OIDC sign-in. Please try again later.",
   oidc_invalid_code:      "OIDC authorization failed. Please try again.",
   oidc_no_token:          "Your identity provider did not return an ID token.",
@@ -112,6 +117,8 @@ export default function SignUp() {
   const [isChecking, setIsChecking] = useState(true);
   const [providers, setProviders] = useState(buildTimeDefaults);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
+  // Passwords are off here, and an admin has come for theirs (/?admin).
+  const [adminPasswordOnly, setAdminPasswordOnly] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -239,9 +246,14 @@ export default function SignUp() {
         if (cancelled) return;
 
         if (runtimeProviders) {
-          setProviders(runtimeProviders);
+          // Passwords off still takes an admin's: the way back in when single
+          // sign-on breaks (the server checks it is an admin). It is offered
+          // only at /?admin, so nobody else is shown a form that refuses them.
+          const adminBreakGlass = !runtimeProviders.email && new URLSearchParams(window.location.search).has("admin");
+          setProviders(adminBreakGlass ? { ...runtimeProviders, email: true } : runtimeProviders);
+          setAdminPasswordOnly(adminBreakGlass);
           // If neither OAuth nor LDAP/SSO is on, fall back to email by default.
-          if (!runtimeProviders.google && !runtimeProviders.github) {
+          if (adminBreakGlass || (!runtimeProviders.google && !runtimeProviders.github)) {
             setShowEmailLogin(true);
           }
           // The sign-up page sends someone who joins through the directory
@@ -565,6 +577,12 @@ export default function SignUp() {
                           </button>
                         </div>
                       </div>
+
+                      {adminPasswordOnly && (
+                        <p className="text-xs text-muted-foreground">
+                          Passwords are off on this workspace. Only admins can sign in with one.
+                        </p>
+                      )}
 
                       {emailError && (
                         <p className="text-sm text-destructive font-medium">{emailError}</p>
