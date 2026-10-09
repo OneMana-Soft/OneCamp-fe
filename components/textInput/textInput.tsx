@@ -82,6 +82,11 @@ interface MinimalTiptapProps
   fixedToolbarToBottom?: boolean;
     toggleToolbar?: boolean
     onActionFiles?: (files: File[]) => void
+  /**
+   * Puts the cursor in the message box as soon as it is ready: a new member
+   * arriving in their first channel (hooks/useComposeOnArrival).
+   */
+  autoFocus?: boolean
 }
 
 const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ["italic", "bold", "code", "strikethrough"];
@@ -197,6 +202,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
             fixedToolbarToBottom,
             onActionFiles,
             output,
+            autoFocus,
           ...props
         },
         ref
@@ -342,6 +348,13 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
           editorRef.current = null;
         };
       }, [editor]);
+
+      // The editor is built after the first render, so the cursor goes in once
+      // it exists, at the end of whatever a draft already holds.
+      React.useEffect(() => {
+        if (!autoFocus || !editor || editor.isDestroyed) return;
+        editor.commands.focus("end");
+      }, [autoFocus, editor]);
 
       const divRef = useRef<HTMLDivElement>(null);
 

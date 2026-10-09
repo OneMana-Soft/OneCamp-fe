@@ -22,6 +22,7 @@ import AppsCard from "@/components/admin/AppsCard"
 import WorkspaceSettingsCard from "@/components/admin/WorkspaceSettingsCard"
 import GuestAccessCard from "@/components/admin/GuestAccessCard"
 import ReadReceiptsPolicyCard from "@/components/admin/ReadReceiptsPolicyCard"
+import DefaultChannelsCard from "@/components/admin/DefaultChannelsCard"
 import ScimProvisioningCard from "@/components/admin/ScimProvisioningCard"
 import PermissionsCard from "@/components/admin/PermissionsCard"
 import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsCard"
@@ -340,6 +341,7 @@ const AdminPage = () => {
                     log, so each section answers one question. */}
                 <div className={ADMIN_SECTION_STACK}>
                   <WorkspaceSettingsCard />
+                  <DefaultChannelsCard />
                   <ReadReceiptsPolicyCard />
                   <PushNotificationsCard />
                 </div>

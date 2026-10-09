@@ -13,7 +13,7 @@ import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import { clearChannelReplyTarget } from "@/store/slice/channelSlice";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 
-export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number }) => {
+export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number, focusComposer?: boolean }) => {
 
     const dispatch = useDispatch();
     const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
@@ -89,7 +89,7 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount}: {channelId
                         />
                     </div>
                 )}
-                <MobileChannelTextInput channelId={channelId} handleSend={handleSend}/>
+                <MobileChannelTextInput channelId={channelId} handleSend={handleSend} autoFocus={focusComposer}/>
             </>
         )
     }

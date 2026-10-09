@@ -236,6 +236,7 @@ export enum GetEndpointUrl {
 
     // Workspace settings (admin)
     GetWorkspaceSettings = "/admin/settings",
+    GetDefaultChannels = "/admin/default-channels",
     GetAdminAuditLog = "/admin/audit-log",
     /** How full the server's disk is (admins only): used_pct, free_bytes, level. */
     GetAdminDisk = "/admin/disk",
@@ -453,6 +454,7 @@ export enum PostEndpointUrl {
     CreateGuestLink = "/guest/links",
     SetGuestAccess = "/admin/guest-access",
     SetReadReceiptsPolicy = "/admin/read-receipts",
+    SetDefaultChannels = "/admin/default-channels",
     StartChannelCallRecording = "/ch/startCallRecording",
     StopChannelCallRecording = "/ch/stopCallRecording",
     StartDmCallRecording = "/dm/startCallRecording",

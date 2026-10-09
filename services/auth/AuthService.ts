@@ -8,7 +8,8 @@ import { withCsrfHeader } from "@/lib/utils/csrf";
  * success — see loginWithEmail for what that cost.
  */
 export type LoginOutcome =
-    | { status: 'success' }
+    /** landing: where someone who has just joined opens (lib/landing.ts); absent for everyone else. */
+    | { status: 'success'; landing?: string }
     | { status: 'totp_required'; challenge: string; msg: string }
     | { status: 'failed'; msg: string; auth_method?: string };
 
@@ -19,12 +20,12 @@ export type LoginOutcome =
  * `totp_required` is checked BEFORE `ok`, because that case IS a 200. Ordering it after would let the
  * success branch claim it.
  */
-function loginOutcome(ok: boolean, data: { status?: string; challenge?: string; msg?: string; auth_method?: string } | null): LoginOutcome {
+function loginOutcome(ok: boolean, data: { status?: string; challenge?: string; msg?: string; auth_method?: string; landing?: string } | null): LoginOutcome {
     if (data?.status === 'totp_required' && typeof data?.challenge === 'string') {
         return { status: 'totp_required', challenge: data.challenge, msg: data.msg || '' };
     }
     if (ok) {
-        return { status: 'success' };
+        return typeof data?.landing === 'string' && data.landing ? { status: 'success', landing: data.landing } : { status: 'success' };
     }
     return { status: 'failed', msg: data?.msg || '', auth_method: data?.auth_method };
 }
@@ -166,7 +167,8 @@ class AuthService {
         }
     }
 
-    static async signup(token: string, username: string, password: string): Promise<{ ok: boolean; msg: string }> {
+    /** landing is where the new member opens: the channel they were put in (lib/landing.ts). */
+    static async signup(token: string, username: string, password: string): Promise<{ ok: boolean; msg: string; landing?: string }> {
         try {
             const res = await fetch(
                 `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/signup`,
@@ -178,7 +180,7 @@ class AuthService {
                 }
             );
             const data = await res.json();
-            return { ok: res.ok, msg: data.msg || '' };
+            return { ok: res.ok, msg: data.msg || '', landing: typeof data.landing === 'string' ? data.landing : undefined };
         } catch (error) {
             console.error('Signup failed:', error);
             return { ok: false, msg: 'Network error. Please try again.' };
