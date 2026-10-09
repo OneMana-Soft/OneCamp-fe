@@ -6,12 +6,16 @@
 
 import { createContext, useContext } from "react"
 import { Check } from "@/lib/icons"
-import { colorPill } from "@/lib/taskStatus"
 import { formatFieldValue, optionOf, type FieldValue, type FieldValues, type TaskField } from "@/lib/tasks/fields"
 import { cn } from "@/lib/utils/helpers/cn"
 
-export function OptionPill({ label, color, className }: { label: string; color: string; className?: string }) {
-  return <span className={cn("inline-flex max-w-full items-center truncate rounded px-1.5 py-0.5 text-xs font-medium", colorPill(color), className)}>{label}</span>
+// An option reads as its name in plain text. In a task row the tinted chip was
+// the third coloured shape after status and priority ("Blog" in pink beside
+// "High" in red beside "In progress" in blue); a row keeps at most two quiet
+// indicators, which are the status and the priority. The option's colour is
+// still there to see where it is chosen.
+export function OptionPill({ label, className }: { label: string; color?: string; className?: string }) {
+  return <span className={cn("inline-flex max-w-full items-center truncate text-xs text-foreground", className)}>{label}</span>
 }
 
 export function FieldValueView({
@@ -33,11 +37,12 @@ export function FieldValueView({
     }
     case "multi_select":
       return (
-        <span className={cn("inline-flex flex-wrap gap-1", className)}>
-          {(Array.isArray(value) ? value : []).map((id) => {
-            const o = optionOf(field, id)
-            return o ? <OptionPill key={id} label={o.label} color={o.color} /> : null
-          })}
+        // Plain names read as one list, so they are joined with commas.
+        <span className={cn("truncate text-xs text-foreground", className)}>
+          {(Array.isArray(value) ? value : [])
+            .map((id) => optionOf(field, id)?.label)
+            .filter(Boolean)
+            .join(", ")}
         </span>
       )
     case "checkbox":
@@ -91,12 +96,9 @@ export function CardFields({ values }: { values?: FieldValues }) {
         if (f.type === "select" || f.type === "multi_select") {
           const ids = Array.isArray(v) ? v : [String(v)]
           return (
-            <span key={f.id} title={f.name} className="inline-flex min-w-0 max-w-full flex-wrap gap-1">
+            <span key={f.id} title={f.name} className="min-w-0 max-w-full truncate text-foreground">
               <span className="sr-only">{f.name}: </span>
-              {ids.map((id) => {
-                const o = optionOf(f, id)
-                return o ? <OptionPill key={id} label={o.label} color={o.color} className="py-0 text-2xs" /> : null
-              })}
+              {ids.map((id) => optionOf(f, id)?.label).filter(Boolean).join(", ")}
             </span>
           )
         }

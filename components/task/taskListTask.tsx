@@ -107,12 +107,12 @@ export const TaskListTask = ({
                 </div>
 
                 <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap">
-                    {priority && <TaskPriorityCell priority={priority}/>}
-                    {status && <TaskStatusCell status={status}/>}
+                    {status && <TaskStatusCell status={status} className="text-xs text-muted-foreground"/>}
+                    {priority && <TaskPriorityCell priority={priority} className="text-xs text-muted-foreground"/>}
 
                     {taskInfo.task_project ? (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <ColorIcon name={taskInfo.task_project.project_uuid} size="xs"/>
+                            <ColorIcon name={taskInfo.task_project.project_uuid} size="dot"/>
                             <span className="truncate max-w-[80px]">{taskInfo.task_project.project_name}</span>
                         </div>
                     ) : (

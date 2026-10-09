@@ -1,16 +1,16 @@
 import { useTranslation } from "react-i18next";
 import {prioritiesInterface} from "@/types/table";
-import {Badge} from "@/components/ui/badge";
 import {cn} from "@/lib/utils/helpers/cn";
 
-export const TaskPriorityCell = ({priority}: {priority: prioritiesInterface}) => {
+/** A priority as a 6px dot and its name in plain text, like a status. */
+export const TaskPriorityCell = ({priority, className}: {priority: prioritiesInterface; className?: string}) => {
     // The label, in the reader's language; never the stored value such as inReview.
     const { t } = useTranslation()
 
     return (
-        <Badge variant="secondary" className={cn("shrink-0 gap-1 whitespace-nowrap font-medium", priority.color)}>
-            {priority.icon && <priority.icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
-            <div>{t(priority.value, { defaultValue: priority.label })}</div>
-        </Badge>
+        <span className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm text-foreground", className)}>
+            <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", priority.dot ?? "bg-muted-foreground")} />
+            <span>{t(priority.value, { defaultValue: priority.label })}</span>
+        </span>
     )
 }

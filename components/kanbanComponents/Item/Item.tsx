@@ -19,7 +19,6 @@ import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ColorIcon } from "@/components/colorIcon/colorIcon"
-import { Badge } from "@/components/ui/badge"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
 import { isClosedStatus } from "@/lib/taskStatus"
 import { timeInStatus } from "@/lib/utils/timeInStatus"
@@ -119,14 +118,14 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                 <div className="flex items-center gap-2 min-w-0 text-2xs text-muted-foreground">
                     {task.task_project && (
                         <span className="inline-flex items-center gap-1 min-w-0 max-w-[60%]">
-                            <ColorIcon name={task.task_project.project_uuid} size="xs" />
+                            <ColorIcon name={task.task_project.project_uuid} size="dot" />
                             <span className="truncate">{task.task_project.project_name}</span>
                         </span>
                     )}
                     {statusBadge && (
-                        <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-medium truncate max-w-[40%]" title="Status">
+                        <span className="truncate max-w-[40%] font-medium" title="Status">
                             {statusBadge}
-                        </Badge>
+                        </span>
                     )}
                     <TagPills label={task.task_label} max={2} className="min-w-0" />
                 </div>
@@ -184,14 +183,10 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                 {/* Meta cluster on the right, allowed to wrap. */}
                 <div className="ml-auto flex items-center justify-end flex-wrap gap-x-2 gap-y-1 text-2xs text-muted-foreground min-w-0">
                     {taskP && (
-                        <span
-                            className={cn(
-                                "inline-flex items-center gap-1 h-5 px-1.5 rounded text-2xs font-medium",
-                                taskP.color,
-                            )}
-                            title={`Priority: ${taskP.label}`}
-                        >
-                            <taskP.icon className="h-3 w-3" />
+                        // A dot and the word, as in the list: the card's one colour
+                        // besides an overdue date.
+                        <span className="inline-flex items-center gap-1" title={`Priority: ${taskP.label}`}>
+                            <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", taskP.dot)} />
                             {taskP.label}
                         </span>
                     )}
@@ -222,7 +217,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                         <span
                             className={cn(
                                 "tabular-nums",
-                                isOverdue && "text-destructive font-medium",
+                                isOverdue && "text-destructive",
                             )}
                             title={format(dueDate, "PPP")}
                         >

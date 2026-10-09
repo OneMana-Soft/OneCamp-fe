@@ -146,7 +146,7 @@ export const useMyTaskColumn = () => {
             cell: ({ row }) => (
 
                 <>{row.original?.task_project ? <Link href={`${app_project_path}/${row.original?.task_project.project_uuid}`} className="flex min-w-0 max-w-[12rem] items-center gap-2 hover:underline pointer-events-auto group cursor-pointer">
-                    <ColorIcon name={row.original?.task_project.project_uuid} size={'xs'}/>
+                    <ColorIcon name={row.original?.task_project.project_uuid} size="dot"/>
         <div className="truncate whitespace-nowrap">{row.original?.task_project.project_name}</div>
                     </Link>:
                     <span>{"--"}</span>}</>
