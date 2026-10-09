@@ -43,6 +43,7 @@ import {
   Plus,
   Database,
   RefreshCw,
+  Users,
 } from "lucide-react"
 import {
   createImportJob,
@@ -73,6 +74,9 @@ const ImportPlanDialog = lazy(() =>
 )
 const ImportErrorsDialog = lazy(() =>
   import("@/components/admin/ImportErrorsDialog").then((m) => ({ default: m.ImportErrorsDialog })),
+)
+const ImportInviteDialog = lazy(() =>
+  import("@/components/admin/ImportInviteDialog").then((m) => ({ default: m.ImportInviteDialog })),
 )
 
 const POLL_INTERVAL_MS = 6000
@@ -133,6 +137,7 @@ const ImportCard: React.FC = () => {
   // Plan / Errors dialogs
   const [planJob, setPlanJob] = useState<ImportJob | null>(null)
   const [errorsJobId, setErrorsJobId] = useState<string | null>(null)
+  const [inviteJob, setInviteJob] = useState<ImportJob | null>(null)
 
   // Polling fallback when MQTT is down or there are running jobs.
   // useResilientPolling handles tab visibility, exponential backoff,
@@ -538,6 +543,11 @@ const ImportCard: React.FC = () => {
                                 <RefreshCw className="mr-1 h-4 w-4" /> Retry failed
                               </Button>
                             )}
+                            {j.status === "completed" && (
+                              <Button size="sm" variant="default" onClick={() => setInviteJob(j)}>
+                                <Users className="mr-1 h-4 w-4" /> Invite people
+                              </Button>
+                            )}
                             {j.errors_total > 0 && (
                               <Button size="sm" variant="ghost" onClick={() => setErrorsJobId(j.id)}>
                                 <AlertTriangle className="mr-1 h-4 w-4 text-warning" />
@@ -588,6 +598,16 @@ const ImportCard: React.FC = () => {
                 if (!o) setPlanJob(null)
               }}
               onStarted={() => refetchJobs()}
+            />
+          )}
+          {inviteJob && (
+            <ImportInviteDialog
+              jobId={inviteJob.id}
+              label={inviteJob.source_workspace_name}
+              open={!!inviteJob}
+              onOpenChange={(o) => {
+                if (!o) setInviteJob(null)
+              }}
             />
           )}
           {errorsJobId && (

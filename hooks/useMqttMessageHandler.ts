@@ -31,6 +31,7 @@ import type { Nudge } from "@/services/nudgeService";
 import { upsertPendingAction, removePendingAction } from "@/store/slice/pendingActionSlice";
 import { toPendingActionSurface, type PendingAction } from "@/services/pendingActionService";
 import { statusFieldsFromMessage } from "@/lib/taskStatus";
+import { importProgressStale } from "@/lib/importLive";
 
 interface UseMqttMessageHandlerProps {
     connectionConfig: ConnectionConfig
@@ -229,18 +230,20 @@ export const useMqttMessageHandler = ({ connectionConfig, userUuid }: UseMqttMes
                         )
                         break
 
-                    case MqttMessageType.Slack_Import_Progress:
-                        // Admin-only progress ticks for slack imports. The
-                        // payload itself is consumed by SlackImportCard via
-                        // useMqttTopic; we only need to keep SWR caches for
-                        // the job list / detail in sync so other admin tabs
-                        // also see fresh data.
-                        mutate(
-                            (key: string) =>
-                                typeof key === "string" &&
-                                key.includes("/admin/import/slack/jobs"),
-                        )
+                    case MqttMessageType.Slack_Import_Progress: {
+                        // Admin-only progress ticks for every import (the
+                        // type's name is historical). Keeps the job lists in
+                        // sync, and when an import ends, the banner that
+                        // tells its admin how it ended.
+                        let status: string | undefined
+                        try {
+                            status = JSON.parse(messageStr)?.data?.status
+                        } catch {
+                            status = undefined
+                        }
+                        mutate(importProgressStale(status))
                         break
+                    }
 
                     case MqttMessageType.Command_Ephemeral:
                         // Async slash-command result (a fired /remind, or an

@@ -41,6 +41,7 @@ import {
   Clock,
   AlertTriangle,
   RotateCcw,
+  Users,
 } from "@/lib/icons"
 import { PlayCircle, Database } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -65,6 +66,9 @@ const SlackImportPlanDialog = lazy(() =>
 )
 const SlackImportErrorsDialog = lazy(() =>
   import("@/components/admin/SlackImportErrorsDialog").then((m) => ({ default: m.SlackImportErrorsDialog })),
+)
+const ImportInviteDialog = lazy(() =>
+  import("@/components/admin/ImportInviteDialog").then((m) => ({ default: m.ImportInviteDialog })),
 )
 import { appMutate as swrMutate } from "@/lib/swrMutate";
 
@@ -133,6 +137,7 @@ const SlackImportCard: React.FC = () => {
   const [planJobId, setPlanJobId] = useState<string | null>(null)
   const [errorsJobId, setErrorsJobId] = useState<string | null>(null)
   const [busyJobId, setBusyJobId] = useState<string | null>(null)
+  const [inviteJob, setInviteJob] = useState<SlackImportJob | null>(null)
 
   const onUploaded = (jobId: string) => {
     setUploadOpen(false)
@@ -284,6 +289,7 @@ const SlackImportCard: React.FC = () => {
               onRollback={() => handleRollback(job)}
               onDeleteZip={() => handleDeleteStagedZip(job)}
               onShowErrors={() => setErrorsJobId(job.id)}
+              onInvite={() => setInviteJob(job)}
             />
           ))}
         </CardContent>
@@ -301,6 +307,14 @@ const SlackImportCard: React.FC = () => {
             open={!!planJobId}
             onOpenChange={(open) => !open && setPlanJobId(null)}
             onComplete={onPlanRan}
+          />
+        )}
+        {inviteJob && (
+          <ImportInviteDialog
+            jobId={inviteJob.id}
+            label={inviteJob.slack_workspace_name}
+            open={!!inviteJob}
+            onOpenChange={(open) => !open && setInviteJob(null)}
           />
         )}
         {errorsJobId && (
@@ -324,9 +338,13 @@ interface JobRowProps {
   onRollback: () => void
   onDeleteZip: () => void
   onShowErrors: () => void
+  /** Invite the people who came across; offered once the import finished. */
+  onInvite?: () => void
 }
 
-const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors }) => {
+// Exported for tests. The card around it needs polling, MQTT and endpoint
+// config to mount, none of which the row's own rendering depends on.
+export const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors, onInvite }) => {
   const status = STATUS_BADGE[job.status] ?? STATUS_BADGE.pending
   const stageLabel = (job.stage && STAGE_LABELS[job.stage]) || job.stage || ""
   const total = Math.max(1, job.chunks_total)
@@ -368,6 +386,12 @@ const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onR
           {(job.status === "running" || job.status === "paused") && (
             <Button size="sm" variant="outline" onClick={onCancel} disabled={busy}>
               Cancel
+            </Button>
+          )}
+          {job.status === "completed" && onInvite && (
+            <Button size="sm" onClick={onInvite} disabled={busy}>
+              <Users className="h-4 w-4 mr-1.5" />
+              Invite people
             </Button>
           )}
           {(job.status === "completed" || job.status === "failed" || job.status === "cancelled") && (

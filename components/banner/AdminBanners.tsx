@@ -2,16 +2,18 @@
 
 import { EmailOffBanner } from "@/components/banner/EmailOffBanner"
 import { DiskBanner } from "@/components/banner/DiskBanner"
+import { ImportOutcomeBanner } from "@/components/banner/ImportOutcomeBanner"
 
-// The banners only a workspace's admins see: email that can't go out, then a
-// filling disk. One component for the phone and the computer layouts, so a
-// banner added here reaches both. The disk warning once went into the phone
-// layout twice and the computer layout not at all.
+// The banners only a workspace's admins see: email that can't go out, a filling
+// disk, then how their own imports ended. One component for the phone and the
+// computer layouts, so a banner added here reaches both. The disk warning once
+// went into the phone layout twice and the computer layout not at all.
 export function AdminBanners({ isAdmin }: { isAdmin?: boolean }) {
   return (
     <>
       <EmailOffBanner isAdmin={isAdmin} />
       <DiskBanner isAdmin={isAdmin} />
+      <ImportOutcomeBanner isAdmin={isAdmin} />
     </>
   )
 }
