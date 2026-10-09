@@ -3,10 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 // Types only: the library itself (about 400 KB) loads when a connection is
 // first made, so it isn't part of the code every page needs to show.
-import type { IClientPublishOptions, ISubscriptionMap, MqttClient } from "mqtt"
+import type { ClientSubscribeCallback, IClientPublishOptions, ISubscriptionMap, MqttClient } from "mqtt"
 import { loadConnect } from "@/lib/mqtt/loadConnect"
+import { RefusedTopicRetries, refusedTopics } from "@/lib/mqtt/subscriptionRetry"
 import {ConnectionConfig, mqttConfigRes, MqttConnectionState} from "@/types/mqtt";
 import { getCookie } from "@/lib/utils/helpers/getCookie";
+
+// What mqtt.js hands a subscribe's callback: the error, the subscriptions, the SUBACK.
+type SubscribeAnswer = Parameters<ClientSubscribeCallback>
 
 interface UseMqttConnectionProps {
     config: mqttConfigRes | null
@@ -96,6 +100,53 @@ export const useMqttConnection = ({
     const offlineBuffer = useRef<Array<{ topic: string, message: string, options: IClientPublishOptions, resolve: () => void, reject: (err: Error) => void }>>([])
     const pendingSubscriptions = useRef<Set<string>>(new Set())
 
+    // A topic the broker refused is asked for again a few times, further apart
+    // each time (lib/mqtt/subscriptionRetry), while the connection is up and
+    // the page still wants it: one of the config's topics, a dynamic one
+    // subscribed and not let go of since, or one the topic manager lists.
+    const configTopicsRef = useRef<string[]>(config?.topics ?? [])
+    const dynamicTopicManagerRef = useRef(dynamicTopicManager)
+    const wantedDynamicTopics = useRef<Set<string>>(new Set())
+    useEffect(() => {
+        configTopicsRef.current = config?.topics ?? []
+        dynamicTopicManagerRef.current = dynamicTopicManager
+    })
+    const isWanted = useCallback(
+        (topic: string) =>
+            configTopicsRef.current.includes(topic) ||
+            wantedDynamicTopics.current.has(topic) ||
+            (dynamicTopicManagerRef.current?.getTopicsToSubscribe().includes(topic) ?? false),
+        [],
+    )
+    const tryAgainRef = useRef<(topic: string) => void>(() => {})
+    const [retries] = useState(
+        () =>
+            new RefusedTopicRetries(
+                (topic) => tryAgainRef.current(topic),
+                (topic, tries) =>
+                    console.warn("[MQTT] Subscribe still refused for topic", topic, "after", tries, "tries; giving up until the next connection"),
+            ),
+    )
+
+    // What a subscribe's answer means for those tries: a refused topic is tried
+    // again later, if still wanted while connected; a granted one starts over.
+    // Each caller still logs the answer itself.
+    const settleSubscribe = useCallback(
+        (topics: string[], err: SubscribeAnswer[0], granted?: SubscribeAnswer[1], suback?: SubscribeAnswer[2]) => {
+            if (isUnmounted.current) return
+            const refused = refusedTopics(topics, err, granted, suback)
+            const answered = !err || Array.isArray(suback?.granted)
+            for (const topic of topics) {
+                if (refused.includes(topic)) {
+                    if (clientRef.current?.connected && isWanted(topic)) retries.refused(topic)
+                } else if (answered) {
+                    retries.subscribed(topic)
+                }
+            }
+        },
+        [isWanted, retries],
+    )
+
     const flushBuffer = useCallback(async () => {
         if (!clientRef.current || !connectionState.isConnected || offlineBuffer.current.length === 0) return
 
@@ -121,7 +172,8 @@ export const useMqttConnection = ({
 
         topics.forEach((topic) => {
             if (clientRef.current && clientRef.current.connected) {
-                clientRef.current.subscribe(topic, { qos: 1 }, (err, granted) => {
+                clientRef.current.subscribe(topic, { qos: 1 }, (err, granted, suback) => {
+                    settleSubscribe([topic], err, granted, suback)
                     if (err) {
                         // ACL rejection — log only, don't propagate as a
                         // fatal connection error.
@@ -148,7 +200,7 @@ export const useMqttConnection = ({
                 })
             }
         })
-    }, [])
+    }, [settleSubscribe])
 
     const connectionStabilityTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -187,6 +239,9 @@ export const useMqttConnection = ({
             clearTimeout(connectionStabilityTimeoutRef.current)
             connectionStabilityTimeoutRef.current = null
         }
+        // Nothing is tried again on a connection that's gone; the next one
+        // subscribes to everything afresh.
+        retries.reset()
 
         connectionPending.current = false
         updateConnectionState({
@@ -223,7 +278,7 @@ export const useMqttConnection = ({
                 return prev
             })
         }
-    }, [connectionConfig.maxReconnectAttempts, onDisconnect, updateConnectionState])
+    }, [connectionConfig.maxReconnectAttempts, onDisconnect, updateConnectionState, retries])
 
     const handleError = useCallback(
         (error: Error) => {
@@ -301,6 +356,23 @@ export const useMqttConnection = ({
         latestOnMessageRef.current = onMessage
     })
 
+    // Trying a refused topic again: only on a live connection, and only a
+    // topic the page still wants.
+    useEffect(() => {
+        tryAgainRef.current = (topic: string) => {
+            const client = clientRef.current
+            if (!client || !client.connected) return
+            if (!isWanted(topic)) {
+                retries.forget(topic)
+                return
+            }
+            client.subscribe(topic, { qos: 1 }, (err, granted, suback) => {
+                if (err) console.warn("[MQTT] Subscribe tried again and refused for topic", topic, "Error:", err.message)
+                settleSubscribe([topic], err, granted, suback)
+            })
+        }
+    })
+
     const handleMessage = useCallback(
         (topic: string, message: Buffer) => {
             try {
@@ -328,15 +400,15 @@ export const useMqttConnection = ({
                 }
             })
 
-            client.subscribe(subscriptions, (err, granted) => {
+            client.subscribe(subscriptions, (err, granted, suback) => {
+                // Refused topics are tried again later (settleSubscribe).
+                settleSubscribe(topics, err, granted, suback)
                 if (err) {
                     // SubackPacket with non-zero reason codes (e.g. "Not
                     // authorized" 0x87) lands here. The connection itself
                     // is healthy — the broker is just refusing this
                     // particular topic per its ACL. We log the failure
-                    // but do NOT propagate as a fatal connection error,
-                    // and we attempt to recover the subscriptions that
-                    // were granted from the granted[] list.
+                    // but do NOT propagate as a fatal connection error.
                     console.warn(
                         "[MQTT] Subscribe rejected by broker ACL. Topics:",
                         topics,
@@ -361,11 +433,12 @@ export const useMqttConnection = ({
                 }
             })
         },
-        [], // Stable: uses refs
+        [settleSubscribe], // Stable: uses refs, and settleSubscribe never changes
     )
 
     const subscribeToTopic = useCallback(
         (topic: string) => {
+            wantedDynamicTopics.current.add(topic)
             // Use Safe Refs to prevent identity change of this function
             const isConnected = latestConnectionStateRef.current.isConnected
 
@@ -375,7 +448,8 @@ export const useMqttConnection = ({
                 return
             }
 
-            clientRef.current.subscribe(topic, { qos: 1 }, (err, granted) => {
+            clientRef.current.subscribe(topic, { qos: 1 }, (err, granted, suback) => {
+                settleSubscribe([topic], err, granted, suback)
                 if (err) {
                     // ACL rejection — log but don't blow up the
                     // connection. Other topics on this client remain
@@ -402,12 +476,15 @@ export const useMqttConnection = ({
                 }
             })
         },
-        [], // FULLY STABLE: No dependencies.
+        [settleSubscribe], // FULLY STABLE: settleSubscribe never changes.
     )
 
     const unsubscribeFromTopic = useCallback((topic: string) => {
         // Remove from pending subscriptions if it's queued
         pendingSubscriptions.current.delete(topic)
+        // No longer wanted: not tried again if it was refused.
+        wantedDynamicTopics.current.delete(topic)
+        retries.forget(topic)
 
         if (!clientRef.current) {
             return
@@ -418,7 +495,7 @@ export const useMqttConnection = ({
                 console.error("[MQTT] Dynamic unsubscribe error:", err)
             }
         })
-    }, [])
+    }, [retries])
 
     const connect = useCallback(() => {
         if (!config || connectionState.isConnecting || connectionState.isConnected || connectionPending.current) {
@@ -542,6 +619,9 @@ export const useMqttConnection = ({
                     })
 
                     client.on("connect", (connack: any) => {
+                        // A new connection subscribes to everything afresh, so
+                        // tries at refused topics start over.
+                        retries.reset()
                         handleConnect()
                         const configTopics = config.topics || []
                         const dynamicTopics = dynamicTopicManager?.getTopicsToSubscribe() || []
@@ -581,12 +661,14 @@ export const useMqttConnection = ({
         handleMessage,
         subscribeToTopics,
         updateConnectionState,
-        dynamicTopicManager
+        dynamicTopicManager,
+        retries,
     ])
 
     const disconnect = useCallback(() => {
         isManualDisconnect.current = true
         clearReconnectTimeout()
+        retries.reset()
 
         if (clientRef.current) {
             clientRef.current.end(true)
@@ -598,7 +680,7 @@ export const useMqttConnection = ({
             isConnecting: false,
             reconnectAttempts: 0,
         })
-    }, [clearReconnectTimeout, updateConnectionState])
+    }, [clearReconnectTimeout, updateConnectionState, retries])
 
     const publish = useCallback(
         (topic: string, message: string, options: IClientPublishOptions = { qos: 0 }) => {
@@ -718,6 +800,7 @@ export const useMqttConnection = ({
         return () => {
             isUnmounted.current = true
             connectionPending.current = false
+            retries.reset()
             if (settleDelayRef.current) {
                 clearTimeout(settleDelayRef.current)
                 settleDelayRef.current = null
@@ -732,7 +815,7 @@ export const useMqttConnection = ({
                 connectionStabilityTimeoutRef.current = null
             }
         }
-    }, [clearReconnectTimeout])
+    }, [clearReconnectTimeout, retries])
 
     return {
         connectionState,
