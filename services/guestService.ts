@@ -114,6 +114,8 @@ export interface GuestCollabSession {
     resource_type: "doc" | "board"
     resource_id: string
     capability?: "view" | "comment"
+    /** The doc's or board's name, when it has one. */
+    title?: string
 }
 
 export const getGuestCollabSession = (token: string, displayName?: string) =>

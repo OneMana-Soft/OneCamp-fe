@@ -141,14 +141,14 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
           )}
         </section>
         {thread && (
-          <Thread token={token} postId={thread} canPost={canPost && !!name} name={name} onClose={() => setThread(null)} onReplied={() => void refresh()} />
+          <Thread token={token} postId={thread} canPost={canPost} name={name} onName={setName} onClose={() => setThread(null)} onReplied={() => void refresh()} />
         )}
       </div>
     </main>
   )
 }
 
-function Thread({ token, postId, canPost, name, onClose, onReplied }: { token: string; postId: string; canPost: boolean; name: string; onClose: () => void; onReplied: () => void }) {
+function Thread({ token, postId, canPost, name, onName, onClose, onReplied }: { token: string; postId: string; canPost: boolean; name: string; onName: (name: string) => void; onClose: () => void; onReplied: () => void }) {
   const [data, setData] = useState<{ message: GuestChannelMessage; replies: GuestChannelMessage[] } | null>(null)
   const [missing, setMissing] = useState(false)
   const load = useCallback(async () => {
@@ -185,17 +185,23 @@ function Thread({ token, postId, canPost, name, onClose, onReplied }: { token: s
         )}
       </div>
       {canPost && !missing && (
-        <Composer
-          placeholder="Reply"
-          onSend={async (text) => {
-            const res = await postGuestMessage(token, { display_name: name, text, reply_to: postId })
-            if (res.ok) {
-              void load()
-              onReplied()
-            }
-            return res.ok ? null : sendFailedText(res)
-          }}
-        />
+        name ? (
+          <Composer
+            placeholder="Reply"
+            onSend={async (text) => {
+              const res = await postGuestMessage(token, { display_name: name, text, reply_to: postId })
+              if (res.ok) {
+                void load()
+                onReplied()
+              }
+              return res.ok ? null : sendFailedText(res)
+            }}
+          />
+        ) : (
+          // On a phone the thread covers the channel, and the channel's name
+          // form with it: a guest who opens a thread first is asked here.
+          <GuestNameForm onName={onName} />
+        )
       )}
     </aside>
   )

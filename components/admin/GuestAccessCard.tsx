@@ -3,9 +3,10 @@
 // GuestAccessCard — admin governance for scoped guest access.
 //
 // Guest access is OFF by default. While off, no guest link can be created or
-// used. When on, members can start instant meetings with shareable guest
-// links; admins can see and revoke active grants here. Guests are never
-// members and never appear in rosters, search, or memory.
+// used; the links already made are kept, listed here, and work again when it
+// is turned back on, so turning it on says how many first. Admins can see and
+// revoke links either way. Guests are never members and never appear in
+// rosters, search, or memory.
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -46,13 +47,17 @@ export default function GuestAccessCard() {
     const [saving, setSaving] = useState(false)
     const [grants, setGrants] = useState<GuestGrant[]>([])
     const [grantsLoading, setGrantsLoading] = useState(false)
+    const [grantsFailed, setGrantsFailed] = useState(false)
     const [revoking, setRevoking] = useState<string | null>(null)
 
     const loadGrants = () => {
         setGrantsLoading(true)
         listGuestGrants()
-            .then(setGrants)
-            .catch(() => setGrants([]))
+            .then((list) => {
+                setGrants(list)
+                setGrantsFailed(false)
+            })
+            .catch(() => setGrantsFailed(true))
             .finally(() => setGrantsLoading(false))
     }
 
@@ -65,7 +70,7 @@ export default function GuestAccessCard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const toggle = async (next: boolean) => {
+    const apply = async (next: boolean) => {
         setSaving(true)
         // optimistic
         setEnabled(next)
@@ -80,6 +85,23 @@ export default function GuestAccessCard() {
         } finally {
             setSaving(false)
         }
+    }
+
+    // Turning it back on wakes every link made before, so it says how many.
+    const toggle = (next: boolean) => {
+        const waking = grants.length
+        if (!next || (waking === 0 && !grantsFailed)) {
+            void apply(next)
+            return
+        }
+        confirm({
+            title: "Turn guest access back on?",
+            description: grantsFailed
+                ? "Any guest links made before will work again."
+                : `${waking} guest ${waking === 1 ? "link" : "links"} made before will work again. Revoke any you no longer want first.`,
+            confirmText: "Turn on",
+            onConfirm: () => void apply(true),
+        })
     }
 
     const revoke = (id: string) => {
@@ -110,9 +132,10 @@ export default function GuestAccessCard() {
                     <CardTitle className="text-lg font-semibold">Guest access</CardTitle>
                 </div>
                 <CardDescription>
-                    Let members share a single doc, board, table, or meeting with external people (clients,
-                    contractors) via a scoped, expiring, read-only link. Guests get no account and never appear
-                    in your workspace. Off by default.
+                    Let members share one doc, board, table, channel, project or meeting with people outside the
+                    workspace (clients, contractors) through a link. Whoever shares it chooses what the link allows
+                    (reading, commenting, posting in a channel, approving tasks) and when it ends, if ever. Guests
+                    get no account and never appear in your workspace. Off by default.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -120,7 +143,8 @@ export default function GuestAccessCard() {
                     <div className="pr-4">
                         <h3 className="text-sm font-semibold">Allow guest links</h3>
                         <p className="text-xs text-muted-foreground">
-                            When off, no guest link can be created or used.
+                            When off, no guest link can be created or used. Links already made are kept, and work
+                            again when it&apos;s turned back on.
                         </p>
                     </div>
                     {loading ? (
@@ -130,18 +154,23 @@ export default function GuestAccessCard() {
                     )}
                 </div>
 
-                {enabled && (
+                {!loading && (
                     <div>
                         <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Active guest links
+                            {enabled ? "Active guest links" : "Guest links, paused while guest access is off"}
                         </h3>
                         {grantsLoading ? (
                             <div className="flex items-center justify-center py-6 text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             </div>
+                        ) : grantsFailed ? (
+                            <p role="alert" className="rounded-lg border border-border/50 bg-card/30 px-3 py-4 text-center text-xs text-muted-foreground">
+                                Couldn&apos;t load the guest links.{" "}
+                                <button type="button" className="underline" onClick={loadGrants}>Try again</button>
+                            </p>
                         ) : grants.length === 0 ? (
                             <p className="rounded-lg border border-border/50 bg-card/30 px-3 py-4 text-center text-xs text-muted-foreground">
-                                No active guest links.
+                                {enabled ? "No active guest links." : "No guest links."}
                             </p>
                         ) : (
                             <ul className="divide-y divide-border/50 rounded-lg border border-border/50 bg-card/30">

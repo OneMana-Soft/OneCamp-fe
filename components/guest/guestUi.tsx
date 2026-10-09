@@ -16,6 +16,9 @@ import { publicTrouble, retryingText, type PublicResult, type PublicTrouble } fr
 
 export const GUEST_POLL_MS = 5000
 
+/** How much of a guest's name the server keeps (business/Guest maxGuestNameLen). */
+export const GUEST_NAME_MAX = 40
+
 /** After "too many requests", a minute before asking again. */
 export const GUEST_BUSY_RETRY_MS = 60_000
 
@@ -87,7 +90,7 @@ export function GuestNameForm({ onName }: { onName: (name: string) => void }) {
       }}
       className="flex gap-2 border-t p-3"
     >
-      <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Your name, as the team will see it" aria-label="Your name" maxLength={60} autoFocus />
+      <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Your name, as the team will see it" aria-label="Your name" maxLength={GUEST_NAME_MAX} autoFocus />
       <Button type="submit" disabled={!draft.trim()}>Continue</Button>
     </form>
   )
