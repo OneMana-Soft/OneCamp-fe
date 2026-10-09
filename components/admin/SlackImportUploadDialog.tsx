@@ -44,10 +44,11 @@ const BROWSER_MAX_BYTES = 50 * 1024 * 1024 * 1024
 /**
  * The largest export the dialog accepts: the server's own limit
  * (EXPORT_MAX_BYTES, 5 GB unless raised), never more than a browser can
- * send. It used to say 50 GB whatever the server took. Pure.
+ * send, or null until the server has said. It used to say 50 GB whatever
+ * the server took, and then 50 GB until the server's answer arrived. Pure.
  */
-export function exportLimit(serverMax?: number): number {
-  return serverMax && serverMax > 0 ? Math.min(serverMax, BROWSER_MAX_BYTES) : BROWSER_MAX_BYTES
+export function exportLimit(serverMax?: number): number | null {
+  return serverMax && serverMax > 0 ? Math.min(serverMax, BROWSER_MAX_BYTES) : null
 }
 
 // Files smaller than this go through the simple multipart endpoint;
@@ -89,7 +90,8 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
       toast({ title: "Not a ZIP file", description: "Slack exports come as a .zip archive.", variant: "destructive" })
       return
     }
-    if (f.size > maxBytes) {
+    // Until the server's limit is known the server checks it, in the same words.
+    if (maxBytes !== null && f.size > maxBytes) {
       toast({
         title: "File too large",
         description: `That export is ${readableBytes(f.size)}, and this server takes exports up to ${readableBytes(maxBytes)}.`,
@@ -202,9 +204,9 @@ export const SlackImportUploadDialog: React.FC<Props> = ({ open, onOpenChange, o
             <Upload className="h-5 w-5" /> Upload Slack export
           </DialogTitle>
           <DialogDescription>
-            Drop the .zip file you downloaded from Slack&apos;s Workspace settings (up to{" "}
-            {readableBytes(maxBytes)} on this server). We&apos;ll stage it, then preview what would be imported
-            before any changes are made.
+            Drop the .zip file you downloaded from Slack&apos;s Workspace settings
+            {maxBytes !== null && <> (up to {readableBytes(maxBytes)} on this server)</>}. We&apos;ll stage it, then
+            preview what would be imported before any changes are made.
           </DialogDescription>
         </DialogHeader>
 

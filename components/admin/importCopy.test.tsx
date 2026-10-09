@@ -44,8 +44,17 @@ describe("the import screens' words and limits", () => {
   it("says the server's own export limit", () => {
     expect(exportLimit(5 * 1024 ** 3)).toBe(5 * 1024 ** 3)
     expect(exportLimit(200 * 1024 ** 3)).toBe(50 * 1024 ** 3)
-    expect(exportLimit(undefined)).toBe(50 * 1024 ** 3)
     render(<SlackImportUploadDialog open onOpenChange={() => {}} onUploaded={() => {}} />)
     expect(screen.getByText(/up to 5 GB on this server/)).toBeTruthy()
+  })
+
+  // Until the server says, no number: it used to say 50 GB while the answer was on its way.
+  it("names no limit until the server has said what it is", () => {
+    serverMax = undefined
+    expect(exportLimit(undefined)).toBeNull()
+    render(<SlackImportUploadDialog open onOpenChange={() => {}} onUploaded={() => {}} />)
+    expect(screen.getByText(/Drop the \.zip file you downloaded/)).toBeTruthy()
+    expect(screen.queryByText(/GB/)).toBeNull()
+    serverMax = 5 * 1024 ** 3
   })
 })
