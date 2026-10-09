@@ -6,6 +6,7 @@ import type { EditorView } from '@tiptap/pm/view'
 import { getMarkRange } from '@tiptap/react'
 import { Plugin, TextSelection } from '@tiptap/pm/state'
 import { isSafeHref } from '@/lib/utils/safeHref'
+import { contentClasses } from '@/lib/contentClasses'
 
 export const Link = TiptapLink.extend({
   /*
@@ -13,6 +14,22 @@ export const Link = TiptapLink.extend({
    * In this case, we dont want any characters to be included as part of the link.
    */
   inclusive: false,
+
+  /*
+   * A link's class is read from stored HTML, and the app has a utility class
+   * for nearly anything: class="fixed inset-0 z-50" made a link a full-page
+   * overlay. It keeps only the classes the editor writes (lib/contentClasses),
+   * here and again in renderHTML.
+   */
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      class: {
+        default: this.options.HTMLAttributes.class,
+        parseHTML: (element: HTMLElement) => contentClasses(element.getAttribute('class')) || null,
+      },
+    }
+  },
 
   /*
    * Match all <a> elements that have an href attribute, except for:
@@ -35,11 +52,13 @@ export const Link = TiptapLink.extend({
    * parsed from HTML: from a collaborator's edit or from stored JSON. Read-only
    * messages and docs are shown by this editor, and a click follows the href,
    * so an unsafe one is left out: the link goes nowhere. (Saved again, it has
-   * no href, so it's plain text the next time it's read.)
+   * no href, so it's plain text the next time it's read.) So are classes the
+   * editor doesn't write.
    */
   renderHTML({ HTMLAttributes }) {
     const href = isSafeHref(HTMLAttributes.href) ? HTMLAttributes.href : null
-    return ['a', mergeAttributes(this.options.HTMLAttributes, { ...HTMLAttributes, href }), 0]
+    const className = contentClasses(HTMLAttributes.class) || null
+    return ['a', mergeAttributes(this.options.HTMLAttributes, { ...HTMLAttributes, href, class: className }), 0]
   },
 
   addOptions() {
