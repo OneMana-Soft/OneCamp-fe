@@ -16,7 +16,7 @@ import {
   SelectOption,
   parseFieldConfig,
   parseRowValues,
-  formulaOf,
+  computedOf,
 } from "@/services/tableService"
 import { Check } from "@/lib/icons"
 import { formulaText, showFormulaValue } from "@/lib/tables/formula"
@@ -60,10 +60,11 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
   }
 
   switch (field.type) {
-    case "formula": {
+    case "formula":
+    case "rollup": {
       // As the grid shows it: a number in the reader's format, a date in
       // words, a tick, or what went wrong.
-      const result = formulaOf(field).result
+      const result = computedOf(field).result
       const shown = showFormulaValue(value, result)
       if (shown.kind === "error") return <span className="text-destructive" title={shown.message}>Error</span>
       return <span>{formulaText(value, result)}</span>

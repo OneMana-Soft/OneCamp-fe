@@ -67,4 +67,13 @@ describe("a card's title", () => {
     expect(cardTitle(field("text"), "Launch film")).toBe("Launch film")
     expect(cardTitle(field("text"), undefined)).toBe("")
   })
+
+  it("names the rows a relation links to, without its count of the rest", () => {
+    const refs = [
+      { id: "a", label: "Acme", type: "row" },
+      { id: "g", label: "Globex", type: "row" },
+      { id: "", label: "50 more", type: "more" },
+    ]
+    expect(cardTitle(field("relation", JSON.stringify({ relation_target: "table", table_id: "v" })), refs)).toBe("Acme, Globex")
+  })
 })

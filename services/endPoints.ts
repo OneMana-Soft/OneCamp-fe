@@ -174,6 +174,8 @@ export enum GetEndpointUrl {
     GetTables = "/tables",
     GetTable = "/tables",       // append /{id} (bundle)
     GetTableRows = "/tables",   // append /{id}/rows
+    GetTableFields = "/tables", // append /{id}/fields
+    PickTableRows = "/tables",  // append /{id}/rows/pick?q=
     // External data sources (read-only connectors)
     GetDataSources = "/data-sources",              // management list (agent.manage)
     GetDataSource = "/data-sources",               // append /{id}
@@ -369,6 +371,7 @@ export enum PostEndpointUrl {
     DeleteTable = "/tables",                 // append /{id}/delete
     CreateTableRow = "/tables",              // append /{id}/rows
     UpdateTableRow = "/tables",              // append /{id}/rows/{rowId}/update
+    ChangeTableLinks = "/tables",            // append /{id}/rows/{rowId}/links
     PreviewTableFormula = "/tables",         // append /{id}/formula/preview
     DeleteTableRow = "/tables",              // append /{id}/rows/{rowId}/delete
     AggregateTable = "/tables",              // append /{id}/aggregate (read-only)

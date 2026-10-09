@@ -19,16 +19,25 @@ export type FieldType =
   | "email"
   | "relation"
   | "formula"
+  | "rollup"
 
 // A relation cell stores an array of these refs (id + cached label + entity
-// type) so the grid renders without resolving each entity on every load.
+// type) so the grid renders without resolving each entity on every load. A
+// link to a table's row is stored by id alone, and the server sends it with
+// the row's current name and its table.
 export interface RelationRef {
   id: string
   label: string
   type: string
+  table_id?: string
 }
 
-export type RelationTarget = "task" | "doc" | "board" | "user" | "project" | "any"
+/** Whether a relation cell's item counts the links past those shown ("50 more"), rather than being one. */
+export function isMoreRef(v: unknown): boolean {
+  return !!v && typeof v === "object" && (v as { type?: unknown }).type === "more"
+}
+
+export type RelationTarget = "task" | "doc" | "board" | "user" | "project" | "any" | "table"
 
 export type ViewType = "grid" | "board" | "calendar"
 export type Visibility = "private" | "workspace"
@@ -110,6 +119,80 @@ export function formulaOf(f: TableField): { formula: string; result: FormulaResu
     result: result === "number" || result === "date" || result === "checkbox" ? result : "text",
     error: typeof cfg.error === "string" ? cfg.error : undefined,
   }
+}
+
+// A relation field's config: what it links to. For a table's rows: which
+// table, its name (when the reader can open it), the field whose links this
+// one shows from there (inverseOf), and why it can't link, when it can't.
+export function relationOf(f: TableField): {
+  target: RelationTarget
+  tableId?: string
+  tableName?: string
+  /** On the field showing another table's links here: that table's field. */
+  inverseOf?: string
+  /** On a field whose links show in the other table too: the field there. */
+  inverse?: string
+  error?: string
+} {
+  const cfg = parseFieldConfig(f)
+  const str = (v: unknown) => (typeof v === "string" && v ? v : undefined)
+  const target = str(cfg.relation_target) as RelationTarget | undefined
+  return {
+    target: target ?? "any",
+    tableId: str(cfg.table_id),
+    tableName: str(cfg.table_name),
+    inverseOf: str(cfg.inverse_of),
+    inverse: str(cfg.inverse),
+    error: str(cfg.error),
+  }
+}
+
+// How a rollup adds up the linked rows' values.
+export type RollupHow =
+  | "count"
+  | "count_values"
+  | "unique_count"
+  | "sum"
+  | "average"
+  | "min"
+  | "max"
+  | "earliest"
+  | "latest"
+  | "list"
+  | "unique"
+  | "checked"
+
+// A rollup field's config as the server sends it: the relation it reads, the
+// field it adds up in the linked table, how, what it gives, and why it can't
+// be worked out, when it can't.
+export function rollupOf(f: TableField): { relation: string; field: string; aggregate: RollupHow | ""; result: FormulaResult; error?: string } {
+  const cfg = parseFieldConfig(f)
+  const result = cfg.result
+  return {
+    relation: typeof cfg.relation === "string" ? cfg.relation : "",
+    field: typeof cfg.field === "string" ? cfg.field : "",
+    aggregate: typeof cfg.aggregate === "string" ? (cfg.aggregate as RollupHow) : "",
+    result: result === "number" || result === "date" || result === "checkbox" ? result : "text",
+    error: typeof cfg.error === "string" ? cfg.error : undefined,
+  }
+}
+
+/** Whether a field's cells are worked out on each read (a formula or a rollup), so they can't be typed in. */
+export function isComputed(f: TableField): boolean {
+  return f.type === "formula" || f.type === "rollup"
+}
+
+/** What a formula or a rollup gives, and why it can't be worked out, when it can't. */
+export function computedOf(f: TableField): { result: FormulaResult; error?: string } {
+  const { result, error } = f.type === "rollup" ? rollupOf(f) : formulaOf(f)
+  return { result, error }
+}
+
+/** Why a field can't be worked out or link where it should, if it can't: a formula, a rollup or a relation to a table. */
+export function fieldProblem(f: TableField): string | undefined {
+  if (isComputed(f)) return computedOf(f).error
+  if (f.type === "relation") return relationOf(f).error
+  return undefined
 }
 
 // A table read for this reader: formulas count TODAY() where they are.
@@ -317,4 +400,47 @@ export async function fillTableAIColumn(
     rowIds && rowIds.length ? { row_ids: rowIds } : {},
   )
   return (res.data?.data as { filled: number; skipped: number }) || { filled: 0, skipped: 0 }
+}
+
+// The key a table's fields are fetched under, for choosing what a rollup adds
+// up there.
+export function tableFieldsKey(tableId: string): string {
+  return `${GetEndpointUrl.GetTableFields}/${tableId}/fields`
+}
+
+// A table's rows to link to, by name: those whose name holds the text, or the
+// first ones when it's empty.
+export async function pickRows(tableId: string, q: string): Promise<{ id: string; label: string }[]> {
+  const res = await axiosInstance.get(`${GetEndpointUrl.PickTableRows}/${tableId}/rows/pick`, { params: { q } })
+  return (res.data?.data as { id: string; label: string }[]) || []
+}
+
+/**
+ * A row's values as a whole-row write sends them: without what the server
+ * works out on each read (formulas, rollups) or keeps apart (links to tables'
+ * rows, which change through changeLinks), so saving one cell never undoes
+ * another's links.
+ */
+export function writableValues(fields: TableField[], values: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...values }
+  for (const f of fields) {
+    if (isComputed(f) || (f.type === "relation" && relationOf(f).target === "table")) delete out[f.id]
+  }
+  return out
+}
+
+// Links a row to rows of the table a field links to, or unlinks it: the
+// field's own links, or those shown from the other table.
+export async function changeLinks(
+  tableId: string,
+  rowId: string,
+  fieldId: string,
+  change: { add?: string[]; remove?: string[] },
+): Promise<TableRow> {
+  const res = await axiosInstance.post(`${PostEndpointUrl.ChangeTableLinks}/${tableId}/rows/${rowId}/links`, {
+    field: fieldId,
+    add: change.add ?? [],
+    remove: change.remove ?? [],
+  })
+  return res.data?.data as TableRow
 }

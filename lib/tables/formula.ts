@@ -3,7 +3,7 @@
 // functions (business/DataTable/formula); formula.test.ts keeps this list
 // the same as its own.
 
-import { formulaOf, type FormulaResult, type TableField } from "@/services/tableService"
+import { computedOf, isComputed, isMoreRef, type FormulaResult, type TableField } from "@/services/tableService"
 
 export interface FormulaFunction {
   name: string
@@ -134,7 +134,16 @@ export function formulaText(value: unknown, result: FormulaResult): string {
 
 /** A card's title from its title field: a formula as its cell shows it, anything else as written. */
 export function cardTitle(field: TableField, value: unknown): string {
-  if (field.type === "formula") return formulaText(value, formulaOf(field).result)
+  if (isComputed(field)) return formulaText(value, computedOf(field).result)
+  if (Array.isArray(value)) {
+    // A list's items, or the names of the rows and items a relation links to,
+    // without its count of the links not shown.
+    return value
+      .filter((v) => !isMoreRef(v))
+      .map((v) => (v && typeof v === "object" ? String((v as { label?: unknown }).label ?? "") : String(v)))
+      .filter(Boolean)
+      .join(", ")
+  }
   return value === null || value === undefined ? "" : String(value)
 }
 

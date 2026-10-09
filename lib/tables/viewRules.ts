@@ -2,7 +2,7 @@
 // board and calendar, kept in their browser for that table. Pure, so the views
 // and their tests share one reading of a cell.
 
-import { formulaOf, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
+import { computedOf, isMoreRef, parseRowValues, type TableField, type TableRow } from "@/services/tableService"
 
 export type SortRule = { field: string; dir: "asc" | "desc" }
 export type FilterOp =
@@ -30,7 +30,7 @@ export interface ViewRules {
 
 export const NO_RULES: ViewRules = { sort: [], filters: [], match: "all" }
 
-/** How a field's cells compare: a formula by what it gives. */
+/** How a field's cells compare: a formula or a rollup by what it gives. */
 export type FieldKind = "text" | "number" | "date" | "checkbox" | "list"
 
 export function kindOfField(f: TableField): FieldKind {
@@ -45,8 +45,9 @@ export function kindOfField(f: TableField): FieldKind {
     case "person":
     case "relation":
       return "list"
-    case "formula": {
-      const result = formulaOf(f).result
+    case "formula":
+    case "rollup": {
+      const result = computedOf(f).result
       return result === "checkbox" ? "checkbox" : result
     }
     default:
@@ -93,9 +94,9 @@ export const OPS_FOR: Record<FieldKind, { op: FilterOp; label: string; needsValu
   ],
 }
 
-/** A cell's labels: a list's items, a link's or a person's name, or the value. A formula's error has none. */
+/** A cell's labels: a list's items, a link's or a person's name, or the value. A formula's error has none, nor a count of links not shown. */
 function labels(v: unknown): string[] {
-  if (v === null || v === undefined || v === "") return []
+  if (v === null || v === undefined || v === "" || isMoreRef(v)) return []
   if (Array.isArray(v)) return v.flatMap(labels)
   if (typeof v === "object") {
     const o = v as { label?: unknown; name?: unknown }
@@ -119,8 +120,12 @@ function asDay(v: unknown): string | null {
   return typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null
 }
 
-const isBlank = (kind: FieldKind, v: unknown) =>
+/** Whether a cell has nothing to sort by: it's blank, or it's a link cell naming none of its links. */
+const unnamed = (kind: FieldKind, v: unknown) =>
   kind === "checkbox" ? false : kind === "number" ? asNumber(v) === null : kind === "date" ? asDay(v) === null : labels(v).length === 0
+
+/** Whether a cell is empty: a link cell counting links it doesn't name has links. */
+const isBlank = (kind: FieldKind, v: unknown) => unnamed(kind, v) && !(Array.isArray(v) && v.some(isMoreRef))
 
 function passes(kind: FieldKind, v: unknown, rule: FilterRule): boolean {
   const want = (rule.value ?? "").trim()
@@ -226,8 +231,8 @@ export function applyViewRules(rows: TableRow[], fields: TableField[], rules: Vi
           const kind = kindOfField(byId.get(s.field)!)
           const a = x.values[s.field]
           const b = y.values[s.field]
-          const ab = isBlank(kind, a)
-          const bb = isBlank(kind, b)
+          const ab = unnamed(kind, a)
+          const bb = unnamed(kind, b)
           if (ab !== bb) return ab ? 1 : -1
           if (ab) continue
           const c = compareCells(kind, a, b)

@@ -1,17 +1,19 @@
 "use client"
 
 // RelationCell links a table row to OneCamp entities (tasks, docs, boards,
-// users, projects), reusing the access-scoped unified search (req 4.2). Linked
-// refs are stored on the row as [{id,label,type}] so the grid renders without
-// re-resolving each entity.
+// users, projects), reusing the access-scoped unified search (req 4.2), or to
+// rows of a table, found by name (pickRows). Linked refs are stored on the row
+// as [{id,label,type}] so the grid renders without re-resolving each entity; a
+// link to a table's row is stored by id, and comes back with the row's name.
 
 import * as React from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useGlobalSearch, SearchResult } from "@/services/searchService"
+import Link from "next/link"
 import { Loader2, Search, X, Plus } from "@/lib/icons"
-import { RelationRef, RelationTarget } from "@/services/tableService"
+import { pickRows, RelationRef, RelationTarget } from "@/services/tableService"
 
 // Pull a {id,label,type} ref out of a unified-search result, scoped to the
 // allowed target type ("any" accepts the linkable kinds).
@@ -33,12 +35,22 @@ function refFromResult(r: SearchResult, target: RelationTarget): RelationRef | n
 export function RelationCell({
   value,
   target,
+  tableId,
+  readOnly,
+  onLink,
   onCommit,
 }: {
   value: unknown
   target: RelationTarget
+  /** For a link to a table's rows: the table. */
+  tableId?: string
+  /** The links show, but can't be changed here: the reader can't open the table they go to. */
+  readOnly?: boolean
+  /** Links to a table's rows change one at a time, through this; other links through onCommit. */
+  onLink?: (change: { add?: string[]; remove?: string[] }) => void
   onCommit: (value: RelationRef[]) => void
 }) {
+  const rowsOf = target === "table" ? tableId : undefined
   const refs: RelationRef[] = Array.isArray(value) ? (value as RelationRef[]) : []
   const { search } = useGlobalSearch()
   const [open, setOpen] = React.useState(false)
@@ -50,9 +62,11 @@ export function RelationCell({
 
   React.useEffect(() => {
     if (!open) {
+      if (timer.current) clearTimeout(timer.current)
+      reqId.current++ // a search still running is for a picker that's closed
       setQuery("")
       setItems([])
-      return
+      setLoading(false)
     }
   }, [open])
 
@@ -60,7 +74,9 @@ export function RelationCell({
     if (!open) return
     const q = query.trim()
     if (timer.current) clearTimeout(timer.current)
-    if (!q) {
+    // A table's rows show before anything is typed; anything else is searched for.
+    if (!q && !rowsOf) {
+      reqId.current++ // a search still running was for text that's gone
       setItems([])
       setLoading(false)
       return
@@ -68,38 +84,70 @@ export function RelationCell({
     setLoading(true)
     const myReq = ++reqId.current
     timer.current = setTimeout(async () => {
-      const res = await search(q)
-      if (myReq !== reqId.current) return
-      const mapped: RelationRef[] = []
-      for (const r of res?.page ?? []) {
-        const ref = refFromResult(r, target)
-        if (ref) mapped.push(ref)
-        if (mapped.length >= 8) break
+      let mapped: RelationRef[] = []
+      try {
+        if (rowsOf) {
+          const rows = await pickRows(rowsOf, q)
+          mapped = rows.map((r) => ({ id: r.id, label: r.label, type: "row", table_id: rowsOf }))
+        } else {
+          const res = await search(q)
+          for (const r of res?.page ?? []) {
+            const ref = refFromResult(r, target)
+            if (ref) mapped.push(ref)
+            if (mapped.length >= 8) break
+          }
+        }
+      } catch {
+        // surfaced by the interceptor; nothing to offer
       }
+      if (myReq !== reqId.current) return
       setItems(mapped)
       setLoading(false)
-    }, 180)
-  }, [query, open, search, target])
+    }, rowsOf && !q ? 0 : 180)
+  }, [query, open, search, target, rowsOf])
 
   const add = (ref: RelationRef) => {
     if (refs.some((x) => x.id === ref.id)) return
-    onCommit([...refs, ref])
+    if (onLink) onLink({ add: [ref.id] })
+    else onCommit([...refs, ref])
   }
-  const remove = (id: string) => onCommit(refs.filter((x) => x.id !== id))
+  const remove = (id: string) => {
+    if (onLink) onLink({ remove: [id] })
+    else onCommit(refs.filter((x) => x.id !== id))
+  }
 
   return (
     <div className="flex min-h-8 flex-wrap items-center gap-1 px-1.5 py-1">
-      {refs.map((ref) => (
+      {refs.map((ref) =>
+        ref.type === "more" ? (
+          // The links past those a cell shows, counted.
+          <span key="more" className="px-1 py-0.5 text-xs text-muted-foreground">
+            {ref.label}
+          </span>
+        ) : (
         <span key={ref.id} className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-xs">
-          {ref.label}
-          <button onClick={() => remove(ref.id)} className="opacity-60 hover:opacity-100" title="Unlink">
-            <X className="h-3 w-3" />
-          </button>
+          {ref.type === "row" && ref.table_id && !readOnly ? (
+            <Link href={`/app/tables/${ref.table_id}`} className="hover:underline" title={`Open ${ref.label}'s table`}>
+              {ref.label}
+            </Link>
+          ) : (
+            ref.label
+          )}
+          {!readOnly && (
+            <button onClick={() => remove(ref.id)} className="opacity-60 hover:opacity-100" title="Unlink" aria-label={`Unlink ${ref.label}`}>
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </span>
-      ))}
+        ),
+      )}
+      {readOnly ? null : (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <button className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground">
+          <button
+            aria-label="Add a link"
+            className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+          >
             <Plus className="h-3 w-3" /> {refs.length === 0 ? "Link" : ""}
           </button>
         </PopoverTrigger>
@@ -110,7 +158,7 @@ export function RelationCell({
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={`Search ${target === "any" ? "entities" : target + "s"}...`}
+              placeholder={rowsOf ? "Search rows…" : `Search ${target === "any" ? "entities" : target + "s"}...`}
               className="h-8 border-0 p-0 text-sm shadow-none focus-visible:ring-0"
             />
           </div>
@@ -120,10 +168,10 @@ export function RelationCell({
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching…
               </div>
             )}
-            {!loading && query.trim() && items.length === 0 && (
-              <div className="py-6 text-center text-xs text-muted-foreground">Nothing found</div>
+            {!loading && (query.trim() || rowsOf) && items.length === 0 && (
+              <div className="py-6 text-center text-xs text-muted-foreground">{rowsOf && !query.trim() ? "That table has no rows yet" : "Nothing found"}</div>
             )}
-            {!loading && !query.trim() && (
+            {!loading && !query.trim() && !rowsOf && (
               <div className="py-6 text-center text-xs text-muted-foreground">Type to search</div>
             )}
             {!loading &&
@@ -142,7 +190,9 @@ export function RelationCell({
                       linked ? "cursor-default opacity-50" : "hover:bg-muted",
                     )}
                   >
-                    <span className="rounded bg-muted px-1 text-3xs uppercase text-muted-foreground">{ref.type}</span>
+                    {ref.type !== "row" && (
+                      <span className="rounded bg-muted px-1 text-3xs uppercase text-muted-foreground">{ref.type}</span>
+                    )}
                     <span className="min-w-0 flex-1 truncate">{ref.label}</span>
                   </button>
                 )
@@ -150,7 +200,7 @@ export function RelationCell({
           </div>
         </PopoverContent>
       </Popover>
+      )}
     </div>
   )
 }
-

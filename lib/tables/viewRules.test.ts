@@ -18,6 +18,7 @@ const fields = [
   field("tags", "multi_select"),
   field("status", "formula", { formula: "...", result: "text" }),
   field("total", "formula", { formula: "...", result: "number" }),
+  field("vendor", "relation", { relation_target: "table", table_id: "v" }),
 ]
 const row = (id: string, values: Record<string, unknown>): TableRow => ({
   id,
@@ -27,10 +28,11 @@ const row = (id: string, values: Record<string, unknown>): TableRow => ({
   updated_at: "",
   values: JSON.stringify(values),
 })
+const ref = (label: string, type = "row") => ({ id: type === "more" ? "" : label, label, type, table_id: "v" })
 const rows = [
-  row("film", { item: "Launch film", cost: 1200, due: "2026-10-06", paid: true, tags: ["Video"], status: "Paid", total: 1200 }),
-  row("booth", { item: "Booth", cost: 850, due: "2026-10-08", tags: ["Events", "Print"], status: "Overdue", total: 1700 }),
-  row("ads", { item: "ads", cost: 40, due: "2026-10-09", tags: [], status: "Due today", total: 280 }),
+  row("film", { vendor: [ref("Acme"), ref("250 more", "more")], item: "Launch film", cost: 1200, due: "2026-10-06", paid: true, tags: ["Video"], status: "Paid", total: 1200 }),
+  row("booth", { vendor: [ref("Globex")], item: "Booth", cost: 850, due: "2026-10-08", tags: ["Events", "Print"], status: "Overdue", total: 1700 }),
+  row("ads", { vendor: [ref("12 links", "more")], item: "ads", cost: 40, due: "2026-10-09", tags: [], status: "Due today", total: 280 }),
   row("kit", { item: "Press kit", due: "", status: { error: "Divided by zero" } }),
 ]
 const ids = (rs: TableRow[]) => rs.map((r) => r.id)
@@ -90,6 +92,14 @@ describe("filtering a table", () => {
     ]
     expect(only({ filters: both })).toEqual([])
     expect(only({ filters: both, match: "any" })).toEqual(["film", "ads"])
+  })
+
+  it("reads a link cell by the names it shows, not its count of the rest", () => {
+    expect(only({ filters: [{ field: "vendor", op: "contains", value: "acme" }] })).toEqual(["film"])
+    expect(only({ filters: [{ field: "vendor", op: "contains", value: "250 more" }] })).toEqual([])
+    // A cell counting links it doesn't name still has links.
+    expect(only({ filters: [{ field: "vendor", op: "empty" }] })).toEqual(["kit"])
+    expect(ids(applyViewRules(rows, fields, rules({ sort: [{ field: "vendor", dir: "asc" }] })))).toEqual(["film", "booth", "ads", "kit"])
   })
 
   it("ignores a filter not filled in yet, and one on a field that's gone", () => {
