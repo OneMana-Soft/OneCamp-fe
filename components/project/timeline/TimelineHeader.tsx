@@ -59,7 +59,7 @@ export const TimelineHeader = memo(function TimelineHeader({
           >
             {zoom === "day" ? (
               <span className={cn("flex h-6 min-w-6 flex-col items-center justify-center rounded-md leading-none tabular-nums", t.key === todayKey && "bg-primary font-semibold text-primary-foreground")}>
-                <span className="text-3xs uppercase opacity-80">{t.sub}</span>
+                <span className="text-2xs uppercase opacity-80">{t.sub}</span>
                 <span>{t.label}</span>
               </span>
             ) : (

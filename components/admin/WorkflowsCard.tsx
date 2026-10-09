@@ -164,10 +164,10 @@ const WorkflowsCard = () => {
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-medium truncate">{wf.name}</span>
                                             {!wf.is_active && (
-                                                <Badge variant="secondary" className="text-3xs">Paused</Badge>
+                                                <Badge variant="secondary" className="text-2xs">Paused</Badge>
                                             )}
                                             {wf.last_error && (
-                                                <Badge variant="destructive" className="text-3xs">Last run failed</Badge>
+                                                <Badge variant="destructive" className="text-2xs">Last run failed</Badge>
                                             )}
                                         </div>
                                         <p className="text-xs text-muted-foreground">

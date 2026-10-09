@@ -124,7 +124,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                         </span>
                     )}
                     {statusBadge && (
-                        <Badge variant="secondary" className="text-3xs h-4 px-1.5 font-medium truncate max-w-[40%]" title="Status">
+                        <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-medium truncate max-w-[40%]" title="Status">
                             {statusBadge}
                         </Badge>
                     )}
@@ -186,7 +186,7 @@ const TaskCardBody = React.memo(function TaskCardBody({ task, statusBadge }: { t
                     {taskP && (
                         <span
                             className={cn(
-                                "inline-flex items-center gap-1 h-5 px-1.5 rounded text-3xs font-medium",
+                                "inline-flex items-center gap-1 h-5 px-1.5 rounded text-2xs font-medium",
                                 taskP.color,
                             )}
                             title={`Priority: ${taskP.label}`}

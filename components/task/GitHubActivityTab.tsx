@@ -136,7 +136,7 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
                 ) : "GitHub"}
                 {" "}{activityLabel(activity.activity_type)}
               </span>
-              <span className="text-3xs text-muted-foreground ml-auto shrink-0">
+              <span className="text-2xs text-muted-foreground ml-auto shrink-0">
                 {activity.created_at ? formatDistanceToNow(new Date(activity.created_at), { addSuffix: true }) : ""}
               </span>
             </div>

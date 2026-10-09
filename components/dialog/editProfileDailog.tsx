@@ -477,7 +477,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                             </div>
                                             <div>
                                                 <p className="text-sm font-medium">Google Calendar</p>
-                                                <p className="text-3xs text-muted-foreground leading-tight">Sync your workflow and events</p>
+                                                <p className="text-2xs text-muted-foreground leading-tight">Sync your workflow and events</p>
                                             </div>
                                         </div>
                                         {!gcalStatus?.isConnected ? (
@@ -495,7 +495,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         <div className="mt-4 flex items-center justify-between rounded-lg bg-background/50 p-3 ring-1 ring-border/50 animate-in slide-in-from-top-2 duration-300">
                                             <div className="space-y-0.5">
                                                 <p className="text-xs font-medium text-foreground">Sync Tasks</p>
-                                                <p className="text-3xs text-muted-foreground">Due dates will appear on your calendar</p>
+                                                <p className="text-2xs text-muted-foreground">Due dates will appear on your calendar</p>
                                             </div>
                                             <Switch
                                                 checked={gcalStatus?.taskSyncEnabled}

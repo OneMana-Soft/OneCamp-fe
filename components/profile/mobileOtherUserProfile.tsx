@@ -97,9 +97,9 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 {profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "Loading…"}
                             </h2>
                             {isBot ? (
-                                <Badge variant="secondary" className="text-3xs h-5 shrink-0">{botCopy.badge}</Badge>
+                                <Badge variant="secondary" className="text-2xs h-5 shrink-0">{botCopy.badge}</Badge>
                             ) : isExternal ? (
-                                <Badge variant="secondary" className="text-3xs h-5 shrink-0">External</Badge>
+                                <Badge variant="secondary" className="text-2xs h-5 shrink-0">External</Badge>
                             ) : null}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[80vw]">

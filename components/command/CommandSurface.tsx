@@ -71,7 +71,7 @@ const CommandSurface: React.FC<CommandSurfaceContext> = (ctx) => {
                                     </div>
                                 ) : null}
                                 {resp.ephemeral && (
-                                    <div className="mt-1 text-3xs text-muted-foreground/70">
+                                    <div className="mt-1 text-2xs text-muted-foreground/70">
                                         Only visible to you
                                     </div>
                                 )}

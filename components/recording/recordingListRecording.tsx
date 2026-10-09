@@ -41,7 +41,7 @@ export const RecordingListRecording = ({
                             : recordingInfo.recording_dm?.dm_participants?.find(p => p.user_uuid !== currentUserId)?.user_name 
                                 || "Direct Message Meeting"}
                     </h3>
-                    <span className="text-3xs sm:text-xs font-medium text-muted-foreground/60 whitespace-nowrap bg-muted/30 px-2 py-0.5 rounded-full">
+                    <span className="text-2xs sm:text-xs font-medium text-muted-foreground/60 whitespace-nowrap bg-muted/30 px-2 py-0.5 rounded-full">
                         {(() => {
                             if (!recordingInfo.recording_stared_at) return "";
                             try {

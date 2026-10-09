@@ -528,7 +528,7 @@ function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: Work
       {/* Tasks with no estimate aren't no work: a dash, not "0h". */}
       {measure === "hours" && value === 0 ? <span title="No estimates yet">–</span> : formatLoad(value, measure)}
       {away > 0 && (
-        <span aria-hidden className="absolute right-0.5 top-0 text-3xs font-normal text-muted-foreground">
+        <span aria-hidden className="absolute right-0.5 top-0 text-2xs font-normal text-muted-foreground">
           {away >= 5 ? "off" : `−${away}d`}
         </span>
       )}

@@ -203,21 +203,21 @@ function AppRow({
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <span className="font-medium text-sm truncate">{app.name}</span>
-                    <Badge variant="secondary" className="text-3xs">{KIND_LABELS[app.kind] || app.kind}</Badge>
+                    <Badge variant="secondary" className="text-2xs">{KIND_LABELS[app.kind] || app.kind}</Badge>
                     {app.kind === "oauth" && (
                         app.is_connected
-                            ? <Badge className="text-3xs bg-success/10 text-success"><Check className="h-3 w-3 mr-0.5" />Connected</Badge>
-                            : <Badge variant="outline" className="text-3xs"><X className="h-3 w-3 mr-0.5" />Not connected</Badge>
+                            ? <Badge className="text-2xs bg-success/10 text-success"><Check className="h-3 w-3 mr-0.5" />Connected</Badge>
+                            : <Badge variant="outline" className="text-2xs"><X className="h-3 w-3 mr-0.5" />Not connected</Badge>
                     )}
                     {app.has_api_key && (
-                        <Badge className="text-3xs bg-success/10 text-success"><Check className="h-3 w-3 mr-0.5" />Key set</Badge>
+                        <Badge className="text-2xs bg-success/10 text-success"><Check className="h-3 w-3 mr-0.5" />Key set</Badge>
                     )}
                 </div>
                 {app.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{app.description}</p>}
                 {(app.commands?.length ?? 0) > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                         {(app.commands || []).slice(0, 6).map((c) => (
-                            <span key={c.id} className="inline-flex items-center gap-0.5 text-3xs text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono">
+                            <span key={c.id} className="inline-flex items-center gap-0.5 text-2xs text-muted-foreground bg-muted rounded px-1.5 py-0.5 font-mono">
                                 <Terminal className="h-2.5 w-2.5" />/{c.command}
                             </span>
                         ))}
@@ -569,7 +569,7 @@ function IconField({ value, onChange }: { value: string; onChange: (v: string) =
                                 Remove
                             </Button>
                         )}
-                        <span className="text-3xs text-muted-foreground">PNG, JPG, GIF, WebP · max {uploadLimitMB} MB</span>
+                        <span className="text-2xs text-muted-foreground">PNG, JPG, GIF, WebP · max {uploadLimitMB} MB</span>
                     </div>
                 </div>
                 <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/x-icon" className="hidden" onChange={handlePick} />

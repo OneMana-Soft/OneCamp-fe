@@ -129,14 +129,14 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
             return (
                 <span className="flex items-center gap-1 text-muted-foreground">
                     <Loader2 className="size-3 animate-spin" />
-                    <span className="text-3xs font-medium">Saving…</span>
+                    <span className="text-2xs font-medium">Saving…</span>
                 </span>
             )
         case 'saved':
             return (
                 <span className="flex items-center gap-1 text-success">
                     <Check className="size-3" />
-                    <span className="text-3xs font-medium">
+                    <span className="text-2xs font-medium">
                         {lastSavedAt ? `Saved at ${formatTime(lastSavedAt)}` : 'Saved'}
                     </span>
                 </span>
@@ -145,14 +145,14 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
             return (
                 <span className="flex items-center gap-1 text-destructive">
                     <CloudOff className="size-3" />
-                    <span className="text-3xs font-medium">Save failed</span>
+                    <span className="text-2xs font-medium">Save failed</span>
                 </span>
             )
         case 'offline':
             return (
                 <span className="flex items-center gap-1 text-primary-foreground0">
                     <CloudOff className="size-3" />
-                    <span className="text-3xs font-medium">Offline</span>
+                    <span className="text-2xs font-medium">Offline</span>
                 </span>
             )
         default:
@@ -456,7 +456,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                         <div className="flex items-center gap-3 ml-auto sm:ml-0">
                             {/* Last edited time */}
                             {lastEditedRelative && (
-                                <span className="hidden sm:inline text-3xs opacity-60">Edited {lastEditedRelative}</span>
+                                <span className="hidden sm:inline text-2xs opacity-60">Edited {lastEditedRelative}</span>
                             )}
 
                             {/* Notion-like save status */}
@@ -475,13 +475,13 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                                                 ? "bg-warning"
                                                 : "bg-destructive"
                                         )} />
-                                        <span className="capitalize opacity-80 text-3xs font-medium tracking-tight">
+                                        <span className="capitalize opacity-80 text-2xs font-medium tracking-tight">
                                             {collabStatus === 'synced' ? 'connected' : collabStatus}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1 opacity-60">
                                         <Users className="size-3" />
-                                        <span className="text-3xs font-medium">{collaboration?.activeUsers ?? 0}</span>
+                                        <span className="text-2xs font-medium">{collaboration?.activeUsers ?? 0}</span>
                                     </div>
                                 </div>
                             )}

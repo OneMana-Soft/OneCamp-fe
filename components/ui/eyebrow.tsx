@@ -60,7 +60,7 @@ export function Eyebrow({
     <Tag
       className={cn(
         "uppercase tracking-wider font-semibold text-muted-foreground",
-        size === "sm" ? "text-3xs" : "text-xs",
+        size === "sm" ? "text-2xs" : "text-xs",
         className,
       )}
       {...rest}

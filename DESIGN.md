@@ -11,20 +11,30 @@ written next to it.
 
 ## Colour
 
-**One accent. Everything else is a tinted neutral.**
+**One accent on graphite.** The values are the shared table in the design
+direction of 10 Oct 2026, and `sharedTokens.test.ts` pins them in both repos.
 
 | Token | Light | Dark |
 |---|---|---|
-| brand | `oklch(0.55 0.16 45)` · `rgb(185 74 0)` | `oklch(0.74 0.14 45)` · `rgb(242 140 92)` |
+| brand (fill, ring, selection, logo) | `#CC4A0B` | `#FF7A33`, dark text on it |
+| brand-text (links, accent as text) | `#C2410C` | `#FF8A4C` |
+| brand-muted (selected nav) | `#FFF1E8` | `#2A1A10` |
+| background (bg) | `#FCFCFD` | `#0E0F11` |
+| card, popover (surface) | `#FFFFFF` | `#16181C` |
+| muted, accent, canvas (surface-2) | `#F5F6F7` | `#1D2025` |
+| sidebar-accent (surface-3) | `#EDEEF0` | `#25282E` |
+| border (line) / input (line-strong) | `#E4E5E8` / `#D3D5DA` | `#26282D` / `#33363D` |
+| foreground / muted-foreground / faint-foreground | `#14161A` / `#5F6470` / `#8A8F99` | `#EDEEF0` / `#9BA0AA` / `#6B707A` |
+| agent on agent-muted | `#4F5BD5` on `#EEF0FD` | `#A3ABF5` on `#1E2140` |
 
-The dark value is a lighter, less saturated cut of the same hue, not the light
-value reused: the orange that reads as confident on paper reads as mud on a dark
-ground.
+**Neutrals are a cool graphite** (hue about 265, chroma under 0.02), never
+`oklch(L 0 0)`, the shadcn default. Orange on graphite reads like an instrument
+panel; orange on cream read like a bakery.
 
-**Neutrals carry a trace of the brand's hue, never zero chroma.** Around 0.005
-chroma at hue 70 to 85. That is far too little to read as orange and exactly
-enough that the greys look chosen rather than inherited. `oklch(L 0 0)` is the
-shadcn default and the single clearest sign nobody made a decision.
+**The accent budget.** One primary button per view, the focus ring, the
+current selection, links and the logo. Never headings, eyebrows, icons,
+mention chips or progress bars. `--primary` reads `--brand-text`, because the
+fill shade on the page is a hair under AA as text.
 
 **Colour that carries meaning comes from a token**: `success`, `warning`, `info`,
 `destructive`. If a colour is not carrying meaning it should be neutral. Never a
@@ -38,23 +48,36 @@ checks every pair in both modes and every selectable accent.
 
 ## Type
 
-- **Display**: Bricolage Grotesque, 600 and 700, headings and product moments only.
-- **Text**: Inter, everything dense. It is genuinely the right tool at 11px.
-- **Mono**: IBM Plex Mono / JetBrains Mono, for data, timestamps, identifiers and eyebrows.
+- **Display**: Inter Tight, 500 and 600, headings only (h1 to h3 take it by default).
+- **Text**: Inter, everything else.
+- **Mono**: JetBrains Mono, for keys, IDs, code and audit timestamps. Never eyebrows.
+
+**The app scale.** `text-sm` 14/20 is the default (and the body's size);
+`text-xs` is redefined to 13/18 for secondary text and meta; `text-2xs` 12/16
+for timestamps and badges; `text-3xs` 11/14 is the floor, for counts only.
+Message and doc bodies are 15/22 on the editor. 12px was the most-used size in
+the product before 10 Oct 2026, and that, more than colour, is what read as busy.
 
 Headings take the display face by default rather than per component, because
 "which face is a heading" is a system decision and hundreds of files cannot each
 be trusted to remember it.
 
-**Use the scale.** `text-3xs` (10px, the floor) through the named steps. An
+**Use the scale.** `text-3xs` (11px, the floor) through the named steps. An
 arbitrary `text-[13px]` is a size nobody chose; the guard's baseline is 0 in the
 public build and should stay there.
 
 ## Layout and chrome
 
 **Quiet chrome, higher density.** Hierarchy comes from type weight and spacing,
-not from boxes. Shadows are for things that genuinely float, which is popovers
-and dialogs. Everything else gets a hairline or nothing.
+not from boxes. Shadows are for things that genuinely float: `shadow-overlay`
+for menus and popovers (0 4px 16px / .08), `shadow-dialog` for dialogs and
+sheets (0 16px 48px / .16). `shadow-sm` and below render nothing. Everything
+else gets a hairline or nothing.
+
+**Four radii.** 4 for chips, kbd and checkboxes (`rounded-sm`), 6 for buttons,
+inputs and nav items (`rounded-md`), 10 for cards, menus, popovers and the main
+panel (`rounded-lg`/`-xl`), 14 for dialogs and sheets (`rounded-2xl`).
+`rounded-full` is for avatars and status dots.
 
 **Do not use a grid of identical cards with an icon chip on each.** This is the
 most recognisable shape on the AI-built web and it was in three sections of the
@@ -73,17 +96,18 @@ twelve colours assigned by position are decoration wearing the costume of
 meaning.
 
 **The app frame is paper on a desk.** The sidebar and top bar sit on
-`--canvas`, a warm grey one step darker than the page; the page itself is one
-sheet (`.app-sheet`, `--background`) with a hairline and a soft shadow in light
-mode, and no shadow in dark. There is no border between sidebar and top bar:
+`--canvas` (surface-2); the page itself is one sheet (`.app-sheet`,
+`--background`) with a hairline and no shadow, since it is the page and does
+not float. There is no border between sidebar and top bar:
 the canvas is one surface in an inverted L. Text on the canvas is measured
 against it in `paletteContrast.test.ts`, so a darker canvas cannot quietly drop
 muted text below 4.5:1.
 
-**Navigation state is a sheet, not a colour.** The current item is a small
-piece of the same paper (`.nav-active`); idle items are foreground at 80% with
-a faint hover tint (`.nav-idle`). Group labels are sentence case at `text-xs`,
-never uppercase: the sidebar is read constantly, and shouting labels is noise.
+**Navigation state is the one warm spot in the sidebar.** The current item
+sits on the soft accent ground (`.nav-active`, `--brand-muted`) in ink; idle
+items are muted-foreground with a neutral hover step (`.nav-idle`). Group
+labels are sentence case, never uppercase: the sidebar is read constantly, and
+shouting labels is noise.
 
 **Every page opens with `PageHeader`.** A mono kicker that places the page
 (today's date, "Assigned to you", "Project · Launch"), a title in the display

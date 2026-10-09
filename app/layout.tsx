@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Bricolage_Grotesque, Inter } from "next/font/google";
+import { Inter, Inter_Tight } from "next/font/google";
 import { cn } from "@/lib/utils/helpers/cn";
 import { ClientProviders } from "@/components/providers/ClientProviders";
 import { CHUNK_RECOVERY_SCRIPT } from "@/lib/chunkRecovery";
@@ -11,16 +11,17 @@ const inter = Inter({
   display: "swap",
 });
 
-// Headings and product moments only; Inter still carries every dense surface.
-// Variable, so the whole weight range costs one file, and self-hosted at build
-// time by next/font, which matters for a product customers run on their own
-// machines behind their own firewall: nothing here calls out to Google at
-// runtime.
-const displayFace = Bricolage_Grotesque({
+// Headings only: Inter Tight, Inter's display cut, at 500 and 600. It is the
+// same family as the text, so a heading is quieter and tighter rather than a
+// second voice; Bricolage's quirky terminals were the template tell. Variable,
+// self-hosted at build time by next/font, which matters for a product
+// customers run on their own machines behind their own firewall: nothing here
+// calls out to Google at runtime.
+const displayFace = Inter_Tight({
   subsets: ["latin"],
   variable: "--font-display-face",
   display: "swap",
-  weight: ["600", "700"],
+  weight: ["500", "600"],
 });
 
 // metadataBase makes the generated card URLs absolute. Without it Next emits a

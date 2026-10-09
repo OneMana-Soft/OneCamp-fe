@@ -50,7 +50,7 @@ export function ConnectionStatusIndicator({ compact = false, quietWhenConnected 
               <div className={cn("relative inline-flex rounded-full h-2 w-2", statusColor)} />
             </div>
             {!compact && (
-              <span className={cn(eyebrowClass, "text-3xs hidden md:block")}>
+              <span className={cn(eyebrowClass, "text-2xs hidden md:block")}>
                 {isConnected ? "Live" : statusText}
               </span>
             )}
@@ -59,7 +59,7 @@ export function ConnectionStatusIndicator({ compact = false, quietWhenConnected 
         <TooltipContent side="bottom" className="text-xs">
           <p className="font-semibold">{statusText}</p>
           {error && <p className="text-primary-foreground/90 mt-1 max-w-[200px] break-words">{error}</p>}
-          <p className="text-primary-foreground/70 mt-1 text-3xs">Real-time connection status</p>
+          <p className="text-primary-foreground/70 mt-1 text-2xs">Real-time connection status</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

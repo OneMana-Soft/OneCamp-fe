@@ -54,7 +54,7 @@ export function UserComboboxItem({
                         <BotTag userUUID={userUuid} />
                     )}
                 </span>
-                <span className="text-3xs text-muted-foreground truncate font-medium">{isBot ? botSubtitle(botKind) : userEmail}</span>
+                <span className="text-2xs text-muted-foreground truncate font-medium">{isBot ? botSubtitle(botKind) : userEmail}</span>
             </div>
             <Check
                 className={cn(

@@ -178,7 +178,7 @@ function ExternalUserRow({ user, isSubmitting, onUnlink }: ExternalUserRowProps)
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-medium leading-tight flex items-center gap-2 truncate">
             <span className="truncate">{displayName}</span>
-            <Badge variant="secondary" className="text-3xs h-5 shrink-0">
+            <Badge variant="secondary" className="text-2xs h-5 shrink-0">
               External
             </Badge>
           </span>

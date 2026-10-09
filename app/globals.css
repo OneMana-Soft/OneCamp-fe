@@ -12,12 +12,10 @@
   --breakpoint-3xl: 1600px;
   --breakpoint-4xl: 2000px;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  /* A second face, for headings and product moments only.
-     One typeface was doing the product name, section headings, body copy and
-     10px metadata alike, which leaves no typographic hierarchy at all. That
-     matters more than it sounds: once the borders and shadows come off, weight
-     and face ARE the hierarchy. Inter stays for everything dense, because it is
-     genuinely the right tool at 11px. */
+  /* Headings take Inter Tight (500/600), Inter's display cut; Inter carries
+     everything else. Once the borders and shadows come off, weight and face
+     ARE the hierarchy, and a tight cut of the same family gives a heading
+     weight without a second voice. */
   --font-display: var(--font-display-face), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono), ui-monospace, monospace;
   /* Type scale below text-xs.
@@ -29,11 +27,25 @@
      Naming the two that are actually needed gives dense text a canonical answer
      (with a deliberate line-height) and a floor: nothing smaller than 10px, which
      is already the practical legibility limit on a phone. */
-  --text-2xs: 0.6875rem;
-  /* 11px — metadata, timestamps, badge labels */
+  /* THE APP SCALE (design direction, "App scale"). The default moved from 12px
+     to 14px: 12px had become the most-used size in the product, and that, more
+     than any colour, is what made it read as busy. Every step below the default
+     moved up one so that relative hierarchy holds without editing 1,800 call
+     sites:
+       text-sm   14/20  default UI: lists, nav, table cells (and <body>)
+       text-xs   13/18  secondary and meta (Tailwind's 12px, deliberately
+                        redefined: the old xs carried the role this one has)
+       text-2xs  12/16  timestamps and badges
+       text-3xs  11/14  the floor, for counts only
+     Message and doc bodies are 15/22, set on the editor in
+     components/minimal-tiptap/styles/index.css. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-2xs: 0.75rem;
   --text-2xs--line-height: 1rem;
-  --text-3xs: 0.625rem;
-  /* 10px — the floor: uppercase eyebrows, counts */
+  --text-3xs: 0.6875rem;
   --text-3xs--line-height: 0.875rem;
   /* Four radii, from --radius (6px): 4 chips, 6 controls, 10 surfaces, 14
      dialogs. xl folds into lg and 3xl into 2xl, so the 130 rounded-xl and the
@@ -440,7 +452,9 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.011em;
-    @apply bg-background text-foreground;
+    /* 14/20 is the default; anything that sets no size of its own reads at the
+       size of a list row, not of a paragraph on the web. */
+    @apply bg-background text-foreground text-sm;
     overscroll-behavior: none;
   }
 
@@ -887,7 +901,7 @@ body {
 .collaboration-cursor__label {
   border-radius: 3px 3px 3px 0;
   color: var(--primary-foreground);
-  font-size: 10px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 700;
   left: -1px;

@@ -99,7 +99,7 @@ export function TableEmbedPickerDialog({
               >
                 <TableGlyph size="sm" icon={t.icon} />
                 <span className="min-w-0 flex-1 truncate font-medium">{t.name || "Untitled table"}</span>
-                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground">
                   {t.visibility === "private" ? "Private" : "Workspace"}
                 </span>
               </button>

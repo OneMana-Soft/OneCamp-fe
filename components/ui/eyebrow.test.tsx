@@ -33,7 +33,7 @@ describe("Eyebrow", () => {
     cleanup()
     const dense = render(<Eyebrow size="sm">A</Eyebrow>).container.firstElementChild?.className || ""
     expect(normal).toContain("text-xs")
-    expect(dense).toContain("text-3xs")
+    expect(dense).toContain("text-2xs")
     for (const cls of [normal, dense]) {
       expect(cls).not.toMatch(/text-\[\d+px\]/)
     }

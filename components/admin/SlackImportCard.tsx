@@ -466,7 +466,7 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCanc
 
 const Stat: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div>
-    <div className={cn(eyebrowClass, "text-3xs")}>{label}</div>
+    <div className={cn(eyebrowClass, "text-2xs")}>{label}</div>
     <div className="font-medium">{value}</div>
   </div>
 )

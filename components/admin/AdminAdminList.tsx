@@ -176,7 +176,7 @@ function AdminAdminRow({
           <span className="text-sm font-medium leading-tight truncate flex items-center gap-1.5">
             {admin.user_full_name || admin.user_name || admin.user_email_id}
             {isSelf && (
-              <span className="text-3xs font-medium text-muted-foreground bg-muted/60 rounded px-1.5 py-0.5">
+              <span className="text-2xs font-medium text-muted-foreground bg-muted/60 rounded px-1.5 py-0.5">
                 You
               </span>
             )}

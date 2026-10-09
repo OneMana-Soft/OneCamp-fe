@@ -129,7 +129,7 @@ const RecordingsPage = () => {
                         </div>
                         <div>
                             <h1 className="text-base md:text-lg font-semibold tracking-tight text-foreground">Recordings</h1>
-                            <p className={cn(eyebrowClass, "text-3xs opacity-80")}>
+                            <p className={cn(eyebrowClass, "text-2xs opacity-80")}>
                                 Global Meeting History
                             </p>
                         </div>

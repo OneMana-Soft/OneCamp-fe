@@ -222,7 +222,7 @@ export function UpdateComposer({
       >
         <span aria-hidden className={cn("h-1.5 w-1.5 rounded-full", h.dot)} />
         {h.label}
-        {suggested === h.value && <span className="text-3xs font-normal opacity-70">suggested</span>}
+        {suggested === h.value && <span className="text-2xs font-normal opacity-70">suggested</span>}
       </button>
     )
   }

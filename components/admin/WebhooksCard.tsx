@@ -303,7 +303,7 @@ const WebhooksCard = () => {
                             className="w-full flex items-center gap-2 text-xs py-1.5 px-1.5 rounded hover:bg-muted/40 text-left transition-colors"
                           >
                             {log.success ? <CheckCircle2 className="h-3.5 w-3.5 text-success flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />}
-                            <Badge variant="outline" className="text-3xs px-1.5">{log.event_type}</Badge>
+                            <Badge variant="outline" className="text-2xs px-1.5">{log.event_type}</Badge>
                             {log.response_status && <span className={`font-mono ${log.response_status >= 200 && log.response_status < 300 ? "text-success" : "text-destructive"}`}>{log.response_status}</span>}
                             {log.duration_ms !== undefined && <span className="text-muted-foreground">{log.duration_ms}ms</span>}
                             {log.error_message && <span className="text-destructive truncate flex-1">{log.error_message}</span>}
@@ -335,12 +335,12 @@ const WebhooksCard = () => {
             <SheetDescription>
               {selectedLog && (
                 <span className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-3xs">{selectedLog.event_type}</Badge>
+                  <Badge variant="outline" className="text-2xs">{selectedLog.event_type}</Badge>
                   <span className="text-muted-foreground">{new Date(selectedLog.created_at).toLocaleString()}</span>
                   {selectedLog.success ? (
-                    <Badge variant="default" className="text-3xs bg-success">Success</Badge>
+                    <Badge variant="default" className="text-2xs bg-success">Success</Badge>
                   ) : (
-                    <Badge variant="destructive" className="text-3xs">Failed</Badge>
+                    <Badge variant="destructive" className="text-2xs">Failed</Badge>
                   )}
                 </span>
               )}
@@ -373,7 +373,7 @@ const WebhooksCard = () => {
                   </div>
                   <div className="bg-muted/40 p-2.5 rounded-md">
                     <span className="text-muted-foreground block mb-0.5">Log ID</span>
-                    <span className="font-mono text-3xs truncate block">{selectedLog.id}</span>
+                    <span className="font-mono text-2xs truncate block">{selectedLog.id}</span>
                   </div>
                 </div>
                 {selectedLog.error_message && (

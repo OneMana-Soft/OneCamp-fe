@@ -263,7 +263,7 @@ export function DesktopDashboard() {
                                             )}
                                         >
                                             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted">
-                                                <span className="text-3xs font-semibold text-muted-foreground">
+                                                <span className="text-2xs font-semibold text-muted-foreground">
                                                     {team.team_name?.charAt(0)?.toUpperCase() || "T"}
                                                 </span>
                                             </div>
@@ -296,7 +296,7 @@ function QuickAction({ icon: Icon, label, onClick, active = false }: { icon: typ
         >
             <Icon className="h-4 w-4 text-muted-foreground group-hover:text-foreground" strokeWidth={1.75} />
             <span className="text-sm font-medium">{label}</span>
-            {active && <span className="ml-auto text-3xs font-medium text-primary">Open</span>}
+            {active && <span className="ml-auto text-2xs font-medium text-primary">Open</span>}
         </button>
     )
 }

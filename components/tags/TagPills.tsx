@@ -13,12 +13,12 @@ export function TagPills({ label, max, className }: { label: string | null | und
   return (
     <span className={cn("inline-flex min-w-0 flex-wrap items-center gap-1", className)}>
       {shown.map((t) => (
-        <span key={t} className={cn("inline-flex h-4 max-w-[10rem] items-center truncate rounded px-1.5 text-3xs font-medium", tagTone(t))} title={t}>
+        <span key={t} className={cn("inline-flex h-5 max-w-[10rem] items-center truncate rounded-sm px-1.5 text-2xs font-medium", tagTone(t))} title={t}>
           {t}
         </span>
       ))}
       {rest > 0 && (
-        <span className="text-3xs font-medium text-muted-foreground" title={tags.slice(shown.length).join(", ")}>
+        <span className="text-2xs font-medium text-muted-foreground" title={tags.slice(shown.length).join(", ")}>
           +{rest}
         </span>
       )}

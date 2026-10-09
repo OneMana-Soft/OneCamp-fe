@@ -161,8 +161,8 @@ function NonRenderableAttachment({ attachment, attachmentLength, mediaGetUrl }: 
                 >
                     {truncateFileName(attachment.attachment_file_name)}
                 </div>
-                <div className="flex items-center gap-1.5 text-3xs font-medium text-muted-foreground/80">
-                    <span className={cn(eyebrowClass, "text-3xs font-medium text-muted-foreground/80")}>
+                <div className="flex items-center gap-1.5 text-2xs font-medium text-muted-foreground/80">
+                    <span className={cn(eyebrowClass, "text-2xs font-medium text-muted-foreground/80")}>
                         {getFriendlyFileExtension(attachment.attachment_raw_type, attachment.attachment_file_name)}
                     </span>
                     <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/40" />

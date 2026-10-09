@@ -47,7 +47,7 @@ export const NotificationBell = ({
                         <span
                             className={cn(
                                 "absolute -top-1 -right-1.5 px-1 rounded-full",
-                                "text-3xs font-bold leading-tight bg-background text-foreground",
+                                "text-2xs font-bold leading-tight bg-background text-foreground",
                                 "ring-1 ring-border",
                             )}
                             aria-hidden

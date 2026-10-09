@@ -153,7 +153,7 @@ const ArchiveCard = () => {
                     <div>
                       <p className="text-lg font-bold">{getStatValue(type).toLocaleString()}</p>
                       <p className="text-xs text-muted-foreground">{label}</p>
-                      {isUnsupported(type) && <Badge variant="outline" className="text-3xs mt-0.5 text-muted-foreground">Manual only</Badge>}
+                      {isUnsupported(type) && <Badge variant="outline" className="text-2xs mt-0.5 text-muted-foreground">Manual only</Badge>}
                     </div>
                   </div>
                 ))}
@@ -178,7 +178,7 @@ const ArchiveCard = () => {
                       </div>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-xs text-muted-foreground">Retain for <span className="font-semibold text-foreground">{policy.retention_days}</span> days</span>
-                        {policy.auto_archive ? <Badge className="text-3xs bg-success/10 text-success border-success/20 gap-1"><CheckCircle2 className="h-2.5 w-2.5" />Auto</Badge> : <Badge variant="outline" className="text-3xs">Manual only</Badge>}
+                        {policy.auto_archive ? <Badge className="text-2xs bg-success/10 text-success border-success/20 gap-1"><CheckCircle2 className="h-2.5 w-2.5" />Auto</Badge> : <Badge variant="outline" className="text-2xs">Manual only</Badge>}
                         {purgeLine(policy) && <span className="text-xs text-muted-foreground">{purgeLine(policy)}</span>}
                       </div>
                     </div>
@@ -212,7 +212,7 @@ const ArchiveCard = () => {
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="bg-muted/50 p-1.5 rounded-md shrink-0">{ENTITY_ICONS[job.entity_type] || <Database className="h-3.5 w-3.5" />}</div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium capitalize">{ENTITY_LABELS[job.entity_type] || job.entity_type}</span><Badge className={`text-3xs gap-1 ${s.color}`}>{s.icon}{job.status}</Badge></div>
+                        <div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-medium capitalize">{ENTITY_LABELS[job.entity_type] || job.entity_type}</span><Badge className={`text-2xs gap-1 ${s.color}`}>{s.icon}{job.status}</Badge></div>
                         <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
                           <span>{new Date(job.created_at).toLocaleString()}</span>
                           {job.items_processed > 0 && <span>{job.items_processed} processed</span>}

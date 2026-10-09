@@ -210,13 +210,13 @@ function AdminUserRow({
           sm up they sit beside the name as icons, labels kept for screen readers. */}
       <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto sm:shrink-0">
         {isDeactivated ? (
-          <Badge variant="destructive" className="text-3xs h-5 hidden xs:inline-flex sm:inline-flex">
+          <Badge variant="destructive" className="text-2xs h-5 hidden xs:inline-flex sm:inline-flex">
             Deactivated
           </Badge>
         ) : (
           <Badge
             variant="outline"
-            className="text-3xs h-5 hidden xs:inline-flex sm:inline-flex border-success/30 text-success bg-success/5"
+            className="text-2xs h-5 hidden xs:inline-flex sm:inline-flex border-success/30 text-success bg-success/5"
           >
             Active
           </Badge>

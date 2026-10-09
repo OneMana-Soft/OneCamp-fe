@@ -115,7 +115,7 @@ export default function ConnectorsCard() {
                                 <div className="flex items-center gap-2">
                                     <span className="font-medium text-sm">{c.name}</span>
                                     {c.connected && (
-                                        <Badge className="text-3xs bg-success/10 text-success">
+                                        <Badge className="text-2xs bg-success/10 text-success">
                                             <Check className="h-3 w-3 mr-0.5" />Connected
                                         </Badge>
                                     )}

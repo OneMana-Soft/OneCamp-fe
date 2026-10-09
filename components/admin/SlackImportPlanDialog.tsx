@@ -274,7 +274,7 @@ const PlanStat: React.FC<{ label: string; value: React.ReactNode; positive?: boo
   warn,
 }) => (
   <div className="border border-border/50 rounded-md p-3 bg-background/30">
-    <div className={cn(eyebrowClass, "text-3xs")}>{label}</div>
+    <div className={cn(eyebrowClass, "text-2xs")}>{label}</div>
     <div
       className={`text-lg font-semibold mt-0.5 ${
         warn ? "text-warning" : positive ? "text-success" : ""
@@ -282,9 +282,9 @@ const PlanStat: React.FC<{ label: string; value: React.ReactNode; positive?: boo
     >
       {value}
     </div>
-    {warn && <Badge variant="outline" className="mt-1 text-3xs">Review warnings</Badge>}
+    {warn && <Badge variant="outline" className="mt-1 text-2xs">Review warnings</Badge>}
     {positive && (
-      <Badge variant="outline" className="mt-1 text-3xs bg-success/10 text-success border-success/20 gap-1">
+      <Badge variant="outline" className="mt-1 text-2xs bg-success/10 text-success border-success/20 gap-1">
         <CheckCircle2 className="h-3 w-3" />
         match
       </Badge>
