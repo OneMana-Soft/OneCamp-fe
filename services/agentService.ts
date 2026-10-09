@@ -297,10 +297,10 @@ export const EVENT_TRIGGER_OPTIONS: { value: string; label: string }[] = [
 ]
 
 // GitHub events an agent can no longer be set up on. What they carry is
-// written by anyone who can write on the repository, so the server runs an
-// agent on one as asked for by nobody, refusing every tool, and refuses to
-// save an agent set up on one. An agent set up on one before still runs on
-// it; its form names the event and says so.
+// written by anyone who can write on the repository, so the server refuses to
+// set an agent up on one and no longer runs an agent still bound to one; that
+// agent can be edited, paused or deleted, and its form names the event and
+// says so.
 export const WITHDRAWN_EVENT_LABELS: Record<string, string> = {
   "github.pr.opened": "A GitHub pull request is opened",
   "github.pr.review_submitted": "A GitHub PR review is submitted",

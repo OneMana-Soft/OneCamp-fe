@@ -66,7 +66,7 @@ describe("GitHub events in the agent editor", () => {
         render(<AgentEditDialog open agent={boundToGitHub} onClose={() => {}} onSaved={() => {}} />)
         const section = await eventSection()
         expect(within(section).getByText(/A GitHub pull request is opened/)).toBeTruthy()
-        expect(within(section).getByText(/answers in words only/)).toBeTruthy()
+        expect(within(section).getByText(/doesn't run on this event any more/)).toBeTruthy()
         expect(within(section).queryAllByRole("button", { name: /GitHub|pull request/i })).toHaveLength(0)
     })
 })

@@ -947,10 +947,10 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                   <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted-foreground">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning" />
                     <span className="text-pretty">
-                      This agent runs when “{WITHDRAWN_EVENT_LABELS[eventType]}”. GitHub events can no longer set off
-                      an agent: anyone who can write on the repository writes what they carry, so it answers in words
-                      only and uses none of its tools. To save changes, choose another event below, or have it run when
-                      mentioned or on a schedule.
+                      This agent was set to run when “{WITHDRAWN_EVENT_LABELS[eventType]}”. GitHub events no longer
+                      set off agents: anyone who can write on the repository writes what they carry, so an agent can't
+                      safely act on them. It doesn't run on this event any more. Choose another event below, or have it
+                      run when mentioned or on a schedule.
                     </span>
                   </div>
                 )}
