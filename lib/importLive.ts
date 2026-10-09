@@ -13,6 +13,9 @@ export function importProgressStale(status?: string): (key: unknown) => boolean 
   return (key: unknown) => {
     if (typeof key !== "string") return false
     if (key.includes("/admin/import/slack/jobs")) return true
+    // The other providers' job lists, all of them or one provider's. Only
+    // Slack's were refreshed, so their progress stood still until a reload.
+    if (key === "/admin/import/jobs" || key.startsWith("/admin/import/jobs?")) return true
     // How the caller's imports ended: news only when one has.
     return ended && key === IMPORT_OUTCOMES_KEY
   }
