@@ -40,6 +40,7 @@ import { DialogFooter } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer";
 import { useMedia } from "@/context/MediaQueryContext";
 import type { TaskDraft } from "@/lib/task/messageToTask";
+import { lastTaskProject, rememberTaskProject, startingProject } from "@/lib/task/startingProject";
 
 type TaskCreateFormProps = {
   submitLabel?: string;
@@ -165,7 +166,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
     register,
     handleSubmit,
     control,
-    formState: { errors, isValid },
+    formState: { errors },
     setValue,
     watch,
   } = useForm<CreateTaskFormData>({
@@ -199,12 +200,13 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
     }
   }, [assignToMe, selfUUID, taskAssigneeUUID, taskProjectUUID, projectsInfo.data, setValue]);
 
-  // With one project there is nothing to choose.
+  // Opened from outside a project, start where the task most likely goes: the
+  // project a task was last made in here, or the only one there is.
   const projectChoices = projectsInfo.data?.data
   useEffect(() => {
-    if (!taskProjectUUID && projectChoices?.length === 1) {
-      setValue("task_project_uuid", projectChoices[0].project_uuid, { shouldValidate: true })
-    }
+    if (taskProjectUUID) return
+    const start = startingProject(projectChoices, lastTaskProject())
+    if (start) setValue("task_project_uuid", start, { shouldValidate: true })
   }, [projectChoices, taskProjectUUID, setValue]);
 
   // Uploads live in Redux (for their progress), keyed by the project picked in
@@ -322,6 +324,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
       .then((res) => {
         dispatch(clearCreateTaskInputState());
         revalidateTaskKeys(data.task_project_uuid);
+        rememberTaskProject(data.task_project_uuid);
         if (res?.task_uuid && onCreated) onCreated({ taskUUID: res.task_uuid, name: data.task_name });
         if (onSuccess) onSuccess();
       });
@@ -332,7 +335,14 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
 
   return (
     <div>
-      <form onSubmit={handleSubmit(handleCreateTask)} className="grid gap-4 py-4">
+      {/* Create is never a dead end: pressed without a project, it says so and
+          opens the picker, where a disabled button gave no reason at all. */}
+      <form
+        onSubmit={handleSubmit(handleCreateTask, (invalid) => {
+          if (invalid.task_project_uuid) setPopOpenProjectName(true);
+        })}
+        className="grid gap-4 py-4"
+      >
         <div className="grid gap-2 mb-2">
           <Label htmlFor="task_name">Name</Label>
           <Input id="task_name" {...register("task_name")} placeholder="Enter task name" autoFocus />
@@ -622,7 +632,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
           </div>
         )}
         <DialogFooter>
-          <Button type="submit" disabled={!isValid}>
+          <Button type="submit" disabled={post.isSubmitting}>
             {submitLabel}
           </Button>
         </DialogFooter>

@@ -148,7 +148,7 @@ export const createTaskFormSchema = z.object({
         .optional(),
     task_project_uuid: z
         .string()
-        .min(1, "Please select a project"),
+        .min(1, "Pick a project for the task."),
     task_attachments: z
         .array(z.custom<AttachmentMediaReq>())
         .optional(),
