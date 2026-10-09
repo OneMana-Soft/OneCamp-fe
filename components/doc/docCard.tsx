@@ -54,7 +54,7 @@ export const DocCard: React.FC<DocCardProps> = ({ doc, onClick, className }) => 
                 </div>
                 
                 <div className="flex items-center gap-2 mt-1">
-                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary">
+                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-sidebar-accent text-muted-foreground">
                         <FileText size={12} /> 
                     </div>
                     <span className="text-xs text-muted-foreground truncate">

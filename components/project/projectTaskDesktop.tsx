@@ -4,12 +4,11 @@ import { useTranslation } from "react-i18next";
 import { useFetch } from "@/hooks/useFetch"
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {ProjectInfoRawInterface, ProjectNotificationInterface} from "@/types/project"
-import { Button } from "@/components/ui/button"
-import { List, Megaphone, Paperclip, Pencil, Users } from "@/lib/icons";
+import { List, Megaphone, Paperclip } from "@/lib/icons";
 import { ProjectUpdates } from "@/components/projectUpdates/ProjectUpdates";
 import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip";
 import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip";
-import { ProjectToolButtons } from "@/components/project/ProjectToolButtons";
+import { ProjectActionsMenu } from "@/components/project/ProjectToolButtons";
 import { Kanban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectTaskTable } from "@/components/project/projectTaskTable"
@@ -31,6 +30,9 @@ import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {usePost} from "@/hooks/usePost";
 
 const VALID_TABS = ["list", "kanban", "timeline", "updates", "attachments"] as const
+
+// An underline tab: ink and a 2px rule when active, muted otherwise.
+const UNDERLINE_TAB = "-mb-px gap-2 rounded-none border-b-2 border-transparent bg-transparent px-0.5 pb-2.5 pt-1 text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
 type TabValue = (typeof VALID_TABS)[number]
 
 export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
@@ -87,36 +89,23 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                 eyebrow={projectInfo.data?.data.project_team?.team_name ? `Project · ${projectInfo.data.data.project_team.team_name}` : "Project"}
                 title={projectInfo.data?.data.project_name || "\u00a0"}
                 actions={(isMember || isAdmin) && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                         {/* Any member chooses their own notifications; the server
                             asks only for membership. It used to show to admins only,
-                            so a member could not quiet a busy project. */}
+                            so a member could not quiet a busy project. It stays out
+                            of the menu because its icon says the current setting. */}
                         <NotificationBell notificationType={projectNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
-                        <ProjectToolButtons projectId={projectId} projectName={projectInfo.data?.data.project_name} isAdmin={isAdmin} isMember={isMember} />
-                        {isAdmin && (<>
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-9 w-9"
-                            aria-label="Edit project name"
-                            onClick={() => {
-                                dispatch(openUI({ key: 'editProjectName', data: { projectUUID: projectId || "" } }))
-                            }}
-                        >
-                            <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-9 w-9"
-                            aria-label="Manage project members"
-                            onClick={() => {
-                                dispatch(openUI({ key: 'editProjectMember', data: { projectUUID: projectId || "" } }))
-                            }}
-                        >
-                            <Users className="h-4 w-4" />
-                        </Button>
-                        </>)}
+                        {/* Everything else is one menu: time, forms, sharing, saving as
+                            a template, renaming and members. Create task stays where
+                            the list's tools are. */}
+                        <ProjectActionsMenu
+                            projectId={projectId}
+                            projectName={projectInfo.data?.data.project_name}
+                            isAdmin={isAdmin}
+                            isMember={isMember}
+                            onRename={() => dispatch(openUI({ key: 'editProjectName', data: { projectUUID: projectId || "" } }))}
+                            onMembers={() => dispatch(openUI({ key: 'editProjectMember', data: { projectUUID: projectId || "" } }))}
+                        />
                     </div>
                 )}
             >
@@ -131,38 +120,40 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
             <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">
                 {projectId && (
                     <Tabs value={selectedTab} onValueChange={handleTabChange} className="h-full flex flex-col gap-6">
-                        <TabsList className="w-full sm:w-fit grid grid-cols-5 sm:flex bg-muted/50 p-1 border border-border/50 h-auto overflow-hidden">
+                        {/* A plain underline row: the bordered, tinted segmented box was one
+                            more container in a header that already had three. */}
+                        <TabsList className="w-full justify-start gap-5 h-auto rounded-none border-b bg-transparent p-0 overflow-x-auto no-scrollbar">
                             <TabsTrigger 
                                 value="list"
-                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                                className={UNDERLINE_TAB}
                             >
                                 <List className="h-4 w-4" />
                                 {t("list", { defaultValue: "List" })}
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="kanban"
-                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                                className={UNDERLINE_TAB}
                             >
                                 <Kanban className="h-4 w-4" />
                                 {t("board", { defaultValue: "Board" })}
                             </TabsTrigger>
                             <TabsTrigger
                                 value="timeline"
-                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                                className={UNDERLINE_TAB}
                             >
                                 <ChartGantt className="h-4 w-4" />
                                 Timeline
                             </TabsTrigger>
                             <TabsTrigger
                                 value="updates"
-                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                                className={UNDERLINE_TAB}
                             >
                                 <Megaphone className="h-4 w-4" />
                                 Updates
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="attachments"
-                                className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+                                className={UNDERLINE_TAB}
                             >
                                 <Paperclip className="h-4 w-4" />
                                 {t("attachments", { defaultValue: "Attachments" })}

@@ -43,7 +43,7 @@ export function UserComboboxItem({
                     src={imageSrc}
                     alt={userName}
                 />
-                <AvatarFallback className="text-3xs font-bold bg-primary/5 text-primary">
+                <AvatarFallback className="text-3xs font-medium">
                     {getNameInitials(userName)}
                 </AvatarFallback>
             </Avatar>
