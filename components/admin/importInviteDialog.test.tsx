@@ -113,4 +113,16 @@ describe("Invite the people who came across", () => {
     expect(screen.getByText(/Today's invitation emails are used up/)).toBeTruthy()
     expect((screen.getAllByRole("checkbox")[0] as HTMLButtonElement).disabled).toBe(false)
   })
+
+  // A whole site's accounts came across for one project once: a long list
+  // starts with nobody ticked, and one click ticks as many as there's room for.
+  it("starts a long list with nobody ticked", () => {
+    people = offer(10, 60)
+    render(<ImportInviteDialog jobId="j1" open onOpenChange={() => {}} />)
+    expect(screen.getAllByRole("checkbox").every((b) => b.getAttribute("aria-checked") === "false")).toBe(true)
+    expect(screen.getByText(/60 people came across, so nobody is ticked/)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Tick as many as there's room for" }))
+    expect(screen.getAllByRole("checkbox").filter((b) => b.getAttribute("aria-checked") === "true")).toHaveLength(10)
+    expect(screen.getByRole("button", { name: "Invite 10 people" })).toBeTruthy()
+  })
 })

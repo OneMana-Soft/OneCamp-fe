@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { emailLine, initialSelection, inviteSummary, isPlaceholderEmail, notListedLine, roomForAnother, seatLine } from "./importInvites"
+import { emailLine, initialSelection, inviteSummary, isPlaceholderEmail, MANY_TO_INVITE, notListedLine, roomForAnother, seatLine } from "./importInvites"
 import type { InvitablePerson, InviteRun } from "@/services/importService"
 
 const person = (n: number): InvitablePerson => ({ user_id: `u${n}`, name: `P${n}`, email: `p${n}@acme.test` })
@@ -43,6 +43,12 @@ describe("inviting the people an import brought across", () => {
     expect([...initialSelection(people, { used: 24, limit: 25, left: 1 }, { on: true, left: 2 })]).toEqual(["u1"])
     expect([...initialSelection(people, noLimit, { on: true, left: null })]).toEqual(["u1", "u2", "u3"])
     expect([...initialSelection(people, noLimit, { on: false, left: 0 })]).toEqual(["u1", "u2", "u3"])
+  })
+
+  it("ticks nobody in a long list", () => {
+    const many = Array.from({ length: MANY_TO_INVITE + 1 }, (_, i) => person(i))
+    expect(initialSelection(many, { used: 0, limit: 0, left: null }).size).toBe(0)
+    expect(initialSelection(many.slice(1), { used: 0, limit: 0, left: null }).size).toBe(MANY_TO_INVITE)
   })
 
   it("says how many get an email, and where the rest's links are", () => {

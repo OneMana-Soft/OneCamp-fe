@@ -36,7 +36,7 @@ import {
   type InviteRun,
 } from "@/services/importService"
 import { GetEndpointUrl } from "@/services/endPoints"
-import { emailLine, initialSelection, inviteSummary, notListedLine, roomForAnother, seatLine } from "@/lib/importInvites"
+import { emailLine, initialSelection, inviteSummary, MANY_TO_INVITE, notListedLine, roomForAnother, roomSelection, seatLine } from "@/lib/importInvites"
 
 interface Props {
   jobId: string
@@ -126,6 +126,18 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
               <p className={seats.left === 0 ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{seatsText}</p>
             )}
             {emailText && <p className="text-sm text-muted-foreground">{emailText}</p>}
+            {people.length > MANY_TO_INVITE && count === 0 && (
+              <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+                {people.length} people came across, so nobody is ticked: choose who to invite.
+                <Button
+                  variant="link"
+                  className="h-auto p-0"
+                  onClick={() => data && setSelected(roomSelection(data.people, data.seats, data.email))}
+                >
+                  Tick as many as there&apos;s room for
+                </Button>
+              </p>
+            )}
             {people.length === 0 ? (
               <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
                 Nobody left to invite: everyone who came across is already here or invited.

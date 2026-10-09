@@ -21,15 +21,23 @@ export function isPlaceholderEmail(email?: string | null): boolean {
   return local.includes("+x-") || local.includes("+slack-")
 }
 
+/** Above this many people, nobody is ticked to begin with: a whole site's accounts are not a team to invite at a click. */
+export const MANY_TO_INVITE = 50
+
 /**
- * Who is ticked when the dialog opens: everyone, or as many as the plan has
- * room for and, under a daily email allowance, as many as can be emailed
- * today. More can still be ticked; they get a link to share instead.
+ * As many as the plan has room for and, under a daily email allowance, as
+ * many as can be emailed today. More can still be ticked; they get a link to
+ * share instead.
  */
-export function initialSelection(people: InvitablePerson[], seats: SeatRoom, email?: EmailRoom): Set<string> {
+export function roomSelection(people: InvitablePerson[], seats: SeatRoom, email?: EmailRoom): Set<string> {
   const seatRoom = seats.left === null ? people.length : Math.max(0, seats.left)
   const mailRoom = email?.on && email.left !== null ? Math.max(0, email.left) : people.length
   return new Set(people.slice(0, Math.min(seatRoom, mailRoom)).map((p) => p.user_id))
+}
+
+/** Who is ticked when the dialog opens: as many as there is room for, or nobody in a long list. */
+export function initialSelection(people: InvitablePerson[], seats: SeatRoom, email?: EmailRoom): Set<string> {
+  return people.length > MANY_TO_INVITE ? new Set() : roomSelection(people, seats, email)
 }
 
 const LINKS = "Admin → Invitations"
