@@ -37,6 +37,9 @@ export function ChannelListTabs() {
         }
     }, [])
 
+    // An empty Active tab offers this: the channels there are to join.
+    const openDiscover = useCallback(() => setSelectedTab("join"), [])
+
     useEffect(() => {
         if (pathname === "/app/channel" && searchParams.get("tab") !== selectedTab) {
             const params = new URLSearchParams(searchParams.toString())
@@ -63,7 +66,7 @@ export function ChannelListTabs() {
                 </Button>
             }
         >
-            <ChannelListTabContent selectedTab={selectedTab} />
+            <ChannelListTabContent selectedTab={selectedTab} onDiscover={openDiscover} />
         </SectionTabs>
     )
 }

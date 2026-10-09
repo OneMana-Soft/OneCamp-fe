@@ -3,6 +3,7 @@
 import { homeGreeting } from "@/lib/utils/homeGreeting"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import SetupChecklist from "@/components/home/SetupChecklist"
+import { NoChannelsYet } from "@/components/home/NoChannelsYet"
 import { useRouter } from "next/navigation"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store/store"
@@ -176,6 +177,9 @@ export function MobileHome() {
                 opens the "your workspace is ready" email on a phone, and this
                 is the only screen that tells them what to do next. */}
             <SetupChecklist isAdmin={isAdmin} />
+
+            {/* In no channel at all: where the team talks, and the way in. */}
+            <NoChannelsYet />
 
             {/* Quick Actions */}
             <div className="-mx-1 grid grid-cols-4 gap-1">

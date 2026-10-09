@@ -1,10 +1,10 @@
 import {MobileChannelTextInput} from "@/components/textInput/mobileChannelTextInput";
 import {ChannelMessageList} from "@/components/channel/channelMessageList";
+import { JoinChannelPrompt } from "@/components/channel/JoinChannelPrompt";
 import {ChannelInfoInterfaceResp, ChannelJoinInterface} from "@/types/channel";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {usePost} from "@/hooks/usePost";
 import {useFetch} from "@/hooks/useFetch";
-import {Button} from "@/components/ui/button";
 import { Megaphone } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -42,12 +42,12 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusCompos
 
         if(!channelInfo.data?.channel_info.ch_is_member) {
             return (
-                <div className='mt-12 flex-col justify-center items-center w-full text-center space-y-2'>
-                    <div>you are not the member of the channel</div>
-                    <Button onClick={joinChannel}>
-                        Join channel
-                    </Button>
-                </div>
+                <JoinChannelPrompt
+                    channelName={channelDisplayName}
+                    onJoin={joinChannel}
+                    joining={postJoinChannel.isSubmitting}
+                    className="mt-12 pb-[env(safe-area-inset-bottom)]"
+                />
             )
         }
 

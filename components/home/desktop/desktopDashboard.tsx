@@ -26,6 +26,7 @@ import { ListRow } from "@/components/ui/listRow"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { useSidenav } from "@/hooks/useHydrateUserSidebar"
 import SetupChecklist from "@/components/home/SetupChecklist"
+import { NoChannelsYet } from "@/components/home/NoChannelsYet"
 import { GlanceLine, todayEyebrow } from "@/components/home/GlanceLine"
 import { PageHeader } from "@/components/ui/pageHeader"
 
@@ -121,6 +122,9 @@ export function DesktopDashboard() {
                 {/* Setup, while there is any left. Self-hides when the workspace
                     is actually configured, not when somebody ticks a box. */}
                 <SetupChecklist isAdmin={isAdmin} />
+
+                {/* In no channel at all: where the team talks, and the way in. */}
+                <NoChannelsYet />
 
                 {/* Two-column body */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -32,6 +32,7 @@ import {
 
 import {GenericResponse} from "@/types/genericRes";
 import {ChannelMessageList} from "@/components/channel/channelMessageList";
+import { JoinChannelPrompt } from "@/components/channel/JoinChannelPrompt";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {app_channel_call} from "@/types/paths";
 import Link from "next/link";
@@ -143,12 +144,12 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
 
         if(!channelInfo.data?.channel_info.ch_is_member) {
             return (
-                <div className='h-20 flex-col justify-center items-center w-full text-center space-y-2'>
-                    <div>you are not the member of the channel</div>
-                    <Button onClick={joinChannel}>
-                        Join channel
-                    </Button>
-                </div>
+                <JoinChannelPrompt
+                    channelName={channelNme?.ch_name || channelInfo.data?.channel_info?.ch_name || ""}
+                    onJoin={joinChannel}
+                    joining={postJoinChannel.isSubmitting}
+                    className="py-4"
+                />
             )
         }
 
