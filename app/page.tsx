@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle, Rocket, AlertCircle, AlertTriangle, Info, Mail, Lock, Eye, EyeOff, Fingerprint } from "@/lib/icons";
+import { LoaderCircle, AlertCircle, AlertTriangle, Info, Mail, Lock, Eye, EyeOff, Fingerprint } from "@/lib/icons";
 import { signInRefusal, type RefusalTone } from "@/lib/auth/signInRefusal";
 import { signInWithPasskey } from "@/services/passkeyService";
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn";
@@ -649,16 +649,14 @@ export default function SignUp() {
                 </div>
               )}
 
+              {/* A plain primary button in the theme's own colour: the
+                  orange-to-amber gradient and rocket belonged to no token. */}
               <Button
-                className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-medium shadow-md hover:shadow-lg transition duration-200"
+                className="w-full font-medium"
                 disabled={isLoading || isDemoLoading}
                 onClick={handleDemoLogin}
               >
-                {isDemoLoading ? (
-                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>
-                ) : (
-                  <Rocket className="mr-2 h-4 w-4" />
-                )}
+                {isDemoLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin"/>}
                 Try the demo, no sign up needed
               </Button>
 
