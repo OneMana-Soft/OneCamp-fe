@@ -111,7 +111,7 @@ export function GuestDocComments({ token }: GuestDocCommentsProps) {
           {comments.map((c) => (
             <li key={c.id} className="rounded-lg border border-border/50 bg-card/30 px-3 py-2.5">
               <div className="mb-1 flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-2xs font-semibold uppercase text-primary">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sidebar-accent text-2xs font-medium uppercase text-muted-foreground">
                   {(c.guest_name || "G").charAt(0)}
                 </span>
                 <span className="text-xs font-medium text-foreground">{c.guest_name}</span>

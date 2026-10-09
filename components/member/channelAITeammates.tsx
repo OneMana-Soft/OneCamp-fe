@@ -86,7 +86,7 @@ export default function ChannelAITeammates({ channelId }: ChannelAITeammatesProp
         {options.map((opt) => (
           <div key={opt.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-agent-muted text-agent">
                 <Sparkles className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0">

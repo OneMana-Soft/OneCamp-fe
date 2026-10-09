@@ -383,7 +383,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                         <div key={participant.user_uuid} className="flex items-center gap-3 group">
                                             <Avatar className="h-7 w-7 border border-border/50">
                                                 <AvatarImage src={participant.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${participant.user_profile_object_key}` : ""} />
-                                                <AvatarFallback className="text-3xs bg-primary/10 text-primary">
+                                                <AvatarFallback className="text-3xs">
                                                     {(participant.user_name || "U").charAt(0).toUpperCase()}
                                                 </AvatarFallback>
                                             </Avatar>

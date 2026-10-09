@@ -291,7 +291,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                         <div className="relative group mb-6">
                             <Avatar className="h-40 w-40 ring-4 ring-background shadow-xl transition-transform duration-150 group-hover:scale-[1.02]">
                                 <AvatarImage src={selectedImage || undefined} alt="Profile Image" className="object-cover" />
-                                <AvatarFallback className="text-4xl font-medium bg-primary/10">{nameIntial}</AvatarFallback>
+                                <AvatarFallback className="text-4xl font-medium">{nameIntial}</AvatarFallback>
                             </Avatar>
                             <label
                                 htmlFor="imageUpload"

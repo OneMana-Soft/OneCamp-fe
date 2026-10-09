@@ -94,11 +94,12 @@ export function PrincipalTag({
     <Badge
       variant={spec.variant}
       size="sm"
-      caps
       title={spec.title}
-      // rounded, not rounded-full: matches the five call sites that agreed, and
-      // keeps the tag reading as a label rather than a count pill.
-      className={cn("rounded shrink-0", spec.tone, className)}
+      // Sentence case at 12px, weight 500: "Agent", "Guest", "Bot". In capitals
+      // with wide tracking the tag outshouted the name it sits beside, on every
+      // message an agent or a bot wrote. rounded-sm, not rounded-full: a label,
+      // not a count pill.
+      className={cn("rounded-sm shrink-0 font-medium", spec.tone, className)}
     >
       <span aria-hidden="true">{spec.label}</span>
       <span className="sr-only">{spec.spoken}</span>
