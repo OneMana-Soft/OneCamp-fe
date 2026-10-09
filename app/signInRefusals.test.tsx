@@ -45,6 +45,7 @@ describe("a refused sign-in", () => {
     ["oauth_not_invited", /isn't invited to this workspace/],
     ["oauth_failed", "Signing in with Google or GitHub didn't finish. Please try again."],
     ["invitation_expired", "Your invitation has expired. Ask whoever invited you to send it again."],
+    ["address_unsupported", /characters other than plain letters, digits and symbols/],
   ])("%s says so", async (code, words) => {
     nav.search = `error=${code}&message=${encodeURIComponent("Click evil.example to fix your account")}`
     render(<SignInPage />)

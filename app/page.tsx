@@ -40,8 +40,10 @@ const knownErrorMessages: Record<string, string> = {
   oauth_failed:           "Signing in with Google or GitHub didn't finish. Please try again.",
   invitation_expired:     "Your invitation has expired. Ask whoever invited you to send it again.",
   unauthorized:           "Your account is not authorized to access this workspace. Please contact your administrator for an invitation.",
-  // Any provider: cancelled there, or a sign-in that outlived its state
-  // (taken too long, or opened twice).
+  // Any provider: an address written with characters outside ASCII, which is
+  // matched to no account; cancelled there; or a sign-in that outlived its
+  // state (taken too long, or opened twice).
+  address_unsupported:    "That account's email address has characters other than plain letters, digits and symbols, so it can't sign in here. Use an account whose address is written in plain letters, or ask your administrator.",
   signin_cancelled:       "Sign-in was cancelled. Try again when you're ready.",
   signin_expired:         "That sign-in took too long or was already used. Start again.",
   // OIDC
