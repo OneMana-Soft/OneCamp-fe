@@ -13,7 +13,6 @@ const router = vi.hoisted(() => ({ push: vi.fn(), prefetch: vi.fn(), replace: vi
 vi.mock("next/navigation", () => ({ useRouter: () => router, useSearchParams: () => search.params }))
 vi.mock("@/components/themeProvider/theme-toggle", () => ({ ThemeToggle: () => null }))
 vi.mock("@/services/passkeyService", () => ({ signInWithPasskey: vi.fn() }))
-vi.mock("@/services/demoFunnel", () => ({ reportDemoStep: vi.fn() }))
 
 import SignInPage from "./page"
 
