@@ -15,11 +15,10 @@ import {
 import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {usePost} from "@/hooks/usePost";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import { CheckCircle } from "@/lib/icons";
-import {useState} from "react";
-import {useFetch} from "@/hooks/useFetch";
-import {TeamInfoInterface, TeamNameExistsInterface} from "@/types/team";
+import {PostEndpointUrl} from "@/services/endPoints";
+import {TeamInfoInterface} from "@/types/team";
+import { useTeamNameCheck } from "@/components/dialog/useTeamNameCheck";
+import { TeamNameStatus } from "@/components/dialog/teamNameStatus";
 import {addUserTeamList} from "@/store/slice/userSlice";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -58,13 +57,6 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
 
   });
 
-  const [teamNameToCheck, setTeamNameToCheck] = useState<string | null>(null);
-
-
-  const { data: isTeamNameAvailable, isLoading: isCheckingAvailability } = useFetch<TeamNameExistsInterface>(
-      teamNameToCheck ? `${GetEndpointUrl.CheckTeamNameAvailability}?team_name=${encodeURIComponent(teamNameToCheck)}` : ''
-  );
-
   const { makeRequest, isSubmitting } = usePost();
 
   const dispatch = useDispatch()
@@ -89,72 +81,36 @@ const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({
   // Close the dialog
   const closeModal = () => {
     reset()
-    setTeamNameToCheck(null)
     setOpenState(false);
   };
 
-  const checkChannelNameAvailability = (channelName: string) => {
-    setTeamNameToCheck(channelName);
-  };
-
   const team_name = watch('team_name')
+  const name = useTeamNameCheck(team_name, { valid: isValid })
 
   return (
       <Dialog onOpenChange={closeModal} open={dialogOpenState}>
         <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-start">New team</DialogTitle>
-            <DialogDescription>
-
-            </DialogDescription>
+            <DialogDescription>A team holds its own projects and people.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="team_name">Name</Label>
-                <Controller
-                    name="team_name"
-                    control={control}
-                    render={({ field, fieldState: { error } }) => (
-                        <>
-                          <div className="flex items-center gap-2">
-                            <Input
-                                {...field}
-                                id="teamName"
-                                placeholder="Design"
-                                autoFocus
-                            />
-                            <Button
-                                type="button"
-                                onClick={() => checkChannelNameAvailability(field.value)}
-                                disabled={!field.value || isSubmitting || isCheckingAvailability || !isValid}
-                            >
-                              {isCheckingAvailability ? "Checking…" : "Check availability"}
-                            </Button>
-                          </div>
-                          <div>
-                            {error && (
-                                <p className="text-xs md:text-sm text-danger-ink">{error.message}</p>
-                            )}
-                            {teamNameToCheck == field.value && isTeamNameAvailable?.exists === false && (
-                                <div className="flex items-center text-success-ink">
-                                  <CheckCircle className="w-4 h-4 mr-1"/>
-                                  <span
-                                      className="text-xs md:text-sm">Channel name is available</span>
-                                </div>
-                            )}
-                            {teamNameToCheck == field.value && isTeamNameAvailable?.exists === true && (
-                                <p className="text-xs md:text-sm text-danger-ink">Team name is already
-                                  taken</p>
-                            )}
-                          </div>
-                        </>
-                    )}
-                />
-              </div>
+            <div className="grid gap-2 py-4">
+              <Label htmlFor="team-name">Team name</Label>
+              <Controller
+                  name="team_name"
+                  control={control}
+                  render={({ field, fieldState: { error } }) => (
+                      <>
+                        <Input {...field} id="team-name" placeholder="Design" autoFocus aria-describedby="team-name-status" />
+                        <TeamNameStatus id="team-name-status" error={error?.message} {...name} />
+                      </>
+                  )}
+              />
             </div>
             <DialogFooter>
-            <Button type="submit" disabled={!isValid || isSubmitting || teamNameToCheck !== team_name ||  isTeamNameAvailable?.exists}>
+              <Button type="button" variant="ghost" onClick={closeModal}>Cancel</Button>
+              <Button type="submit" disabled={!isValid || isSubmitting || !name.available}>
                 {isSubmitting ? "Creating…" : "Create team"}
               </Button>
             </DialogFooter>
