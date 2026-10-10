@@ -3,7 +3,6 @@ import {DocInfoInterface} from "@/types/doc";
 import {DocCard} from "@/components/doc/docCard";
 import * as React from "react";
 import {app_doc_path} from "@/types/paths";
-import { useRouter } from "next/navigation";
 import { Plus, FileText } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn";
 import { VirtuosoGrid } from 'react-virtuoso';
@@ -11,8 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ListSkeleton } from "@/components/ui/ListSkeleton";
 
 export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate}: {docList: DocInfoInterface[], onLoadMore?: ()=>void, hasMore?: boolean, isLoading?: boolean, onCreate?: ()=>void}) => {
-    const router = useRouter();
-    
+
     // Merge potential "Create Doc" card into the data list
     // We use a discriminated union type approach or just a mixed array
     const data = React.useMemo(() => {
@@ -56,13 +54,10 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                     Footer: () => (
                         <div className="flex justify-center py-4 w-full">
                             {isLoading && (
-                                <span className="flex items-center gap-2 text-sm text-primary">
-                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                <span className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
                                     Loading…
                                 </span>
-                            )}
-                             {!hasMore && docList.length > 0 && (
-                                <div className="text-xs text-muted-foreground p-4">End of list</div>
                             )}
                         </div>
                     )
@@ -75,7 +70,7 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                                 type="button"
                                 onClick={onCreate}
                                 className={cn(
-                                    "group relative flex w-full flex-col items-center justify-center gap-2 border border-dashed border-border rounded-lg bg-transparent text-muted-foreground hover:border-input hover:bg-accent/40 hover:text-foreground transition-colors duration-150 h-64 md:h-72",
+                                    "group relative flex w-full flex-col items-center justify-center gap-2 border border-dashed border-border rounded-lg bg-transparent text-muted-foreground hover:border-input hover:bg-highlight/40 hover:text-foreground transition-colors duration-150 h-64 md:h-72",
                                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                                 )}
                             >
@@ -88,7 +83,7 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                      }
                      return (
                          <div className="block">
-                             <DocCard doc={item} onClick={(id) => router.push(`${app_doc_path}/${id}`)} />
+                             <DocCard doc={item} href={`${app_doc_path}/${item.doc_uuid}`} />
                          </div>
                      )
                 }}

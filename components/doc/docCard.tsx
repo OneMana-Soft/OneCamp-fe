@@ -1,67 +1,57 @@
-import { displayNameOf } from "@/lib/personName"
 import React from 'react';
+import Link from "next/link";
 import { DocInfoInterface } from "@/types/doc";
 import { DocPreview } from "@/components/doc/docPreview";
 import { shortDate } from "@/lib/utils/date/shortDate";
 import { cn } from "@/lib/utils/helpers/cn";
-import TouchableDiv from "@/components/animation/touchRippleAnimation";
+import { FileText } from "@/lib/icons";
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 
 interface DocCardProps {
     doc: DocInfoInterface;
-    onClick: (docId: string) => void;
+    /** Where the card leads. */
+    href: string;
     className?: string;
 }
 
-export const DocCard: React.FC<DocCardProps> = ({ doc, onClick, className }) => {
-    
-    // Format date similar to Google Docs (e.g., "Opened Jan 12, 2024")
-    // Assuming doc_updated_at is the relevant timestamp, or created_at if updated is missing.
+/**
+ * A doc in the list: its first lines as a page, then its name beside its
+ * identity mark (a page in the doc's own hue, the colour it has in the
+ * sidebar too) and when it last changed. A link, so it opens from the
+ * keyboard, in a new tab with a modifier, and its page is fetched ahead.
+ */
+export const DocCard: React.FC<DocCardProps> = ({ doc, href, className }) => {
     const displayDate = doc.doc_updated_at || doc.doc_created_at;
     let dateStr = "";
     if (displayDate) {
-        try {
-            const d = new Date(displayDate);
-            if (!isNaN(d.getTime())) {
-                dateStr = shortDate(d);
-            }
-        } catch(e) {
-            // Ignore invalid date
-        }
+        const d = new Date(displayDate);
+        if (!isNaN(d.getTime())) dateStr = shortDate(d);
     }
 
     return (
-        <TouchableDiv 
+        <Link
+            href={href}
             className={cn(
-                "group relative flex flex-col border rounded-lg overflow-hidden bg-background border-border hover:border-input transition-colors duration-150 cursor-pointer h-64 md:h-72", 
+                "group relative flex h-64 flex-col overflow-hidden rounded-lg border border-border bg-card hover-lift md:h-72",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
                 className
             )}
-            onClick={() => onClick(doc.doc_uuid)}
         >
-            {/* Preview Area (Top ~2/3) */}
-            <div className="flex-1 bg-muted/30 border-b border-border relative overflow-hidden">
-                <DocPreview content={doc.doc_snippet || doc.doc_body} className="w-full h-full" />
+            {/* The page */}
+            <div className="relative flex-1 overflow-hidden border-b border-border bg-muted/30">
+                <DocPreview content={doc.doc_snippet || doc.doc_body} className="h-full w-full" />
             </div>
 
-            {/* Metadata Area (Bottom ~1/3) */}
-            <div className="px-3 bg-card flex flex-col justify-center h-16">
-                <div className="flex items-start justify-between">
-                    <h3 className="text-sm font-medium text-card-foreground truncate pr-2 w-full" title={doc.doc_title}>
+            {/* Its name, its mark, and when it changed */}
+            <div className="flex h-16 items-center gap-2.5 px-3">
+                <IdentityMark id={doc.doc_uuid} variant="tile" size={24} icon={<FileText />} />
+                <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-sm font-medium text-card-foreground" title={doc.doc_title}>
                         {doc.doc_title || "Untitled"}
                     </h3>
-                    {/* Optional: Menu Trigger could go here */}
-                </div>
-                
-                <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-muted-foreground tabular-nums truncate">
-                        {dateStr}
-                    </span>
-                     {/* Owner info could act as a secondary subtitle */}
-                     {/* <span className="text-xs text-muted-foreground mx-1">•</span>
-                     <span className="text-xs text-muted-foreground truncate max-w-[80px]">
-                        {displayNameOf(doc.doc_created_by)}
-                     </span> */}
+                    {dateStr && <span className="block truncate text-xs tabular-nums text-muted-foreground">{dateStr}</span>}
                 </div>
             </div>
-        </TouchableDiv>
+        </Link>
     );
 };
