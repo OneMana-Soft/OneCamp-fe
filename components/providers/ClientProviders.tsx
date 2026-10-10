@@ -9,6 +9,9 @@ import { ActiveThemeProvider } from "@/components/activeTheme/activeTheme";
 import { ThemeSync } from "@/components/activeTheme/ThemeSync";
 import { ThemeColorMeta } from "@/components/activeTheme/ThemeColorMeta";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
+import { Toaster } from "@/components/ui/toaster";
+import { OfflineNotice } from "@/components/error/OfflineNotice";
+import { UnsavedChangesGuard } from "@/components/ui/UnsavedChangesGuard";
 
 export function ClientProviders({
   children,
@@ -28,6 +31,14 @@ export function ClientProviders({
                 {children}
               </div>
               <PwaInstallPrompt />
+              {/* The one Toaster, under every page: the signed-in app's
+                  providers held it, so a toast on a guest page, the invoice
+                  page or a signed-out page drew nothing. */}
+              <Toaster />
+              {/* Says when the network or the server is gone, on every page. */}
+              <OfflineNotice />
+              {/* Asks before an in-app link leaves a SaveBar's changes unsaved. */}
+              <UnsavedChangesGuard />
             </MediaQueryProvider>
           </Provider>
         </PersistGate>

@@ -4,7 +4,6 @@ import { LaterDueHost } from "@/components/later/LaterDueHost";
 import { useEffect } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MqttProvider } from "@/components/mqtt/mqttProvider";
-import { Toaster } from "@/components/ui/toaster";
 import GlobalCommandHost from "@/components/command/GlobalCommandHost";
 import CommandActionBridge from "@/components/command/CommandActionBridge";
 import { MediaQueryProvider } from "@/context/MediaQueryContext";
@@ -60,7 +59,6 @@ export default function ClientProviders({
               <CommandActionBridge />
               <GlobalCommandHost />
               <LaterDueHost />
-              <Toaster />
             </MqttProvider>
           </TooltipProvider>
         </LoadingProvider>
