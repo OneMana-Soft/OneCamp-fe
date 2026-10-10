@@ -5,7 +5,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
-import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, Bot, BarChart3, Target, TrendingUp } from "@/lib/icons";
+import { Home, CheckSquare, Calendar, Bell, FileText, MessageCircle, Hash, Users, Shield, Plus, Search, Settings, User, LogOut, GitBranch, Sparkles, Clock, Trash2, Monitor, Bookmark, FolderKanban, Zap, ClipboardList, CircleCheck, UserPlus, Key, Mail, Github, Brain, ExternalLink, Bot, BarChart3, Target, TrendingUp, Lock, LayoutDashboard } from "@/lib/icons";
 import { Plug } from "lucide-react";
 
 import {
@@ -22,6 +22,10 @@ import { addRecentItem, type RecentItem } from "@/store/slice/recentItemsSlice"
 import { useFetch } from "@/hooks/useFetch"
 import { useSearch } from "@/hooks/useSearch"
 import { useDebounce } from "@/hooks/useDebounce"
+import { matchScore, NAMED_MATCH, paletteTargets, rankTargets, type PaletteTarget } from "@/lib/search/paletteMatch"
+import { getContext, getHighlightedTitle, getIcon, getTitle, hitHueId, searchResultKeys } from "@/lib/utils/helpers/search"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { Tile } from "@/components/ui/graphics/Tile"
 import {
   unifiedSearch,
   isAbortedRequest,
@@ -36,7 +40,7 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { UserProfileInterface } from "@/types/user"
 import type { RootState } from "@/store/store"
 import {
-  app_channel_path,
+  app_home_path,
   app_my_task_path,
   app_calendar_path,
   app_doc_activity,
@@ -87,60 +91,57 @@ interface PaletteCommand {
 const COMMAND_GROUPS = ["Navigate", "Create", "View", "GitHub", "AI", "Admin", "Settings"] as const
 const NO_RECENT: RecentItem[] = []
 
+// Titles are the decoded, plain text a hit shows (stored bodies are escaped
+// HTML, so a message's first 40 characters could end in "&#39").
 function makeSearchRecentItem(result: SearchResult): Omit<RecentItem, "timestamp"> | null {
+  const title = getTitle(result).slice(0, 60)
   switch (result.type) {
     case "task":
-      return { id: result.task.task_id, type: "task", title: result.task.task_name, path: `/app/task/${result.task.task_id}` }
+      return { id: result.task.task_id, type: "task", title: title || "Task", path: `/app/task/${result.task.task_id}` }
     case "channel":
-      return { id: result.channel.ch_id, type: "channel", title: result.channel.ch_name, path: `/app/channel/${result.channel.ch_id}` }
+      return { id: result.channel.ch_id, type: "channel", title: title || "Channel", path: `/app/channel/${result.channel.ch_id}` }
     case "doc":
-      return { id: result.doc.doc_uuid, type: "doc", title: result.doc.doc_title, path: `/app/doc/${result.doc.doc_uuid}` }
+      return { id: result.doc.doc_uuid, type: "doc", title: title || "Untitled doc", path: `/app/doc/${result.doc.doc_uuid}` }
     case "project":
-      return { id: result.project.project_id, type: "project", title: result.project.project_name, path: `/app/project/${result.project.project_id}` }
+      return { id: result.project.project_id, type: "project", title: title || "Project", path: `/app/project/${result.project.project_id}` }
     case "team":
-      return { id: result.team.team_id, type: "team", title: result.team.team_name, path: `/app/team/${result.team.team_id}` }
+      return { id: result.team.team_id, type: "team", title: title || "Team", path: `/app/team/${result.team.team_id}` }
     case "chat":
-      return { id: result.chat.chat_id, type: "chat", title: result.chat.chat_body?.substring(0, 40) || "Chat", path: `/app/chat/${result.chat.chat_by_user_id}` }
+      return { id: result.chat.chat_id, type: "chat", title: title || "Message", path: `/app/chat/${result.chat.chat_by_user_id}` }
     default:
       return null
   }
 }
 
-function recentItemIcon(type: RecentItem["type"]) {
-  switch (type) {
-    case "task": return <CheckSquare className="mr-2 h-4 w-4 text-blue-500" />
-    case "channel": return <Hash className="mr-2 h-4 w-4 text-orange-500" />
-    case "doc": return <FileText className="mr-2 h-4 w-4 text-success-ink" />
-    case "project": return <FolderKanban className="mr-2 h-4 w-4 text-purple-500" />
-    case "team": return <Users className="mr-2 h-4 w-4 text-pink-500" />
-    case "chat": return <MessageCircle className="mr-2 h-4 w-4 text-cyan-500" />
-    case "user": return <User className="mr-2 h-4 w-4 text-primary" />
-    default: return <Clock className="mr-2 h-4 w-4" />
-  }
+const RECENT_GLYPH: Record<RecentItem["type"], typeof Clock> = {
+  task: CheckSquare,
+  channel: Hash,
+  doc: FileText,
+  project: FolderKanban,
+  team: Users,
+  chat: MessageCircle,
+  user: User,
 }
 
+/**
+ * A recent item's mark: its own identity hue (lib/campHue), on a tile, with
+ * its kind's glyph; a person as their coloured initials. Each kind had one
+ * raw Tailwind colour (every task blue, every channel orange), which said the
+ * kind twice and nothing about which one.
+ */
+function recentItemMark(item: Pick<RecentItem, "id" | "type" | "title">) {
+  if (item.type === "user") return <IdentityMark variant="avatar" size={24} id={item.id} label={item.title} />
+  const Glyph = RECENT_GLYPH[item.type] ?? Clock
+  return <IdentityMark variant="tile" size={24} id={item.id} icon={<Glyph />} />
+}
+
+// A source is a category, so each has a fixed hue.
 function aiSourceIcon(source: UnifiedSource) {
   switch (source) {
-    case "memory": return <Brain className="mr-2 h-4 w-4 text-primary" />
-    case "gmail": return <Mail className="mr-2 h-4 w-4 text-danger-ink" />
-    case "github": return <Github className="mr-2 h-4 w-4 text-foreground" />
-    default: return <Sparkles className="mr-2 h-4 w-4 text-primary" />
-  }
-}
-
-function searchResultIcon(type: string) {
-  switch (type) {
-    case "task": return <CheckSquare className="mr-2 h-4 w-4 text-blue-500" />
-    case "post": return <Hash className="mr-2 h-4 w-4 text-orange-500" />
-    case "chat": return <MessageCircle className="mr-2 h-4 w-4 text-cyan-500" />
-    case "doc": return <FileText className="mr-2 h-4 w-4 text-success-ink" />
-    case "project": return <FolderKanban className="mr-2 h-4 w-4 text-purple-500" />
-    case "team": return <Users className="mr-2 h-4 w-4 text-pink-500" />
-    case "user": return <User className="mr-2 h-4 w-4 text-primary" />
-    case "channel": return <Hash className="mr-2 h-4 w-4 text-orange-500" />
-    case "comment": return <MessageCircle className="mr-2 h-4 w-4 text-muted-foreground" />
-    case "attachment": return <Bookmark className="mr-2 h-4 w-4 text-muted-foreground" />
-    default: return <Search className="mr-2 h-4 w-4" />
+    case "memory": return <Tile hue="dusk" size="sm"><Brain /></Tile>
+    case "gmail": return <Tile hue="berry" size="sm"><Mail /></Tile>
+    case "github": return <Tile hue="sky" size="sm"><Github /></Tile>
+    default: return <Tile hue="lake" size="sm"><Sparkles /></Tile>
   }
 }
 
@@ -165,22 +166,24 @@ export function CommandPalette() {
   // Track page visits with real names from Redux
   useTrackPageVisit()
 
-  // Global search integration
+  // Global search. The palette's query is the search hook's own: a second
+  // copy kept in step by an effect rendered the whole palette twice a key.
   const {
-    inputValue: searchValue,
-    setInputValue: setSearchValue,
+    inputValue,
+    setInputValue,
     results: searchResults,
     isLoading: isSearching,
+    isRefreshing,
     handleResultClick,
   } = useSearch({ debounceMs: 150 })
 
-  // The palette's input is the search's input: set together, in one render.
-  // An effect copying one into the other drew the palette twice a keystroke.
-  const [inputValue, setInputValue] = React.useState("")
-  const handleInput = React.useCallback((value: string) => {
-    setInputValue(value)
-    setSearchValue(value)
-  }, [setSearchValue])
+  // What the sidebar already holds answers on the keystroke, before the
+  // search request leaves: channels, people, projects, teams, docs, boards.
+  // Read only while the palette is open, so a closed palette doesn't render
+  // on every unread count.
+  const sidebar = useSelector((state: RootState) => (open ? state.users.userSidebar : CLOSED_SIDEBAR))
+  const selfId = selfProfile?.data?.user_uuid
+  const targets = React.useMemo(() => paletteTargets(sidebar, selfId), [sidebar, selfId])
 
   // Unified AI search: fold Memory facts + connected-app (Gmail/GitHub) results
   // into the same palette so Cmd+K spans everything. The keyword "Search
@@ -191,7 +194,9 @@ export function CommandPalette() {
   React.useEffect(() => {
     const q = debouncedAiQuery.trim()
     if (!open || q.length < 2) {
-      setAiGroups([])
+      // Only when there is something to clear: a fresh empty list is a new
+      // state, and it re-rendered the palette on every key.
+      setAiGroups((groups) => (groups.length === 0 ? groups : []))
       return
     }
     let cancelled = false
@@ -203,7 +208,7 @@ export function CommandPalette() {
       .then((res) => {
         if (cancelled) return
         if (!res.enabled) {
-          setAiGroups([])
+          setAiGroups((groups) => (groups.length === 0 ? groups : []))
           return
         }
         setAiGroups((res.groups || []).filter((g) => g.source !== "workspace" && g.hits.length > 0))
@@ -235,15 +240,13 @@ export function CommandPalette() {
   React.useEffect(() => {
     if (open) return
     setInputValue("")
-    setSearchValue("")
-  }, [open, setSearchValue])
+  }, [open, setInputValue])
 
   const runCommand = React.useCallback((command: () => void) => {
     setOpen(false)
     setInputValue("")
-    setSearchValue("")
     command()
-  }, [setSearchValue])
+  }, [setInputValue])
 
   const handleSearchSelect = React.useCallback((result: SearchResult) => {
     const item = makeSearchRecentItem(result)
@@ -254,6 +257,11 @@ export function CommandPalette() {
   const handleRecentSelect = React.useCallback((item: RecentItem) => {
     runCommand(() => router.push(item.path))
   }, [runCommand, router])
+
+  const handleTargetSelect = React.useCallback((t: PaletteTarget) => {
+    if (t.kind !== "board") dispatch(addRecentItem({ id: t.id, type: t.kind, title: t.label, path: t.path }))
+    runCommand(() => router.push(t.path))
+  }, [runCommand, router, dispatch])
 
   // Selecting a unified-AI hit: external sources open in a new tab; Memory
   // facts jump to their source (channel / project / group) when known, else
@@ -296,7 +304,7 @@ export function CommandPalette() {
         keywords: ["home", "feed", "channels"],
         icon: <Home className="mr-2 h-4 w-4" />,
         group: "Navigate",
-        action: () => router.push(app_channel_path),
+        action: () => router.push(app_home_path),
       },
       {
         id: "nav-tasks",
@@ -342,7 +350,9 @@ export function CommandPalette() {
         id: "nav-boards",
         label: "Boards",
         keywords: ["boards", "canvas", "whiteboard", "diagram", "miro"],
-        icon: <FileText className="mr-2 h-4 w-4" />,
+        // The board glyph the sidebar's Boards and every board row use; it was
+        // the page glyph, so Boards read as a second Docs.
+        icon: <LayoutDashboard className="mr-2 h-4 w-4" />,
         group: "Navigate",
         action: () => router.push(app_board_path),
       },
@@ -628,8 +638,10 @@ export function CommandPalette() {
       },
       {
         id: "logout",
-        label: "Log out",
-        keywords: ["logout", "sign out", "exit"],
+        // "Sign out", the pair of the sign-in page's "Sign in", as the phone's
+        // menu says it; "log out" still finds it.
+        label: "Sign out",
+        keywords: ["sign out", "logout", "log out", "exit"],
         icon: <LogOut className="mr-2 h-4 w-4" />,
         group: "Settings",
         action: () => router.push("/logout"),
@@ -726,10 +738,10 @@ export function CommandPalette() {
     })
   }, [router, dispatch, isAdmin, can, features, pathname, splitRun])
 
-  // The commands, drawn once per set of commands rather than on every
-  // keystroke: cmdk filters them itself, and each item re-renders only when
-  // it is shown, hidden or selected. Built in render, all eighty were new
-  // elements on every key, and every one re-rendered.
+  // Every command in its group, shown while nothing is typed: drawn once per
+  // set of commands rather than on every render of the palette. Built in
+  // render, all eighty were new elements each time, and every one
+  // re-rendered. (Typed, the palette lists its own best matches instead.)
   const commandGroups = React.useMemo(
     () =>
       COMMAND_GROUPS.map((group) => {
@@ -742,7 +754,7 @@ export function CommandPalette() {
                 <CommandItem
                   key={cmd.id}
                   onSelect={() => runCommand(cmd.action)}
-                  value={`${cmd.label} ${cmd.keywords.join(" ")}`}
+                  value={`cmd-${cmd.id}`}
                 >
                   {cmd.icon}
                   <span>{cmd.label}</span>
@@ -756,79 +768,142 @@ export function CommandPalette() {
     [commands, runCommand],
   )
 
-  const hasSearchQuery = inputValue.trim().length > 0
-  const hasSearchResults = searchResults.length > 0
+  const query = inputValue.trim()
+  const hasSearchQuery = query.length > 0
   const showRecent = !hasSearchQuery && recentItems.length > 0
-  const showCommands = !hasSearchQuery || !hasSearchResults
+  const jumpTo = React.useMemo(() => rankTargets(query, targets, 6), [query, targets])
+  // A place already under "Jump to" isn't listed again among the hits: "Q4
+  // launch" showed twice, once as a place and once as a project hit.
+  const hits = React.useMemo(() => {
+    const placed = new Set(jumpTo.map((t) => t.id))
+    return searchResults.filter((r) => !(PLACE_TYPES.has(r.type) && placed.has(hitHueId(r) ?? "")))
+  }, [searchResults, jumpTo])
+  const hasSearchResults = hits.length > 0
+  // A hit keeps its key (and the keyboard's place on it) as answers arrive.
+  const hitKeys = React.useMemo(() => searchResultKeys(hits), [hits])
+  // While typing, the commands that match, best first; with no query, all of
+  // them in their groups.
+  const { matchedCommands, commandScore } = React.useMemo(() => {
+    if (!hasSearchQuery) return { matchedCommands: [] as PaletteCommand[], commandScore: 0 }
+    const ranked = commands
+      .map((cmd, i) => ({ cmd, i, score: matchScore(query, cmd.label, cmd.keywords) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.i - b.i)
+      .slice(0, 6)
+    return { matchedCommands: ranked.map((x) => x.cmd), commandScore: ranked[0]?.score ?? 0 }
+  }, [commands, query, hasSearchQuery])
+  // What the query names goes above what the search found in the text. Typed
+  // whole, "Docs" sat under two tasks that only mention docs, and the row the
+  // keyboard was on was halfway down the list. Places always lead (they match
+  // on a name or a person); a command leads too when the query names it, and
+  // the places when they name it better or as well.
+  const placeScore = jumpTo.length > 0 ? matchScore(query, jumpTo[0].label, jumpTo[0].keywords) : 0
+  const commandsNamed = commandScore >= NAMED_MATCH
+  const commandsLead = commandsNamed && commandScore > placeScore
+  const nothingYet = hasSearchQuery && jumpTo.length === 0 && !hasSearchResults && matchedCommands.length === 0 && aiGroups.length === 0
+  const searchEverything = () => runCommand(() => router.push(`/app/search?query=${encodeURIComponent(query)}`))
+
+  const commandsGroup = hasSearchQuery && matchedCommands.length > 0 && (
+    <CommandGroup heading="Commands">
+      {matchedCommands.map((cmd) => (
+        <CommandItem key={cmd.id} value={`cmd-${cmd.id}`} onSelect={() => runCommand(cmd.action)}>
+          {cmd.icon}
+          <span>{cmd.label}</span>
+          <span className="ml-auto shrink-0 pl-3 text-xs text-muted-foreground">{cmd.group}</span>
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  )
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
+    // The palette filters on its own (lib/search/paletteMatch). Left to cmdk,
+    // the server's hits were filtered a second time against the 60 characters
+    // of their title, and a message that matched further in was dropped: 5 of
+    // 7 hits showed for "pricing".
+    <CommandDialog open={open} onOpenChange={setOpen} commandProps={{ shouldFilter: false, loop: true }}>
       <CommandInput
         placeholder="Search or jump to…"
         hint={<ShortcutHint />}
         value={inputValue}
-        onValueChange={handleInput}
+        onValueChange={setInputValue}
       />
       <CommandList className="max-h-[60vh]">
-        <CommandEmpty>
-          {isSearching ? (
-            <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              Searching…
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Search className="h-8 w-8 text-muted-foreground/30 mb-2" />
-              <p className="text-sm font-medium text-foreground">No results</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Try another word, or a command like “Create task”.
-              </p>
-            </div>
-          )}
-        </CommandEmpty>
+        {commandsLead && commandsGroup}
 
-        {/* Global Search Results */}
-        {hasSearchQuery && hasSearchResults && (
-          <CommandGroup heading="Search results">
-            {searchResults.slice(0, 8).map((result, idx) => (
-              <CommandItem
-                key={`search-${result.type}-${idx}`}
-                onSelect={() => handleSearchSelect(result)}
-                value={`search-${result.type}-${idx}-${getSearchResultTitle(result)}`}
-              >
-                {searchResultIcon(result.type)}
-                <span className="truncate">{getSearchResultTitle(result)}</span>
-                <span className="ml-auto text-xs text-muted-foreground capitalize">{result.type}</span>
+        {/* Places from the sidebar: these answer on the keystroke. */}
+        {jumpTo.length > 0 && (
+          <CommandGroup heading="Jump to">
+            {jumpTo.map((t) => (
+              <CommandItem key={`jump-${t.kind}-${t.id}`} value={`jump-${t.kind}-${t.id}`} onSelect={() => handleTargetSelect(t)}>
+                {targetIcon(t)}
+                <span className="truncate">{t.label}</span>
+                <span className="ml-auto shrink-0 pl-3 text-xs text-muted-foreground">{TARGET_KIND_LABEL[t.kind]}</span>
               </CommandItem>
             ))}
           </CommandGroup>
         )}
 
-        {hasSearchQuery && hasSearchResults && <CommandSeparator />}
+        {commandsNamed && !commandsLead && commandsGroup}
+
+        {/* The workspace's search, a moment later. An older answer stays,
+            dimmed, while the next one loads, so the rows don't blank. */}
+        {hasSearchQuery && (hasSearchResults || isSearching) && (
+          <CommandGroup heading="Messages, docs and tasks" className={isRefreshing ? "opacity-60 transition-opacity duration-150" : "transition-opacity duration-150"}>
+            {isSearching && !hasSearchResults && (
+              <div role="status" className="px-2 py-2 text-sm text-muted-foreground">
+                Searching…
+              </div>
+            )}
+            {hits.slice(0, 8).map((result, idx) => (
+              <CommandItem
+                key={`hit-${hitKeys[idx]}`}
+                value={`hit-${hitKeys[idx]}`}
+                onSelect={() => handleSearchSelect(result)}
+              >
+                {getIcon(result)}
+                <span className="min-w-0 flex-1 truncate">{getHighlightedTitle(result)}</span>
+                <span className="ml-auto max-w-[40%] shrink-0 truncate pl-3 text-xs text-muted-foreground">{getContext(result)}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
 
         {/* Unified AI results — Memory facts + connected apps (Gmail/GitHub). */}
         {hasSearchQuery &&
           aiGroups.map((g) => (
-            <React.Fragment key={`ai-${g.source}`}>
-              <CommandGroup heading={g.source === "memory" ? "Memory" : g.label}>
-                {g.hits.map((h, idx) => (
-                  <CommandItem
-                    key={`ai-${g.source}-${idx}`}
-                    onSelect={() => handleAiHitSelect(h)}
-                    value={`ai ${g.source} ${inputValue} ${h.title}`}
-                  >
-                    {aiSourceIcon(g.source)}
-                    <span className="truncate">{h.title}</span>
-                    {h.meta && <span className="ml-auto truncate pl-2 text-xs text-muted-foreground">{h.meta}</span>}
-                    {(g.source === "gmail" || g.source === "github") && (
-                      <ExternalLink className="ml-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    )}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              <CommandSeparator />
-            </React.Fragment>
+            <CommandGroup key={`ai-${g.source}`} heading={g.source === "memory" ? "Memory" : g.label}>
+              {g.hits.map((h, idx) => (
+                <CommandItem
+                  key={`ai-${g.source}-${idx}`}
+                  onSelect={() => handleAiHitSelect(h)}
+                  value={`ai-${g.source}-${idx}`}
+                >
+                  {aiSourceIcon(g.source)}
+                  <span className="truncate">{h.title}</span>
+                  {h.meta && <span className="ml-auto truncate pl-2 text-xs text-muted-foreground">{h.meta}</span>}
+                  {(g.source === "gmail" || g.source === "github") && (
+                    <ExternalLink className="ml-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
           ))}
+
+        {/* Commands the query only brushes (inside a word, or a keyword)
+            wait under what the search found. */}
+        {!commandsNamed && commandsGroup}
+
+        {hasSearchQuery && (
+          <CommandGroup>
+            {nothingYet && !isSearching && (
+              <p className="px-2 pb-1 pt-2 text-sm text-muted-foreground">Nothing here matches “{query}”.</p>
+            )}
+            <CommandItem value="search-everything" onSelect={searchEverything}>
+              <Search className="mr-2 h-4 w-4" />
+              <span className="truncate">Search everything for “{query}”</span>
+            </CommandItem>
+          </CommandGroup>
+        )}
 
         {/* Recent Items */}
         {showRecent && (
@@ -837,9 +912,9 @@ export function CommandPalette() {
               <CommandItem
                 key={`recent-${item.type}-${item.id}`}
                 onSelect={() => handleRecentSelect(item)}
-                value={`recent ${item.title} ${item.type}`}
+                value={`recent-${item.type}-${item.id}`}
               >
-                {recentItemIcon(item.type)}
+                {recentItemMark(item)}
                 <span className="truncate">{item.title}</span>
                 <span className="ml-auto text-xs text-muted-foreground capitalize">{item.type}</span>
               </CommandItem>
@@ -850,7 +925,7 @@ export function CommandPalette() {
         {showRecent && <CommandSeparator />}
 
         {/* Commands — grouped by category */}
-        {showCommands && commandGroups}
+        {!hasSearchQuery && commandGroups}
 
         {/* Footer hint */}
         {!hasSearchQuery && (
@@ -873,6 +948,37 @@ export function CommandPalette() {
   )
 }
 
+const CLOSED_SIDEBAR = {}
+
+/** Hits that are places the sidebar knows: a project, channel, doc, team or board. */
+const PLACE_TYPES = new Set<SearchResult["type"]>(["project", "channel", "doc", "team", "board"])
+
+const TARGET_KIND_LABEL: Record<PaletteTarget["kind"], string> = {
+  channel: "Channel",
+  chat: "Direct message",
+  project: "Project",
+  team: "Team",
+  doc: "Doc",
+  board: "Board",
+}
+
+const TARGET_GLYPH: Record<PaletteTarget["kind"], typeof Hash> = {
+  channel: Hash,
+  chat: MessageCircle,
+  project: FolderKanban,
+  team: Users,
+  doc: FileText,
+  board: LayoutDashboard,
+}
+
+/** A place's mark, in its identity hue: a person as their face, a private channel with a lock. */
+function targetIcon(t: PaletteTarget) {
+  if (t.kind === "chat") return <IdentityMark variant="avatar" size={24} id={t.hueId ?? t.id} label={t.label} />
+  const Glyph = t.kind === "channel" && t.isPrivate ? Lock : TARGET_GLYPH[t.kind]
+  return <IdentityMark variant="tile" size={24} id={t.hueId ?? t.id} icon={<Glyph />} />
+}
+
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -889,26 +995,12 @@ function ShortcutHint() {
     setMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent))
   }, [])
   return (
-    // mr-9: clear of the dialog's close button, which sits over the end of
-    // the input row (paletteHint.test.ts); the two overlapped.
-    <kbd className="mr-9 hidden shrink-0 rounded-sm border bg-muted px-1.5 font-sans text-2xs text-muted-foreground sm:inline-block" aria-label={mac ? "Command K" : "Control K"}>
+    // Clear of the dialog's close button, which sits over the end of the
+    // input row: CommandDialog pads the row's right end past it, chip or no
+    // chip (paletteHint.test.ts); the two overlapped. A margin here as well
+    // left the chip floating 40px short of the button.
+    <kbd className="hidden shrink-0 rounded-sm border bg-muted px-1.5 font-sans text-2xs text-muted-foreground sm:inline-block" aria-label={mac ? "Command K" : "Control K"}>
       {mac ? "⌘\u00a0K" : "Ctrl\u00a0K"}
     </kbd>
   )
-}
-
-function getSearchResultTitle(result: SearchResult): string {
-  switch (result.type) {
-    case "task": return result.task?.task_name || "Task"
-    case "post": return result.post?.post_body?.substring(0, 60) || "Post"
-    case "chat": return result.chat?.chat_body?.substring(0, 60) || "Chat"
-    case "doc": return result.doc?.doc_title || "Document"
-    case "project": return result.project?.project_name || "Project"
-    case "team": return result.team?.team_name || "Team"
-    case "user": return displayNameOf(result.user) || "User"
-    case "channel": return result.channel?.ch_name || "Channel"
-    case "comment": return result.comment?.comment_body?.substring(0, 60) || "Comment"
-    case "attachment": return result.attachment?.attachment_name || "Attachment"
-    default: return "Unknown Result"
-  }
 }
