@@ -13,6 +13,7 @@
  * as they complete. It can target a specific authorized model or the default.
  */
 
+import { SettingsSection } from "@/components/ui/settingsSection"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -91,19 +92,15 @@ const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
   }
 
   return (
-    <section className="space-y-3">
-      <div>
-        <h3 className="text-sm font-semibold">Test AI</h3>
-        <p className="text-xs text-muted-foreground">
-          Run a quick check against your configured model: it should answer questions, avoid firing tools on
-          small talk, pick the right action, and chain a summary into a follow-up message. On a local model this
-          can take a minute or two.
-        </p>
-      </div>
+    <SettingsSection
+      level={3}
+      title="Test AI"
+      description="Run a quick check against a configured model: it should answer questions, leave tools alone on small talk, pick the right action, and chain a summary into a follow-up message. On a local model it can take a minute or two."
+    >
 
       <div className="flex flex-wrap items-center gap-2">
         <Select value={target} onValueChange={setTarget} disabled={running}>
-          <SelectTrigger className="h-9 w-56">
+          <SelectTrigger className="w-full sm:w-64" aria-label="Model to test">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -115,8 +112,8 @@ const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
             ))}
           </SelectContent>
         </Select>
-        <Button onClick={handleRun} disabled={running || !config.enabled}>
-          {running ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+        <Button variant="outline" onClick={handleRun} disabled={running || !config.enabled}>
+          {running ? <Loader2 className="animate-spin" /> : <Sparkles />}
           {running ? "Testing…" : "Run test"}
         </Button>
         {status && status.state !== "idle" && status.state !== "running" && status.total > 0 && (
@@ -131,9 +128,9 @@ const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
       )}
 
       {status?.checks && status.checks.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="divide-y divide-border rounded-lg border border-border">
           {status.checks.map((c, i) => (
-            <li key={i} className="flex items-start gap-2 text-xs">
+            <li key={i} className="flex items-start gap-2 px-4 py-2.5 text-sm">
               {c.passed ? (
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
               ) : (
@@ -141,19 +138,19 @@ const AISelfTestSection: React.FC<{ config: AIConfig }> = ({ config }) => {
               )}
               <span className="min-w-0">
                 <span className={c.passed ? "" : "text-danger-ink"}>{c.name}</span>
-                {!c.passed && c.detail && <span className="block text-muted-foreground">{c.detail}</span>}
+                {!c.passed && c.detail && <span className="block text-xs text-muted-foreground">{c.detail}</span>}
               </span>
             </li>
           ))}
           {running && (
-            <li className="flex items-center gap-2 text-xs text-muted-foreground">
+            <li className="flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Running remaining checks…
             </li>
           )}
         </ul>
       )}
-    </section>
+    </SettingsSection>
   )
 }
 

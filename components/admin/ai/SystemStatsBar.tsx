@@ -10,6 +10,8 @@
  * surfaces so the remedy is written once and cannot drift.
  */
 
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { Button } from "@/components/ui/button"
 import React from "react"
 import { Badge } from "@/components/ui/badge"
 import { RefreshCw, HardDrive, Cpu, MemoryStick, AlertTriangle } from "lucide-react"
@@ -28,17 +30,18 @@ const Bar: React.FC<{ pct: number }> = ({ pct }) => {
 
 export const SystemStatsBar: React.FC<{ stats: SystemStats; onRefresh: () => void }> = ({ stats, onRefresh }) => {
   return (
-    <section className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Server resources</h3>
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-        >
-          <RefreshCw className="h-3 w-3" /> refresh
-        </button>
-      </div>
+    // A section of the Models section, its figures in one box: it was a box
+    // with its own title row and a lower-case "refresh".
+    <SettingsSection
+      level={3}
+      title="Server resources"
+      action={
+        <Button variant="ghost" size="sm" className={sectionActionClass} onClick={onRefresh}>
+          <RefreshCw aria-hidden="true" /> Refresh
+        </Button>
+      }
+    >
+      <div className="space-y-3 rounded-lg border border-border p-4">
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Disk */}
@@ -112,10 +115,11 @@ export const SystemStatsBar: React.FC<{ stats: SystemStats; onRefresh: () => voi
         </p>
       )}
 
-      <p className="text-2xs text-muted-foreground">
-        Disk reading reflects the API container&apos;s filesystem; for split-disk setups set AI_DISK_PATH to the
-        model volume for an exact figure.
+      <p className="text-xs text-muted-foreground">
+        The disk figure is the API container&apos;s filesystem; where models live on another disk, set AI_DISK_PATH
+        to that volume for an exact figure.
       </p>
-    </section>
+      </div>
+    </SettingsSection>
   )
 }

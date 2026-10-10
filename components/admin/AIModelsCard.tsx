@@ -15,23 +15,27 @@
  */
 
 import React, { useCallback, useEffect, useId, useRef, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { SaveBar, SettingsList, SwitchRow } from "@/components/ui/settingsSection"
+import { SaveBar, SettingRow, SettingsList, SettingsSection, SwitchRow, sectionActionClass } from "@/components/ui/settingsSection"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { StatusWord } from "@/components/ui/statusWord"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { useAIConfig } from "@/components/admin/ai/useAIConfig"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { ErrorState } from "@/components/ui/error-state"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { RefreshCw, Save, Plus, Lightbulb, Check } from "@/lib/icons"
+import { RefreshCw, Save, Plus, Lightbulb, Check, Users, Hash, GitPullRequest } from "@/lib/icons"
 import {
   AIConfig,
   ModelView,
@@ -41,7 +45,6 @@ import {
   MemoryBackfillStatus,
   CodePRScorecard as CodePRScorecardData,
   CodePRRunView,
-  getAIConfig,
   getAISystemStats,
   getReindexStatus,
   getAIUsage,
@@ -101,28 +104,23 @@ import McpServersCard from "@/components/admin/McpServersCard"
 const AIModelsCard = () => {
   const { toast } = useToast()
 
-  const [config, setConfig] = useState<AIConfig | null>(null)
+  // The AI settings, read through the key the agent collaboration section
+  // shares (components/admin/ai/useAIConfig): one request for both, where each
+  // used to fetch /admin/ai/config on its own.
+  const { config, setConfig, refresh: refreshConfig, error: configError, isLoading: configLoading } = useAIConfig()
   const [stats, setStats] = useState<SystemStats | null>(null)
   const [reindex, setReindex] = useState<ReindexStatus | null>(null)
   const [usage, setUsage] = useState<AIUsage | null>(null)
   const [backfill, setBackfill] = useState<MemoryBackfillStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  // The other first reads (server resources, a running reindex or memory
+  // rebuild, today's usage), started together with the settings.
+  const [extrasLoading, setExtrasLoading] = useState(true)
+  const loading = configLoading || extrasLoading
   const [saving, setSaving] = useState(false)
 
   // Per-provider model catalogs, lazily fetched.
   const [modelsByProvider, setModelsByProvider] = useState<Record<string, ModelView[]>>({})
   const [modelsLoading, setModelsLoading] = useState<Record<string, boolean>>({})
-
-  const refreshConfig = useCallback(async () => {
-    try {
-      const cfg = await getAIConfig()
-      setConfig(cfg)
-      return cfg
-    } catch (e) {
-      toast({ title: "Couldn't load the AI settings", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
-      return null
-    }
-  }, [toast])
 
   const refreshStats = useCallback(async () => {
     try {
@@ -207,12 +205,11 @@ const AIModelsCard = () => {
 
   useEffect(() => {
     ;(async () => {
-      setLoading(true)
-      // Started together: none of these needs another's answer, and awaiting
-      // them one after another held the whole tab on a loading line for the
-      // sum of five round trips.
-      const [cfg] = await Promise.all([
-        refreshConfig(),
+      setExtrasLoading(true)
+      // Started together, and with the settings' own read: none of these needs
+      // another's answer, and awaiting them one after another held the whole
+      // tab on a loading line for the sum of five round trips.
+      await Promise.all([
         refreshStats(),
         pollReindex(),
         pollBackfill(),
@@ -220,15 +217,22 @@ const AIModelsCard = () => {
           // Non-fatal; the usage row simply won't render.
         }),
       ])
-      setLoading(false)
-      // Eagerly load catalogs for the active chat + embedding providers.
-      if (cfg?.chat_provider_id) loadModels(cfg.chat_provider_id)
-      if (cfg?.embedding_provider_id && cfg.embedding_provider_id !== cfg.chat_provider_id) {
-        loadModels(cfg.embedding_provider_id)
-      }
+      setExtrasLoading(false)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Once the settings are here, the catalogs of the active chat and embedding
+  // providers, ahead of anyone opening their pickers. Once per open of the tab.
+  const catalogsAsked = useRef(false)
+  useEffect(() => {
+    if (!config || catalogsAsked.current) return
+    catalogsAsked.current = true
+    if (config.chat_provider_id) loadModels(config.chat_provider_id)
+    if (config.embedding_provider_id && config.embedding_provider_id !== config.chat_provider_id) {
+      loadModels(config.embedding_provider_id)
+    }
+  }, [config, loadModels])
 
   const handleToggleEnabled = async (enabled: boolean) => {
     setSaving(true)
@@ -466,80 +470,75 @@ const AIModelsCard = () => {
     }
   }
 
-  // The shape of what is coming: the heading, then hairline groups of rows,
-  // so the tab doesn't jump from one line of text to 2,000px of settings.
-  if (loading) {
+  // The section's title is there from the first frame, and its state beside it
+  // once the settings are read: a dot and a word, and words a person uses, not
+  // "circuit: half_open".
+  const title = (
+    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+      Models
+      {config && (
+        <StatusWord tone={config.enabled ? "success" : "neutral"} className="text-sm font-normal">
+          {config.enabled ? "On" : "Off"}
+        </StatusWord>
+      )}
+      {config?.circuit_state && config.circuit_state !== "closed" && (
+        <StatusWord tone="danger" className="text-sm font-normal">
+          {config.circuit_state === "half_open" ? "Trying the provider again after errors" : "Paused after the provider kept failing"}
+        </StatusWord>
+      )}
+    </span>
+  )
+  const description =
+    "Run local models with Ollama, bring your own OpenAI or Anthropic key, or connect any OpenAI-compatible endpoint. Everything stays on your server."
+
+  // The shape of what is coming under the title: groups of hairline rows, so
+  // the tab doesn't jump from one line of text to 2,000px of settings.
+  if (loading && !config) {
     return (
-      <div role="status" aria-label="Loading the AI settings" className="space-y-6">
-        <div className="space-y-2">
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-3.5 w-full max-w-md" />
-        </div>
-        {[3, 2, 3].map((rows, i) => (
-          <div key={i} className="space-y-3">
-            <Skeleton className="h-4 w-32" />
-            <div className="rounded-lg border border-border px-4 py-1">
-              <SkeletonRows rows={rows} avatar={false} />
+      <SettingsSection title={title} description={description}>
+        <div role="status" aria-label="Loading the AI settings" className="space-y-8">
+          {[3, 2, 3].map((rows, i) => (
+            <div key={i} className="space-y-3" aria-hidden="true">
+              <div className="flex h-5 items-center">
+                <Skeleton className="h-3.5 w-32 rounded" />
+              </div>
+              <div className="rounded-lg border border-border px-4 py-1">
+                <SkeletonRows rows={rows} avatar={false} />
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </SettingsSection>
     )
   }
 
+  // A failed read is said under the title, which stays: it replaced the whole
+  // section, heading included.
   if (!config) {
-    return <ErrorState subject="the AI settings" onRetry={() => void refreshConfig()} />
+    return (
+      <SettingsSection title={title} description={description}>
+        <ErrorState
+          compact
+          subject="the AI settings"
+          detail={configError ? apiErrorMessage(configError, "Try again in a moment.") : undefined}
+          onRetry={() => void refreshConfig()}
+        />
+      </SettingsSection>
+    )
   }
 
   return (
-    <Card className="w-full border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <CardTitle className="text-base font-semibold">Models</CardTitle>
-          {/* States, so a dot and a word rather than badges; and words a
-              person uses, not "circuit: half_open". */}
-          <span className="ml-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${config.enabled ? "bg-success" : "bg-faint-foreground"}`} />
-            {config.enabled ? "On" : "Off"}
-          </span>
-          {config.circuit_state && config.circuit_state !== "closed" && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-danger-ink">
-              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-destructive" />
-              {config.circuit_state === "half_open" ? "Trying the provider again after errors" : "Paused after the provider kept failing"}
-            </span>
-          )}
-        </div>
-        <CardDescription className="text-sm text-muted-foreground">
-          Run local models with Ollama, bring your own OpenAI / Anthropic key, or connect any
-          OpenAI-compatible endpoint. Everything stays on your server.
-        </CardDescription>
-      </CardHeader>
-
-      {/* NO INTERNAL SCROLLER, and no h-full on the Card above it either.
-          
-          app/app/admin/page.tsx owns the single scroll container for the whole admin page; the
-          comment above that region explains the reasoning. This CardContent was
-          `flex-1 overflow-y-auto pr-2 custom-scrollbar pb-10 min-h-0`, which combined with h-full on
-          the Card made this one card fill the entire visible region and scroll within itself. The
-          three sibling cards on this tab were then stranded below it, reachable only through the app
-          shell's outer scrollbar — two scrollbars, different meanings, and the page header scrolling
-          away when you used the outer one.
-          
-          pr-2 and pb-10 went with it: both existed to keep content clear of a scrollbar and give the
-          scrollport some bottom slack, and there is no scrollport here now. The region's py-6
-          provides the bottom breathing room. */}
-      <CardContent className="px-0 space-y-8">
-        {/* Global config — grouped so an admin can scan: behavior, cost
-            governance, and model tuning are separate clusters. */}
-        <section className="space-y-6">
+    <SettingsSection title={title} description={description}>
+      {/* NO INTERNAL SCROLLER. app/app/admin/page.tsx owns the single scroll
+          container for the whole admin page (the comment above that region
+          says why); this section sizes to its content. Its subsections are
+          separated by space and their titles, where they were separated by
+          rules and stacked as boxes. */}
+      <div className="space-y-8">
           {/* General: one hairline list of switches, each saved the moment
               it is touched. Each used to be a bordered box of its own, a
               stack of five boxes inside the card. */}
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-foreground">General</h3>
-              <p className="text-xs text-muted-foreground">Changes save as you make them.</p>
-            </div>
+          <SettingsSection level={3} title="General" description="Changes save as you make them.">
             <SettingsList>
               <SwitchRow
                 label="Workspace AI"
@@ -597,11 +596,18 @@ const AIModelsCard = () => {
                 </div>
               )}
             </SettingsList>
-          </div>
+          </SettingsSection>
 
-          {/* Usage & limits */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">Usage and limits</h3>
+          {/* Usage and limits: today's meters, then the caps, each saved by its
+              own Save, then who and where the spend goes. Six bordered boxes,
+              each a row of its own. */}
+          <SettingsSection
+            level={3}
+            title="Usage and limits"
+            description="Tokens used today across every AI feature, and the caps on them. Each cap saves with its own Save."
+          >
+            {usage && <UsageRow usage={usage} />}
+            <SettingsList>
             <RateLimitRow
               initial={config.rate_limit_per_min}
               onSave={async (n) => {
@@ -610,8 +616,6 @@ const AIModelsCard = () => {
                 toast({ title: "Rate limit updated" })
               }}
             />
-
-            {usage && <UsageRow usage={usage} />}
 
             <TokenBudgetRow
               id="ai-ws-budget"
@@ -647,15 +651,17 @@ const AIModelsCard = () => {
               }}
             />
 
-            <TopConsumersRow />
-            <TopChannelsRow />
-          </div>
+            </SettingsList>
+            <div className="grid gap-6 pt-3 md:grid-cols-2">
+              <TopConsumersRow />
+              <TopChannelsRow />
+            </div>
+          </SettingsSection>
 
-          {/* Model tuning */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">
-              Model tuning
-            </h3>
+          {/* Model tuning: one list, the context window saved by its Save, the
+              depth the moment it is picked. */}
+          <SettingsSection level={3} title="Model tuning">
+            <SettingsList>
             <ContextWindowRow
               initial={config.context_window_tokens}
               effective={config.effective_context_window}
@@ -675,8 +681,8 @@ const AIModelsCard = () => {
                 toast({ title: "Code analysis budget updated" })
               }}
             />
-          </div>
-        </section>
+            </SettingsList>
+          </SettingsSection>
 
         {/* Server resources + Ollama version awareness */}
         {stats && <SystemStatsBar stats={stats} onRefresh={refreshStats} />}
@@ -685,8 +691,6 @@ const AIModelsCard = () => {
         {reindex && (reindex.running || reindex.total > 0) && (
           <ReindexBanner status={reindex} />
         )}
-
-        <Separator />
 
         {/* Active model selection */}
         <ActiveModelSection
@@ -700,20 +704,16 @@ const AIModelsCard = () => {
           }}
         />
 
-        <Separator />
-
         {/* Ambient agents: the switches that save at once, in one hairline
             list, each with what it needs under it; then the three services
-            whose settings wait for their own save bar. They used to be one
-            stack of bordered boxes, the instant switches and the staged ones
-            looking alike. */}
-        <section className="space-y-4">
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold">Ambient agents</h3>
-            <p className="text-xs text-muted-foreground">
-              Automations that run in the background on the active models. The switches save as you make them.
-            </p>
-          </div>
+            whose settings wait for their own save bar, each a section of its
+            own. They used to be one stack of bordered boxes, the instant
+            switches and the staged ones looking alike. */}
+        <SettingsSection
+          level={3}
+          title="Ambient agents"
+          description="Automations that run in the background on the active models. The switches save as you make them."
+        >
           <SettingsList>
             <SwitchRow
               label="Meeting recaps"
@@ -835,21 +835,19 @@ const AIModelsCard = () => {
               onChange={handleToggleIssueTriage}
             />
           </SettingsList>
+        </SettingsSection>
 
-          <WebSearchSection config={config} onChanged={refreshConfig} />
+        <WebSearchSection config={config} onChanged={refreshConfig} />
 
-          <SandboxSection config={config} onChanged={refreshConfig} />
-          <CodePRSection
-            config={config}
-            onChanged={refreshConfig}
-            modelsByProvider={modelsByProvider}
-            modelsLoading={modelsLoading}
-            onEnsureModels={loadModels}
-          />
-          <CodePRReliabilityCard />
-        </section>
-
-        <Separator />
+        <SandboxSection config={config} onChanged={refreshConfig} />
+        <CodePRSection
+          config={config}
+          onChanged={refreshConfig}
+          modelsByProvider={modelsByProvider}
+          modelsLoading={modelsLoading}
+          onEnsureModels={loadModels}
+        />
+        <CodePRReliabilityCard />
 
         {/* Providers + local model install */}
         <ProvidersSection
@@ -864,25 +862,20 @@ const AIModelsCard = () => {
           }}
         />
 
-        <Separator />
-
         {/* Member-selectable model allowlist */}
         <AuthorizedModelsSection config={config} />
-
-        <Separator />
 
         {/* Admin "Test AI" — real-model validation from the dashboard */}
         <AISelfTestSection config={config} />
 
-        <Separator />
-
-        {/* MCP servers — connect external tool servers to agents. Anchored so
-            the tab's jump row can reach it by its own name. */}
+        {/* MCP servers — connect external tool servers to agents, as a section
+            of this one (it was a whole Card, with its own tile and h2, inside
+            it). Anchored so the tab's jump row can reach it by its own name. */}
         <div id="ai-models-mcp-servers" className="scroll-mt-4">
-          <McpServersCard />
+          <McpServersCard embedded />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </SettingsSection>
   )
 }
 
@@ -893,9 +886,9 @@ const ReindexBanner: React.FC<{ status: ReindexStatus }> = ({ status }) => {
   return (
     <section className="rounded-lg border border-warning/30 bg-warning/10 p-4 space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-warning-ink">
-          {status.running ? "Rebuilding AI search index…" : "AI search index rebuilt"}
-        </h3>
+        <p className="text-sm font-medium text-warning-ink">
+          {status.running ? "Rebuilding the AI search index…" : "The AI search index is rebuilt"}
+        </p>
         <span className="text-xs text-muted-foreground">
           {status.processed + status.failed} / {status.total} (dim {status.dimension})
         </span>
@@ -953,152 +946,137 @@ const UsageRow: React.FC<{ usage: AIUsage }> = ({ usage }) => {
   const ws = usage.workspace || { used: 0, limit: 0 }
   const me = usage.user || { used: 0, limit: 0 }
   const noCaps = (ws.limit || 0) === 0 && (me.limit || 0) === 0
+  // Today's two meters as rows of one list, at the list's padding; the note
+  // under it in the help size. It was a box of its own with a ruled footer.
   return (
-    <div className="rounded-lg border bg-card/50 p-3 space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">AI usage today</h3>
-          <p className="text-xs text-muted-foreground">Tokens consumed across all AI features. Resets at 00:00 UTC.</p>
+    <div className="space-y-2">
+      <SettingsList>
+        <div className="px-4 py-3">
+          <UsageMeterBar label="Workspace" used={ws.used} limit={ws.limit} />
         </div>
-      </div>
-      <UsageMeterBar label="Workspace" used={ws.used} limit={ws.limit} />
-      <UsageMeterBar label="You" used={me.used} limit={me.limit} />
-      {noCaps && (
-        <p className="text-xs text-muted-foreground">
-          No daily caps yet. Set one below to limit spend.
-        </p>
-      )}
-      <p className="border-t border-border/50 pt-2 text-xs leading-relaxed text-muted-foreground">
-        Counts both prompt (input) and response (output) tokens, combined. They use
-        each provider&apos;s reported token usage where available and a calibrated
-        estimate otherwise, are best-effort (a brief metering outage isn&apos;t
-        counted), and can lag a little under heavy concurrent use. Embedding/indexing
-        for search is a separate cost and isn&apos;t counted here. Treat this as a
-        spend guardrail, not a billing-grade meter.
+        <div className="px-4 py-3">
+          <UsageMeterBar label="You" used={me.used} limit={me.limit} />
+        </div>
+      </SettingsList>
+      {noCaps && <p className="text-xs text-muted-foreground">No daily caps yet. Set one below to limit spend.</p>}
+      <p className="max-w-[65ch] text-xs text-muted-foreground text-pretty">
+        Counts prompt and response tokens together, from each provider&apos;s reported usage where there is one and a
+        calibrated estimate otherwise, and resets at midnight UTC. It is best-effort (a brief metering outage
+        isn&apos;t counted) and can lag a little under heavy use; indexing for search is a separate cost. Treat it as
+        a spend guardrail, not a billing meter.
       </p>
     </div>
   )
 }
 
-// ─── Top AI-token consumers today (admin-only) ────────────────────────
-// Complements the per-user cap: shows who is actually spending the workspace
-// budget today so an admin can set sensible limits. Read-only, best-effort
-// (empty when Redis is unavailable). Fetched lazily, with a manual refresh.
-const TopConsumersRow: React.FC = () => {
-  const [rows, setRows] = useState<AIUserUsageRow[] | null>(null)
+// ─── Where today's AI spend goes (admin-only) ─────────────────────────
+// Who is spending the workspace's budget today, and in which channels, so an
+// admin can set sensible caps. Read-only, best-effort (empty when Redis is
+// unavailable), fetched when the tab opens, with a manual refresh. One shape
+// for both: a title and Refresh on one row, a line, and a hairline list.
+function SpendList({
+  title,
+  help,
+  empty,
+  icon,
+  load,
+}: {
+  title: string
+  help: string
+  empty: string
+  icon: React.ComponentType<{ className?: string }>
+  load: () => Promise<{ key: string; name: string; used: number }[]>
+}) {
+  const headingId = useId()
+  const [rows, setRows] = useState<{ key: string; name: string; used: number }[] | null>(null)
+  const [failure, setFailure] = useState("")
   const [busy, setBusy] = useState(false)
 
-  const load = useCallback(async () => {
+  const read = useCallback(async () => {
     setBusy(true)
     try {
-      const res = await getAIUserUsage(25)
-      setRows(res?.users || [])
-    } catch {
-      setRows([])
+      setRows(await load())
+      setFailure("")
+    } catch (e) {
+      // Said as a failure: it used to read as "nothing recorded yet".
+      setFailure(apiErrorMessage(e, "Try again in a moment."))
     } finally {
       setBusy(false)
     }
-  }, [])
+  }, [load])
 
   useEffect(() => {
-    load()
-  }, [load])
+    void read()
+  }, [read])
 
   const fmt = (n: number) => (Number.isFinite(n) ? n : 0).toLocaleString()
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-card/50 p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">Top consumers today</h3>
-          <p className="text-xs text-muted-foreground">
-            Highest AI token spend per user, this UTC day. Use it to tune the per-user cap.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={busy}>
+    <section aria-labelledby={headingId} className="min-w-0 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <h4 id={headingId} className="text-sm font-medium">
+          {title}
+        </h4>
+        <Button variant="ghost" size="sm" onClick={() => void read()} disabled={busy}>
+          <RefreshCw className={busy ? "animate-spin" : undefined} aria-hidden="true" />
           {busy ? "Refreshing…" : "Refresh"}
         </Button>
       </div>
-      {rows && rows.length > 0 ? (
-        <ul className="divide-y divide-border/50">
-          {rows.map((u, i) => (
-            <li key={u.user_id} className="flex items-center justify-between py-1.5 text-sm">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="w-5 text-right text-xs text-muted-foreground">{i + 1}</span>
-                <span className="truncate">{u.full_name || u.name || u.user_id}</span>
-              </span>
-              <span className="tabular-nums text-muted-foreground">{fmt(u.used)} tok</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          {busy ? "Loading…" : "No AI usage recorded yet today."}
-        </p>
-      )}
-    </div>
-  )
-}
-
-// ─── Top AI-spending channels today (admin-only) ──────────────────────
-// The per-channel companion to TopConsumersRow: shows which channels are
-// driving AI cost today (Claude-Tag's per-channel usage breakdown) so an admin
-// can set per-channel caps. Read-only, best-effort. Fetched lazily.
-const TopChannelsRow: React.FC = () => {
-  const [rows, setRows] = useState<AIChannelUsageRow[] | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  const load = useCallback(async () => {
-    setBusy(true)
-    try {
-      const res = await getAIChannelUsage(25)
-      setRows(res?.channels || [])
-    } catch {
-      setRows([])
-    } finally {
-      setBusy(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    load()
-  }, [load])
-
-  const fmt = (n: number) => (Number.isFinite(n) ? n : 0).toLocaleString()
-
-  return (
-    <div className="space-y-3 rounded-lg border border-border bg-card/50 p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">Top AI-spending channels today</h3>
-          <p className="text-xs text-muted-foreground">
-            Where AI cost is going per channel, this UTC day. Set a per-channel cap from the channel&apos;s members dialog.
-          </p>
+      <p className="text-xs text-muted-foreground text-pretty">{help}</p>
+      {failure && !rows ? (
+        <ErrorState compact subject={title.toLowerCase()} detail={failure} onRetry={() => void read()} />
+      ) : rows === null ? (
+        <SectionListSkeleton label={`Loading ${title.toLowerCase()}`} rows={3} lines={1} />
+      ) : rows.length === 0 ? (
+        <div className="rounded-lg border border-border">
+          <EmptyState icon={icon as never} hue={ADMIN_GROUP_HUE.ai} title={empty} headingLevel={5} className="py-6" />
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={busy}>
-          {busy ? "Refreshing…" : "Refresh"}
-        </Button>
-      </div>
-      {rows && rows.length > 0 ? (
-        <ul className="divide-y divide-border/50">
-          {rows.map((c, i) => (
-            <li key={c.channel_id} className="flex items-center justify-between py-1.5 text-sm">
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="w-5 text-right text-xs text-muted-foreground">{i + 1}</span>
-                <span className="truncate">{c.name ? `#${c.name}` : c.channel_id}</span>
+      ) : (
+        <ol className="divide-y divide-border rounded-lg border border-border">
+          {rows.map((r, i) => (
+            <li key={r.key} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+                <span className="truncate">{r.name}</span>
               </span>
-              <span className="tabular-nums text-muted-foreground">{fmt(c.used)} tok</span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">{fmt(r.used)} tokens</span>
             </li>
           ))}
-        </ul>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          {busy ? "Loading…" : "No channel AI usage recorded yet today."}
-        </p>
+        </ol>
       )}
-    </div>
+    </section>
   )
 }
+
+const loadTopConsumers = async () => {
+  const res = await getAIUserUsage(25)
+  return (res?.users || []).map((u: AIUserUsageRow) => ({ key: u.user_id, name: u.full_name || u.name || u.user_id, used: u.used }))
+}
+
+const loadTopChannels = async () => {
+  const res = await getAIChannelUsage(25)
+  return (res?.channels || []).map((c: AIChannelUsageRow) => ({ key: c.channel_id, name: c.name ? `#${c.name}` : c.channel_id, used: c.used }))
+}
+
+const TopConsumersRow: React.FC = () => (
+  <SpendList
+    title="Top consumers today"
+    help="Highest AI token spend per person, this UTC day. Use it to tune the per-person cap."
+    empty="No AI use recorded yet today"
+    icon={Users}
+    load={loadTopConsumers}
+  />
+)
+
+const TopChannelsRow: React.FC = () => (
+  <SpendList
+    title="Top channels today"
+    help="Where AI spend goes per channel, this UTC day. Set a channel's cap from its members dialog."
+    empty="No channel AI use recorded yet today"
+    icon={Hash}
+    load={loadTopChannels}
+  />
+)
 
 // ─── PII custom-patterns editor ───────────────────────────────────────
 // One regex per line, added on top of the built-in detectors. The backend
@@ -1112,10 +1090,11 @@ const PIIPatternsEditor: React.FC<{ initial: string; onSave: (patterns: string) 
   const [busy, setBusy] = useState(false)
   const dirty = value !== (initial ?? "")
   return (
-    <div className="border-t border-border/60 pt-3 space-y-2">
-      <Label htmlFor="pii-patterns" className="text-xs font-medium">
-        Custom patterns (one regex per line)
+    <div className="space-y-2">
+      <Label htmlFor="pii-patterns" className="text-sm font-medium">
+        Your own patterns
       </Label>
+      <p className="text-xs text-muted-foreground">One regular expression per line, removed as well as the ones built in.</p>
       <Textarea
         id="pii-patterns"
         value={value}
@@ -1135,7 +1114,7 @@ const PIIPatternsEditor: React.FC<{ initial: string; onSave: (patterns: string) 
               await onSave(value)
             } catch (e: unknown) {
               toast({
-                title: "Could not save patterns",
+                title: "Couldn't save your patterns",
                 description: apiErrorMessage(e, "One of the patterns is an invalid regex."),
                 variant: "destructive",
               })
@@ -1144,54 +1123,64 @@ const PIIPatternsEditor: React.FC<{ initial: string; onSave: (patterns: string) 
             }
           }}
         >
-          <Save className="h-4 w-4 mr-1" /> Save patterns
+          <Save /> Save patterns
         </Button>
       </div>
     </div>
   )
 }
 
-// ─── Rate limit inline editor ─────────────────────────────────────────
+// ─── The caps: setting rows, each a field and its own Save ────────────
+// They were bordered boxes with a bold label, a field under it and Save at the
+// box's foot; they are rows of one list now, the field and Save at the row's
+// end when the row is wide, one width, so the fields start on one line.
+const capField = "w-full @xl:w-40"
+const capSave = "h-11 shrink-0 md:h-9"
+
+function SaveCap({ disabled, onSave }: { disabled: boolean; onSave: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className={capSave}
+      disabled={disabled || busy}
+      onClick={async () => {
+        setBusy(true)
+        try {
+          await onSave()
+        } finally {
+          setBusy(false)
+        }
+      }}
+    >
+      <Save /> Save
+    </Button>
+  )
+}
+
 const RateLimitRow: React.FC<{ initial: number; onSave: (n: number) => Promise<void> }> = ({ initial, onSave }) => {
   const [value, setValue] = useState(initial)
-  const [busy, setBusy] = useState(false)
   const dirty = value !== initial
   return (
-    <div className="flex items-end gap-3 rounded-lg border border-border bg-card/50 p-4">
-      <div className="flex-1">
-        <Label htmlFor="ai-rate" className="text-sm font-semibold">Per-user rate limit</Label>
-        <p className="text-xs text-muted-foreground mb-2">Max AI requests per user per minute.</p>
-        <Input
-          id="ai-rate"
-          type="number"
-          min={1}
-          max={10000}
-          value={value}
-          onChange={(e) => setValue(parseInt(e.target.value || "0", 10))}
-          className="w-32"
-        />
-      </div>
-      <Button variant="outline"
-        size="sm"
-        disabled={!dirty || busy || value < 1}
-        onClick={async () => {
-          setBusy(true)
-          try {
-            await onSave(value)
-          } finally {
-            setBusy(false)
-          }
-        }}
-      >
-        <Save className="h-4 w-4 mr-1" /> Save
-      </Button>
-    </div>
+    <SettingRow label="Per-person rate limit" description="The most AI requests one person can make in a minute." controlId="ai-rate">
+      <Input
+        id="ai-rate"
+        type="number"
+        min={1}
+        max={10000}
+        value={value}
+        aria-describedby="ai-rate-desc"
+        onChange={(e) => setValue(parseInt(e.target.value || "0", 10))}
+        className={capField}
+      />
+      <SaveCap disabled={!dirty || value < 1} onSave={() => onSave(value)} />
+    </SettingRow>
   )
 }
 
 // ─── Daily token budget inline editor ─────────────────────────────────
-// Edits one daily AI token cap (0 = unlimited). Mirrors RateLimitRow but
-// allows 0 and uses a wider input for large token values.
+// Edits one daily AI token cap (0 = unlimited).
 const TokenBudgetRow: React.FC<{
   id: string
   label: string
@@ -1201,40 +1190,30 @@ const TokenBudgetRow: React.FC<{
 }> = ({ id, label, hint, initial, onSave }) => {
   const safeInitial = Number.isFinite(initial) ? initial : 0
   const [value, setValue] = useState(safeInitial)
-  const [busy, setBusy] = useState(false)
   useEffect(() => setValue(safeInitial), [safeInitial])
   const dirty = value !== safeInitial
   return (
-    <div className="flex items-end gap-3 rounded-lg border border-border bg-card/50 p-4">
-      <div className="flex-1">
-        <Label htmlFor={id} className="text-sm font-semibold">{label}</Label>
-        <p className="text-xs text-muted-foreground mb-2">{hint}</p>
-        <Input
-          id={id}
-          type="number"
-          min={0}
-          step={1000}
-          value={value}
-          onChange={(e) => setValue(Math.max(0, parseInt(e.target.value || "0", 10)))}
-          className="w-40"
-        />
-        <p className="text-2xs text-muted-foreground mt-1">{value === 0 ? "Unlimited" : `${value.toLocaleString()} tokens/day`}</p>
-      </div>
-      <Button variant="outline"
-        size="sm"
-        disabled={!dirty || busy || value < 0}
-        onClick={async () => {
-          setBusy(true)
-          try {
-            await onSave(value)
-          } finally {
-            setBusy(false)
-          }
-        }}
-      >
-        <Save className="h-4 w-4 mr-1" /> Save
-      </Button>
-    </div>
+    <SettingRow
+      label={label}
+      controlId={id}
+      description={
+        <>
+          {hint} <span className="text-foreground">{value === 0 ? "Unlimited." : `${value.toLocaleString()} tokens a day.`}</span>
+        </>
+      }
+    >
+      <Input
+        id={id}
+        type="number"
+        min={0}
+        step={1000}
+        value={value}
+        aria-describedby={`${id}-desc`}
+        onChange={(e) => setValue(Math.max(0, parseInt(e.target.value || "0", 10)))}
+        className={capField}
+      />
+      <SaveCap disabled={!dirty || value < 0} onSave={() => onSave(value)} />
+    </SettingRow>
   )
 }
 
@@ -1249,47 +1228,36 @@ const ContextWindowRow: React.FC<{
   onSave: (n: number) => Promise<void>
 }> = ({ initial, effective, onSave }) => {
   const [value, setValue] = useState(initial)
-  const [busy, setBusy] = useState(false)
   const dirty = value !== initial
   const invalid = value !== 0 && (value < 2048 || value > 1_000_000)
   return (
-    <div className="flex items-end gap-3 rounded-lg border border-border bg-card/50 p-4">
-      <div className="flex-1">
-        <Label htmlFor="ai-ctx" className="text-sm font-semibold">Context window</Label>
-        <p className="text-xs text-muted-foreground mb-2">
-          Max tokens the chat model can use per request. Set to match your model
-          (e.g. 8192, 32768). <span className="font-medium">0</span> uses the server default.
-          {" "}Currently in force: <span className="tabular-nums font-medium">{effective.toLocaleString()}</span> tokens.
-        </p>
-        <Input
-          id="ai-ctx"
-          type="number"
-          min={0}
-          max={1_000_000}
-          step={1024}
-          value={value}
-          onChange={(e) => setValue(parseInt(e.target.value || "0", 10))}
-          className="w-40"
-        />
-        {invalid && (
-          <p className="text-xs text-danger-ink mt-1">Use 0 (default) or a value between 2048 and 1000000.</p>
-        )}
-      </div>
-      <Button variant="outline"
-        size="sm"
-        disabled={!dirty || busy || invalid}
-        onClick={async () => {
-          setBusy(true)
-          try {
-            await onSave(value)
-          } finally {
-            setBusy(false)
-          }
-        }}
-      >
-        <Save className="h-4 w-4 mr-1" /> Save
-      </Button>
-    </div>
+    <SettingRow
+      label="Context window"
+      controlId="ai-ctx"
+      description={
+        <>
+          The most tokens the chat model can use per request; match your model (8192, 32768). 0 uses the server
+          default. In force now: <span className="tabular-nums text-foreground">{effective.toLocaleString()}</span> tokens.
+          {invalid && (
+            <span className="mt-1 block font-medium text-danger-ink">Use 0 for the default, or a value from 2048 to 1000000.</span>
+          )}
+        </>
+      }
+    >
+      <Input
+        id="ai-ctx"
+        type="number"
+        min={0}
+        max={1_000_000}
+        step={1024}
+        value={value}
+        aria-invalid={invalid || undefined}
+        aria-describedby="ai-ctx-desc"
+        onChange={(e) => setValue(parseInt(e.target.value || "0", 10))}
+        className={capField}
+      />
+      <SaveCap disabled={!dirty || invalid} onSave={() => onSave(value)} />
+    </SettingRow>
   )
 }
 
@@ -1334,41 +1302,26 @@ const CodeAnalysisRow: React.FC<{
     }
   }
 
-  // A choice of one, saved the moment it is picked: a segmented radio group
-  // like the app's others, saying so under its name. It was a strip of buttons
-  // with no radio semantics.
+  // A choice of one, saved the moment it is picked: the house segmented
+  // control, in a row of the tuning list, saying so in its help.
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-4">
-      <p id="code-depth-label" className="text-sm font-semibold">Code analysis depth</p>
-      <p id="code-depth-help" className="mb-3 text-xs text-muted-foreground">
-        How many files of a repository the bug-analysis agent reads per run. More is better grounded but slower, and
-        the cost stays within your model&apos;s context window. Saves when you pick one.
-      </p>
-      <div
-        role="radiogroup"
-        aria-labelledby="code-depth-label"
-        aria-describedby="code-depth-help"
-        className="inline-flex w-fit gap-1 rounded-md bg-muted p-1"
-      >
-        {CODE_DEPTH_PRESETS.map((p) => (
-          <button
-            key={p.value}
-            type="button"
-            role="radio"
-            aria-checked={p.value === current}
-            disabled={busy}
-            onClick={() => pick(p.value)}
-            title={p.hint}
-            className={
-              "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50 " +
-              (p.value === current ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground")
-            }
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-    </div>
+    <SettingRow
+      label="Code analysis depth"
+      controlId="code-depth"
+      description="How many files of a repository the bug-analysis agent reads per run. More is better grounded but slower, and the cost stays within your model's context window. Saves when you pick one."
+    >
+      <SegmentedControl
+        id="code-depth"
+        aria-label="Code analysis depth"
+        aria-describedby="code-depth-desc"
+        value={String(current)}
+        onValueChange={(v) => void pick(Number(v))}
+        disabled={busy}
+        options={CODE_DEPTH_PRESETS.map((p) => ({ value: String(p.value), label: p.label, title: p.hint }))}
+        className="w-full flex-nowrap @xl:w-auto"
+        itemClassName="flex-1 @xl:flex-none"
+      />
+    </SettingRow>
   )
 }
 
@@ -1498,13 +1451,11 @@ const ActiveModelSection: React.FC<SectionProps> = ({
     }
   }
 
+  // Three rows of one list, each picker's note inside its row: they were three
+  // bordered boxes, two with a loose line under the box.
   return (
-    <section className="space-y-6">
-      <div>
-        <h3 className="text-sm font-semibold flex items-center gap-2">Active models</h3>
-        <p className="text-xs text-muted-foreground">Chat and embeddings can use different providers.</p>
-      </div>
-
+    <SettingsSection level={3} title="Active models" description="Chat, embeddings and vision can each use a different provider.">
+      <SettingsList>
       {/* Chat model */}
       <ModelSelectorRow
         title="Chat / completion model"
@@ -1525,7 +1476,6 @@ const ActiveModelSection: React.FC<SectionProps> = ({
       />
 
       {/* Embedding model */}
-      <div className="space-y-2">
         <ModelSelectorRow
           title="Embedding model"
           hint="Powers semantic search (RAG). Changing the vector dimension triggers a reindex."
@@ -1557,15 +1507,14 @@ const ActiveModelSection: React.FC<SectionProps> = ({
               </div>
             </div>
           }
+          note={
+            <p className="text-xs text-warning-ink">
+              The search index is {config.embedding_dimension} wide now. A model with a different dimension rebuilds it.
+            </p>
+          }
         />
-        <p className="text-xs text-warning-ink">
-          Current index dimension: {config.embedding_dimension}. Switching to a model with a different
-          dimension rebuilds the search index.
-        </p>
-      </div>
 
       {/* Vision model (optional) */}
-      <div className="space-y-2">
         <ModelSelectorRow
           title="Vision model (optional)"
           hint="Lets the AI analyze images and GIFs. Pick a multimodal model (e.g. gpt-4o, a Claude vision model, or local llava / llama3.2-vision). Leave unset to keep image analysis off. Text documents do not need this."
@@ -1584,21 +1533,23 @@ const ActiveModelSection: React.FC<SectionProps> = ({
           saving={savingVision}
           extra={
             config.vision_model ? (
-              <Button variant="outline" className="h-9" onClick={turnOffVision} disabled={savingVision}>
+              <Button variant="outline" className="h-11 md:h-9" onClick={turnOffVision} disabled={savingVision}>
                 Turn off
               </Button>
             ) : undefined
           }
+          note={
+            config.vision_model ? (
+              <p className="text-xs text-muted-foreground">
+                In use: <span className="font-medium text-foreground">{config.vision_model}</span>.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">No vision model set, so images aren&apos;t analysed.</p>
+            )
+          }
         />
-        {config.vision_model ? (
-          <p className="text-xs text-muted-foreground">
-            Active vision model: <span className="font-medium text-foreground">{config.vision_model}</span>.
-          </p>
-        ) : (
-          <p className="text-xs text-muted-foreground">No vision model set. Image analysis is unavailable.</p>
-        )}
-      </div>
-    </section>
+      </SettingsList>
+    </SettingsSection>
   )
 }
 
@@ -1618,6 +1569,8 @@ const ModelSelectorRow: React.FC<{
   onSave: () => void
   saving: boolean
   extra?: React.ReactNode
+  /** A line about what is in force, under the controls, inside the row. */
+  note?: React.ReactNode
 }> = ({
   title,
   hint,
@@ -1632,19 +1585,20 @@ const ModelSelectorRow: React.FC<{
   onSave,
   saving,
   extra,
+  note,
 }) => {
   const id = useId()
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
-      <div>
-        <h4 className="text-sm font-medium">{title}</h4>
-        <p className="text-xs text-muted-foreground">{hint}</p>
+    <div className="space-y-3 px-4 py-3">
+      <div className="space-y-1">
+        <p className="text-sm font-medium leading-5">{title}</p>
+        <p className="text-xs text-muted-foreground text-pretty">{hint}</p>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[180px]">
           <Label htmlFor={`${id}-provider`} className="text-xs">Provider</Label>
           <Select value={providerId} onValueChange={onProviderChange}>
-            <SelectTrigger id={`${id}-provider`} className="h-9"><SelectValue placeholder="Choose a provider" /></SelectTrigger>
+            <SelectTrigger id={`${id}-provider`}><SelectValue placeholder="Choose a provider" /></SelectTrigger>
             <SelectContent>
               {providers.map((p) => (
                 <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
@@ -1679,10 +1633,11 @@ const ModelSelectorRow: React.FC<{
 
         {extra}
 
-        <Button variant="outline" size="sm" onClick={onSave} disabled={saving || !providerId || !model}>
-          <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Set active"}
+        <Button variant="outline" className="h-11 md:h-9" onClick={onSave} disabled={saving || !providerId || !model}>
+          <Save /> {saving ? "Saving…" : "Set active"}
         </Button>
       </div>
+      {note}
     </div>
   )
 }
@@ -1701,18 +1656,26 @@ const ProvidersSection: React.FC<SectionProps & { stats: SystemStats | null }> =
   const [showAdd, setShowAdd] = useState(false)
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold">Providers</h3>
-          <p className="text-xs text-muted-foreground">Built-in providers plus your custom endpoints.</p>
-        </div>
-        <Button size="sm" variant="secondary" onClick={() => setShowAdd(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Add custom endpoint
+    <SettingsSection
+      level={3}
+      title="Providers"
+      description="The built-in providers, and your own OpenAI-compatible endpoints."
+      action={
+        <Button size="sm" variant="outline" className={sectionActionClass} onClick={() => setShowAdd(true)}>
+          <Plus /> Add custom endpoint
         </Button>
-      </div>
+      }
+    >
+      {showAdd && (
+        <ProviderEditor
+          createMode
+          onClose={() => setShowAdd(false)}
+          onChanged={onChanged}
+        />
+      )}
 
-      <div className="space-y-3">
+      {/* One list, a provider to a row: each was a bordered box. */}
+      <div className="divide-y divide-border rounded-lg border border-border">
         {config.providers.map((p) => (
           <ProviderEditor
             key={p.id}
@@ -1735,15 +1698,7 @@ const ProvidersSection: React.FC<SectionProps & { stats: SystemStats | null }> =
           />
         ))}
       </div>
-
-      {showAdd && (
-        <ProviderEditor
-          createMode
-          onClose={() => setShowAdd(false)}
-          onChanged={onChanged}
-        />
-      )}
-    </section>
+    </SettingsSection>
   )
 }
 
@@ -1772,14 +1727,15 @@ function RecapInstructionsField({
   const dirty = draft.trim() !== (initial || "").trim()
 
   return (
-    <div className="mt-3 border-t border-border/50 pt-3">
-      <Label className="text-xs font-medium text-muted-foreground">Custom instructions (optional)</Label>
-      <p className="mb-2 text-2xs leading-tight text-muted-foreground">
+    <div className="space-y-1">
+      <Label htmlFor="recap-instructions" className="text-sm font-medium">Recap instructions (optional)</Label>
+      <p className="mb-2 text-xs text-muted-foreground text-pretty">
         Tailor what the recap emphasizes. These are added to the recap prompt and can&apos;t override its
         grounding rules (it always uses only the transcript). Example: &quot;Add a Risks section and write the
         recap in Spanish.&quot;
       </p>
       <Textarea
+        id="recap-instructions"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder="e.g. Always include a Risks section and a one-line TL;DR at the top."
@@ -1865,26 +1821,24 @@ function WebSearchSection({
     }
   }
 
+  // A section of the Models section with one list, where it was a box holding
+  // a switch, fields and a save bar.
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="pr-4">
-          <h4 className="text-sm font-medium">Web search</h4>
-          <p className="text-xs text-muted-foreground">
-            Let the AI assistant and agents look up current information on the web. Provider-agnostic: run your own
-            SearXNG (stays on your infra, works in local-only mode) or use Tavily / Brave. Off until you configure a
-            provider.
-          </p>
-        </div>
-        <Switch
-          aria-label="Use web search"
-          checked={enabled && realProvider !== ""}
-          disabled={saving || realProvider === ""}
-          onCheckedChange={setEnabled}
-        />
-      </div>
+    <SettingsSection
+      level={3}
+      title="Web search"
+      description="Let the AI assistant and agents look up current information on the web. Run your own SearXNG (it stays on your servers and works in local-only mode), or use Tavily or Brave. Changes wait for Save."
+    >
+      <SettingsList>
+      <SwitchRow
+        label="Use web search"
+        description={realProvider === "" ? "Choose a provider first." : "Off until you turn it on and save."}
+        checked={enabled && realProvider !== ""}
+        disabled={saving || realProvider === ""}
+        onChange={setEnabled}
+      />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor={`${id}-provider`} className="text-xs">Provider</Label>
           <Select value={provider} onValueChange={setProvider}>
@@ -1927,7 +1881,7 @@ function WebSearchSection({
       </div>
 
       {needsKey && (
-        <div className="space-y-1">
+        <div className="space-y-1 px-4 py-3">
           <Label htmlFor={`${id}-key`} className="text-xs">API key</Label>
           <Input
             id={`${id}-key`}
@@ -1939,9 +1893,10 @@ function WebSearchSection({
           />
         </div>
       )}
+      </SettingsList>
 
       <SaveBar dirty={dirty} saving={saving} what="web search changes" onSave={() => void save()} onDiscard={reset} />
-    </div>
+    </SettingsSection>
   )
 }
 
@@ -2077,21 +2032,21 @@ function SandboxSection({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="pr-4">
-          <h4 className="text-sm font-medium">Code analysis sandbox</h4>
-          <p className="text-xs text-muted-foreground">
-            Let agents run bounded data analysis and render charts inside an isolated, network-less code-runner
-            sidecar (no credentials, ephemeral filesystem, hard CPU/memory/time limits). Off until you deploy a
-            runner and point this at it. Every run is permission-checked as the agent owner and metered against the
-            budgets below.
-          </p>
-        </div>
-        <Switch aria-label="Use the code analysis sandbox" checked={enabled} disabled={saving || !runnerURL.trim()} onCheckedChange={setEnabled} />
-      </div>
+    <SettingsSection
+      level={3}
+      title="Code analysis sandbox"
+      description="Let agents run bounded data analysis and render charts in an isolated code runner with no network, no credentials, a throwaway filesystem and hard CPU, memory and time limits. Every run is checked against the agent owner's permissions and counted against the limits below. Changes wait for Save."
+    >
+      <SettingsList>
+      <SwitchRow
+        label="Use the code analysis sandbox"
+        description={runnerURL.trim() ? "Off until you turn it on and save." : "Deploy a runner and enter its address first."}
+        checked={enabled}
+        disabled={saving || !runnerURL.trim()}
+        onChange={setEnabled}
+      />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor={`${id}-url`} className="text-xs">Runner address</Label>
           <Input
@@ -2128,7 +2083,7 @@ function SandboxSection({
         </div>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1 px-4 py-3">
         <Label htmlFor={`${id}-digest`} className="text-xs">Image digest (optional)</Label>
         <Input
           id={`${id}-digest`}
@@ -2140,9 +2095,9 @@ function SandboxSection({
         />
       </div>
 
-      <div className="pt-1">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-muted-foreground">Daily limits (0 means no limit)</p>
+      <div className="px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <p className="text-sm font-medium">Daily limits <span className="font-normal text-muted-foreground">0 means no limit</span></p>
           <p className="text-xs text-muted-foreground">
             Used today: {config.sandbox_used_today_runs} run{config.sandbox_used_today_runs === 1 ? "" : "s"},{" "}
             {config.sandbox_used_today_seconds}s
@@ -2168,10 +2123,9 @@ function SandboxSection({
         </div>
       </div>
 
-      <RunnerTestStatus probe={probe} />
-
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-2">
+      <div className="space-y-3 px-4 py-3">
+        <RunnerTestStatus probe={probe} />
+        <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={runTest} disabled={testing || !config.sandbox_runner_url}>
             {testing ? "Testing…" : "Run sample analysis"}
           </Button>
@@ -2182,9 +2136,10 @@ function SandboxSection({
           )}
         </div>
       </div>
+      </SettingsList>
 
       <SaveBar dirty={dirty} saving={saving} what="sandbox changes" onSave={() => void save()} onDiscard={reset} />
-    </div>
+    </SettingsSection>
   )
 }
 
@@ -2416,21 +2371,21 @@ function CodePRSection({
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="pr-4">
-          <h4 className="text-sm font-medium">Code pull requests</h4>
-          <p className="text-xs text-muted-foreground">
-            Let an @mentioned (or task-assigned) agent make a change to a linked repository and open a verified,
-            reviewable pull request, inside an isolated code-runner sidecar whose only network access is your git
-            host. The agent never merges; every PR goes through your normal review + CI. Off until you deploy a
-            coding runner and point this at it. Metered against the budgets below.
-          </p>
-        </div>
-        <Switch aria-label="Use code pull requests" checked={enabled} disabled={saving || !runnerURL.trim()} onCheckedChange={setEnabled} />
-      </div>
+    <SettingsSection
+      level={3}
+      title="Code pull requests"
+      description="Let an agent that is mentioned or given a task change a linked repository and open a verified pull request for review, from an isolated code runner whose only network access is your git host. The agent never merges: every pull request goes through your usual review and checks. Changes wait for Save."
+    >
+      <SettingsList>
+      <SwitchRow
+        label="Use code pull requests"
+        description={runnerURL.trim() ? "Off until you turn it on and save." : "Deploy a coding runner and enter its address first."}
+        checked={enabled}
+        disabled={saving || !runnerURL.trim()}
+        onChange={setEnabled}
+      />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor={`${id}-url`} className="text-xs">Runner address</Label>
           <Input
@@ -2467,7 +2422,7 @@ function CodePRSection({
         </div>
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1 px-4 py-3">
         <Label htmlFor={`${id}-egress`} className="text-xs">Hosts the runner may reach</Label>
         <Input
           id={`${id}-egress`}
@@ -2484,43 +2439,31 @@ function CodePRSection({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label htmlFor={`${id}-policy`} className="text-xs">If a change goes beyond the task</Label>
-          <Select value={policy} onValueChange={setPolicy}>
-            <SelectTrigger id={`${id}-policy`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="flag_open">Open the PR, flagged with the concern</SelectItem>
-              <SelectItem value="pause">Pause and ask a human</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-end justify-between gap-3 pb-1">
-          <div className="pr-2">
-            <Label htmlFor={`${id}-draft`} className="text-xs">Open a draft when it can&apos;t verify</Label>
-            <p id={`${id}-draft-help`} className="text-xs text-muted-foreground">
-              A clearly labelled draft instead of nothing, when the build or tests can&apos;t be made to pass.
-            </p>
-          </div>
-          <Switch id={`${id}-draft`} aria-describedby={`${id}-draft-help`} checked={draftOnRed} onCheckedChange={setDraftOnRed} />
-        </div>
-      </div>
+      <SettingRow label="If a change goes beyond the task" controlId={`${id}-policy`}>
+        <Select value={policy} onValueChange={setPolicy}>
+          <SelectTrigger id={`${id}-policy`} className="w-full @xl:w-72">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="flag_open">Open the PR, flagged with the concern</SelectItem>
+            <SelectItem value="pause">Pause and ask a human</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingRow>
+      <SwitchRow
+        label="Open a draft when it can't verify"
+        description="A clearly labelled draft instead of nothing, when the build or tests can't be made to pass."
+        checked={draftOnRed}
+        onChange={setDraftOnRed}
+      />
+      {/* A row of the list like the others: it was a box inside the box. */}
+      <SwitchRow
+        label="Allow any repository the agent can access"
+        description="When on, the agent can open a pull request on any repository the connected GitHub account can reach (checked on every run), not only those linked to a project. Leave it off to keep it to linked repositories: the safer choice when that account can see repositories beyond this workspace."
+        checked={allowUnlinked}
+        onChange={setAllowUnlinked}
+      />
 
-      <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-background/40 p-3">
-        <div className="pr-2">
-          <Label htmlFor={`${id}-unlinked`} className="text-xs">Allow any repository the agent can access</Label>
-          <p id={`${id}-unlinked-help`} className="text-xs text-muted-foreground">
-            When on, the agent can open a pull request on any repository the connected GitHub account can reach
-            (checked on every run), not only those linked to a project. Leave it off to keep it to linked
-            repositories: the safer choice when that account can see repositories beyond this workspace.
-          </p>
-        </div>
-        <Switch id={`${id}-unlinked`} aria-describedby={`${id}-unlinked-help`} checked={allowUnlinked} onCheckedChange={setAllowUnlinked} />
-      </div>
-
-      <div className="space-y-2 rounded-md border border-border bg-background/40 p-3">
         <ModelSelectorRow
           title="Code-run model (optional)"
           hint="The model the coding runner uses to write and fix code. Leave unset to use your chat model. Set a separate, higher-capacity model here so coding tasks aren't blocked when the chat model hits its provider's rate/daily limit."
@@ -2539,25 +2482,25 @@ function CodePRSection({
           saving={savingCodeRunModel}
           extra={
             config.code_pr_chat_model ? (
-              <Button variant="outline" className="h-9" onClick={clearCodeRunModel} disabled={savingCodeRunModel}>
+              <Button variant="outline" className="h-11 md:h-9" onClick={clearCodeRunModel} disabled={savingCodeRunModel}>
                 Use chat model
               </Button>
             ) : undefined
           }
+          note={
+            <p className="text-xs text-muted-foreground">
+              {config.code_pr_chat_model ? (
+                <>
+                  Coding runs use <span className="font-medium text-foreground">{config.code_pr_chat_model}</span>.
+                </>
+              ) : (
+                <>No model of its own, so coding runs use the chat model.</>
+              )}
+            </p>
+          }
         />
-        <p className="text-xs text-muted-foreground">
-          {config.code_pr_chat_model ? (
-            <>
-              Coding runs use{" "}
-              <span className="font-medium text-foreground">{config.code_pr_chat_model}</span>.
-            </>
-          ) : (
-            <>No dedicated code-run model set. Coding runs use the chat model.</>
-          )}
-        </p>
-      </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1 px-4 py-3">
         <Label htmlFor="code-pr-wall" className="text-xs">
           Coding time limit (minutes per run)
         </Label>
@@ -2585,9 +2528,9 @@ function CodePRSection({
         )}
       </div>
 
-      <div className="pt-1">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-muted-foreground">Daily limits (0 means no limit)</p>
+      <div className="px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+          <p className="text-sm font-medium">Daily limits <span className="font-normal text-muted-foreground">0 means no limit</span></p>
           <p className="text-xs text-muted-foreground">
             Used today: {config.code_pr_used_today_runs} run{config.code_pr_used_today_runs === 1 ? "" : "s"},{" "}
             {config.code_pr_used_today_minutes} min
@@ -2613,10 +2556,9 @@ function CodePRSection({
         </div>
       </div>
 
-      <RunnerTestStatus probe={probe} />
-
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-2">
+      <div className="space-y-3 px-4 py-3">
+        <RunnerTestStatus probe={probe} />
+        <div className="flex flex-wrap items-center gap-2">
           {config.code_pr_enabled && (
             <Button size="sm" variant="destructive" onClick={killNow} disabled={killing}>
               {killing ? "Turning off…" : "Turn off now"}
@@ -2634,9 +2576,10 @@ function CodePRSection({
           </Button>
         </div>
       </div>
+      </SettingsList>
 
       <SaveBar dirty={dirty} saving={saving} what="code pull request changes" onSave={() => void save()} onDiscard={reset} />
-    </div>
+    </SettingsSection>
   )
 }
 
@@ -2660,7 +2603,7 @@ function CodePRReliabilityCard() {
       setData(sc)
       setRuns(rs)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load the reliability scorecard")
+      setError(apiErrorMessage(e, "Try again in a moment."))
     } finally {
       setLoading(false)
     }
@@ -2684,96 +2627,76 @@ function CodePRReliabilityCard() {
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
-      <div className="flex items-start justify-between">
-        <div className="pr-4">
-          <h4 className="text-sm font-medium">Coding agent reliability</h4>
-          <p className="text-xs text-muted-foreground">
-            How the coding agent actually performs: open, verify, in-scope, and draft rates, plus the ground-truth
-            merge rate from your review decisions. Graded conservatively: it reads &quot;unproven&quot; until there
-            are enough runs to judge, so the number never over-claims.
-          </p>
-        </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => void load()}
-          disabled={loading}
-          className="shrink-0 gap-1.5"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+    <SettingsSection
+      level={3}
+      title="Coding agent reliability"
+      description="How the coding agent really performs: how often it opens, verifies and stays in scope, how many are drafts, and how often your reviewers merge. It reads unproven until there are enough runs to judge, so it never over-claims."
+      action={
+        <Button size="sm" variant="ghost" className={sectionActionClass} onClick={() => void load()} disabled={loading}>
+          <RefreshCw className={loading ? "animate-spin" : undefined} aria-hidden="true" />
           Refresh
         </Button>
-      </div>
-
-      {error ? (
-        <p className="text-xs text-danger-ink">{error}</p>
+      }
+    >
+      {error && !data ? (
+        <ErrorState compact subject="the coding scorecard" detail={error} onRetry={() => void load()} />
       ) : loading && !data ? (
-        <p className="text-xs text-muted-foreground">Loading…</p>
+        <SectionListSkeleton label="Loading the coding scorecard" rows={3} lines={1} />
       ) : !data || data.total === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          No coding runs yet. Once the agent opens pull requests, this scorecard fills in and grades itself.
-        </p>
+        <div className="rounded-lg border border-border">
+          <EmptyState
+            icon={GitPullRequest}
+            hue={ADMIN_GROUP_HUE.ai}
+            title="No coding runs yet"
+            description="Once the agent opens pull requests, this scorecard fills in and grades itself."
+            className="py-6"
+          />
+        </div>
       ) : (
         <>
-          <div className="flex items-center gap-2">
+          <p className="flex flex-wrap items-center gap-2 text-sm">
             {(() => {
               const g = gradeBadge(data.grade)
               return <Badge className={`${g.cls} border-transparent`}>{g.label}</Badge>
             })()}
-            <span className="text-xs text-muted-foreground">
+            <span className="text-muted-foreground">
               {data.total} run{data.total === 1 ? "" : "s"}
-              {data.total < data.min_sample ? ` · needs ${data.min_sample} to grade` : ""}
+              {data.total < data.min_sample ? `, ${data.min_sample} needed to grade` : ""}
             </span>
-          </div>
+          </p>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {/* Property rows on one label column, where they were seven stat tiles. */}
+          <dl className="divide-y divide-border rounded-lg border border-border">
             <Metric
               label="Merge rate"
               value={data.outcome_known > 0 ? pct(data.merge_rate) : "None yet"}
-              sub={`${data.merged + data.merged_with_edits}/${data.outcome_known} known`}
+              sub={`${data.merged + data.merged_with_edits} of ${data.outcome_known} decided`}
             />
-            <Metric label="Opened a PR" value={pct(data.open_rate)} sub={`${data.opened}/${data.total}`} />
-            <Metric
-              label="Verified"
-              value={data.opened > 0 ? pct(data.verify_rate) : "None yet"}
-              sub={`${data.verified}/${data.opened}`}
-            />
-            <Metric
-              label="Had tests"
-              value={data.opened > 0 ? pct(data.with_tests / data.opened) : "None yet"}
-              sub={`${data.with_tests}/${data.opened}`}
-            />
-            <Metric
-              label="In scope"
-              value={data.opened > 0 ? pct(data.in_scope_rate) : "None yet"}
-              sub={`${data.in_scope}/${data.opened}`}
-            />
-            <Metric
-              label="Drafts"
-              value={data.opened > 0 ? pct(data.draft_rate) : "None yet"}
-              sub={`${data.draft}/${data.opened}`}
-            />
+            <Metric label="Opened a PR" value={pct(data.open_rate)} sub={`${data.opened} of ${data.total}`} />
+            <Metric label="Verified" value={data.opened > 0 ? pct(data.verify_rate) : "None yet"} sub={`${data.verified} of ${data.opened}`} />
+            <Metric label="Had tests" value={data.opened > 0 ? pct(data.with_tests / data.opened) : "None yet"} sub={`${data.with_tests} of ${data.opened}`} />
+            <Metric label="In scope" value={data.opened > 0 ? pct(data.in_scope_rate) : "None yet"} sub={`${data.in_scope} of ${data.opened}`} />
+            <Metric label="Drafts" value={data.opened > 0 ? pct(data.draft_rate) : "None yet"} sub={`${data.draft} of ${data.opened}`} />
             <Metric
               label="Closed unmerged"
               value={String(data.closed)}
               sub={data.outcome_known > 0 ? `of ${data.outcome_known} decided` : "none decided"}
             />
-          </div>
+          </dl>
 
           {runs.length > 0 && (
-            <div className="space-y-1 pt-1">
-              <p className="text-2xs font-medium text-muted-foreground">Recent runs</p>
-              <div className="divide-y divide-border/60 rounded-md border border-border/60">
+            <section aria-label="Recent runs" className="space-y-2">
+              <p className="text-sm font-medium">Recent runs</p>
+              <div className="divide-y divide-border rounded-lg border border-border">
                 {runs.map((run) => (
                   <CodePRRunRow key={run.id} run={run} />
                 ))}
               </div>
-            </div>
+            </section>
           )}
         </>
       )}
-    </div>
+    </SettingsSection>
   )
 }
 
@@ -2807,17 +2730,17 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
     return isNaN(d.getTime()) ? "" : shortDateTime(d)
   })()
   return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+    <div className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <Badge className={`${badge.cls} border-transparent`}>{badge.label}</Badge>
           <span className="truncate font-medium">{run.repo || "No repository"}</span>
         </div>
         {run.message ? (
-          <p className="mt-0.5 truncate text-2xs text-muted-foreground">{run.message}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{run.message}</p>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-3 text-2xs text-muted-foreground">
+      <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
         {run.all_passed ? (
           <span className="inline-flex items-center gap-1 text-success-ink" title="The build and tests passed in the sandbox">
             <Check className="h-3 w-3" aria-hidden="true" /> Verified
@@ -2842,14 +2765,16 @@ function CodePRRunRow({ run }: { run: CodePRRunView }) {
   )
 }
 
-// Metric is a compact, notion-style stat tile: a big value, a muted label, and
-// an optional denominator, so the scorecard reads at a glance.
+// Metric is one property row of the scorecard: a label column, the value, and
+// its denominator in the help ink. It was a stat tile, seven to a grid.
 function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-md border border-border/60 bg-background/40 px-3 py-2">
-      <div className="text-lg font-semibold tabular-nums">{value}</div>
-      <div className="text-2xs font-medium text-muted-foreground">{label}</div>
-      {sub ? <div className="text-2xs text-muted-foreground/70 tabular-nums">{sub}</div> : null}
+    <div className={fieldRow("center", "px-4 py-2.5")}>
+      <dt className={fieldLabel}>{label}</dt>
+      <dd className="flex items-baseline gap-2 text-sm tabular-nums">
+        <span className="font-medium">{value}</span>
+        {sub ? <span className="text-xs text-muted-foreground">{sub}</span> : null}
+      </dd>
     </div>
   )
 }

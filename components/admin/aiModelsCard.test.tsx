@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react"
+import { SWRConfig } from "swr"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import type { ReactElement, ReactNode } from "react"
+
+// The section reads the AI settings through SWR (one key shared with agent
+// collaboration), so each test gets its own cache and no automatic retries.
+const fresh = ({ children }: { children: ReactNode }) => (
+  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>{children}</SWRConfig>
+)
+const render = (ui: ReactElement) => rtlRender(ui, { wrapper: fresh })
 
 const toastSpy = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastSpy }), toast: toastSpy }))
@@ -163,5 +174,39 @@ describe("the AI tab's models section", () => {
     expect(bar).toBeTruthy()
     expect(container.innerHTML).not.toMatch(/transition-\[width/)
     expect(container.textContent).toMatch(/1 item couldn't be indexed\./)
+  })
+
+  // About fourteen bordered boxes, some holding more boxes, under a CardTitle
+  // div; a failed read replaced the whole section, heading included.
+  it("keeps its h2 when the read fails, with the compact error under it", async () => {
+    vi.mocked(getAIConfig).mockRejectedValue({ response: { status: 403, data: { msg: "Only admins can read this." } } })
+    const { container } = render(<AIModelsCard />)
+    expect(await screen.findByText("Only admins can read this.")).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 2, name: /Models/ })).toBeTruthy()
+    expect(container.querySelector("[data-empty-illustration]")).toBeTruthy()
+  })
+
+  it("is one section of level 3 subsections, each at most one box deep", async () => {
+    vi.mocked(getAIConfig).mockResolvedValue(config as never)
+    const { container } = render(<AIModelsCard />)
+    await screen.findByRole("switch", { name: "Workspace AI" })
+    const h3s = screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)
+    for (const name of ["General", "Usage and limits", "Model tuning", "Active models", "Ambient agents", "Web search", "Code analysis sandbox", "Code pull requests", "Coding agent reliability", "Providers"]) {
+      expect(h3s).toContain(name)
+    }
+    expect(container.querySelector(".bg-card\\/50")).toBeNull()
+    for (const box of Array.from(container.querySelectorAll(".rounded-lg.border"))) {
+      const inner = Array.from(box.querySelectorAll(".rounded-lg.border, .rounded-md.border")).filter(
+        (el) => !el.closest("[role=progressbar]") && !el.matches("input, textarea, button, [role=combobox], [data-section-list-skeleton]"),
+      )
+      expect(inner.map((el) => el.className)).toEqual([])
+    }
+  })
+
+  // The two readers of /admin/ai/config share one key.
+  it("reads the AI settings through the shared key, nowhere else", () => {
+    const src = readFileSync(resolve(__dirname, "AIModelsCard.tsx"), "utf8")
+    expect(src).toContain("useAIConfig()")
+    expect(src).not.toMatch(/\bgetAIConfig\(/)
   })
 })

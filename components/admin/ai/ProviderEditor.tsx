@@ -256,8 +256,10 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
     }
   }
 
+  // A row of the providers list (AIModelsCard draws the list's box and its
+  // hairlines); each provider was a bordered box of its own.
   return (
-    <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
+    <div data-provider-row="" className="space-y-3 px-4 py-3">
       {/* Header row */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -322,8 +324,8 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
               className="h-9 font-mono text-xs"
             />
             {!isCustom && (
-              <p className="text-2xs text-muted-foreground">
-                {isOllama ? "Set via OLLAMA_HOST env." : "Built-in provider endpoint."}
+              <p className="text-xs text-muted-foreground">
+                {isOllama ? "Set by OLLAMA_HOST on the server." : "The built-in provider's own address."}
               </p>
             )}
           </div>
@@ -365,7 +367,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
                 arriving at this page to fix things deserves to see it first.
               */}
               {keyUnreadable && (
-                <p id={keyUnreadableHintId} className="text-2xs text-danger-ink">
+                <p id={keyUnreadableHintId} className="text-xs text-danger-ink">
                   A key is stored but the server can no longer decrypt it, so this provider is
                   unusable. This normally means AI_CONFIG_KEK changed since the key was saved. Paste
                   the key again to fix it.
@@ -452,7 +454,7 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
               {/* Browse & install from the curated, server-driven catalog. */}
               <div className="pt-1">
                 <Label className="text-xs font-medium">Browse models</Label>
-                <p className="text-2xs text-muted-foreground mb-2">
+                <p className="mb-2 text-xs text-muted-foreground">
                   Popular models, kept current. Anything not listed can still be installed by tag above.
                 </p>
                 <ModelCatalog
@@ -546,14 +548,16 @@ const CreateProviderForm: React.FC<{ onClose: () => void; onChanged: () => Promi
   }
 
   return (
-    <div className="rounded-lg border border-primary/40 bg-card/50 p-4 space-y-3">
+    // One box, in the line colour: the orange border said "act here" about a
+    // whole form, where the accent is for the one action in it.
+    <div className="space-y-3 rounded-lg border border-border p-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold">Add OpenAI-compatible endpoint</h4>
-        <button type="button" aria-label="Close" onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <p className="text-sm font-medium">Add an OpenAI-compatible endpoint</p>
+        <Button type="button" variant="ghost" size="icon" aria-label="Close" onClick={onClose} className="h-8 w-8 text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
-      <p className="text-2xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Works with vLLM, LM Studio, OpenRouter, llama.cpp server, Together, Groq, xAI (Grok), or any gateway
         that speaks the OpenAI /v1 API. A hosted assistant is not the same thing as its model: this is how you
         run an agent on a vendor&apos;s model, and the agent stays yours.

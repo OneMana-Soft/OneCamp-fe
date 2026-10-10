@@ -13,6 +13,10 @@
  * "add" form.
  */
 
+import { SettingsSection } from "@/components/ui/settingsSection"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import React, { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,7 +25,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Trash2, SlidersHorizontal } from "@/lib/icons"
+import { Plus, Trash2, SlidersHorizontal, Sparkles } from "@/lib/icons"
 import {
   AIConfig,
   AuthorizedModel,
@@ -128,7 +132,7 @@ const ModelLimitsEditor: React.FC<{
   }
 
   return (
-    <div className="mt-3 space-y-2 rounded-lg border border-border bg-background/60 p-3">
+    <div className="mt-3 space-y-2 border-t border-border pt-3">
       <p className="text-xs text-muted-foreground">
         Leave blank to inherit the workspace context window ({formatTokens(workspaceWindow)}). Set these when this
         model&apos;s
@@ -258,18 +262,14 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
   }
 
   return (
-    <section className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">Member-selectable models</h3>
-        <p className="text-xs text-muted-foreground">
-          Authorize models members can choose for their own AI assistant. Everyone can always use the workspace
-          default ({config.chat_model || "unset"}); these are extra options. Revoking one reverts members on it
-          back to the default.
-        </p>
-      </div>
-
-      {/* Add form */}
-      <div className="flex flex-col gap-2 rounded-lg border border-border bg-card/50 p-3 sm:flex-row sm:items-end">
+    <SettingsSection
+      level={3}
+      title="Member-selectable models"
+      description={`Models members can choose for their own AI assistant, besides the workspace default (${config.chat_model || "not set"}). Revoking one puts the members on it back on the default.`}
+    >
+      {/* One list: the form to add one is its first row, each model a row. */}
+      <div className="divide-y divide-border rounded-lg border border-border">
+      <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-end">
         <div className="flex-1 space-y-1">
           <Label className="text-xs">Provider</Label>
           <Select value={providerId} onValueChange={setProviderId}>
@@ -298,22 +298,27 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
           <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Friendly name" />
         </div>
         <Button onClick={handleAdd} disabled={busy || !providerId} className="shrink-0">
-          <Plus className="mr-1 h-4 w-4" />
+          <Plus />
           Authorize
         </Button>
       </div>
 
-      {/* List */}
       {loading ? (
-        <p className="text-xs text-muted-foreground">Loading…</p>
+        <div role="status" aria-label="Loading the member-selectable models" className="px-4 py-3">
+          <Skeleton className="h-3.5 w-1/3 rounded" />
+        </div>
       ) : models.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          No additional models authorized yet. Members will use the workspace default.
-        </p>
+        <EmptyState
+          icon={Sparkles}
+          hue={ADMIN_GROUP_HUE.ai}
+          title="No other models yet"
+          description="Members use the workspace default until you authorize more."
+          className="py-6"
+        />
       ) : (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border">
           {models.map((m) => (
-            <li key={m.id} className="rounded-lg border border-border bg-card/50 p-3">
+            <li key={m.id} className="px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -348,14 +353,14 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
                     checked={m.enabled}
                     disabled={busy}
                     onCheckedChange={(v) => handleToggle(m, v)}
-                    aria-label="Enable model"
+                    aria-label={`Offer ${m.label || m.model}`}
                   />
                   <Button
                     variant="ghost"
                     size="icon"
                     disabled={busy}
                     onClick={() => handleRevoke(m)}
-                    aria-label="Revoke model"
+                    aria-label={`Revoke ${m.label || m.model}`}
                   >
                     <Trash2 className="h-4 w-4 text-danger-ink" />
                   </Button>
@@ -375,7 +380,8 @@ const AuthorizedModelsSection: React.FC<{ config: AIConfig }> = ({ config }) => 
           ))}
         </ul>
       )}
-    </section>
+      </div>
+    </SettingsSection>
   )
 }
 
