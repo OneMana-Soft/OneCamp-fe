@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
+import { StatusWord } from "@/components/ui/statusWord"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SpotPlug } from "@/components/ui/graphics"
@@ -54,6 +55,8 @@ import type { ProjectInfoInterface } from "@/types/project"
 import axiosInstance from "@/lib/axiosInstance"
 import GitHubWebhookHealth from "@/components/admin/GitHubWebhookHealth"
 import GitHubConfigDialog from "@/components/admin/GitHubConfigDialog"
+import { ConnectionSkeleton } from "@/components/admin/integrationParts"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 
 interface AutomationRules {
   // Issue rules
@@ -346,21 +349,16 @@ const GitHubIntegrationCard = () => {
   const settingsLink = linkedRepos.find(l => l.id === showSettingsLinkId)
 
   return (
+    // Titled without a tile, like the Slack bridge and the sign-in providers
+    // beside it: the menu carries the Connections hue.
     <SettingsSection
-      title={
-        <span className="flex items-center gap-2.5">
-          <Tile hue={ADMIN_GROUP_HUE.connections} size="md"><Github /></Tile>
-          GitHub
-        </span>
-      }
+      title="GitHub"
       description="Link repositories to projects, so issues and pull requests stay in step with their tasks and branches."
     >
       {isLoading ? (
-        <div role="status" aria-label="Loading the GitHub connection" className="rounded-lg border border-border px-4 py-3">
-          <SkeletonRows rows={2} avatar={false} />
-        </div>
+        <ConnectionSkeleton label="Loading the GitHub connection" />
       ) : isError ? (
-        <ErrorState subject="the GitHub connection status" onRetry={() => void mutate()} />
+        <ErrorState compact subject="the GitHub connection status" detail={apiErrorMessage(isError) || undefined} onRetry={() => void mutate()} />
       ) : !isConnected ? (
         // After the failure branch: isConnected is `status?.connected || false`,
         // so a failed fetch would otherwise read as "not connected" and offer a
@@ -384,8 +382,8 @@ const GitHubIntegrationCard = () => {
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Words, like the sign-in providers on this tab. */}
-            <p className="text-sm font-medium text-success-ink">Connected</p>
+            {/* A dot and a word, like the sign-in providers on this tab. */}
+            <StatusWord tone="success" className="text-sm font-medium">Connected</StatusWord>
             <div className="flex flex-wrap items-center gap-2">
               {linkedRepos.length > 0 && linkRepoButton}
               <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => openCredentials()}>

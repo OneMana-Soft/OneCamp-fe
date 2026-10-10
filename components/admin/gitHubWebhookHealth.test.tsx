@@ -51,7 +51,8 @@ describe("GitHub webhook deliveries", () => {
   it("says the deliveries couldn't be loaded, with Try again", () => {
     fetched.current.isError = true
     render(<GitHubWebhookHealth />)
-    expect(screen.getByText("Couldn't load the webhook deliveries.")).toBeTruthy()
+    // The compact form every section's failed read takes, under its title.
+    expect(screen.getByText("Couldn't load the webhook deliveries")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     expect(mutate).toHaveBeenCalled()
   })

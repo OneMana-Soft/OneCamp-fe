@@ -14,9 +14,9 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { SpotPlug } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SaveBar, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
+import { StatusWord } from "@/components/ui/statusWord"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { cn } from "@/lib/utils/helpers/cn"
 import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
@@ -73,6 +73,7 @@ export default function OAuthConfigCard() {
     const { toast } = useToast()
     const [status, setStatus] = useState<OAuthConfigStatus | null>(null)
     const [state, setState] = useState<"loading" | "failed" | "ready">("loading")
+    const [loadError, setLoadError] = useState("")
     const [draft, setDraft] = useState<Draft>(emptyDraft)
     const [saving, setSaving] = useState(false)
 
@@ -95,7 +96,10 @@ export default function OAuthConfigCard() {
                 })
                 setState("ready")
             })
-            .catch(() => setState("failed"))
+            .catch((e) => {
+                setLoadError(apiErrorMessage(e))
+                setState("failed")
+            })
     }
 
     useEffect(() => {
@@ -156,7 +160,7 @@ export default function OAuthConfigCard() {
             </SettingsList>
         )
     } else if (state === "failed" || !status) {
-        body = <ErrorState subject="the sign-in providers" onRetry={load} />
+        body = <ErrorState compact subject="the sign-in providers" detail={loadError || undefined} onRetry={load} />
     } else {
         const noneSetUp = !status.google_configured && !status.github_configured
         body = (
@@ -182,13 +186,13 @@ export default function OAuthConfigCard() {
                             <div key={p.key} className="space-y-3 px-4 py-3">
                                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                                     <h3 className="text-sm font-medium">{p.name}</h3>
-                                    {/* Words, not a pill with an icon: set up or not, and from where. */}
-                                    <p className="text-xs">
-                                        <span className={cn("font-medium", configured ? "text-success-ink" : "text-muted-foreground")}>
-                                            {configured ? "Set up" : "Not set up"}
+                                    {/* A dot and a word: set up or not, and from where. */}
+                                    <StatusWord tone={configured ? "success" : "neutral"} className="text-xs">
+                                        <span>
+                                            <span className="font-medium">{configured ? "Set up" : "Not set up"}</span>
+                                            {source && <span className="text-muted-foreground">, {source}</span>}
                                         </span>
-                                        {source && <span className="text-muted-foreground">, {source}</span>}
-                                    </p>
+                                    </StatusWord>
                                 </div>
                                 <div className="grid gap-3 sm:grid-cols-2">
                                     <div className="space-y-1.5">
