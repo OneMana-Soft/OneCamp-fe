@@ -366,7 +366,11 @@ export function CalendarApp() {
 
             {/* Main Calendar Area */}
             <main className="flex-1 flex flex-col h-full overflow-hidden">
-                <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-border/60 bg-background z-10 sticky top-0">
+                {/* sm:flex-wrap: where the actions and the date controls do not fit
+                    on one line (a tablet), the actions take a second line. Without
+                    it they kept their width and squeezed the date controls until
+                    their wrapped lines ran over the title. */}
+                <header className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-border/60 bg-background z-10 sticky top-0">
                     <div className="flex items-center gap-3 min-w-0">
                         <h1 className="sr-only">Calendar</h1>
                         <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -482,6 +486,7 @@ export function CalendarApp() {
                                 onSlotClick={(date) => { setDefaultDate(date); setIsCreateOpen(true); }}
                                 onEventClick={(uuid) => openItem({ event_uuid: uuid })}
                                 onTaskClick={(uuid) => openItem({ event_uuid: uuid, isTask: true })}
+                                loading={loading}
                             />
                         </div>
                     ) : (
@@ -492,7 +497,11 @@ export function CalendarApp() {
                            even once panning works. The week grid keeps its width:
                            a timed day column genuinely cannot compress that far.
                            It draws at once, with its days, while the items load. */
-                        <div className="min-w-0 sm:min-w-[800px] flex flex-col h-full">
+                        // No minimum width at any size now: from 640px it was
+                        // 800px wide, more than a tablet's calendar area (about
+                        // 560px at 768, 600px at 1024 beside the mini month), so
+                        // Friday and Saturday sat behind the right edge.
+                        <div className="min-w-0 flex flex-col h-full">
                             {/* Days of week header */}
                             <div className="grid grid-cols-7 w-full border-b border-border/60 sticky top-0 bg-background z-20 border-l text-center" aria-hidden="true">
                                 {/* Sentence case: a grid header read on every glance does not need to shout. */}

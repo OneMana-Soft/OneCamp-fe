@@ -5,6 +5,7 @@ import { addDays, format, isSameDay, parseISO, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
 import { shortTime } from "@/lib/utils/date/shortDate";
 import { CircleCheck } from "@/lib/icons";
+import { SpotCalendar } from "@/components/ui/graphics";
 import { toneOf, type CalendarItemLike } from "@/components/calendar/calendarTones";
 import type { CalendarEventInterface } from "@/types/calendar";
 import type { TaskInfoInterface } from "@/types/task";
@@ -39,6 +40,8 @@ interface WeekViewProps {
   onSlotClick: (date: Date) => void;
   onEventClick: (uuid: string) => void;
   onTaskClick: (uuid: string) => void;
+  /** The items are still on their way: a blank grid is not yet a free week. */
+  loading?: boolean;
 }
 
 /** Greedy overlap packing: assign each item a column within its overlap cluster. */
@@ -95,6 +98,7 @@ export function WeekView({
   onSlotClick,
   onEventClick,
   onTaskClick,
+  loading = false,
 }: WeekViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const days = useMemo(() => Array.from({ length: dayCount }, (_, i) => addDays(startOfDay(weekStart), i)), [weekStart, dayCount]);
@@ -172,6 +176,7 @@ export function WeekView({
     return { timedByDay: timed.map(packDay), allDayByDay: allDay };
   }, [days, events, tasks, showEvents, showTasks]);
 
+  const blank = !loading && allDayByDay.every((d) => d.length === 0) && timedByDay.every((d) => d.length === 0);
   const todayIndex = days.findIndex((d) => isSameDay(d, now));
   const nowTopMin = now.getHours() * 60 + now.getMinutes();
   const single = dayCount === 1;
@@ -230,6 +235,7 @@ export function WeekView({
       </div>
 
       {/* Time grid */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={scrollRef} className="custom-scrollbar flex-1 overflow-y-auto">
         <div className="flex" style={{ height: `${24 * HOUR_HEIGHT}px` }}>
           {/* Hour gutter */}
@@ -305,6 +311,17 @@ export function WeekView({
             </div>
           ))}
         </div>
+      </div>
+      {/* A week or a day with nothing in it says so, small, in the middle of
+          what is in view; the slots under it still take a click. */}
+      {blank && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2" data-calendar-blank="">
+          <SpotCalendar size={64} />
+          <p className="rounded-md bg-background/85 px-2 py-0.5 text-sm text-muted-foreground">
+            {single ? (isSameDay(days[0], now) ? "Nothing on today" : "Nothing on this day") : "Nothing on this week"}
+          </p>
+        </div>
+      )}
       </div>
     </div>
   );
