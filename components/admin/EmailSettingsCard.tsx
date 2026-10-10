@@ -10,17 +10,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { SaveBar, SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
-import { Tile } from "@/components/ui/graphics/Tile"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
-import { Trash2, Mail, RefreshCw } from "@/lib/icons";
-import { ImagePlus } from "lucide-react";
+import { Trash2, RefreshCw } from "@/lib/icons";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
 import { sanitizeImportedDocument } from "@/lib/sanitizeHtml"
-import { SafeHtml } from "@/components/safeHtml/SafeHtml"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import axiosInstance from "@/lib/axiosInstance"
 
@@ -57,6 +53,19 @@ export function subjectPreview(subject: string, workspace: string): string {
 /** Fills the variables an invitation's subject and template can use, for the preview. Pure. */
 export function fillPreview(text: string, values: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (whole, key: string) => (key in values ? values[key] : whole))
+}
+
+/**
+ * The preview's body as a document of its own, for a sandboxed frame: the
+ * email's own markup with a mail client's plain defaults, none of the app's.
+ * In the page, the app's reset drew the template's heading and link as plain
+ * lines, so the preview didn't show the email as it is sent.
+ */
+function previewDocument(body: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;padding:24px;background:#fff;color:#1a1a1a;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;overflow-wrap:anywhere}
+a{color:#1a56db}img{max-width:100%}h1,h2,h3{line-height:1.3}.empty{color:#888;font-style:italic}
+</style></head><body>${body}</body></html>`
 }
 
 type EmailForm = { sender_email: string; subject: string; template: string }
@@ -232,71 +241,62 @@ const EmailSettingsCard = () => {
     body = (
       <div className="flex flex-col gap-8 xl:flex-row">
         <div className="min-w-0 flex-1 space-y-6">
-          <section className="space-y-3" aria-labelledby="email-logo-heading">
-            {/* The workspace group's hue, as the admin menu draws Email. */}
-            <h3 id="email-logo-heading" className="flex items-center gap-2 text-sm font-medium">
-              <Tile hue={ADMIN_GROUP_HUE.workspace} size="sm">
-                <ImagePlus />
-              </Tile>
-              Logo
-            </h3>
-            <div className="rounded-lg border border-border p-4">
-              {hasLogo ? (
-                <div className="w-full space-y-4">
-                  <div className="flex min-h-[100px] items-center justify-center rounded-md border border-border bg-white p-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={getPublicLogoUrl()}
-                      alt="The logo invitation emails carry"
-                      className="max-h-[80px] max-w-[200px] object-contain"
-                    />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={post.isSubmitting}
-                    onClick={() =>
-                      confirm({
-                        title: "Remove the email logo?",
-                        description: "Invitation emails go out without a logo until you upload one again.",
-                        confirmText: "Remove logo",
-                        destructive: true,
-                        onConfirm: () => void handleRemoveLogo(),
-                      })
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    Remove logo
-                  </Button>
+          {/* Plain 14px headings for its parts, as the task panel names its
+              sections: they carried tiles no other admin heading has. */}
+          <SettingsSection level={3} title="Logo">
+            {hasLogo ? (
+              <div className="space-y-3">
+                <div className="flex min-h-[100px] items-center justify-center rounded-lg border border-border bg-white p-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={getPublicLogoUrl()}
+                    alt="The logo invitation emails carry"
+                    className="max-h-[80px] max-w-[200px] object-contain"
+                  />
                 </div>
-              ) : (
-                <div className="flex w-full flex-col items-center gap-2 rounded-md border-2 border-dashed border-border p-6 text-center text-muted-foreground transition-colors hover:border-foreground/30">
-                  <p className="text-sm">No logo yet. Invitations go out without one.</p>
-                  <p className="text-xs">PNG, JPEG, WebP or SVG, up to 2 MB.</p>
-                  <Button variant="secondary" size="sm" className="mt-1" onClick={() => fileInputRef.current?.click()}>
-                    Choose an image
-                  </Button>
-                </div>
-              )}
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/png, image/jpeg, image/webp, image/svg+xml"
-                aria-label="Choose a logo image"
-                onChange={handleLogoUpload}
-              />
-            </div>
-          </section>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={post.isSubmitting}
+                  onClick={() =>
+                    confirm({
+                      title: "Remove the email logo?",
+                      description: "Invitation emails go out without a logo until you upload one again.",
+                      confirmText: "Remove logo",
+                      destructive: true,
+                      onConfirm: () => void handleRemoveLogo(),
+                    })
+                  }
+                >
+                  <Trash2 aria-hidden="true" />
+                  Remove logo
+                </Button>
+              </div>
+            ) : (
+              // One box: the drop zone was a dashed box inside a bordered one.
+              <div className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border p-6 text-center text-muted-foreground transition-colors hover:border-foreground/30">
+                <p className="text-sm">No logo yet. Invitations go out without one.</p>
+                <p className="text-xs">PNG, JPEG, WebP or SVG, up to 2 MB.</p>
+                <Button variant="outline" size="sm" className="mt-1" onClick={() => fileInputRef.current?.click()}>
+                  Choose an image
+                </Button>
+              </div>
+            )}
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/png, image/jpeg, image/webp, image/svg+xml"
+              aria-label="Choose a logo image"
+              onChange={handleLogoUpload}
+            />
+          </SettingsSection>
 
-          <section className="space-y-3" aria-labelledby="email-message-heading">
-            <h3 id="email-message-heading" className="flex items-center gap-2 text-sm font-medium">
-              <Tile hue={ADMIN_GROUP_HUE.workspace} size="sm">
-                <Mail />
-              </Tile>
-              Message
-            </h3>
+          <SettingsSection level={3} title="Message">
             <SettingsList>
+              {/* In the editor's column the row is too narrow to hold the field
+                  beside its words, so it goes under them at the row's width;
+                  beside them it squeezed the help to one or two words a line. */}
               <SettingRow
                 label="Sender address"
                 description="Leave it empty to send from your workspace's domain. Whatever you set must be a domain you control, or invitations are rejected as spoofed."
@@ -312,27 +312,25 @@ const EmailSettingsCard = () => {
                   value={formData.sender_email}
                   onChange={(e) => setFormData({ ...formData, sender_email: e.target.value })}
                   aria-describedby="senderEmail-desc"
-                  className="h-8 w-64"
+                  className="w-full @xl:w-64"
                 />
               </SettingRow>
 
-              <div className="space-y-2 px-4 py-3">
-                <Label htmlFor="subject" className="text-sm font-medium leading-5">Subject</Label>
+              <SettingRow layout="stacked" label="Subject" controlId="subject">
                 <Input
                   id="subject"
                   name="invitation-subject"
                   autoComplete="off"
                   value={formData.subject}
                   onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                  className="h-8"
                 />
-              </div>
+              </SettingRow>
 
               <div className="space-y-2 px-4 py-3">
                 <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="template" className="text-sm font-medium leading-5">Template (HTML)</Label>
-                  <Button variant="ghost" size="sm" onClick={handleResetToDefault} className="h-8 gap-1 px-2 text-xs">
-                    <RefreshCw className="h-3 w-3" aria-hidden="true" /> Reset to default
+                  <Button variant="ghost" size="sm" onClick={handleResetToDefault} className="h-8 gap-1.5 px-2">
+                    <RefreshCw aria-hidden="true" /> Reset to default
                   </Button>
                 </div>
                 <Textarea
@@ -354,7 +352,7 @@ const EmailSettingsCard = () => {
                 </p>
               </div>
             </SettingsList>
-          </section>
+          </SettingsSection>
 
           {/* Edits wait here until saved or put back, in view while the page
               scrolls; the Save button sat at the foot of a long form. */}
@@ -370,34 +368,35 @@ const EmailSettingsCard = () => {
         {/* The email as it is sent: a plain message on white, as a mail client
             shows it. It was dressed as a macOS window, with three coloured dots
             in raw hex under a heavy shadow, which is a fake screenshot. */}
-        <div className="h-fit w-full flex-1 space-y-3 xl:sticky xl:top-0 xl:max-w-md 2xl:max-w-lg">
-          <h3 className="text-sm font-medium">Preview</h3>
-          <div className="flex min-h-[450px] flex-col overflow-hidden rounded-lg border border-border bg-white text-black">
-            <div className="space-y-2 border-b border-neutral-200 px-6 py-4 text-sm">
-              <div className="flex items-start">
-                <span className="w-16 font-medium text-neutral-500">From</span>
-                <span className="break-all font-medium text-neutral-800">
+        <div className="h-fit w-full flex-1 xl:sticky xl:top-0 xl:max-w-md 2xl:max-w-lg">
+          <SettingsSection level={3} title="Preview">
+            <div className="flex min-h-[450px] flex-col overflow-hidden rounded-lg border border-border bg-white text-black">
+              {/* One label column, so From, Subject and To start their values at
+                  one x: they started at 1059, 1048 and 1059px, and "Subject" ran
+                  into its value. */}
+              <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 border-b border-neutral-200 px-6 py-4 text-sm">
+                <dt className="font-medium text-neutral-500">From</dt>
+                <dd className="break-all font-medium text-neutral-800">
                   {formData.sender_email || configData?.data?.default_sender || (
                     <span className="italic text-neutral-500">your workspace default</span>
                   )}
-                </span>
-              </div>
-              <div className="flex items-start">
-                <span className="w-16 font-medium text-neutral-500">Subject</span>
-                <span className="font-semibold text-neutral-900">{previewSubject || "No subject"}</span>
-              </div>
-              <div className="flex items-start">
-                <span className="w-16 font-medium text-neutral-500">To</span>
-                <span className="text-neutral-600">invitee@example.com</span>
-              </div>
+                </dd>
+                <dt className="font-medium text-neutral-500">Subject</dt>
+                <dd className="font-semibold text-neutral-900">{previewSubject || "No subject"}</dd>
+                <dt className="font-medium text-neutral-500">To</dt>
+                <dd className="text-neutral-600">invitee@example.com</dd>
+              </dl>
+              {/* Its own document, so the email keeps its own formatting (the
+                  app's reset drew its heading and link as plain lines), and
+                  sandboxed: nothing in a template can run here. */}
+              <iframe
+                title="The invitation email, as it is sent"
+                sandbox=""
+                srcDoc={previewDocument(sanitizeImportedDocument(previewHtml) || "<p class='empty'>The template is empty.</p>")}
+                className="min-h-[360px] w-full flex-1 border-0 bg-white"
+              />
             </div>
-            <SafeHtml
-              as="div"
-              className="prose prose-sm max-w-none flex-1 break-words bg-white p-8"
-              html={previewHtml || "<div class='text-gray-400 italic'>The template is empty.</div>"}
-              sanitizer={sanitizeImportedDocument}
-            />
-          </div>
+          </SettingsSection>
         </div>
       </div>
     )
