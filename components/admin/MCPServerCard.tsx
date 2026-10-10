@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Plug, ShieldAlert } from "@/lib/icons"
+import { ShieldAlert } from "@/lib/icons"
 import { CopyableCode } from "@/components/ui/copyable-code"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -194,9 +194,7 @@ function MCPServerCard() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Plug className="h-4 w-4 text-muted-foreground" />
-                    External agent access (MCP)
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">External agent access (MCP)
                     {stored ? (
                         <Badge
                             variant="outline"
@@ -322,7 +320,7 @@ function MCPServerCard() {
                         Agent calls, including refused ones, appear in the audit log under{" "}
                         <span className="font-medium">agent</span>.
                     </p>
-                    <Button
+                    <Button variant="outline"
                         size="sm"
                         onClick={handleSave}
                         disabled={!dirty || saving || enabledButNothing}

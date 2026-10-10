@@ -93,9 +93,7 @@ export default function AppsCard() {
         <div className="flex flex-col h-full min-h-0">
             <div className="flex items-center justify-between mb-4 shrink-0">
                 <div>
-                    <h2 className="text-lg font-semibold flex items-center gap-2">
-                        <Plug className="h-5 w-5 text-primary" /> Apps & Integrations
-                    </h2>
+                    <h2 className="text-base font-semibold">Apps</h2>
                     <p className="text-sm text-muted-foreground mt-0.5">
                         Install apps that add slash commands to your workspace.
                     </p>
@@ -133,6 +131,8 @@ export default function AppsCard() {
                         description="Install one above, or add a custom integration."
                     />
                 )}
+                {apps && apps.length > 0 && (
+                <div className="divide-y divide-border rounded-lg border border-border">
                 {apps?.map((app) => (
                     <AppRow
                         key={app.id}
@@ -151,6 +151,8 @@ export default function AppsCard() {
                         }}
                     />
                 ))}
+                </div>
+                )}
             </div>
 
             {createOpen && (
@@ -198,7 +200,7 @@ function AppRow({
     onDisconnect: () => void
 }) {
     return (
-        <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-card p-3">
+        <div className="flex items-center gap-3 px-3 py-2.5">
             <AppIcon src={app.icon_url} alt={app.name} size="sm" />
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

@@ -33,7 +33,6 @@ import {
     CheckCircle2,
     Fingerprint,
     Loader2,
-    Lock,
     Play,
     ShieldAlert,
     ShieldCheck,
@@ -159,9 +158,7 @@ const GovernanceDrillCard: React.FC = () => {
             <CardHeader>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                        <CardTitle className="flex items-center gap-2">
-                            <Lock className="h-4 w-4 text-muted-foreground" />
-                            Governance drill
+                        <CardTitle className="text-base font-semibold">Governance drill
                         </CardTitle>
                         <CardDescription>
                             Ask an agent to post where the person behind it cannot, and watch what this

@@ -135,8 +135,7 @@ const AIActivityCard = () => {
   return (
     <Card className="mt-6">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Sparkles className="h-4 w-4 text-primary" /> AI activity
+        <CardTitle className="text-base font-semibold">AI activity
         </CardTitle>
         <CardDescription>
           What the AI did across the workspace: agent runs and AI-attributable actions (search, API/MCP

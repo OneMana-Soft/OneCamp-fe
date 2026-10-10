@@ -78,7 +78,7 @@ export default function ModelRoutingCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Model per job</CardTitle>
+        <CardTitle className="text-base font-semibold">Model per job</CardTitle>
         <CardDescription>
           Choose which model does each kind of background work. Use a fast or local model for frequent summaries
           and a large one for long meeting recaps. A person&apos;s own chat and each agent keep the model they were
@@ -123,7 +123,7 @@ export default function ModelRoutingCard() {
         )}
         {routing && (
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => void save()} disabled={!dirty || saving}>
+            <Button variant="outline" size="sm" onClick={() => void save()} disabled={!dirty || saving}>
               {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save
             </Button>

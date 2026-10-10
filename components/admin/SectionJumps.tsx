@@ -15,13 +15,14 @@ interface Jump {
 
 export function SectionJumps({ jumps }: { jumps: Jump[] }) {
   return (
-    <nav aria-label="On this page" className="flex flex-wrap gap-1.5">
+    <nav aria-label="On this page" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+      <span className="text-muted-foreground">On this page:</span>
       {jumps.map((j) => (
         <button
           key={j.id}
           type="button"
           onClick={() => document.getElementById(j.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-          className="rounded-full border border-border/70 bg-background px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="rounded-sm text-foreground underline-offset-4 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {j.label}
         </button>

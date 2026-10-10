@@ -23,7 +23,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { ShieldAlert, Users } from "@/lib/icons"
+import { ShieldAlert } from "@/lib/icons"
 import { getAIConfig, setAIAgentDelegation, type AIConfig } from "@/services/aiModelService"
 
 // Self-contained: it fetches its own config, like every sibling admin card, so the
@@ -101,9 +101,7 @@ function AgentDelegationCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          Agent collaboration
+        <CardTitle className="text-base font-semibold">Agent collaboration
         </CardTitle>
         <CardDescription>
           Let one AI teammate hand work to another: a triage agent asking a coding agent to
@@ -204,7 +202,7 @@ function AgentDelegationCard() {
                 Active
               </Badge>
             )}
-            <Button onClick={handleSave} disabled={vetoed || saving || !dirty} size="sm">
+            <Button variant="outline" onClick={handleSave} disabled={vetoed || saving || !dirty} size="sm">
               {saving ? "Saving…" : "Save"}
             </Button>
           </div>

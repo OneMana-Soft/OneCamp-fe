@@ -9,7 +9,7 @@ import { TeamDeleteOrUndeleteInterface, TeamListResponseInterface, TeamInfoInter
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
 import { AdminTeamList } from "./AdminTeamList"
-import { Users, Search } from "@/lib/icons"
+import { Search } from "@/lib/icons"
 
 const TeamsCard = () => {
     const [pageIndex, setPageIndex] = useState(0)
@@ -104,19 +104,16 @@ const TeamsCard = () => {
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                            <div className="bg-primary/10 p-1.5 rounded-md">
-                                <Users className="h-4 w-4 text-primary" />
-                            </div>
-                            <CardTitle className="text-lg sm:text-xl font-semibold">
-                                Team Management
+                            <CardTitle className="text-base font-semibold">
+                                Teams
                             </CardTitle>
-                            <span className="text-xs font-medium text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
+                            <span className="text-sm tabular-nums text-muted-foreground">
                                 {allTeams.length}
                                 {hasMore ? "+" : ""}
                             </span>
                         </div>
                         <CardDescription className="text-sm text-muted-foreground">
-                            View and manage all organization teams and their lifecycle.
+                            The groups people work in here.
                         </CardDescription>
                     </div>
                     <div className="relative w-full sm:w-72 shrink-0">

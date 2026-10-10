@@ -18,7 +18,7 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Check, RefreshCw, Terminal, Sparkles, AlertCircle, Trash2, Search } from "@/lib/icons"
+import { Check, RefreshCw, Terminal, AlertCircle, Trash2, Search } from "@/lib/icons"
 import { SkeletonCards } from "@/components/ui/skeletonCards"
 import { listMarketplace, installTemplate, uninstallTemplate } from "@/services/appService"
 import AppIcon from "@/components/admin/AppIcon"
@@ -116,9 +116,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
     return (
         <div className="flex flex-col">
             <div className="mb-3">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" /> App directory
-                </h3>
+                <h3 className="text-sm font-semibold">App directory</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                     Install in one click. Apps that need a key are flagged so you can finish setup.
                 </p>
@@ -242,7 +240,7 @@ function MarketplaceAppCard({ item, busy, onInstall, onConfigure, onRemove }: {
 
             <div className="flex items-center gap-2 mt-3 pt-2 border-t border-border/50">
                 {!item.installed ? (
-                    <Button
+                    <Button variant="outline"
                         size="sm"
                         className="flex-1 h-8"
                         onClick={onInstall}

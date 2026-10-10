@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Key, ShieldCheck } from "@/lib/icons"
+import { Key } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import {
@@ -226,8 +226,7 @@ export function AgentInventoryCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <ShieldCheck className="h-4 w-4 text-primary" /> Agent inventory
+        <CardTitle className="text-base font-semibold">Agent inventory
         </CardTitle>
         <CardDescription>
           Every agent and credential that can act here, the person each one answers to, and what it did or was

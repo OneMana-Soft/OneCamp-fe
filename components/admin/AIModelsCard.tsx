@@ -26,7 +26,7 @@ import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Sparkles, RefreshCw, Save, Plus, Lightbulb } from "@/lib/icons"
+import { RefreshCw, Save, Plus, Lightbulb } from "@/lib/icons"
 import {
   AIConfig,
   ModelView,
@@ -482,11 +482,8 @@ const AIModelsCard = () => {
     <Card className="w-full border-none shadow-none bg-transparent">
       <CardHeader className="px-0 pt-0 pb-6">
         <div className="flex items-center gap-2 mb-1">
-          <div className="bg-primary/10 p-1.5 rounded-md">
-            <Sparkles className="h-4 w-4 text-primary" />
-          </div>
-          <CardTitle className="text-lg sm:text-xl font-semibold">AI Models</CardTitle>
-          <Badge variant={config.enabled ? "default" : "secondary"} className="ml-2">
+          <CardTitle className="text-base font-semibold">Models</CardTitle>
+          <Badge variant="outline" className="ml-2 text-muted-foreground">
             {config.enabled ? "Enabled" : "Disabled"}
           </Badge>
           {config.circuit_state && config.circuit_state !== "closed" && (
@@ -518,7 +515,7 @@ const AIModelsCard = () => {
         <section className="space-y-6">
           {/* General */}
           <div className="space-y-3">
-            <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-sm font-semibold text-foreground">
               General
             </h3>
             <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
@@ -603,7 +600,7 @@ const AIModelsCard = () => {
 
           {/* Usage & limits */}
           <div className="space-y-3">
-            <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-sm font-semibold text-foreground">
               Usage &amp; limits
             </h3>
             <RateLimitRow
@@ -657,7 +654,7 @@ const AIModelsCard = () => {
 
           {/* Model tuning */}
           <div className="space-y-3">
-            <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="text-sm font-semibold text-foreground">
               Model tuning
             </h3>
             <ContextWindowRow
@@ -1227,7 +1224,7 @@ const RateLimitRow: React.FC<{ initial: number; onSave: (n: number) => Promise<v
           className="w-32"
         />
       </div>
-      <Button
+      <Button variant="outline"
         size="sm"
         disabled={!dirty || busy || value < 1}
         onClick={async () => {
@@ -1276,7 +1273,7 @@ const TokenBudgetRow: React.FC<{
         />
         <p className="text-2xs text-muted-foreground mt-1">{value === 0 ? "Unlimited" : `${value.toLocaleString()} tokens/day`}</p>
       </div>
-      <Button
+      <Button variant="outline"
         size="sm"
         disabled={!dirty || busy || value < 0}
         onClick={async () => {
@@ -1331,7 +1328,7 @@ const ContextWindowRow: React.FC<{
           <p className="text-xs text-destructive mt-1">Use 0 (default) or a value between 2048 and 1000000.</p>
         )}
       </div>
-      <Button
+      <Button variant="outline"
         size="sm"
         disabled={!dirty || busy || invalid}
         onClick={async () => {
@@ -1725,7 +1722,7 @@ const ModelSelectorRow: React.FC<{
 
         {extra}
 
-        <Button size="sm" onClick={onSave} disabled={saving || !providerId || !model}>
+        <Button variant="outline" size="sm" onClick={onSave} disabled={saving || !providerId || !model}>
           <Save className="h-4 w-4 mr-1" /> {saving ? "Saving…" : "Set active"}
         </Button>
       </div>
@@ -1949,7 +1946,7 @@ function WebSearchSection({
       )}
 
       <div className="flex justify-end">
-        <Button size="sm" onClick={save} disabled={saving} className="gap-1.5">
+        <Button variant="outline" size="sm" onClick={save} disabled={saving} className="gap-1.5">
           <Save className="h-3.5 w-3.5" /> Save
         </Button>
       </div>
@@ -2147,7 +2144,7 @@ function SandboxSection({
             </Button>
           )}
         </div>
-        <Button size="sm" onClick={save} disabled={saving} className="gap-1.5">
+        <Button variant="outline" size="sm" onClick={save} disabled={saving} className="gap-1.5">
           <Save className="h-3.5 w-3.5" /> Save
         </Button>
       </div>
@@ -2543,7 +2540,7 @@ function CodePRSection({
             {testing ? "Testing…" : "Test runner"}
           </Button>
         </div>
-        <Button size="sm" onClick={save} disabled={saving || wallInvalid} className="gap-1.5">
+        <Button variant="outline" size="sm" onClick={save} disabled={saving || wallInvalid} className="gap-1.5">
           <Save className="h-3.5 w-3.5" /> Save
         </Button>
       </div>

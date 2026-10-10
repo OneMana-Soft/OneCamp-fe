@@ -157,11 +157,8 @@ const WebhooksCard = () => {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <div className="bg-primary/10 p-1.5 rounded-md">
-                <Webhook className="h-4 w-4 text-primary" />
-              </div>
-              <CardTitle className="text-lg sm:text-xl font-semibold">Webhooks</CardTitle>
-              <span className="text-xs font-medium text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
+              <CardTitle className="text-base font-semibold">Webhooks</CardTitle>
+              <span className="text-sm tabular-nums text-muted-foreground">
                 {webhooks.length}
               </span>
             </div>
@@ -171,7 +168,7 @@ const WebhooksCard = () => {
           </div>
           <Button size="sm" className="h-9 gap-2 shrink-0 self-start" onClick={() => dispatch(openUI({ key: "webhookCreate" }))}>
             <Plus className="h-4 w-4" />
-            <span>Create Webhook</span>
+            <span>New webhook</span>
           </Button>
         </div>
       </CardHeader>
@@ -193,16 +190,14 @@ const WebhooksCard = () => {
         ) : (
           <div className="space-y-4">
             {webhooks.map(webhook => (
-              <div key={webhook.id} className="border border-border/50 rounded-lg bg-card overflow-hidden">
+              <div key={webhook.id} className="overflow-hidden rounded-lg border border-border">
                 <div className="p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className={`p-2 rounded-lg ${webhook.type === "incoming" ? "bg-blue-500/10" : "bg-orange-500/10"}`}>
-                      {webhook.type === "incoming" ? (
-                        <ArrowDownToLine className={`h-4 w-4 ${webhook.is_active ? "text-blue-500" : "text-muted-foreground"}`} />
-                      ) : (
-                        <ArrowUpFromLine className={`h-4 w-4 ${webhook.is_active ? "text-orange-500" : "text-muted-foreground"}`} />
-                      )}
-                    </div>
+                    {/* Which way it points is the information; an arrow in ink
+                        says it without a tinted tile in a hue of its own. */}
+                    <span className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true">
+                      {webhook.type === "incoming" ? <ArrowDownToLine className="h-4 w-4" /> : <ArrowUpFromLine className="h-4 w-4" />}
+                    </span>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-sm truncate">{webhook.name}</h3>

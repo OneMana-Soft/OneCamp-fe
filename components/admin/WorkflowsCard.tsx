@@ -10,7 +10,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
-import { Plus, Trash2, Pencil, Zap, MessageSquare, ListTodo, EyeOff, Shield, Flag, Rocket } from "@/lib/icons";
+import { Plus, Trash2, Pencil, MessageSquare, ListTodo, EyeOff, Shield, Flag, Rocket } from "@/lib/icons";
 import {
     Workflow,
     WorkflowActionType,
@@ -115,9 +115,7 @@ const WorkflowsCard = () => {
         <Card className="border-border/60">
             <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                 <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                        <Zap className="h-5 w-5 text-primary" />
-                        Workflows
+                    <CardTitle className="text-base font-semibold">Workflows
                     </CardTitle>
                     <CardDescription className="max-w-xl">
                         Automate the busywork. When a message matches your rule, OneCamp can
@@ -137,9 +135,6 @@ const WorkflowsCard = () => {
                     </div>
                 ) : workflows.length === 0 ? (
                     <div className="flex flex-col items-center justify-center text-center py-12 px-4 gap-3">
-                        <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-brand/10">
-                            <Zap className="h-6 w-6 text-primary" />
-                        </div>
                         <div className="space-y-1 max-w-sm">
                             <p className="text-sm font-medium">No workflows yet</p>
                             <p className="text-sm text-muted-foreground">
@@ -153,13 +148,13 @@ const WorkflowsCard = () => {
                         </Button>
                     </div>
                 ) : (
-                    <div className="space-y-3">
+                    <div className="divide-y divide-border rounded-lg border border-border">
                         {workflows.map((wf) => {
                             const { keywords, actions } = parseWorkflow(wf);
                             return (
                                 <div
                                     key={wf.id}
-                                    className="flex items-start justify-between gap-4 rounded-xl border border-border/60 p-4 hover:border-border transition-colors"
+                                    className="flex items-start justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted/60"
                                 >
                                     <div className="min-w-0 space-y-2">
                                         <div className="flex items-center gap-2 flex-wrap">
