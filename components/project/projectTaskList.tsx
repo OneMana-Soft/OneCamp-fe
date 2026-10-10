@@ -29,6 +29,10 @@ import { Github, Unlink, X } from "@/lib/icons";
 import { ListChecks } from "lucide-react";
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { SpotSearch, SpotTasks } from "@/components/ui/graphics/spots"
+import { hueFor } from "@/lib/campHue"
 
 
 interface getURLPramInput {
@@ -61,6 +65,10 @@ const getURLPram = ({ sortQuery, searchText, filterQuery, pageSize, pageIndex }:
 
 const EMPTY_SORT_FILTER: sortingAndFilterOptionInterface = { sort: [], filters: [] }
 
+// No list in the store yet: one empty list, made once (a new [] each render
+// never equals the last).
+const NO_TASKS: TaskInfoInterface[] = []
+
 export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: string; projectId: string }) => {
     const router = useRouter()
     const pathname = usePathname()
@@ -84,7 +92,7 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
     const [bulkUnlinking, setBulkUnlinking] = useState(false)
 
     const taskListState =
-        useSelector((state: RootState) => state.taskFilter.projectsTaskList[projectId]) || ([] as TaskInfoInterface[])
+        useSelector((state: RootState) => state.taskFilter.projectsTaskList[projectId]) || NO_TASKS
     const taskFiltersAndSorts =
         useSelector((state: RootState) => state.taskFilter.projectsSortingAndFilter[projectId]) || EMPTY_SORT_FILTER
     const githubBulkLinkOpen = useSelector((state: RootState) => state.ui.githubBulkLinkTask.isOpen)
@@ -313,11 +321,11 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 text-xs gap-1"
+                                className="h-11 text-xs gap-1"
                                 onClick={handleSelectAll}
                             >
                                 <ListChecks className="h-3.5 w-3.5" />
-                                {selectedTaskUUIDs.size === taskListState.length ? "Deselect All" : "Select All"}
+                                {selectedTaskUUIDs.size === taskListState.length ? "Clear selection" : "Select all"}
                             </Button>
                             <Badge variant="secondary" className="text-xs">
                                 {selectedTaskUUIDs.size} selected
@@ -329,7 +337,7 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
                     <Button
                         variant={selectionMode ? "secondary" : "ghost"}
                         size="sm"
-                        className="h-7 text-xs gap-1"
+                        className="h-11 text-xs gap-1"
                         onClick={() => {
                             if (selectionMode) {
                                 handleExitSelectionMode()
@@ -348,6 +356,16 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
             )}
             <Separator className="shrink-0" />
 
+            {/* A project with no tasks said nothing at all on a phone. */}
+            {projectInfo.isError && taskListState.length === 0 ? (
+                <ErrorState subject="this project's tasks" onRetry={() => void projectInfo.mutate()} />
+            ) : !projectInfo.isLoading && projectInfo.data && taskListState.length === 0 && (projectInfo.data.data.project_tasks?.length ?? 0) === 0 ? (
+                searchQuery ? (
+                    <EmptyState illustration={<SpotSearch />} title={`No tasks match “${searchQuery}”.`} />
+                ) : (
+                    <EmptyState illustration={<SpotTasks hue={hueFor(projectId)} />} title="No tasks yet" description="Create one and it shows here." />
+                )
+            ) : (
             <VirtualInfiniteScroll
                 onLoadMore={handleLoadMore}
                 hasMore={(projectInfo.data?.pageCount || 0) > pageIndex}
@@ -356,6 +374,7 @@ export const ProjectTaskList = ({ searchQuery, projectId }: { searchQuery: strin
                 isLoading={projectInfo.isLoading}
                 keyExtractor={handleItemKey}
             />
+            )}
 
             {/* Floating action bar */}
             {selectionMode && selectedTaskUUIDs.size > 0 && (

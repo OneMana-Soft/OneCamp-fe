@@ -56,6 +56,33 @@ export function SectionTabs({
     children,
     className,
 }: SectionTabsProps) {
+    // A row of tabs wider than a phone scrolls sideways. It did so with no
+    // cue ("Attachm" cut at the edge) and a tab chosen by a link could sit out
+    // of sight: the edge with more tabs past it now fades, and the chosen tab
+    // is scrolled into view.
+    const listRef = React.useRef<HTMLDivElement>(null)
+    const [more, setMore] = React.useState<{ start: boolean; end: boolean }>({ start: false, end: false })
+    const measure = React.useCallback(() => {
+        const el = listRef.current
+        if (!el) return
+        const start = el.scrollLeft > 1
+        const end = el.scrollWidth - el.scrollLeft - el.clientWidth > 1
+        setMore((m) => (m.start === start && m.end === end ? m : { start, end }))
+    }, [])
+    React.useEffect(() => {
+        const el = listRef.current
+        if (!el) return
+        measure()
+        if (typeof ResizeObserver === "undefined") return
+        const ro = new ResizeObserver(measure)
+        ro.observe(el)
+        return () => ro.disconnect()
+    }, [measure])
+    React.useEffect(() => {
+        const active = listRef.current?.querySelector<HTMLElement>('[data-state="active"]')
+        active?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+        measure()
+    }, [value, measure])
     return (
         <TabsPrimitive.Root
             value={value}
@@ -71,10 +98,17 @@ export function SectionTabs({
                         </div>
                     )}
                     <TabsPrimitive.List
+                        ref={listRef}
+                        onScroll={measure}
+                        data-more-start={more.start || undefined}
+                        data-more-end={more.end || undefined}
                         className={cn(
                             "flex items-stretch h-full",
                             "overflow-x-auto no-scrollbar",
                             "min-w-0 flex-1",
+                            more.end && !more.start && "[mask-image:linear-gradient(to_right,black_calc(100%-2rem),transparent)]",
+                            more.start && !more.end && "[mask-image:linear-gradient(to_left,black_calc(100%-2rem),transparent)]",
+                            more.start && more.end && "[mask-image:linear-gradient(to_right,transparent,black_2rem,black_calc(100%-2rem),transparent)]",
                         )}
                     >
                         {tabs.map((tab) => (
