@@ -4,48 +4,55 @@ import React, { useEffect, useRef, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSearchParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
-import TeamsCard from "@/components/admin/teamCard"
 import UserCard from "@/components/admin/userCard"
-import AdminCard from "@/components/admin/adminCard"
-import InvitationCard from "@/components/admin/invitationCard"
-import EmailSettingsCard from "@/components/admin/EmailSettingsCard"
-import EmailProviderCard from "@/components/admin/EmailProviderCard"
-import WebhooksCard from "@/components/admin/WebhooksCard"
-import GitHubIntegrationCard from "@/components/admin/GitHubIntegrationCard"
-import OAuthConfigCard from "@/components/admin/OAuthConfigCard"
-import ArchiveCard from "@/components/admin/ArchiveCard"
-import ExternalUsersCard from "@/components/admin/ExternalUsersCard"
-import SlackImportCard from "@/components/admin/SlackImportCard"
-import SlackBridgeCard from "@/components/admin/SlackBridgeCard"
-import ImportCard from "@/components/admin/ImportCard"
-import AIModelsCard from "@/components/admin/AIModelsCard"
-import AgentDelegationCard from "@/components/admin/AgentDelegationCard"
-import ModelRoutingCard from "@/components/admin/ModelRoutingCard"
-import GovernanceDrillCard from "@/components/admin/GovernanceDrillCard"
-import MCPServerCard from "@/components/admin/MCPServerCard"
-import AIActivityCard from "@/components/admin/AIActivityCard"
-import AgentInventoryCard from "@/components/admin/AgentInventoryCard"
 import { SectionJumps } from "@/components/admin/SectionJumps"
-import AppsCard from "@/components/admin/AppsCard"
-import WorkspaceSettingsCard from "@/components/admin/WorkspaceSettingsCard"
-import GuestAccessCard from "@/components/admin/GuestAccessCard"
-import ReadReceiptsPolicyCard from "@/components/admin/ReadReceiptsPolicyCard"
-import DefaultChannelsCard from "@/components/admin/DefaultChannelsCard"
-import ScimProvisioningCard from "@/components/admin/ScimProvisioningCard"
-import PermissionsCard from "@/components/admin/PermissionsCard"
-import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsCard"
-import WorkflowsCard from "@/components/admin/WorkflowsCard"
-import AdminAuditLog from "@/components/admin/AdminAuditLog"
-import RetentionCard from "@/components/admin/RetentionCard"
-import PushNotificationsCard from "@/components/admin/PushNotificationsCard"
-import SystemCheckCard from "@/components/admin/SystemCheckCard"
-import UpdatesCard from "@/components/admin/UpdatesCard"
+import { AdminCardSkeleton } from "@/components/admin/AdminCardSkeleton"
+import dynamic from "next/dynamic"
 import { Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
 import { Users2, Webhook, Archive, UserX, Database, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound, Lock, ScrollText } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { useMedia } from "@/context/MediaQueryContext"
 import { FEATURE_AI, FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
+
+// Every section but Members (where the page opens) loads its cards when it is
+// first opened, or ahead of that when the pointer or focus reaches it in the
+// menu (PRELOAD below). All thirty-six cards used to come with the page, so
+// opening Members fetched 1.1 MB of script for one list (app/adminFirstLoad.test.ts).
+const TeamsCard = dynamic(() => import("@/components/admin/teamCard"), { loading: AdminCardSkeleton })
+const AdminCard = dynamic(() => import("@/components/admin/adminCard"), { loading: AdminCardSkeleton })
+const InvitationCard = dynamic(() => import("@/components/admin/invitationCard"), { loading: AdminCardSkeleton })
+const EmailSettingsCard = dynamic(() => import("@/components/admin/EmailSettingsCard"), { loading: AdminCardSkeleton })
+const EmailProviderCard = dynamic(() => import("@/components/admin/EmailProviderCard"), { loading: AdminCardSkeleton })
+const WebhooksCard = dynamic(() => import("@/components/admin/WebhooksCard"), { loading: AdminCardSkeleton })
+const GitHubIntegrationCard = dynamic(() => import("@/components/admin/GitHubIntegrationCard"), { loading: AdminCardSkeleton })
+const OAuthConfigCard = dynamic(() => import("@/components/admin/OAuthConfigCard"), { loading: AdminCardSkeleton })
+const ArchiveCard = dynamic(() => import("@/components/admin/ArchiveCard"), { loading: AdminCardSkeleton })
+const ExternalUsersCard = dynamic(() => import("@/components/admin/ExternalUsersCard"), { loading: AdminCardSkeleton })
+const SlackImportCard = dynamic(() => import("@/components/admin/SlackImportCard"), { loading: AdminCardSkeleton })
+const SlackBridgeCard = dynamic(() => import("@/components/admin/SlackBridgeCard"), { loading: AdminCardSkeleton })
+const ImportCard = dynamic(() => import("@/components/admin/ImportCard"), { loading: AdminCardSkeleton })
+const AIModelsCard = dynamic(() => import("@/components/admin/AIModelsCard"), { loading: AdminCardSkeleton })
+const AgentDelegationCard = dynamic(() => import("@/components/admin/AgentDelegationCard"), { loading: AdminCardSkeleton })
+const ModelRoutingCard = dynamic(() => import("@/components/admin/ModelRoutingCard"), { loading: AdminCardSkeleton })
+const GovernanceDrillCard = dynamic(() => import("@/components/admin/GovernanceDrillCard"), { loading: AdminCardSkeleton })
+const MCPServerCard = dynamic(() => import("@/components/admin/MCPServerCard"), { loading: AdminCardSkeleton })
+const AIActivityCard = dynamic(() => import("@/components/admin/AIActivityCard"), { loading: AdminCardSkeleton })
+const AgentInventoryCard = dynamic(() => import("@/components/admin/AgentInventoryCard"), { loading: AdminCardSkeleton })
+const AppsCard = dynamic(() => import("@/components/admin/AppsCard"), { loading: AdminCardSkeleton })
+const WorkspaceSettingsCard = dynamic(() => import("@/components/admin/WorkspaceSettingsCard"), { loading: AdminCardSkeleton })
+const GuestAccessCard = dynamic(() => import("@/components/admin/GuestAccessCard"), { loading: AdminCardSkeleton })
+const ReadReceiptsPolicyCard = dynamic(() => import("@/components/admin/ReadReceiptsPolicyCard"), { loading: AdminCardSkeleton })
+const DefaultChannelsCard = dynamic(() => import("@/components/admin/DefaultChannelsCard"), { loading: AdminCardSkeleton })
+const ScimProvisioningCard = dynamic(() => import("@/components/admin/ScimProvisioningCard"), { loading: AdminCardSkeleton })
+const PermissionsCard = dynamic(() => import("@/components/admin/PermissionsCard"), { loading: AdminCardSkeleton })
+const TranscriptionSettingsCard = dynamic(() => import("@/components/admin/TranscriptionSettingsCard"), { loading: AdminCardSkeleton })
+const WorkflowsCard = dynamic(() => import("@/components/admin/WorkflowsCard"), { loading: AdminCardSkeleton })
+const AdminAuditLog = dynamic(() => import("@/components/admin/AdminAuditLog"), { loading: AdminCardSkeleton })
+const RetentionCard = dynamic(() => import("@/components/admin/RetentionCard"), { loading: AdminCardSkeleton })
+const PushNotificationsCard = dynamic(() => import("@/components/admin/PushNotificationsCard"), { loading: AdminCardSkeleton })
+const SystemCheckCard = dynamic(() => import("@/components/admin/SystemCheckCard"), { loading: AdminCardSkeleton })
+const UpdatesCard = dynamic(() => import("@/components/admin/UpdatesCard"), { loading: AdminCardSkeleton })
 
 /**
  * Vertical rhythm between top-level cards on a tab that holds more than one.
@@ -121,6 +128,54 @@ const TAB_GROUPS: TabGroup[] = [
 ]
 
 const TABS: TabDef[] = TAB_GROUPS.flatMap((g) => g.tabs)
+
+// A section's code, fetched ahead: when the pointer or focus reaches it in the
+// menu, so by the time it is opened its cards are usually here. The same
+// modules as the dynamic() calls above, which the bundler loads once.
+const PRELOAD: Record<string, () => Promise<unknown>[]> = {
+  admins: () => [import("@/components/admin/adminCard")],
+  teams: () => [import("@/components/admin/teamCard")],
+  invitations: () => [import("@/components/admin/invitationCard")],
+  "external-users": () => [import("@/components/admin/ExternalUsersCard")],
+  settings: () => [
+    import("@/components/admin/WorkspaceSettingsCard"),
+    import("@/components/admin/DefaultChannelsCard"),
+    import("@/components/admin/ReadReceiptsPolicyCard"),
+    import("@/components/admin/PushNotificationsCard"),
+  ],
+  security: () => [import("@/components/admin/GuestAccessCard"), import("@/components/admin/ScimProvisioningCard")],
+  permissions: () => [import("@/components/admin/PermissionsCard")],
+  "email-settings": () => [import("@/components/admin/EmailProviderCard"), import("@/components/admin/EmailSettingsCard")],
+  audit: () => [import("@/components/admin/AdminAuditLog"), import("@/components/admin/RetentionCard")],
+  archive: () => [import("@/components/admin/ArchiveCard")],
+  import: () => [import("@/components/admin/SlackImportCard"), import("@/components/admin/ImportCard")],
+  "ai-models": () => [
+    import("@/components/admin/AIModelsCard"),
+    import("@/components/admin/ModelRoutingCard"),
+    import("@/components/admin/AgentInventoryCard"),
+    import("@/components/admin/AgentDelegationCard"),
+    import("@/components/admin/GovernanceDrillCard"),
+    import("@/components/admin/MCPServerCard"),
+    import("@/components/admin/AIActivityCard"),
+  ],
+  workflows: () => [import("@/components/admin/WorkflowsCard")],
+  transcription: () => [import("@/components/admin/TranscriptionSettingsCard")],
+  integrations: () => [
+    import("@/components/admin/SlackBridgeCard"),
+    import("@/components/admin/GitHubIntegrationCard"),
+    import("@/components/admin/OAuthConfigCard"),
+  ],
+  apps: () => [import("@/components/admin/AppsCard")],
+  webhooks: () => [import("@/components/admin/WebhooksCard")],
+  health: () => [import("@/components/admin/UpdatesCard"), import("@/components/admin/SystemCheckCard")],
+}
+
+const preloaded = new Set<string>()
+function preloadSection(value: string) {
+  if (preloaded.has(value)) return
+  preloaded.add(value)
+  for (const p of PRELOAD[value]?.() ?? []) p.catch(() => preloaded.delete(value))
+}
 
 // The cards of AI & agents, in page order, for its jump row.
 const AI_JUMPS = [
@@ -285,6 +340,8 @@ const AdminPage = () => {
                         <TabsTrigger
                           key={value}
                           value={value}
+                          onPointerEnter={() => preloadSection(value)}
+                          onFocus={() => preloadSection(value)}
                           className={cn(
                             "justify-start gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium",
                             "text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors",
