@@ -18,6 +18,8 @@ import { LayoutDashboard, Plus, Loader2, Lock, Users, Search } from "@/lib/icons
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/pageHeader";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SpotSearch, SpotWelcome } from "@/components/ui/graphics";
 import { hueFor } from "@/lib/campHue";
 import { HUE_CLASS } from "@/components/ui/graphics/hues";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -88,21 +90,26 @@ function BoardsPage() {
         <ErrorState subject="your boards" onRetry={() => void mutate()} />
       ) : showEmpty ? (
         debouncedSearch ? (
-          <div className="py-16 text-center text-sm text-muted-foreground">
-            No boards match &ldquo;{debouncedSearch}&rdquo;.
-          </div>
+          <EmptyState
+            illustration={<SpotSearch />}
+            title={`No boards match \u201c${debouncedSearch}\u201d.`}
+          />
         ) : (
-          // One sentence and one action. The dashed drop-zone box with an icon
-          // in a circle was a second "New board" button dressed as a picture.
-          <div className="rounded-lg border border-border/60 px-6 py-12">
-            <p className="text-sm font-medium text-foreground">No boards yet</p>
-            <p className="mt-1 max-w-sm text-sm text-muted-foreground text-pretty">
-              A board is a blank canvas for sketches, flows and screens your team draws on together.
-            </p>
-            <Button variant="outline" size="sm" className="mt-4" onClick={createBoard} disabled={isSubmitting}>
-              Create a board
-            </Button>
-          </div>
+          // One sentence and one action, under a small drawing of a board's
+          // people and ideas round a ring. The dashed drop-zone box with an
+          // icon in a circle was a second "New board" button dressed as a picture.
+          <EmptyState
+            tone="accent"
+            illustration={<SpotWelcome hue="dusk" />}
+            title="No boards yet"
+            description="A board is a blank canvas for sketches, flows and screens your team draws on together."
+            className="rounded-lg border border-border/60"
+            action={
+              <Button variant="outline" size="sm" onClick={createBoard} disabled={isSubmitting}>
+                Create a board
+              </Button>
+            }
+          />
         )
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
