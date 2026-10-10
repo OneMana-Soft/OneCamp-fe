@@ -86,7 +86,7 @@ export function ProjectUpdates({ projectId }: { projectId: string }) {
             {[0, 1].map((i) => (
               <div key={i} aria-hidden="true" className="rounded-xl border border-border/60 p-4">
                 <div className="mb-3 flex items-center gap-3">
-                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-5 w-20 rounded-sm" />
                   <Skeleton className="h-3 w-40" />
                 </div>
                 <Skeleton className="h-3.5 w-11/12" />

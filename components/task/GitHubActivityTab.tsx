@@ -100,7 +100,7 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
       <div role="status" aria-label="Loading GitHub activity" className="flex flex-col gap-3">
         {[0, 1, 2].map((i) => (
           <div key={i} aria-hidden="true" className="flex items-start gap-3 p-2">
-            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-4 w-4 rounded-sm" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-3.5 w-1/2" />
               <Skeleton className="h-3 w-3/4" />
