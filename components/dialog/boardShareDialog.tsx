@@ -114,7 +114,7 @@ export function BoardShareDialog({ dialogOpenState, setOpenState, boardId }: Boa
 
   return (
     <Dialog open={dialogOpenState} onOpenChange={(open) => !open && setOpenState()}>
-      <DialogContent className="sm:max-w-md gap-0 p-0 overflow-hidden bg-background border-border">
+      <DialogContent className="sm:max-w-md grid-cols-[minmax(0,1fr)] gap-0 p-0 overflow-hidden bg-background border-border">
         <DialogHeader className="p-6 pb-4 text-start">
           <DialogTitle className="text-base font-semibold">Share board</DialogTitle>
           <DialogDescription className="text-muted-foreground mt-1">
@@ -146,10 +146,10 @@ export function BoardShareDialog({ dialogOpenState, setOpenState, boardId }: Boa
 
           <div className="flex flex-col gap-3 pt-4 border-t border-border">
             <Label className={eyebrowClass}>General access</Label>
-            <div className="flex items-center justify-between group">
-              <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center justify-between group">
+              <div className="flex min-w-0 items-center gap-3">
                 <GeneralAccessMark restricted={!!permissions?.board_private} />
-                <div className="flex flex-col">
+                <div className="flex min-w-0 flex-col">
                   <Select value={generalAccessValue} onValueChange={handlePrivacyChange} disabled={isUpdating || !isOwner}>
                     <SelectTrigger dense className="h-auto p-0 border-none shadow-none focus:ring-0 text-sm font-medium hover:text-foreground transition-colors justify-start gap-1 w-auto">
                       <SelectValue />

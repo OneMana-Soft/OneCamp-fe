@@ -91,7 +91,9 @@ export default function BoardTools({ api, editable, boardId }: BoardToolsProps) 
     <>
       {/* Right, under Library: the left side is where Excalidraw opens its
           style panel whenever something is selected. */}
-      <div className="pointer-events-none absolute right-3 top-16 z-20 flex flex-col items-end gap-2">
+      {/* On a phone, low on the left: Excalidraw keeps a column of its own
+          buttons on the right there, under its tool row. */}
+      <div className="pointer-events-none absolute right-3 top-16 z-20 flex flex-col items-end gap-2 max-sm:bottom-[4.5rem] max-sm:left-3 max-sm:right-auto max-sm:top-auto max-sm:items-start" data-board-tools="">
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
           <PopoverTrigger asChild>
             <Button variant="secondary" size="sm" className="pointer-events-auto h-8 gap-1.5 shadow-overlay" title="Start from a template">

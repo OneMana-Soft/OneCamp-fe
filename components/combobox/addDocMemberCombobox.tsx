@@ -66,25 +66,25 @@ const AddDocMemberCombobox: React.FC<AddDocMemberComboboxProps> = ({ docId, hand
 
     return (
         <div className="flex flex-col gap-2">
-            <div className="flex gap-x-3 items-center">
+            <div className="flex min-w-0 items-center gap-x-2">
                 <Popover open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild>
                         <Button
                             variant="outline"
                             role="combobox"
                             aria-expanded={open}
-                            className="w-[180px] justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150"
+                            className="min-w-0 flex-1 justify-between font-normal h-10 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150"
                             size="sm"
                         >
                             <span className="truncate text-sm font-medium">
                                 {selectedUser
                                     ? displayNameOf(selectedUser)
-                                    : "Search members…"}
+                                    : "Add people"}
                             </span>
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
                         </Button>
                     </PopoverTrigger>
-                    <PopoverContent portalled={false} className="w-[240px] p-0 shadow-xl border-border/50">
+                    <PopoverContent portalled={false} className="w-[240px] p-0 border-border/50">
                         <Command shouldFilter={false}>
                             <CommandInput
                                 placeholder="Search user…"
@@ -123,7 +123,7 @@ const AddDocMemberCombobox: React.FC<AddDocMemberComboboxProps> = ({ docId, hand
                 </Popover>
 
                 <Select value={selectedRole} onValueChange={(v: Role) => setSelectedRole(v)}>
-                    <SelectTrigger dense className="w-[110px] bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150 h-10">
+                    <SelectTrigger dense className="w-[104px] shrink-0 bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150 h-10">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
