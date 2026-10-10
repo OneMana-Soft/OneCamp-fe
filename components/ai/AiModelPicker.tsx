@@ -60,12 +60,14 @@ const AiModelPicker: React.FC = () => {
   return (
     <Select value={selected} onValueChange={handleChange} disabled={saving}>
       <SelectTrigger dense
-        className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs text-muted-foreground hover:text-foreground focus:ring-0"
+        // A visible ring on keyboard focus (it had none: focus:ring-0).
+        className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:text-foreground focus:ring-0 focus-visible:ring-2 focus-visible:ring-ring/70"
         aria-label="AI model"
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent align="end">
+      {/* It sits at the box's left edge now, so its list opens from there. */}
+      <SelectContent align="start">
         <SelectItem value={DEFAULT_VALUE} className="text-xs">
           Workspace default
         </SelectItem>

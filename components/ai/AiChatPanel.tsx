@@ -39,6 +39,21 @@ import { getOtherUserId } from "@/lib/utils/getOtherUserId";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { withAI } from "@/components/common/withFeature"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { hueFor } from "@/lib/campHue"
+
+/**
+ * OneCamp AI's mark: a dusk tile, the AI pages' hue (lib/destinationHue). It was
+ * the accent at 10%, and orange is for the one action a view asks for.
+ */
+function AiMark({ className }: { className?: string }) {
+    return (
+        <Tile hue="dusk" size="sm" className={className}>
+            <Sparkles strokeWidth={1.75} />
+        </Tile>
+    );
+}
 
 // --- Client-side AI text sanitization ---
 // Defense-in-depth: strip tool_call XML, UUIDs, and command syntax before display.
@@ -241,7 +256,9 @@ const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; o
 
     return (
         <div className="mt-2.5 pt-2.5 border-t border-border/70 min-w-0">
-            <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground/70 mb-1.5">
+            {/* A label in sentence case at full muted ink; it was an
+                uppercase eyebrow at 70%, and its icons were the accent. */}
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
                 Sources
             </p>
             <div className="flex flex-col gap-1 min-w-0">
@@ -255,7 +272,7 @@ const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; o
                             title={preview || undefined}
                             className="group/src flex items-center gap-2 text-left rounded-md px-1.5 py-1 -mx-1.5 hover:bg-background/60 transition-colors min-w-0"
                         >
-                            <span className="inline-flex items-center justify-center h-4 w-4 shrink-0 text-primary/70">
+                            <span className="inline-flex items-center justify-center h-4 w-4 shrink-0 text-muted-foreground">
                                 <FileText size={12} />
                             </span>
                             <span className="text-2xs font-medium text-foreground/80 shrink-0">
@@ -267,13 +284,13 @@ const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; o
                                 </span>
                             )}
                             {preview && (
-                                <span className="text-2xs text-muted-foreground/80 truncate min-w-0">
+                                <span className="text-2xs text-muted-foreground truncate min-w-0">
                                     {preview}
                                 </span>
                             )}
                             <ArrowUpRight
                                 size={11}
-                                className="ml-auto shrink-0 text-muted-foreground/0 group-hover/src:text-muted-foreground/60 transition-colors"
+                                className="ml-auto shrink-0 text-transparent group-hover/src:text-muted-foreground transition-colors"
                             />
                         </button>
                     );
@@ -285,7 +302,13 @@ const SourceList: React.FC<{ sources: SourceDisplay[]; currentUserId?: string; o
 
 // --- Component ---
 
-const AiChatPanel: React.FC = () => {
+/**
+ * `panel`: the right panel beside a page. `page`: /app/ai, where the panel is the
+ * whole page: there is nothing to close on a computer, the conversation and the
+ * box keep a reading width instead of running 1,100px wide, and on a phone the
+ * top bar already names it, so the panel's header carries only its tools.
+ */
+const AiChatPanel: React.FC<{ variant?: "panel" | "page" }> = ({ variant = "panel" }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const { toast } = useToast();
@@ -536,19 +559,31 @@ const AiChatPanel: React.FC = () => {
         el.style.height = Math.min(el.scrollHeight, 120) + "px";
     }, [input]);
 
+    const isPage = variant === "page";
+    // The page's reading column: a conversation 1,100px wide is hard to read,
+    // and its box ran the full width under a 320px column of suggestions.
+    const column = isPage && !isMobile ? "mx-auto w-full max-w-3xl" : "";
+    // Your words in your own colour, as everywhere you appear; the answer on
+    // the neutral card. They were the accent, which marks the one action.
+    const youHue = HUE_CLASS[hueFor(currentUserId)];
+
     return (
-        <div className="flex flex-col h-full bg-background border-l border-border">
-            {/* Header — uses bg-card to match the rest of the right panel chrome */}
-            <div className="flex items-center justify-between px-3 h-12 border-b border-border/60 bg-card/40 shrink-0">
-                <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-primary/10 text-primary">
-                        <Sparkles className="h-3.5 w-3.5" />
-                    </span>
-                    <span className="text-sm font-semibold text-foreground">OneCamp AI</span>
-                    <AiUsageIndicator refreshSignal={messages.length} />
-                </div>
-                <div className="flex items-center gap-0.5">
-                    <AiModelPicker />
+        <div className={cn("flex flex-col h-full bg-background", !isPage && "border-l border-border")}>
+            {/* One 48px row: the mark and the name, then the tools on the
+                title's centre line. The model and today's usage moved to the
+                box's footer: here they wrapped the name onto two lines and
+                pushed the last tool out of a 380px panel and a phone. */}
+            <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/60 bg-card/40 px-3">
+                {isPage && isMobile ? (
+                    // The phone's top bar names the page; the tools sit right.
+                    <span className="flex-1" />
+                ) : (
+                    <>
+                        <AiMark />
+                        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">OneCamp AI</h2>
+                    </>
+                )}
+                <div className="flex shrink-0 items-center gap-0.5">
                     <Button
                         variant="ghost"
                         size="icon"
@@ -559,8 +594,6 @@ const AiChatPanel: React.FC = () => {
                     >
                         <MessageSquarePlus className="h-4 w-4" />
                     </Button>
-                    {/* Secondary tools tucked into an overflow menu to keep the
-                        top bar clean (Notion-style). */}
                     {/* Past conversations. Sits beside the tools menu rather than
                         inside it, because reopening yesterday's thread is a
                         top-level thing somebody does, not a tool. */}
@@ -588,7 +621,7 @@ const AiChatPanel: React.FC = () => {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => router.push("/app/ai/memory")}>
                                 <Lightbulb className="h-4 w-4" />
-                                Workspace Memory
+                                Workspace memory
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setScheduleOpen(true)}>
                                 <CalendarClock className="h-4 w-4" />
@@ -604,16 +637,21 @@ const AiChatPanel: React.FC = () => {
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={handleClose}
-                        title="Close"
-                        aria-label="Close panel"
-                    >
-                        <X className="h-4 w-4" />
-                    </Button>
+                    {/* Closing means something in the side panel, and on a phone
+                        (back). On the computer's page it closed nothing: the
+                        panel state it cleared was not what drew the page. */}
+                    {!(isPage && !isMobile) && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            onClick={handleClose}
+                            title="Close"
+                            aria-label="Close panel"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -622,17 +660,18 @@ const AiChatPanel: React.FC = () => {
                 ref={scrollContainerRef}
                 className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 custom-scrollbar"
             >
-                <div className="flex flex-col gap-4 min-w-0">
+                <div className={cn("flex flex-col gap-4 min-w-0", column)}>
                 {messages.length === 0 && !isStreaming && (
                     <div className="flex flex-col items-center justify-center flex-1 text-center p-6 gap-3">
-                        <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary">
-                            <Sparkles size={24} />
-                        </div>
-                        <h3 className="text-lg font-medium text-foreground m-0">OneCamp AI</h3>
+                        <Tile hue="dusk" size="lg"><Sparkles strokeWidth={1.75} /></Tile>
+                        {/* Not the name again: the header right above says it. */}
+                        <h3 className="text-base font-medium text-foreground m-0">Ask about your workspace</h3>
                         <p className="text-sm text-muted-foreground max-w-[280px] leading-normal m-0">
-                            Ask anything about your workspace: channels, tasks, docs, and more.
+                            It answers from the channels, docs and tasks you can open.
                         </p>
-                        <p className="text-2xs text-muted-foreground/60 m-0 inline-flex items-center gap-1">
+                        {/* Full muted ink: at 60% it was under 3:1 at 11px. A
+                            keyboard tip, so not on a touch screen. */}
+                        <p className="text-2xs text-muted-foreground m-0 inline-flex items-center gap-1 [@media(pointer:coarse)]:hidden">
                             Tip: press
                             <kbd className="inline-flex items-center rounded border border-border/60 bg-muted px-1.5 py-0.5 font-mono text-2xs">
                                 Ctrl J
@@ -644,7 +683,7 @@ const AiChatPanel: React.FC = () => {
                                 <Button
                                     key={suggestion}
                                     variant="outline"
-                                    className="h-auto px-3.5 py-2.5 bg-card text-foreground text-xs text-left transition duration-150 leading-[1.4] hover:border-primary hover:bg-primary/5 whitespace-normal justify-start"
+                                    className="h-auto px-3.5 py-2.5 bg-card text-foreground text-sm font-normal text-left transition-colors duration-150 leading-snug hover:bg-highlight whitespace-normal justify-start"
                                     /* Ask it. Filling the box and stopping there
                                        made every suggestion a two-step
                                        instruction nobody asked for. */
@@ -666,14 +705,12 @@ const AiChatPanel: React.FC = () => {
                         className={cn("flex gap-2 min-w-0 animate-msg-fade-in", msg.role === "user" && "justify-end")}
                     >
                         {msg.role === "assistant" && (
-                            <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                                <Sparkles size={14} />
-                            </div>
+                            <AiMark className="mt-0.5" />
                         )}
                         <div className={cn(
                             "min-w-0 px-3.5 py-2.5 rounded-xl text-sm leading-relaxed relative",
                             msg.role === "user"
-                                ? "max-w-[85%] bg-primary text-primary-foreground rounded-br-sm shadow-sm"
+                                ? cn("max-w-[85%] rounded-br-sm bg-hue-tint text-hue-ink", youHue)
                                 : "max-w-[92%] bg-muted text-foreground border border-border rounded-bl-sm"
                         )}>
                             {msg.role === "assistant" ? (
@@ -744,9 +781,7 @@ const AiChatPanel: React.FC = () => {
                 {/* An answer being written on the server for a question asked before this screen was opened */}
                 {awaitingAnswer && !isStreaming && (
                     <div className="flex gap-2 min-w-0 animate-msg-fade-in" role="status" aria-live="polite">
-                        <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                            <Sparkles size={14} />
-                        </div>
+                        <AiMark className="mt-0.5" />
                         <div className="min-w-0 max-w-[92%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed bg-muted text-muted-foreground border border-border rounded-bl-sm">
                             <div className="flex items-center gap-2 py-1">
                                 <Loader2 size={14} className="animate-spin" />
@@ -759,9 +794,7 @@ const AiChatPanel: React.FC = () => {
                 {/* Streaming in progress */}
                 {isStreaming && (
                     <div className="flex gap-2 min-w-0 animate-msg-fade-in">
-                        <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                            <Sparkles size={14} />
-                        </div>
+                        <AiMark className="mt-0.5" />
                         <div className="min-w-0 max-w-[92%] px-3.5 py-2.5 rounded-xl text-sm leading-relaxed bg-muted text-foreground border border-border rounded-bl-sm">
                             {sanitizedStreamText.length === 0 ? (
                                 <div className="flex items-center gap-2 py-1 text-muted-foreground text-sm">
@@ -771,7 +804,7 @@ const AiChatPanel: React.FC = () => {
                             ) : (
                                 <div className="min-w-0">
                                     <MarkdownMessage content={sanitizedStreamText} />
-                                    <span className="inline-block animate-blink text-primary text-xs ml-[1px] align-text-bottom">
+                                    <span className="inline-block animate-blink text-muted-foreground text-xs ml-[1px] align-text-bottom">
                                         ▊
                                     </span>
                                 </div>
@@ -788,7 +821,9 @@ const AiChatPanel: React.FC = () => {
                 </div>
             </div>
 
-            {/* Input composer */}            <div className="px-3 py-3 border-t border-border/60 bg-background shrink-0">
+            {/* Input composer */}
+            <div className="px-3 py-3 border-t border-border/60 bg-background shrink-0">
+              <div className={cn("@container", column)}>
                 <div
                     className={cn(
                         "flex items-end gap-1.5 rounded-xl border bg-card",
@@ -874,14 +909,24 @@ const AiChatPanel: React.FC = () => {
                         </Button>
                     )}
                 </div>
-                {/* The keyboard hint is for someone who hasn't typed yet. Once they
-                    have, it is a permanent line of chrome telling them something
-                    they just did — so it disappears. */}
-                {!input.trim() && (
-                    <p className="mt-1.5 px-1 text-2xs leading-tight text-muted-foreground/70">
-                        Enter to send, Shift+Enter for a new line.
-                    </p>
-                )}
+                {/* Under the box: the model the answer runs on and today's usage,
+                    which crowded the header off its row, held in a row of their
+                    own so neither moves the box when it loads. The keyboard hint
+                    is for someone who hasn't typed yet, where there is room for
+                    it (the page, not the 380px panel), and never on a touch
+                    screen, which has no Shift+Enter. */}
+                <div className="mt-1.5 flex min-h-7 items-center gap-2 px-1">
+                    <AiModelPicker />
+                    {!input.trim() && (
+                        <p className="hidden min-w-0 truncate text-2xs leading-tight text-muted-foreground @lg:block [@media(pointer:coarse)]:hidden">
+                            Enter to send, Shift+Enter for a new line.
+                        </p>
+                    )}
+                    <span className="ml-auto shrink-0">
+                        <AiUsageIndicator refreshSignal={messages.length} />
+                    </span>
+                </div>
+              </div>
             </div>
 
             <ReleaseNotesDialog
