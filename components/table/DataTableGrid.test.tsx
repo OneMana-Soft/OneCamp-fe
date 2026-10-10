@@ -143,3 +143,21 @@ describe("ticking a box in the grid", () => {
     expect(box.className).not.toMatch(/animate-spring/)
   })
 })
+
+describe("a grid with no rows to show", () => {
+  it("says so under the column names, and keeps New row right below", () => {
+    render(
+      <DataTableGrid tableId="t" fields={fields} rows={[]} canManage onChange={() => {}} empty={<p>No rows yet</p>} />,
+    )
+    expect(screen.getByRole("columnheader", { name: /Item/ })).toBeTruthy()
+    const note = screen.getByText("No rows yet")
+    const add = screen.getByRole("button", { name: /New row/ })
+    expect(note.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("shows nothing extra once there are rows", () => {
+    render(<DataTableGrid tableId="t" fields={fields} rows={rowsOf(2)} canManage onChange={() => {}} empty={<p>No rows yet</p>} />)
+    expect(screen.queryByText("No rows yet")).toBeNull()
+  })
+})
+
