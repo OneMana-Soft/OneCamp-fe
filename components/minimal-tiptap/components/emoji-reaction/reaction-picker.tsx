@@ -32,7 +32,9 @@ const EmojiReactionPicker = ({ editor, size, variant }: EmojiReactionPickerProps
                 size={size}
                 variant={variant}
             >
-                <Smile className="size-5" />
+                {/* 16px with the toolbar's stroke, as its neighbours: at 20px it made
+                    this one button 36px wide in a row of 32px ones. */}
+                <Smile className="size-4" strokeWidth={1.75} />
             </ToolbarButton>
 
         </ReactionPicker>

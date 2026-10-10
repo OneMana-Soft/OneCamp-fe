@@ -96,6 +96,13 @@ interface MinimalTiptapProps
   hasAttachments?: boolean
 }
 
+// The composer's buttons on a touch screen: 40px, from the 32px they are under a
+// mouse. A thumb hit the neighbour of what it meant at 32px with 6px between.
+// The formatting row and the actions row both carry it, so the toolbar
+// buttons, the emoji button and every action (AI, attach, clip, send later,
+// send) grow together, whoever draws them.
+export const COMPOSER_ROW_TOUCH = "pointer-coarse:[&_button]:size-10"
+
 const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ["italic", "bold", "code", "strikethrough"];
 const SECTION_4_ACTIONS: ("orderedList" | "bulletList")[] = ["bulletList", "orderedList"];
 const SECTION_5_ACTIONS: ("codeBlock" | "blockquote" | "horizontalRule")[] = ["blockquote", "codeBlock", "horizontalRule"];
@@ -116,7 +123,12 @@ const Toolbar = React.memo(function Toolbar({ editor, toggledTextEditor, setTogg
   const expanded = !collapsible || toggledTextEditor
 
   return (
-      <div className="shrink-0 overflow-x-auto p-1 pb-0 pl-0">
+      // The row's flexible part: it scrolls sideways rather than pushing the
+      // actions off the box. It was shrink-0, so on a phone the opened
+      // formatting row pushed Send past the edge, where Enter is a new line and
+      // there was no way left to send. Even padding above and below keeps its
+      // buttons on the actions' centre line (they sat 2px lower).
+      <div className={cn("min-w-0 flex-1 overflow-x-auto py-1 pr-1", COMPOSER_ROW_TOUCH)}>
         <div className="flex w-max items-center gap-px">
           {collapsible && (
               <ToolbarButton
@@ -136,23 +148,29 @@ const Toolbar = React.memo(function Toolbar({ editor, toggledTextEditor, setTogg
                     editor={editor}
                     activeActions={SECTION_2_ACTIONS}
                     mainActionCount={4}
+                    size="sm"
                 />
                 <Separator orientation="vertical" className="mx-1.5 h-4"/>
                 <SectionFour
                     editor={editor}
                     activeActions={SECTION_4_ACTIONS}
                     mainActionCount={2}
+                    size="sm"
                 />
                 {isDesktop && <><Separator orientation="vertical" className="mx-1.5 h-4"/>
                 <SectionFive
                     editor={editor}
                     activeActions={SECTION_5_ACTIONS}
                     mainActionCount={3}
+                    size="sm"
                 /></>}
                 <Separator orientation="vertical" className="mx-1.5 h-4"/>
               </>
           )}
-          <EmojiReactionPicker editor={editor} />
+          {/* size="sm" on every button of the row: a section given no size
+              fell back to the toggle's default (min-w-9), so they were 36px
+              wide beside the 32px Formatting button. */}
+          <EmojiReactionPicker editor={editor} size="sm" />
         </div>
       </div>
   )
@@ -204,7 +222,7 @@ const ComposerActions = React.memo(function ComposerActions({
   nothingToSend,
 }: ComposerActionsProps) {
   return (
-    <div className="flex items-center gap-1.5 pr-1">
+    <div className={cn("flex shrink-0 items-center gap-1.5 pr-1", COMPOSER_ROW_TOUCH)}>
         {aiSlot}
         {attachmentOnclick && (
             <Tooltip>

@@ -51,7 +51,11 @@ export function SchedulePicker({
         <label className="px-1 text-xs text-muted-foreground" htmlFor={inputId}>
           Custom time
         </label>
-        <div className="mt-1 flex gap-1.5">
+        {/* The field on its own line and the action under it. Side by side,
+            the browser's date and time field (about 220px with its picker
+            button, and it does not shrink) pushed the button 60px out of the
+            popover, and off the screen on a phone. */}
+        <div data-schedule-custom="" className="mt-1 flex flex-col gap-1.5">
           <input
             id={inputId}
             type="datetime-local"
@@ -59,9 +63,9 @@ export function SchedulePicker({
             min={toLocalInputValue(now)}
             max={maxMs === undefined ? undefined : toLocalInputValue(new Date(now.getTime() + maxMs))}
             onChange={(e) => setCustom(e.target.value)}
-            className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm"
+            className="h-8 w-full min-w-0 rounded-md border bg-background px-2 text-sm"
           />
-          <Button size="sm" className="h-8" disabled={!customOk || busy} onClick={() => customAt && onPick(customAt)}>
+          <Button size="sm" className="h-8 self-end" disabled={!customOk || busy} onClick={() => customAt && onPick(customAt)}>
             {actionLabel}
           </Button>
         </div>
@@ -81,7 +85,7 @@ export function ScheduleSendButton({ onPick }: { onPick: (at: Date) => Promise<v
           variant="ghost"
           aria-label="Schedule message"
           title="Schedule message"
-          className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
         >
           <CalendarClock className="h-4 w-4" />
         </Button>
