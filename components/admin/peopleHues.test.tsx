@@ -17,11 +17,13 @@ vi.mock("@/hooks/useClientConfig", () => ({ useClientConfig: () => ({ email_enab
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => ({ data: { data: [] }, mutate: async () => undefined }) }))
 vi.mock("@/services/invitationService", () => ({ invite: vi.fn() }))
 vi.mock("@/hooks/useCopyToClipboard", () => ({ useCopyToClipboard: () => ({ copy: vi.fn() }) }))
+vi.mock("@/components/member/teamMemberContent", () => ({ TeamMemberContent: () => null }))
 
 const { AdminAdminList } = await import("./AdminAdminList")
 const { AdminInvitationList } = await import("./AdminInvitationList")
 const { AddAdminDialog } = await import("./AddAdminDialog")
 const { AddInvitationDialog } = await import("./AddInvitationDialog")
+const { default: AdminTeamMembersDialog } = await import("@/components/dialog/adminTeamMembersDialog")
 
 afterEach(cleanup)
 
@@ -66,5 +68,11 @@ describe("the people group's hue", () => {
     const title = document.querySelector("[role='dialog'] h2")!
     expect(title.querySelector(".hue-sky svg")).toBeTruthy()
     expect(title.querySelector(".text-primary")).toBeNull()
+  })
+
+  it("puts the team members dialog's title icon on a sky tile", () => {
+    render(<AdminTeamMembersDialog isOpen onOpenChange={vi.fn()} teamId="t1" teamName="Design" />)
+    const title = document.querySelector("[role='dialog'] h2")!
+    expect(title.querySelector(".hue-sky svg")).toBeTruthy()
   })
 })

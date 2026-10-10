@@ -1,15 +1,19 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useDispatch, useSelector } from "react-redux"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { openUI } from "@/store/slice/uiSlice"
+import type { RootState } from "@/store/store"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { TeamDeleteOrUndeleteInterface, TeamListResponseInterface, TeamInfoInterface } from "@/types/team"
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
 import { AdminTeamList } from "./AdminTeamList"
-import { Search } from "@/lib/icons"
+import { Plus, Search } from "@/lib/icons"
 
 const TeamsCard = () => {
     const [pageIndex, setPageIndex] = useState(0)
@@ -21,6 +25,21 @@ const TeamsCard = () => {
         `${GetEndpointUrl.GetAdminTeamList}?pageIndex=${pageIndex}&pageSize=20`
     )
     const post = usePost()
+    const dispatch = useDispatch()
+    const newTeam = () => dispatch(openUI({ key: "createTeam" }))
+
+    // The app's create dialog adds the team elsewhere (the sidebar), so this
+    // list is fetched again once the dialog closes; the new team appeared
+    // here only after a reload.
+    const createOpen = useSelector((state: RootState) => state.ui.createTeam.isOpen)
+    const wasOpen = useRef(createOpen)
+    useEffect(() => {
+        if (wasOpen.current && !createOpen) {
+            setPageIndex(0)
+            void teamList.mutate()
+        }
+        wasOpen.current = createOpen
+    }, [createOpen, teamList])
 
     useEffect(() => {
         if (teamList.data?.data) {
@@ -116,16 +135,24 @@ const TeamsCard = () => {
                             The groups people work in here.
                         </CardDescription>
                     </div>
-                    <div className="relative w-full sm:w-72 shrink-0">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                        <Input
-                            type="search"
-                            placeholder="Search teams…"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="pl-9 bg-background/50"
-                            aria-label="Search teams"
-                        />
+                    <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
+                        <div className="relative flex-1 sm:w-72">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                            <Input
+                                type="search"
+                                placeholder="Search teams…"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="pl-9 bg-background/50"
+                                aria-label="Search teams"
+                            />
+                        </div>
+                        {/* The tab's one action. There was no way to make a team
+                            from here, though the app has the dialog for it. */}
+                        <Button size="sm" className="h-9 gap-1.5 shrink-0" onClick={newTeam}>
+                            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                            New team
+                        </Button>
                     </div>
                 </div>
             </CardHeader>
@@ -139,6 +166,9 @@ const TeamsCard = () => {
                     onLoadMore={handleLoadMore}
                     hasMore={hasMore && !normalisedSearch}
                     isLoading={teamList.isLoading}
+                    isError={!!teamList.isError && allTeams.length === 0}
+                    onRetry={() => void teamList.mutate()}
+                    onNewTeam={newTeam}
                     isFiltered={!!normalisedSearch}
                     totalLoaded={allTeams.length}
                 />

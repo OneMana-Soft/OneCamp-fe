@@ -8,6 +8,11 @@ import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { cn } from "@/lib/utils/helpers/cn"
 
 interface AdminTeamListProps {
   teams: TeamInfoInterface[]
@@ -17,6 +22,11 @@ interface AdminTeamListProps {
   onLoadMore: () => void
   hasMore: boolean
   isLoading: boolean
+  /** The list could not be read: said as such, never as "no teams". */
+  isError?: boolean
+  onRetry?: () => void
+  /** Opens the app's create-team dialog, offered when there are none. */
+  onNewTeam?: () => void
   isFiltered?: boolean
   totalLoaded?: number
 }
@@ -29,6 +39,9 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
   onLoadMore,
   hasMore,
   isLoading,
+  isError,
+  onRetry,
+  onNewTeam,
   isFiltered,
   totalLoaded,
 }) => {
@@ -51,52 +64,59 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
     }
   }, [hasMore, isLoading, onLoadMore])
 
+  // Loading draws the rows it is about to show, in the same bordered list.
   if (teams.length === 0 && isLoading && !totalLoaded) {
     return (
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
-        <ul className="space-y-2" aria-busy="true">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <li
-              key={i}
-              className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-card/50 animate-pulse"
-            >
-              <div className="h-10 w-10 rounded-lg bg-muted" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3 w-32 bg-muted rounded" />
-                <div className="h-2.5 w-20 bg-muted rounded" />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <ul aria-busy="true" aria-label="Loading teams" className="divide-y divide-border rounded-lg border border-border">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <li key={i} className="flex items-center gap-3 px-3 py-2.5" aria-hidden="true">
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-32" : "w-24")} />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </li>
+        ))}
+      </ul>
     )
   }
 
+  // Before the empty branch: a failed request leaves the list empty too.
+  if (teams.length === 0 && isError) {
+    return <ErrorState subject="the teams" onRetry={onRetry} />
+  }
+
   if (teams.length === 0 && !isLoading) {
+    // The people group's hue, as the admin menu draws Teams, and the one thing
+    // to do about an empty list.
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center">
-        <div className="text-center py-10">
-          <div className="mx-auto h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mb-3">
-            <Users className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium">
-            {isFiltered ? "No teams match your search." : "No teams found."}
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        icon={Users}
+        hue={ADMIN_GROUP_HUE.people}
+        title={isFiltered ? "No team matches your search." : "No teams yet"}
+        description={isFiltered ? undefined : "Teams group the people who work together, with their own channels and projects."}
+        action={
+          !isFiltered && onNewTeam ? (
+            <Button variant="outline" size="sm" onClick={onNewTeam}>
+              New team
+            </Button>
+          ) : undefined
+        }
+      />
     )
   }
 
   return (
     <TooltipProvider>
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
+      {/* No scroller of its own: the admin page's tab region is the one that
+          scrolls, so this list sizes to its rows. */}
+      <div>
         <ul className="divide-y divide-border rounded-lg border border-border">
           {teams.map((team) => {
             const isDeleted = !isZeroEpoch(team.team_deleted_at || "")
             return (
               <li
                 key={team.team_uuid}
-                className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/60"
+                className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-highlight"
               >
                 <div className="flex flex-col min-w-0 flex-1">
                   <span className="text-sm font-medium leading-tight truncate">
@@ -104,7 +124,7 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                   </span>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs tabular-nums text-muted-foreground">
-                      {team.team_member_count || 0} members
+                      {team.team_member_count === 1 ? "1 member" : `${team.team_member_count || 0} members`}
                     </span>
                     {isDeleted && (
                       <span className="text-xs text-muted-foreground">
@@ -154,7 +174,7 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
                         onClick={() =>
                           dispatch(
                             openUI({

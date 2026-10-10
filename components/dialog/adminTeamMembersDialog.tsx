@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/dialog"
 import { Users } from "@/lib/icons";
 import { TeamMemberContent } from "@/components/member/teamMemberContent"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 interface AdminTeamMembersDialogProps {
   isOpen: boolean
@@ -28,7 +30,10 @@ const AdminTeamMembersDialog: React.FC<AdminTeamMembersDialogProps> = ({
       <DialogContent className="sm:max-w-[480px] h-[80vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-5 pb-3 border-b border-border/60 space-y-1">
           <DialogTitle className="flex items-center gap-2 text-base font-semibold truncate">
-            <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+            {/* The people group's hue, as the admin menu draws Teams. */}
+            <Tile hue={ADMIN_GROUP_HUE.people} size="sm">
+              <Users />
+            </Tile>
             <span className="truncate">{teamName} members</span>
           </DialogTitle>
         </DialogHeader>
