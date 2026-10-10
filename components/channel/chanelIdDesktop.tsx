@@ -17,7 +17,7 @@ import CommandSurface from "@/components/command/CommandSurface";
 import {cn} from "@/lib/utils/helpers/cn";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { statusColors } from "@/lib/colors";
-import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, MoreHorizontal, MessageSquare } from "@/lib/icons";
+import { Hash, Pencil, SendHorizontal, Star, Users, Video, Clapperboard, Lightbulb, Megaphone, CheckSquare, MoreHorizontal, MessageSquare, FileArchive } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -41,6 +41,7 @@ import {
 import {GenericResponse} from "@/types/genericRes";
 import {ChannelMessageList} from "@/components/channel/channelMessageList";
 import { JoinChannelPrompt } from "@/components/channel/JoinChannelPrompt";
+import { ComposerNotice } from "@/components/channel/composerNotice";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import {app_channel_call} from "@/types/paths";
 import Link from "next/link";
@@ -156,9 +157,9 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
 
         if (!isZeroEpoch(channelInfo.data?.channel_info.ch_deleted_at || '')) {
             return (
-                <p className='w-full py-4 text-center text-sm text-muted-foreground'>
+                <ComposerNotice icon={<FileArchive />}>
                     This channel is archived. You can read it, but not post in it.
-                </p>
+                </ComposerNotice>
             )
         }
 
@@ -169,10 +170,9 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
             !channelInfo.data?.channel_info.ch_is_admin
         ) {
             return (
-                <div className="flex items-center justify-center gap-2 w-full py-4 text-center text-sm text-muted-foreground">
-                    <Megaphone className="h-4 w-4" />
-                    <span>Only moderators can post in this announcement channel.</span>
-                </div>
+                <ComposerNotice icon={<Megaphone />}>
+                    Only moderators can post in this announcement channel.
+                </ComposerNotice>
             )
         }
 
