@@ -9,8 +9,11 @@
  */
 
 import * as React from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { SettingsSection } from "@/components/ui/settingsSection"
+import { ErrorState } from "@/components/ui/error-state"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Sparkles, Shield } from "@/lib/icons"
@@ -81,10 +84,11 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
   const headline = (isAuditRow && it.summary) || it.title || "AI action"
   const detail = isAuditRow && it.summary ? "" : it.summary
   return (
-    <li className="flex items-start gap-3 py-2.5">
-      <span className="mt-0.5 shrink-0 rounded-lg bg-muted p-1.5 text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-      </span>
+    <li className="flex items-start gap-3 px-4 py-3">
+      {/* On the AI and automation group's tile, as the admin menu marks it. */}
+      <Tile hue={ADMIN_GROUP_HUE.ai} size="sm" className="mt-0.5">
+        <Icon />
+      </Tile>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{headline}</span>
@@ -128,36 +132,36 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
   )
 }
 
+// A section of the AI tab like the others: its heading, one line, and a
+// hairline list. It was a bordered card with an extra mt-6, so the gap above
+// it was 56px where every other section's is 32.
 const AIActivityCard = () => {
-  const { data, isLoading } = useFetch<{ data: AIActivityItem[] }>(`${GetEndpointUrl.GetAIActivity}?limit=50`)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: AIActivityItem[] }>(`${GetEndpointUrl.GetAIActivity}?limit=50`)
   const items = data?.data || []
 
   return (
-    <Card className="mt-6">
-      <CardHeader>
-        <CardTitle className="text-base font-semibold">AI activity
-        </CardTitle>
-        <CardDescription>
-          What the AI did across the workspace: agent runs and AI-attributable actions (search, API/MCP
-          tool calls, config changes), newest first.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div role="status" aria-label="Loading activity" className="py-1">
-            <SkeletonRows rows={4} />
-          </div>
-        ) : items.length === 0 ? (
-          <p className="py-6 text-sm text-muted-foreground">No AI activity yet.</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-border/60">
-            {items.map((it, i) => (
-              <AIActivityRow key={i} item={it} />
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
+    <SettingsSection
+      title="AI activity"
+      description="What the AI did across the workspace, newest first: agent runs, and actions taken with AI (search, tool calls from outside agents, changes to these settings)."
+    >
+      {isLoading ? (
+        <div role="status" aria-label="Loading the AI activity" className="py-1">
+          <SkeletonRows rows={4} />
+        </div>
+      ) : isError ? (
+        // Before the empty case: on the governance record, "nothing happened"
+        // is the one claim that must not be made by a failed request.
+        <ErrorState subject="the AI activity" onRetry={() => void mutate()} />
+      ) : items.length === 0 ? (
+        <p className="py-6 text-sm text-muted-foreground">No AI activity yet.</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+          {items.map((it, i) => (
+            <AIActivityRow key={i} item={it} />
+          ))}
+        </ul>
+      )}
+    </SettingsSection>
   )
 }
 
