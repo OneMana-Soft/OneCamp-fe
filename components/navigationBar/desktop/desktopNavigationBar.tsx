@@ -311,7 +311,9 @@ export function DesktopNavigationBar({
         },
 
         {
-            title: 'chats',
+            // The place is "Direct messages" wherever a heading names it; the
+            // nav item above keeps the short "DMs".
+            title: 'direct messages',
             label: "",
             icon: MessageCircle,
             variant: "ghost",

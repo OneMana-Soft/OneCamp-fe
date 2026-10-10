@@ -162,7 +162,7 @@ export function MobileTopNavigationBarSecond() {
                 return "Profile";
             case "chat":
                 if (path.length < 4)
-                    return "Chat";
+                    return "Direct messages";
 
                 if (path[3] == 'group') {
 

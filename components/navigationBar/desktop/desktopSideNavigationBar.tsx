@@ -207,7 +207,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                                 <button
                                                     className={cn(
                                                         "flex-1 flex items-center gap-1 h-6 px-2 rounded-md",
-                                                        "text-2xs font-medium capitalize",
+                                                        "text-2xs font-medium",
                                                         "text-muted-foreground hover:text-foreground",
                                                         "transition-colors duration-100 cursor-pointer text-left",
                                                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
@@ -215,7 +215,8 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                                     type="button"
                                                     aria-expanded={link.isOpen}
                                                 >
-                                                    <span className={cn("truncate", link.className)}>
+                                                    {/* Sentence case: capitalize made "Direct Messages". */}
+                                                    <span className={cn("truncate first-letter:uppercase", link.className)}>
                                                         {link.title}
                                                     </span>
                                                     {link.children.length > 0 && (
