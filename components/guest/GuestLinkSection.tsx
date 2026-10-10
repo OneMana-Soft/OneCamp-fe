@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { useConfirm } from "@/hooks/useConfirm"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Copy, Check, ExternalLink, Link2, Globe } from "@/lib/icons"
 import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuestLink, type GuestCapability, type GuestResourceType, type ResourceGuestLink } from "@/services/guestService"
 import { useFetch } from "@/hooks/useFetch"
@@ -75,6 +77,9 @@ const RESOURCE: Record<GuestResourceType, {
 
 export function GuestLinkSection({ resourceType, resourceId, canShare, embedded = false }: GuestLinkSectionProps) {
   const { toast } = useToast()
+  const confirm = useConfirm()
+  const expiryId = React.useId()
+  const permissionId = React.useId()
   const [ttlHours, setTtlHours] = React.useState(EXPIRY_OPTIONS[1].hours) // 14 days
   const [capability, setCapability] = React.useState<GuestCapability>(RESOURCE[resourceType].start)
   const [creating, setCreating] = React.useState(false)
@@ -106,15 +111,16 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
       )
       setLink(guestResourceLink(resourceType, res.token))
       void links.mutate()
-    } catch (e: any) {
-      const status = e?.response?.status
+    } catch (e: unknown) {
+      const status = (e as { response?: { status?: number } })?.response?.status
       toast({
-        title: "Couldn't create link",
+        title: "Couldn't create the link",
         // The server says which it was: guest access off, or not allowed to
         // share this resource.
-        description:
-          e?.response?.data?.msg ||
-          (status === 403 ? `Guest access is off for this workspace, or you can't share this ${noun}.` : "Please try again."),
+        description: apiErrorMessage(
+          e,
+          status === 403 ? `Guest access is off for this workspace, or you can't share this ${noun}.` : "Try again in a moment.",
+        ),
         variant: "destructive",
       })
     } finally {
@@ -161,9 +167,9 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
       {open && !link && (
         <div className="flex items-end gap-2">
           <div className="flex-1 space-y-1.5">
-            <Label className="text-2xs text-muted-foreground">Link expires</Label>
+            <Label htmlFor={expiryId} className="text-xs text-muted-foreground">Link expires</Label>
             <Select value={String(ttlHours)} onValueChange={(v) => setTtlHours(Number(v))}>
-              <SelectTrigger className="h-9">
+              <SelectTrigger id={expiryId} className="h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -177,9 +183,9 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
           </div>
           {supportsComment && (
             <div className="flex-1 space-y-1.5">
-              <Label className="text-2xs text-muted-foreground">Permission</Label>
+              <Label htmlFor={permissionId} className="text-xs text-muted-foreground">Permission</Label>
               <Select value={capability} onValueChange={(v) => setCapability(v as GuestCapability)}>
-                <SelectTrigger className="h-9">
+                <SelectTrigger id={permissionId} className="h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -222,39 +228,53 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
 
       {(links.data?.data?.length ?? 0) > 0 && (
         <div className="grid gap-1">
-          <Label className="text-2xs text-muted-foreground">Links that work now</Label>
-          <ul className="grid gap-1">
-            {links.data!.data.map((l) => (
-              <li key={l.id} className="flex items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-muted/40">
-                <span className="min-w-0 flex-1 truncate">
-                  {l.capability === "view" ? kind.viewLabel : kind.writeLabel ?? kind.viewLabel}
-                  <span className="text-muted-foreground">
-                    {" · "}
-                    {l.expires_at ? `ends ${formatDistanceToNow(new Date(l.expires_at), { addSuffix: true })}` : "doesn't expire"}
-                    {l.mine ? " · yours" : ""}
+          <p className="text-xs text-muted-foreground">Links that work now</p>
+          <ul className="grid">
+            {links.data!.data.map((l) => {
+              const permission = l.capability === "view" ? kind.viewLabel : kind.writeLabel ?? kind.viewLabel
+              const turnOff = async () => {
+                setTurningOff(l.id)
+                try {
+                  await turnOffGuestLink(l.id)
+                  await links.mutate()
+                } catch (e: unknown) {
+                  toast({ title: "Couldn't turn the link off", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+                } finally {
+                  setTurningOff(null)
+                }
+              }
+              return (
+                <li key={l.id} className="flex min-h-10 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-highlight">
+                  <span className="min-w-0 flex-1 truncate">
+                    {permission}
+                    <span className="text-xs text-muted-foreground">
+                      {" · "}
+                      {l.expires_at ? `ends ${formatDistanceToNow(new Date(l.expires_at), { addSuffix: true })}` : "doesn't expire"}
+                      {l.mine ? " · yours" : ""}
+                    </span>
                   </span>
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 shrink-0 text-danger-ink hover:text-danger-ink"
-                  disabled={turningOff === l.id}
-                  onClick={async () => {
-                    setTurningOff(l.id)
-                    try {
-                      await turnOffGuestLink(l.id)
-                      await links.mutate()
-                    } catch (e: any) {
-                      toast({ title: "Couldn't turn the link off", description: e?.response?.data?.msg || "Please try again.", variant: "destructive" })
-                    } finally {
-                      setTurningOff(null)
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 shrink-0 text-danger-ink hover:text-danger-ink"
+                    disabled={turningOff === l.id}
+                    // A client may be on this link right now: asked first,
+                    // in the words of what stops working.
+                    onClick={() =>
+                      confirm({
+                        title: `Turn off the “${permission}” link?`,
+                        description: `Anyone using it loses access at once, and the link stops working for good. You can make a new one any time.`,
+                        confirmText: "Turn off link",
+                        destructive: true,
+                        onConfirm: () => void turnOff(),
+                      })
                     }
-                  }}
-                >
-                  Turn off
-                </Button>
-              </li>
-            ))}
+                  >
+                    {turningOff === l.id ? "Turning off…" : "Turn off"}
+                  </Button>
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}
