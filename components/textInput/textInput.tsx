@@ -22,14 +22,14 @@ import { canRenderStatically, mentionUserUUID } from "@/lib/utils/staticRichText
 import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
 import "@/components/minimal-tiptap/styles/index.css";
-import { LetterCaseCapitalizeIcon} from "@radix-ui/react-icons";
 import ToolbarButton from "@/components/minimal-tiptap/components/toolbar-button";
 import {useMedia} from "@/context/MediaQueryContext";
-import { Paperclip, X } from "@/lib/icons";
+import { Paperclip, Type } from "@/lib/icons";
 import { ClipButton } from "@/components/clips/ClipButton";
 import { LucideIcon } from "lucide-react";
-import {Toggle} from "@/components/ui/toggle";
 import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-reaction/reaction-picker";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useEditorState } from "@tiptap/react";
 import { CHAT_COMMANDS, maybeDispatchSlashCommand, extractSlashCommandFromEditor } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
 
 interface MinimalTiptapProps
@@ -98,76 +98,55 @@ const DEFAULT_ALLOWED_MIME_TYPES = ['*/*'];
 // a dozen buttons with tooltips, re-rendered with it (up to ~300 ms a key on a
 // slow phone). Its props are stable; each ToolbarSection subscribes to the
 // editor itself and re-renders only when a button's state changes.
-const Toolbar = React.memo(function Toolbar({ editor, toggledTextEditor, setToggledTextEditor, toggleToolbar }: { editor: Editor, toggledTextEditor: boolean,  setToggledTextEditor: (b: boolean)=>void, toggleToolbar: boolean}) {
-
-
-  const {isMobile, isDesktop} = useMedia()
-    toggleToolbar = toggleToolbar || isMobile
-
+//
+// A composer that sends (or one that asks to, with toggleToolbar) keeps its
+// formatting folded behind one "Formatting" button. Thirteen formatting icons
+// sat under every message box at all times, the loudest thing on a channel
+// page, for marks most messages never use; the shortcuts (Ctrl+B and the rest)
+// and Markdown typing work either way. Long-form fields keep the full row.
+const Toolbar = React.memo(function Toolbar({ editor, toggledTextEditor, setToggledTextEditor, collapsible }: { editor: Editor, toggledTextEditor: boolean,  setToggledTextEditor: (b: boolean)=>void, collapsible: boolean}) {
+  const {isDesktop} = useMedia()
+  const expanded = !collapsible || toggledTextEditor
 
   return (
       <div className="shrink-0 overflow-x-auto p-1 pb-0 pl-0">
-        <div className="flex w-max items-center gap-px justify-between">
-          {/*<SectionOne editor={editor} activeLevels={[1, 2, 3]} variant="outline" />*/}
-          {/*<Separator orientation="vertical" className="mx-2 h-7" />*/}
-
-
-          {(toggleToolbar && !toggledTextEditor) ?
-              <>
+        <div className="flex w-max items-center gap-px">
+          {collapsible && (
               <ToolbarButton
-                  tooltip="Text format"
-                  aria-label="Text format"
-                  className="w-12"
-                  onClick={()=>{setToggledTextEditor(true)}}
+                  tooltip={toggledTextEditor ? "Hide formatting" : "Formatting"}
+                  aria-label={toggledTextEditor ? "Hide formatting" : "Show formatting"}
+                  aria-pressed={toggledTextEditor}
+                  isActive={toggledTextEditor}
+                  onClick={()=>{setToggledTextEditor(!toggledTextEditor)}}
               >
-                <LetterCaseCapitalizeIcon className="size-5"/>
-
+                <Type className="size-4" strokeWidth={1.75}/>
               </ToolbarButton>
-
-                  <Separator orientation="vertical" className="mx-1.5 h-4"/>
-
-                  <SectionFour
-                  editor={editor}
-                  activeActions={SECTION_4_ACTIONS}
-                  mainActionCount={2}
-              />
-              <EmojiReactionPicker editor={editor} />
-              </>
-              :
+          )}
+          {expanded && (
               <>
-                {
-                    toggleToolbar && <Toggle size={'sm'} className={''} onClick={()=>{setToggledTextEditor(false)}}><X className='p-0!'/></Toggle>
-                }
+                {collapsible && <Separator orientation="vertical" className="mx-1.5 h-4"/>}
                 <SectionTwo
                     editor={editor}
                     activeActions={SECTION_2_ACTIONS}
                     mainActionCount={4}
                 />
-                {!toggleToolbar && <><Separator orientation="vertical" className="mx-1.5 h-4"/>
+                <Separator orientation="vertical" className="mx-1.5 h-4"/>
                 <SectionFour
                     editor={editor}
                     activeActions={SECTION_4_ACTIONS}
                     mainActionCount={2}
                 />
-                <EmojiReactionPicker editor={editor} />
-                </>}
-
-
                 {isDesktop && <><Separator orientation="vertical" className="mx-1.5 h-4"/>
                 <SectionFive
                     editor={editor}
                     activeActions={SECTION_5_ACTIONS}
                     mainActionCount={3}
                 /></>}
-
-
+                <Separator orientation="vertical" className="mx-1.5 h-4"/>
               </>
-
-
-
-          }
+          )}
+          <EmojiReactionPicker editor={editor} />
         </div>
-
       </div>
   )
 
@@ -359,6 +338,9 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
       const divRef = useRef<HTMLDivElement>(null);
 
         const [toggledTextEditor, setToggledTextEditor] = useState(false)
+        // Send reads as ready only when there is something to send. Style only:
+        // the button still answers a click, as it always did.
+        const isEmpty = useEditorState({ editor, selector: ({ editor: e }) => e?.isEmpty ?? true }) ?? true
 
 
 
@@ -449,8 +431,11 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
           <div
               ref={ref}
               className={cn(
-                  "flex w-full flex-col overflow-hidden transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-200",
-                  !isOutputText && !props.noBorder && "rounded-xl border border-input bg-background shadow-sm focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20",
+                  "flex w-full flex-col overflow-hidden transition-colors duration-150",
+                  // A hairline that darkens while you type. The orange frame and
+                  // glow around the whole box on focus spent the accent on the
+                  // one control that is focused nearly all the time.
+                  !isOutputText && !props.noBorder && "rounded-lg border border-input bg-background focus-within:border-foreground/25",
                   (isOutputText? '': 'max-h-[85vh]'),
                   className
               )}
@@ -476,12 +461,17 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
                 )}>
                     {children}
                   <div className="flex items-center justify-between gap-2 mt-1">
-                    <Toolbar editor={editor} toggledTextEditor={toggledTextEditor}  setToggledTextEditor={setToggledTextEditor} toggleToolbar={toggleToolbar}/>
+                    <Toolbar editor={editor} toggledTextEditor={toggledTextEditor}  setToggledTextEditor={setToggledTextEditor} collapsible={toggleToolbar || isMobile || !!ButtonIcon}/>
                     <div className="flex items-center gap-1.5 pr-1">
                         {aiSlot}
                         {
                             attachmentOnclick && !(isMobile && toggledTextEditor) &&
-                            <Button size={"icon"} variant={'ghost'} aria-label={attachmentLabel} className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4"/> </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button size={"icon"} variant={'ghost'} aria-label={attachmentLabel} className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4" strokeWidth={1.75}/></Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{attachmentLabel}</TooltipContent>
+                            </Tooltip>
 
                         }
                         {/* A clip goes where files go: the same upload as one dropped or pasted. */}
@@ -489,18 +479,30 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
                             <ClipButton onRecorded={(file) => onActionFiles([file])} />
                         )}
                       {SecondaryButtonIcon && wrappedSecondaryButtonOnclick && (
-                          <Button aria-label={secondaryButtonLabel} onClick={wrappedSecondaryButtonOnclick} variant="ghost" size={"icon"} className="h-8 w-8 rounded-full text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Button aria-label={secondaryButtonLabel} onClick={wrappedSecondaryButtonOnclick} variant="ghost" size={"icon"} className="h-8 w-8 text-muted-foreground hover:text-foreground">
                             <SecondaryButtonIcon className="h-4 w-4" />
                           </Button>
                       )}
                       {PrimaryButtonIcon && wrappedButtonOnclick && (
-                          <Button aria-label={primaryButtonLabel} onClick={wrappedButtonOnclick} size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"><PrimaryButtonIcon className="h-4 w-4"/></Button>
+                          <Button aria-label={primaryButtonLabel} onClick={wrappedButtonOnclick} size={"icon"} className="h-8 w-8"><PrimaryButtonIcon className="h-4 w-4"/></Button>
                       )}
                       {ButtonIcon && wrappedButtonOnclick && wrappedOnSchedule && (
                           <ScheduleSendButton onPick={wrappedOnSchedule} />
                       )}
                       {ButtonIcon && wrappedButtonOnclick && (
-                          <Button aria-label={buttonLabel} size={"icon"} className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90" onClick={wrappedButtonOnclick}><ButtonIcon className="h-4 w-4" /></Button>
+                          <Tooltip>
+                              <TooltipTrigger asChild>
+                                  <Button
+                                      aria-label={buttonLabel}
+                                      size={"icon"}
+                                      className={cn("h-8 w-8 transition-colors", isEmpty && "bg-muted text-muted-foreground hover:bg-muted")}
+                                      onClick={wrappedButtonOnclick}
+                                  >
+                                      <ButtonIcon className="h-4 w-4" />
+                                  </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{buttonLabel} <span className="text-muted-foreground">Enter</span></TooltipContent>
+                          </Tooltip>
                       )}
                     </div>
                   </div>

@@ -5,7 +5,7 @@ import type { Editor } from '@tiptap/react'
 import type { FormatAction } from '../../types'
 import type { toggleVariants } from '@/components/ui/toggle'
 import type { VariantProps } from 'class-variance-authority'
-import { CaretDownIcon, ListBulletIcon } from '@radix-ui/react-icons'
+import { ChevronDown, List, ListOrdered } from '@/lib/icons'
 import { ToolbarSection } from '../toolbar-section'
 
 type ListItemAction = 'orderedList' | 'bulletList'
@@ -17,11 +17,7 @@ const formatActions: ListItem[] = [
   {
     value: 'orderedList',
     label: 'Numbered list',
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-        <path d="M144-144v-48h96v-24h-48v-48h48v-24h-96v-48h120q10.2 0 17.1 6.9 6.9 6.9 6.9 17.1v48q0 10.2-6.9 17.1-6.9 6.9-17.1 6.9 10.2 0 17.1 6.9 6.9 6.9 6.9 17.1v48q0 10.2-6.9 17.1-6.9 6.9-17.1 6.9H144Zm0-240v-96q0-10.2 6.9-17.1 6.9-6.9 17.1-6.9h72v-24h-96v-48h120q10.2 0 17.1 6.9 6.9 6.9 6.9 17.1v72q0 10.2-6.9 17.1-6.9 6.9-17.1 6.9h-72v24h96v48H144Zm48-240v-144h-48v-48h96v192h-48Zm168 384v-72h456v72H360Zm0-204v-72h456v72H360Zm0-204v-72h456v72H360Z" />
-      </svg>
-    ),
+    icon: <ListOrdered className="size-4" strokeWidth={1.75} />,
     isActive: editor => editor.isActive('orderedList'),
     action: editor => editor.chain().focus().toggleOrderedList().run(),
     canExecute: editor => editor.can().chain().toggleOrderedList().run(),
@@ -30,7 +26,7 @@ const formatActions: ListItem[] = [
   {
     value: 'bulletList',
     label: 'Bullet list',
-    icon: <ListBulletIcon className="size-5" />,
+    icon: <List className="size-4" strokeWidth={1.75} />,
     isActive: editor => editor.isActive('bulletList'),
     action: editor => editor.chain().focus().toggleBulletList().run(),
     canExecute: editor => editor.can().chain().toggleBulletList().run(),
@@ -59,8 +55,8 @@ export const SectionFour: React.FC<SectionFourProps> = ({
       mainActionCount={mainActionCount}
       dropdownIcon={
         <>
-          <ListBulletIcon className="size-5" />
-          <CaretDownIcon className="size-5" />
+          <List className="size-4" strokeWidth={1.75} />
+          <ChevronDown className="size-4" strokeWidth={1.75} />
         </>
       }
       dropdownTooltip="Lists"
