@@ -6,6 +6,8 @@ import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/helpers/cn";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { relayedAuthorOf, relayInitials } from "@/lib/relayedAuthor";
 
 /**
@@ -51,25 +53,33 @@ interface Props {
     className?: string;
 }
 
+/**
+ * One face in the pile: round and in the person's hue, as their avatar is on
+ * every message (seeded by the name), with one initial and a ring of the
+ * page's colour where it overlaps the next. They were 20px grey squares with
+ * two initials at 11px, overlapping by 4px with nothing between them, so
+ * "MC" and "JW" read as one word, "MCJW". A guest or Slack person keeps the
+ * neutral face (not a member).
+ */
 function ParticipantAvatar({ p }: { p: ThreadParticipant }) {
     const { src } = useUserAvatar(p.relayed ? undefined : p.profileKey);
+    const initial = (p.relayed ? relayInitials(p.name) : getNameInitials(p.name || "?")).charAt(0);
     return (
         <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
-                <div className="relative flex items-center justify-center rounded-[5px] overflow-hidden size-5 border border-background bg-muted text-2xs font-semibold text-muted-foreground">
-                    {src ? (
-                        <img
-                            src={src}
-                            alt={p.name}
-                            className="size-full object-cover"
-                            onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = "none";
-                            }}
-                        />
-                    ) : (
-                        p.relayed ? relayInitials(p.name) : getNameInitials(p.name || "?")
-                    )}
-                </div>
+                <span data-participant="" className="relative inline-flex shrink-0 rounded-full ring-2 ring-background">
+                    <Avatar className="size-5">
+                        {src ? <AvatarImage src={src} alt={p.name} /> : null}
+                        <AvatarFallback
+                            className={cn(
+                                "text-2xs font-semibold leading-none",
+                                p.relayed ? "bg-muted text-muted-foreground" : getAvatarFallbackClass(p.name),
+                            )}
+                        >
+                            {initial}
+                        </AvatarFallback>
+                    </Avatar>
+                </span>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={6} className="px-2 py-0.5 text-2xs font-medium">
                 {p.name}
@@ -96,14 +106,14 @@ export function ThreadParticipants({ participants, maxShown = 3, className }: Pr
     const remaining = unique.length - shown.length;
 
     return (
-        <div className={cn("flex items-center -space-x-1", className)}>
+        <div data-participants="" className={cn("flex items-center -space-x-1", className)}>
             {shown.map((p) => (
                 <ParticipantAvatar key={p.uuid} p={p} />
             ))}
             {remaining > 0 && (
-                <div className="flex items-center justify-center rounded-[5px] size-5 border border-background bg-muted text-2xs font-medium text-muted-foreground">
+                <span className="relative inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-2xs font-medium text-muted-foreground ring-2 ring-background">
                     +{remaining}
-                </div>
+                </span>
             )}
         </div>
     );

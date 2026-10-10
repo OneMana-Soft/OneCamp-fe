@@ -20,7 +20,10 @@ export const BottomMenu = ({reactions, handleEmojiClick, selectedEmojiId}: Botto
     const [suppressUntilLeave, setSuppressUntilLeave] = useState(false)
     return(
         <div>
-            {Object.keys(reactions).length > 0 && <div className='flex items-center justify-start gap-2'>
+            {/* 6px under whatever is above, as the cards and the reply count
+                are: it had no margin, so it sat 16px under a picture (the
+                attachments' own margin) and touched everything else. */}
+            {Object.keys(reactions).length > 0 && <div data-reactions="" className='mt-1.5 flex items-center justify-start gap-2'>
                 { Object.entries(reactions).map(([emojiId, userNames]) => (
                     <ReactionPill key={emojiId} emojiId={emojiId} reactionUserNames={userNames}
                                       onClickEmoji={handleEmojiClick} isSelected={selectedEmojiId == emojiId}/>

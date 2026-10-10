@@ -1,11 +1,9 @@
-import { eyebrowClass } from "@/components/ui/eyebrow"
 import {ATTACHMENT_MAX_IMAGE_GRID_SIZE, AttachmentMediaReq} from "@/types/attachment";
 import {useMemo, useState} from "react";
 import {isRenderable} from "@/lib/utils/validation/isRenderable";
 import {cn} from "@/lib/utils/helpers/cn";
 import {MessageAttachmentCard} from "@/components/message/MessageAttachmentCard";
 import {FileTypeIcon} from "@/components/fileIcon/fileTypeIcon";
-import {truncateFileName} from "@/lib/utils/format/truncateFileName";
 import {useMediaFetch} from "@/hooks/useFetch";
 import {GetMediaURLRes} from "@/types/file";
 import {downloadFile} from "@/lib/utils/file/downloadFile";
@@ -13,6 +11,7 @@ import {downloadFile} from "@/lib/utils/file/downloadFile";
 import {getFriendlyFileExtension} from "@/lib/utils/format/getFriendlyFileExtension";
 import {formatFileSizeForAttachment} from "@/lib/utils/format/formatFileSizeForAttachment";
 import { Download } from "@/lib/icons";
+import { LinkCardBody, linkCardClass } from "@/components/message/LinkCard";
 
 interface MessageAttachmentProps {
     attachments:  AttachmentMediaReq[];
@@ -45,10 +44,12 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
 
     return (
 
+            // One width for what sits under a message, as the cards' (448px,
+            // the full width on a phone). It was a third of the column: 370px
+            // at 1440 and 170px on a small laptop, with a one-off 16px under it.
             <div
-                className={cn(
-                    'flex flex-col md:w-1/3 md:max-w-4xl items-start justify-start w-full mb-4 gap-2'
-                )}
+                data-message-attachments=""
+                className='mt-1.5 flex w-full max-w-md flex-col items-start justify-start gap-2'
             >
                 <div className={cn('md:shrink-0', )} />
 
@@ -66,7 +67,7 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
                                 return (
                                     <div
                                         key={attachment.attachment_uuid}
-                                        className={cn('bg-elevated relative flex-1 rounded-xl overflow-hidden shadow-sm border border-border/50 group', {
+                                        className={cn('bg-elevated relative flex-1 rounded-xl overflow-hidden border border-border/50 group', {
                                             'col-span-2 max-h-[30rem]': only,
                                             'aspect-square': !only
                                         })}
@@ -85,7 +86,8 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
                                                         initial_url: loadedUrls[attachment.attachment_uuid]
                                                     });
                                                 }}
-                                                className='relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl transition-transform duration-300 hover:scale-[1.02]'
+                                                aria-label={`Open ${attachment.attachment_file_name}`}
+                                                className='relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl transition-transform duration-200 hover:scale-[1.02] motion-reduce:transition-none motion-reduce:hover:scale-100'
                                             >
                                                 <MessageAttachmentCard
                                                     priority={priority}
@@ -112,7 +114,7 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
                     {nonRenderables.length > 0 && (
                         <div className="flex flex-col gap-2 w-full">
                             {nonRenderables.map((attachment) => (
-                                <NonRenderableAttachment key={attachment.attachment_uuid} attachment={attachment} attachmentLength={attachments.length} mediaGetUrl={mediaGetUrl}/>
+                                <NonRenderableAttachment key={attachment.attachment_uuid} attachment={attachment} mediaGetUrl={mediaGetUrl}/>
                             ))}
                         </div>
                     )}
@@ -125,64 +127,44 @@ export const MessageAttachments = ({attachmentSelected, attachments, mediaGetUrl
 
 interface NonRenderableAttachmentProps {
     attachment: AttachmentMediaReq
-    attachmentLength: number
     mediaGetUrl: string
 }
 
-function NonRenderableAttachment({ attachment, attachmentLength, mediaGetUrl }: NonRenderableAttachmentProps) {
+/**
+ * A file that is not a picture or a video, as the cards under a message are
+ * drawn (LinkCard): its type's icon on a tile, its whole name cut to the
+ * card's width, its type and size, and a download mark. One button, so the
+ * keyboard reaches it: it was a clickable box (no focus, no name) holding a
+ * Download button that showed only on hover, and the name was cut at a fixed
+ * count of letters ("OneCamp brand....pdf" with room to spare).
+ */
+function NonRenderableAttachment({ attachment, mediaGetUrl }: NonRenderableAttachmentProps) {
     const mediaReq = useMediaFetch<GetMediaURLRes>(attachment?.attachment_uuid ? mediaGetUrl +'/'+attachment.attachment_uuid : '')
+    const name = attachment.attachment_file_name
 
     const download = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (mediaReq.data?.url) {
-            downloadFile(mediaReq.data.url,attachment.attachment_file_name)
+            downloadFile(mediaReq.data.url, name)
         }
     }
 
     return (
-        <div
+        <button
+            type="button"
             onClick={download}
             data-no-ripple="true"
-            className={cn(
-                'group flex items-center gap-2.5 rounded-lg border border-border/40 bg-card/50 px-3 py-2 transition duration-150',
-                'hover:bg-accent/40 hover:border-border/80 cursor-pointer relative overflow-hidden w-full'
-            )}
+            data-file-card=""
+            aria-label={`Download ${name}`}
+            title={name}
+            className={cn(linkCardClass, "group")}
         >
-            <div className="shrink-0 p-2 bg-background rounded-md border border-border/50 shadow-sm group-hover:scale-105 transition-transform duration-150">
-                <FileTypeIcon name={attachment.attachment_file_name} fileType={attachment.attachment_raw_type} size={20}/>
-            </div>
-
-            <div className="flex flex-col min-w-0 flex-1 gap-0.5">
-                <div
-                    className={cn(
-                        'truncate text-sm font-medium text-foreground/90 group-hover:text-foreground transition-colors',
-                    )}
-                    title={attachment.attachment_file_name}
-                >
-                    {truncateFileName(attachment.attachment_file_name)}
-                </div>
-                <div className="flex items-center gap-1.5 text-2xs font-medium text-muted-foreground/80">
-                    <span className={cn(eyebrowClass, "text-2xs font-medium text-muted-foreground/80")}>
-                        {getFriendlyFileExtension(attachment.attachment_raw_type, attachment.attachment_file_name)}
-                    </span>
-                    <span className="w-0.5 h-0.5 rounded-full bg-muted-foreground/40" />
-                    <span>
-                        {formatFileSizeForAttachment(attachment.attachment_size || 0)}
-                    </span>
-                </div>
-            </div>
-
-            <button
-                onClick={download}
-                className={cn(
-                    "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition duration-150 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
-                    "p-1.5 hover:bg-background rounded-full shadow-sm border border-border/50 shrink-0",
-                    "translate-x-2 group-hover:translate-x-0 [@media(hover:none)]:translate-x-0"
-                )}
-                title="Download"
-            >
-                <Download size={14} className="text-foreground/80"/>
-            </button>
-        </div>
+            <LinkCardBody
+                icon={<FileTypeIcon name={name} fileType={attachment.attachment_raw_type} size={16}/>}
+                title={name}
+                detail={`${getFriendlyFileExtension(attachment.attachment_raw_type, name)} · ${formatFileSizeForAttachment(attachment.attachment_size || 0)}`}
+                trailing={<Download className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" aria-hidden="true"/>}
+            />
+        </button>
     )
 }
