@@ -17,7 +17,7 @@ export default function AssistantsSettingsPage() {
       <SectionHeader href={HREF}>
         {ai === "unavailable" ? "This workspace runs without AI, so there are no assistants to connect." : null}
       </SectionHeader>
-      {ai === "unknown" ? <SectionLoading label="Loading your AI assistants" /> : ai === "available" ? <MyAssistantsCard /> : null}
+      {ai === "unknown" ? <SectionLoading label="Loading your AI assistants" /> : ai === "available" ? <MyAssistantsCard withTitle={false} /> : null}
     </div>
   )
 }

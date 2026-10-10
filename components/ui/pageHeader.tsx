@@ -25,6 +25,7 @@ export function PageHeader({
   children,
   actions,
   size = "default",
+  phoneTitle = false,
   className,
 }: {
   eyebrow?: React.ReactNode
@@ -35,11 +36,18 @@ export function PageHeader({
   actions?: React.ReactNode
   /** `lg` for Home, where the greeting is the page. */
   size?: "default" | "lg"
+  /**
+   * Show the kicker and title on a phone too. A phone's top bar already names
+   * the page, so by default they are there for screen readers only below sm
+   * (it read "Boards" over "Boards"). Home keeps them: its greeting is not the
+   * page's name.
+   */
+  phoneTitle?: boolean
   className?: string
 }) {
   return (
     <header className={cn("space-y-1.5", className)}>
-      {eyebrow && <p className={kicker}>{eyebrow}</p>}
+      {eyebrow && <p className={cn(kicker, !phoneTitle && "max-sm:sr-only")}>{eyebrow}</p>}
       {/* The title and the page's controls share one row, on its centre line.
           The controls used to sit beside the whole block, bottom-aligned: with a
           line under the title they sat level with that line instead, and took
@@ -57,6 +65,7 @@ export function PageHeader({
             // tracking-tight on top of it ran the words together.
             "min-w-[min(100%,16rem)] flex-1 font-display font-semibold tracking-normal text-foreground text-balance",
             size === "lg" ? "text-3xl" : "text-2xl",
+            !phoneTitle && "max-sm:sr-only",
           )}
         >
           {title}

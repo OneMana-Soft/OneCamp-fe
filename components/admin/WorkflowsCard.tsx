@@ -60,7 +60,9 @@ function StateWord({ tone, children }: { tone: "off" | "bad"; children: React.Re
  * `hue` is the colour of the place it is shown in: the admin page's AI and
  * automation group by default; a settings page passes its own section's.
  */
-const WorkflowsCard = ({ hue = ADMIN_GROUP_HUE.ai }: { hue?: CampHue } = {}) => {
+// `withTitle={false}` under a page header that already names it (the
+// settings page said "Workflows" twice).
+const WorkflowsCard = ({ hue = ADMIN_GROUP_HUE.ai, withTitle = true }: { hue?: CampHue; withTitle?: boolean } = {}) => {
     const { data, isLoading, isError, mutate } = useFetch<{ data: Workflow[] }>(GetEndpointUrl.GetAllWorkflows);
     const { toast } = useToast();
     const confirm = useConfirm();
@@ -137,7 +139,7 @@ const WorkflowsCard = ({ hue = ADMIN_GROUP_HUE.ai }: { hue?: CampHue } = {}) => 
         <Card className="w-full border-none bg-transparent shadow-none">
             <CardHeader className="flex flex-col gap-3 space-y-0 px-0 pb-6 pt-0 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 space-y-1">
-                    <CardTitle className="text-base font-semibold">Workflows</CardTitle>
+                    {withTitle && <CardTitle className="text-base font-semibold">Workflows</CardTitle>}
                     <CardDescription className="max-w-xl">
                         When a message in a channel matches a rule, OneCamp replies or turns it into a task.
                         The switches save as you make them.

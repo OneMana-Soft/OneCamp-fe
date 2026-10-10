@@ -24,7 +24,7 @@ export default function WorkflowsSettingsPage() {
       {isLoading ? (
         <SectionLoading label="Loading workflows" />
       ) : allowed ? (
-        <WorkflowsCard hue={settingsSection(HREF)?.hue} />
+        <WorkflowsCard hue={settingsSection(HREF)?.hue} withTitle={false} />
       ) : null}
     </div>
   )

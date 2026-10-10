@@ -58,7 +58,8 @@ const PROMISES = [
   { title: "Everything is on the record", body: "Each action is in the audit log, and you can disconnect it below at any time." },
 ]
 
-function MyAssistantsCard() {
+/** `withTitle={false}` under a page header that already names it. */
+function MyAssistantsCard({ withTitle = true }: { withTitle?: boolean } = {}) {
   const res = useFetch<MyAssistantsResponse>(GetEndpointUrl.MyAssistants)
   const post = usePost()
   const recipes = React.useMemo(() => mcpConnectRecipes(), [])
@@ -100,10 +101,12 @@ function MyAssistantsCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-          <Bot className="h-4 w-4 text-muted-foreground" />
-          Your AI assistants
-        </CardTitle>
+        {withTitle && (
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Bot className="h-4 w-4 text-muted-foreground" />
+            Your AI assistants
+          </CardTitle>
+        )}
         <CardDescription>
           Connect the assistant you already use, like ChatGPT, Claude or Grok Bot, so it can work in OneCamp for you.
         </CardDescription>
