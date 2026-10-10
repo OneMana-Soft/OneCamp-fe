@@ -90,6 +90,19 @@ describe("how an import job reads", () => {
     }
   })
 
+  // The bar's status: a dot and a word, the word in ink. It was a tinted pill.
+  it("says where it stands as a dot and a word", () => {
+    const { container } = render(<ImportStatusChip status="completed" />)
+    const word = container.querySelector("[data-status-word]") as HTMLElement
+    expect(word.getAttribute("data-status-word")).toBe("success")
+    expect(word.textContent).toBe("Finished")
+    expect(word.className).toContain("text-foreground")
+    expect(word.className).not.toMatch(/border|bg-success\/10|rounded-sm/)
+    cleanup()
+    const failed = render(<ImportStatusChip status="failed" />)
+    expect(failed.container.querySelector("[data-status-word]")?.getAttribute("data-status-word")).toBe("danger")
+  })
+
   // One primary action per view: the next step on each row was a filled
   // orange button, so a list of three imports drew three.
   it("offers each row's next step as an outline button", () => {

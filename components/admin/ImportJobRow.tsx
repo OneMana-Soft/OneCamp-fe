@@ -11,16 +11,18 @@
  * one), and it kept its workspace's label busy, so it blocked importing that
  * workspace again.
  *
- * It reads like the task panel: the name and where it stands, then quiet labels
- * with their values in ink at one x (fieldRow). Each row's next step is an
- * outline button, because a list of three imports used to draw three filled
- * orange ones against the page's one primary action.
+ * It reads like the task panel: the name and where it stands (a dot and a
+ * word), then quiet labels with their values in ink at one x (fieldRow). Each
+ * row's next step is an outline button, because a list of three imports used
+ * to draw three filled orange ones against the page's one primary action.
  */
 
 import React, { useEffect, useRef } from "react"
 import { celebrate, springPop } from "@/lib/celebrate"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
+import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
 import { AlertTriangle, RefreshCw, RotateCcw, Trash2, Users } from "@/lib/icons"
 import { PlayCircle } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -31,19 +33,12 @@ import type { CampHue } from "@/lib/campHue"
 import { importProviderLabel, type ImportJob } from "@/services/importService"
 
 /**
- * Status in the status tokens. These were raw blue, indigo, purple and grey,
- * which measure 2.3 to 3.5:1 in dark mode, below AA, and each carried an icon
- * beside its word (a spinning one for running).
+ * Status in the status colours, as a dot and a word (StatusWord), the way the
+ * task panel says a status. These were raw blue, indigo, purple and grey,
+ * which measure 2.3 to 3.5:1 in dark mode, below AA, each with an icon beside
+ * its word (a spinning one for running), and then tinted pills.
  */
-const TONE = {
-  info: "border-info/20 bg-info/10 text-info-ink",
-  success: "border-success/20 bg-success/10 text-success-ink",
-  warning: "border-warning/20 bg-warning/10 text-warning-ink",
-  danger: "border-destructive/20 bg-destructive/10 text-danger-ink",
-  neutral: "border-border bg-muted text-muted-foreground",
-} as const
-
-const STATUS: Record<string, { label: string; tone: keyof typeof TONE }> = {
+const STATUS: Record<string, { label: string; tone: StatusTone }> = {
   pending: { label: "Uploading", tone: "warning" },
   validating: { label: "To plan", tone: "info" },
   planned: { label: "Planned", tone: "info" },
@@ -71,7 +66,39 @@ export const PROVIDER_HUE: Record<string, CampHue> = {
   trello: "sky",
 }
 
-/** Where an import stands, as a tinted word. Shared by the Slack import card. */
+/** A row's buttons: 44px touch targets on a phone, 32px from md up. */
+export const ROW_ACTION = "h-11 md:h-8"
+
+/** A list of rows between hairlines, as every list on the admin page is drawn. */
+export const IMPORT_LIST = "divide-y divide-border rounded-lg border border-border"
+
+/**
+ * An import list while it loads, in its rows' own shape: the name and where it
+ * stands, then two label rows at the fieldRow's columns. It was the generic
+ * avatar rows, which the import rows then replaced at another height.
+ */
+export function ImportRowsSkeleton({ label, rows = 2 }: { label: string; rows?: number }) {
+  return (
+    <ul role="status" aria-label={label} className={IMPORT_LIST}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <li key={i} aria-hidden="true" className="space-y-2 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Skeleton className={cn("h-4", i % 2 === 0 ? "w-40" : "w-32")} />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          {["w-24", "w-36"].map((w) => (
+            <div key={w} className={fieldRow("center", "mb-0")}>
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className={cn("h-3.5", w)} />
+            </div>
+          ))}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** Where an import stands, as a dot and a word. Shared by the Slack import card. */
 export function ImportStatusChip({ status }: { status: string }) {
   const s = STATUS[status] ?? STATUS.pending
   const chip = useRef<HTMLSpanElement>(null)
@@ -88,9 +115,12 @@ export function ImportStatusChip({ status }: { status: string }) {
     }
     last.current = status
   }, [status])
+  // The span is what bursts: StatusWord takes no ref.
   return (
-    <span ref={chip} className={cn("inline-flex h-5 shrink-0 items-center rounded-sm border px-1.5 text-2xs font-medium", TONE[s.tone])}>
-      {s.label}
+    <span ref={chip} data-import-status={status} className="inline-flex shrink-0">
+      <StatusWord tone={s.tone} className="text-xs">
+        {s.label}
+      </StatusWord>
     </span>
   )
 }
@@ -155,43 +185,43 @@ export function ImportJobRow({ job: j, showProvider, onPlan, onDiscard, onCancel
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           {(j.status === "validating" || j.status === "planned") && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onPlan}>
-              <PlayCircle className="mr-1 h-4 w-4" /> Plan
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan}>
+              <PlayCircle /> Plan
             </Button>
           )}
           {j.status === "failed" && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onPlan}>
-              <PlayCircle className="mr-1 h-4 w-4" /> Plan again
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan}>
+              <PlayCircle /> Plan again
             </Button>
           )}
           {isWaiting(j.status) && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onDiscard}>
-              <Trash2 className="mr-1 h-4 w-4" /> Discard
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onDiscard}>
+              <Trash2 /> Discard
             </Button>
           )}
           {(j.status === "running" || j.status === "paused") && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onCancel}>
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onCancel}>
               Cancel
             </Button>
           )}
           {j.status === "completed" && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onInvite}>
-              <Users className="mr-1 h-4 w-4" /> Invite people
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onInvite}>
+              <Users /> Invite people
             </Button>
           )}
           {(j.status === "completed" || j.status === "failed" || j.status === "cancelled") && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onRollback}>
-              <RotateCcw className="mr-1 h-4 w-4" /> Roll back
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRollback}>
+              <RotateCcw /> Roll back
             </Button>
           )}
           {(j.status === "failed" || j.status === "cancelled") && j.chunks_failed > 0 && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onRetryFailed}>
-              <RefreshCw className="mr-1 h-4 w-4" /> Retry failed
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRetryFailed}>
+              <RefreshCw /> Retry failed
             </Button>
           )}
           {j.errors_total > 0 && (
-            <Button size="sm" variant="ghost" className="h-8" onClick={onShowErrors}>
-              <AlertTriangle className="mr-1 h-4 w-4 text-warning-ink" />
+            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onShowErrors}>
+              <AlertTriangle className="text-warning-ink" />
               {count(j.errors_total, "error", "errors")}
             </Button>
           )}

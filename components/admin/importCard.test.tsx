@@ -1,15 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 
 // The card's data: one provider (Jira), connected, and its jobs.
 let jobs: unknown[] = []
 let jobsState: { isLoading?: boolean; isError?: unknown } = {}
 let connectionsState: { isError?: unknown } = {}
+let providersState: { isLoading?: boolean } = {}
 const refetchJobs = vi.fn()
 const asked: string[] = []
 vi.mock("@/hooks/useFetch", () => ({
   useFetch: (url: string) => {
     asked.push(url)
+    if (url === "/admin/import/providers" && providersState.isLoading) return { data: undefined, isLoading: true, mutate: vi.fn() }
     if (url === "/admin/import/providers") return { data: { providers: [{ name: "jira", sources: ["api"], capabilities: [], default_status_map: {}, default_priority_map: {} }, { name: "asana", sources: ["api"], capabilities: [], default_status_map: {}, default_priority_map: {} }] }, mutate: vi.fn() }
     if (url === "/admin/import/connections")
       return connectionsState.isError
@@ -42,6 +44,7 @@ vi.mock("@/components/admin/ImportConnectDialog", () => ({
 }))
 
 const ImportCard = (await import("./ImportCard")).default
+const { importProviderLabel } = await import("@/services/importService")
 
 afterEach(() => {
   cleanup()
@@ -49,6 +52,7 @@ afterEach(() => {
   jobs = []
   jobsState = {}
   connectionsState = {}
+  providersState = {}
   confirm.mockReset()
   toast.mockReset()
   refetchJobs.mockReset()
@@ -88,18 +92,51 @@ describe("the import card", () => {
     expect(screen.queryByRole("alert")).toBeNull()
   })
 
-  // Picking a provider was a filled orange button, and once one was picked
-  // the list of every provider's imports could not be had back.
-  it("picks a provider as a choice of one, with a way back to all of them", () => {
+  // Picking a tool was a filled orange button that narrowed the history to it,
+  // and the tool's Connection and New import were inserted above the history:
+  // picking Jira pushed the list down by a form's height, and "All" pulled it
+  // back up. The history is every tool's now, above the picker, and stays put.
+  it("picks the tool as a choice of one, and the history neither moves nor narrows", () => {
     discover = async () => []
+    jobs = [running]
     render(<ImportCard />)
-    expect(screen.getByRole("radiogroup", { name: "Provider" })).toBeTruthy()
-    fireEvent.click(screen.getByRole("radio", { name: "Jira" }))
-    expect(screen.getByRole("radio", { name: "Jira" }).getAttribute("aria-checked")).toBe("true")
-    expect(asked).toContain("/admin/import/jobs?provider=jira")
-    fireEvent.click(screen.getByRole("radio", { name: "All" }))
-    expect(screen.getByRole("radio", { name: "All" }).getAttribute("aria-checked")).toBe("true")
-    expect(asked.at(-1)).toBe("/admin/import/jobs")
+    const picker = screen.getByRole("radiogroup", { name: "Tool to import from" })
+    expect(within(picker).queryByRole("radio", { name: "All" })).toBeNull()
+    const history = screen.getByRole("region", { name: "Recent imports" })
+    expect(history.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(within(picker).getByRole("radio", { name: "Jira" }))
+    expect(within(picker).getByRole("radio", { name: "Jira" }).getAttribute("aria-checked")).toBe("true")
+    expect(asked.filter((u) => u.startsWith("/admin/import/jobs")).every((u) => u === "/admin/import/jobs")).toBe(true)
+    expect(screen.getByRole("region", { name: "Recent imports" })).toBe(history)
+    expect(within(history).getByText("Acme")).toBeTruthy()
+    // The panel the tool opens sits under the picker, never above the history.
+    const panel = document.querySelector("[data-provider-panel]") as HTMLElement
+    expect(picker.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("is one flat section, its history and its new import sections inside it", () => {
+    discover = async () => []
+    const { container } = render(<ImportCard />)
+    expect(screen.getByRole("heading", { level: 2, name: "Import from other tools" })).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 3, name: "Recent imports" })).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 3, name: "Start an import" })).toBeTruthy()
+    expect(container.querySelector(".rounded-xl")).toBeNull()
+  })
+
+  // The picker's loading state was six bare h-8 bars without its well, 32px
+  // against the real 40px, so the row grew when the tools arrived.
+  it("draws the tools' loading state inside the picker's well", () => {
+    providersState = { isLoading: true }
+    render(<ImportCard />)
+    const loading = screen.getByRole("status", { name: "Loading the tools" })
+    expect(loading.className).toContain("bg-muted")
+    expect(loading.className).toContain("p-1")
+    expect(loading.querySelectorAll("[class*='h-9']").length).toBe(6)
+  })
+
+  it("writes ClickUp as ClickUp", () => {
+    expect(importProviderLabel("clickup")).toBe("ClickUp")
+    expect(importProviderLabel("monday")).toBe("monday.com")
   })
 
   // "Source workspace name required" was a toast, away from the field.
