@@ -32,7 +32,7 @@ export function MobileBoardCreateButton() {
     };
 
     return (
-        <Button variant="ghost" size="icon" onClick={createBoard} disabled={isSubmitting} aria-label="New board">
+        <Button variant="ghost" size="icon" className="h-11 w-11" onClick={createBoard} disabled={isSubmitting} aria-label="New board">
             {isSubmitting ? <Loader2 className="h-5 animate-spin" /> : <Plus className="h-5" />}
         </Button>
     );

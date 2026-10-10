@@ -8,6 +8,7 @@ import {useDispatch, useSelector} from "react-redux";
 import {Button} from "@/components/ui/button";
 import {openUI} from "@/store/slice/uiSlice";
 import { Filter, Plus, SendHorizontal } from "@/lib/icons";
+import type { ReactNode } from "react";
 import { Ellipsis } from "@/lib/icons";
 import {RootState} from "@/store/store";
 import {clickedMobileFwdMsgSend} from "@/store/slice/fwdMessageSlice";
@@ -16,6 +17,19 @@ import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {MobileTopNavigationBarThirdDoc} from "@/components/navigationBar/mobile/mobileTopNavigationBarThirdDoc";
 import {MobileBoardCreateButton} from "@/components/navigationBar/mobile/mobileBoardCreateButton";
+
+/**
+ * The one way a list says "make another": a 44px "+" named for what it makes.
+ * Channels, projects and teams said "New" in the accent, DMs and docs drew a
+ * "+", so the bar's right end changed shape from tab to tab.
+ */
+function CreateButton({ label, onClick, children }: { label: string; onClick: () => void; children?: ReactNode }) {
+    return (
+        <Button aria-label={label} variant='ghost' size='icon' className="h-11 w-11" onClick={onClick}>
+            {children ?? <Plus className='h-5'/>}
+        </Button>
+    )
+}
 
 export function MobileTopNavigationBarThird() {
 
@@ -28,21 +42,35 @@ export function MobileTopNavigationBarThird() {
     const fwdMsgSendClicked = useSelector((state: RootState) => state.fwdMsg.fwdMsgInputInputState.mobileViewSendClicked);
 
     const router = useRouter();
+    const openMenu = () => dispatch(openUI({ key: 'userProfileDrawer' }));
 
     const renderComponent = () => {
         switch (path[2]) {
-            case "search":
             case "home":
-            case "ai":
-            case "admin":
-            case "profile":
-            case "settings":
-            case "templates":
-            case "tables":
 
-                return <div className='flex items-center space-x-4 justify-end '>
+                // Home only: it is where you start, and the bell, your status
+                // and your menu are yours, not a page's. On every page that
+                // listed them (search, settings, tables, templates and more)
+                // they took 140px of the bar, pushed the title 48px off centre
+                // and cut a section's name to "Your AI…".
+                // 44px targets for a thumb, 4px apart: the bell and the status
+                // button are the desktop's 36px controls, sized up here.
+                return <div className='flex items-center gap-1 justify-end [&_button]:size-11'>
                     <UserStatusNav userUUID={selfProfile.data?.data.user_uuid || ''}/>
-                    <div onClick={()=>{dispatch(openUI({ key: 'userProfileDrawer' }))}}>
+                    {/* Was a bare div with onClick: no role, no name, no keyboard. */}
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Open menu"
+                        onClick={openMenu}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                openMenu()
+                            }
+                        }}
+                        className="h-11 w-11 flex items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                    >
                         <UserAvatarNav userUUID={selfProfile.data?.data.user_uuid} userName={displayNameOf(selfProfile.data?.data)} userProfileObjKey={selfProfile.data?.data.user_profile_object_key}/>
                     </div>
                 </div>;
@@ -50,11 +78,13 @@ export function MobileTopNavigationBarThird() {
 
             case "team":
 
-                if(path.length < 4 && selfProfile.data?.data.user_is_admin)
-                    return <div className='flex space-x-1'>
-                        <Button className={'!no-underline'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createTeam' }))}} >New</Button>
-
-                    </div>
+                // The list: making a team is an admin's; nobody else has a
+                // control here. It fell through to one team's options, for no
+                // team.
+                if(path.length < 4)
+                    return selfProfile.data?.data.user_is_admin
+                        ? <CreateButton label='New team' onClick={()=>{dispatch(openUI({ key: 'createTeam' }))}} />
+                        : null
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
                         <Button aria-label='Team options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'teamOptionDrawer', data: {teamId: path[3]} }))}}><Ellipsis className='h-5'/></Button>
@@ -64,11 +94,12 @@ export function MobileTopNavigationBarThird() {
 
             case "project":
 
-                if(path.length < 4 && selfProfile.data?.data.user_is_admin)
-                    return <div className='flex space-x-1'>
-                        <Button className={'!no-underline'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createProject' }))}} >New</Button>
-
-                    </div>
+                // The list, as teams: it showed one project's filter and
+                // options, for no project, to everyone but an admin.
+                if(path.length < 4)
+                    return selfProfile.data?.data.user_is_admin
+                        ? <CreateButton label='New project' onClick={()=>{dispatch(openUI({ key: 'createProject' }))}} />
+                        : null
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
                         <Button aria-label='Filter tasks' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'projectTaskFilterDrawer', data: { projectUUID: path[3] } }))}}><Filter className='h-5'/></Button>
@@ -98,7 +129,7 @@ export function MobileTopNavigationBarThird() {
             case "channel":
 
                 if(path.length < 4)
-                    return <Button className={'!no-underline'} variant='link' onClick={()=>{dispatch(openUI({ key: 'createChannel' }))}} >New</Button>
+                    return <CreateButton label='New channel' onClick={()=>{dispatch(openUI({ key: 'createChannel' }))}} />
                 if(path.length < 5)
                     return <div className='flex space-x-1'>
                         <Button aria-label='Channel options' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'channelOptionsDrawer', data: { channelUUID: path[3] } }))}}><Ellipsis className='h-5'/></Button>
@@ -110,7 +141,7 @@ export function MobileTopNavigationBarThird() {
                 break
             case "doc":
                 if(path.length < 4)
-                    return <Button aria-label='New doc' variant='ghost' size='icon' className="h-11 w-11" onClick={()=>{dispatch(openUI({ key: 'createDoc' }))}}><Plus className='h-5'/></Button>
+                    return <CreateButton label='New doc' onClick={()=>{dispatch(openUI({ key: 'createDoc' }))}} />
                 if(path.length < 5)
                     return <MobileTopNavigationBarThirdDoc docId={path[3]} />
 
@@ -118,7 +149,7 @@ export function MobileTopNavigationBarThird() {
 
                 
                 if(path.length < 4)
-                return  <Button aria-label='New chat' size='icon' className="h-11 w-11" variant='ghost' onClick={()=>(dispatch(openUI({ key: 'createChatMessage' })))}><Plus className='h-5'/></Button>
+                return  <CreateButton label='New chat' onClick={()=>(dispatch(openUI({ key: 'createChatMessage' })))} />
 
                 if(path.length < 5) {
 
