@@ -60,7 +60,9 @@ const UpdatesCard: React.FC = () => {
 
     return (
         <Card>
-            <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+            {/* On a phone the button goes under the words: beside them it
+                squeezed the description to two or three words a line. */}
+            <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                 <div className="space-y-1.5">
                     <CardTitle>Updates</CardTitle>
                     <CardDescription>
@@ -68,7 +70,7 @@ const UpdatesCard: React.FC = () => {
                         only asks when you click, and sends nothing about this workspace.
                     </CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={check} disabled={checking} className="shrink-0">
+                <Button variant="outline" size="sm" onClick={check} disabled={checking} className="shrink-0 self-start">
                     {checking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                     {status ? "Check again" : "Check for updates"}
                 </Button>
