@@ -13,7 +13,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from "@/components/ui/collapsible";
-import Link from "next/link";
+import {IntentLink} from "@/components/navigationBar/desktop/IntentLink";
 import {DesktopNavType} from "@/types/nav";
 import {Badge} from "@/components/ui/badge";
 import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/desktopNavigationChatAvatar";
@@ -46,9 +46,8 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
 
     return (
         <div className="group/item relative">
-        <Link
+        <IntentLink
             href={`${ch.path}`}
-            prefetch
             scroll={false}
             aria-current={isActive ? "page" : undefined}
             className={cn(
@@ -106,7 +105,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
                 </Badge>
             ) : null}
             {ch.userProfile && <DesktopNavigationEmojiStatus userUUID={ch.userProfile.user_uuid}/>}
-        </Link>
+        </IntentLink>
         {pane && (
             <button
                 type="button"
@@ -155,15 +154,14 @@ const CollapsedNavItem = memo(({ link }: { link: DesktopNavType }) => {
                         {body}
                     </button>
                 ) : (
-                    <Link
+                    <IntentLink
                         href={`${link.path}`}
-                        prefetch
                         scroll={false}
                         aria-current={link.variant === "sidebarActive" ? "page" : undefined}
                         className={itemClass}
                     >
                         {body}
-                    </Link>
+                    </IntentLink>
                 )}
             </TooltipTrigger>
             <TooltipContent side="right" className="flex items-center gap-4">
@@ -274,9 +272,8 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                 </div>
                                 :
                                 <div key={index} className="group/nav flex items-center gap-0.5">
-                                    <Link
+                                    <IntentLink
                                         href={`${link.path}`}
-                                        prefetch
                                         scroll={false}
                                         aria-current={link.variant === "sidebarActive" ? "page" : undefined}
                                         className={cn(
@@ -303,7 +300,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                                 {link.label}
                                             </Badge>
                                         )}
-                                    </Link>
+                                    </IntentLink>
                                     {link.action && (
                                         <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover/nav:opacity-100 focus-visible:opacity-100 transition-opacity [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto" onClick={link.action} aria-label={`Add ${link.title}`}>
                                             <Plus className='h-3.5 w-3.5'/>
