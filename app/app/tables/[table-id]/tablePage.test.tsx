@@ -44,7 +44,11 @@ vi.mock("@/components/table/DataTableGrid", () => ({
   ),
 }))
 vi.mock("@/components/table/DataTableBoard", () => ({ DataTableBoard: () => <div data-testid="board" /> }))
-vi.mock("@/components/table/DataTableCalendar", () => ({ DataTableCalendar: () => <div data-testid="calendar" /> }))
+vi.mock("@/components/table/DataTableCalendar", () => ({
+  DataTableCalendar: () => <div data-testid="calendar" />,
+  CalendarMonthNav: () => <div data-testid="month-nav" />,
+  monthOf: (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1),
+}))
 vi.mock("@/components/table/DataTableChart", () => ({ DataTableChart: () => <div data-testid="chart" /> }))
 vi.mock("@/components/marketplace/PublishTemplateDialog", () => ({ PublishTemplateDialog: () => null }))
 vi.mock("@/components/guest/GuestLinkSection", () => ({ GuestLinkSection: () => null }))
@@ -115,5 +119,33 @@ describe("a table's page", () => {
     const name = screen.getByRole("textbox", { name: "Table name" })
     expect(name.className).toMatch(/(^|\s)border-b(\s|$)/)
     expect(name.className).not.toMatch(/focus:border-b\b/)
+  })
+
+  it("loads in the shape of the view the address names", () => {
+    fetched = { isLoading: true }
+    window.history.replaceState(null, "", `/app/tables/${TABLE_ID}?view=board`)
+    render(<TableDetailPage />)
+    expect(screen.getByRole("status", { name: "Loading table" }).getAttribute("data-table-skeleton")).toBe("board")
+  })
+
+  it("draws every view in one frame, under one toolbar row, and says the same thing when filters hide every row", () => {
+    fetched = { isLoading: false, data: { data: { ...bundleWith([row("a")]), fields: [...bundleWith([]).fields, { id: "due", table_id: TABLE_ID, name: "Due", type: "date", config: "{}", position: 1 }] } } }
+    saved = { sort: [], filters: [{ field: "item", op: "contains", value: "zzz" }] as ViewRules["filters"], match: "all" }
+    render(<TableDetailPage />)
+    const frame = document.querySelector("[data-table-frame]") as HTMLElement
+    for (const view of ["Board", "Calendar"]) {
+      fireEvent.click(screen.getByRole("button", { name: view }))
+      // The toolbar row is the frame's first child on every view.
+      expect(frame.firstElementChild?.hasAttribute("data-table-toolbar")).toBe(true)
+      expect(screen.getByRole("heading", { name: "No rows match these filters" })).toBeTruthy()
+    }
+    // The calendar's month is in that row, not a second one.
+    expect((frame.firstElementChild as HTMLElement).querySelector('[data-testid="month-nav"]')).toBeTruthy()
+  })
+
+  it("leaves the way back to the phone's app bar", () => {
+    fetched = { isLoading: false, data: { data: bundleWith([row("a")]) } }
+    render(<TableDetailPage />)
+    expect(screen.getByRole("link", { name: "Back to tables" }).className).toMatch(/\bhidden\b.*\bsm:inline-flex\b/)
   })
 })

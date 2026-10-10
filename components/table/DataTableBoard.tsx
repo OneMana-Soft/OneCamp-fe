@@ -6,6 +6,9 @@ import { useToast } from "@/hooks/use-toast"
 import { Plus } from "@/lib/icons"
 import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, createRow, updateRow, isComputed, computedOf, nextRowPosition, writableValues } from "@/services/tableService"
 import { formulaText, cardTitle } from "@/lib/tables/formula"
+import { hueFor } from "@/lib/campHue"
+import { OptionChip } from "@/components/table/optionChip"
+import { TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
 
 interface DataTableBoardProps {
   tableId: string
@@ -18,6 +21,8 @@ interface DataTableBoardProps {
   onChange: () => void
   /** Where a new row goes, when rows are filtered out of this view: after every row. */
   nextPosition?: number
+  /** Opens the grid, where a select column is added. */
+  onOpenGrid?: () => void
 }
 
 const NO_VALUE = "__none__"
@@ -49,6 +54,7 @@ export function DataTableBoard({
   groupFieldId,
   onChange,
   nextPosition,
+  onOpenGrid,
 }: DataTableBoardProps) {
   const { toast } = useToast()
   const [dragRowId, setDragRowId] = React.useState<string | null>(null)
@@ -95,11 +101,7 @@ export function DataTableBoard({
   }, [rows, columns, groupField])
 
   if (!groupField) {
-    return (
-      <div className="px-4 py-12 text-center text-sm text-muted-foreground">
-        Add a Select column to use the board view, then set options to create columns.
-      </div>
-    )
+    return <TableViewState kind="needs-column" column="select" view="board" hue={hueFor(tableId)} onOpenGrid={onOpenGrid} />
   }
 
   const moveCard = async (row: TableRow, toColumn: string) => {
@@ -126,7 +128,9 @@ export function DataTableBoard({
   }
 
   return (
-    <div className="flex gap-3 overflow-x-auto p-3">
+    // Scrolls inside the frame, as the grid does, at the frame's one inset.
+    <div className={cn(TABLE_VIEW_BODY, TABLE_VIEW_INSET)} data-table-board="">
+    <div className="flex gap-3">
       {columns.map((col) => (
         <div
           key={col.key}
@@ -138,9 +142,15 @@ export function DataTableBoard({
             setDragRowId(null)
           }}
         >
-          <div className="flex items-center justify-between px-3 py-2 text-sm font-medium">
-            <span className="truncate">{col.label}</span>
-            <span className="ml-2 rounded-full bg-background px-1.5 text-xs text-muted-foreground">
+          {/* The option in its own colour, as the grid's chip and a guest's
+              view show it; the count beside it is a plain number. */}
+          <div className="flex h-10 items-center justify-between gap-2 px-3 text-sm font-medium">
+            {col.key === NO_VALUE ? (
+              <span className="truncate text-muted-foreground">{col.label}</span>
+            ) : (
+              <OptionChip label={col.label} color={col.color} className="text-xs" />
+            )}
+            <span className="shrink-0 text-xs font-normal tabular-nums text-muted-foreground">
               {rowsByColumn[col.key]?.length || 0}
             </span>
           </div>
@@ -154,7 +164,8 @@ export function DataTableBoard({
                   draggable
                   onDragStart={() => setDragRowId(row.id)}
                   className={cn(
-                    "cursor-grab rounded-lg border border-border/60 bg-background p-3 text-sm shadow-sm transition-opacity active:cursor-grabbing",
+                    // Flat, as a card in the page is: a shadow says it floats.
+                    "cursor-grab rounded-lg border border-border/60 bg-background p-3 text-sm transition-[opacity,border-color] hover:border-border active:cursor-grabbing",
                     dragRowId === row.id && "opacity-50",
                   )}
                 >
@@ -180,14 +191,16 @@ export function DataTableBoard({
               )
             })}
             <button
+              type="button"
               onClick={() => addCard(col.key)}
-              className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+              className="flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
-              <Plus className="h-3.5 w-3.5" /> Add card
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add card
             </button>
           </div>
         </div>
       ))}
+    </div>
     </div>
   )
 }

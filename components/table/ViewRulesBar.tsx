@@ -10,6 +10,7 @@ import { ArrowUpDown, Filter, Plus, X } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { OPS_FOR, kindOfField, type FieldKind, type FilterRule, type SortRule, type ViewRules } from "@/lib/tables/viewRules"
 import { parseFieldConfig, type TableField } from "@/services/tableService"
+import { TableToolbar } from "@/components/table/TableViewFrame"
 
 const MAX_SORTS = 3
 const MAX_FILTERS = 10
@@ -31,6 +32,7 @@ export function ViewRulesBar({
   shown,
   total,
   truncated,
+  end,
 }: {
   /** The table's fields, in column order. */
   fields: TableField[]
@@ -41,11 +43,30 @@ export function ViewRulesBar({
   total: number
   /** The table has more rows than were loaded, and the rules see only these. */
   truncated: boolean
+  /** A view's own controls, at the row's end (the calendar's month). */
+  end?: React.ReactNode
 }) {
   const nameOf = (id: string) => fields.find((f) => f.id === id)?.name ?? ""
   const active = rules.sort.length + rules.filters.length > 0
   return (
-    <div className="flex flex-wrap items-center gap-1.5 border-b border-border/60 px-2 py-1.5 text-xs">
+    <TableToolbar
+      end={
+        active || end ? (
+          <>
+            {active && (
+              <button
+                type="button"
+                onClick={() => onChange({ sort: [], filters: [], match: rules.match })}
+                className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Clear
+              </button>
+            )}
+            {end}
+          </>
+        ) : undefined
+      }
+    >
       <SortMenu fields={fields} sort={rules.sort} nameOf={nameOf} onChange={(sort) => onChange({ ...rules, sort })} />
       <FilterMenu fields={fields} rules={rules} nameOf={nameOf} onChange={onChange} />
       {shown !== total && (
@@ -54,16 +75,7 @@ export function ViewRulesBar({
         </span>
       )}
       {active && truncated && <span className="text-muted-foreground">(of the first {total})</span>}
-      {active && (
-        <button
-          type="button"
-          onClick={() => onChange({ sort: [], filters: [], match: rules.match })}
-          className="ml-auto text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          Clear
-        </button>
-      )}
-    </div>
+    </TableToolbar>
   )
 }
 
