@@ -57,11 +57,13 @@ describe("a week with nothing in it", () => {
 })
 
 describe("the phone's agenda with nothing coming up", () => {
-  it("draws the calendar over its words and its one action", () => {
-    render(<CalendarAgenda days={[]} onOpen={vi.fn()} onCreate={vi.fn()} />)
+  it("draws the calendar over its words, as quietly as a free week does", () => {
+    render(<CalendarAgenda days={[]} onOpen={vi.fn()} />)
     expect(screen.getByRole("heading", { name: "Nothing coming up this month" })).toBeTruthy()
     expect(document.querySelector("[data-empty-illustration] svg.hue-berry")).toBeTruthy()
-    expect(screen.getByRole("button", { name: /New event/ })).toBeTruthy()
+    // The header's New event is the view's one action; the empty state adds no second.
+    expect(screen.queryByRole("button", { name: /New event/ })).toBeNull()
+    expect(document.querySelector("[data-empty-illustration]")?.className).not.toMatch(/size-24|h-24/)
   })
 })
 
@@ -73,7 +75,6 @@ describe("the phone's agenda rows", () => {
       <CalendarAgenda
         days={[{ day, items: [{ event_uuid: "x", event_title: "Item", event_start_time: iso(12, 9), event_end_time: iso(12, 10), ...item } as never] }]}
         onOpen={vi.fn()}
-        onCreate={vi.fn()}
       />,
     )
     return screen.getByRole("button", { name: /Item|Focus time|Launch day|Offsite/ }).textContent

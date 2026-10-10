@@ -2,8 +2,7 @@
 
 import { format, isSameDay, isToday, isTomorrow, parseISO, subMinutes } from "date-fns";
 import { shortTime } from "@/lib/utils/date/shortDate";
-import { ChevronRight, Plus } from "@/lib/icons";
-import { Button } from "@/components/ui/button";
+import { ChevronRight } from "@/lib/icons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotCalendar } from "@/components/ui/graphics";
 import { toneOf } from "@/components/calendar/calendarTones";
@@ -27,7 +26,8 @@ interface AgendaItem {
 function dayLabel(day: Date): string {
   if (isToday(day)) return "Today";
   if (isTomorrow(day)) return "Tomorrow";
-  return format(day, "EEEE, d MMM");
+  // "Sunday 18 Oct", as the event panel writes a day: no comma.
+  return format(day, "EEEE d MMM");
 }
 
 function itemDetail(item: AgendaItem, day: Date): string {
@@ -50,26 +50,21 @@ function itemDetail(item: AgendaItem, day: Date): string {
 export function CalendarAgenda({
   days,
   onOpen,
-  onCreate,
 }: {
   days: { day: Date; items: AgendaItem[] }[];
   onOpen: (item: AgendaItem) => void;
-  onCreate: () => void;
 }) {
+  // The same quiet treatment a free week, day or month gets on the grids (a
+  // 64px spot and a line), anchored near the top where the rows would start.
+  // It was the accent tone with its own New event button under the header's
+  // New event, in the middle of half the screen.
   if (days.length === 0) {
     return (
       <EmptyState
-        tone="accent"
         illustration={<SpotCalendar />}
         title="Nothing coming up this month"
         description="Events you create and tasks with dates show up here."
-        action={
-          <Button size="sm" onClick={onCreate} className="gap-1.5">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            New event
-          </Button>
-        }
-        className="min-h-[50vh]"
+        className="pt-16"
       />
     );
   }
