@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
@@ -11,7 +12,7 @@ interface SingleAvatarProps {
 
 export function SingleAvatar({ userInfo, size }: SingleAvatarProps & { size?: number }) {
     const { src: imageSrc } = useUserAvatar(userInfo.user_profile_object_key)
-    const nameInitial = getNameInitials(userInfo.user_name)
+    const nameInitial = getNameInitials(displayNameOf(userInfo))
 
     // Scale font size relative to avatar size to prevent overflow
     const fontSize = size ? `${size * 0.4}px` : undefined
@@ -22,7 +23,7 @@ export function SingleAvatar({ userInfo, size }: SingleAvatarProps & { size?: nu
             <AvatarFallback
                 className={cn(
                     "font-semibold flex items-center justify-center",
-                    getAvatarFallbackClass(userInfo.user_name),
+                    getAvatarFallbackClass(displayNameOf(userInfo)),
                 )}
                 style={fontSize ? { fontSize } : undefined}
             >

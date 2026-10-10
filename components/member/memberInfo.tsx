@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import React from "react"
 import { Crown, LogOut } from "@/lib/icons"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -40,7 +41,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
 }) => {
     const { src: imageSrc } = useUserAvatar(userInfo.user_profile_object_key)
     const botKind = useBotKind(userInfo.user_uuid, userInfo.is_bot)
-    const nameInitial = getNameInitials(userInfo.user_name)
+    const nameInitial = getNameInitials(displayNameOf(userInfo))
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
         GetEndpointUrl.SelfProfile,
@@ -79,13 +80,13 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                         <Avatar className="h-9 w-9">
                             <AvatarImage
                                 src={imageSrc || ""}
-                                alt={userInfo.user_name}
+                                alt={displayNameOf(userInfo)}
                                 className="object-cover"
                             />
                             <AvatarFallback
                                 className={cn(
                                     "text-2xs font-semibold",
-                                    getAvatarFallbackClass(userInfo.user_name),
+                                    getAvatarFallbackClass(displayNameOf(userInfo)),
                                 )}
                             >
                                 {nameInitial}
@@ -107,7 +108,7 @@ const MemberInfo: React.FC<MemberPropInfoInterface> = ({
                     <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-1.5 min-w-0">
                             <span className="truncate text-sm font-medium text-foreground">
-                                {userInfo.user_name}
+                                {displayNameOf(userInfo)}
                             </span>
                             {userInfo.is_bot && (
                                 <BotTag userUUID={userInfo.user_uuid} />

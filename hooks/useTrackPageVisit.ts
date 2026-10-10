@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { useEffect, useRef } from "react"
 import { usePathname } from "next/navigation"
 import { useSelector, useDispatch } from "react-redux"
@@ -76,7 +77,7 @@ export function useTrackPageVisit() {
         if (chat) {
           const participants = chat.dm_participants || []
           if (participants.length > 0) {
-            title = participants.map((p) => p.user_name || p.user_full_name).join(", ")
+            title = participants.map((p) => displayNameOf(p)).join(", ")
           } else {
             title = "Chat"
           }

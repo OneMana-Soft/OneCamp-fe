@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import { useOpenBeside } from "@/hooks/useSplitView";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -148,7 +149,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                             separators: truncation applies to the whole line, so a
                             long list ends in an ellipsis instead of a stray comma. */}
                         <span className='text-sm font-semibold text-foreground truncate leading-tight'>
-                            {participants.map((u) => u.user_name).join(', ')}
+                            {participants.map((u) => displayNameOf(u)).join(', ')}
                         </span>
                         {/* Mirrors "Active now" on the 1:1 header, so both have a
                             second line and the two sit at the same height. */}

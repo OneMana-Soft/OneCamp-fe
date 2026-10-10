@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import React from "react";
 import { Video, Trash2 } from "@/lib/icons";
 import {RecordingInfoInterface} from "@/types/recording";
@@ -38,7 +39,7 @@ export const RecordingListRecording = ({
                     <h3 className="font-bold text-foreground/90 truncate text-sm sm:text-base">
                         {recordingInfo.recording_channel?.ch_name 
                             ? `# ${recordingInfo.recording_channel.ch_name}` 
-                            : recordingInfo.recording_dm?.dm_participants?.find(p => p.user_uuid !== currentUserId)?.user_name 
+                            : displayNameOf(recordingInfo.recording_dm?.dm_participants?.find(p => p.user_uuid !== currentUserId)) 
                                 || "Direct Message Meeting"}
                     </h3>
                     <span className="text-2xs sm:text-xs font-medium text-muted-foreground/60 whitespace-nowrap bg-muted/30 px-2 py-0.5 rounded-full">
@@ -57,7 +58,7 @@ export const RecordingListRecording = ({
 
                 <div className="flex items-center gap-2 text-2xs sm:text-xs text-muted-foreground/80">
                     <span className="font-semibold text-foreground/70">
-                        {recordingInfo.recording_started_by?.user_name || "Assistant"}
+                        {displayNameOf(recordingInfo.recording_started_by) || "Assistant"}
                     </span>
                     <span className="opacity-40">•</span>
                     <span className="bg-primary/5 px-1.5 py-0.25 rounded  font-medium">

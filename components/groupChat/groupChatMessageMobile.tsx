@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
 import { BotTag } from "@/components/ui/botTag";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
@@ -85,7 +86,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                 }
                 setReactions(prevReactions => ({
                     ...prevReactions,
-                    [reaction.reaction_emoji_id]: [...(prevReactions[reaction.reaction_emoji_id] || []), reaction.reaction_added_by.user_name]
+                    [reaction.reaction_emoji_id]: [...(prevReactions[reaction.reaction_emoji_id] || []), displayNameOf(reaction.reaction_added_by)]
                 }));
 
             })
@@ -122,7 +123,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
             setGroupChatReplyTarget({
                 grpId,
                 uuid: chatInfo.chat_uuid,
-                authorName: chatInfo.chat_from?.user_name || "",
+                authorName: displayNameOf(chatInfo.chat_from) || "",
                 text: htmlToPreviewText(chatInfo.chat_body_text),
             }),
         )
@@ -144,7 +145,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                 copyTextToClipboard: copyPostText,
                 messageText: removeHtmlTags(chatInfo.chat_body_text || ""),
                 makeTask: () => {
-                    const action = makeTaskAction({ html: chatInfo.chat_body_text, authorName: chatInfo.chat_from?.user_name, groupUUID: grpId, chatMessageID: chatInfo.chat_uuid }, window.location.origin)
+                    const action = makeTaskAction({ html: chatInfo.chat_body_text, authorName: displayNameOf(chatInfo.chat_from), groupUUID: grpId, chatMessageID: chatInfo.chat_uuid }, window.location.origin)
                     if (action) dispatch(action)
                 },
             }
@@ -289,7 +290,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
                     <MessageAttachments priority={priority} attachmentSelected={handleSelectAttachment} attachments={chatInfo.chat_attachments} mediaGetUrl={GetEndpointUrl.GetGroupChatMedia + '/' + grpId}/>
                 }
 
-                {chatInfo.chat_comments && (chatInfo.chat_comment_count || 0) > 0 && <div className='mb-3' onClick={handleOnCLick}><MessageReplyCount replyCount={chatInfo.chat_comment_count} lastCommentCreatedAt={chatInfo.chat_comments[0].comment_created_at} participants={chatInfo.chat_comments.map((c) => ({ uuid: c.comment_by?.user_uuid || "", name: c.comment_by?.user_name || "", profileKey: c.comment_by?.user_profile_object_key }))}/></div>}
+                {chatInfo.chat_comments && (chatInfo.chat_comment_count || 0) > 0 && <div className='mb-3' onClick={handleOnCLick}><MessageReplyCount replyCount={chatInfo.chat_comment_count} lastCommentCreatedAt={chatInfo.chat_comments[0].comment_created_at} participants={chatInfo.chat_comments.map((c) => ({ uuid: c.comment_by?.user_uuid || "", name: displayNameOf(c.comment_by) || "", profileKey: c.comment_by?.user_profile_object_key }))}/></div>}
 
                 { !isMessageEditEnabled && <BottomMenu handleEmojiClick={handleEmojiClick} reactions={reactions} selectedEmojiId={userSelectedOption.emojiId}/>}
 

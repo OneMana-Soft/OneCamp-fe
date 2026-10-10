@@ -1,5 +1,6 @@
 "use client";
 
+import { displayNameOf } from "@/lib/personName"
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { VideoConference } from "@/components/livekit/VideoConference";
@@ -61,7 +62,7 @@ export default function InstantMeetingPage() {
             <div className="relative">
                 <PreJoin
                     onJoin={handlePreJoin}
-                    username={selfProfile.data?.data.user_name || ""}
+                    username={displayNameOf(selfProfile.data?.data) || ""}
                     joinLabel={starting ? "Starting…" : "Start meeting"}
                     onCancel={handleDisconnect}
                 />

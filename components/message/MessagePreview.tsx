@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import {UserProfileDataInterface} from "@/types/user";
 import {cn} from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
@@ -39,7 +40,7 @@ export function MessagePreview (msgInfo : MsgPreviewProps) {
                     )}
                     <div>
                         <div className='flex items-baseline gap-1.5 text-sm'>
-                            {relayed ? relayed.name : (msgInfo.msgBy?.user_name || msgInfo.msgChannelName)}
+                            {relayed ? relayed.name : (displayNameOf(msgInfo.msgBy) || msgInfo.msgChannelName)}
                             {relayed && <PrincipalTag kind={relayed.kind}/>}
                         </div>
                         <div className='text-xs text-muted-foreground text'>

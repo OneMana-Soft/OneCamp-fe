@@ -1,4 +1,5 @@
 "use client"
+import { displayNameOf } from "@/lib/personName"
 import { cn } from "@/lib/utils/helpers/cn"
 import { nameList } from "@/lib/utils/format/nameList"
 import {UserProfileDataInterface} from "@/types/user";
@@ -11,7 +12,7 @@ interface TypingIndicatorProps {
 }
 
 export function TypingIndicator({ users, className }: TypingIndicatorProps) {
-    const getTypingText = () => nameList(users.map((u) => u.user_name))
+    const getTypingText = () => nameList(users.map((u) => displayNameOf(u)))
 
     const renderAvatars = () => {
         const displayUsers = users.slice(0, 3) // Show max 3 avatars
@@ -20,7 +21,7 @@ export function TypingIndicator({ users, className }: TypingIndicatorProps) {
             <div className="flex -space-x-1.5 border-r border-border/50 pr-2 mr-1">
                 {displayUsers.map((user, i) => (
                     <div key={user.user_uuid} className="relative border-[1.5px] border-background rounded-full" style={{ zIndex: 10 - i }}>
-                         <TypingAvatar userName={user.user_name} userProfileObjKey={user.user_profile_object_key}/>
+                         <TypingAvatar userName={displayNameOf(user)} userProfileObjKey={user.user_profile_object_key}/>
                     </div>
                 ))}
                 {users.length > 3 && (

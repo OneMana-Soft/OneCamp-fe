@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf, personKeywords } from "@/lib/personName"
 import React from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -63,7 +64,7 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                         >
                             <div className='flex text-sm font-medium gap-x-2 items-center truncate'>
                                 {assignee && <DesktopNavigationChatAvatar userInfo={assignee}/>}
-                                <span className="truncate">{assignee ? assignee.user_name : "Select assignee"}</span>
+                                <span className="truncate">{assignee ? displayNameOf(assignee) : "Select assignee"}</span>
                             </div>
                             <ChevronsUpDown className="invisible group-hover:visible ml-2 h-4 w-4 shrink-0 opacity-40" />
                         </Button>
@@ -78,11 +79,11 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                         <CommandItem
                                             key={member.user_uuid}
                                             value={member.user_uuid}
-                                            keywords={member.user_name ? [member.user_name] : undefined}
+                                            keywords={personKeywords(member)}
                                             onSelect={handleSelect}
                                             className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
                                         >
-                                            <span className="flex-1 font-medium text-sm">{member.user_name}</span>
+                                            <span className="flex-1 font-medium text-sm">{displayNameOf(member)}</span>
                                             <Check
                                                 className={cn(
                                                     "ml-auto h-4 w-4 text-primary",
@@ -98,11 +99,11 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                             <CommandItem
                                                 key={member.user_uuid}
                                                 value={member.user_uuid}
-                                                keywords={member.user_name ? [member.user_name, "ai"] : ["ai"]}
+                                                keywords={personKeywords(member, ["ai"])}
                                                 onSelect={handleSelect}
                                                 className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
                                             >
-                                                <span className="flex-1 font-medium text-sm">{member.user_name}</span>
+                                                <span className="flex-1 font-medium text-sm">{displayNameOf(member)}</span>
                                                 <span className="text-2xs uppercase tracking-wide text-primary/70 border border-primary/30 rounded px-1 py-0.5">AI</span>
                                                 <Check
                                                     className={cn(

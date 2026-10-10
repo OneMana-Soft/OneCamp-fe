@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { BotTag } from "@/components/ui/botTag";
 import { useBotKind } from "@/hooks/useBotKinds";
 import { botSubtitle } from "@/lib/botCopy";
+import { displayNameOf, handleOf } from "@/lib/personName";
 
 interface ComboboxChannelMemberList {
     person: UserProfileDataInterface
@@ -21,7 +22,9 @@ const MentionMember: React.FC<ComboboxChannelMemberList> = ({ person, selectItem
     const {src: imageSrc} = useUserAvatar(person.user_profile_object_key);
     const botKind = useBotKind(person.user_uuid, person.is_bot);
 
-    const nameInitials = getNameInitials(person.user_name);
+    const name = displayNameOf(person);
+    const handle = handleOf(person);
+    const nameInitials = getNameInitials(name);
 
     return (
         <div
@@ -36,14 +39,17 @@ const MentionMember: React.FC<ComboboxChannelMemberList> = ({ person, selectItem
             <Avatar className="h-6 w-6">
                 <AvatarImage
                     src={imageSrc}
-                    alt={person.user_name}
+                    alt={name}
                 />
-                <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(person.user_name))}>{nameInitials}</AvatarFallback>
+                <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(name))}>{nameInitials}</AvatarFallback>
             </Avatar>
 
             <div className='flex flex-col min-w-0'>
                 <div className="flex items-center gap-1.5 leading-none">
-                    <span className="font-medium truncate">{person.user_name}</span>
+                    <span className="font-medium truncate">{name}</span>
+                    {handle && (
+                        <span className="text-xs text-muted-foreground truncate">@{handle}</span>
+                    )}
                     {person.is_bot && (
                         <BotTag userUUID={person.user_uuid} />
                     )}

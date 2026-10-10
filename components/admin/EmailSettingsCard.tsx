@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import React, { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -197,7 +198,7 @@ const EmailSettingsCard = () => {
   const appURL = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "")
   const previewSignupLink = `${appURL}/signup?token=preview`
   const previewWorkspace = appURL.replace(/^https?:\/\//, "") || (typeof window !== "undefined" ? window.location.host : "")
-  const previewInviter = selfProfile.data?.data?.user_name || "Your name"
+  const previewInviter = displayNameOf(selfProfile.data?.data) || "Your name"
   const previewHtml = fillPreview(formData.template, {
     signup_link: previewSignupLink,
     logo_image: hasLogo ? `<img src="${getPublicLogoUrl()}" alt="Logo" style="max-height:80px; max-width:200px;" />` : "",

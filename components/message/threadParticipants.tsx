@@ -1,5 +1,6 @@
 "use client";
 
+import { displayNameOf } from "@/lib/personName"
 import * as React from "react";
 import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
@@ -40,7 +41,7 @@ export function replyParticipants(
         if (relayed) {
             return { uuid: `${by?.user_uuid}:${relayed.kind}:${relayed.name}`, name: relayed.name, relayed: true };
         }
-        return { uuid: by?.user_uuid || "", name: by?.user_name || "", profileKey: by?.user_profile_object_key };
+        return { uuid: by?.user_uuid || "", name: displayNameOf(by) || "", profileKey: by?.user_profile_object_key };
     });
 }
 

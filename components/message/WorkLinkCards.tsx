@@ -9,6 +9,7 @@
 // Additive, like AgentResultCards: it never changes the message's own text, and
 // renders nothing when a message links to nothing of ours.
 
+import { displayNameOf } from "@/lib/personName"
 import Link from "next/link"
 import { format, isPast, parseISO } from "date-fns"
 
@@ -79,7 +80,7 @@ function TaskCard({ id }: { id: string }) {
   // Only the date turns red when it has passed; the rest of the line is not late.
   const parts: React.ReactNode[] = [
     t.task_custom_status_name || taskStatusLabel(t.task_status),
-    t.task_assignee?.user_name,
+    displayNameOf(t.task_assignee),
     dueOk ? <span key="due" className={overdue ? "text-destructive" : undefined}>due {format(due, "d MMM")}</span> : null,
     t.task_project?.project_name,
   ].filter(Boolean)

@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import { useTranslation } from "react-i18next"
 import { CheckIcon, PlusCircledIcon } from "@radix-ui/react-icons";
 
@@ -70,7 +71,7 @@ export function ProjectTaskKanbanAssigneeFilter({
                         key={option.uid}
                         className="rounded-sm px-1 font-normal"
                       >
-                        {option.user_name}
+                        {displayNameOf(option)}
                       </Badge>
                     ))
                 )}
@@ -111,7 +112,7 @@ export function ProjectTaskKanbanAssigneeFilter({
                     {/*{option.icon && (*/}
                     {/*  <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />*/}
                     {/*)}*/}
-                    <span>{option.user_name}</span>
+                    <span>{displayNameOf(option)}</span>
                     {/*{facets?.get(option.value) && (*/}
                     {/*  <span className="ml-auto flex h-4 w-4 items-center justify-center font-mono text-xs">*/}
                     {/*    {facets.get(option.value)}*/}

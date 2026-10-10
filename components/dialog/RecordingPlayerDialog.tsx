@@ -1,5 +1,6 @@
 "use client";
 
+import { displayNameOf } from "@/lib/personName"
 import {Dialog, DialogContent, DialogTitle} from "@/components/ui/dialog";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
@@ -183,7 +184,7 @@ export const RecordingPlayerDialog = () => {
             >
                  <div className="flex justify-between items-center">
                      <span className={cn("font-semibold text-xs", isActive ? "text-primary" : "text-muted-foreground")}>
-                        {item.transcript_from?.user_name || "Unknown"}
+                        {displayNameOf(item.transcript_from) || "Unknown"}
                      </span>
                      <span className="text-2xs text-muted-foreground font-mono">
                         {formatDuration(startTimeSeconds)}

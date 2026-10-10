@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { useLaterList } from "@/hooks/useLater";
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import { isCurrentPath } from "@/lib/utils/isCurrentPath";
@@ -246,7 +247,7 @@ export function DesktopNavigationBar({
         }
 
         dmNavGrp.push({
-            title: dm_participants.length == 0 ? userSideNav.data?.data.user_name || '' : dm_participants.map((item) => userDisplayName(item)).join(","),
+            title: dm_participants.length == 0 ? displayNameOf(userSideNav.data?.data) || '' : dm_participants.map((item) => userDisplayName(item)).join(","),
             userParticipants: dm_participants.length > 1 ? dm_participants : [],
             unread_count: d?.dm_unread,
             userProfile: dm_participants.length == 0 ? d.dm_participants[0] : (dm_participants.length == 1 ? dm_participants[0] : undefined),

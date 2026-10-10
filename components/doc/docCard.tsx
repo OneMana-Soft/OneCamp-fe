@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import React from 'react';
 import { DocInfoInterface } from "@/types/doc";
 import { DocPreview } from "@/components/doc/docPreview";
@@ -63,7 +64,7 @@ export const DocCard: React.FC<DocCardProps> = ({ doc, onClick, className }) => 
                      {/* Owner info could act as a secondary subtitle */}
                      {/* <span className="text-xs text-muted-foreground mx-1">•</span>
                      <span className="text-xs text-muted-foreground truncate max-w-[80px]">
-                        {doc.doc_created_by?.user_name}
+                        {displayNameOf(doc.doc_created_by)}
                      </span> */}
                 </div>
             </div>

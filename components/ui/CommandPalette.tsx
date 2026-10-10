@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
@@ -863,7 +864,7 @@ function getSearchResultTitle(result: SearchResult): string {
     case "doc": return result.doc?.doc_title || "Document"
     case "project": return result.project?.project_name || "Project"
     case "team": return result.team?.team_name || "Team"
-    case "user": return result.user?.user_full_name || result.user?.user_name || "User"
+    case "user": return displayNameOf(result.user) || "User"
     case "channel": return result.channel?.ch_name || "Channel"
     case "comment": return result.comment?.comment_body?.substring(0, 60) || "Comment"
     case "attachment": return result.attachment?.attachment_name || "Attachment"

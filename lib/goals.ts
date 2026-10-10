@@ -4,6 +4,7 @@
  * projects that serve the goal, its sub-goals, or a number; check-ins say
  * where it stands. Pure helpers, for their test.
  */
+import { displayNameOf, matchesPerson } from "@/lib/personName"
 import type { Ending, Health } from "@/lib/projectUpdates"
 import { daysSince } from "@/lib/utils/relativeTime"
 
@@ -275,12 +276,11 @@ export function filterGoals(goals: GoalSummary[], f: GoalFilter, me?: string): G
     if ((g.status === "open") !== (f.status === "open")) return false
     if (f.mine && g.owner.user_uuid !== me) return false
     if (!q) return true
-    const owner = `${g.owner.user_full_name ?? ""} ${g.owner.user_name ?? ""}`.toLowerCase()
-    return g.title.toLowerCase().includes(q) || owner.includes(q)
+    return g.title.toLowerCase().includes(q) || matchesPerson(g.owner, q)
   })
 }
 
 /** The owner's name, or that the account is gone. Pure. */
 export function ownerName(o: GoalOwner): string {
-  return o.user_full_name || o.user_name || "A former member"
+  return displayNameOf(o) || "A former member"
 }

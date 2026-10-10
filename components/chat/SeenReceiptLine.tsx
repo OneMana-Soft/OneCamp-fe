@@ -8,6 +8,7 @@
 // state itself, so the memoised list never re-renders for one, and gives way
 // to the typing indicator.
 
+import { displayNameOf } from "@/lib/personName"
 import { memo, useEffect, useMemo, useState } from "react"
 import { useSelector } from "react-redux"
 import { useChatReceipts, useMarkChatSeen } from "@/hooks/useChatReceipts"
@@ -49,7 +50,7 @@ export const SeenReceiptLine = memo(function SeenReceiptLine({
     const others = (people.data?.data.dm_participants ?? []).filter((p) => p.user_uuid !== me && !p.is_bot)
     const nameOf = (uuid: string) => {
       const p = others.find((o) => o.user_uuid === uuid)
-      return p?.user_full_name || p?.user_name || "Someone"
+      return displayNameOf(p) || "Someone"
     }
     return seenLine(receipts.data?.data, latest ? { mine, createdAt: latest.chat_created_at } : undefined, {
       dm: target.kind === "dm",

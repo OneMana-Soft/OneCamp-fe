@@ -3,6 +3,7 @@
  * per person on the project, after a "No assignee" column. Pure, so it is
  * tested without rendering.
  */
+import { displayNameOf } from "@/lib/personName"
 import type { StatusOption } from "@/lib/taskStatus"
 
 export type BoardGrouping = "status" | "assignee"
@@ -16,7 +17,7 @@ interface Member {
   user_full_name?: string
 }
 
-const nameOf = (m: Member) => m.user_full_name || m.user_name || "Someone"
+const nameOf = (m: Member) => displayNameOf(m) || "Someone"
 
 /** Anything with an assignee: a board's task, or a timeline's. */
 interface Assigned {

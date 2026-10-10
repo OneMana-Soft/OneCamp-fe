@@ -1,6 +1,7 @@
 "use client";
 
 
+import { displayNameOf } from "@/lib/personName"
 import { useMedia } from "@/context/MediaQueryContext";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user";
@@ -191,7 +192,7 @@ export function ChatView({ chatId }: { chatId: string }) {
 
           dispatch(
             UpdateMessageInChatList({
-              name: selfProfile.data?.data.user_name || "",
+              name: displayNameOf(selfProfile.data?.data) || "",
               msgTime: res?.chat_created_at,
               attachments: chatState.filesUploaded,
               msg: body,

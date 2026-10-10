@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import {useState} from "react";
 import {Input} from "@/components/ui/input";
 import * as React from "react";
@@ -32,7 +33,7 @@ const MembersList: React.FC<MembersListPropInterface> = ({isAdmin, blockExitForU
         return debouncedQuery === ''
             ? usersList
             : usersList.filter((member) =>
-                member.user_name
+                displayNameOf(member)
                     .toLowerCase()
                     .replace(/\s+/g, '')
                     .includes(debouncedQuery.toLowerCase().replace(/\s+/g, ''))

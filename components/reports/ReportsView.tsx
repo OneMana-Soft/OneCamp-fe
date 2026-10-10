@@ -6,6 +6,7 @@
 // Asana keeps this for its Advanced plan and monday for Pro; here it needs no
 // dashboard built first. Only projects you're in are counted.
 
+import { displayNameOf } from "@/lib/personName"
 import Link from "next/link"
 import { useEffect, useMemo } from "react"
 import SvgChart from "@/components/charts/SvgChart"
@@ -49,7 +50,7 @@ import { app_project_path } from "@/types/paths"
 const isWeeks = (v: unknown): v is number => (REPORT_WEEKS as readonly unknown[]).includes(v)
 const isIdList = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string")
 
-const personName = (p: ReportPersonRow) => p.user_full_name || p.user_name || "Nobody"
+const personName = (p: ReportPersonRow) => displayNameOf(p) || "Nobody"
 
 // Where open work stands, in the order it moves, each with its colour.
 const STAGES: { key: "to_do" | "in_progress" | "in_review"; label: string; className: string }[] = [

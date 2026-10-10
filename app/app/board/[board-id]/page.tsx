@@ -1,5 +1,6 @@
 "use client";
 
+import { displayNameOf } from "@/lib/personName"
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMedia } from "@/context/MediaQueryContext";
@@ -73,7 +74,7 @@ export default function BoardPage() {
       enabled: true,
       documentId: `${BOARD_DOC_PREFIX}${boardId}`,
       username:
-        userProfile.data.data.user_full_name || userProfile.data.data.user_name || "Anonymous",
+        displayNameOf(userProfile.data.data) || "Anonymous",
       userId: userProfile.data.data.user_uuid,
       color: generateColorFromUUID(userProfile.data?.data?.user_uuid || "default"),
       profileKey: userProfile.data.data.user_profile_object_key,
@@ -299,9 +300,7 @@ export default function BoardPage() {
             user={{
               id: userProfile.data!.data!.user_uuid,
               name:
-                userProfile.data!.data!.user_full_name ||
-                userProfile.data!.data!.user_name ||
-                "Anonymous",
+                displayNameOf(userProfile.data!.data!) || "Anonymous",
               profileKey: userProfile.data!.data!.user_profile_object_key,
             }}
             theme={resolvedTheme === "dark" ? "dark" : "light"}
@@ -329,7 +328,7 @@ export default function BoardPage() {
             editable={hasEditAccess}
             user={{
               id: userProfile.data.data.user_uuid,
-              name: userProfile.data.data.user_full_name || userProfile.data.data.user_name || "Someone",
+              name: displayNameOf(userProfile.data.data) || "Someone",
             }}
           />
         )}
@@ -346,9 +345,7 @@ export default function BoardPage() {
             user={{
               id: userProfile.data!.data!.user_uuid,
               name:
-                userProfile.data!.data!.user_full_name ||
-                userProfile.data!.data!.user_name ||
-                "Anonymous",
+                displayNameOf(userProfile.data!.data!) || "Anonymous",
             }}
           />
         )}

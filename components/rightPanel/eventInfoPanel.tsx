@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import { eyebrowClass } from "@/components/ui/eyebrow"
 import { cn } from "@/lib/utils/helpers/cn"
 import React, { useState, useRef } from 'react';
@@ -318,21 +319,21 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             {event.event_is_away && (
                                 <div className="flex items-center gap-3 text-muted-foreground mt-2">
                                     <CalendarClock className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">Away: {event.event_created_by?.user_name || "its owner"}&apos;s working days here count out of their workload</span>
+                                    <span className="text-sm">Away: {displayNameOf(event.event_created_by) || "its owner"}&apos;s working days here count out of their workload</span>
                                 </div>
                             )}
 
                             {event.event_is_focus && (
                                 <div className="flex items-center gap-3 text-muted-foreground mt-2">
                                     <BellOff className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">Focus time: {event.event_created_by?.user_name || "its owner"}&apos;s notifications pause while it runs</span>
+                                    <span className="text-sm">Focus time: {displayNameOf(event.event_created_by) || "its owner"}&apos;s notifications pause while it runs</span>
                                 </div>
                             )}
 
                             {event.event_created_by && (
                                 <div className="flex items-center gap-3 text-muted-foreground mt-2">
                                     <User className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">Created by {event.event_created_by.user_name || event.event_created_by.user_full_name || "Unknown"}</span>
+                                    <span className="text-sm">Created by {displayNameOf(event.event_created_by) || "Unknown"}</span>
                                 </div>
                             )}
                         </div>
@@ -372,11 +373,11 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                             <Avatar className="h-7 w-7 border border-border/50">
                                                 <AvatarImage src={participant.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${participant.user_profile_object_key}` : ""} />
                                                 <AvatarFallback className="text-3xs">
-                                                    {(participant.user_name || "U").charAt(0).toUpperCase()}
+                                                    {(displayNameOf(participant) || "U").charAt(0).toUpperCase()}
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div className="flex flex-col">
-                                                <span className="text-sm font-medium text-foreground/90 leading-none">{participant.user_name}</span>
+                                                <span className="text-sm font-medium text-foreground/90 leading-none">{displayNameOf(participant)}</span>
                                                 <span className="text-2xs text-muted-foreground">{participant.user_email_id}</span>
                                             </div>
                                         </div>
@@ -477,7 +478,9 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                                             <UserComboboxItem
                                                                 key={user.user_uuid}
                                                                 userUuid={user.user_uuid}
-                                                                userName={user.user_name}
+                                                                userName={displayNameOf(user)}
+                                                                userFullName={user.user_full_name}
+                                                                userHandle={user.user_handle}
                                                                 userEmail={user.user_email_id}
                                                                 userProfileObjectKey={user.user_profile_object_key}
                                                                 isSelected={participants.some(p => p.user_uuid === user.user_uuid)}
@@ -499,7 +502,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 <div className="flex flex-wrap gap-2">
                                     {participants.map((p) => (
                                         <Badge key={p.user_uuid} variant="secondary" className="gap-1 px-2 py-0.5 text-2xs">
-                                            {p.user_name}
+                                            {displayNameOf(p)}
                                             <X 
                                                 className="h-2 w-2 cursor-pointer hover:text-destructive" 
                                                 onClick={() => setParticipants(participants.filter(pt => pt.user_uuid !== p.user_uuid))}

@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { SavedTaskViewsPanel } from "@/components/task/savedTaskViews"
 import { taskViewScope } from "@/lib/tasks/views"
@@ -247,7 +248,7 @@ export function ProjectTaskFilterDrawer({ drawerOpenState, setOpenState, project
                             />
                             <Label className="font-normal flex gap-x-1 justify-center items-center" htmlFor={`${activeTab}-${option.uid}`}>
                                 <DesktopNavigationChatAvatar userInfo={option}/>
-                                {option.user_name}
+                                {displayNameOf(option)}
                             </Label>
                         </div>)
                     })}

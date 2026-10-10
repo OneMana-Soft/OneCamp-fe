@@ -1,6 +1,8 @@
 "use client"
 
 import { eyebrowClass } from "@/components/ui/eyebrow"
+import { userDisplayName } from "@/lib/utils/userDisplayName";
+import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { openUI } from "@/store/slice/uiSlice";
@@ -30,7 +32,11 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const profileInfo = useFetch<UserProfileInterface>(userUUID ? GetEndpointUrl.SelfProfile + '/' + userUUID : '');
     const {src: imageSrc} = useUserAvatar(profileInfo?.data?.data?.user_profile_object_key);
 
-    const userSeed = profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "User";
+    const shownName = userDisplayName(profileInfo.data?.data);
+    const isBotProfile = profileInfo.data?.data?.is_bot === true;
+    const fullName = isBotProfile ? "" : secondaryNameOf(profileInfo.data?.data);
+    const handle = isBotProfile ? "" : handleOf(profileInfo.data?.data);
+    const userSeed = shownName || "User";
     const nameIntial = getNameInitials(userSeed);
 
     const userStatusState = useUserInfoState(userUUID)
@@ -77,7 +83,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                             }}
                         >
                             <Avatar className="h-32 w-32 ring-2 ring-border/50  mb-3">
-                                <AvatarImage src={imageSrc} alt={`${profileInfo.data?.data?.user_name}'s profile`} />
+                                <AvatarImage src={imageSrc} alt={`${userSeed}'s profile`} />
                                 <AvatarFallback className={cn("text-3xl font-semibold", getAvatarFallbackClass(userSeed))}>
                                     {nameIntial}
                                 </AvatarFallback>
@@ -94,7 +100,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                         </div>
                         <div className="flex items-center gap-2">
                             <h2 className="text-xl font-semibold text-foreground text-center truncate max-w-[60vw]">
-                                {profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "Loading…"}
+                                {shownName || "Loading…"}
                             </h2>
                             {isBot ? (
                                 <Badge variant="secondary" className="text-2xs h-5 shrink-0">{botCopy.badge}</Badge>
@@ -102,6 +108,11 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 <Badge variant="secondary" className="text-2xs h-5 shrink-0">External</Badge>
                             ) : null}
                         </div>
+                        {(fullName || handle) && (
+                            <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[80vw]">
+                                {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
+                            </p>
+                        )}
                         <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[80vw]">
                             {isBot ? botCopy.subtitle : (profileInfo.data?.data?.user_email_id || "\u00A0")}
                         </p>
@@ -134,7 +145,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 <InvitePlaceholder
                                     userUUID={userUUID}
                                     email={profileInfo.data.data.user_email_id}
-                                    name={profileInfo.data.data.user_full_name || profileInfo.data.data.user_name}
+                                    name={displayNameOf(profileInfo.data.data)}
                                 />
                             </div>
                         )}
@@ -159,6 +170,13 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                             <p className={eyebrowClass}>Display Name</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
                         </div>
+
+                        {handle && (
+                            <div className="space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground">Handle</p>
+                                <p className="text-base font-medium text-foreground">@{handle}</p>
+                            </div>
+                        )}
                         
                         <div className="space-y-1">
                             <p className={eyebrowClass}>Job Title</p>

@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import React, { useMemo } from "react";
 import { getLastMessagePreview } from "@/lib/utils/lastMessagePreview";
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment";
@@ -42,8 +43,8 @@ const ChatUserListUser: React.FC<DmItemProps> = ({
     const UName = useMemo(
         () =>
             isSelfDm
-                ? selfProfile.user_name
-                : dmParticipants.map((t) => userDisplayName(t)).join(", ") || selfProfile?.user_name,
+                ? displayNameOf(selfProfile)
+                : dmParticipants.map((t) => userDisplayName(t)).join(", ") || displayNameOf(selfProfile),
         [dmParticipants, isSelfDm, selfProfile],
     );
 

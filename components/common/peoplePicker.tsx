@@ -4,6 +4,7 @@
 // who's in, a short list of matches below the input. Used where a form
 // gathers people (event guests).
 
+import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { X } from "@/lib/icons"
 import { Input } from "@/components/ui/input"
@@ -54,7 +55,7 @@ export function PeoplePicker({
         (res ?? [])
           .filter((r) => r.user_uuid && !taken.has(r.user_uuid))
           .slice(0, 6)
-          .map((r) => ({ uuid: r.user_uuid, name: r.user_name })),
+          .map((r) => ({ uuid: r.user_uuid, name: displayNameOf(r) })),
       )
       setActive(0)
     })

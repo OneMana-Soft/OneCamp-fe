@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { useCallback } from "react"
 import { usePathname } from "next/navigation"
 import { useDispatch } from "react-redux"
@@ -37,11 +38,11 @@ export const ChannelMessage = ({ updatePost, postInfo, addReaction, removeReacti
       setChannelReplyTarget({
         channelId,
         uuid: postInfo.post_uuid,
-        authorName: relayed ? relayed.name : postInfo.post_by.user_name,
+        authorName: relayed ? relayed.name : displayNameOf(postInfo.post_by),
         text: htmlToPreviewText(relayed ? relayed.body : postInfo.post_text),
       }),
     )
-  }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by.user_name, postInfo.post_text, relayed])
+  }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by, postInfo.post_text, relayed])
 
   return (
     <BaseMessageCard

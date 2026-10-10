@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf, matchesPerson, secondaryNameOf } from "@/lib/personName"
 import React, { useState } from "react"
 import {
   Dialog,
@@ -38,7 +39,8 @@ interface UserPickRowProps {
 
 function UserPickRow({ user, isSelected, onSelect }: UserPickRowProps) {
   const { src: imageSrc } = useUserAvatar(user.user_profile_object_key)
-  const seed = user.user_full_name || user.user_name || user.user_email_id || ""
+  const seed = displayNameOf(user)
+  const fullName = secondaryNameOf(user)
 
   return (
     <div
@@ -57,10 +59,10 @@ function UserPickRow({ user, isSelected, onSelect }: UserPickRowProps) {
         </Avatar>
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-medium leading-none truncate">
-            {user.user_full_name || user.user_name}
+            {seed}
           </span>
           <span className="text-xs text-muted-foreground truncate">
-            {user.user_email_id}
+            {fullName ? `${fullName} · ${user.user_email_id ?? ""}` : user.user_email_id}
           </span>
         </div>
       </div>
@@ -86,8 +88,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
   const post = usePost()
 
   const filteredUsers = userData?.data?.filter(user => 
-    (user.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     user.user_email_id?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+    matchesPerson(user, searchTerm, [user.user_email_id]) &&
     !user.user_is_admin
   ) || []
 

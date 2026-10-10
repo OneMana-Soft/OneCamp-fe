@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { BotTag } from "@/components/ui/botTag"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
@@ -73,7 +74,7 @@ const ChannelMessageMobileComponent = ({
     const relayed = useRelayedAuthor(postInfo.post_by, postInfo.post_text)
     // Bots' kinds, so a reply avatar is the guest or Slack person, not their bot.
     const botKinds = useBotKindMap()
-    const authorName = relayed ? relayed.name : (userInfoState.userName || postInfo.post_by.user_name)
+    const authorName = relayed ? relayed.name : (userInfoState.userName || displayNameOf(postInfo.post_by))
     const postText = relayed ? relayed.body : postInfo.post_text
 
     // Route internal /app deep links through client navigation; off while editing.
@@ -114,7 +115,7 @@ const ChannelMessageMobileComponent = ({
                     ...prevReactions,
                     [reaction.reaction_emoji_id]: [
                         ...(prevReactions[reaction.reaction_emoji_id] || []),
-                        reaction.reaction_added_by.user_name,
+                        displayNameOf(reaction.reaction_added_by),
                     ],
                 }))
             })
@@ -158,11 +159,11 @@ const ChannelMessageMobileComponent = ({
             setChannelReplyTarget({
                 channelId,
                 uuid: postInfo.post_uuid,
-                authorName: relayed ? relayed.name : postInfo.post_by.user_name,
+                authorName: relayed ? relayed.name : displayNameOf(postInfo.post_by),
                 text: htmlToPreviewText(postText),
             }),
         )
-    }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by.user_name, postText, relayed])
+    }, [dispatch, channelId, postInfo.post_uuid, postInfo.post_by, postText, relayed])
 
     const onLongPress = useCallback(() => {
         // The instruction implies removing the old drawer slice calls and replacing with openUI.
@@ -191,12 +192,12 @@ const ChannelMessageMobileComponent = ({
                 },
                 messageText: removeHtmlTags(postText || ""),
                 makeTask: () => {
-                    const action = makeTaskAction({ html: postText, authorName: relayed ? relayed.name : postInfo.post_by?.user_name, channelUUID: channelId, postUUID: postInfo.post_uuid }, window.location.origin)
+                    const action = makeTaskAction({ html: postText, authorName: relayed ? relayed.name : displayNameOf(postInfo.post_by), channelUUID: channelId, postUUID: postInfo.post_uuid }, window.location.origin)
                     if (action) dispatch(action)
                 },
             }
         }))
-    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postText, relayed, postInfo.post_by?.user_name])
+    }, [dispatch, addEmojiReaction, channelId, postInfo.post_uuid, setIsMessageEditEnabled, removePost, isAdmin, selfProfile.data?.data, postInfo.post_by?.user_uuid, handleEmojiClick, handleReply, copyPostText, postText, relayed, postInfo.post_by])
 
     const longPressEvent = useLongPress(onLongPress, {
         threshold: 500,
