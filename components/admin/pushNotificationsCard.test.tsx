@@ -62,6 +62,33 @@ describe("push notifications", () => {
     expect(label.className).toMatch(/text-muted-foreground/)
     expect(label.className).toMatch(/whitespace-nowrap/)
     expect(project.closest("div")?.className).toMatch(/grid/)
-    expect(screen.getByText("On").className).toMatch(/text-success-ink/)
+    // A state is a dot and a word, as the task panel's status reads.
+    expect(screen.getByText("On").closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
+  })
+
+  // "Loaded from this setting." named the machinery; the email card says the
+  // same thing as "Sending with the key saved here."
+  it("says plainly where the working key came from", async () => {
+    api.get.mockResolvedValue(on)
+    render(<PushNotificationsCard />)
+    expect(await screen.findByText("Sending with the key saved here.")).toBeTruthy()
+    expect(screen.queryByText(/Loaded from this setting/)).toBeNull()
+  })
+
+  it("says a stored key that doesn't work in the warning tone", async () => {
+    api.get.mockResolvedValue({ ...on, active: false })
+    render(<PushNotificationsCard />)
+    const word = await screen.findByText("Not working")
+    expect(word.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("warning")
+  })
+
+  // The credential's box sits under its words at the row's width, a stacked
+  // SettingRow like every other long field in the admin lists.
+  it("takes the credential in a stacked setting row", async () => {
+    api.get.mockResolvedValue(on)
+    render(<PushNotificationsCard />)
+    const field = await screen.findByLabelText("Replace the credential")
+    expect(field.closest("[data-setting-row]")?.getAttribute("data-setting-row")).toBe("stacked")
+    expect(field.getAttribute("aria-describedby")).toBe("firebase-credential-desc")
   })
 })

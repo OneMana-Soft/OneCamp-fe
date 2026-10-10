@@ -98,6 +98,17 @@ describe("choosing where new members start", () => {
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Try again" })))
     expect(await screen.findByRole("checkbox", { name: "general" })).toBeTruthy()
   })
+
+  // "There are no public channels yet" was a line of grey text where every
+  // other empty admin list is an empty state with its group's tile.
+  it("says there is nothing to choose from as an empty state, on the workspace tile", async () => {
+    api.get.mockResolvedValue({ channels: [], chosen: false, available: [] })
+    render(<DefaultChannelsCard />)
+    const title = await screen.findByText("No public channels yet")
+    const state = title.closest("div")?.parentElement as HTMLElement
+    expect(state.querySelector(".hue-sun [data-empty-icon]")).toBeTruthy()
+    expect(screen.queryByRole("checkbox")).toBeNull()
+  })
 })
 
 describe("sameChoice", () => {

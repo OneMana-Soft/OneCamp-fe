@@ -28,42 +28,43 @@ import {
     type PushConfig,
 } from "@/services/settingsService"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
-import { SettingsList, SettingsSection } from "@/components/ui/settingsSection"
+import { SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
+import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
 import { Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
-import { cn } from "@/lib/utils/helpers/cn"
 
 /** What the current state means, in the operator's terms rather than the API's. */
-function describe(config: PushConfig | null): { label: string; tone: string; detail: string } {
+function describe(config: PushConfig | null): { label: string; tone: StatusTone; detail: string } {
     if (!config || (!config.configured && config.source === "none")) {
         return {
             label: "Off",
-            tone: "text-foreground",
+            tone: "neutral",
             detail: "No credential is set, so mobile push notifications are not sent. Everything else works.",
         }
     }
     if (config.configured && config.active) {
         return {
             label: "On",
-            tone: "text-success-ink",
+            tone: "success",
+            // Said as the email card says it: "Loaded from this setting." named
+            // the machinery, not where the key is.
             detail:
                 config.source === "file"
-                    ? "Loaded from the credential file mounted into the container. Pasting a key here replaces it."
-                    : "Loaded from this setting.",
+                    ? "Sending with the credential file mounted into the container. A key pasted here takes its place."
+                    : "Sending with the key saved here.",
         }
     }
     // Stored but not loaded. The two are genuinely different and conflating them
     // is what leaves somebody believing push works.
     return {
         label: "Not working",
-        tone: "text-warning-ink",
+        tone: "warning",
         detail: config.configured
             ? "A credential is stored but Firebase did not accept it. Paste the key again."
             : "A credential is stored but cannot be read, which usually means the encryption key changed. Paste the key again.",
@@ -162,7 +163,7 @@ const PushNotificationsCard: React.FC = () => {
             </SettingsList>
         )
     } else if (state === "failed") {
-        body = <ErrorState subject="the push notification setting" onRetry={() => void load()} />
+        body = <ErrorState compact subject="the push notification setting" onRetry={() => void load()} />
     } else {
         body = (
             <SettingsList>
@@ -170,7 +171,10 @@ const PushNotificationsCard: React.FC = () => {
                 <div className="space-y-2 px-4 py-3">
                     <div className={fieldRow("center", "")}>
                         <span className={fieldLabel}>Status</span>
-                        <span className={cn("text-sm font-medium", status.tone)}>{status.label}</span>
+                        {/* A dot and a word, as the task panel says a status. */}
+                        <StatusWord tone={status.tone} className="text-sm font-medium">
+                            {status.label}
+                        </StatusWord>
                     </div>
                     {config?.project_id && (
                         <div className={fieldRow("center", "")}>
@@ -187,16 +191,14 @@ const PushNotificationsCard: React.FC = () => {
                     <p className="text-xs text-muted-foreground text-pretty">{status.detail}</p>
                 </div>
 
-                <div className="space-y-2 px-4 py-3">
-                    <div className="space-y-1">
-                        <Label htmlFor="firebase-credential" className="text-sm font-medium leading-5">
-                            {config?.configured ? "Replace the credential" : "Service account JSON"}
-                        </Label>
-                        <p id="firebase-credential-desc" className="text-xs text-muted-foreground text-pretty">
-                            Firebase console, Project settings, Service accounts, Generate new private key. The file is
-                            stored encrypted and is never shown again.
-                        </p>
-                    </div>
+                {/* The key's box under its words at the row's width, a stacked
+                    row like every long field in the admin lists. */}
+                <SettingRow
+                    layout="stacked"
+                    label={config?.configured ? "Replace the credential" : "Service account JSON"}
+                    description="Firebase console, Project settings, Service accounts, Generate new private key. The file is stored encrypted and is never shown again."
+                    controlId="firebase-credential"
+                >
                     <Textarea
                         id="firebase-credential"
                         name="firebase-credential"
@@ -209,19 +211,19 @@ const PushNotificationsCard: React.FC = () => {
                         placeholder='{"type": "service_account", "project_id": "…"}'
                         className="font-mono text-xs"
                     />
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                         <Button size="sm" onClick={save} disabled={saving || !draft.trim()}>
-                            {saving && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+                            {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
                             {config?.configured ? "Replace" : "Enable push"}
                         </Button>
                         {config?.source === "settings" && (
                             <Button size="sm" variant="ghost" onClick={askToRemove} disabled={removing}>
-                                {removing && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+                                {removing && <Loader2 className="animate-spin" aria-hidden="true" />}
                                 Turn off
                             </Button>
                         )}
                     </div>
-                </div>
+                </SettingRow>
             </SettingsList>
         )
     }

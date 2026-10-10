@@ -14,7 +14,9 @@ import { serverMessage } from "@/lib/http/serverMessage"
 import { useEffect, useMemo, useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SaveBar, SettingsSection } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
 import { Hash } from "@/lib/icons"
@@ -95,12 +97,17 @@ export default function DefaultChannelsCard() {
             </ul>
         )
     } else if (failed) {
-        body = <ErrorState subject="the channels new members join" onRetry={load} />
+        body = <ErrorState compact subject="the channels new members join" onRetry={load} />
     } else if ((view?.available.length ?? 0) === 0) {
+        // An empty state with the workspace's tile, as every empty admin list
+        // says it: this was a line of grey text.
         body = (
-            <p className="text-sm text-muted-foreground">
-                There are no public channels yet. Create one, and you can choose it here.
-            </p>
+            <EmptyState
+                icon={Hash}
+                hue={ADMIN_GROUP_HUE.workspace}
+                title="No public channels yet"
+                description="Create one, and you can choose it here."
+            />
         )
     } else {
         body = (
