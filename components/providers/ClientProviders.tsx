@@ -9,6 +9,7 @@ import { ActiveThemeProvider } from "@/components/activeTheme/activeTheme";
 import { ThemeSync } from "@/components/activeTheme/ThemeSync";
 import { ThemeColorMeta } from "@/components/activeTheme/ThemeColorMeta";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
+import { Toaster } from "@/components/ui/toaster";
 
 export function ClientProviders({
   children,
@@ -28,6 +29,10 @@ export function ClientProviders({
                 {children}
               </div>
               <PwaInstallPrompt />
+              {/* The one Toaster, under every page: the signed-in app's
+                  providers held it, so a toast on a guest page, the invoice
+                  page or a signed-out page drew nothing. */}
+              <Toaster />
             </MediaQueryProvider>
           </Provider>
         </PersistGate>

@@ -10,8 +10,10 @@ import { cn } from "@/lib/utils/helpers/cn"
 const ToastProvider = ToastPrimitives.Provider
 
 /**
- * Bottom-right viewport on desktop, bottom-centre on mobile (above the
- * bottom nav safe-area). Matches Linear / Notion toast placement.
+ * Bottom right from sm up; at the top on a phone. A phone's toast used to sit
+ * 5rem up, clear of the bottom navigation but over a channel's message box,
+ * which has no navigation under it, so a toast covered what the person was
+ * typing. At the top, under the status bar, it covers nothing they are using.
  */
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
@@ -21,12 +23,10 @@ const ToastViewport = React.forwardRef<
     ref={ref}
     className={cn(
       "fixed z-[var(--z-toast)] flex flex-col gap-2 p-4 max-h-screen w-full",
-      // Mobile: bottom-aligned, full-width minus padding, with safe-area inset
-      "bottom-0 left-1/2 -translate-x-1/2 sm:translate-x-0",
-      // Clears the phone's bottom navigation bar (about 4rem), as the timer chip does.
-      "pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-4",
-      // Desktop: pin to bottom-right with bounded width
-      "sm:bottom-0 sm:right-0 sm:left-auto sm:max-w-[380px]",
+      // Phone: at the top, full width less the padding, under the status bar.
+      "top-0 left-1/2 -translate-x-1/2 pt-[calc(env(safe-area-inset-top)+0.75rem)]",
+      // sm and up: bottom right, at a bounded width.
+      "sm:top-auto sm:bottom-0 sm:right-0 sm:left-auto sm:translate-x-0 sm:pt-4 sm:max-w-[380px]",
       className,
     )}
     {...props}
@@ -47,7 +47,9 @@ const toastVariants = cva(
     // toast confirms something happened, it does not need to fly across the
     // screen to do it. Swipe-to-dismiss still slides, because there the
     // finger is moving it.
-    "duration-200 ease-standard data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-2",
+    "duration-200 ease-standard data-[state=open]:fade-in-0",
+    // From the edge it sits at: down from the top on a phone, up from below on a desktop.
+    "data-[state=open]:slide-in-from-top-2 sm:data-[state=open]:slide-in-from-bottom-2",
     "data-[swipe=end]:slide-out-to-right-full",
     "transition-[transform,opacity]",
   ),
