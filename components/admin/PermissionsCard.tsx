@@ -92,7 +92,7 @@ export default function PermissionsCard() {
             </SettingsList>
         )
     } else if (failed) {
-        body = <ErrorState subject="the member permissions" onRetry={load} />
+        body = <ErrorState compact subject="the member permissions" onRetry={load} />
     } else {
         body = (
             // One rhythm: each permission is a switch row named by its label,
