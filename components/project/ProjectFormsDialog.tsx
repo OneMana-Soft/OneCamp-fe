@@ -51,6 +51,8 @@ function FormList({ projectId, forms, loading, onEdit, onChanged }: { projectId:
   const { toast } = useToast()
   const [copied, setCopied] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // Deleting asks first, under the form's row, saying what goes.
+  const [deleting, setDeleting] = React.useState<string | null>(null)
 
   const copy = async (token: string) => {
     try {
@@ -66,6 +68,7 @@ function FormList({ projectId, forms, loading, onEdit, onChanged }: { projectId:
     try {
       await axiosInstance.post(`${url(projectId)}/${f.id}/delete`, {})
       toast({ title: `Deleted “${f.title}”`, description: "Tasks it made stay in the project." })
+      setDeleting(null)
       onChanged()
     } catch (e) {
       toast({ title: "Couldn't delete", description: serverMessage(e), variant: "destructive" })
@@ -83,7 +86,8 @@ function FormList({ projectId, forms, loading, onEdit, onChanged }: { projectId:
       ) : (
         <ul className="grid gap-2">
           {forms.map((f) => (
-            <li key={f.id} className="flex items-center gap-2 rounded-md border p-3">
+            <li key={f.id} className="rounded-md border">
+              <div className="flex items-center gap-2 p-3">
               <button type="button" onClick={() => onEdit(f)} className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:underline">
                 <span className="block truncate text-sm font-medium">
                   {f.title}
@@ -99,9 +103,37 @@ function FormList({ projectId, forms, loading, onEdit, onChanged }: { projectId:
               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Open ${f.title}`} asChild>
                 <a href={formUrl(f.token!)} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a>
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label={`Delete ${f.title}`} disabled={busy} onClick={() => remove(f)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-danger-ink"
+                aria-label={`Delete ${f.title}`}
+                aria-expanded={deleting === f.id}
+                disabled={busy}
+                onClick={() => setDeleting((d) => (d === f.id ? null : (f.id ?? null)))}
+              >
                 <Trash2 className="h-4 w-4" />
               </Button>
+              </div>
+              {deleting === f.id && (
+                <div className="flex flex-wrap items-center gap-2 border-t bg-muted/40 px-3 py-2 text-sm" role="group" aria-label={`Delete ${f.title}`}>
+                  <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Delete “{f.title}”?</span> Its link stops working for anyone who has it.{" "}
+                    {f.submissions
+                      ? `The ${f.submissions} ${f.submissions === 1 ? "task" : "tasks"} its answers made stay in the project.`
+                      : "Nobody has answered it yet."}{" "}
+                    This can&apos;t be undone.
+                  </p>
+                  <div className="ml-auto flex gap-1">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setDeleting(null)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" variant="destructive" size="sm" disabled={busy} onClick={() => remove(f)}>
+                      {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Delete form
+                    </Button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>
