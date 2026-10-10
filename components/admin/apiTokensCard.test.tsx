@@ -81,6 +81,15 @@ describe("making a token", () => {
     expect(scope).toHaveAttribute("aria-pressed", "true")
   })
 
+  // The house segmented look, drawn once (components/ui/segmentedControl):
+  // this copy's options were 32px in an 8px well, the theme's 28px in a 4px one.
+  it("draws its expiry with the app's segmented control", () => {
+    openDialog()
+    const group = within(dialog()).getByRole("radiogroup", { name: "Expiry" })
+    expect(group.className).toContain("p-1")
+    expect(within(group).getByRole("radio", { name: "No expiry" }).className).toContain("md:h-7")
+  })
+
   it("makes its expiry a labelled choice of one", () => {
     openDialog()
     const group = within(dialog()).getByRole("radiogroup", { name: "Expiry" })
