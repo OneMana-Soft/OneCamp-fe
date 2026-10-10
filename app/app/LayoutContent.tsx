@@ -10,7 +10,8 @@ import { RightPanel } from "@/components/rightPanel/rightPanel";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { useRef, useEffect, useState } from "react";
-import { ImperativePanelHandle } from "react-resizable-panels";
+import { ImperativePanelHandle, getPanelGroupElement } from "react-resizable-panels";
+import { rightPanelMinSize } from "@/lib/ui/rightPanelSize";
 import {usePathname} from "next/navigation";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { useFetch } from "@/hooks/useFetch";
@@ -27,6 +28,27 @@ import { KeyboardTip } from "@/components/onboarding/KeyboardTip";
 import { Fragment } from "react";
 import { useBotKinds } from "@/hooks/useBotKinds";
 
+/** The panel group beside the sidebar: the page, any split panes, the right panel. */
+const PANEL_GROUP_ID = "app-panels";
+
+/**
+ * The panel group's width in pixels, followed as the window (or the sidebar
+ * beside it) changes it. 0 until it is measured, or while there is no group.
+ */
+function usePanelGroupWidth(id: string, enabled: boolean): number {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    const el = getPanelGroupElement(id);
+    if (!el) return;
+    setWidth(el.getBoundingClientRect().width);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => setWidth(entries[0]?.contentRect.width ?? 0));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [id, enabled]);
+  return width;
+}
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
   useOpenFromUrl();
@@ -46,6 +68,13 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const path = usePathname().split('/')
+  const inMeeting = path.length > 2 && path[2] == "meet"
+
+  // The right panel's minimum: 32% of the group, or 320px where that is
+  // more (lib/ui/rightPanelSize). At 1024px, 32% left its content's left edge
+  // under the page, cutting off "Mark complete" and the field labels.
+  const groupWidth = usePanelGroupWidth(PANEL_GROUP_ID, !isMobile && !inMeeting)
+  const rightMin = rightPanelMinSize(groupWidth)
 
   // Same request the navigation bar already makes, so this is a cache hit rather
   // than a second round trip.
@@ -55,11 +84,16 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   const isAdmin = selfProfile.data?.data?.user_is_admin
 
 
+  // Opening asks for the panel's usual size, never under its minimum. Read
+  // from a ref: a window resized with the panel open must not undo a width
+  // the person dragged it to.
+  const rightMinRef = useRef(rightMin);
+  rightMinRef.current = rightMin;
   useEffect(() => {
     const panel = rightPanelRef.current;
     if (panel) {
       if (rightPanelState.isOpen) {
-        panel.resize(30);
+        panel.resize(Math.max(30, rightMinRef.current));
       } else {
         panel.collapse();
       }
@@ -79,7 +113,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if(path.length > 2 && path[2] == "meet") {
+  if(inMeeting) {
     return children;
   }
 
@@ -89,6 +123,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
         <AgentNoteOnOpen />
       <RunningTimerChip className="bottom-4 left-1/2 -translate-x-1/2" />
       <ResizablePanelGroup
+        id={PANEL_GROUP_ID}
         direction="horizontal"
         onLayout={(sizes) => {
           if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -135,10 +170,10 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
         <ResizableHandle withHandle={true} className={rightPanelState.isOpen ? "" : "hidden"} onDragging={setIsDragging} />
         <ResizablePanel
           ref={rightPanelRef}
-          defaultSize={rightPanelState.isOpen ? Math.min(32, 60) : 0}
+          defaultSize={rightPanelState.isOpen ? rightMin : 0}
           collapsible={!rightPanelState.isOpen}
           collapsedSize={0}
-          minSize={32}
+          minSize={rightMin}
           maxSize={60}
           id="right-panel"
           order={10}
