@@ -8,6 +8,7 @@ import {
 } from "@/store/slice/projectAttachmentSlice";
 import {UploadFileInterfaceRes} from "@/types/file";
 import {useToast} from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/utils/apiError";
 import {useState} from "react";
 import { PostFileUploadURL} from "@/services/endPoints";
 import {
@@ -314,8 +315,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -425,8 +426,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -536,8 +537,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -646,8 +647,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -755,8 +756,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -865,8 +866,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -976,8 +977,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -1087,8 +1088,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -1202,8 +1203,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -1307,8 +1308,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -1418,8 +1419,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -1530,8 +1531,8 @@ export const useUploadFile = () => {
                     );
 
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
@@ -1563,8 +1564,8 @@ export const useUploadFile = () => {
             const uploadPromise = uploadFileToPublic(file)
                 .catch((error) => {
                     toast({
-                        title: "Error",
-                        description: `error while uploading file: ${file.name}`,
+                        title: `Couldn't upload ${file.name}`,
+                        description: apiErrorMessage(error, "Try again in a moment."),
                         variant: 'destructive'
                     });
                     throw error; // Re-throw to be caught by Promise.allSettled
