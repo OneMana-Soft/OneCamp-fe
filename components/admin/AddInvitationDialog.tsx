@@ -21,6 +21,8 @@ import { InvitationOutcome, describeInvitation } from "@/components/invite/Invit
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 interface AddInvitationDialogProps {
   open: boolean
@@ -84,7 +86,9 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Link2 className="h-5 w-5 text-primary" />
+              <Tile hue={ADMIN_GROUP_HUE.people} size="sm">
+                <Link2 />
+              </Tile>
               {describeInvitation(created.answer, created.email).title}
             </DialogTitle>
             <DialogDescription>An invitation for {created.email}.</DialogDescription>
@@ -108,7 +112,11 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
         <form onSubmit={handleAddInvitation}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MailPlus className="h-5 w-5 text-primary" />
+              {/* The people group's hue, as the admin menu draws Invitations;
+                  the accent is for the button that sends. */}
+              <Tile hue={ADMIN_GROUP_HUE.people} size="sm">
+                <MailPlus />
+              </Tile>
               Invite people
             </DialogTitle>
             <DialogDescription>

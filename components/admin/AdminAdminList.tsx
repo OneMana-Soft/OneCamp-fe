@@ -5,7 +5,7 @@ import React, { useRef, useEffect } from "react"
 import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { ShieldCheck, ShieldAlert } from "@/lib/icons"
+import { ShieldAlert } from "@/lib/icons"
 import { UserMinus } from "lucide-react"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 interface AdminAdminListProps {
   admins: UserProfileDataInterface[]
@@ -95,17 +97,13 @@ export const AdminAdminList: React.FC<AdminAdminListProps> = ({
   }
 
   if (admins.length === 0 && !isLoading) {
+    // The people group's hue, as the admin menu draws Admins.
     return (
-      <div className="flex items-center justify-center">
-        <div className="text-center py-10">
-          <div className="mx-auto h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mb-3">
-            <ShieldAlert className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium">
-            {isFiltered ? "No admin matches your search." : "No admins yet."}
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        icon={ShieldAlert}
+        hue={ADMIN_GROUP_HUE.people}
+        title={isFiltered ? "No admin matches your search." : "No admins yet."}
+      />
     )
   }
 
@@ -174,19 +172,17 @@ function AdminAdminRow({
         onClick={() => onOpenProfile(admin.user_uuid)}
         aria-label={`Open profile for ${seed}`}
       >
-        <div className="relative shrink-0">
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={imageSrc} alt="" />
-            <AvatarFallback
-              className={cn("text-2xs font-semibold", getAvatarFallbackClass(seed))}
-            >
-              {getNameInitials(seed)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground rounded-full p-0.5 ring-2 ring-background">
-            <ShieldCheck className="h-2.5 w-2.5" />
-          </div>
-        </div>
+        {/* No orange shield on the face: every row here is an admin, and
+            faces are coloured now, so the badge said nothing and spent the
+            accent fourteen times. */}
+        <Avatar className="h-9 w-9 shrink-0">
+          <AvatarImage src={imageSrc} alt="" />
+          <AvatarFallback
+            className={cn("text-2xs font-semibold", getAvatarFallbackClass(seed))}
+          >
+            {getNameInitials(seed)}
+          </AvatarFallback>
+        </Avatar>
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-medium leading-tight truncate flex items-center gap-1.5">
             {seed}

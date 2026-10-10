@@ -8,6 +8,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { fullDateTime, shortDate } from "@/lib/utils/date/shortDate"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { cn } from "@/lib/utils/helpers/cn"
 
 interface AdminInvitationListProps {
@@ -97,17 +99,13 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
   }
 
   if (invitations.length === 0) {
+    // The people group's hue, as the admin menu draws Invitations.
     return (
-      <div className="flex items-center justify-center">
-        <div className="text-center py-10">
-          <div className="mx-auto h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mb-3">
-            <Mail className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium">
-            {isFiltered ? "No invitation matches your search." : "No invitations yet."}
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        icon={Mail}
+        hue={ADMIN_GROUP_HUE.people}
+        title={isFiltered ? "No invitation matches your search." : "No invitations yet."}
+      />
     )
   }
 
