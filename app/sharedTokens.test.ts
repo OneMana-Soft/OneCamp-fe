@@ -67,6 +67,33 @@ const SHARED: Record<"light" | "dark", Record<string, [number, number, number]>>
   },
 }
 
+/**
+ * The camp palette (the playful layer of 10 Oct 2026): six identity hues in
+ * three cuts, the design direction's table verbatim. Both repos write these
+ * as exact values (hex here, the same numbers as sRGB triples there) and pin
+ * this same table (the storefront's lib/palette.ts CAMP), so they match
+ * exactly, with no rounding allowance: a person's colour on onemana.dev is
+ * the colour they get in the app.
+ */
+const CAMP: Record<"light" | "dark", Record<string, string>> = {
+  light: {
+    "camp-sun": "#B98200", "camp-sun-tint": "#FFF6D6", "camp-sun-ink": "#7A5200",
+    "camp-moss": "#2F9E5B", "camp-moss-tint": "#E6F6EC", "camp-moss-ink": "#1D6A3C",
+    "camp-lake": "#0E97A6", "camp-lake-tint": "#E1F5F6", "camp-lake-ink": "#0B5C65",
+    "camp-sky": "#3B7DDD", "camp-sky-tint": "#E7EFFC", "camp-sky-ink": "#1E4E9A",
+    "camp-dusk": "#7B61D9", "camp-dusk-tint": "#EFEBFC", "camp-dusk-ink": "#4B3699",
+    "camp-berry": "#D9467C", "camp-berry-tint": "#FCE8EF", "camp-berry-ink": "#962556",
+  },
+  dark: {
+    "camp-sun": "#F5C542", "camp-sun-tint": "#2E2712", "camp-sun-ink": "#FBE29C",
+    "camp-moss": "#4CC38A", "camp-moss-tint": "#14291F", "camp-moss-ink": "#A6E7C4",
+    "camp-lake": "#3CC6D2", "camp-lake-tint": "#10292F", "camp-lake-ink": "#A3E6EC",
+    "camp-sky": "#6EA4F5", "camp-sky-tint": "#152238", "camp-sky-ink": "#B9D3FB",
+    "camp-dusk": "#A795F5", "camp-dusk-tint": "#211B38", "camp-dusk-ink": "#D4CBFB",
+    "camp-berry": "#F07AA6", "camp-berry-tint": "#33161F", "camp-berry-ink": "#F9C2D6",
+  },
+}
+
 // OKLCH to 8-bit sRGB (Björn Ottosson's OKLab matrices, then the sRGB curve).
 function oklchToRgb(L: number, C: number, H: number): [number, number, number] {
   const h = (H * Math.PI) / 180
@@ -107,6 +134,15 @@ describe("shared tokens", () => {
         const rgb = oklchToRgb(Number(m![1]), Number(m![2]), Number(m![3]))
         // One step of rounding either way is the same colour on screen.
         rgb.forEach((v, i) => expect(Math.abs(v - want[i]), `--${name} ${rgb} vs ${want}`).toBeLessThanOrEqual(1))
+      }
+    })
+
+    it(`${theme} camp palette is the storefront's, exactly`, () => {
+      const got = tokens(css, selector)
+      const want = CAMP[theme]
+      expect(Object.keys(want)).toHaveLength(18)
+      for (const [name, hex] of Object.entries(want)) {
+        expect(got[name]?.toUpperCase(), `--${name}`).toBe(hex)
       }
     })
   }

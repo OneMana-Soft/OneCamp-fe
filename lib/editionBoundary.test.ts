@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 /**
@@ -37,5 +37,37 @@ describe("files every edition carries", () => {
 
   it("keeps no components/settings folder, which the public repo does not have", () => {
     expect(existsSync(join(ROOT, "components/settings"))).toBe(false)
+  })
+})
+
+/**
+ * The playful layer's graphics (identity marks, tiles, motifs, spot
+ * illustrations) and the helpers they rest on are drawn by both editions and
+ * by the demo build alike, so they import nothing that only one of them has:
+ * nothing from the AI edition, and nothing demo-only.
+ */
+describe("the playful layer is edition-neutral", () => {
+  const FORBIDDEN = [
+    /@\/components\/ai\b/,
+    /@\/lib\/ai\b/,
+    /demoFunnel|demoDestination|demoSplash|demoGuide|demoWins|DemoGuide|DemoLeadPrompt|DemoWins|DemoSharedNote/,
+  ]
+  const files = [
+    ...readdirSync(join(ROOT, "components/ui/graphics"), { recursive: true })
+      .map(String)
+      .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
+      .map((f) => `components/ui/graphics/${f}`),
+    "lib/campHue.ts",
+    "lib/utils/getAvatarColor.ts",
+  ]
+
+  it("found the graphics to check", () => {
+    expect(files).toContain("components/ui/graphics/IdentityMark.tsx")
+  })
+
+  it.each(files)("%s imports nothing AI or demo-only", (file) => {
+    const imports = [...read(file).matchAll(/from\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g)].map((m) => m[1] ?? m[2])
+    const bad = imports.filter((spec) => FORBIDDEN.some((re) => re.test(spec)))
+    expect(bad, `${file} imports ${bad.join(", ")}`).toEqual([])
   })
 })

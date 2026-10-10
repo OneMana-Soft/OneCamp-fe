@@ -96,6 +96,35 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-text: var(--brand-text);
   --color-brand-muted: var(--brand-muted);
+  /* THE CAMP PALETTE, as utilities: bg-camp-sky-tint, text-camp-sky-ink,
+     fill-camp-sky, and so on for sun, moss, lake, sky, dusk and berry. See
+     the :root block for what each cut is for. */
+  --color-camp-sun: var(--camp-sun);
+  --color-camp-sun-tint: var(--camp-sun-tint);
+  --color-camp-sun-ink: var(--camp-sun-ink);
+  --color-camp-moss: var(--camp-moss);
+  --color-camp-moss-tint: var(--camp-moss-tint);
+  --color-camp-moss-ink: var(--camp-moss-ink);
+  --color-camp-lake: var(--camp-lake);
+  --color-camp-lake-tint: var(--camp-lake-tint);
+  --color-camp-lake-ink: var(--camp-lake-ink);
+  --color-camp-sky: var(--camp-sky);
+  --color-camp-sky-tint: var(--camp-sky-tint);
+  --color-camp-sky-ink: var(--camp-sky-ink);
+  --color-camp-dusk: var(--camp-dusk);
+  --color-camp-dusk-tint: var(--camp-dusk-tint);
+  --color-camp-dusk-ink: var(--camp-dusk-ink);
+  --color-camp-berry: var(--camp-berry);
+  --color-camp-berry-tint: var(--camp-berry-tint);
+  --color-camp-berry-ink: var(--camp-berry-ink);
+  /* THE CURRENT HUE, for anything drawn in "whatever hue this thing is". A
+     hue-* class (hue-sky, hue-moss...) sets it on an element, and everything
+     inside reads it: bg-hue-tint, text-hue-ink, fill-hue, stroke-hue,
+     ring-hue/40. One class picks the hue; the parts never name it, so an
+     identity mark, a tile or an illustration is one component, not six. */
+  --color-hue: var(--hue);
+  --color-hue-tint: var(--hue-tint);
+  --color-hue-ink: var(--hue-ink);
   /* Agents, as utilities: bg-agent-muted, text-agent, ring-agent. */
   --color-agent: var(--agent);
   --color-agent-foreground: var(--agent-foreground);
@@ -308,6 +337,39 @@
   --code-foreground: var(--surface-foreground);
   --code-highlight: oklch(0.9489 0.0029 264.54);
   --code-number: oklch(0.6491 0.0160 264.46);
+
+  /* THE CAMP PALETTE (the playful layer, 10 Oct 2026): six identity hues,
+     named for the place the product is named after. Every person, project,
+     channel, team, doc and calendar gets one (lib/campHue.ts hueFor), so
+     colour carries identity on a calm graphite base. Three cuts each:
+       strong  marks, icons, dots, chart lines, illustration fills: 3:1 or
+               more on the page, a card, the canvas and its own tint;
+       -tint   soft grounds for tiles, chips and bands;
+       -ink    text on its own tint: 5.9:1 or more here, 10.4:1 in dark.
+     paletteContrast.test.ts measures all of that. They are hex, not OKLCH,
+     because they are the design direction's table verbatim and the
+     storefront pins the same table (sharedTokens.test.ts): change both
+     repos or neither. They are not status colours (success, warning,
+     danger and info keep their meanings) and never the accent, which stays
+     the one action on a view. */
+  --camp-sun: #B98200;
+  --camp-sun-tint: #FFF6D6;
+  --camp-sun-ink: #7A5200;
+  --camp-moss: #2F9E5B;
+  --camp-moss-tint: #E6F6EC;
+  --camp-moss-ink: #1D6A3C;
+  --camp-lake: #0E97A6;
+  --camp-lake-tint: #E1F5F6;
+  --camp-lake-ink: #0B5C65;
+  --camp-sky: #3B7DDD;
+  --camp-sky-tint: #E7EFFC;
+  --camp-sky-ink: #1E4E9A;
+  --camp-dusk: #7B61D9;
+  --camp-dusk-tint: #EFEBFC;
+  --camp-dusk-ink: #4B3699;
+  --camp-berry: #D9467C;
+  --camp-berry-tint: #FCE8EF;
+  --camp-berry-ink: #962556;
 }
 
 .dark {
@@ -373,6 +435,28 @@
   --code-foreground: var(--surface-foreground);
   --code-highlight: oklch(0.2763 0.0119 264.36);
   --code-number: oklch(0.5443 0.0167 264.43);
+
+  /* The camp hues lift on the dark ground and their tints sink into it: the
+     strong cut stays a mark, the tint stays a quiet ground, and the ink on it
+     is 10.4:1 or more. */
+  --camp-sun: #F5C542;
+  --camp-sun-tint: #2E2712;
+  --camp-sun-ink: #FBE29C;
+  --camp-moss: #4CC38A;
+  --camp-moss-tint: #14291F;
+  --camp-moss-ink: #A6E7C4;
+  --camp-lake: #3CC6D2;
+  --camp-lake-tint: #10292F;
+  --camp-lake-ink: #A3E6EC;
+  --camp-sky: #6EA4F5;
+  --camp-sky-tint: #152238;
+  --camp-sky-ink: #B9D3FB;
+  --camp-dusk: #A795F5;
+  --camp-dusk-tint: #211B38;
+  --camp-dusk-ink: #D4CBFB;
+  --camp-berry: #F07AA6;
+  --camp-berry-tint: #33161F;
+  --camp-berry-ink: #F9C2D6;
 }
 
 @keyframes blink {
@@ -425,6 +509,41 @@
 
 @utility glass {
   @apply bg-background border-b border-border/40;
+}
+
+/* Makes one camp hue the current one, for this element and everything in it
+   (bg-hue-tint, text-hue-ink, fill-hue...). Declared on the element itself, so
+   the var() resolves against the element's own --camp-* and follows the
+   theme: under .dark it picks up the dark cuts with no dark: variant. */
+@utility hue-sun {
+  --hue: var(--camp-sun);
+  --hue-tint: var(--camp-sun-tint);
+  --hue-ink: var(--camp-sun-ink);
+}
+@utility hue-moss {
+  --hue: var(--camp-moss);
+  --hue-tint: var(--camp-moss-tint);
+  --hue-ink: var(--camp-moss-ink);
+}
+@utility hue-lake {
+  --hue: var(--camp-lake);
+  --hue-tint: var(--camp-lake-tint);
+  --hue-ink: var(--camp-lake-ink);
+}
+@utility hue-sky {
+  --hue: var(--camp-sky);
+  --hue-tint: var(--camp-sky-tint);
+  --hue-ink: var(--camp-sky-ink);
+}
+@utility hue-dusk {
+  --hue: var(--camp-dusk);
+  --hue-tint: var(--camp-dusk-tint);
+  --hue-ink: var(--camp-dusk-ink);
+}
+@utility hue-berry {
+  --hue: var(--camp-berry);
+  --hue-tint: var(--camp-berry-tint);
+  --hue-ink: var(--camp-berry-ink);
 }
 
 
