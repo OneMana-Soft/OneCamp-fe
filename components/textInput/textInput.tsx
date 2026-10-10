@@ -433,7 +433,9 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
         }
 
         if (editor.isEditable !== (editable ?? false)) {
-            editor.setEditable(editable ?? false);
+            // false: changing who may edit is not an edit. Tiptap's setEditable
+            // emits "update" by default, which reached onChange as one.
+            editor.setEditable(editable ?? false, false);
         }
       }, [editor, content, editable, contentRevision]);
 
