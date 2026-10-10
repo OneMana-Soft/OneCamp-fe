@@ -113,7 +113,7 @@ export default function ProjectAttachment({
                             // Asked first: it goes for everyone on the project.
                             onClick={() =>
                                 confirm({
-                                    title: `Delete \u201c${attachmentInfo.attachment_file_name}\u201d?`,
+                                    title: `Delete the file \u201c${attachmentInfo.attachment_file_name}\u201d?`,
                                     description: "It is removed from this project for everyone. This can't be undone.",
                                     confirmText: "Delete file",
                                     destructive: true,

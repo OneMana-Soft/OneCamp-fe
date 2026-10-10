@@ -138,7 +138,7 @@ export function CalendarApp() {
         confirm({
             title: "Disconnect Google Calendar?",
             description: "Its events leave this calendar, and new OneCamp events stop going to Google. You can connect it again at any time.",
-            confirmText: "Disconnect",
+            confirmText: "Disconnect Google Calendar",
             destructive: true,
             onConfirm: handleUnlinkGCal,
         });

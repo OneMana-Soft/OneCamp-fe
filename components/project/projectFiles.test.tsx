@@ -120,6 +120,6 @@ describe("deleting a project's file", () => {
     fireEvent.keyDown(within(chip).getByRole("button", { name: "Attachment options" }), { key: "Enter" })
     fireEvent.click(screen.getByRole("menuitem", { name: /Delete/ }))
     expect(confirm).toHaveBeenCalledOnce()
-    expect(confirm.mock.calls[0][0]).toMatchObject({ title: "Delete “brief.pdf”?", destructive: true })
+    expect(confirm.mock.calls[0][0]).toMatchObject({ title: "Delete the file “brief.pdf”?", destructive: true })
   })
 })
