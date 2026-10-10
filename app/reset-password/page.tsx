@@ -16,7 +16,9 @@ function ResetPasswordForm() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [isReset, setIsReset] = useState(false)
+  // Where the server's answer left things: the form, done, or a link that
+  // can't be used (old or used, or an account with no password here).
+  const [outcome, setOutcome] = useState<"form" | "reset" | "link_refused" | "sso_managed">("form")
   const [error, setError] = useState("")
   // Which field the error is about; null for the form as a whole (the server's answer).
   const [errorField, setErrorField] = useState<"password" | "confirm" | null>(null)
@@ -58,11 +60,8 @@ function ResetPasswordForm() {
     setIsLoading(true)
     try {
       const result = await authService.resetPassword(token, password)
-      if (result.ok) {
-        setIsReset(true)
-      } else {
-        setError(result.msg)
-      }
+      if (result.status === "failed") setError(result.msg)
+      else setOutcome(result.status)
     } catch {
       setError("Something went wrong. Please try again.")
     } finally {
@@ -70,11 +69,35 @@ function ResetPasswordForm() {
     }
   }
 
-  if (isReset) {
+  if (outcome === "reset") {
     return (
       <div role="status">
         <AuthHeading title="Your password is changed">
           Sign in with the new one.
+        </AuthHeading>
+        <Button className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
+      </div>
+    )
+  }
+
+  // No password typed into the form would get past these, so the form goes
+  // and the way on takes its place.
+  if (outcome === "link_refused") {
+    return (
+      <div role="status">
+        <AuthHeading title="This link has expired">
+          A reset link works once, for an hour. Ask for a new one and open it from the email.
+        </AuthHeading>
+        <Button className={authControl} asChild><Link href="/forgot-password">Ask for a new link</Link></Button>
+      </div>
+    )
+  }
+
+  if (outcome === "sso_managed") {
+    return (
+      <div role="status">
+        <AuthHeading title="Your account signs in with single sign-on">
+          It has no OneCamp password to reset. Sign in with single sign-on instead.
         </AuthHeading>
         <Button className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
       </div>
