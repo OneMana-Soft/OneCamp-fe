@@ -449,10 +449,11 @@ export function UnifiedUIManager() {
           open={ui.archiveRunJob.isOpen}
           onOpenChange={() => dispatch(closeUI('archiveRunJob'))}
           onConfirm={async () => {
-            const axios = (await import("@/lib/axiosInstance")).default;
+            const { default: axios, OWN_ERRORS } = await import("@/lib/axiosInstance");
             const { PostEndpointUrl } = await import("@/services/endPoints");
             const entityType = ui.archiveRunJob.data.entityType;
-            await axios.post(`${PostEndpointUrl.RunArchiveJob}/${entityType}`);
+            // The dialog says a refusal in place, so the global toast stays quiet.
+            await axios.post(`${PostEndpointUrl.RunArchiveJob}/${entityType}`, undefined, OWN_ERRORS);
             dispatch(closeUI('archiveRunJob'));
             mutate((key) => typeof key === "string" && key.includes("/admin/archive/jobs"));
           }}
