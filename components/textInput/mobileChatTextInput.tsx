@@ -95,6 +95,7 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
                         buttonOnclick={handleSend}
                         onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
+                        hasAttachments={(chatInputState.filesUploaded?.length ?? 0) > 0}
                         editorClassName="focus:outline-none px-5"
                         onChange={(content ) => {
                             publishTyping(content?.toString() || '')

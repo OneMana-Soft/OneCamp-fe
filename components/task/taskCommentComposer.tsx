@@ -15,6 +15,8 @@ interface TaskCommentComposerProps {
     onSend: (latestContent?: string) => void
     onAttachmentClick: () => void
     onActionFiles?: (files: File[]) => void
+    /** Files are attached and uploaded: Send reads as ready without text. */
+    hasAttachments?: boolean
 }
 
 export const TaskCommentComposer = memo(function TaskCommentComposer({
@@ -25,6 +27,7 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
     onSend,
     onAttachmentClick,
     onActionFiles,
+    hasAttachments = false,
 }: TaskCommentComposerProps) {
     return (
         <div className="flex-shrink-0 border-t p-4">
@@ -33,6 +36,7 @@ export const TaskCommentComposer = memo(function TaskCommentComposer({
                 attachmentOnclick={onAttachmentClick}
                 onActionFiles={onActionFiles}
                 ButtonIcon={SendHorizontal}
+                hasAttachments={hasAttachments}
                 buttonOnclick={onSend}
                 className={cn("max-w-full rounded-xl h-auto border p-2 bg-secondary/20")}
                 editorContentClassName="overflow-auto"

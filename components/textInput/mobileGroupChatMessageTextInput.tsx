@@ -101,6 +101,7 @@ export const MobileGroupChatMessageTextInput = ({ grpId, chatMessageUUID }: { gr
                         editable={true}
                         buttonOnclick={handleSend}
                         ButtonIcon={SendHorizontal}
+                        hasAttachments={(chatCommentState.filesUploaded?.length ?? 0) > 0}
                         editorClassName="focus:outline-none px-5"
                         onChange={(content ) => {
 

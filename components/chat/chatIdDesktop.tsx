@@ -222,6 +222,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                         placeholder={dmComposerPlaceholder(displayNameOf(otherUserInfo.data?.data))}
                         editable={true}
                         ButtonIcon={SendHorizontal}
+                        hasAttachments={(chatState.filesUploaded?.length ?? 0) > 0}
                         buttonOnclick={handleSend}
                         onSchedule={scheduleSend?.schedule}
                         editorClassName="focus:outline-none px-2 py-2"

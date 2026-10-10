@@ -474,6 +474,7 @@ export const ChannelComments = () => {
                         await uploadFile.makeRequestToUploadToChannelComment(files as unknown as FileList, rightPanelState.data.channelUUID);
                     }}
                     ButtonIcon={SendHorizontal}
+                    hasAttachments={(channelCommentState.filesUploaded?.length ?? 0) > 0}
                     buttonOnclick={handleSend}
                     className={cn("max-w-full rounded-xl h-auto border bg-muted/30 p-2")}
                     editorContentClassName="overflow-auto"

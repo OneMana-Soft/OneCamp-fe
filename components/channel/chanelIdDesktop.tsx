@@ -229,6 +229,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
             placeholder={channelComposerPlaceholder(channelDisplayName)}
             editable={true}
             ButtonIcon={SendHorizontal}
+            hasAttachments={(channelState.filesUploaded?.length ?? 0) > 0}
             buttonOnclick={handleSend}
                         onSchedule={scheduleSend?.schedule}
             editorClassName="focus:outline-none px-2 py-2"
