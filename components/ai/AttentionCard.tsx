@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Tile } from "@/components/ui/graphics/Tile"
 import type { CampHue } from "@/lib/campHue"
 import { dueLabel } from "@/lib/utils/dueLabel"
+import { homeGap, homeInset, homeTextInset } from "@/components/home/homeLines"
 
 // Per-source icon so each row's origin is recognisable at a glance, on a tile
 // of the source's camp hue. The hue names the kind of thing, never its state:
@@ -170,7 +171,7 @@ function AttentionCard() {
           <Tile hue="moss" size="sm"><CircleCheck strokeWidth={1.75} /></Tile>
           <h2 className="text-sm font-medium text-foreground">Nothing needs you right now</h2>
         </div>
-        <p className="px-4 pb-3 text-xs text-muted-foreground">
+        <p className={cn("pb-3 text-xs text-muted-foreground", homeTextInset)}>
           Approvals, overdue work and questions waiting on you land here.
         </p>
       </div>
@@ -237,7 +238,7 @@ function AttentionCard() {
           if (isApproval) {
             return (
               <li key={`${it.source}-${it.ref_id || i}`}>
-                <div className="flex items-start gap-1.5 px-4 py-2.5">
+                <div className={cn("flex items-start py-2.5", homeInset, homeGap)}>
                   <Tile hue="sun" size="sm" className="-mt-0.5"><Inbox /></Tile>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm leading-snug">{it.title}</span>
@@ -340,7 +341,10 @@ function AttentionRowFrame({ tile, title, meta, trailing, className }: {
   className?: string
 }) {
   return (
-    <span data-attention-row className={cn("w-full text-left flex items-start gap-2.5 px-4 py-2.5", className)}>
+    // On Home's two lines (homeLines): every row's tile under the card's,
+    // every title on the card title's line. Rows sat 2px right of the title
+    // and approvals 2px left of it.
+    <span data-attention-row className={cn("w-full text-left flex items-start py-2.5", homeInset, homeGap, className)}>
       {tile}
       <span className="min-w-0 flex-1">
         <span data-attention-title className="block text-sm leading-snug truncate">{title}</span>

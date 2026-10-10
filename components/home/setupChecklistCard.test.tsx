@@ -195,6 +195,7 @@ describe("the checklist's heading", () => {
     svc.getOnboardingStatus.mockReturnValue(new Promise(() => {}))
     await show()
     const placeholder = screen.getByRole("status", { name: "Loading the setup checklist" })
-    expect(placeholder.querySelector(".size-8")).not.toBeNull()
+    // The ring's place at the ring's size: 24px, a tile's, on Home's lines.
+    expect(placeholder.querySelector(".size-6")).not.toBeNull()
   })
 })

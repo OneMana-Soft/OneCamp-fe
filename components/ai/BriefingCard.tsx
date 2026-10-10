@@ -38,6 +38,22 @@ import {
 import { withAI } from "@/components/common/withFeature"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { localDay } from "@/lib/utils/timeZone"
+import { shortDate } from "@/lib/utils/date/shortDate"
+import { cn } from "@/lib/utils/helpers/cn"
+import { homeGap, homeGlyph, homeInset } from "@/components/home/homeLines"
+
+/**
+ * A row of the briefing: its icon in Home's 24px glyph column and its words on
+ * the card title's line (homeLines). The 14px icon 8px before the text put
+ * every item 10px left of the title above it.
+ */
+const itemRow = cn("w-full text-left flex items-start rounded-md px-2 py-1.5 -mx-2 hover:bg-accent/40 transition-colors", homeGap)
+
+/** A memory item's due day ("2026-10-12") as the app writes a day: "12 Oct". */
+function dueDay(day: string): string {
+  const d = new Date(`${day.slice(0, 10)}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? day : shortDate(d)
+}
 
 interface SelfProfile {
   data?: { user_uuid?: string }
@@ -201,7 +217,7 @@ function BriefingCard() {
       {/* Your day — cross-connector agenda (calendar / PRs / email). Renders
           only when the user has linked connectors and there's something today. */}
       {dayItems.length > 0 && (
-        <div className="px-4 py-3 border-b border-border/50 bg-muted/20">
+        <div className={cn("py-3 border-b border-border/50 bg-muted/20", homeInset)}>
           <p className="mb-2 text-xs font-medium text-muted-foreground">
             Your day
           </p>
@@ -210,8 +226,8 @@ function BriefingCard() {
               const Icon = DAY_ICON[d.source] || Sparkles
               const tint = "text-muted-foreground"
               const row = (
-                <span className="w-full text-left flex items-start gap-2 rounded-md px-2 py-1.5 -mx-2 hover:bg-accent/40 transition-colors">
-                  <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${tint}`} />
+                <span className={itemRow}>
+                  <span className={homeGlyph}><Icon className={`h-3.5 w-3.5 mt-0.5 ${tint}`} /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm leading-snug truncate">{d.title}</span>
                     {d.subtitle && (
@@ -241,7 +257,7 @@ function BriefingCard() {
         {/* Your open items — only rendered when there's something to act on,
             so an empty column never leaves dead space on the dashboard. */}
         {hasOpenItems && (
-          <div className="p-4">
+          <div className={cn("py-4", homeInset)}>
             <p className="mb-2 text-xs font-medium text-muted-foreground">
               Your open items
             </p>
@@ -254,9 +270,9 @@ function BriefingCard() {
                     <button
                       type="button"
                       onClick={() => router.push(openHref(it))}
-                      className="w-full text-left flex items-start gap-2 rounded-md px-2 py-1.5 -mx-2 hover:bg-accent/40 transition-colors"
+                      className={itemRow}
                     >
-                      <Icon className={`h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground`} />
+                      <span className={homeGlyph}><Icon className="h-3.5 w-3.5 mt-0.5 text-muted-foreground" /></span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm leading-snug truncate">{it.content}</span>
                         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
@@ -267,11 +283,11 @@ function BriefingCard() {
                               }`}
                             >
                               <Clock className="h-3 w-3" />
-                              {overdue ? "overdue" : "due"} {it.due_at}
+                              {overdue ? "overdue" : "due"} {dueDay(it.due_at)}
                             </span>
                           )}
                           {it.scope_label && (
-                            <span className="inline-flex items-center gap-0.5 text-2xs text-muted-foreground/70 truncate max-w-[160px]">
+                            <span className="inline-flex items-center gap-0.5 text-2xs text-muted-foreground truncate max-w-[160px]">
                               {it.scope_type === "channel" ? <Hash className="h-3 w-3" /> : null}
                               {it.scope_type === "channel" ? it.scope_label : `· ${it.scope_label}`}
                             </span>
@@ -288,7 +304,7 @@ function BriefingCard() {
 
         {/* Recent highlights — only rendered when there's something new. */}
         {hasHighlights && (
-          <div className="p-4">
+          <div className={cn("py-4", homeInset)}>
             <p className="mb-2 text-xs font-medium text-muted-foreground">
               Recent highlights
             </p>
@@ -300,9 +316,9 @@ function BriefingCard() {
                     <button
                       type="button"
                       onClick={() => router.push(highlightHref(h))}
-                      className="w-full text-left flex items-start gap-2 rounded-md px-2 py-1.5 -mx-2 hover:bg-accent/40 transition-colors"
+                      className={itemRow}
                     >
-                      <HighlightIcon className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                      <span className={homeGlyph}><HighlightIcon className="h-3.5 w-3.5 mt-0.5 text-muted-foreground" /></span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm leading-snug truncate">{h.snippet}</span>
                         <span className="text-2xs text-muted-foreground">

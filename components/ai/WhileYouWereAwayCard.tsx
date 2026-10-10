@@ -49,6 +49,8 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tile } from "@/components/ui/graphics/Tile"
 import MarkdownMessage from "@/components/ai/MarkdownMessage"
+import { cn } from "@/lib/utils/helpers/cn"
+import { homeInset } from "@/components/home/homeLines"
 import { useCatchUp } from "@/services/aiService"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -190,7 +192,7 @@ function WhileYouWereAwayCard({
         </Button>
       </div>
 
-      <div className="px-4 py-3.5">
+      <div className={cn("py-3.5", homeInset)}>
         {summary ? (
           <>
             <MarkdownMessage content={summary} className="text-sm" />
@@ -258,7 +260,7 @@ function AwaySkeleton() {
         <Tile hue="sky" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
         <h2 className="text-sm font-medium text-foreground">While you were away</h2>
       </div>
-      <div className="flex items-center gap-3 px-4 py-3.5">
+      <div className={cn("flex items-center gap-3 py-3.5", homeInset)}>
         <Skeleton className="h-4 flex-1 rounded" />
         <Skeleton className="h-8 w-28 shrink-0 rounded-md" />
       </div>

@@ -7,6 +7,8 @@ import { Tile } from "@/components/ui/graphics/Tile"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { type AgentOutcome, sumOutcomes } from "@/services/agentService"
+import { cn } from "@/lib/utils/helpers/cn"
+import { homeInset } from "@/components/home/homeLines"
 
 /**
  * What this person's agents have been doing, and how much of it they kept.
@@ -71,14 +73,16 @@ function AgentWorkCardInner() {
 
             <ul className="divide-y divide-border/40">
                 {items.map((item) => (
-                    <li key={item.run_id} className="px-4 py-2.5">
+                    // On Home's first line, and in the type every other Home row
+                    // uses: a 14px name over a 12px line (it was 12px over 11px).
+                    <li key={item.run_id} className={cn("py-2.5", homeInset)}>
                         <div className="flex items-baseline gap-2">
-                            <span className="text-xs font-medium text-foreground truncate">{item.agent_name}</span>
+                            <span className="text-sm font-medium text-foreground truncate">{item.agent_name}</span>
                             {item.status === "failed" && (
                                 <span className="text-2xs text-danger-ink shrink-0">failed</span>
                             )}
                         </div>
-                        <p className="mt-0.5 text-2xs text-muted-foreground line-clamp-2">{item.summary}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{item.summary}</p>
                     </li>
                 ))}
             </ul>
