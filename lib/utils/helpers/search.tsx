@@ -5,7 +5,7 @@ import { Fragment } from "react"
 import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, Users, FolderKanban, Hash, LayoutDashboard } from "@/lib/icons"
 import { SearchResult } from "@/services/searchService"
 import { ChatUserAvatar } from "@/components/chat/chatUserAvatar"
-import { cn } from "@/lib/utils/helpers/cn"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { getOtherUserId } from "@/lib/utils/getOtherUserId"
 import { getAttachmentType } from "@/lib/utils/file/getAttachmentType"
@@ -114,7 +114,50 @@ export function searchResultKeys(results: SearchResult[]): string[] {
   })
 }
 
-export const getIcon = (result: SearchResult, iconClassName = "h-4 w-4") => {
+/**
+ * Whose colour a hit wears: a thing its own, a message its channel's (or its
+ * author's in a DM), a task its project's. lib/campHue turns the id into one
+ * of the six camp hues, so a channel or project is the same colour in search
+ * as everywhere else.
+ */
+export function hitHueId(result: SearchResult): string | undefined {
+    switch (result.type) {
+        case "post": return result.post?.post_ch_id || result.post?.post_channel_id
+        case "chat": return result.chat?.chat_by_user_id
+        case "comment": return result.comment?.comment_channel_id || result.comment?.comment_by_user_id
+        case "task": return result.task?.task_project_id || result.task?.task_id
+        case "doc": return result.doc?.doc_uuid
+        case "board": return result.board?.board_uuid
+        case "attachment": return result.attachment?.attachment_channel_id || result.attachment?.attachment_doc_id || result.attachment?.attachment_id
+        case "project": return result.project?.project_id
+        case "channel": return result.channel?.ch_id
+        case "team": return result.team?.team_id
+        case "user": return result.user?.user_id
+        default: return undefined
+    }
+}
+
+const HIT_GLYPH: Record<SearchResult["type"], typeof Search> = {
+    chat: MessageCircle,
+    post: MessageSquare,
+    comment: MessageCircle,
+    doc: FileText,
+    board: LayoutDashboard,
+    task: CheckSquare,
+    attachment: Paperclip,
+    project: FolderKanban,
+    channel: Hash,
+    team: Users,
+    user: Search,
+}
+
+/**
+ * A hit's mark: a person's face (a photo, or their coloured initials), and
+ * for anything else its kind's glyph on a tile of its identity hue. A tile
+ * rather than a bare glyph, so the mark holds its contrast on a hovered or
+ * selected row.
+ */
+export const getIcon = (result: SearchResult) => {
     if (result.type === "user") {
         return (
             <ChatUserAvatar
@@ -123,20 +166,8 @@ export const getIcon = (result: SearchResult, iconClassName = "h-4 w-4") => {
             />
         )
     }
-
-    switch (result.type) {
-        case "chat": return <MessageCircle className={iconClassName} />
-        case "post": return <MessageSquare className={iconClassName} />
-        case "doc": return <FileText className={iconClassName} />
-        case "board": return <LayoutDashboard className={iconClassName} />
-        case "task": return <CheckSquare className={iconClassName} />
-        case "comment": return <MessageCircle className={cn(iconClassName, "opacity-70")} />
-        case "attachment": return <Paperclip className={iconClassName} />
-        case "project": return <FolderKanban className={iconClassName} />
-        case "channel": return <Hash className={iconClassName} />
-        case "team": return <Users className={cn(iconClassName, "text-primary")} />
-        default: return <Search className={iconClassName} />
-    }
+    const Glyph = HIT_GLYPH[result.type] ?? Search
+    return <IdentityMark variant="tile" size={24} id={hitHueId(result)} icon={<Glyph />} />
 }
 
 /**

@@ -57,6 +57,8 @@ export interface PaletteTarget {
   keywords?: string[]
   /** For a channel: private ones carry a lock. */
   isPrivate?: boolean
+  /** Whose colour it wears, when that isn't its own id: a DM, the person's. */
+  hueId?: string
 }
 
 interface SidebarLike {
@@ -82,7 +84,7 @@ export function paletteTargets(sidebar: SidebarLike, selfId: string | undefined)
     // A DM's grouping id is the two people's ids with a space between them.
     const isDirect = dm.dm_grouping_id.includes(" ")
     const path = isDirect ? `/app/chat/${others[0].user_uuid}` : `/app/chat/group/${dm.dm_grouping_id}`
-    out.push({ kind: "chat", id: dm.dm_grouping_id, label: names.join(", "), path, keywords: others.map((p) => p.user_full_name || "").filter(Boolean) })
+    out.push({ kind: "chat", id: dm.dm_grouping_id, label: names.join(", "), path, keywords: others.map((p) => p.user_full_name || "").filter(Boolean), hueId: isDirect ? others[0].user_uuid : dm.dm_grouping_id })
   }
   for (const p of sidebar.userProjects ?? []) {
     if (p?.project_uuid && p.project_name) out.push({ kind: "project", id: p.project_uuid, label: p.project_name, path: `/app/project/${p.project_uuid}` })

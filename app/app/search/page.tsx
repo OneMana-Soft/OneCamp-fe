@@ -163,8 +163,8 @@ export default function SearchPage() {
                                     key={idx}
                                     className="group relative flex items-start gap-3 rounded-md px-2 py-3 transition-colors duration-150 hover:bg-highlight focus-within:bg-highlight"
                                 >
-                                    <div className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true">
-                                        {getIcon(result, "h-4 w-4")}
+                                    <div className="-mt-0.5 shrink-0" aria-hidden="true">
+                                        {getIcon(result)}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-sm font-medium text-foreground line-clamp-1">

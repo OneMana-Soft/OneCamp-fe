@@ -6,7 +6,8 @@ let kinds: Record<string, string> | undefined = {}
 vi.mock("@/hooks/useBotKinds", () => ({ useBotKindMap: () => kinds }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: undefined }) }))
 
-import { getHighlightedContext, getHighlightedTitle, getTitle } from "@/lib/utils/helpers/search"
+import { getHighlightedContext, getHighlightedTitle, getIcon, getTitle, hitHueId } from "@/lib/utils/helpers/search"
+import { hueFor } from "@/lib/campHue"
 import { GlobalSearchGet } from "@/services/searchService"
 
 afterEach(() => {
@@ -79,5 +80,22 @@ describe("the search request", () => {
     expect(GlobalSearchGet("a/b")).toBe("/search/unifiedSearch/a%2Fb")
     expect(GlobalSearchGet("50% ")).toBe("/search/unifiedSearch/50%25")
     expect(GlobalSearchGet("what?")).toBe("/search/unifiedSearch/what%3F")
+  })
+})
+
+describe("a hit's mark", () => {
+  // Identity, not kind: a message wears its channel's hue, a task its
+  // project's, so the same channel or project is one colour on every screen.
+  it("wears the hue of the thing it belongs to", () => {
+    const post = hit({ type: "post", post: { post_id: "p1", post_ch_id: "c1", post_body: "x" } })
+    expect(hitHueId(post)).toBe("c1")
+    const { container } = render(<>{getIcon(post)}</>)
+    expect(container.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(hueFor("c1"))
+    expect(hitHueId(hit({ type: "task", task: { task_id: "t1", task_project_id: "pr1" } }))).toBe("pr1")
+  })
+
+  it("sits on its own tint, so it holds its contrast on a hovered row", () => {
+    const { container } = render(<>{getIcon(hit({ type: "doc", doc: { doc_uuid: "d1" } }))}</>)
+    expect(container.querySelector("[data-hue]")?.className).toContain("bg-hue-tint")
   })
 })
