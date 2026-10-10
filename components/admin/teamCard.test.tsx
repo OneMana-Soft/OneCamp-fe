@@ -63,6 +63,14 @@ describe("the Teams tab", () => {
     expect(state.list.mutate).toHaveBeenCalled()
   })
 
+  it("puts a team's members first in its row, and deleting it last, as Members does", () => {
+    state.list = { data: { data: [team("t1", "Design", 4)], has_more: false }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    render(<TeamsCard />)
+    const members = screen.getByRole("button", { name: "View members of Design" })
+    const remove = screen.getByRole("button", { name: "Delete Design" })
+    expect(members.compareDocumentPosition(remove) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it("says a failed load failed, with Try again", () => {
     const mutate = vi.fn()
     state.list = { data: undefined, isLoading: false, isError: new Error("503"), mutate }
