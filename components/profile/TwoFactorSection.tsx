@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { QRCodeSVG } from "qrcode.react"
 
 import { Button } from "@/components/ui/button"
@@ -55,6 +55,8 @@ export function TwoFactorSection() {
     const [busy, setBusy] = useState(false)
     const [copied, setCopied] = useState(false)
     const [savedAcknowledged, setSavedAcknowledged] = useState(false)
+    // The code field, for putting the cursor back in it after a refused code.
+    const codeRef = useRef<HTMLInputElement>(null)
 
     /**
      * The first read, and Try again. A failed read says that the check failed, with a retry: never
@@ -130,6 +132,7 @@ export function TwoFactorSection() {
             }
             setError(result.msg)
             setCode("")
+            codeRef.current?.focus()
         } finally {
             setBusy(false)
         }
@@ -150,6 +153,9 @@ export function TwoFactorSection() {
             }
             setError(result.msg)
             setCode("")
+            // Back to the field for the next code: Turn off was pressed, so the
+            // focus is on the button.
+            codeRef.current?.focus()
         } finally {
             setBusy(false)
         }
@@ -342,7 +348,12 @@ export function TwoFactorSection() {
                         // Enrolment proves possession of the NEW secret, so only an authenticator code
                         // can do it. No recovery codes exist yet — they are issued by this step.
                         usingRecoveryCode={false}
-                        disabled={busy}
+                        // Busy, not disabled, while the code is checked: a browser
+                        // drops the focus of a field that becomes disabled and won't
+                        // give it back, so after a wrong code the next one went
+                        // nowhere until the person clicked back in.
+                        busy={busy}
+                        inputRef={codeRef}
                         error={error}
                         label="Enter the 6-digit code to finish"
                         autoFocus
@@ -453,7 +464,8 @@ export function TwoFactorSection() {
                         // No auto-submit here, unlike the other two. Turning protection OFF should take a
                         // deliberate press rather than completing itself on the sixth digit.
                         usingRecoveryCode={usingRecoveryCode}
-                        disabled={busy}
+                        busy={busy}
+                        inputRef={codeRef}
                         error={error}
                         autoFocus
                     />
