@@ -12,6 +12,8 @@ import { hueFor, type CampHue } from "@/lib/campHue"
  */
 const BY_PATH: Record<string, CampHue> = {
   "/app/myTask": "moss",
+  "/app/channel": "sky",
+  "/app/chat": "berry",
   "/app/inbox": "sky",
   "/app/later": "sun",
   "/app/calendar": "berry",
