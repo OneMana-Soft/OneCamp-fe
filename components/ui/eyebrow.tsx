@@ -37,13 +37,15 @@ import { cn } from "@/lib/utils/helpers/cn"
  * Prefer <Eyebrow> where the element is free.
  */
 export const eyebrowClass =
-  "uppercase tracking-wider font-semibold text-muted-foreground text-xs"
+  "uppercase tracking-wide font-medium text-muted-foreground text-2xs"
 
 export function Eyebrow({
   children,
   /**
-   * `default` is 12px, the majority shape. `sm` is 10px — the documented floor —
-   * for dense rows and grid headers that previously reached for text-3xs.
+   * Both are 12px at weight 500 since the app scale of 10 Oct 2026 (12px is
+   * the floor for anything that carries content). Capitals at 13px and weight
+   * 600 outshouted the content they label. `sm`, for dense rows and grid
+   * headers, sets the letters closer.
    */
   size = "default",
   /** Rendered element. A section title is often a heading rather than a span. */
@@ -59,8 +61,9 @@ export function Eyebrow({
   return (
     <Tag
       className={cn(
-        "uppercase tracking-wider font-semibold text-muted-foreground",
-        size === "sm" ? "text-2xs" : "text-xs",
+        "uppercase font-medium text-muted-foreground text-2xs",
+        // Dense rows and grid headers keep their letters closer.
+        size === "sm" ? "tracking-normal" : "tracking-wide",
         className,
       )}
       {...rest}

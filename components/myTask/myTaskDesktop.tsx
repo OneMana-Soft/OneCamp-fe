@@ -1,6 +1,6 @@
 "use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger, underlineTab, underlineTabsList } from "@/components/ui/tabs"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { List } from "@/lib/icons";
 import { Kanban } from "@/lib/icons";
@@ -47,17 +47,17 @@ export const MyTaskDesktop = () => {
             {/* Content */}
             <div className="flex-1 overflow-hidden px-8 pb-8 pt-6">
                 <Tabs value={selectedTab} onValueChange={handleTabChange} className="h-full flex flex-col gap-6">
-                    <TabsList className="w-full sm:w-fit grid grid-cols-2 sm:flex bg-muted/50 p-1 border border-border/50 h-auto overflow-hidden">
+                    <TabsList className={underlineTabsList}>
                         <TabsTrigger 
                             value="list"
-                            className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-primary"
+                            className={underlineTab}
                         >
                             <List className="h-4 w-4" />
                             {t("list")}
                         </TabsTrigger>
                         <TabsTrigger 
                             value="kanban"
-                            className="gap-2 px-4 py-2 rounded-md transition duration-200 data-[state=active]:bg-background data-[state=active]:text-primary"
+                            className={underlineTab}
                         >
                             <Kanban className="h-4 w-4" />
                             {t("board")}

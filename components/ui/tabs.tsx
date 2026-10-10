@@ -52,4 +52,13 @@ const TabsContent = React.forwardRef<
 ))
 TabsContent.displayName = TabsPrimitive.Content.displayName
 
-export { Tabs, TabsList, TabsTrigger, TabsContent }
+/**
+ * A page's view tabs as a plain underline row (List, Board, Timeline...): ink
+ * and a 2px rule when active, muted otherwise. A bordered, tinted segmented box
+ * was one more container in a page header that already had several. Pass these
+ * to TabsList and TabsTrigger.
+ */
+const underlineTabsList = "w-full justify-start gap-5 h-auto rounded-none border-b bg-transparent p-0 overflow-x-auto no-scrollbar"
+const underlineTab = "-mb-px gap-2 rounded-none border-b-2 border-transparent bg-transparent px-0.5 pb-2.5 pt-1 text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+
+export { Tabs, TabsList, TabsTrigger, TabsContent, underlineTabsList, underlineTab }

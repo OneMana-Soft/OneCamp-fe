@@ -15,7 +15,6 @@ import {TaskStatusCell} from "@/components/task/taskStatusCell";
 import {TaskPriorityCell} from "@/components/task/taskPriorityCell";
 import {openRightPanel} from "@/store/slice/desktopRightPanelSlice";
 import {useDispatch} from "react-redux";
-import {ColorIcon} from "@/components/colorIcon/colorIcon";
 import Link from "next/link";
 import {app_project_path} from "@/types/paths";
 import { BlockedBadge } from "@/components/task/BlockedBadge"
@@ -146,7 +145,6 @@ export const useMyTaskColumn = () => {
             cell: ({ row }) => (
 
                 <>{row.original?.task_project ? <Link href={`${app_project_path}/${row.original?.task_project.project_uuid}`} className="flex min-w-0 max-w-[12rem] items-center gap-2 hover:underline pointer-events-auto group cursor-pointer">
-                    <ColorIcon name={row.original?.task_project.project_uuid} size="dot"/>
         <div className="truncate whitespace-nowrap">{row.original?.task_project.project_name}</div>
                     </Link>:
                     <span>{"--"}</span>}</>

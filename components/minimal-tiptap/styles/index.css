@@ -305,5 +305,5 @@
 /* A message shown without an editor (see lib/utils/staticRichText): mentions
    look and respond exactly as the live mention node view does. */
 .static-rich span[data-type="mention"] {
-  @apply bg-primary/10 text-primary hover:bg-primary/20 rounded px-1 py-0.5 mx-0.5 text-sm font-medium cursor-pointer transition-colors select-none inline-block;
+  @apply bg-sidebar-accent text-foreground hover:bg-input/60 rounded-sm px-1 py-0.5 mx-0.5 font-medium cursor-pointer transition-colors select-none inline-block;
 }
