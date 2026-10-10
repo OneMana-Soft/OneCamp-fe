@@ -6,10 +6,10 @@ import { LucideIcon } from "lucide-react";
  * Emphasis of an empty state. Not decoration — it answers "is this space empty
  * because nothing happened yet, or because the user hasn't set the thing up?"
  *
- *  - "muted" (default): a quiet grey circle and small copy. For an empty list or
+ *  - "muted" (default): a small muted icon and small copy. For an empty list or
  *    panel sitting inside a busier surface, where the empty state is a footnote
  *    and shouldn't outshout the chrome around it.
- *  - "accent": a primary-tinted tile and body-size copy. For a card or page
+ *  - "accent": a larger icon, a larger title and body-size copy. For a card or page
  *    whose entire job right now is to invite the first action — no agents, no
  *    tables, no connected servers. This is the presentation four admin cards and
  *    two full pages had each hand-rolled as ~14 identical lines of markup.
@@ -30,6 +30,8 @@ interface EmptyStateProps {
    * instead of adopting the primitive. Widening the type is what lets them in.
    */
   description?: React.ReactNode
+  /** The one next step. One: an empty state with two buttons asks the
+   *  person to make a decision before they have anything to decide about. */
   action?: React.ReactNode
   className?: string
   tone?: EmptyStateTone
@@ -55,23 +57,22 @@ export function EmptyState({
         className
       )}
     >
+      {/* The icon stands on its own, in muted ink. It used to sit in a grey
+          circle (muted) or an orange tile (accent): an icon in a tinted chip
+          is the most recognisable shape of a templated UI, and the orange one
+          spent the accent on an illustration rather than on the action under
+          it (design direction: "never put an icon inside a tinted chip").
+          The accent tone is now carried by scale, not colour. */}
       {Icon && (
-        <div
-          className={cn(
-            "flex items-center justify-center",
-            accent
-              ? "h-12 w-12 rounded-2xl bg-primary/10"
-              : "rounded-full bg-muted p-3"
-          )}
-        >
-          <Icon
-            className={cn("size-6", accent ? "text-primary" : "text-muted-foreground")}
-            strokeWidth={accent ? 2 : 1.5}
-          />
-        </div>
+        <Icon
+          aria-hidden="true"
+          data-empty-icon=""
+          className={cn("shrink-0 text-muted-foreground", accent ? "size-7" : "size-5")}
+          strokeWidth={1.5}
+        />
       )}
       <div className={cn("space-y-1", accent && "max-w-sm")}>
-        <h3 className="text-sm font-medium text-foreground text-balance">{title}</h3>
+        <h3 className={cn("font-medium text-foreground text-balance", accent ? "text-base" : "text-sm")}>{title}</h3>
         {description && (
           <p
             className={cn(

@@ -28,7 +28,7 @@ const DrawerOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Overlay
     ref={ref}
-    className={cn("fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/80", className)}
+    className={cn("fixed inset-0 z-[var(--z-modal-backdrop)] bg-black/50", className)}
     {...props}
   />
 ))
@@ -43,7 +43,8 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-[var(--z-modal)] flex h-auto flex-col rounded-t-[10px] border bg-background",
+        // 14px top corners: a drawer is a sheet, and sheets take the dialog step.
+        "fixed inset-x-0 bottom-0 z-[var(--z-modal)] flex h-auto flex-col rounded-t-2xl border bg-background",
         // A sheet taller than the screen used to grow off the top of it.
         //
         // The element is fixed to the bottom with an automatic height, so
@@ -73,7 +74,9 @@ const DrawerContent = React.forwardRef<
           own body already scrolls keeps doing so and this never engages.
           overscroll-contain stops a flick at the end of the list from
           scrolling the page underneath the sheet. */}
-      <div className="mx-auto mt-4 h-2 w-[100px] shrink-0 rounded-full bg-muted" />
+      {/* The grab handle: a 40px pill in line-strong. In --muted it was the
+          colour of the page behind it and could not be seen. */}
+      <div aria-hidden="true" data-drawer-handle="" className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-input" />
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
         {children}
       </div>
@@ -87,7 +90,7 @@ const DrawerHeader = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("grid gap-1.5 p-4 text-center sm:text-left", className)}
+    className={cn("grid gap-1.5 p-4 text-left", className)}
     {...props}
   />
 )
@@ -111,7 +114,7 @@ const DrawerTitle = React.forwardRef<
   <DrawerPrimitive.Title
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none",
+      "text-lg font-semibold leading-tight text-balance",
       className
     )}
     {...props}

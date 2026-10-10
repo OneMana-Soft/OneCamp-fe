@@ -153,6 +153,30 @@ it was also the one nothing rendered.
 **Transition specific properties, not `all`.** `transition-all` animates layout
 and causes jank.
 
+**One timing.** 120 ms for hover and press, 150 ms for menus and popovers
+(opacity plus 4px, no zoom), 200 ms for dialogs and sheets (fade only), all on
+`ease-standard` (`cubic-bezier(.2,.8,.2,1)`). The 120 ms default is set in
+`@theme`, so a bare `transition-colors` already has it.
+
+## Primitives
+
+**Hover and keyboard focus in a list are `bg-highlight`** (surface-3), not
+`bg-accent`: `--accent` is the canvas, so anything on the canvas hovered to
+the colour it already sat on.
+
+**A field is `<Field label help error>`** around one control: it wires the id,
+`aria-describedby` and `aria-invalid`, which Input, Textarea and SelectTrigger
+style. Label above, help under, error under that.
+
+**Controls are 3:1.** A checkbox, radio or switch track is drawn in text-3
+against the page, and its press target reaches 24px.
+
+**Icons come from `@/lib/icons`**, at a 1.5 stroke (set globally for icons
+left at Lucide's default). `iconImports.test.ts` ratchets direct imports.
+
+**Tooltips are ink, badges are neutral, progress is neutral.** The accent
+budget applies to primitives too.
+
 ## Copy
 
 Words are design material. Name things as a person recognises them. Say what a

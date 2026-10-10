@@ -7,13 +7,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils/helpers/cn"
 
 const toggleVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground data-[state=on]:font-semibold [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  // On is surface-3 under ink: --accent is the canvas, so "on" was invisible
+  // in any toolbar that sat on it. No weight change when on, because a label
+  // that turns semibold gets wider and nudges its neighbours.
+  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:bg-highlight hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-highlight data-[state=on]:text-foreground [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default: "bg-transparent",
         outline:
-          "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
+          "border border-input bg-transparent hover:bg-highlight hover:text-accent-foreground",
       },
       size: {
         default: "h-9 px-2 min-w-9",

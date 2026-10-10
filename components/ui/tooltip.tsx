@@ -115,7 +115,11 @@ const TooltipContent = React.forwardRef<
 
       sideOffset={sideOffset}
       className={cn(
-        "z-[var(--z-tooltip)] overflow-hidden rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+        // Ink, not the accent. A tooltip is a label, and an orange label on every
+        // hovered icon spent the accent on the least important text on screen
+        // (DESIGN.md, accent budget). Inverted ink reads in both themes and
+        // needs no shadow to separate from the page.
+        "z-[var(--z-tooltip)] max-w-xs overflow-hidden rounded-md bg-foreground px-2 py-1 text-xs font-medium text-background text-pretty duration-150 ease-standard animate-in fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1",
         className
       )}
       {...props}
