@@ -21,30 +21,23 @@ import {
 import { Check } from "@/lib/icons"
 import { formulaText, showFormulaValue } from "@/lib/tables/formula"
 import { shortDate } from "@/lib/utils/date/shortDate"
+import { campHueOf } from "@/lib/campHue"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
 
 interface GuestTableViewerProps {
   fields: TableField[]
   rows: TableRow[]
 }
 
+/**
+ * An option's chip colour. Options are categories, not statuses, so a picked
+ * colour becomes its camp hue (tint behind ink) rather than danger, success or
+ * warning: a red "Blocked" chip read as an error. No colour, or one that names
+ * no hue, stays neutral.
+ */
 function optionColorClass(color?: string): string {
-  // Map a stored option color to a subtle chip style; fall back to muted.
-  switch ((color || "").toLowerCase()) {
-    case "red":
-      return "bg-destructive/10 text-danger-ink"
-    case "green":
-      return "bg-success/10 text-success-ink"
-    case "blue":
-      return "bg-blue-500/10 text-blue-700 dark:text-blue-300"
-    case "yellow":
-      return "bg-warning/10 text-warning-ink"
-    case "purple":
-      return "bg-purple-500/10 text-purple-700 dark:text-purple-300"
-    case "orange":
-      return "bg-orange-500/10 text-orange-700 dark:text-orange-300"
-    default:
-      return "bg-muted text-muted-foreground"
-  }
+  const hue = campHueOf(color)
+  return hue ? `${HUE_CLASS[hue]} bg-hue-tint text-hue-ink` : "bg-muted text-muted-foreground"
 }
 
 function Chip({ label, color }: { label: string; color?: string }) {
