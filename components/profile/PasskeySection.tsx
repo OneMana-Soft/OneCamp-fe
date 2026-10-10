@@ -120,7 +120,7 @@ export function PasskeySection() {
                       {k.last_used_at ? ` · last used ${when(k.last_used_at)}` : " · not used yet"}
                     </p>
                   </div>
-                  <span className="flex shrink-0 gap-0.5 sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100">
+                  <span className="flex shrink-0 gap-0.5 sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
                     <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Rename this passkey" onClick={() => setRenaming({ id: k.id, name: k.name })}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>

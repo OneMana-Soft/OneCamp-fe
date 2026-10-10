@@ -67,7 +67,7 @@ export function SavedTaskViewsPanel({ scope, current, apply, withColumns = true,
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0 text-muted-foreground sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
+                className="h-7 w-7 shrink-0 text-muted-foreground sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
                 aria-label={`Delete view ${v.name}`}
                 disabled={busy}
                 onClick={() => void remove(v.id)}

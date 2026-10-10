@@ -50,6 +50,12 @@ import {
 } from "@/components/table/LinkSettings"
 import { showFormulaValue } from "@/lib/tables/formula"
 import { nextCell, swallowsAtEdge, type CellKind } from "@/lib/tables/gridKeys"
+import { TABLE_VIEW_BODY } from "@/components/table/TableViewFrame"
+import { OptionChip } from "@/components/table/optionChip"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { shortDate } from "@/lib/utils/date/shortDate"
+import { localDay } from "@/lib/utils/timeZone"
 
 interface DataTableGridProps {
   /** Where a new row goes, when rows are filtered out of this view: after every row. */
@@ -197,8 +203,10 @@ function cellKind(f: TableField): CellKind {
       return "button"
     case "number":
       return "number"
+    // A date opens the task panel's date picker from a button, so Left and
+    // Right move along the row as they do from any button.
     case "date":
-      return "date"
+      return "button"
     default:
       return "text"
   }
@@ -470,7 +478,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
         view: a sticky header needs its scroll container to be the one that
         scrolls, and an overflow-x wrapper on its own pins it to nothing.
         scroll-pt keeps a cell focused from the keyboard out from under it. */}
-    <div ref={scrollRef} className="max-h-[calc(100dvh-16rem)] min-h-[8rem] overflow-auto overscroll-contain scroll-pt-10">
+    <div ref={scrollRef} className={cn(TABLE_VIEW_BODY, "scroll-pt-10")} data-table-grid="">
       <table
         className="w-full table-fixed border-separate border-spacing-0 text-sm"
         style={{ minWidth: tableWidth }}
@@ -499,16 +507,60 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
             ))}
             {canManage && (
               <th className="border-b border-border/60 px-2 py-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Add a column"
-                  className="h-7 w-7"
-                  onClick={() => setAddingColumn((v) => !v)}
-                  title="Add column"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+                {/* A new column is set up where the column menu sets one up,
+                    in the same form: it was a strip under the grid with the
+                    name, a native select, Add and Cancel in one line beside a
+                    formula editor floating at its right. */}
+                <Popover open={addingColumn} onOpenChange={setAddingColumn}>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label="Add a column" className="h-7 w-7" title="Add column">
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="end"
+                    className={cn(newColType === "formula" || newColType === "relation" || newColType === "rollup" ? "w-80" : "w-64", "p-3")}
+                    data-add-column=""
+                  >
+                    <form
+                      className="space-y-2"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        void handleAddColumn()
+                      }}
+                    >
+                      <ColumnFieldLabel htmlFor="new-column-name">Name</ColumnFieldLabel>
+                      <Input
+                        dense
+                        id="new-column-name"
+                        value={newColName}
+                        onChange={(e) => setNewColName(e.target.value)}
+                        placeholder="Column name"
+                        className="h-8"
+                        autoFocus
+                      />
+                      <ColumnFieldLabel htmlFor="new-column-type">Type</ColumnFieldLabel>
+                      <ColumnTypeSelect id="new-column-type" value={newColType} onChange={setNewColType} />
+                      {newColType === "formula" && (
+                        <FormulaEditor tableId={tableId} fields={sortedFields} value={newColFormula} onChange={setNewColFormula} />
+                      )}
+                      {newColType === "relation" && <RelationSettings tableId={tableId} draft={newColRelation} onChange={setNewColRelation} />}
+                      {newColType === "rollup" && <RollupSettings fields={sortedFields} draft={newColRollup} onChange={setNewColRollup} />}
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <Button type="button" size="sm" variant="ghost" onClick={() => setAddingColumn(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={busy || !newColName.trim() || !settingsReady(newColType, newColFormula, newColRelation, newColRollup)}
+                        >
+                          Add column
+                        </Button>
+                      </div>
+                    </form>
+                  </PopoverContent>
+                </Popover>
               </th>
             )}
           </tr>
@@ -549,57 +601,6 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
       {/* Outside the scrolling frame, so it is as wide as the grid's card
           however wide the columns run. */}
       {rows.length === 0 && empty && <div className="border-b border-border/40">{empty}</div>}
-
-      {addingColumn && canManage && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2">
-          <Input
-            value={newColName}
-            onChange={(e) => setNewColName(e.target.value)}
-            placeholder="Column name"
-            aria-label="Column name"
-            className="h-8 w-48"
-            onKeyDown={(e) => e.key === "Enter" && handleAddColumn()}
-          />
-          <select
-            value={newColType}
-            onChange={(e) => setNewColType(e.target.value as FieldType)}
-            aria-label="Column type"
-            className="h-8 rounded-md border border-border bg-background px-2 text-sm"
-          >
-            {FIELD_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-          <Button
-            size="sm"
-            onClick={handleAddColumn}
-            disabled={busy || !newColName.trim() || !settingsReady(newColType, newColFormula, newColRelation, newColRollup)}
-            className="gap-1.5"
-          >
-            <Check className="h-3.5 w-3.5" /> Add
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => setAddingColumn(false)}>
-            Cancel
-          </Button>
-          {newColType === "formula" && (
-            <div className="w-full max-w-md">
-              <FormulaEditor tableId={tableId} fields={sortedFields} value={newColFormula} onChange={setNewColFormula} />
-            </div>
-          )}
-          {newColType === "relation" && (
-            <div className="w-full max-w-xs">
-              <RelationSettings tableId={tableId} draft={newColRelation} onChange={setNewColRelation} />
-            </div>
-          )}
-          {newColType === "rollup" && (
-            <div className="w-full max-w-xs">
-              <RollupSettings fields={sortedFields} draft={newColRollup} onChange={setNewColRollup} />
-            </div>
-          )}
-        </div>
-      )}
 
       <button
         type="button"
@@ -831,34 +832,21 @@ function ColumnHeader({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className={cn(isFormula || isRollup || isRelation ? "w-80" : "w-64", "p-3")} onCloseAutoFocus={(e) => e.preventDefault()}>
           <div className="space-y-2">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Name</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="h-8"
-                onKeyDown={(e) => e.key === "Enter" && save()}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Type</label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as FieldType)}
-                className="h-8 w-full rounded-md border border-border bg-background px-2 text-sm"
-              >
-                {FIELD_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <ColumnFieldLabel htmlFor={`column-name-${field.id}`}>Name</ColumnFieldLabel>
+            <Input dense
+              id={`column-name-${field.id}`}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-8"
+              onKeyDown={(e) => e.key === "Enter" && save()}
+              autoFocus
+            />
+            <ColumnFieldLabel htmlFor={`column-type-${field.id}`}>Type</ColumnFieldLabel>
+            <ColumnTypeSelect id={`column-type-${field.id}`} value={type} onChange={setType} />
 
             {isSelect && (
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Options</label>
+                <span className={COLUMN_FIELD_LABEL}>Options</span>
                 <div className="space-y-1">
                   {options.map((o, i) => (
                     <div key={o.label} className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-sm">
@@ -873,7 +861,7 @@ function ColumnHeader({
                   ))}
                 </div>
                 <div className="flex items-center gap-1">
-                  <Input
+                  <Input dense
                     value={newOption}
                     onChange={(e) => setNewOption(e.target.value)}
                     placeholder="Add option"
@@ -894,7 +882,7 @@ function ColumnHeader({
 
             {isFormula && (
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Formula</label>
+                <span className={COLUMN_FIELD_LABEL}>Formula</span>
                 <FormulaEditor tableId={tableId} fields={fields} fieldId={field.id} value={formula} onChange={setFormula} />
               </div>
             )}
@@ -959,11 +947,11 @@ function ColumnHeader({
             )}
 
             <div className="flex items-center justify-between pt-1">
-              <Button size="sm" variant="ghost" className="text-danger-ink" onClick={onDelete}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+              <Button size="sm" variant="ghost" className="gap-1.5 text-danger-ink" onClick={onDelete}>
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Delete
               </Button>
               <Button size="sm" onClick={save} disabled={!name.trim() || !ready}>
-                <Check className="h-3.5 w-3.5 mr-1" /> Save
+                Save
               </Button>
             </div>
           </div>
@@ -973,6 +961,44 @@ function ColumnHeader({
   )
 }
 
+
+/** A setting's name in the column menu and the new column form: one size, one weight. */
+const COLUMN_FIELD_LABEL = "block text-xs font-medium text-muted-foreground"
+
+function ColumnFieldLabel({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
+  return (
+    <label htmlFor={htmlFor} className={COLUMN_FIELD_LABEL}>
+      {children}
+    </label>
+  )
+}
+
+/**
+ * A column's type: the browser's select, so it works from the keyboard and as
+ * the phone's own picker inside a menu, drawn as the field beside it is (the
+ * same 32px box, radius and border as the name, and the app's chevron) rather
+ * than the browser's own control, which drew a different box with a different
+ * arrow in every browser.
+ */
+function ColumnTypeSelect({ id, value, onChange }: { id: string; value: FieldType; onChange: (t: FieldType) => void }) {
+  return (
+    <div className="relative">
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value as FieldType)}
+        className="h-8 w-full appearance-none rounded-md border border-input bg-background pl-3 pr-8 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        {FIELD_TYPES.map((t) => (
+          <option key={t.value} value={t.value}>
+            {t.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    </div>
+  )
+}
 
 /**
  * What a cell shows: its saved value, or what was just chosen while that is
@@ -1046,12 +1072,14 @@ function Cell({
     )
   }
 
+  if (field.type === "date") {
+    return <DateCell label={field.name} value={value} cellId={cellId} onCommit={onCommit} />
+  }
+
   const inputType =
     field.type === "number"
       ? "number"
-      : field.type === "date"
-        ? "date"
-        : field.type === "email"
+      : field.type === "email"
           ? "email"
           : field.type === "url"
             ? "url"
@@ -1086,21 +1114,33 @@ function CheckboxCell({ label, value, cellId, onCommit }: { label: string; value
 function SelectCell({ field, value, cellId, onCommit }: { field: TableField; value: string; cellId: string; onCommit: (v: unknown) => Promise<boolean> }) {
   const options = parseFieldConfig(field).options || []
   const [shown, change] = useShownValue(value)
+  const chosen = options.find((o) => o.label === shown)
+  // The browser's select keeps the keyboard and the phone's own picker; what
+  // shows is the option's chip in its colour, as a guest's view and the board
+  // show it. It was the option's name as plain text, so a member saw no colour
+  // where a guest saw one.
   return (
-    <select
-      data-cell={cellId}
-      value={shown}
-      onChange={(e) => change(e.target.value, onCommit)}
-      aria-label={field.name}
-      className="h-8 w-full cursor-pointer appearance-none truncate bg-transparent px-2 text-sm outline-none focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
-    >
-      <option value=""></option>
-      {options.map((o) => (
-        <option key={o.label} value={o.label}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <div className="relative">
+      <select
+        data-cell={cellId}
+        value={shown}
+        onChange={(e) => change(e.target.value, onCommit)}
+        aria-label={field.name}
+        className="h-8 w-full cursor-pointer appearance-none truncate bg-transparent px-2 text-sm text-transparent outline-none focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 [&>option]:bg-popover [&>option]:text-popover-foreground"
+      >
+        <option value=""></option>
+        {options.map((o) => (
+          <option key={o.label} value={o.label}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {shown && (
+        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-2 right-2 flex items-center">
+          <OptionChip label={shown} color={chosen?.color} className="text-xs" />
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -1121,11 +1161,7 @@ function MultiSelectCell({ field, value, cellId, onCommit }: { field: TableField
           className="flex min-h-8 w-full flex-wrap items-center gap-1 px-2 py-1 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
         >
           {selected.length === 0 ? null : (
-            selected.map((s) => (
-              <span key={s} className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">
-                {s}
-              </span>
-            ))
+            selected.map((s) => <OptionChip key={s} label={s} color={options.find((o) => o.label === s)?.color} className="text-xs" />)
           )}
         </button>
       </DropdownMenuTrigger>
@@ -1196,12 +1232,13 @@ function TextCell({
     if (local === savedText) return
     void onCommit(parse(local))
   }
+  const grouped = type === "number" ? groupedNumber(local) : null
 
   // Numbers are typed as text, in a decimal keypad on a phone: a number input
   // has no caret position to read (so the grid could not tell when Left and
   // Right should leave the cell) and changed its value on Up and Down.
   const isNumber = type === "number"
-  return (
+  const input = (
     <input
       type={isNumber ? "text" : type}
       inputMode={isNumber ? "decimal" : undefined}
@@ -1221,12 +1258,83 @@ function TextCell({
       spellCheck={type === "text" ? undefined : false}
       className={cn(
         "h-8 w-full bg-transparent px-2 text-sm outline-none focus:bg-background focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
-        isNumber && "text-right tabular-nums",
-        // A date picker's calendar glyph on every row is noise: it shows on the
-        // row under the pointer and on the focused cell.
-        type === "date" && "tabular-nums [&::-webkit-calendar-picker-indicator]:opacity-0 group-hover:[&::-webkit-calendar-picker-indicator]:opacity-50 focus:[&::-webkit-calendar-picker-indicator]:opacity-50",
+        isNumber && "peer text-right tabular-nums",
+        isNumber && grouped !== null && "text-transparent focus:text-foreground",
       )}
     />
+  )
+  if (!isNumber || grouped === null) return input
+  // At rest a number reads as the formula beside it does ("1,200"); typing
+  // shows what is typed ("1200"). The cell kept the raw digits, so a column of
+  // costs read 1200 next to a total of 1,200.
+  return (
+    <div className="relative">
+      {input}
+      <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-sm tabular-nums peer-focus:hidden">
+        {grouped}
+      </span>
+    </div>
+  )
+}
+
+/** A number as the grid shows it at rest, in the reader's format; null when the text is not one number. */
+export function groupedNumber(text: string): string | null {
+  const t = text.trim()
+  if (t === "" || !/^-?\d*\.?\d+(e[+-]?\d+)?$/i.test(t)) return null
+  const n = Number(t)
+  return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 6 }) : null
+}
+
+/** "2026-10-07" (or a timestamp) as the day it names, in the reader's zone. */
+function dayOf(value: unknown): Date | undefined {
+  if (typeof value !== "string" || !value) return undefined
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? undefined : d
+}
+
+/**
+ * A date cell: the day in the app's words ("7 Oct", "7 Oct 2025"), opening the
+ * task panel's calendar, with its affordance showing on the row under the
+ * pointer and on the cell with the focus. It was the browser's date input, so
+ * dates followed the reader's locale ("10/07/2026", the 10th of July to half
+ * the world) beside an app that writes "7 Oct" everywhere else.
+ */
+function DateCell({ label, value, cellId, onCommit }: { label: string; value: unknown; cellId: string; onCommit: (v: unknown) => Promise<boolean> }) {
+  const saved = typeof value === "string" ? value : ""
+  const [shown, change] = useShownValue(saved)
+  const [open, setOpen] = React.useState(false)
+  const day = dayOf(shown)
+  const pick = (d: Date | undefined) => {
+    change(d ? localDay(d) : "", onCommit)
+    setOpen(false)
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-cell={cellId}
+          aria-label={`${label}: ${day ? shortDate(day) : "no date"}`}
+          className="group/date flex h-8 w-full items-center gap-1.5 px-2 text-left text-sm tabular-nums outline-none focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        >
+          <span className="min-w-0 truncate">{day ? shortDate(day) : ""}</span>
+          <CalendarDays
+            aria-hidden="true"
+            className="pointer-events-none ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible/date:opacity-100 group-data-[state=open]/date:opacity-100 [@media(hover:none)]:opacity-100"
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar mode="single" selected={day} defaultMonth={day} onSelect={pick} initialFocus />
+        <div className="flex justify-end border-t border-border/60 p-2">
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" disabled={!day} onClick={() => pick(undefined)}>
+            Clear
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 

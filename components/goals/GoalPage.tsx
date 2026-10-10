@@ -99,7 +99,7 @@ function ProjectRow({ p, canEdit, onRemove }: { p: GoalProjectLine; canEdit: boo
         <Button
           size="icon"
           variant="ghost"
-          className="h-7 w-7 md:pointer-events-none md:opacity-0 md:focus-visible:pointer-events-auto md:focus-visible:opacity-100 md:group-hover:pointer-events-auto md:group-hover:opacity-100"
+          className="h-7 w-7 md:pointer-events-none md:opacity-0 md:focus-visible:pointer-events-auto md:focus-visible:opacity-100 md:group-hover:pointer-events-auto md:group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
           aria-label={`Take ${p.project_name} off the goal`}
           onClick={onRemove}
         >

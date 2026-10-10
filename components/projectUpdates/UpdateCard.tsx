@@ -72,7 +72,7 @@ export function UpdateCard({
               "ml-auto flex items-center gap-1 transition-opacity",
               // Revealed on hover or focus with a pointer; always there on touch, and while confirming.
               !confirming &&
-                "md:pointer-events-none md:opacity-0 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100 md:group-hover:pointer-events-auto md:group-hover:opacity-100",
+                "md:pointer-events-none md:opacity-0 md:group-focus-within:pointer-events-auto md:group-focus-within:opacity-100 md:group-hover:pointer-events-auto md:group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto",
             )}
           >
             {confirming ? (

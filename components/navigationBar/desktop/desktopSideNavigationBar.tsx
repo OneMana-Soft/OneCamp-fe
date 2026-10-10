@@ -114,7 +114,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
                 onClick={() => dispatch(openInSplit(pane))}
                 aria-label={`Open ${ch.title} side by side`}
                 title="Open side by side (Alt + click)"
-                className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center rounded bg-canvas text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 group-hover/item:opacity-100"
+                className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center rounded bg-canvas text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 group-hover/item:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
             >
                 <Columns2 className="h-3.5 w-3.5" />
             </button>
@@ -247,7 +247,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-6 w-6 shrink-0 opacity-0 group-hover/section:opacity-100 focus-visible:opacity-100 transition-opacity"
+                                                    className="h-6 w-6 shrink-0 opacity-0 group-hover/section:opacity-100 focus-visible:opacity-100 transition-opacity [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
                                                     onClick={link.action}
                                                     aria-label={`Add ${link.title}`}
                                                 >
@@ -298,7 +298,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                         )}
                                     </Link>
                                     {link.action && (
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover/nav:opacity-100 focus-visible:opacity-100 transition-opacity" onClick={link.action} aria-label={`Add ${link.title}`}>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 opacity-0 group-hover/nav:opacity-100 focus-visible:opacity-100 transition-opacity [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto" onClick={link.action} aria-label={`Add ${link.title}`}>
                                             <Plus className='h-3.5 w-3.5'/>
                                         </Button>
                                     )}

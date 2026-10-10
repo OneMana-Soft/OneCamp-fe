@@ -53,7 +53,7 @@ export const TeamProjectInfo = ({
                 </div>
             </div>
 
-            <div className="flex items-center gap-1 shrink-0 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity">
+            <div className="flex items-center gap-1 shrink-0 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto">
                 <Button
                     size="icon"
                     variant="ghost"
