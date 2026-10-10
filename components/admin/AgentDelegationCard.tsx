@@ -11,19 +11,23 @@
  * The three values save TOGETHER, matching the API. They are one policy: enabling
  * delegation while a stale surface list is still stored would open places the admin
  * did not just choose, and saving surfaces without the flag looks like it took
- * effect when nothing changed. So there is one Save, and it is disabled until
- * something actually differs from what is stored — no "did that apply?" ambiguity.
+ * effect when nothing changed. So the edits wait in a save bar, which appears only
+ * while something actually differs from what is stored.
+ *
+ * Until the stored policy is read, there is no form. A failed read used to leave
+ * the form on its defaults ("off", "Saved."), a false account of the policy with a
+ * Save that would have overwritten the real one.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
+import { SettingRow, SettingsList, SettingsSection, SwitchRow, SaveBar } from "@/components/ui/settingsSection"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { ErrorState } from "@/components/ui/error-state"
 import { useToast } from "@/hooks/use-toast"
 import { ShieldAlert } from "@/lib/icons"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { cn } from "@/lib/utils/helpers/cn"
 import { getAIConfig, setAIAgentDelegation, type AIConfig } from "@/services/aiModelService"
 
 // Self-contained: it fetches its own config, like every sibling admin card, so the
@@ -37,6 +41,8 @@ const HOP_CHOICES = [1, 2, 3, 4, 5] as const
 function AgentDelegationCard() {
   const { toast } = useToast()
   const [settings, setSettings] = useState<AIConfig | undefined>()
+  const [failed, setFailed] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const vetoed = !!settings?.agent_delegation_vetoed_by_env
 
   const [enabled, setEnabled] = useState(false)
@@ -47,9 +53,9 @@ function AgentDelegationCard() {
   const load = useCallback(async () => {
     try {
       setSettings(await getAIConfig())
+      setFailed(false)
     } catch {
-      // Leave the form on its defaults. A failed read must not block the rest of
-      // the settings screen, and Save re-reads afterwards anyway.
+      setFailed(true)
     }
   }, [])
 
@@ -59,12 +65,13 @@ function AgentDelegationCard() {
 
   // Re-sync whenever stored settings arrive or change, so the form always starts
   // from the truth rather than from a stale first render.
-  useEffect(() => {
+  const resetToStored = useCallback(() => {
     if (!settings) return
     setEnabled(!!settings.agent_delegation_enabled)
     setMaxHops(settings.agent_delegation_max_hops || 2)
     setSurfaces(settings.agent_delegation_surfaces || "")
   }, [settings])
+  useEffect(resetToStored, [resetToStored])
 
   const dirty = useMemo(() => {
     if (!settings) return false
@@ -83,14 +90,14 @@ function AgentDelegationCard() {
     setSaving(true)
     try {
       await setAIAgentDelegation(enabled, maxHops, surfaces.trim())
-      toast({ title: "Saved", description: "Agent collaboration policy updated." })
+      toast({ title: "Collaboration policy saved" })
       // Re-read rather than assume: the server clamps hops, so what was stored may
       // differ from what was sent, and the form should show the truth.
       await load()
     } catch (e) {
       toast({
-        title: "Couldn't save",
-        description: e instanceof Error ? e.message : "Failed to update the policy.",
+        title: "Couldn't save the collaboration policy",
+        description: apiErrorMessage(e, "Try again in a moment."),
         variant: "destructive",
       })
     } finally {
@@ -99,116 +106,119 @@ function AgentDelegationCard() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold">Agent collaboration
-        </CardTitle>
-        <CardDescription>
-          Let one AI teammate hand work to another: a triage agent asking a coding agent to
-          open a pull request, for example. Every hop is attributed to the person who started
-          the chain, and an agent can never reach a teammate that person couldn&apos;t have
-          asked themselves.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-5">
-        {vetoed && (
-          <div
-            className="flex items-start gap-2.5 rounded-md border border-warning/20 bg-warning/10 p-3"
-            role="status"
-          >
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
-            <p className="text-xs leading-relaxed text-foreground/80">
-              Turned off for this deployment (<code className="text-2xs">AI_AGENT_DELEGATION</code>).
-              An operator has decided agents must not hand work to each other here, and that
-              cannot be overridden from this screen.
-            </p>
-          </div>
-        )}
-
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-0.5">
-            <Label htmlFor="agent-delegation-enabled" className="text-sm font-medium">
-              Allow agents to ask each other
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Off by default. Turning this on means an agent&apos;s answer can start another
-              agent&apos;s work, which spends AI budget.
-            </p>
-          </div>
-          <Switch
-            id="agent-delegation-enabled"
-            checked={enabled}
-            disabled={vetoed || saving}
-            onCheckedChange={setEnabled}
-            aria-label="Allow agents to ask each other"
-          />
+    <SettingsSection
+      title="Agent collaboration"
+      description="Let one AI teammate hand work to another: a triage agent asking a coding agent to open a pull request, for example. Every hop is attributed to the person who started the chain, and an agent can never reach a teammate that person couldn't have asked themselves."
+    >
+      {!settings && failed ? (
+        <ErrorState
+          subject="the collaboration policy"
+          retrying={retrying}
+          onRetry={() => {
+            setRetrying(true)
+            void load().finally(() => setRetrying(false))
+          }}
+        />
+      ) : !settings ? (
+        <div role="status" aria-label="Loading the collaboration policy">
+          <SkeletonRows rows={3} avatar={false} />
         </div>
+      ) : (
+        <>
+          {vetoed && (
+            <div className="flex items-start gap-2.5 rounded-md border border-warning/20 bg-warning/10 p-3" role="status">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" aria-hidden="true" />
+              <p className="text-xs leading-relaxed text-foreground/80">
+                Turned off for this server (<code className="text-2xs">AI_AGENT_DELEGATION</code>). Whoever runs it
+                has decided agents must not hand work to each other here, and that can&apos;t be changed from this
+                page.
+              </p>
+            </div>
+          )}
 
-        <div className="space-y-1.5">
-          <Label htmlFor="agent-delegation-surfaces" className="text-sm font-medium">
-            Where it&apos;s allowed
-          </Label>
-          <Input
-            id="agent-delegation-surfaces"
-            value={surfaces}
-            disabled={vetoed || saving}
-            onChange={(e) => setSurfaces(e.target.value)}
-            placeholder="channel-uuid, task:task-uuid, or * for everywhere"
-          />
-          <p className="text-xs text-muted-foreground">
-            Comma-separated. A channel is its id; a task is <code className="text-2xs">task:</code>
-            followed by its id. Empty means nowhere. Start with one place, watch what the agents
-            do, then widen.
-          </p>
-          {enabledButNowhere && (
+          <SettingsList>
+            <SwitchRow
+              label="Allow agents to ask each other"
+              description="Off by default. When it's on, an agent's answer can start another agent's work, which spends AI budget."
+              checked={enabled}
+              disabled={vetoed || saving}
+              onChange={setEnabled}
+            />
+            <SettingRow
+              label="Where it's allowed"
+              controlId="agent-delegation-surfaces"
+              description={
+                <>
+                  Separated by commas. A channel is its id; a task is <code className="text-2xs">task:</code> and its
+                  id; <code className="text-2xs">*</code> is everywhere. Empty means nowhere. Start with one place,
+                  watch what the agents do, then widen.
+                </>
+              }
+            >
+              <Input
+                id="agent-delegation-surfaces"
+                aria-describedby="agent-delegation-surfaces-desc"
+                className="h-8 w-full sm:w-72"
+                value={surfaces}
+                disabled={vetoed || saving}
+                onChange={(e) => setSurfaces(e.target.value)}
+                placeholder="channel id, task:id, or *…"
+                spellCheck={false}
+                autoComplete="off"
+              />
+            </SettingRow>
+            {/* A choice of one of five: a segmented radio group, not five
+                buttons with the chosen one filled in the accent. */}
+            <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <div className="min-w-0 space-y-1">
+                <p id="agent-delegation-hops" className="text-sm font-medium leading-5">How far a chain can go</p>
+                <p id="agent-delegation-hops-desc" className="text-xs text-muted-foreground text-pretty">
+                  2 covers a person asking one agent, which asks a second. Higher numbers let a chain run further
+                  from the person who started it, and cost more.
+                </p>
+              </div>
+              <div
+                role="radiogroup"
+                aria-labelledby="agent-delegation-hops"
+                aria-describedby="agent-delegation-hops-desc"
+                className="inline-flex w-fit shrink-0 gap-1 rounded-md bg-muted p-1"
+              >
+                {HOP_CHOICES.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    role="radio"
+                    aria-checked={maxHops === n}
+                    disabled={vetoed || saving}
+                    onClick={() => setMaxHops(n)}
+                    className={cn(
+                      "h-7 w-8 rounded-sm text-sm font-medium tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50",
+                      maxHops === n ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </SettingsList>
+
+          {enabledButNowhere && !vetoed && (
             <p className="text-xs text-warning-ink">
               Nothing will happen until you name at least one place, or <code>*</code>.
             </p>
           )}
-        </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-sm font-medium">How many hands-off deep</Label>
-          <div className="flex items-center gap-1.5">
-            {HOP_CHOICES.map((n) => (
-              <Button
-                key={n}
-                type="button"
-                variant={maxHops === n ? "default" : "outline"}
-                size="sm"
-                disabled={vetoed || saving}
-                aria-pressed={maxHops === n}
-                onClick={() => setMaxHops(n)}
-                className="w-10"
-              >
-                {n}
-              </Button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            2 covers a person asking one agent, which asks a second. Higher values let a chain
-            run further from the person who started it, and cost more.
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-4">
-          <p className="text-xs text-muted-foreground">
-            {dirty ? "Unsaved changes." : "Saved."}
-          </p>
-          <div className="flex items-center gap-2">
-            {!vetoed && enabled && surfaces.trim() !== "" && (
-              <Badge variant="outline" className="text-2xs">
-                Active
-              </Badge>
-            )}
-            <Button variant="outline" onClick={handleSave} disabled={vetoed || saving || !dirty} size="sm">
-              {saving ? "Saving…" : "Save"}
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+          <SaveBar
+            dirty={dirty && !vetoed}
+            saving={saving}
+            what="collaboration changes"
+            onSave={() => void handleSave()}
+            onDiscard={resetToStored}
+          />
+        </>
+      )}
+    </SettingsSection>
   )
 }
 
