@@ -21,6 +21,17 @@ import { FIELD_TYPES, blankForm, formUrl, moveField, newFieldId, type FieldType,
 
 const url = (projectId: string) => `${GetEndpointUrl.ProjectForms}/${projectId}/forms`
 
+/**
+ * Focus the dialog itself when it opens. The dialog primitive focuses the
+ * first field, which here is the list's first button (Forms) or the period
+ * picker (Time): opened from a menu, it lit up with a focus ring before the
+ * person had done anything. Tab still starts at the first control.
+ */
+export function focusDialogItself(event: Event) {
+  event.preventDefault()
+  if (event.target instanceof HTMLElement) event.target.focus({ preventScroll: true })
+}
+
 export function ProjectFormsDialog({ projectId, open, onOpenChange }: { projectId: string; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { data, isLoading, mutate } = useFetch<{ data: { forms: ProjectForm[]; can_edit: boolean } }>(open ? url(projectId) : "")
   const [editing, setEditing] = React.useState<ProjectForm | null>(null)
@@ -30,7 +41,7 @@ export function ProjectFormsDialog({ projectId, open, onOpenChange }: { projectI
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto outline-none sm:max-w-xl" onOpenAutoFocus={focusDialogItself}>
         <DialogHeader>
           <DialogTitle>{editing ? (editing.id ? "Edit form" : "New form") : "Forms"}</DialogTitle>
           <DialogDescription>

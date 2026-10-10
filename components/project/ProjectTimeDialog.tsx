@@ -9,6 +9,7 @@ import * as React from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { focusDialogItself } from "@/components/project/ProjectFormsDialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useFetch } from "@/hooks/useFetch"
 import { useToast } from "@/hooks/use-toast"
@@ -69,7 +70,7 @@ export function ProjectTimeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto outline-none sm:max-w-xl" onOpenAutoFocus={focusDialogItself}>
         <DialogHeader>
           <DialogTitle>Time{projectName ? ` on ${projectName}` : ""}</DialogTitle>
           <DialogDescription>Time logged on this project&apos;s tasks. Make an invoice from it, or download it.</DialogDescription>
