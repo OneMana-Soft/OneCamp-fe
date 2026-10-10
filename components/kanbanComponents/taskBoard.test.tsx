@@ -4,6 +4,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn(), useSelector: () => undefined }))
 vi.mock("@/components/task/taskAssigneeCell", () => ({ TaskAssigneeCell: () => null }))
 vi.mock("@/components/task/PRStatusBadge", () => ({ GitHubBadgeGroup: () => null }))
+const celebrate = vi.fn()
+vi.mock("@/lib/celebrate", () => ({ celebrate: (el: Element) => celebrate(el) }))
 
 const { TaskBoard, CARDS_PER_PAGE } = await import("@/components/kanbanComponents/TaskBoard")
 import type { StatusOption } from "@/lib/taskStatus"
@@ -240,5 +242,44 @@ describe("moving a card from the keyboard", () => {
     act(() => void fireEvent.keyDown(c, { key: "ArrowDown" }))
     expect(container.querySelector("[data-drop-line]")).toBeNull()
     expect(onMove).not.toHaveBeenCalled()
+  })
+})
+
+describe("completing a card on the board", () => {
+  const inProgress: StatusOption = { value: "inProgress", label: "In progress", category: "inProgress", custom: false, color: "" }
+  const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+    cb(0)
+    return 0
+  })
+  afterEach(() => {
+    raf.mockClear()
+    celebrate.mockClear()
+  })
+
+  const move = (key: string, from: string, steps: string[]) => {
+    const utils = board({ columns: { inProgress: many(2, "inProgress"), done: many(1, "done") }, visible: [inProgress, done] })
+    const card = utils.container.querySelector<HTMLElement>(`[data-task-id="${from}"]`)!
+    act(() => card.focus())
+    for (const k of [" ", ...steps, " "]) act(() => void fireEvent.keyDown(document.activeElement ?? document.body, { key: k }))
+    return utils
+  }
+
+  it("celebrates from the card when it lands in a done column", () => {
+    move(" ", "t-inProgress-0", ["ArrowRight"])
+    expect(celebrate).toHaveBeenCalledTimes(1)
+    expect((celebrate.mock.calls[0][0] as HTMLElement).dataset.taskId).toBe("t-inProgress-0")
+  })
+
+  it("never celebrates a task moved out of done, or within its column", () => {
+    move(" ", "t-done-0", ["ArrowLeft"])
+    move(" ", "t-inProgress-0", ["ArrowDown"])
+    expect(celebrate).not.toHaveBeenCalled()
+  })
+})
+
+describe("a card under the pointer", () => {
+  it("lifts a pixel (the playful layer's hover-lift), a card being a thing to open", () => {
+    const { container } = board({ columns: { todo: many(1) }, visible: [todo] })
+    expect(container.querySelector('[data-task-id="t-todo-0"]')!.className).toMatch(/\bhover-lift\b/)
   })
 })
