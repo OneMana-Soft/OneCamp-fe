@@ -82,6 +82,48 @@ export function SwitchRow(props: {
 }
 
 /**
+ * Any other setting's row: its name and help on the left, its control (a select,
+ * an input, a button) on one line at the row's end, at a switch row's padding,
+ * so a list mixing the two keeps one rhythm. On a phone the control goes under
+ * the words.
+ *
+ * The row never rewrites its child. It ties the label to the control by
+ * `controlId` (the control carries that id), and gives the help the id
+ * `${controlId}-desc` for the control to name in aria-describedby when it
+ * should.
+ */
+export function SettingRow({
+  label,
+  description,
+  controlId,
+  children,
+  className,
+}: {
+  label: React.ReactNode
+  description?: React.ReactNode
+  /** The id the control carries, so clicking the label focuses it. */
+  controlId: string
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn("flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6", className)}>
+      <div className="min-w-0 space-y-1">
+        <Label htmlFor={controlId} className="text-sm font-medium leading-5">
+          {label}
+        </Label>
+        {description && (
+          <p id={`${controlId}-desc`} className="text-xs text-muted-foreground text-pretty">
+            {description}
+          </p>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    </div>
+  )
+}
+
+/**
  * Unsaved changes, in view until they are saved or put back. Also asks
  * before the tab is closed or reloaded with them unsaved.
  *
