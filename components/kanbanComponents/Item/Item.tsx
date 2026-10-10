@@ -32,6 +32,8 @@ interface Props {
     color?: string
     disabled?: boolean
     dragging?: boolean
+    /** Picked up from the keyboard: it stays in place, ringed, while the board's line moves. */
+    lifted?: boolean
     handle?: boolean
     handleProps?: any
     height?: number
@@ -248,6 +250,7 @@ export const Item = React.memo(
                 color,
                 dragOverlay,
                 dragging,
+                lifted,
                 disabled,
                 fadeIn,
                 handle,
@@ -345,6 +348,7 @@ export const Item = React.memo(
                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                             selected && "border-primary/50 bg-primary/5",
                             highlighted && "ring-2 ring-ring/40",
+                            lifted && "ring-2 ring-ring shadow-overlay",
                         )}
                         data-selected={selected || undefined}
                         style={style}
@@ -358,7 +362,10 @@ export const Item = React.memo(
                             openTask()
                         }}
                         onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
+                            // Enter opens. Space opens a card that can't be moved; on one
+                            // that can, the board takes Space to pick it up (TaskBoard).
+                            if (e.target !== e.currentTarget) return
+                            if (e.key === "Enter" || (e.key === " " && !listeners)) {
                                 e.preventDefault()
                                 openTask()
                             }
