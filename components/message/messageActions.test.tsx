@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 
 // A message's actions (react, reply, forward, save, more) exist only for the
@@ -93,6 +93,31 @@ describe("a message's actions", () => {
     expect(gutter.textContent).toContain("Maya Chen")
     fireEvent.focus(gutter)
     expect(screen.getByRole("toolbar", { name: "Message actions" })).toBeTruthy()
+  })
+
+  // The first hover of a session was the toolbar's first run (primeActions).
+  it("are built once out of sight when the browser is idle, then dropped", () => {
+    vi.useFakeTimers()
+    const idle: (() => void)[] = []
+    window.requestIdleCallback = ((cb: () => void) => idle.push(cb)) as never
+    window.cancelIdleCallback = (() => {}) as never
+    try {
+      const { container } = row()
+      expect(toolbars).toBe(0)
+      act(() => idle.forEach((cb) => cb()))
+      expect(toolbars).toBe(1)
+      const built = container.querySelector('[role="toolbar"]')
+      expect(built?.closest("[hidden]")).toBeTruthy()
+      expect(screen.queryByRole("toolbar")).toBeNull()
+      act(() => void vi.runAllTimers())
+      expect(container.querySelector('[role="toolbar"]')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+      // @ts-expect-error jsdom has none
+      delete window.requestIdleCallback
+      // @ts-expect-error as above
+      delete window.cancelIdleCallback
+    }
   })
 })
 
