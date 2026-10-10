@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { shortDate, shortDateTime } from "@/lib/utils/date/shortDate"
 import {
     type AgentSkill,
     type SkillRevision,
@@ -55,9 +57,18 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
     // Deleting a shared skill reaches every agent using it, so the button asks
     // once and says the number out loud before it does anything.
     const [confirmDelete, setConfirmDelete] = React.useState(false)
+    // Failed reads, said as such: each used to leave its list empty, which said
+    // "No skills yet." or "No history yet." about things that exist.
+    const [loadFailed, setLoadFailed] = React.useState(false)
+    const [historyFailed, setHistoryFailed] = React.useState(false)
 
     const load = React.useCallback(() => {
-        void listAgentSkills().then(setSkills).catch(() => setSkills([]))
+        void listAgentSkills()
+            .then((next) => {
+                setSkills(next)
+                setLoadFailed(false)
+            })
+            .catch(() => setLoadFailed(true))
     }, [])
 
     React.useEffect(() => {
@@ -86,12 +97,15 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                 instructions: instructions.trim(),
                 note: note.trim(),
             })
-            toast({ title: "Skill updated", description: `${selected.agent_count} agent(s) will use it on their next run.` })
+            toast({
+                title: "Skill saved",
+                description: `${selected.agent_count} ${selected.agent_count === 1 ? "agent uses" : "agents use"} it from their next run.`,
+            })
             setNote("")
             load()
             onChanged?.()
-        } catch {
-            toast({ title: "Error", description: "Could not save the skill", variant: "destructive" })
+        } catch (e) {
+            toast({ title: "Couldn't save the skill", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setSaving(false)
         }
@@ -105,15 +119,15 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
             toast({
                 title: "Skill deleted",
                 description: selected.agent_count > 0
-                    ? `${selected.agent_count} agent(s) will stop using it on their next run.`
-                    : "It was not attached to any agent.",
+                    ? `${selected.agent_count} ${selected.agent_count === 1 ? "agent stops" : "agents stop"} using it from their next run.`
+                    : "No agent was using it.",
             })
             setSelected(null)
             setConfirmDelete(false)
             load()
             onChanged?.()
-        } catch {
-            toast({ title: "Error", description: "Could not delete the skill", variant: "destructive" })
+        } catch (e) {
+            toast({ title: "Couldn't delete the skill", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setSaving(false)
         }
@@ -124,8 +138,9 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
         setShowHistory(true)
         try {
             setRevisions(await listAgentSkillRevisions(selected.id))
+            setHistoryFailed(false)
         } catch {
-            setRevisions([])
+            setHistoryFailed(true)
         }
     }
 
@@ -136,12 +151,12 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
             const updated = await revertAgentSkill(selected.id, rev.id)
             setName(updated.name)
             setInstructions(updated.instructions)
-            toast({ title: "Reverted", description: "The earlier version is live, and the revert is in the history." })
+            toast({ title: "Earlier version restored", description: "It is live now, and the restore is in the history." })
             void openHistory()
             load()
             onChanged?.()
-        } catch {
-            toast({ title: "Error", description: "Could not revert the skill", variant: "destructive" })
+        } catch (e) {
+            toast({ title: "Couldn't restore that version", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setSaving(false)
         }
@@ -163,9 +178,10 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                             <li key={s.id}>
                                 <button
                                     type="button"
+                                    aria-current={selected?.id === s.id ? "true" : undefined}
                                     onClick={() => select(s)}
-                                    className={`w-full rounded-md px-2 py-1.5 text-left text-xs ${
-                                        selected?.id === s.id ? "bg-primary/10 text-primary" : "hover:bg-muted/60"
+                                    className={`w-full rounded-md px-2 py-1.5 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 ${
+                                        selected?.id === s.id ? "bg-primary/10 text-primary" : "hover:bg-highlight"
                                     }`}
                                 >
                                     <span className="block truncate font-medium">{s.name}</span>
@@ -175,29 +191,37 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                                 </button>
                             </li>
                         ))}
-                        {skills.length === 0 && (
-                            <li className="px-2 py-1.5 text-2xs text-muted-foreground">No skills yet.</li>
-                        )}
+                        {loadFailed && skills.length === 0 ? (
+                            <li className="space-y-2 px-2 py-1.5">
+                                <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the skills.</p>
+                                <Button size="sm" variant="outline" className="h-8" onClick={load}>
+                                    Try again
+                                </Button>
+                            </li>
+                        ) : skills.length === 0 ? (
+                            <li className="px-2 py-1.5 text-xs text-muted-foreground">No skills yet.</li>
+                        ) : null}
                     </ul>
 
                     {!selected ? (
-                        <p className="self-center text-2xs text-muted-foreground">Pick a skill to edit it.</p>
+                        <p className="self-center text-xs text-muted-foreground">Pick a skill to edit it.</p>
                     ) : (
                         <div className="space-y-3">
                             {/* The blast radius, stated before the fields rather than after them. */}
-                            <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-                                <Users className="h-3 w-3 shrink-0" />
+                            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
                                 Used by {selected.agent_count} agent{selected.agent_count === 1 ? "" : "s"}. Saving changes
                                 {selected.agent_count === 1 ? " it" : " all of them"} on the next run.
                             </p>
 
                             <div className="space-y-1.5">
-                                <Label className="text-xs">Name</Label>
-                                <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
+                                <Label htmlFor="skill-name" className="text-xs">Name</Label>
+                                <Input id="skill-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoComplete="off" />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs">Instructions</Label>
+                                <Label htmlFor="skill-instructions" className="text-xs">Instructions</Label>
                                 <Textarea
+                                    id="skill-instructions"
                                     value={instructions}
                                     onChange={(e) => setInstructions(e.target.value)}
                                     rows={7}
@@ -205,12 +229,14 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <Label className="text-xs">Why (optional)</Label>
+                                <Label htmlFor="skill-note" className="text-xs">Why (optional)</Label>
                                 <Input
+                                    id="skill-note"
                                     value={note}
                                     onChange={(e) => setNote(e.target.value)}
                                     maxLength={500}
-                                    placeholder="Stored with this version, e.g. 'stopped it repeating the channel name'"
+                                    autoComplete="off"
+                                    placeholder="Kept with this version: stopped it repeating the channel name…"
                                 />
                             </div>
 
@@ -226,7 +252,7 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                                     generic "are you sure" that teaches people to click through. */}
                                 {confirmDelete ? (
                                     <div className="ml-auto flex items-center gap-2">
-                                        <span className="text-2xs text-muted-foreground">
+                                        <span className="text-xs text-muted-foreground">
                                             {selected.agent_count > 0
                                                 ? `Remove it from ${selected.agent_count} agent${selected.agent_count === 1 ? "" : "s"}?`
                                                 : "Delete this skill?"}
@@ -254,11 +280,19 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
 
                             {showHistory && (
                                 <ul className="max-h-52 space-y-2 overflow-y-auto border-t border-border/50 pt-2">
+                                    {historyFailed && revisions.length === 0 && (
+                                        <li className="flex flex-wrap items-center gap-2">
+                                            <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load the history.</p>
+                                            <Button size="sm" variant="outline" className="h-8" onClick={() => void openHistory()}>
+                                                Try again
+                                            </Button>
+                                        </li>
+                                    )}
                                     {revisions.map((r, i) => (
                                         <li key={r.id} className="flex items-start gap-2">
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-2xs text-muted-foreground">
-                                                    {new Date(r.created_at).toLocaleString()}
+                                                <p className="text-xs text-muted-foreground">
+                                                    {shortDateTime(new Date(r.created_at))}
                                                     {r.edited_by_name ? ` · ${r.edited_by_name}` : ""}
                                                     {r.note ? ` · ${r.note}` : ""}
                                                 </p>
@@ -273,14 +307,15 @@ export function SkillLibraryDialog({ open, onClose, onChanged }: Props) {
                                                     onClick={() => revert(r)}
                                                     disabled={saving}
                                                     title="Restore this version"
+                                                    aria-label={`Restore the version from ${shortDate(new Date(r.created_at))}`}
                                                 >
-                                                    <RotateCcw className="h-3.5 w-3.5" />
+                                                    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                                                 </Button>
                                             )}
                                         </li>
                                     ))}
-                                    {revisions.length === 0 && (
-                                        <li className="text-2xs text-muted-foreground">No history yet.</li>
+                                    {!historyFailed && revisions.length === 0 && (
+                                        <li className="text-xs text-muted-foreground">No history yet.</li>
                                     )}
                                 </ul>
                             )}
