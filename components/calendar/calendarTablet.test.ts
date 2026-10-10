@@ -16,6 +16,6 @@ describe("the calendar on a tablet", () => {
   })
 
   it("wraps its header's actions to a second line rather than squeezing the dates", () => {
-    expect(src).toMatch(/<header className="flex flex-col sm:flex-row sm:flex-wrap /)
+    expect(src).toMatch(/<header className="relative flex flex-col sm:flex-row sm:flex-wrap /)
   })
 })
