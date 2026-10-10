@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Bell, Settings } from "@/lib/icons"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useDispatch } from "react-redux"
-import { ActivityListTabContent } from "@/components/activity/activityListTabContent"
+import { ActivityFeedList } from "@/components/activity/activityFeedList"
 import { setTotalUnreadActivityCount } from "@/store/slice/userSlice"
 import { clearActivityUnread } from "@/services/unreadCache"
 import { SectionTabs } from "@/components/ui/sectionTabs"
@@ -59,6 +59,8 @@ export function ActivityListTabs() {
         }
     }, [])
 
+    const viewAll = useCallback(() => setSelectedTab("all"), [])
+
     useEffect(() => {
         if (pathname === "/app/activity" && searchParams.get("tab") !== selectedTab) {
             const params = new URLSearchParams(searchParams.toString())
@@ -94,7 +96,10 @@ export function ActivityListTabs() {
                 </Link>
             }
         >
-            <ActivityListTabContent selectedTab={selectedTab} onSelectTab={handleChangeTab} />
+            {/* Every tab draws in the same frame (activityFeedFrame). */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <ActivityFeedList view={selectedTab} onViewAll={viewAll} />
+            </div>
         </SectionTabs>
     )
 }

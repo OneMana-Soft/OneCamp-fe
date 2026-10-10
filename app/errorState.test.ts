@@ -41,8 +41,8 @@ const SURFACES = [
   "components/chat/chatUserList.tsx",
   // Activity. The empty copy here says nothing needs the user, which is the one
   // conclusion they must not reach from a request that merely failed.
-  "components/activity/activityAllListResult.tsx",
-  "components/activity/activityMentionListResult.tsx",
+  // Priority, All and Mentions are one list since 10 Oct.
+  "components/activity/activityFeedList.tsx",
   // Comments. "Be the first to add a comment" invites a reply to a thread that
   // may already hold a discussion, which the user then talks over.
   "components/rightPanel/docCommentList.tsx",

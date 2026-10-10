@@ -13,11 +13,6 @@ export interface UnifiedActivityItem {
     actor_kind?: "person" | "agent" | "app";
 }
 
-export interface MentionActivityPagination {
-    mentions: MentionInfoInterface[];
-    has_more: boolean;
-}
-
 export interface UnifiedActivityPagination {
     activities: UnifiedActivityItem[];
     has_more: boolean;

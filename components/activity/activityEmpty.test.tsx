@@ -8,13 +8,13 @@ vi.mock("@/hooks/useFetch", () => ({ useFetch: () => answer }))
 vi.mock("@/hooks/useClientConfig", () => ({ useAIAvailable: () => false }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }), usePathname: () => "/app/activity", useSearchParams: () => new URLSearchParams() }))
 
-import { ActivityAllListResult } from "@/components/activity/activityAllListResult"
+import { ActivityFeedList } from "@/components/activity/activityFeedList"
 
 afterEach(cleanup)
 
 describe("an empty Activity", () => {
   it("says you're all caught up under a small check", () => {
-    const { container } = render(<ActivityAllListResult priorityOnly onViewAll={() => {}} />)
+    const { container } = render(<ActivityFeedList view="priority" onViewAll={() => {}} />)
     expect(screen.getByText("You're all caught up")).toBeTruthy()
     expect(container.querySelector("svg")).toBeTruthy()
     // The one action is kept.
