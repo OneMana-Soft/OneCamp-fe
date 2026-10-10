@@ -135,6 +135,14 @@ export function AuthDivider({ children = "or" }: { children?: React.ReactNode })
 /** The height every full-width control on these pages shares: 44px on a phone, 40px from md. */
 export const authControl = "h-11 w-full md:h-10"
 
+/**
+ * A link or text button that stands on its own line ("Back to sign in",
+ * "Manage notification settings"): a 44px touch target on a phone, plain text
+ * height from md. They were 17 to 20px tall on a phone. A link inside a
+ * sentence keeps its line's height.
+ */
+export const authLink = "inline-flex min-h-11 items-center gap-1.5 md:min-h-0"
+
 type FieldProps = Omit<React.ComponentProps<typeof Input>, "id"> & {
   id: string
   label: React.ReactNode
