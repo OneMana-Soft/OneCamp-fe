@@ -2,7 +2,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 
 /**
- * The top of a page: a quiet mono kicker, a title set in the display face, and
+ * The top of a page: a quiet kicker, a title set in the display face, and
  * at most one line under it that says something the title does not.
  *
  * Pages used to open with a bold sans heading and a filler line such as "Here
@@ -10,8 +10,14 @@ import { cn } from "@/lib/utils/helpers/cn"
  * display face is the product's voice (DESIGN.md), and the kicker gives the
  * page a place (today's date, a team, a count) without another box.
  */
-/** The kicker's look, for a line that sits where one would (a way back). */
-export const kicker = "font-mono text-2xs uppercase tracking-wider text-muted-foreground"
+/**
+ * The kicker's look, for a line that sits where one would (a way back).
+ * 13px muted text in sentence case, as written: "Project · Launch", "Saturday,
+ * October 10". It was mono capitals, and mono is for keys and IDs, never for an
+ * eyebrow (design direction, "Typefaces"); in capitals it competed with the
+ * title it introduces.
+ */
+export const kicker = "text-xs text-muted-foreground"
 
 export function PageHeader({
   eyebrow,
@@ -39,7 +45,9 @@ export function PageHeader({
         {eyebrow && <p className={kicker}>{eyebrow}</p>}
         <h1
           className={cn(
-            "font-display font-semibold tracking-tight text-foreground text-balance",
+            // No extra tracking: Inter Tight is already set tight, and
+            // tracking-tight on top of it ran the words together.
+            "font-display font-semibold tracking-normal text-foreground text-balance",
             size === "lg" ? "text-3xl" : "text-2xl",
           )}
         >

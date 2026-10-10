@@ -48,7 +48,7 @@ describe("uppercase section labels come from one place", () => {
     // class. Without it they would become a second population that drifts alone.
     expect(src).toMatch(/export const eyebrowClass/)
     // One weight, deliberately not a prop — weight is what drifted worst.
-    expect(src).toMatch(/font-semibold/)
+    expect(src).toMatch(/font-medium/)
     expect(src, "weight must not be configurable").not.toMatch(/weight\?:/)
   })
 

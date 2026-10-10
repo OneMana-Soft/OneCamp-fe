@@ -10,7 +10,7 @@ import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip
 import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip";
 import { ProjectActionsMenu } from "@/components/project/ProjectToolButtons";
 import { Kanban } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger, underlineTab, underlineTabsList } from "@/components/ui/tabs"
 import { ProjectTaskTable } from "@/components/project/projectTaskTable"
 import { ProjectAttachments } from "@/components/project/ProjectAttachments"
 import { LinkedItemsSection } from "@/components/entityLink/LinkedItemsSection"
@@ -30,9 +30,6 @@ import {getNextNotification} from "@/lib/utils/getNextNotification";
 import {usePost} from "@/hooks/usePost";
 
 const VALID_TABS = ["list", "kanban", "timeline", "updates", "attachments"] as const
-
-// An underline tab: ink and a 2px rule when active, muted otherwise.
-const UNDERLINE_TAB = "-mb-px gap-2 rounded-none border-b-2 border-transparent bg-transparent px-0.5 pb-2.5 pt-1 text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
 type TabValue = (typeof VALID_TABS)[number]
 
 export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
@@ -122,38 +119,38 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                     <Tabs value={selectedTab} onValueChange={handleTabChange} className="h-full flex flex-col gap-6">
                         {/* A plain underline row: the bordered, tinted segmented box was one
                             more container in a header that already had three. */}
-                        <TabsList className="w-full justify-start gap-5 h-auto rounded-none border-b bg-transparent p-0 overflow-x-auto no-scrollbar">
+                        <TabsList className={underlineTabsList}>
                             <TabsTrigger 
                                 value="list"
-                                className={UNDERLINE_TAB}
+                                className={underlineTab}
                             >
                                 <List className="h-4 w-4" />
                                 {t("list", { defaultValue: "List" })}
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="kanban"
-                                className={UNDERLINE_TAB}
+                                className={underlineTab}
                             >
                                 <Kanban className="h-4 w-4" />
                                 {t("board", { defaultValue: "Board" })}
                             </TabsTrigger>
                             <TabsTrigger
                                 value="timeline"
-                                className={UNDERLINE_TAB}
+                                className={underlineTab}
                             >
                                 <ChartGantt className="h-4 w-4" />
                                 Timeline
                             </TabsTrigger>
                             <TabsTrigger
                                 value="updates"
-                                className={UNDERLINE_TAB}
+                                className={underlineTab}
                             >
                                 <Megaphone className="h-4 w-4" />
                                 Updates
                             </TabsTrigger>
                             <TabsTrigger 
                                 value="attachments"
-                                className={UNDERLINE_TAB}
+                                className={underlineTab}
                             >
                                 <Paperclip className="h-4 w-4" />
                                 {t("attachments", { defaultValue: "Attachments" })}

@@ -109,7 +109,7 @@ items are muted-foreground with a neutral hover step (`.nav-idle`). Group
 labels are sentence case, never uppercase: the sidebar is read constantly, and
 shouting labels is noise.
 
-**Every page opens with `PageHeader`.** A mono kicker that places the page
+**Every page opens with `PageHeader`.** A quiet kicker (13px muted, sentence case, never mono) that places the page
 (today's date, "Assigned to you", "Project · Launch"), a title in the display
 face, and at most one line underneath that says something the title does not.
 "Here is a list of your tasks" and "Manage your team" are not that line; leave

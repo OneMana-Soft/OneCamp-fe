@@ -26,7 +26,10 @@ const MentionNodeView: React.FC<NodeViewProps> = (props) => {
       <span
         onClick={handleClick}
         className={cn(
-          "bg-primary/10 text-primary hover:bg-primary/20 rounded px-1 py-0.5 mx-0.5 text-sm font-medium cursor-pointer transition-colors select-none",
+          // A neutral chip at weight 500: a mention is a person, not a link or a
+          // selection, so it does not spend the accent (design direction,
+          // "Accent budget"). Kept identical to .static-rich's in index.css.
+          "bg-sidebar-accent text-foreground hover:bg-input/60 rounded-sm px-1 py-0.5 mx-0.5 font-medium cursor-pointer transition-colors select-none",
           props.selected && "ring-2 ring-primary ring-offset-1"
         )}
         data-id={id}

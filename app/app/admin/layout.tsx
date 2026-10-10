@@ -4,7 +4,8 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
-import {ErrorState} from "@/components/error/errorState";
+import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import {Lock} from "@/lib/icons";
 
 export default function ChatLayout({
                                       children,
@@ -19,7 +20,18 @@ export default function ChatLayout({
     }
 
     if (!selfProfile.data?.data.user_is_admin) {
-        return <ErrorState errorTitle={"Admins only"} errorMessage={"Only workspace admins can open this page. Ask an admin if you need a change made here."}/>
+        // A refusal, not a failure: nothing went wrong, so it is not drawn in
+        // the danger colour with an alert icon.
+        return (
+            <div className="flex h-full items-center justify-center">
+                <StatePlaceholder
+                    type="empty"
+                    icon={Lock}
+                    title="Admins only"
+                    description="Only workspace admins can open this page. Ask an admin if you need a change made here."
+                />
+            </div>
+        )
     }
 
     return (

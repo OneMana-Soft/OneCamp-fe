@@ -424,7 +424,7 @@ body {
      font-sans, which is a deliberate act and reads as one. */
   h1, h2, h3 {
     font-family: var(--font-display);
-    letter-spacing: -0.018em;
+    letter-spacing: -0.005em;
   }
 
   html {
@@ -476,13 +476,15 @@ body {
     @apply opacity-60 md:opacity-100;
   }
 
-  /* Tighter display tracking for semantic headings. Element selectors keep
-     specificity low, so any explicit tracking-* utility still overrides this. */
+  /* Display tracking for semantic headings: barely negative, because Inter
+     Tight is a tight cut already and -0.02em on top of it ran words together.
+     Element selectors keep specificity low, so any explicit tracking-* utility
+     still overrides this. */
   h1,
   h2,
   h3,
   h4 {
-    letter-spacing: -0.02em;
+    letter-spacing: -0.005em;
   }
 }
 
@@ -823,11 +825,14 @@ body {
     box-shadow: 0 -2px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06);
   }
 
+  /* A mention is a neutral chip at weight 500, never the accent: it is a
+     person, not a link or a selection. */
   .mention {
-    border-color: var(--primary);
-    border-width: 0.15rem;
-    padding: 0.2rem 0.5rem;
-    border-radius: 0.9rem;
+    background: var(--sidebar-accent);
+    color: var(--foreground);
+    font-weight: 500;
+    padding: 0.0625rem 0.25rem;
+    border-radius: calc(var(--radius) - 2px);
   }
 
   /* Force hide all TipTap/Tippy overlays when parent is suppressed */
