@@ -79,15 +79,70 @@ describe("the invitation email", () => {
     expect(saveBar()).toBeTruthy()
   })
 
-  it("labels its fields in sentence case and puts its icons on sun tiles", () => {
+  // Its parts are plain 14px headings, as the task panel names its sections;
+  // they carried 24px tiles beside them, which no other admin heading has.
+  it("labels its fields in sentence case, under plain headings", () => {
     state.config = ready()
     render(<EmailSettingsCard />)
     expect(screen.getByLabelText("Sender address")).toBeTruthy()
     expect(screen.getByLabelText("Template (HTML)")).toBeTruthy()
     expect(screen.queryByText(/Email Subject|Message Template|Live Preview|Reset to Default/)).toBeNull()
     const headings = screen.getAllByRole("heading", { level: 3 })
-    expect(headings.some((h) => h.querySelector(".hue-sun svg"))).toBe(true)
+    expect(headings.map((h) => h.textContent)).toEqual(expect.arrayContaining(["Logo", "Message", "Preview"]))
+    headings.forEach((h) => expect(h.querySelector("[class*='hue-'], svg")).toBeNull())
     expect(document.querySelector(".text-primary svg, svg.text-primary")).toBeNull()
+  })
+
+  // From, Subject and To started at 1059, 1048 and 1059px, and "Subject" ran
+  // into its value: the labels had no column of their own.
+  it("lines the preview's values up in one column beside their labels", () => {
+    state.config = ready()
+    render(<EmailSettingsCard />)
+    const from = screen.getByText("From")
+    expect(from.tagName).toBe("DT")
+    const list = from.closest("dl") as HTMLElement
+    expect(list.className).toContain("grid-cols-[4.5rem_minmax(0,1fr)]")
+    expect(Array.from(list.querySelectorAll("dt")).map((d) => d.textContent)).toEqual(["From", "Subject", "To"])
+    expect(list.querySelectorAll("dd")).toHaveLength(3)
+  })
+
+  // The body lost the email's own formatting (its heading and its link drew as
+  // plain lines, under the app's reset styles); in a frame of its own it reads
+  // as a mail client shows it, and nothing in it can run.
+  it("shows the body as a mail client would, in a sandboxed frame", () => {
+    state.config = { ...ready(), data: { data: { ...saved, invitation_email_template: "<h2>Hello</h2><p>{{inviter_name}} invited you.</p><script>alert(1)</script>" } } }
+    render(<EmailSettingsCard />)
+    const frame = screen.getByTitle("The invitation email, as it is sent") as HTMLIFrameElement
+    expect(frame.tagName).toBe("IFRAME")
+    expect(frame.getAttribute("sandbox")).toBe("")
+    const doc = frame.getAttribute("srcdoc") ?? ""
+    expect(doc).toContain("<h2>Hello</h2>")
+    expect(doc).toContain("Priya Raman invited you.")
+    expect(doc).not.toContain("<script")
+  })
+
+  // The drop zone was a dashed box inside a bordered box.
+  it("offers the logo in one box", () => {
+    state.config = ready()
+    render(<EmailSettingsCard />)
+    const section = screen.getByRole("heading", { level: 3, name: "Logo" }).closest("section") as HTMLElement
+    const boxes = Array.from(section.querySelectorAll("*")).filter(
+      (el) => el.tagName !== "BUTTON" && /(^|\s)border(-2)?(\s|$)/.test(el.getAttribute("class") ?? ""),
+    )
+    expect(boxes).toHaveLength(1)
+    expect(boxes[0].className).toContain("border-dashed")
+  })
+
+  // The sender address's field takes the row's width when the row is too
+  // narrow to hold it beside its words, and the list keeps one field height.
+  it("gives the sender's field the row's width when it goes under its words", () => {
+    state.config = ready()
+    render(<EmailSettingsCard />)
+    const sender = screen.getByLabelText("Sender address")
+    expect(sender.className).toContain("w-full")
+    expect(sender.className).toContain("@xl:w-64")
+    expect(sender.className).not.toMatch(/(^|\s)h-8(\s|$)/)
+    expect(screen.getByLabelText("Subject").className).not.toMatch(/(^|\s)h-8(\s|$)/)
   })
 
   it("previews a plain email, without a fake window's dots or a heavy shadow", () => {
