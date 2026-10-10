@@ -103,7 +103,9 @@ export function TwoFactorPrompt({ onSubmit, onCancel, prompt }: TwoFactorPromptP
                 busy={busy}
                 error={error}
                 inputRef={inputRef}
-                // The height of the sign-in page's other fields and buttons.
+                // The sign-in page's other fields: a quiet label on a 20px line,
+                // and the height of its fields and buttons.
+                labelClassName="leading-5 text-muted-foreground"
                 inputClassName="md:h-10"
             />
 

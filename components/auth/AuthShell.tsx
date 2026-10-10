@@ -19,7 +19,28 @@ import { Eye, EyeOff } from "@/lib/icons"
 import { Input } from "@/components/ui/input"
 import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 
-export function AuthShell({ children, className }: { children: React.ReactNode; className?: string }) {
+export function AuthShell({
+  children,
+  className,
+  side,
+}: {
+  children: React.ReactNode
+  className?: string
+  /**
+   * A picture beside the form from lg up (the ring motif beside the sign-in).
+   * Decorative, so hidden from screen readers, and not drawn on a phone. Without
+   * it the page is the one column it always was.
+   */
+  side?: React.ReactNode
+}) {
+  // Not centred on the viewport: a column that starts a fixed step below the
+  // header keeps the heading in one place while the form under it grows (an
+  // error, the code step) instead of the whole page jumping.
+  const main = (
+    <main id="main-content" className="flex flex-1 justify-center px-4 pb-16 pt-[clamp(1.5rem,10vh,6rem)]">
+      <div className={cn("w-full max-w-[22.5rem]", className)}>{children}</div>
+    </main>
+  )
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <header className="flex items-center justify-between px-4 py-3 sm:px-8 sm:py-5">
@@ -30,20 +51,33 @@ export function AuthShell({ children, className }: { children: React.ReactNode; 
         </span>
         <ThemeToggle />
       </header>
-      {/* Not centred on the viewport: a column that starts a fixed step below
-          the header keeps the heading in one place while the form under it
-          grows (an error, the code step) instead of the whole page jumping. */}
-      <main id="main-content" className="flex flex-1 justify-center px-4 pb-16 pt-[clamp(1.5rem,10vh,6rem)]">
-        <div className={cn("w-full max-w-[22.5rem]", className)}>{children}</div>
-      </main>
+      {side ? (
+        <div className="flex flex-1 lg:grid lg:grid-cols-2">
+          {main}
+          <div data-auth-side="" aria-hidden="true" className="hidden min-w-0 lg:flex">
+            {side}
+          </div>
+        </div>
+      ) : (
+        main
+      )}
     </div>
   )
 }
 
-/** The page's heading and, when it says something the heading doesn't, one line under it. */
-export function AuthHeading({ title, children }: { title: React.ReactNode; children?: React.ReactNode }) {
+/**
+ * The page's heading and, when it says something the heading doesn't, one line
+ * under it. `art` is a picture above the heading (a 404's, a dead link's):
+ * decorative, so hidden from screen readers.
+ */
+export function AuthHeading({ title, children, art }: { title: React.ReactNode; children?: React.ReactNode; art?: React.ReactNode }) {
   return (
     <div className="mb-8 space-y-2">
+      {art && (
+        <div data-auth-art="" aria-hidden="true" className="mb-6">
+          {art}
+        </div>
+      )}
       {/* The display face is set tight already; tracking-tight on top ran
           "Join the" into one word. */}
       <h1 className="font-display text-2xl font-semibold text-balance">{title}</h1>
@@ -87,7 +121,9 @@ export const AuthField = React.forwardRef<HTMLInputElement, FieldProps>(function
   return (
     <div className="space-y-2">
       <div className="flex items-baseline justify-between gap-3">
-        <label htmlFor={id} className="text-sm font-medium">
+        {/* Quiet, as the task panel's labels are: the eye goes to what is
+            typed, not to the words about it. */}
+        <label htmlFor={id} className="text-sm font-medium text-muted-foreground">
           {label}
         </label>
         {aside}
