@@ -419,7 +419,11 @@ export default function SignUp() {
           </Suspense>
 
           {/* Which kind of account: the workspace's own, or the company
-              directory's. Tabs, because that is what they are. */}
+              directory's. Tabs, because that is what they are. Never during
+              a second-factor challenge, which replaces this whole branch: the
+              password step is done, and another way to sign in beside the
+              code would say the sign-in can start over in place. Keep the
+              tabs inside it (directorySignInTwoStep.test.tsx checks). */}
           {isLdapEnabled && (
             <div role="tablist" aria-label="Sign in with" className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
               {([["standard", "OneCamp account"], ["directory", "Company directory"]] as const).map(([value, label]) => (
