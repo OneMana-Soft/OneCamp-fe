@@ -254,6 +254,7 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
                                 onClick={() => dispatch(openUI({ key: "createTask", data: { assignToMe: true } }))}
                                 variant="outline"
                                 size="sm"
+                                className="pointer-coarse:h-11"
                             >
                                 Create a task
                             </Button>
