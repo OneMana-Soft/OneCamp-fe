@@ -16,12 +16,18 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { StatusWord, type StatusTone } from "@/components/ui/statusWord"
+import { CircleCheck } from "@/lib/icons"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { getImportErrors, type ImportError } from "@/services/importService"
@@ -38,17 +44,49 @@ export const SEVERITIES = ["", "warning", "error", "fatal"] as const
 export type SeverityChoice = (typeof SEVERITIES)[number]
 
 const CHOICE_LABEL: Record<SeverityChoice, string> = { "": "All", warning: "Warnings", error: "Errors", fatal: "Fatal" }
-const EMPTY_LINE: Record<SeverityChoice, string> = {
-  "": "Nothing was logged: the import brought everything across.",
-  warning: "No warnings.",
-  error: "No errors.",
-  fatal: "Nothing stopped this import.",
+
+/** What an empty log says, for each choice. Shared by the Slack import's log. */
+export const EMPTY_LOG: Record<SeverityChoice, { title: string; description?: string }> = {
+  "": { title: "Nothing was logged", description: "The import brought everything across." },
+  warning: { title: "No warnings" },
+  error: { title: "No errors" },
+  fatal: { title: "Nothing stopped this import" },
 }
 
 /**
- * How serious, as a choice of one: the segmented radio group the notification
- * digest uses. It was four buttons, the chosen one a filled orange, beside the
- * dialog's own actions.
+ * An empty log, as an empty state with the workspace hue's tile. It was a line
+ * in a bordered box, the same box the rows draw in.
+ */
+export function EmptyLog({ choice }: { choice: SeverityChoice }) {
+  const e = EMPTY_LOG[choice]
+  return <EmptyState icon={CircleCheck} hue={ADMIN_GROUP_HUE.workspace} title={e.title} description={e.description} />
+}
+
+/** The log while it loads, in its rows' own frame and shape. Shared by the Slack import's log. */
+export function ErrorRowsSkeleton() {
+  return (
+    <ul role="status" aria-label="Loading the error log" className={LOG_LIST}>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <li key={i} aria-hidden="true" className="space-y-1.5 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="ml-auto h-3 w-20" />
+          </div>
+          <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-3/4" : "w-1/2")} />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** The log's rows between hairlines. */
+export const LOG_LIST = "divide-y divide-border rounded-md border border-border"
+
+/**
+ * How serious, as a choice of one: the app's segmented control. It was four
+ * buttons, the chosen one a filled orange, and then a hand-built copy of the
+ * segmented look at its own height.
  */
 export function SeverityFilter({
   value,
@@ -59,44 +97,31 @@ export function SeverityFilter({
   onChange: (v: SeverityChoice) => void
   disabled?: boolean
 }) {
+  // "All" is the empty choice, which a radio can't carry as its value.
   return (
-    <div role="radiogroup" aria-label="Show" className="inline-flex flex-wrap gap-1 rounded-md bg-muted p-1">
-      {SEVERITIES.map((v) => {
-        const on = value === v
-        return (
-          <button
-            key={v || "all"}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            disabled={disabled}
-            onClick={() => onChange(v)}
-            className={cn(
-              "h-7 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50",
-              on ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {CHOICE_LABEL[v]}
-          </button>
-        )
-      })}
-    </div>
+    <SegmentedControl
+      aria-label="Show"
+      value={value || "all"}
+      onValueChange={(v) => onChange(v === "all" ? "" : (v as SeverityChoice))}
+      disabled={disabled}
+      options={SEVERITIES.map((v) => ({ value: v || "all", label: CHOICE_LABEL[v] }))}
+    />
   )
 }
 
-const CHIP: Record<string, { label: string; className: string }> = {
-  warning: { label: "Warning", className: "border-warning/20 bg-warning/10 text-warning-ink" },
-  error: { label: "Error", className: "border-destructive/20 bg-destructive/10 text-danger-ink" },
-  fatal: { label: "Fatal", className: "border-destructive/30 bg-destructive/15 text-danger-ink" },
+const SEVERITY: Record<string, { label: string; tone: StatusTone }> = {
+  warning: { label: "Warning", tone: "warning" },
+  error: { label: "Error", tone: "danger" },
+  fatal: { label: "Fatal", tone: "danger" },
 }
 
-/** How serious one row is: a tinted word, no icon beside it. */
+/** How serious one row is: a dot and a word, as a status reads. It was a tinted pill. */
 export function SeverityChip({ severity }: { severity: string }) {
-  const c = CHIP[severity] ?? CHIP.error
+  const c = SEVERITY[severity] ?? SEVERITY.error
   return (
-    <span className={cn("inline-flex h-5 shrink-0 items-center rounded-sm border px-1.5 text-2xs font-medium", c.className)}>
+    <StatusWord tone={c.tone} className="shrink-0 font-medium">
       {c.label}
-    </span>
+    </StatusWord>
   )
 }
 
@@ -153,7 +178,7 @@ export const ImportErrorsDialog: React.FC<Props> = ({ jobId, open, onOpenChange 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Import errors</DialogTitle>
           <DialogDescription>
@@ -163,35 +188,42 @@ export const ImportErrorsDialog: React.FC<Props> = ({ jobId, open, onOpenChange 
 
         <SeverityFilter value={severity} onChange={setSeverity} disabled={loading && rows.length === 0} />
 
-        {loading && rows.length === 0 ? (
-          <div role="status" aria-label="Loading the error log" className="rounded-md border border-border px-3 py-1">
-            <SkeletonRows rows={4} avatar={false} />
-          </div>
-        ) : failed === "first" ? (
-          <ErrorState subject="the error log" onRetry={() => void load(0)} retrying={loading} />
-        ) : rows.length === 0 ? (
-          <p className="rounded-md border border-border px-3 py-8 text-center text-sm text-muted-foreground">{EMPTY_LINE[severity]}</p>
-        ) : (
-          <div className="space-y-2">
-            <ul aria-label="Logged problems" className="divide-y divide-border rounded-md border border-border">
+        {/* The log scrolls inside the dialog, under the filter, and Show more
+            sits in the footer beside Close: as the Slack import's log is laid
+            out, where this one scrolled whole and put Show more under the list. */}
+        <div className="min-h-0 flex-1 overflow-auto">
+          {loading && rows.length === 0 ? (
+            <ErrorRowsSkeleton />
+          ) : failed === "first" ? (
+            <ErrorState compact subject="the error log" onRetry={() => void load(0)} retrying={loading} />
+          ) : rows.length === 0 ? (
+            <EmptyLog choice={severity} />
+          ) : (
+            <ul aria-label="Logged problems" className={LOG_LIST}>
               {rows.map((r) => (
                 <ErrorRow key={r.id} row={{ ...r, source: r.source_id || r.slack_id }} />
               ))}
             </ul>
-            {failed === "more" && (
-              <p role="alert" className="text-sm text-danger-ink">
-                Couldn&apos;t load more. Try again.
-              </p>
-            )}
+          )}
+          {failed === "more" && (
+            <p role="alert" className="mt-2 text-sm text-danger-ink">
+              Couldn&apos;t load more. Try again.
+            </p>
+          )}
+        </div>
+
+        <DialogFooter className="flex-row justify-between gap-2 sm:justify-between">
+          <div>
             {hasMore && (
-              <div className="flex justify-center">
-                <Button variant="outline" size="sm" onClick={() => void load(rows.length)} disabled={loading}>
-                  {loading ? "Loading…" : "Show more"}
-                </Button>
-              </div>
+              <Button variant="outline" onClick={() => void load(rows.length)} disabled={loading}>
+                {loading ? "Loading…" : "Show more"}
+              </Button>
             )}
           </div>
-        )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
