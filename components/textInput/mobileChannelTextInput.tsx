@@ -9,7 +9,7 @@ import { ComposerAIButton } from "@/components/ai/ComposerAIButton";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChannelFileUpload } from "@/components/fileUpload/channelFileUpload";
 import { openUI } from "@/store/slice/uiSlice";
 import {useDispatch, useSelector} from "react-redux";
@@ -28,6 +28,11 @@ import { useStableCallback } from "@/hooks/useStableCallback";
 import { celebrate } from "@/lib/celebrate";
 
 
+// Module-level, so a composer with no draft yet gets the same value on every
+// store change: a fresh {} per call re-drew it, editor and all, whenever
+// anything in the app changed.
+const NO_DRAFT = {}
+
 export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { channelId: string, handleSend: (latestContent?: string) => boolean | void, autoFocus?: boolean }) => {
     const scheduleSend = useScheduleSend()
     const editorRef = useRef<HTMLDivElement>(null);
@@ -42,22 +47,22 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
         if (handleSend(latestContent)) celebrate(editorRef.current?.querySelector('button[aria-label="Send"]'))
     })
 
-    const channelInputState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || {});
+    const channelInputState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || NO_DRAFT);
 
     // Resolve the channel display name with the same fallback chain as
     // chanelIdDesktop so the placeholder reads "Message #engineering"
     // instead of the literal "Message #channel". Sidebar state first
     // (already cached), then API response, then a generic fallback.
-    const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);
-    const channelInSidebar = useMemo(
-        () => userChannels?.find((c) => c.ch_uuid === channelId),
-        [userChannels, channelId],
+    // The name only: the whole list changes with every unread count in every
+    // channel, and the composer redrew with each.
+    const sidebarName = useSelector((state: RootState) =>
+        state.users.userSidebar.userChannels?.find((c) => c.ch_uuid === channelId)?.ch_name,
     );
     const channelInfo = useFetchOnlyOnce<ChannelInfoInterfaceResp>(
-        channelId && !channelInSidebar ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}` : "",
+        channelId && !sidebarName ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}` : "",
     );
     const channelDisplayName =
-        channelInSidebar?.ch_name || channelInfo.data?.channel_info?.ch_name || "channel";
+        sidebarName || channelInfo.data?.channel_info?.ch_name || "channel";
     // The composer only exists for someone who can post, i.e. a member.
     const channelAgents = useChannelAgents(channelId, true);
 
