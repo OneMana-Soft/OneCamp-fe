@@ -8,14 +8,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface MessagePreviewAvatarProps {
     userInfo?: UserProfileDataInterface
+    /** Its size; 36px unless told (a forwarded message's header draws 24px). */
+    className?: string
 }
 
-export const MessagePreviewAvatar = ({ userInfo }: MessagePreviewAvatarProps) => {
+export const MessagePreviewAvatar = ({ userInfo, className }: MessagePreviewAvatarProps) => {
     const { src: imageSrc } = useUserAvatar(userInfo?.user_profile_object_key)
     const nameInitial = getNameInitials(userInfo && displayNameOf(userInfo))
 
     return (
-        <Avatar className="h-9 w-9">
+        <Avatar className={cn("h-9 w-9", className)}>
             <AvatarImage src={imageSrc} />
             <AvatarFallback
                 className={cn(
