@@ -135,7 +135,7 @@ export function RightPanelTaskHeader({
                         disabled={!isAdmin || !canMarkComplete}
                         aria-label={canMarkComplete ? "Mark task as complete" : "Task completed"}
                     >
-                        <CircleCheck className={cn("h-3.5 w-3.5", !canMarkComplete && "animate-spring text-success")} />
+                        <CircleCheck className={cn("h-3.5 w-3.5", !canMarkComplete && "animate-spring text-success-ink")} />
                         <span>{canMarkComplete ? "Mark complete" : "Completed"}</span>
                     </Button>
                 )}

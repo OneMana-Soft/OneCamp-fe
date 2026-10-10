@@ -12,7 +12,7 @@ import {DesktopNavigationChatAvatar} from "@/components/navigationBar/desktop/de
 import {useFetch} from "@/hooks/useFetch";
 import {GetEndpointUrl} from "@/services/endPoints";
 import { fieldLabel, fieldRow, inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
-import { PrincipalTag } from "@/components/ui/principalTag"
+import { BotTag } from "@/components/ui/botTag"
 
 
 type AssigneePickerProps = {
@@ -108,7 +108,7 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
                                             >
                                                 <DesktopNavigationChatAvatar userInfo={member}/>
                                                 <span className="flex-1 truncate">{displayNameOf(member)}</span>
-                                                <PrincipalTag kind="ai" />
+                                                <BotTag userUUID={member.user_uuid} />
                                                 <Check
                                                     className={cn(
                                                         "ml-1 h-4 w-4 text-primary",
