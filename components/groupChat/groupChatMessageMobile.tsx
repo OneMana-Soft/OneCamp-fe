@@ -200,7 +200,7 @@ export const GroupChatMessageMobile = ({chatInfo, grpId, isAdmin, addReaction, r
             wrap={(c) => (
                 <div onClick={handleOnCLick}>{c}</div>
             )}>
-        <div id={messageDomId(chatInfo.chat_uuid)} className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? 'py-0.5' : 'py-2.5'} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)} >
+        <div id={messageDomId(chatInfo.chat_uuid)} className={`relative flex gap-3 px-4 ${continued && !isMessageEditEnabled ? 'py-0.5' : 'py-2.5'} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)} >
 
             {continued && !isMessageEditEnabled ? (
                 <ContinuedGutter createdAt={chatInfo.chat_created_at} authorName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)} />

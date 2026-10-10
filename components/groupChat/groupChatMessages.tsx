@@ -313,14 +313,9 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
     useEffect(()=>{
         if(channelScrollToBottom.shouldScrollToBottom && containerRef.current) {
             dispatch(updateGroupChatScrollToBottom({grpId, scrollToBottom: false}))
-            containerRef.current.scrollToIndex(flatItems.length - 1, {
-                smooth: true,
-                align: "end",
-                offset: 50
-            },);
+            containerRef.current.scrollToIndex(flatItems.length - 1, { align: "end" });
         }
-
-    },[channelScrollToBottom.shouldScrollToBottom])
+    },[channelScrollToBottom.shouldScrollToBottom, grpId, dispatch, flatItems.length])
 
     const handleGetNewMessage = () => {
         getNewMessages()

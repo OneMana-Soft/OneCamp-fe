@@ -377,11 +377,7 @@ export const ChannelMessages = ({
     useEffect(() => {
         if (channelScrollToBottom.shouldScrollToBottom && containerRef.current) {
             dispatch(updateChannelScrollToBottom({ channelId, scrollToBottom: false }))
-            containerRef.current.scrollToIndex(flatItems.length - 1, {
-                smooth: true,
-                align: "end",
-                offset: 50
-            })
+            containerRef.current.scrollToIndex(flatItems.length - 1, { align: "end" })
         }
     }, [channelScrollToBottom.shouldScrollToBottom, channelId, dispatch, flatItems.length])
     
