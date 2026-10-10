@@ -11,6 +11,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 export interface ExternalUserItem {
   user_uuid: string
@@ -31,6 +35,9 @@ interface ExternalUserListProps {
   onLoadMore: () => void
   hasMore: boolean
   isLoading: boolean
+  /** The list could not be read: said as such, never as "no external users". */
+  isError?: boolean
+  onRetry?: () => void
   onUnlink: (userUUID: string) => void
   searchQuery: string
   onSearchChange: (query: string) => void
@@ -42,6 +49,8 @@ export const ExternalUserList: React.FC<ExternalUserListProps> = ({
   onLoadMore,
   hasMore,
   isLoading,
+  isError,
+  onRetry,
   onUnlink,
   searchQuery,
   onSearchChange,
@@ -93,36 +102,33 @@ export const ExternalUserList: React.FC<ExternalUserListProps> = ({
         </div>
 
         {filteredUsers.length === 0 && isLoading && users.length === 0 ? (
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
-            <ul className="space-y-2" aria-busy="true">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <li
-                  key={i}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-card/50 animate-pulse"
-                >
-                  <div className="h-9 w-9 rounded-full bg-muted" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3 w-32 bg-muted rounded" />
-                    <div className="h-2.5 w-48 bg-muted rounded" />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+          // The rows it is about to show, in the same bordered list.
+          <ul aria-busy="true" aria-label="Loading external users" className="divide-y divide-border rounded-lg border border-border">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <li key={i} className="flex items-center gap-3 px-3 py-2.5" aria-hidden="true">
+                <Skeleton variant="circle" className="h-9 w-9 shrink-0" />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-32" : "w-40")} />
+                  <Skeleton className="h-3 w-56 max-w-full" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : filteredUsers.length === 0 && isError ? (
+          // Before the empty branch: a failed request leaves the list empty too.
+          <ErrorState subject="the external users" onRetry={onRetry} />
         ) : filteredUsers.length === 0 ? (
-          <div className="flex-1 min-h-0 flex items-center justify-center">
-            <div className="text-center py-10">
-              <div className="mx-auto h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mb-3">
-                <UserX className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium">
-                {isFiltered ? "No external users match your search." : "No external users found."}
-              </p>
-            </div>
-          </div>
+          // The people group's hue, as the admin menu draws External users.
+          <EmptyState
+            icon={UserX}
+            hue={ADMIN_GROUP_HUE.people}
+            title={isFiltered ? "No external user matches your search." : "No external users"}
+            description={isFiltered ? undefined : "People appear here when GitHub activity in a linked repository names someone who hasn't joined."}
+          />
         ) : (
-          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
-            <ul className="space-y-2">
+          // No scroller of its own: the admin page's tab region scrolls.
+          <div>
+            <ul className="divide-y divide-border rounded-lg border border-border">
               {filteredUsers.map((user) => (
                 <ExternalUserRow
                   key={user.user_uuid}
@@ -165,7 +171,7 @@ function ExternalUserRow({ user, isSubmitting, onUnlink }: ExternalUserRowProps)
   const avatarUrl = user.github_avatar_url || ""
 
   return (
-    <li className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-card transition-colors hover:bg-accent/40">
+    <li className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-highlight">
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <Avatar className="h-9 w-9 shrink-0">
           <AvatarImage src={avatarUrl} alt="" />
@@ -189,10 +195,10 @@ function ExternalUserRow({ user, isSubmitting, onUnlink }: ExternalUserRowProps)
               rel="noopener noreferrer"
               className="text-xs text-muted-foreground mt-0.5 inline-flex items-center gap-1 hover:text-primary transition-colors w-fit"
             >
-              <ExternalLink className="h-3 w-3" />@{user.github_login}
+              <ExternalLink className="h-3 w-3" aria-hidden="true" />@{user.github_login}
             </a>
           )}
-          <span className="text-xs text-muted-foreground/70 mt-0.5 truncate">
+          <span className="text-xs text-muted-foreground mt-0.5 truncate">
             {user.user_email_id}
           </span>
         </div>
