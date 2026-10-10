@@ -1,21 +1,20 @@
 "use client"
 
-import { Tabs, TabsContent, TabsList, TabsTrigger, underlineTab, underlineTabsList } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger, underlineTab, underlineTabsList } from "@/components/ui/tabs"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { List } from "@/lib/icons";
 import { Kanban } from "@/lib/icons";
 import { MyTaskTable } from "@/components/myTask/myTaskTable"
 import { MyTaskKanban } from "@/components/myTask/myTaskKanban"
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import { useState, useEffect, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
+import { useState, useEffect, useCallback, startTransition } from "react"
+import { KeptTab, useSeenTabs, useTabInAddress } from "@/components/task/keptTabs"
 import {useTranslation} from "react-i18next";
 
 const VALID_TABS = ["list", "kanban"] as const
 type TabValue = (typeof VALID_TABS)[number]
 
 export const MyTaskDesktop = () => {
-    const router = useRouter()
-    const pathname = usePathname()
     const searchParams = useSearchParams()
     const {t} = useTranslation()
 
@@ -25,19 +24,17 @@ export const MyTaskDesktop = () => {
         return VALID_TABS.includes(tabFromUrl as TabValue) ? (tabFromUrl as TabValue) : "list"
     })
 
+    const seen = useSeenTabs(selectedTab)
+    const tabInAddress = useTabInAddress()
+
+    // The underline moves at once; the list or board follows as a transition.
     const handleTabChange = useCallback((value: string) => {
         if (VALID_TABS.includes(value as TabValue)) {
-            setSelectedTab(value as TabValue)
+            startTransition(() => setSelectedTab(value as TabValue))
         }
     }, [])
 
-    useEffect(() => {
-        if (pathname === "/app/myTask" && searchParams.get("tab") !== selectedTab) {
-            const params = new URLSearchParams(searchParams.toString())
-            params.set("tab", selectedTab)
-            router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-        }
-    }, [selectedTab, pathname, router, searchParams])
+    useEffect(() => tabInAddress("tab", selectedTab), [selectedTab, tabInAddress])
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
@@ -65,12 +62,12 @@ export const MyTaskDesktop = () => {
                     </TabsList>
 
                     <div className="flex-1 overflow-hidden">
-                        <TabsContent value="list" className="h-full mt-0 outline-none">
+                        <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="h-full mt-0 outline-none">
                             <MyTaskTable />
-                        </TabsContent>
-                        <TabsContent value="kanban" className="h-full mt-0 outline-none">
+                        </KeptTab>
+                        <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="h-full mt-0 outline-none">
                             <MyTaskKanban />
-                        </TabsContent>
+                        </KeptTab>
                     </div>
                 </Tabs>
             </div>

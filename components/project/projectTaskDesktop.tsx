@@ -22,8 +22,9 @@ import { ProjectGlanceLine } from "@/components/project/ProjectGlanceLine"
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ChartGantt } from "@/lib/icons"
-import { useRouter, useSearchParams, usePathname } from "next/navigation"
-import { useState, useEffect, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
+import { useState, useEffect, useCallback, startTransition } from "react"
+import { KeptTab, useSeenTabs, useTabInAddress } from "@/components/task/keptTabs"
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {NotificationType} from "@/types/channel";
 import {getNextNotification} from "@/lib/utils/getNextNotification";
@@ -42,14 +43,14 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
     const isAdmin = !!projectInfo.data?.data.project_is_admin
     const isMember = !!projectInfo.data?.data.project_is_member
 
-    const router = useRouter()
-    const pathname = usePathname()
     const searchParams = useSearchParams()
 
     const [selectedTab, setSelectedTab] = useState<TabValue>(() => {
         const tabFromUrl = searchParams.get("tab")
         return VALID_TABS.includes(tabFromUrl as TabValue) ? (tabFromUrl as TabValue) : "list"
     })
+    const seen = useSeenTabs(selectedTab)
+    const tabInAddress = useTabInAddress()
 
     useEffect(() => {
 
@@ -65,18 +66,15 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
         setProjectNotificationType(nextNotification)
     }
 
+    // The underline moves at once; the tab's content follows as a transition,
+    // which a further click can interrupt.
     const handleTabChange = useCallback((value: string) => {
         if (VALID_TABS.includes(value as TabValue)) {
-            setSelectedTab(value as TabValue)
+            startTransition(() => setSelectedTab(value as TabValue))
         }
     }, [])
 
-    // The effect should only run when selectedTab changes, not when URL params change
-    useEffect(() => {
-        const params = new URLSearchParams(searchParams.toString())
-        params.set("tab", selectedTab)
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-    }, [selectedTab, pathname, router])
+    useEffect(() => tabInAddress("tab", selectedTab), [selectedTab, tabInAddress])
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
@@ -158,20 +156,21 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                         </TabsList>
 
                         <div className="flex-1 overflow-hidden">
-                            <TabsContent value="list" className="h-full mt-0 outline-none">
+                            {/* Kept alive once seen: going back to a tab is instant. */}
+                            <KeptTab value="list" selected={selectedTab === "list"} seen={seen.has("list")} className="h-full mt-0 outline-none">
                                 <ProjectTaskTable projectId={projectId} />
-                            </TabsContent>
-                            <TabsContent value="kanban" className="h-full mt-0 outline-none">
+                            </KeptTab>
+                            <KeptTab value="kanban" selected={selectedTab === "kanban"} seen={seen.has("kanban")} className="h-full mt-0 outline-none">
                                 <ProjectTaskKanban projectId={projectId} className="px-0 pt-0" />
-                            </TabsContent>
-                            <TabsContent value="timeline" className="h-full mt-0 outline-none">
+                            </KeptTab>
+                            <KeptTab value="timeline" selected={selectedTab === "timeline"} seen={seen.has("timeline")} className="h-full mt-0 outline-none">
                                 <ProjectTimeline
                                     key={projectId}
                                     projectId={projectId}
                                     onOpenTask={(taskUUID) => dispatch(openRightPanel({ taskUUID }))}
                                     onCreateTask={() => dispatch(openUI({ key: "createTask", data: { projectId } }))}
                                 />
-                            </TabsContent>
+                            </KeptTab>
                             <TabsContent value="updates" className="h-full mt-0 overflow-y-auto outline-none">
                                 <ProjectUpdates projectId={projectId} />
                             </TabsContent>
