@@ -21,6 +21,8 @@ describe("Home's cards and lists", () => {
     const src = read(file)
     expect(src).toMatch(/<Tile hue="(sun|moss|lake|sky|dusk|berry)"/)
     expect(src).not.toMatch(/className="h-4 w-4 shrink-0 text-primary"/)
+    // A card lifts a pixel under the pointer (the playful layer, "Motion").
+    expect(src).toMatch(/hover-lift/)
   })
 
   it.each(["components/home/desktop/desktopDashboard.tsx", "components/home/mobile/mobileHome.tsx"])(

@@ -46,3 +46,16 @@ describe("the inbox", () => {
     expect(screen.getByRole("status", { name: "Opening the conversation" })).toBeTruthy()
   })
 })
+
+describe("an empty inbox", () => {
+  it("springs once when it reaches zero, and an empty search doesn't", async () => {
+    const celebrate = await import("@/lib/celebrate")
+    const pop = vi.spyOn(celebrate, "springPop").mockReturnValue(null)
+    list = Promise.resolve({ threads: [] })
+    render(<InboxPage />)
+    await act(async () => {})
+    expect(screen.getByText("Your inbox is empty.")).toBeTruthy()
+    expect(pop).toHaveBeenCalledTimes(1)
+    expect(pop.mock.calls[0][0]).toBe(document.querySelector("[data-inbox-zero]"))
+  })
+})
