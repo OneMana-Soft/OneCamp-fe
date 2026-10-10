@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +49,7 @@ import {
   type RollupDraft,
 } from "@/components/table/LinkSettings"
 import { showFormulaValue } from "@/lib/tables/formula"
+import { nextCell, swallowsAtEdge, type CellKind } from "@/lib/tables/gridKeys"
 
 interface DataTableGridProps {
   /** Where a new row goes, when rows are filtered out of this view: after every row. */
@@ -100,6 +102,40 @@ const fieldTypeLabel = (type: FieldType) => FIELD_TYPES.find((t) => t.value === 
 /** A number-like column reads right-aligned in tabular figures, so digits line up by place. */
 const isNumeric = (f: TableField) => f.type === "number" || ((f.type === "formula" || f.type === "rollup") && computedOf(f).result === "number")
 
+/**
+ * A column's width, by what it holds. The grid lays out at fixed widths
+ * (table-layout: fixed) so a column keeps its width as rows scroll in and out:
+ * with only the rows on screen in the page, an automatic layout would resize
+ * columns to whatever happened to be showing.
+ */
+export function columnWidth(f: TableField): number {
+  switch (f.type) {
+    case "checkbox":
+      return 96
+    case "number":
+      return 128
+    case "date":
+      return 152
+    case "select":
+      return 168
+    case "formula":
+    case "rollup":
+      return isNumeric(f) ? 136 : 184
+    case "multi_select":
+    case "person":
+      return 200
+    default:
+      return 232
+  }
+}
+
+/** A row's height: a 32px control, 2px of padding a side and its rule. */
+export const GRID_ROW_HEIGHT = 37
+const HEADER_HEIGHT = 41
+/** Rows shown before the grid's frame has been measured. */
+const FIRST_SCREEN_ROWS = 40
+const ACTIONS_WIDTH = 48
+
 function FieldTypeGlyph({ type }: { type: FieldType }) {
   const Glyph = FIELD_GLYPH[type] ?? Type
   return (
@@ -138,6 +174,31 @@ function aiAutoOf(config: { [k: string]: unknown }): boolean {
   return Boolean(ai?.auto)
 }
 
+/** How long the grid waits after an edit before asking for the table again. */
+const REFRESH_AFTER_EDIT_MS = 600
+
+/** The kind of control a cell is, for moving around from the keyboard. */
+function cellKind(f: TableField): CellKind {
+  switch (f.type) {
+    case "formula":
+    case "rollup":
+      return "computed"
+    case "checkbox":
+      return "checkbox"
+    case "select":
+      return "select"
+    case "multi_select":
+    case "relation":
+      return "button"
+    case "number":
+      return "number"
+    case "date":
+      return "date"
+    default:
+      return "text"
+  }
+}
+
 export function DataTableGrid({ tableId, fields, rows, canManage, onChange, nextPosition }: DataTableGridProps) {
   const { toast } = useToast()
   const confirm = useConfirm()
@@ -155,30 +216,72 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
     [fields],
   )
 
-  // Commit a single cell edit (optimistic; revalidate after).
-  const commitCell = async (row: TableRow, fieldId: string, value: unknown) => {
-    const current = parseRowValues(row)
-    if (current[fieldId] === value) return
+  // What the callbacks below read, without being made again (and so without
+  // rendering every row again) whenever the rows or fields change.
+  const latest = React.useRef({ rows, fields, tableId, onChange })
+  latest.current = { rows, fields, tableId, onChange }
+
+  // After an edit the table is asked for again (a formula, a rollup or
+  // another row may have changed with it), once a burst of edits settles.
+  const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshSoon = React.useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+    refreshTimer.current = setTimeout(() => latest.current.onChange(), REFRESH_AFTER_EDIT_MS)
+  }, [])
+  React.useEffect(() => () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+  }, [])
+
+  // Edits saved but not yet in the rows the server last sent, by row. A row
+  // is saved whole (updateRow takes every value), so a second edit made
+  // before the table comes back must carry the first one with it, or it
+  // would put the old value back.
+  const pending = React.useRef(new Map<string, RowValues>())
+  React.useEffect(() => {
+    for (const [id, edits] of pending.current) {
+      const r = rows.find((x) => x.id === id)
+      if (!r) continue
+      const now = parseRowValues(r)
+      for (const k of Object.keys(edits)) if (JSON.stringify(now[k]) === JSON.stringify(edits[k])) delete edits[k]
+      if (Object.keys(edits).length === 0) pending.current.delete(id)
+    }
+  }, [rows])
+
+  // Commit a single cell edit. The cell already shows it; this saves it, and
+  // a failed save asks for the table again, which resets the cell. Resolves
+  // false when the save failed. Takes the row it was rendered with, so an
+  // edit still saves when its row has left the page (scrolled out, or
+  // filtered out by the edit itself).
+  const commitCell = React.useCallback(async (row: TableRow, fieldId: string, value: unknown): Promise<boolean> => {
+    const { fields, tableId } = latest.current
+    const edits = pending.current.get(row.id) ?? {}
+    const current = { ...parseRowValues(row), ...edits }
+    if (JSON.stringify(current[fieldId]) === JSON.stringify(value)) return true
+    pending.current.set(row.id, { ...edits, [fieldId]: value })
     const next: RowValues = writableValues(fields, { ...current, [fieldId]: value })
     try {
       await updateRow(tableId, row.id, next, row.position)
-      onChange()
+      refreshSoon()
+      return true
     } catch {
+      const mine = pending.current.get(row.id)
+      if (mine) delete mine[fieldId]
       // interceptor surfaces the error; revalidate to reset the cell
-      onChange()
+      latest.current.onChange()
+      return false
     }
-  }
+  }, [refreshSoon])
 
   // Link a row to rows of the table a field links to, or unlink it.
-  const linkCell = async (row: TableRow, fieldId: string, change: { add?: string[]; remove?: string[] }) => {
+  const linkCell = React.useCallback(async (rowId: string, fieldId: string, change: { add?: string[]; remove?: string[] }) => {
     try {
-      await changeLinks(tableId, row.id, fieldId, change)
+      await changeLinks(latest.current.tableId, rowId, fieldId, change)
     } catch {
       // surfaced by the interceptor
     } finally {
-      onChange()
+      latest.current.onChange()
     }
-  }
+  }, [])
 
   const handleAddRow = async () => {
     setAdding(true)
@@ -193,17 +296,17 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
     }
   }
 
-  const handleDeleteRow = async (row: TableRow) => {
+  const handleDeleteRow = React.useCallback(async (rowId: string) => {
     setBusy(true)
     try {
-      await deleteRow(tableId, row.id)
-      onChange()
+      await deleteRow(latest.current.tableId, rowId)
+      latest.current.onChange()
     } catch {
       // surfaced
     } finally {
       setBusy(false)
     }
-  }
+  }, [])
 
   const handleAddColumn = async () => {
     const name = newColName.trim()
@@ -275,13 +378,106 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
     })
   }
 
+  // Only the rows in view (and a screenful either side) are in the page. A
+  // thousand rows of nine editable cells was 35,000 elements and 7,000 inputs:
+  // scrolling dropped to 36 frames a second and a keystroke in a cell took
+  // 43 ms, all of it the browser reworking a page that size.
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => GRID_ROW_HEIGHT,
+    overscan: 12,
+    scrollPaddingStart: HEADER_HEIGHT,
+    initialRect: { width: 1024, height: 640 },
+    getItemKey: (i) => rows[i]?.id ?? i,
+  })
+  // Until the frame has a size (the first paint, or a test without layout)
+  // the virtualizer shows nothing; the first screenful stands in, so the
+  // grid never paints empty.
+  const measured = virtualizer.getVirtualItems()
+  const items =
+    measured.length || !rows.length
+      ? measured
+      : Array.from({ length: Math.min(rows.length, FIRST_SCREEN_ROWS) }, (_, index) => ({
+          index,
+          start: index * GRID_ROW_HEIGHT,
+          end: (index + 1) * GRID_ROW_HEIGHT,
+        }))
+  const padTop = items.length ? items[0].start : 0
+  const padBottom = items.length ? virtualizer.getTotalSize() - items[items.length - 1].end : 0
+  const colCount = sortedFields.length + (canManage ? 1 : 0)
+  const tableWidth = sortedFields.reduce((w, f) => w + columnWidth(f), 0) + (canManage ? ACTIONS_WIDTH : 0)
+
+  // Keyboard: arrows, Enter and Shift+Enter move between cells (lib/tables/
+  // gridKeys). A row out of view is scrolled in first, then focused.
+  const focusCell = React.useCallback(
+    (row: number, col: number) => {
+      const root = scrollRef.current
+      if (!root) return
+      const place = () => {
+        const el = root.querySelector<HTMLElement>(`[data-cell="${row}:${col}"]`)
+        if (!el) return false
+        el.focus()
+        if (el instanceof HTMLInputElement && el.type !== "checkbox" && el.type !== "date") el.select()
+        return true
+      }
+      if (place()) return
+      virtualizer.scrollToIndex(row, { align: "auto" })
+      requestAnimationFrame(() => {
+        if (!place()) requestAnimationFrame(() => void place())
+      })
+    },
+    [virtualizer],
+  )
+
+  const onGridKey = React.useCallback(
+    (e: React.KeyboardEvent<HTMLTableElement>) => {
+      const target = e.target as HTMLElement
+      const at = target.closest<HTMLElement>("[data-cell]")?.dataset.cell
+      if (!at || e.nativeEvent.isComposing) return
+      const [row, col] = at.split(":").map(Number)
+      const kind = (target.closest<HTMLElement>("[data-kind]")?.dataset.kind ?? "text") as CellKind
+      let atStart = true
+      let atEnd = true
+      if (target instanceof HTMLInputElement && (kind === "text" || kind === "number")) {
+        const s = target.selectionStart ?? 0
+        const end = target.selectionEnd ?? 0
+        atStart = s === 0 && end === 0
+        atEnd = s === target.value.length && end === target.value.length
+      }
+      const to = nextCell(e, { row, col }, { rows: latest.current.rows.length, cols: sortedFields.length }, { kind, atStart, atEnd })
+      if (to) {
+        e.preventDefault()
+        e.stopPropagation()
+        focusCell(to.row, to.col)
+      } else if (swallowsAtEdge(e, kind)) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    },
+    [focusCell, sortedFields.length],
+  )
+
   return (
     <div>
     {/* The grid scrolls inside its own frame so the header row can stay in
         view: a sticky header needs its scroll container to be the one that
-        scrolls, and an overflow-x wrapper on its own pins it to nothing. */}
-    <div className="max-h-[calc(100dvh-16rem)] min-h-[8rem] overflow-auto overscroll-contain">
-      <table className="w-full border-separate border-spacing-0 text-sm">
+        scrolls, and an overflow-x wrapper on its own pins it to nothing.
+        scroll-pt keeps a cell focused from the keyboard out from under it. */}
+    <div ref={scrollRef} className="max-h-[calc(100dvh-16rem)] min-h-[8rem] overflow-auto overscroll-contain scroll-pt-10">
+      <table
+        className="w-full table-fixed border-separate border-spacing-0 text-sm"
+        style={{ minWidth: tableWidth }}
+        aria-rowcount={rows.length + 1}
+        onKeyDownCapture={onGridKey}
+      >
+        <colgroup>
+          {sortedFields.map((f) => (
+            <col key={f.id} style={{ width: columnWidth(f) }} />
+          ))}
+          {canManage && <col style={{ width: ACTIONS_WIDTH }} />}
+        </colgroup>
         <thead className="sticky top-0 z-[1] bg-background">
           <tr>
             {sortedFields.map((f) => (
@@ -297,7 +493,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
               />
             ))}
             {canManage && (
-              <th className="w-12 border-b border-border/60 px-2 py-1">
+              <th className="border-b border-border/60 px-2 py-1">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -313,38 +509,34 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
-            const values = parseRowValues(row)
+          {padTop > 0 && (
+            <tr aria-hidden="true">
+              <td colSpan={colCount} style={{ height: padTop, padding: 0, border: 0 }} />
+            </tr>
+          )}
+          {items.map((item) => {
+            const row = rows[item.index]
+            if (!row) return null
             return (
-              <tr key={row.id} className="group hover:bg-muted/40">
-                {sortedFields.map((f) => (
-                  <td key={f.id} className={cn("border-b border-r border-border/40 px-1 py-0.5 align-middle", isNumeric(f) && "text-right")}>
-                    <Cell
-                      field={f}
-                      value={values[f.id]}
-                      onCommit={(v) => commitCell(row, f.id, v)}
-                      onLink={(change) => linkCell(row, f.id, change)}
-                    />
-                  </td>
-                ))}
-                {canManage && (
-                  <td className="border-b border-border/40 px-2 py-0.5 text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Delete this row"
-                      className="h-7 w-7 text-danger-ink opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
-                      disabled={busy}
-                      onClick={() => handleDeleteRow(row)}
-                      title="Delete row"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
-                )}
-              </tr>
+              <GridRow
+                key={row.id}
+                row={row}
+                rowIndex={item.index}
+                fields={sortedFields}
+                canManage={canManage}
+                busy={busy}
+                measure={virtualizer.measureElement}
+                onCommit={commitCell}
+                onLink={linkCell}
+                onDelete={handleDeleteRow}
+              />
             )
           })}
+          {padBottom > 0 && (
+            <tr aria-hidden="true">
+              <td colSpan={colCount} style={{ height: padBottom, padding: 0, border: 0 }} />
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
@@ -355,12 +547,14 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
             value={newColName}
             onChange={(e) => setNewColName(e.target.value)}
             placeholder="Column name"
+            aria-label="Column name"
             className="h-8 w-48"
             onKeyDown={(e) => e.key === "Enter" && handleAddColumn()}
           />
           <select
             value={newColType}
             onChange={(e) => setNewColType(e.target.value as FieldType)}
+            aria-label="Column type"
             className="h-8 rounded-md border border-border bg-background px-2 text-sm"
           >
             {FIELD_TYPES.map((t) => (
@@ -399,15 +593,91 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
       )}
 
       <button
+        type="button"
         onClick={handleAddRow}
         disabled={adding}
-        className="mt-1 flex w-full items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+        className="flex w-full items-center gap-1.5 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-highlight/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
       >
-        <Plus className="h-4 w-4" /> New row
+        <Plus className="h-4 w-4" aria-hidden="true" /> New row
       </button>
     </div>
   )
 }
+
+/**
+ * One row of the grid. Memoised on the row's id and values, so asking for the
+ * table again after an edit renders only the rows whose values changed.
+ */
+const GridRow = React.memo(
+  function GridRow({
+    row,
+    rowIndex,
+    fields,
+    canManage,
+    busy,
+    measure,
+    onCommit,
+    onLink,
+    onDelete,
+  }: {
+    row: TableRow
+    rowIndex: number
+    fields: TableField[]
+    canManage: boolean
+    busy: boolean
+    measure: (el: Element | null) => void
+    onCommit: (row: TableRow, fieldId: string, value: unknown) => Promise<boolean>
+    onLink: (rowId: string, fieldId: string, change: { add?: string[]; remove?: string[] }) => void
+    onDelete: (rowId: string) => void
+  }) {
+    const values = React.useMemo(() => parseRowValues(row), [row])
+    return (
+      <tr ref={measure} data-index={rowIndex} aria-rowindex={rowIndex + 2} className="group hover:bg-highlight/50 focus-within:bg-highlight/60">
+        {fields.map((f, col) => (
+          <td
+            key={f.id}
+            data-kind={cellKind(f)}
+            className={cn("overflow-hidden border-b border-r border-border/40 px-1 py-0.5 align-middle", isNumeric(f) && "text-right")}
+          >
+            <Cell
+              field={f}
+              value={values[f.id]}
+              cellId={`${rowIndex}:${col}`}
+              onCommit={(v) => onCommit(row, f.id, v)}
+              onLink={(change) => onLink(row.id, f.id, change)}
+            />
+          </td>
+        ))}
+        {canManage && (
+          <td className="border-b border-border/40 px-2 py-0.5 text-right">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Delete this row"
+              className="h-7 w-7 text-danger-ink opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+              disabled={busy}
+              onClick={() => onDelete(row.id)}
+              title="Delete row"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </td>
+        )}
+      </tr>
+    )
+  },
+  (a, b) =>
+    a.row.id === b.row.id &&
+    a.row.values === b.row.values &&
+    a.rowIndex === b.rowIndex &&
+    a.fields === b.fields &&
+    a.canManage === b.canManage &&
+    a.busy === b.busy &&
+    a.measure === b.measure &&
+    a.onCommit === b.onCommit &&
+    a.onLink === b.onLink &&
+    a.onDelete === b.onDelete,
+)
 
 // ColumnHeader renders a column title; for managers it opens a dropdown to
 // rename, change type, manage select options, and delete the column.
@@ -521,7 +791,7 @@ function ColumnHeader({
 
   if (!canManage) {
     return (
-      <th className={cn("min-w-[160px] border-b border-r border-border/60 px-3 py-2 font-medium text-muted-foreground", isNumeric(field) ? "text-right" : "text-left")}>
+      <th scope="col" className={cn("border-b border-r border-border/60 px-3 py-2 font-medium text-muted-foreground", isNumeric(field) ? "text-right" : "text-left")}>
         <span className={cn("inline-flex max-w-full items-center gap-1.5", isNumeric(field) && "flex-row-reverse")}>
           <FieldTypeGlyph type={field.type} />
           <span className="truncate">{field.name}</span>
@@ -533,7 +803,7 @@ function ColumnHeader({
   }
 
   return (
-    <th className="min-w-[160px] border-b border-r border-border/60 px-1 py-1 text-left font-medium text-muted-foreground">
+    <th scope="col" className="border-b border-r border-border/60 px-1 py-1 text-left font-medium text-muted-foreground">
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <button
@@ -632,8 +902,8 @@ function ColumnHeader({
             )}
 
             {aiEligible && (
-              <div className="space-y-1 rounded-md border border-brand/30 bg-brand/5 p-2">
-                <label className="flex items-center gap-1 text-xs font-medium text-primary">
+              <div className="space-y-1 rounded-md border border-border bg-muted/40 p-2">
+                <label className="flex items-center gap-1 text-xs font-medium text-foreground">
                   <Sparkles className="h-3 w-3" /> AI autofill
                 </label>
                 <textarea
@@ -641,21 +911,22 @@ function ColumnHeader({
                   onChange={(e) => setAiPrompt(e.target.value)}
                   placeholder="Describe what to put in this cell, e.g. 'Summarize the row in one line'"
                   rows={3}
-                  className="w-full resize-none rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-brand"
+                  aria-label="What AI should put in each cell"
+                  className="w-full resize-none rounded-md border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 />
                 <p className="text-2xs leading-tight text-muted-foreground">
                   Each cell is generated from this column&apos;s prompt and the row&apos;s other
                   values. Save first, then fill.
                 </p>
-                <label className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-2xs leading-tight text-muted-foreground hover:bg-brand/5">
+                <label className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-2xs leading-tight text-muted-foreground hover:bg-highlight">
                   <input
                     type="checkbox"
                     checked={aiAuto}
                     onChange={(e) => setAiAuto(e.target.checked)}
-                    className="mt-0.5 h-3.5 w-3.5 accent-[var(--brand)]"
+                    className="mt-0.5 h-3.5 w-3.5 accent-[var(--primary)]"
                   />
                   <span>
-                    <span className="font-medium text-primary">Autofill on change</span>
+                    <span className="font-medium text-foreground">Autofill on change</span>
                     {": recompute each cell automatically when a row is added or edited."}
                   </span>
                 </label>
@@ -663,7 +934,7 @@ function ColumnHeader({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="w-full gap-1.5 border-brand/40 text-primary hover:bg-brand/10"
+                    className="w-full gap-1.5"
                     disabled={filling}
                     onClick={handleFill}
                   >
@@ -693,111 +964,76 @@ function ColumnHeader({
   )
 }
 
+
+/**
+ * What a cell shows: its saved value, or what was just chosen while that is
+ * saved. A checkbox or a select used to wait for the save and then for the
+ * whole table to come back before it moved (two round trips, about 870 ms on
+ * the demo); now it moves when it is clicked. A failed save puts it back.
+ */
+function useShownValue<T>(value: T): [T, (next: T, commit: (v: T) => Promise<boolean>) => void] {
+  const [shown, setShown] = React.useState(value)
+  const saved = React.useRef(value)
+  React.useEffect(() => {
+    saved.current = value
+    setShown(value)
+  }, [value])
+  const change = React.useCallback((next: T, commit: (v: T) => Promise<boolean>) => {
+    setShown(next)
+    void commit(next).then((ok) => {
+      if (!ok) setShown(saved.current)
+    })
+  }, [])
+  return [shown, change]
+}
+
 // Cell renders the right editor for a field type. Edits commit on blur / change.
 function Cell({
   field,
   value,
+  cellId,
   onCommit,
   onLink,
 }: {
   field: TableField
   value: unknown
-  onCommit: (value: unknown) => void
+  /** "row:col", for moving between cells from the keyboard. */
+  cellId: string
+  onCommit: (value: unknown) => Promise<boolean>
   /** Links or unlinks rows of the table a relation links to. */
   onLink: (change: { add?: string[]; remove?: string[] }) => void
 }) {
   if (field.type === "formula" || field.type === "rollup") {
-    return <ComputedCell field={field} value={value} />
+    return <ComputedCell field={field} value={value} cellId={cellId} />
   }
 
   if (field.type === "checkbox") {
-    return (
-      <div className="flex justify-center py-1">
-        <input
-          type="checkbox"
-          checked={!!value}
-          onChange={(e) => onCommit(e.target.checked)}
-          aria-label={field.name}
-          className="h-4 w-4 rounded-sm border-border"
-        />
-      </div>
-    )
+    return <CheckboxCell label={field.name} value={!!value} cellId={cellId} onCommit={onCommit} />
   }
 
   if (field.type === "select") {
-    const options = parseFieldConfig(field).options || []
-    return (
-      <select
-        value={(value as string) || ""}
-        onChange={(e) => onCommit(e.target.value)}
-        aria-label={field.name}
-        className="h-8 w-full cursor-pointer appearance-none truncate bg-transparent px-2 text-sm outline-none focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
-      >
-        <option value=""></option>
-        {options.map((o) => (
-          <option key={o.label} value={o.label}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    )
+    return <SelectCell field={field} value={(value as string) || ""} cellId={cellId} onCommit={onCommit} />
   }
 
   if (field.type === "multi_select") {
-    const options = parseFieldConfig(field).options || []
-    const selected: string[] = Array.isArray(value) ? (value as string[]) : []
-    const toggle = (label: string) => {
-      const next = selected.includes(label)
-        ? selected.filter((s) => s !== label)
-        : [...selected, label]
-      onCommit(next)
-    }
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button aria-label={`${field.name}: ${selected.length ? selected.join(", ") : "none chosen"}`} className="flex min-h-8 w-full flex-wrap items-center gap-1 px-2 py-1 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50">
-            {selected.length === 0 ? null : (
-              selected.map((s) => (
-                <span key={s} className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">
-                  {s}
-                </span>
-              ))
-            )}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48 p-1">
-          {options.length === 0 ? (
-            <p className="px-2 py-1.5 text-xs text-muted-foreground">No options. Add some in the column menu.</p>
-          ) : (
-            options.map((o) => (
-              <button
-                key={o.label}
-                onClick={() => toggle(o.label)}
-                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
-              >
-                <input type="checkbox" readOnly checked={selected.includes(o.label)} className="h-3.5 w-3.5" />
-                {o.label}
-              </button>
-            ))
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
+    return <MultiSelectCell field={field} value={value} cellId={cellId} onCommit={onCommit} />
   }
 
   if (field.type === "relation") {
     const { target, tableId, tableName } = relationOf(field)
     const linksTable = target === "table"
     return (
-      <RelationCell
-        value={value}
-        target={target}
-        tableId={tableId}
-        // A table the reader can't open comes without its name: its links show, but stay as they are.
-        readOnly={linksTable && !tableName}
-        onLink={linksTable ? onLink : undefined}
-        onCommit={(refs: RelationRef[]) => onCommit(refs)}
-      />
+      <div data-cell={cellId} tabIndex={-1} className="outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50">
+        <RelationCell
+          value={value}
+          target={target}
+          tableId={tableId}
+          // A table the reader can't open comes without its name: its links show, but stay as they are.
+          readOnly={linksTable && !tableName}
+          onLink={linksTable ? onLink : undefined}
+          onCommit={(refs: RelationRef[]) => void onCommit(refs)}
+        />
+      </div>
     )
   }
 
@@ -812,49 +1048,164 @@ function Cell({
             ? "url"
             : "text"
 
-  return <TextCell type={inputType} label={field.name} value={value} onCommit={onCommit} />
+  return <TextCell type={inputType} label={field.name} value={value} cellId={cellId} onCommit={onCommit} />
+}
+
+function CheckboxCell({ label, value, cellId, onCommit }: { label: string; value: boolean; cellId: string; onCommit: (v: unknown) => Promise<boolean> }) {
+  const [shown, change] = useShownValue(value)
+  return (
+    <div className="flex justify-center py-1">
+      <input
+        type="checkbox"
+        data-cell={cellId}
+        checked={shown}
+        onChange={(e) => change(e.target.checked, onCommit)}
+        aria-label={label}
+        className="h-4 w-4 rounded-sm border-border"
+      />
+    </div>
+  )
+}
+
+function SelectCell({ field, value, cellId, onCommit }: { field: TableField; value: string; cellId: string; onCommit: (v: unknown) => Promise<boolean> }) {
+  const options = parseFieldConfig(field).options || []
+  const [shown, change] = useShownValue(value)
+  return (
+    <select
+      data-cell={cellId}
+      value={shown}
+      onChange={(e) => change(e.target.value, onCommit)}
+      aria-label={field.name}
+      className="h-8 w-full cursor-pointer appearance-none truncate bg-transparent px-2 text-sm outline-none focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+    >
+      <option value=""></option>
+      {options.map((o) => (
+        <option key={o.label} value={o.label}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function MultiSelectCell({ field, value, cellId, onCommit }: { field: TableField; value: unknown; cellId: string; onCommit: (v: unknown) => Promise<boolean> }) {
+  const options = parseFieldConfig(field).options || []
+  const saved = React.useMemo(() => (Array.isArray(value) ? (value as string[]) : []), [value])
+  const [selected, change] = useShownValue(saved)
+  const toggle = (label: string) => {
+    const next = selected.includes(label) ? selected.filter((s) => s !== label) : [...selected, label]
+    change(next, onCommit)
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          data-cell={cellId}
+          aria-label={`${field.name}: ${selected.length ? selected.join(", ") : "none chosen"}`}
+          className="flex min-h-8 w-full flex-wrap items-center gap-1 px-2 py-1 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        >
+          {selected.length === 0 ? null : (
+            selected.map((s) => (
+              <span key={s} className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">
+                {s}
+              </span>
+            ))
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-48 p-1">
+        {options.length === 0 ? (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">No options. Add some in the column menu.</p>
+        ) : (
+          options.map((o) => (
+            <button
+              key={o.label}
+              onClick={() => toggle(o.label)}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-highlight"
+            >
+              <input type="checkbox" readOnly checked={selected.includes(o.label)} className="h-3.5 w-3.5" tabIndex={-1} aria-hidden="true" />
+              {o.label}
+            </button>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 // TextCell is an uncontrolled-on-edit input that commits on blur / Enter,
-// keeping typing snappy without a round trip per keystroke.
+// keeping typing snappy without a round trip per keystroke. Escape puts back
+// what was saved; scrolling the row out of the page commits what was typed.
 function TextCell({
   type,
   label,
   value,
+  cellId,
   onCommit,
 }: {
   type: string
   label: string
   value: unknown
-  onCommit: (value: unknown) => void
+  cellId: string
+  onCommit: (value: unknown) => Promise<boolean>
 }) {
-  const [local, setLocal] = React.useState<string>(value == null ? "" : String(value))
+  const savedText = value == null ? "" : String(value)
+  const [local, setLocal] = React.useState<string>(savedText)
   React.useEffect(() => {
-    setLocal(value == null ? "" : String(value))
-  }, [value])
+    setLocal(savedText)
+  }, [savedText])
+
+  const parse = React.useCallback(
+    (text: string): unknown => {
+      if (type !== "number") return text
+      const n = text.trim() === "" ? "" : Number(text)
+      return n === "" || Number.isNaN(n) ? "" : n
+    },
+    [type],
+  )
+
+  // The latest typing, for a commit when the row leaves the page while its
+  // cell still has the focus: removing a focused element does not blur it.
+  const pending = React.useRef<{ text: string; saved: string; commit: () => void } | null>(null)
+  pending.current = { text: local, saved: savedText, commit: () => void onCommit(parse(local)) }
+  React.useEffect(
+    () => () => {
+      const p = pending.current
+      if (p && p.text !== p.saved) p.commit()
+    },
+    [],
+  )
 
   const commit = () => {
-    if (type === "number") {
-      const n = local.trim() === "" ? "" : Number(local)
-      onCommit(n === "" || Number.isNaN(n) ? "" : n)
-    } else {
-      onCommit(local)
-    }
+    if (local === savedText) return
+    void onCommit(parse(local))
   }
 
+  // Numbers are typed as text, in a decimal keypad on a phone: a number input
+  // has no caret position to read (so the grid could not tell when Left and
+  // Right should leave the cell) and changed its value on Up and Down.
+  const isNumber = type === "number"
   return (
     <input
-      type={type}
+      type={isNumber ? "text" : type}
+      inputMode={isNumber ? "decimal" : undefined}
+      data-cell={cellId}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === "Enter") (e.target as HTMLInputElement).blur()
+        if (e.key === "Escape" && local !== savedText) {
+          e.preventDefault()
+          e.stopPropagation()
+          setLocal(savedText)
+        }
       }}
       aria-label={label}
+      autoComplete="off"
+      spellCheck={type === "text" ? undefined : false}
       className={cn(
         "h-8 w-full bg-transparent px-2 text-sm outline-none focus:bg-background focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
-        type === "number" && "text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+        isNumber && "text-right tabular-nums",
         // A date picker's calendar glyph on every row is noise: it shows on the
         // row under the pointer and on the focused cell.
         type === "date" && "tabular-nums [&::-webkit-calendar-picker-indicator]:opacity-0 group-hover:[&::-webkit-calendar-picker-indicator]:opacity-50 focus:[&::-webkit-calendar-picker-indicator]:opacity-50",
@@ -865,30 +1216,33 @@ function TextCell({
 
 
 // ComputedCell shows what a formula or a rollup gives for the row, as the
-// server worked it out. It can't be edited: change the field instead.
-function ComputedCell({ field, value }: { field: TableField; value: unknown }) {
+// server worked it out. It can't be edited: change the field instead. It can
+// be reached from the keyboard, so moving along a row does not skip it.
+function ComputedCell({ field, value, cellId }: { field: TableField; value: unknown; cellId: string }) {
   const shown = showFormulaValue(value, computedOf(field).result)
+  const reach = { "data-cell": cellId, tabIndex: -1 } as const
+  const ring = "outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
   switch (shown.kind) {
     case "blank":
-      return <div className="h-8" />
+      return <div {...reach} className={cn("h-8", ring)} />
     case "error":
       return (
-        <div className="flex h-8 items-center px-2 text-xs text-danger-ink" title={shown.message}>
+        <div {...reach} className={cn("flex h-8 items-center px-2 text-xs text-danger-ink", ring)} title={shown.message}>
           <AlertTriangle className="mr-1 h-3 w-3 shrink-0" />
           <span className="truncate">{shown.message}</span>
         </div>
       )
     case "checkbox":
       return (
-        <div className="flex h-8 items-center justify-center" aria-label={shown.checked ? "Yes" : "No"}>
+        <div {...reach} className={cn("flex h-8 items-center justify-center", ring)} aria-label={shown.checked ? "Yes" : "No"}>
           {shown.checked && <Check className="h-4 w-4 text-foreground" />}
         </div>
       )
     case "number":
-      return <div className="flex h-8 items-center justify-end px-2 text-sm tabular-nums">{shown.text}</div>
+      return <div {...reach} className={cn("flex h-8 items-center justify-end px-2 text-sm tabular-nums", ring)}>{shown.text}</div>
     default:
       return (
-        <div className="flex h-8 items-center px-2 text-sm" title={shown.text}>
+        <div {...reach} className={cn("flex h-8 items-center px-2 text-sm", ring)} title={shown.text}>
           <span className="truncate">{shown.text}</span>
         </div>
       )
