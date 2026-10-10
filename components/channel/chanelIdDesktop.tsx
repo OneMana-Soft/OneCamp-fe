@@ -23,7 +23,8 @@ import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import {memo, useEffect, useState} from "react";
+import {memo, useEffect, useRef, useState} from "react";
+import { celebrate } from "@/lib/celebrate";
 import type { Content } from "@tiptap/react";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
@@ -54,7 +55,7 @@ import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
 
-export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number, focusComposer?: boolean}) => {
+export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number, focusComposer?: boolean}) => {
     const dispatch = useDispatch()
     const postFav  = usePost()
     const postNotification  = usePost()
@@ -311,7 +312,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
  */
 const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, placeholder, focusComposer }: {
     channelId: string
-    handleSend: (latestContent?: string) => void
+    handleSend: (latestContent?: string) => boolean | void
     placeholder: string
     focusComposer?: boolean
 }) {
@@ -322,7 +323,11 @@ const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, p
     const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
     // The same function for the life of the composer, so the editor's action
     // row (memoised in textInput) keeps its buttons as the parent re-renders.
-    const send = useStableCallback((latestContent?: string) => handleSend(latestContent))
+    // A first message here bursts sparks from Send (lib/celebrate).
+    const rootRef = useRef<HTMLDivElement>(null)
+    const send = useStableCallback((latestContent?: string) => {
+        if (handleSend(latestContent)) celebrate(rootRef.current?.querySelector('button[aria-label="Send"]'))
+    })
     const onChange = useStableCallback((content: Content) => {
         publishTyping(content as string)
         dispatch(updateChannelInputText({channelId, inputTextHTML: content as string}))
@@ -335,7 +340,7 @@ const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, p
     })
     const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'channelFileUpload' })) })
 
-    return (<>
+    return (<div ref={rootRef}>
         <CommandSurface
             surfaceKey={channelId}
             channelId={channelId}
@@ -381,5 +386,5 @@ const ChannelComposer = memo(function ChannelComposer({ channelId, handleSend, p
         >
             <ChannelFileUpload channelId={channelId}/>
         </MinimalTiptapTextInput>
-    </>)
+    </div>)
 })

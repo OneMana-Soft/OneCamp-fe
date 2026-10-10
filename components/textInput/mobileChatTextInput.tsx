@@ -23,9 +23,11 @@ import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
 import CommandSurface from "@/components/command/CommandSurface";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { celebrate } from "@/lib/celebrate";
 const EMPTY_CHAT_INPUT_STATE = {};
 
-export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string)=>void}) => {
+export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string) => boolean | void}) => {
     const scheduleSend = useScheduleSend()
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const uploadFile = useUploadFile()
@@ -35,6 +37,10 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
     const [initialHeight, setInitialHeight] = useState(126); // Default height
     const dispatch = useDispatch();
     const { publishTyping } = usePublishTyping({ targetType: 'chat', targetId: chatId });
+    // A first message here bursts sparks from Send (lib/celebrate).
+    const send = useStableCallback((latestContent?: string) => {
+        if (handleSend(latestContent)) celebrate(editorRef.current?.querySelector('button[aria-label="Send"]'))
+    })
 
 
 
@@ -93,7 +99,7 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
                         contentRevision={chatInputState.restoredUnsent}
                         placeholder={dmComposerPlaceholder(displayNameOf(otherUser.data?.data))}
                         editable={true}
-                        buttonOnclick={handleSend}
+                        buttonOnclick={send}
                         onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
                         hasAttachments={(chatInputState.filesUploaded?.length ?? 0) > 0}

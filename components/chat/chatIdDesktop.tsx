@@ -16,7 +16,8 @@ import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import {NotificationBell} from "@/components/Notification/notificationBell";
 import {usePost} from "@/hooks/usePost";
-import {memo, useEffect, useState} from "react";
+import {memo, useEffect, useRef, useState} from "react";
+import { celebrate } from "@/lib/celebrate";
 import type { Content } from "@tiptap/react";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
@@ -50,7 +51,7 @@ import { FEATURE_AI, FEATURE_CALLS } from "@/hooks/useClientConfig"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 
 
-export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number}) => {
+export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number}) => {
     const dispatch = useDispatch()
     const postNotification  = usePost()
     const otherUserInfo  = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`)
@@ -193,7 +194,7 @@ const EMPTY_INPUT_STATE: Partial<RootState["chat"]["chatInputState"][string]> = 
  */
 const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, placeholder, isBotPeer, selfUUID }: {
     chatId: string
-    handleSend: (latestContent?: string) => void
+    handleSend: (latestContent?: string) => boolean | void
     peerName: string
     placeholder: string
     isBotPeer: boolean
@@ -219,7 +220,11 @@ const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, 
 
     // The same function for the life of the composer, so the editor's action
     // row (memoised in textInput) keeps its buttons as the parent re-renders.
-    const send = useStableCallback((latestContent?: string) => handleSend(latestContent))
+    // A first message here bursts sparks from Send (lib/celebrate).
+    const rootRef = useRef<HTMLDivElement>(null)
+    const send = useStableCallback((latestContent?: string) => {
+        if (handleSend(latestContent)) celebrate(rootRef.current?.querySelector('button[aria-label="Send"]'))
+    })
     const onChange = useStableCallback((content: Content) => {
         publishTyping(content as string)
         dispatch(createOrUpdateChatBody({chatUUID:chatId, body: content as string}))
@@ -233,7 +238,7 @@ const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, 
     const openUpload = useStableCallback(() => { dispatch(openUI({ key: 'chatFileUpload' })) })
 
     return (
-        <>
+        <div ref={rootRef}>
                     {suggestions.length > 0 && (
                         <div className="mb-2 flex flex-wrap items-center gap-1.5">
                             <span className="mr-0.5 inline-flex items-center gap-1 text-2xs font-medium text-muted-foreground">
@@ -297,6 +302,6 @@ const ChatComposer = memo(function ChatComposer({ chatId, handleSend, peerName, 
                     >
                         <ChatFileUpload chatUUID={chatId} />
                     </MinimalTiptapTextInput>
-        </>
+        </div>
     )
 })

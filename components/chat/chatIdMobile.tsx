@@ -14,7 +14,7 @@ import { clearChatReplyTarget } from "@/store/slice/chatSlice";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 
-export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number }) => {
+export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number }) => {
     const dispatch = useDispatch();
     const otherUserInfo = useFetchOnlyOnce<UserProfileInterface>(chatId ? `${GetEndpointUrl.SelfProfile}/${chatId}` : '');
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);

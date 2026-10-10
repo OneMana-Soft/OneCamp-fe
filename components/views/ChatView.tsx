@@ -14,6 +14,7 @@ import { ChatIdMobile } from "@/components/chat/chatIdMobile";
 import { ChatIdDesktop } from "@/components/chat/chatIdDesktop";
 import {
   ChatInfo,
+  CreateChatMessagePaginationResRaw,
   CreateChatRes,
   CreateOrUpdateChatsReq,
 } from "@/types/chat";
@@ -45,6 +46,8 @@ import { newLocalId } from "@/lib/chat/pendingSend";
 import { appMutate } from "@/lib/swrMutate";
 import { PendingSendContext } from "@/components/message/sendStatus";
 import { SEND_QUIETLY, usePendingSend, viewingLinkedMessage } from "@/components/views/usePendingSend";
+import { useSWRConfig } from "swr";
+import { claimFirstMessage, isFirstMessage } from "@/lib/chat/firstMessage";
 import axiosInstance from "@/lib/axiosInstance";
 import { useToast } from "@/hooks/use-toast";
 import { NOT_SENT_TOAST, type Draft } from "@/lib/chat/unsentMessage";
@@ -57,6 +60,7 @@ export function ChatView({ chatId }: { chatId: string }) {
   const { toast } = useToast();
   const dispatch = useDispatch();
   const store = useStore<RootState>();
+  const { cache } = useSWRConfig();
 
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(
     GetEndpointUrl.SelfProfile
@@ -164,7 +168,9 @@ export function ChatView({ chatId }: { chatId: string }) {
     return ok;
   });
 
-  const handleSend = useStableCallback((latestContent?: string) => {
+  // Sends the message in the box. True when it is the sender's first message
+  // in this DM, which the composer celebrates (lib/chat/firstMessage).
+  const handleSend = useStableCallback((latestContent?: string): boolean => {
     // The draft as it is now, read when sending rather than subscribed to.
     const chatState = store.getState().chat.chatInputState[chatId] || EMPTY_INPUT_STATE;
     // Prefer the editor's latest HTML (flushed past the throttle window) over
@@ -173,12 +179,12 @@ export function ChatView({ chatId }: { chatId: string }) {
     const files = chatState.filesUploaded || [];
 
     // Words, or files on their own: a message of only a photo is a message.
-    if (body.length == 0 && files.length == 0) return;
+    if (body.length == 0 && files.length == 0) return false;
 
     // Defence-in-depth: never POST a DM to an external recipient even if
     // the UI somehow reaches this code path. The server also enforces
     // this; we just save a round-trip and a confusing toast.
-    if (isExternalUser(otherUserInfo.data?.data)) return;
+    if (isExternalUser(otherUserInfo.data?.data)) return false;
 
     const replyToUuid = chatState.replyToUuid;
     const replyTo: ChatInfo | undefined = replyToUuid
@@ -209,8 +215,18 @@ export function ChatView({ chatId }: { chatId: string }) {
         dispatch(restoreUnsentChatMessage({ chatUUID: chatId, unsent }));
         toast(NOT_SENT_TOAST);
       });
-      return;
+      return false;
     }
+
+    // The sender's first message here: none of theirs among the messages held,
+    // and the latest page from the server is all there is.
+    const self = selfProfile.data?.data?.user_uuid;
+    const held = store.getState().chat.chatMessages[chatId] || [];
+    const page = cache.get(latestKey)?.data as CreateChatMessagePaginationResRaw | undefined;
+    const first = !!self && isFirstMessage({
+      mine: held.some((c) => c.chat_from?.user_uuid === self),
+      wholeHistory: page?.data?.has_more === false,
+    }) && claimFirstMessage(`dm:${chatId}`);
 
     const localId = newLocalId();
     send(localId, {
@@ -227,6 +243,7 @@ export function ChatView({ chatId }: { chatId: string }) {
       chat_comment_count: 0,
     });
     dispatch(updateChatScrollToBottom({ chatId: chatId, scrollToBottom: true }));
+    return first;
   });
 
   useEffect(() => {

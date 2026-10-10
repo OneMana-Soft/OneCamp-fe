@@ -165,13 +165,15 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
 
     return (
         // Mounted when the message is hovered or focused (BaseMessageCard), so
-        // it rises in once: opacity and 4px, no scale, nothing with reduced motion.
+        // it rises in once: opacity and 4px, no scale, nothing with reduced
+        // motion. Under the pointer it lifts a pixel more (hover-lift, the
+        // playful layer's one sanctioned lift).
         <div
             role="toolbar"
             aria-label="Message actions"
             className={cn(
                 "flex items-center gap-0.5 rounded-lg border border-border/60 p-1",
-                "bg-background shadow-overlay motion-safe:animate-msg-fade-in",
+                "bg-background shadow-overlay hover-lift motion-safe:animate-msg-fade-in",
             )}
         >
             {QUICK_REACTIONS.map(({ id, emoji, label }) => (
