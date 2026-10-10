@@ -14,7 +14,10 @@ export const useLogout = () => {
         try {
             await makeRequest({
                 apiEndpoint: PostEndpointUrl.Logout,
-                showToast: false, // We'll handle redirection which is feedback enough
+                // The redirect is the feedback. A failed request has nothing
+                // to tell anyone, and the global "Couldn't reach the server"
+                // flashed over the sign-out page was wrong.
+                quiet: true,
             });
         } catch (error) {
             console.error("Logout failed:", error);
