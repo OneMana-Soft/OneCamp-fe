@@ -17,13 +17,12 @@
 import * as React from "react"
 import { SettingsSection } from "@/components/ui/settingsSection"
 import { ErrorState } from "@/components/ui/error-state"
-import { Tile } from "@/components/ui/graphics/Tile"
+import { EmptyState } from "@/components/ui/empty-state"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { buttonVariants } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,7 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Key } from "@/lib/icons"
+import { Bot, Key } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { relativeTime } from "@/lib/utils/relativeTime"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -93,7 +92,6 @@ function InventoryAgentRow({
           <span className="text-muted-foreground">
             <Sponsor name={a.sponsor} />
           </span>
-          {!a.is_active && <Badge variant="outline">Paused</Badge>}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {brainText(a.brain)} · {reachText(a)}
@@ -166,6 +164,7 @@ export function AgentInventoryCard() {
   const { toast } = useToast()
   const [inv, setInv] = React.useState<AgentInventory | null>(null)
   const [failed, setFailed] = React.useState(false)
+  const [failure, setFailure] = React.useState("")
   const [busy, setBusy] = React.useState<string | null>(null)
   const [revoking, setRevoking] = React.useState<InventoryCredential | null>(null)
 
@@ -173,7 +172,8 @@ export function AgentInventoryCard() {
     try {
       setInv(await getAgentInventory())
       setFailed(false)
-    } catch {
+    } catch (e) {
+      setFailure(apiErrorMessage(e, "Try again in a moment."))
       setFailed(true)
     }
   }, [])
@@ -238,47 +238,72 @@ export function AgentInventoryCard() {
       title="Agent inventory"
       description={`Every agent and credential that can act here, the person each one answers to, and what it did or was refused in the last ${days} days.`}
     >
-      <div className="grid gap-6">
-        {!inv && !failed ? (
-          <div role="status" aria-label="Loading the inventory" className="py-1">
-            <SkeletonRows rows={4} />
-          </div>
-        ) : failed && !inv ? (
-          <ErrorState subject="the agent inventory" onRetry={() => void load()} />
-        ) : inv ? (
-          <>
-            <section aria-labelledby="inventory-agents">
-              <h3 id="inventory-agents" className="text-sm font-medium">
-                Agents <span className="font-normal text-muted-foreground">{inv.agents.length}</span>
-              </h3>
-              {inv.agents.length === 0 ? (
-                <p className="py-3 text-sm text-muted-foreground">No agents yet.</p>
-              ) : (
-                <ul className="mt-2 flex flex-col divide-y divide-border rounded-lg border border-border">
-                  {inv.agents.map((a) => (
-                    <InventoryAgentRow key={a.id} agent={a} busy={busy === a.id} onToggle={toggle} />
-                  ))}
-                </ul>
-              )}
-            </section>
-            <section aria-labelledby="inventory-credentials">
-              <h3 id="inventory-credentials" className="flex items-center gap-2 text-sm font-medium">
-                <Tile hue={ADMIN_GROUP_HUE.ai} size="sm"><Key /></Tile>
-                Credentials <span className="font-normal text-muted-foreground">{inv.credentials.length}</span>
-              </h3>
-              {inv.credentials.length === 0 ? (
-                <p className="py-3 text-sm text-muted-foreground">No live credentials. Nothing outside can act here.</p>
-              ) : (
-                <ul className="mt-2 flex flex-col divide-y divide-border rounded-lg border border-border">
-                  {inv.credentials.map((c) => (
-                    <InventoryCredentialRow key={c.id} credential={c} busy={busy === c.id} onRevoke={setRevoking} />
-                  ))}
-                </ul>
-              )}
-            </section>
-          </>
-        ) : null}
-      </div>
+      {failed && !inv ? (
+        <ErrorState compact subject="the agent inventory" detail={failure} onRetry={() => void load()} />
+      ) : (
+        // The two lists' headings are there from the start, and each list
+        // loads in its own shape, so nothing moves when the answer lands.
+        <div className="grid gap-6">
+          <SettingsSection
+            level={3}
+            title={
+              <>
+                Agents {inv && <span className="font-normal text-muted-foreground">{inv.agents.length}</span>}
+              </>
+            }
+          >
+            {!inv ? (
+              <SectionListSkeleton label="Loading the agents" rows={2} lines={3} trailing="switch" />
+            ) : inv.agents.length === 0 ? (
+              <div className="rounded-lg border border-border">
+                <EmptyState
+                  icon={Bot}
+                  hue={ADMIN_GROUP_HUE.ai}
+                  title="No agents yet"
+                  description="An agent a member builds shows up here, with the person it answers to."
+                  headingLevel={4}
+                  className="py-6"
+                />
+              </div>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+                {inv.agents.map((a) => (
+                  <InventoryAgentRow key={a.id} agent={a} busy={busy === a.id} onToggle={toggle} />
+                ))}
+              </ul>
+            )}
+          </SettingsSection>
+          <SettingsSection
+            level={3}
+            title={
+              <>
+                Credentials {inv && <span className="font-normal text-muted-foreground">{inv.credentials.length}</span>}
+              </>
+            }
+          >
+            {!inv ? (
+              <SectionListSkeleton label="Loading the credentials" rows={1} lines={3} trailing="button" />
+            ) : inv.credentials.length === 0 ? (
+              <div className="rounded-lg border border-border">
+                <EmptyState
+                  icon={Key}
+                  hue={ADMIN_GROUP_HUE.ai}
+                  title="No live credentials"
+                  description="Nothing outside can act here."
+                  headingLevel={4}
+                  className="py-6"
+                />
+              </div>
+            ) : (
+              <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+                {inv.credentials.map((c) => (
+                  <InventoryCredentialRow key={c.id} credential={c} busy={busy === c.id} onRevoke={setRevoking} />
+                ))}
+              </ul>
+            )}
+          </SettingsSection>
+        </div>
+      )}
 
       <AlertDialog open={!!revoking} onOpenChange={(o) => !o && setRevoking(null)}>
         <AlertDialogContent>

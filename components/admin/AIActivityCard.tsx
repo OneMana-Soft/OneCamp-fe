@@ -12,12 +12,14 @@ import * as React from "react"
 import { Badge } from "@/components/ui/badge"
 import { SettingsSection } from "@/components/ui/settingsSection"
 import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Sparkles, Shield } from "@/lib/icons"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { initiatorLabel, UNATTENDED_INITIATORS, type AIActivityItem } from "@/services/aiActivityService"
 import { ChainPair } from "@/components/admin/ChainPair"
 import { relativeTime } from "@/lib/utils/relativeTime"
@@ -93,10 +95,10 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
         <div className="flex items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{headline}</span>
           {it.status && (
-            <span className={`shrink-0 text-2xs font-medium ${statusTone(it.status)}`}>{statusLabel(it.status)}</span>
+            <span className={`shrink-0 text-xs font-medium ${statusTone(it.status)}`}>{statusLabel(it.status)}</span>
           )}
           {it.source && (
-            <Badge variant="outline" className="shrink-0 text-2xs font-normal text-muted-foreground">
+            <Badge variant="outline" className="shrink-0 text-xs font-normal text-muted-foreground">
               {it.source}
             </Badge>
           )}
@@ -104,9 +106,9 @@ export const AIActivityRow: React.FC<{ item: AIActivityItem }> = ({ item: it }) 
         {detail && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{detail}</p>}
         {/* The exact action, kept for anybody matching this against the log. */}
         {isAuditRow && it.summary && it.title && (
-          <p className="mt-0.5 font-mono text-2xs text-muted-foreground/70">{it.title}</p>
+          <p className="mt-0.5 font-mono text-xs text-muted-foreground">{it.title}</p>
         )}
-        <div className="mt-0.5 flex items-center gap-2 text-2xs text-muted-foreground/70">
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           {it.actor && <span>{it.actor}</span>}
           <span>·</span>
           <span>{relativeTime(it.at)}</span>
@@ -145,15 +147,26 @@ const AIActivityCard = () => {
       description="What the AI did across the workspace, newest first: agent runs, and actions taken with AI (search, tool calls from outside agents, changes to these settings)."
     >
       {isLoading ? (
-        <div role="status" aria-label="Loading the AI activity" className="py-1">
-          <SkeletonRows rows={4} />
-        </div>
+        <SectionListSkeleton label="Loading the AI activity" rows={4} lines={3} leading="tile-sm" />
       ) : isError ? (
         // Before the empty case: on the governance record, "nothing happened"
         // is the one claim that must not be made by a failed request.
-        <ErrorState subject="the AI activity" onRetry={() => void mutate()} />
+        <ErrorState
+          compact
+          subject="the AI activity"
+          detail={apiErrorMessage(isError, "Try again in a moment.")}
+          onRetry={() => void mutate()}
+        />
       ) : items.length === 0 ? (
-        <p className="py-6 text-sm text-muted-foreground">No AI activity yet.</p>
+        <div className="rounded-lg border border-border">
+          <EmptyState
+            icon={Sparkles}
+            hue={ADMIN_GROUP_HUE.ai}
+            title="No AI activity yet"
+            description="Agent runs, and actions taken with AI, show up here as they happen."
+            className="py-6"
+          />
+        </div>
       ) : (
         <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
           {items.map((it, i) => (
