@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, render, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { useEffect, useState } from "react"
 import { Editor } from "@tiptap/core"
 import StarterKit from "@tiptap/starter-kit"
 import Mention from "@tiptap/extension-mention"
@@ -18,11 +19,35 @@ vi.mock("@/hooks/useBotKinds", () => ({ useBotKind: () => undefined }))
 vi.mock("@/components/ui/botTag", () => ({ BotTag: () => null }))
 
 const { mentionSuggestionOptions } = await import("@/components/minimal-tiptap/extensions/mention-list/mentionList")
-const { useEscapeClosesPanel, escapeBelongsToLayer } = await import("./useEscapeClosesPanel")
+const { useEscapeClosesPanel, escapeBelongsToLayer, editableTargetOf } = await import("./useEscapeClosesPanel")
+const { default: ResizeableTextInput } = await import("@/components/resizeableTextInput/resizeableTextInput")
+const { useDebounce } = await import("@/hooks/useDebounce")
 
 function Panel({ onClose }: { onClose: () => void }) {
   useEscapeClosesPanel(true, onClose)
   return null
+}
+
+// A task's title as the task panel wires it: the field hands its text up at
+// most every 3 s (ResizeableTextInput's throttle) and the panel saves it 500 ms
+// after the last change (useDebounce). Closing the panel unmounts both.
+function TaskTitle({ onSave }: { onSave: (name: string) => void }) {
+  const [name, setName] = useState("")
+  const saved = useDebounce(name, 500)
+  useEffect(() => {
+    if (saved) onSave(saved)
+  }, [saved, onSave])
+  return <ResizeableTextInput delay={3000} content="Launch plan" placeholder="Task name" textUpdate={setName} />
+}
+
+function TaskPanel({ onSave }: { onSave: (name: string) => void }) {
+  const [open, setOpen] = useState(true)
+  useEscapeClosesPanel(open, () => setOpen(false))
+  return open ? (
+    <section aria-label="Task">
+      <TaskTitle onSave={onSave} />
+    </section>
+  ) : null
 }
 
 const escape = (target: EventTarget) =>
@@ -36,6 +61,7 @@ afterEach(() => {
   editor = undefined
   document.body.innerHTML = ""
   cleanup()
+  vi.useRealTimers()
 })
 
 describe("Escape and the right panel", () => {
@@ -59,9 +85,57 @@ describe("Escape and the right panel", () => {
     expect(onClose).not.toHaveBeenCalled()
     await waitFor(() => expect(document.querySelector('.tippy-box[data-state="visible"]')).toBeNull())
 
-    // Nothing open now: the next Escape, even typed in the same editor, closes the panel.
+    // Nothing open now: the next Escape leaves the editor, and the one after
+    // closes the panel.
     escape(editor.view.dom)
+    expect(onClose).not.toHaveBeenCalled()
+    escape(document.body)
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("leaves a field on the first Escape, keeping what was typed, and closes the panel on the second", () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn()
+    render(<TaskPanel onSave={onSave} />)
+    const title = screen.getByPlaceholderText("Task name")
+    title.focus()
+    fireEvent.change(title, { target: { value: "Launch plan, phase two" } })
+
+    escape(title)
+    expect(screen.queryByRole("region", { name: "Task" })).not.toBeNull()
+    expect(document.activeElement).not.toBe(title)
+
+    // The title saves as it would have had nobody pressed anything.
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+    expect(onSave).toHaveBeenCalledWith("Launch plan, phase two")
+
+    escape(document.activeElement ?? document.body)
+    expect(screen.queryByRole("region", { name: "Task" })).toBeNull()
+  })
+
+  it("counts text fields, selects and editors as fields, and buttons and checkboxes not", () => {
+    document.body.innerHTML = `
+      <input id="text" /><input id="search" type="search" /><input id="check" type="checkbox" />
+      <textarea id="area"></textarea><select id="pick"></select><button id="go">Go</button>
+      <div id="editor" contenteditable="true"><p id="line">Words</p></div>
+      <div id="readonly" contenteditable="false"><p id="readline">Words</p></div>`
+    const field = (id: string) => editableTargetOf({ target: document.getElementById(id) } as unknown as Event)?.id ?? null
+    expect(field("text")).toBe("text")
+    expect(field("search")).toBe("search")
+    expect(field("area")).toBe("area")
+    expect(field("pick")).toBe("pick")
+    expect(field("editor")).toBe("editor")
+    // Typing inside the editor: the editor is the field that is left.
+    expect(field("line")).toBe("editor")
+    expect(field("check")).toBeNull()
+    expect(field("go")).toBeNull()
+    expect(field("readonly")).toBeNull()
+    expect(field("readline")).toBeNull()
   })
 
   it("leaves Escape to an open menu or dialog, but not to a tooltip", () => {

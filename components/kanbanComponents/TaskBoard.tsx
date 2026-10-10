@@ -726,6 +726,8 @@ function QuickAdd({ onAdd, compact = false }: { onAdd: (name: string) => Promise
                         e.preventDefault()
                         void submit()
                     } else if (e.key === "Escape") {
+                        // Handled here: a task panel open beside the board stays open.
+                        e.preventDefault()
                         setOpen(false)
                         setName("")
                     }

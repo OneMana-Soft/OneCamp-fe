@@ -112,6 +112,8 @@ export function PeoplePicker({
               e.preventDefault()
               add(matches[active])
             } else if (e.key === "Escape") {
+              // Closes the suggestions, and only them.
+              e.preventDefault()
               setMatches([])
             }
           }}

@@ -38,6 +38,7 @@ import { usePost } from "@/hooks/usePost";
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider";
 import { warmCollabToken } from "@/lib/collabToken";
 import { useDocAutoSave } from "@/hooks/useDocAutoSave";
+import { escapeBelongsToLayer } from "@/hooks/useEscapeClosesPanel";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { htmlToMarkdown, downloadMarkdown } from "@/lib/utils/exportToMarkdown";
 import { useToast } from "@/hooks/use-toast";
@@ -238,12 +239,15 @@ export function DocView({ docId }: { docId: string }) {
     const [focusMode, setFocusMode] = React.useState(false);
 
     // Exit focus mode on Escape so it's never a trap. Only active in focus
-    // mode; an open editor menu (slash/link) that stops propagation closes
-    // first, so a second Escape exits — the expected precedence.
+    // mode. An open editor menu (slash, mention, link) or popup has the key
+    // first and closes, and a second Escape exits. Exiting marks the key
+    // handled, so it doesn't also close a panel open beside the doc.
     React.useEffect(() => {
         if (!focusMode) return;
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setFocusMode(false);
+            if (e.key !== 'Escape' || e.isComposing || escapeBelongsToLayer(e)) return;
+            e.preventDefault();
+            setFocusMode(false);
         };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);

@@ -55,6 +55,8 @@ export function DocTopBarBreadcrumb({ doc, canEdit = false }: DocTopBarBreadcrum
         if (e.key === "Enter") {
             handleSave();
         } else if (e.key === "Escape") {
+            // Handled here: the doc's comments panel stays open.
+            e.preventDefault();
             setTitle(doc?.doc_title || "Untitled Document");
             setIsEditing(false);
         }
