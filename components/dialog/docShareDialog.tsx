@@ -1,14 +1,10 @@
-import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
+import { displayNameOf } from "@/lib/personName"
 import { eyebrowClass } from "@/components/ui/eyebrow"
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState, useEffect } from "react";
-import { Lock, Globe, Copy, Check, X } from "@/lib/icons";
-import { User as UserIcon } from "@/lib/icons";
-import { cn } from "@/lib/utils/helpers/cn";
 import { usePost } from "@/hooks/usePost";
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints";
 import { useDispatch, useSelector } from "react-redux";
@@ -18,8 +14,8 @@ import { toast } from "@/hooks/use-toast";
 import { UserProfileDataInterface } from "@/types/user";
 import { DocInfoInterface, DocInfoResponse } from "@/types/doc";
 import AddDocMemberCombobox from "@/components/combobox/addDocMemberCombobox";
-import { useUserAvatar } from "@/hooks/useUserAvatar";
 import { GuestLinkSection } from "@/components/guest/GuestLinkSection";
+import { CopyLinkButton, GeneralAccessMark, ShareUserRow, generalAccessLine, withoutOwner } from "@/components/dialog/shareParts";
 
 type Role = "editor" | "viewer" | "commenter";
 
@@ -47,8 +43,6 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
             setPermissions(permData.data);
         }
     }, [permData]);
-
-    const [copied, setCopied] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
 
     const updatePermissions = usePost();
@@ -202,23 +196,23 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                     {/* People with access */}
                     <div className="flex flex-col gap-3">
                         <Label className={eyebrowClass}>People with access</Label>
-                        <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
+                        <div className="-mx-2 flex max-h-[240px] flex-col overflow-y-auto">
                             {/* Owner */}
                             {permissions?.doc_created_by && (
-                                <UserRow user={permissions.doc_created_by} role="owner" onRemove={() => {}} isOwner={false} />
+                                <ShareUserRow user={permissions.doc_created_by} role="owner" canRemove={false} />
                             )}
 
                             {/* Editors */}
-                            {permissions?.doc_editing_users?.map(u => (
-                                <UserRow key={u.user_uuid} user={u} role="editor" onRemove={() => handleRemoveUser(u.user_uuid, 'editor')} isOwner={isOwner} />
+                            {withoutOwner(permissions?.doc_editing_users, permissions?.doc_created_by?.user_uuid).map(u => (
+                                <ShareUserRow key={u.user_uuid} user={u} role="editor" onRemove={() => handleRemoveUser(u.user_uuid, 'editor')} canRemove={isOwner} />
                             ))}
                             {/* Commenters */}
-                            {permissions?.doc_commenting_users?.map(u => (
-                                <UserRow key={u.user_uuid} user={u} role="commenter" onRemove={() => handleRemoveUser(u.user_uuid, 'commenter')} isOwner={isOwner}/>
+                            {withoutOwner(permissions?.doc_commenting_users, permissions?.doc_created_by?.user_uuid).map(u => (
+                                <ShareUserRow key={u.user_uuid} user={u} role="commenter" onRemove={() => handleRemoveUser(u.user_uuid, 'commenter')} canRemove={isOwner} />
                             ))}
                             {/* Viewers */}
-                            {permissions?.doc_reading_users?.map(u => (
-                                <UserRow key={u.user_uuid} user={u} role="viewer" onRemove={() => handleRemoveUser(u.user_uuid, 'viewer')} isOwner={isOwner} />
+                            {withoutOwner(permissions?.doc_reading_users, permissions?.doc_created_by?.user_uuid).map(u => (
+                                <ShareUserRow key={u.user_uuid} user={u} role="viewer" onRemove={() => handleRemoveUser(u.user_uuid, 'viewer')} canRemove={isOwner} />
                             ))}
                         </div>
                     </div>
@@ -228,28 +222,24 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                         <Label className={eyebrowClass}>General access</Label>
                         <div className="flex items-center justify-between group">
                             <div className="flex items-center gap-3">
-                                <div className={cn("p-2 rounded-full transition-colors", permissions?.doc_private ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary")}>
-                                    {permissions?.doc_private ? <Lock className="w-5 h-5" /> : <Globe className="w-5 h-5" />}
-                                </div>
+                                <GeneralAccessMark restricted={!!permissions?.doc_private} />
                                 <div className="flex flex-col">
                                     <Select 
                                         value={generalAccessValue} 
                                         onValueChange={handlePrivacyChange}
                                         disabled={isUpdating || !isOwner}
                                     >
-                                        <SelectTrigger dense className="h-auto p-0 border-none shadow-none focus:ring-0 text-sm font-medium hover:text-primary transition-colors justify-start gap-1 w-auto">
+                                        <SelectTrigger dense className="h-auto p-0 border-none shadow-none focus:ring-0 text-sm font-medium hover:text-foreground transition-colors justify-start gap-1 w-auto">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="restricted">Restricted</SelectItem>
-                                            <SelectItem value="public">Anyone with the link</SelectItem>
-                                            <SelectItem value="public_comment">Anyone with link can comment</SelectItem>
+                                            <SelectItem value="restricted">Only people added</SelectItem>
+                                            <SelectItem value="public">Everyone in the workspace</SelectItem>
+                                            <SelectItem value="public_comment">Everyone in the workspace can comment</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     <span className="text-xs text-muted-foreground mt-0.5">
-                                        {permissions?.doc_private 
-                                            ? "Only added people can open with the link" 
-                                            : "Anyone on the internet with the link can view"}
+                                        {generalAccessLine(generalAccessValue as "restricted" | "public" | "public_comment", "doc")}
                                     </span>
                                 </div>
                             </div>
@@ -263,19 +253,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
 
                     {/* Footer Actions */}
                     <div className="flex justify-between items-center pt-2">
-                         <Button 
-                            variant="outline" 
-                            size="sm"
-                            className={cn("rounded-full gap-2 transition", copied ? "border-success/50 text-success-ink bg-success/10" : "text-primary border-primary/20 hover:bg-primary/5")}
-                            onClick={() => {
-                                navigator.clipboard.writeText(window.location.href);
-                                setCopied(true);
-                                setTimeout(() => setCopied(false), 2000);
-                            }}
-                        >
-                             {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                             {copied ? "Copied" : "Copy Link"}
-                        </Button>
+                         <CopyLinkButton />
                         <Button onClick={handleClose}>Done</Button>
                     </div>
                 </div>
@@ -283,31 +261,3 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
         </Dialog>
     );
 }
-
-function UserRow({ user, role, onRemove, isOwner }: { user: UserProfileDataInterface, role: string, onRemove: () => void, isOwner: boolean }) {
-    const {src: imageSrc} = useUserAvatar(user.user_profile_object_key);
-    const secondLine = addressOrHandleOf(user);
-    return (
-        <div className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors group">
-            <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                    <AvatarImage src={imageSrc} />
-                    <AvatarFallback>{displayNameOf(user)?.charAt(0) || <UserIcon className="w-4 h-4"/>}</AvatarFallback>
-                </Avatar>
-                <div className="flex flex-col">
-                    <span className="text-sm font-medium leading-none">{displayNameOf(user)}</span>
-                    {secondLine && <span className="text-xs text-muted-foreground">{secondLine}</span>}
-                </div>
-            </div>
-            <div className="flex items-center gap-4">
-                <span className="text-xs text-muted-foreground capitalize">{role}</span>
-                 {(isOwner && role !== 'owner') && (
-                    <Button aria-label="Remove access" variant="ghost" size="icon" className="h-6 w-6 md:opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity text-muted-foreground hover:text-danger-ink [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto extend-touch-target" onClick={onRemove}>
-                        <X className="w-4 h-4" />
-                    </Button>
-                 )}
-            </div>
-        </div>
-    )
-}
-
