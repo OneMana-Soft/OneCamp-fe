@@ -3,6 +3,8 @@
 import { useState } from "react"
 import ApiTokensCard from "@/components/admin/ApiTokensCard"
 import { Button } from "@/components/ui/button"
+import { sectionActionClass } from "@/components/ui/settingsSection"
+import { cn } from "@/lib/utils/helpers/cn"
 import { Plus } from "@/lib/icons"
 import { SectionHeader } from "../SectionHeader"
 
@@ -14,7 +16,7 @@ export default function ApiTokensSettingsPage() {
       <SectionHeader
         href="/app/settings/api-tokens"
         actions={
-          <Button onClick={() => setCreating(true)} className="gap-1.5">
+          <Button size="sm" onClick={() => setCreating(true)} className={cn("gap-1.5", sectionActionClass)}>
             <Plus className="h-4 w-4" aria-hidden="true" />
             New token
           </Button>

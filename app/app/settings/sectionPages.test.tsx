@@ -111,4 +111,14 @@ describe("API tokens", () => {
     fireEvent.click(within(header).getByRole("button", { name: "New token" }))
     expect(await screen.findByRole("dialog")).toBeInTheDocument()
   })
+
+  // One height for a header's action across the settings pages and the admin
+  // sections: New token was 36px where Admin's actions are 32px.
+  it("draws New token at the section actions' height", async () => {
+    const { default: ApiTokensSettingsPage } = await import("./api-tokens/page")
+    render(<ApiTokensSettingsPage />)
+    const button = within(screen.getByRole("banner")).getByRole("button", { name: "New token" })
+    expect(button.className).toContain("md:h-8")
+    expect(button.className).toContain("h-11")
+  })
 })
