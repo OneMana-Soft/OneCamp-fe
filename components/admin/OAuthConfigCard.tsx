@@ -10,6 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotPlug } from "@/components/ui/graphics"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { SaveBar, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
@@ -155,8 +158,20 @@ export default function OAuthConfigCard() {
     } else if (state === "failed" || !status) {
         body = <ErrorState subject="the sign-in providers" onRetry={load} />
     } else {
+        const noneSetUp = !status.google_configured && !status.github_configured
         body = (
             <>
+                {/* Nothing connected yet: the connections group's plug, in its
+                    hue, saying what happens meanwhile, above the fields that
+                    connect one. */}
+                {noneSetUp && (
+                    <EmptyState
+                        illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
+                        title="No sign-in provider is set up"
+                        description="People sign in with their email and password until you add Google or GitHub below."
+                        className="py-6"
+                    />
+                )}
                 <SettingsList>
                     {PROVIDERS.map((p) => {
                         const configured = status[`${p.key}_configured`]
