@@ -270,7 +270,7 @@ export function ConnectAuthorize() {
         <legend className="text-sm font-medium text-muted-foreground">It may</legend>
         <div className="grid gap-2">
           {view.scopes.map((s) => (
-            <Label key={s} className="flex items-center gap-2.5 font-normal">
+            <Label key={s} className="flex min-h-11 items-center gap-2.5 font-normal md:min-h-0">
               <Checkbox checked={scopes.includes(s)} onCheckedChange={(v) => toggle(s, v === true)} />
               <span>
                 {scopeLabel(s)}
