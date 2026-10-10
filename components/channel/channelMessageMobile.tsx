@@ -241,7 +241,7 @@ const ChannelMessageMobileComponent = ({
 
     return (
         <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
-            <div id={messageDomId(postInfo.post_uuid)} className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? "py-0.5" : "py-2.5"} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)}>
+            <div id={messageDomId(postInfo.post_uuid)} className={`relative flex gap-3 px-4 ${continued && !isMessageEditEnabled ? "py-0.5" : "py-2.5"} select-none active:bg-accent/50 transition-colors duration-100`} {...(pending ? {} : longPressEvent)}>
                 {continued && !isMessageEditEnabled ? (
                     <ContinuedGutter createdAt={postInfo.post_created_at} authorName={authorName} />
                 ) : (

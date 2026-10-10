@@ -379,11 +379,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     useEffect(()=>{
         if(safeChannelScrollToBottom.shouldScrollToBottom && containerRef.current) {
             dispatch(updateChatScrollToBottom({chatId, scrollToBottom: false}))
-            containerRef.current.scrollToIndex(flatItems.length - 1, {
-                smooth: true,
-                align: "end",
-                offset: 50
-            },);
+            containerRef.current.scrollToIndex(flatItems.length - 1, { align: "end" });
         }
     },[safeChannelScrollToBottom.shouldScrollToBottom, chatId, dispatch, flatItems.length])
 

@@ -29,11 +29,15 @@ export function SendStatus({ state, localId, className }: { state?: SendState; l
     const actions = useContext(PendingSendContext)
     if (!state || !localId) return null
     if (state === "sending") {
+        // Over the row's bottom-right corner, taking no room: it was a line of
+        // its own, so the conversation grew by it and shrank back 18 px when
+        // the message was confirmed, a jump on every send. (The row is
+        // position: relative.)
         return (
             <p
                 role="status"
                 className={cn(
-                    "mt-0.5 text-2xs text-muted-foreground opacity-0 motion-safe:animate-[msg-fade-in_160ms_var(--ease-standard)_600ms_forwards] motion-reduce:opacity-100",
+                    "pointer-events-none absolute bottom-1 right-4 text-2xs text-muted-foreground opacity-0 motion-safe:animate-[msg-fade-in_160ms_var(--ease-standard)_600ms_forwards] motion-reduce:opacity-100",
                     className,
                 )}
             >
