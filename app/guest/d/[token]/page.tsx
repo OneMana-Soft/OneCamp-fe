@@ -42,7 +42,7 @@ export default function GuestDocPage({ params }: { params: Promise<{ token: stri
     const canComment = session.capability === "comment";
 
     return (
-        <div className="min-h-screen w-full bg-background">
+        <div className="min-h-dvh w-full bg-background">
             <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-card px-4 py-2.5">
                 <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
                     <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">

@@ -36,7 +36,7 @@ export default function GuestBoardPage({ params }: { params: Promise<{ token: st
     const boardId = session.resource_id;
 
     return (
-        <div className="flex h-screen w-screen flex-col bg-background">
+        <div className="flex h-dvh w-full flex-col bg-background">
             <header className="flex items-center justify-between border-b border-border/60 bg-card px-4 py-2.5">
                 <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
                     <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
