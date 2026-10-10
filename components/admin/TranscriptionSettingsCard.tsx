@@ -11,20 +11,29 @@
 // STT is plug-and-play: the "OpenAI-compatible" provider + a Base URL lets an
 // admin point at OpenAI Whisper, Groq, or a self-hosted Whisper endpoint
 // without any code change.
+//
+// Two ways of saving, each said out loud. The mode saves the moment it is
+// picked, and Off asks first, because it ends captions and transcripts for
+// every call. The speech-to-text block is several fields that only make sense
+// together, so its edits wait in a save bar. Until the stored settings are
+// read there is no form: a failed read used to show "Browser" as the mode.
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { SaveBar, SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, AlertTriangle, Loader2, XCircle } from "@/lib/icons"
+import { useConfirm } from "@/hooks/useConfirm"
+import { CheckCircle2, Loader2, XCircle } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
     getTranscriptionConfig,
     updateTranscriptionConfig,
@@ -36,24 +45,30 @@ import {
 } from "@/services/settingsService"
 import { appMutate as globalMutate } from "@/lib/swrMutate";
 
-const SOURCE_LABEL: Record<string, string> = {
-    db: "Saved here",
-    env: "From environment",
-    default: "Default",
-    none: "Not configured",
+// Where a value comes from when it isn't saved here: the stored setting wins,
+// then the server's environment, then the built-in default.
+const SOURCE_NOTE: Partial<Record<string, string>> = {
+    env: "From the server's environment until you change it here.",
+    default: "The default until you change it here.",
+}
+
+const MODE_LABEL: Record<TranscriptionMode, string> = {
+    frontend: "Browser",
+    backend: "Server",
+    off: "Off",
 }
 
 const MODE_DESCRIPTION: Record<TranscriptionMode, string> = {
-    frontend: "Each participant's browser transcribes their own speech (Web Speech API). Free, no API key, English-biased, quality varies by browser. Chrome and Edge only: a participant on Firefox or Safari contributes nothing, so the transcript has their turns missing.",
-    backend: "A server-side agent transcribes every speaker using your chosen STT model. Higher quality and multi-speaker. Use the bundled server to keep the audio on this machine, or a cloud provider billed per minute.",
-    off: "Live captions and transcript capture are disabled for all calls.",
+    frontend: "Each person's browser transcribes their own speech. Free and needs no key, but it favours English and only Chrome and Edge take part: someone on Firefox or Safari is missing from the transcript.",
+    backend: "An agent on the server transcribes every speaker with the speech-to-text model below. Better quality, and nobody is left out. The bundled server keeps the audio on this machine; a cloud provider bills per minute.",
+    off: "No live captions, and no transcript is kept for any call.",
 }
 
 const PROVIDER_LABEL: Record<STTProvider, string> = {
     local: "Self-hosted (runs on this server)",
     deepgram: "Deepgram",
     google: "Google Cloud Speech-to-Text",
-    openai: "OpenAI-compatible (Whisper / Groq / your own endpoint)",
+    openai: "OpenAI-compatible (Whisper, Groq or your own)",
 }
 
 // Shown under the picker. Only the bundled option keeps the audio on the
@@ -69,27 +84,20 @@ const PROVIDER_NOTE: Record<STTProvider, string> = {
 const MODEL_PLACEHOLDER: Record<STTProvider, string> = {
     local: "whisper-1",
     deepgram: "nova-2",
-    google: "(plugin default)",
+    google: "The provider's default",
     openai: "whisper-1",
 }
 
-const SourceBadge = ({ source }: { source: string }) => (
-    <span className="text-2xs text-muted-foreground">Source: {SOURCE_LABEL[source] ?? source}</span>
-)
-
-const ConfiguredBadge = ({ configured }: { configured: boolean }) =>
-    configured ? (
-        <Badge className="gap-1 bg-success/10 text-success-ink border-success/20">
-            <CheckCircle2 className="h-3 w-3" /> Configured
-        </Badge>
-    ) : (
-        <Badge variant="outline" className="gap-1"><AlertTriangle className="h-3 w-3" /> Not set</Badge>
-    )
+/** A help line, with where the value comes from when that isn't here. */
+const withSource = (help: string, source: string | undefined) =>
+    [help, source ? SOURCE_NOTE[source] : undefined].filter(Boolean).join(" ")
 
 export default function TranscriptionSettingsCard() {
     const { toast } = useToast()
+    const confirm = useConfirm()
     const [config, setConfig] = useState<TranscriptionConfig | null>(null)
-    const [loading, setLoading] = useState(true)
+    const [failed, setFailed] = useState(false)
+    const [retrying, setRetrying] = useState(false)
 
     // Local editable state.
     const [mode, setMode] = useState<TranscriptionMode>("frontend")
@@ -105,53 +113,100 @@ export default function TranscriptionSettingsCard() {
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<TranscriptionTestResult | null>(null)
 
-    const applyConfig = (c: TranscriptionConfig | null) => {
-        setConfig(c)
+    // The speech-to-text fields, back to what is stored. Secret inputs always
+    // reset to blank (write-only).
+    const resetBackend = useCallback((c: TranscriptionConfig | null) => {
         if (c) {
-            setMode(c.mode)
             setSttProvider(c.stt_provider)
             setModel(c.stt_model ?? "")
             setBaseUrl(c.stt_base_url ?? "")
             setLanguage(c.stt_language ?? "")
         }
-        // Secret inputs always reset to blank (write-only).
         setApiKey("")
         setGoogleCreds("")
-    }
-
-    const load = () => {
-        setLoading(true)
-        getTranscriptionConfig()
-            .then(applyConfig)
-            .catch(() => toast({ title: "Couldn't load transcription settings", variant: "destructive" }))
-            .finally(() => setLoading(false))
-    }
-
-    useEffect(() => {
-        load()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
+    const applyConfig = useCallback((c: TranscriptionConfig | null) => {
+        setConfig(c)
+        if (c) setMode(c.mode)
+        resetBackend(c)
+    }, [resetBackend])
+
+    const load = useCallback(async () => {
+        try {
+            const c = await getTranscriptionConfig()
+            if (!c) throw new Error("no transcription settings in the reply")
+            applyConfig(c)
+            setFailed(false)
+        } catch {
+            setFailed(true)
+        }
+    }, [applyConfig])
+
+    useEffect(() => {
+        void load()
+    }, [load])
+
     // Saving the mode also busts the client-config SWR cache so open call UIs
-    // pick up the new mode on their next read.
+    // pick up the new mode on their next read. Only the mode is taken from the
+    // reply: speech-to-text edits still waiting in the save bar stay.
     const saveMode = async (next: TranscriptionMode) => {
+        const before = mode
+        setMode(next)
         setSavingMode(true)
         try {
             const c = await updateTranscriptionConfig({ mode: next })
-            applyConfig(c)
+            if (c) {
+                setConfig(c)
+                setMode(c.mode)
+            }
             globalMutate("client-config")
-            toast({ title: "Transcription mode updated", description: MODE_DESCRIPTION[next] })
-        } catch {
-            toast({ title: "Failed to update mode", variant: "destructive" })
-            setMode(config?.mode ?? "frontend")
+            toast({ title: "Transcription mode changed", description: MODE_DESCRIPTION[next] })
+        } catch (e) {
+            toast({
+                title: "Couldn't change the transcription mode",
+                description: apiErrorMessage(e, "Try again in a moment."),
+                variant: "destructive",
+            })
+            setMode(before)
         } finally {
             setSavingMode(false)
         }
     }
 
+    const pickMode = (next: TranscriptionMode) => {
+        if (next === mode || savingMode) return
+        if (next !== "off") {
+            void saveMode(next)
+            return
+        }
+        confirm({
+            title: "Turn off transcription?",
+            description:
+                "New calls get no live captions and keep no transcript, so there is nothing to search, recap or turn into notes afterwards.",
+            confirmText: "Turn off",
+            destructive: true,
+            onConfirm: () => void saveMode("off"),
+        })
+    }
+
+    const showBackendConfig = mode === "backend"
+    // The bundled server sits on the stack network with no credential of its
+    // own, so asking for a key would be a question with no right answer.
+    const usesApiKey = sttProvider === "deepgram" || sttProvider === "openai"
+
+    const backendDirty =
+        !!config &&
+        (sttProvider !== config.stt_provider ||
+            model.trim() !== (config.stt_model ?? "") ||
+            language.trim() !== (config.stt_language ?? "") ||
+            (sttProvider === "openai" && baseUrl.trim() !== (config.stt_base_url ?? "")) ||
+            (usesApiKey && apiKey.trim() !== "") ||
+            (sttProvider === "google" && googleCreds.trim() !== ""))
+
     // Backend block: provider + model + optional endpoint/language + the
     // relevant secret. Secrets are sent only when non-blank ("keep existing").
-    // Returns true on success so callers (Save & test) can chain safely.
+    // Returns true on success so callers (Save and test) can chain safely.
     const saveBackend = async (): Promise<boolean> => {
         setSavingBackend(true)
         try {
@@ -169,229 +224,266 @@ export default function TranscriptionSettingsCard() {
                 req.stt_api_key = apiKey.trim()
             }
             const c = await updateTranscriptionConfig(req)
-            applyConfig(c)
+            if (c) {
+                setConfig(c)
+                resetBackend(c)
+            }
             setTestResult(null) // config changed — any prior test result is stale
-            toast({ title: "Backend transcription saved" })
+            toast({ title: "Speech-to-text settings saved" })
             return true
-        } catch (e: any) {
-            const msg = e?.response?.data?.msg
-            toast({ title: "Failed to save backend settings", description: msg, variant: "destructive" })
+        } catch (e) {
+            toast({
+                title: "Couldn't save the speech-to-text settings",
+                description: apiErrorMessage(e, "Check the fields and try again."),
+                variant: "destructive",
+            })
             return false
         } finally {
             setSavingBackend(false)
         }
     }
 
-    // Test probes the SAVED config server-side. We save the current edits first
-    // so the admin tests exactly what's on screen, then run the probe. If the
-    // save fails (e.g. invalid endpoint URL → 400), we abort without testing.
+    // Test probes the SAVED config server-side, so unsaved edits are saved
+    // first and the admin tests exactly what's on screen. If that save fails
+    // (e.g. invalid endpoint URL → 400), there is nothing to test.
     const runTest = async () => {
         setTesting(true)
         setTestResult(null)
         try {
-            const saved = await saveBackend()
-            if (!saved) return // save surfaced its own error toast; nothing to test
+            if (backendDirty && !(await saveBackend())) return
             const res = await testTranscriptionConfig()
             setTestResult(res)
             if (res?.ok) {
-                toast({ title: "Transcription test passed", description: res.message })
+                toast({ title: "The test passed", description: res.message })
             } else {
-                toast({ title: "Transcription test failed", description: res?.message, variant: "destructive" })
+                toast({ title: "The test failed", description: res?.message, variant: "destructive" })
             }
-        } catch (e: any) {
-            const msg = e?.response?.data?.msg || "Could not run the test."
+        } catch (e) {
+            const msg = apiErrorMessage(e, "Try again in a moment.")
             setTestResult({ ok: false, provider: sttProvider, message: msg })
-            toast({ title: "Transcription test error", description: msg, variant: "destructive" })
+            toast({ title: "Couldn't run the test", description: msg, variant: "destructive" })
         } finally {
             setTesting(false)
         }
     }
 
-    const showBackendConfig = mode === "backend"
-    // The bundled server sits on the stack network with no credential of its
-    // own, so asking for a key would be a question with no right answer.
-    const usesApiKey = sttProvider === "deepgram" || sttProvider === "openai"
+    const busy = savingBackend || testing
 
     return (
-        <Card className="border-border/60">
-            <CardHeader>
-                <div className="flex items-center gap-2">
-                    <CardTitle className="text-base font-semibold">Call transcription</CardTitle>
+        <SettingsSection
+            title="Call transcription"
+            description="Live captions during calls, and a transcript of every call, recorded or not, for searchable playback, the meeting recap and the notes document. Changes reach new calls at once."
+        >
+            {!config && failed ? (
+                <ErrorState
+                    subject="the transcription settings"
+                    retrying={retrying}
+                    onRetry={() => {
+                        setRetrying(true)
+                        void load().finally(() => setRetrying(false))
+                    }}
+                />
+            ) : !config ? (
+                <div role="status" aria-label="Loading the transcription settings" className="rounded-lg border border-border px-4 py-3">
+                    <SkeletonRows rows={2} avatar={false} />
                 </div>
-                <CardDescription>
-                    Controls live captions and the searchable transcripts attached to recordings. Applies to new calls
-                    immediately, no redeploy. Secrets are encrypted at rest and never shown again.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                {/* Mode */}
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium">Mode</h3>
-                        {config && <SourceBadge source={config.mode_source} />}
-                    </div>
-                    <Select
-                        value={mode}
-                        onValueChange={(v) => { setMode(v as TranscriptionMode); saveMode(v as TranscriptionMode) }}
-                        disabled={loading || savingMode}
-                    >
-                        <SelectTrigger className="w-full sm:w-72">
-                            <SelectValue placeholder="Select a mode" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="frontend">Browser (frontend)</SelectItem>
-                            <SelectItem value="backend">Server-side agent (backend)</SelectItem>
-                            <SelectItem value="off">Off</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <p className="text-2xs text-muted-foreground">{MODE_DESCRIPTION[mode]}</p>
-                    <p className="text-2xs text-muted-foreground">
-                        Transcripts are captured for every call, recorded or not, and power searchable
-                        playback, the meeting recap and the notes document. Both modes above keep the
-                        words; they differ in who does the transcribing and how complete it is.
-                    </p>
-                </div>
-
-                {/* Backend STT model config (only relevant in backend mode) */}
-                {showBackendConfig && (
-                    <>
-                        <Separator />
-                        <div className="space-y-4">
-                            {/* Provider */}
-                            <div className="space-y-1.5">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-sm font-medium">Speech-to-text provider</h3>
-                                    {config && <SourceBadge source={config.stt_provider_source} />}
-                                </div>
-                                <Select
-                                    value={sttProvider}
-                                    onValueChange={(v) => setSttProvider(v as STTProvider)}
-                                    disabled={loading || savingBackend}
-                                >
-                                    <SelectTrigger className="w-full sm:w-96">
-                                        <SelectValue placeholder="Select a provider" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {(Object.keys(PROVIDER_LABEL) as STTProvider[]).map((p) => (
-                                            <SelectItem key={p} value={p}>
-                                                {PROVIDER_LABEL[p]}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Model */}
-                            <div className="space-y-1.5">
-                                <Label className="text-xs">Model</Label>
-                                <Input
-                                    value={model}
-                                    onChange={(e) => setModel(e.target.value)}
-                                    placeholder={MODEL_PLACEHOLDER[sttProvider]}
-                                    disabled={loading}
-                                    className="w-full sm:w-72"
-                                />
-                                <p className="text-2xs text-muted-foreground">
-                                    Free-text model name passed to the provider. Leave blank to use its default.
-                                </p>
-                            </div>
-
-                            <p className="text-2xs text-muted-foreground">{PROVIDER_NOTE[sttProvider]}</p>
-
-                            {/* Base URL: the openai-compatible provider only. The bundled
-                                server's endpoint is a server-side constant, which is what
-                                lets the backend probe it without the SSRF guard. */}
-                            {sttProvider === "openai" && (
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Endpoint base URL</Label>
-                                    <Input
-                                        value={baseUrl}
-                                        onChange={(e) => setBaseUrl(e.target.value)}
-                                        placeholder="https://api.openai.com/v1  ·  or your self-hosted Whisper URL"
-                                        disabled={loading}
-                                        autoComplete="off"
-                                    />
-                                    <p className="text-2xs text-muted-foreground">
-                                        Any OpenAI-compatible STT endpoint (OpenAI, Groq, self-hosted faster-whisper).
-                                        Leave blank for OpenAI's default.
+            ) : (
+                <>
+                    <div className="space-y-2">
+                        <SettingsList>
+                            <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                                <div className="min-w-0 space-y-1">
+                                    <p id="transcription-mode" className="text-sm font-medium leading-5">Mode</p>
+                                    <p id="transcription-mode-desc" className="text-xs text-muted-foreground text-pretty">
+                                        {withSource(MODE_DESCRIPTION[mode], config.mode_source)}
                                     </p>
                                 </div>
-                            )}
-
-                            {/* Language */}
-                            <div className="space-y-1.5">
-                                <Label className="text-xs">Language (optional)</Label>
-                                <Input
-                                    value={language}
-                                    onChange={(e) => setLanguage(e.target.value)}
-                                    placeholder="auto-detect: e.g. en, es, fr"
-                                    disabled={loading}
-                                    className="w-full sm:w-48"
-                                />
-                            </div>
-
-                            {/* Secret: API key for deepgram/openai, JSON for google */}
-                            {usesApiKey ? (
-                                <div className="space-y-1.5">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="text-xs">
-                                            API key{" "}
-                                            {config?.has_stt_api_key && (
-                                                <span className="text-muted-foreground font-normal">· leave blank to keep</span>
+                                {/* One of three: a segmented radio group, so every
+                                    choice is in view and Off can ask first. */}
+                                <div
+                                    role="radiogroup"
+                                    aria-labelledby="transcription-mode"
+                                    aria-describedby="transcription-mode-desc"
+                                    className="inline-flex w-fit shrink-0 gap-1 rounded-md bg-muted p-1"
+                                >
+                                    {(Object.keys(MODE_LABEL) as TranscriptionMode[]).map((m) => (
+                                        <button
+                                            key={m}
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={mode === m}
+                                            disabled={savingMode}
+                                            onClick={() => pickMode(m)}
+                                            className={cn(
+                                                "h-7 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50",
+                                                mode === m ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
                                             )}
-                                        </Label>
-                                        <div className="flex items-center gap-2">
-                                            <ConfiguredBadge configured={!!config?.has_stt_api_key} />
-                                            {config && <SourceBadge source={config.stt_api_key_source} />}
-                                        </div>
-                                    </div>
+                                        >
+                                            {MODE_LABEL[m]}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </SettingsList>
+                        <p className="text-xs text-muted-foreground">The mode saves as soon as you pick it.</p>
+                    </div>
+
+                    {/* Backend STT model config (only relevant in backend mode) */}
+                    {showBackendConfig && (
+                        <div className="space-y-3 pt-3">
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-semibold">Speech-to-text</h3>
+                                <p className="max-w-[65ch] text-xs text-muted-foreground text-pretty">
+                                    What the server&apos;s agent transcribes with. Keys are encrypted when saved and never shown again.
+                                </p>
+                            </div>
+                            <SettingsList>
+                                <SettingRow
+                                    label="Provider"
+                                    controlId="stt-provider"
+                                    description={withSource(PROVIDER_NOTE[sttProvider], config.stt_provider_source)}
+                                >
+                                    <Select
+                                        value={sttProvider}
+                                        onValueChange={(v) => setSttProvider(v as STTProvider)}
+                                        disabled={busy}
+                                    >
+                                        <SelectTrigger id="stt-provider" aria-describedby="stt-provider-desc" className="h-8 w-full sm:w-80">
+                                            <SelectValue placeholder="Choose a provider" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(Object.keys(PROVIDER_LABEL) as STTProvider[]).map((p) => (
+                                                <SelectItem key={p} value={p}>
+                                                    {PROVIDER_LABEL[p]}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </SettingRow>
+
+                                <SettingRow
+                                    label="Model"
+                                    controlId="stt-model"
+                                    description="The model's name at the provider. Leave it blank for the provider's default."
+                                >
                                     <Input
-                                        type="password"
-                                        value={apiKey}
-                                        onChange={(e) => setApiKey(e.target.value)}
-                                        placeholder={config?.has_stt_api_key ? "••••••••" : "Your provider API key"}
-                                        disabled={loading}
+                                        id="stt-model"
+                                        aria-describedby="stt-model-desc"
+                                        value={model}
+                                        onChange={(e) => setModel(e.target.value)}
+                                        placeholder={MODEL_PLACEHOLDER[sttProvider]}
+                                        disabled={busy}
+                                        className="h-8 w-full sm:w-64"
+                                        spellCheck={false}
                                         autoComplete="off"
                                     />
-                                </div>
-                            ) : (
-                                <div className="space-y-1.5">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="text-xs">
-                                            Google service-account JSON{" "}
-                                            {config?.has_google_credentials && (
-                                                <span className="text-muted-foreground font-normal">· leave blank to keep</span>
-                                            )}
-                                        </Label>
-                                        <div className="flex items-center gap-2">
-                                            <ConfiguredBadge configured={!!config?.has_google_credentials} />
-                                            {config && <SourceBadge source={config.google_source} />}
-                                        </div>
-                                    </div>
-                                    <textarea
-                                        value={googleCreds}
-                                        onChange={(e) => setGoogleCreds(e.target.value)}
-                                        placeholder={config?.has_google_credentials ? "•••••••• (paste new JSON to replace)" : '{ "type": "service_account", … }'}
-                                        rows={4}
-                                        disabled={loading}
-                                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                    />
-                                </div>
-                            )}
+                                </SettingRow>
 
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={saveBackend} disabled={savingBackend || testing || loading}>
-                                    {savingBackend && !testing ? "Saving…" : "Save backend settings"}
-                                </Button>
+                                {/* Base URL: the openai-compatible provider only. The bundled
+                                    server's endpoint is a server-side constant, which is what
+                                    lets the backend probe it without the SSRF guard. */}
+                                {sttProvider === "openai" && (
+                                    <SettingRow
+                                        label="Endpoint base URL"
+                                        controlId="stt-base-url"
+                                        description="Any OpenAI-compatible endpoint: OpenAI, Groq or your own faster-whisper. Leave it blank for OpenAI's own."
+                                    >
+                                        <Input
+                                            id="stt-base-url"
+                                            aria-describedby="stt-base-url-desc"
+                                            type="url"
+                                            inputMode="url"
+                                            value={baseUrl}
+                                            onChange={(e) => setBaseUrl(e.target.value)}
+                                            placeholder="https://api.openai.com/v1"
+                                            disabled={busy}
+                                            className="h-8 w-full sm:w-64"
+                                            spellCheck={false}
+                                            autoComplete="off"
+                                        />
+                                    </SettingRow>
+                                )}
+
+                                <SettingRow
+                                    label="Language"
+                                    controlId="stt-language"
+                                    description="Leave it blank to detect the language, or enter a code such as en, es or fr."
+                                >
+                                    <Input
+                                        id="stt-language"
+                                        aria-describedby="stt-language-desc"
+                                        value={language}
+                                        onChange={(e) => setLanguage(e.target.value)}
+                                        placeholder="Detect it"
+                                        disabled={busy}
+                                        className="h-8 w-full sm:w-40"
+                                        spellCheck={false}
+                                        autoComplete="off"
+                                    />
+                                </SettingRow>
+
+                                {/* Secret: API key for deepgram/openai, JSON for google */}
+                                {usesApiKey ? (
+                                    <SettingRow
+                                        label="API key"
+                                        controlId="stt-api-key"
+                                        description={withSource(
+                                            config.has_stt_api_key ? "Saved. Leave it blank to keep it." : "Not set yet.",
+                                            config.stt_api_key_source,
+                                        )}
+                                    >
+                                        <Input
+                                            id="stt-api-key"
+                                            aria-describedby="stt-api-key-desc"
+                                            type="password"
+                                            value={apiKey}
+                                            onChange={(e) => setApiKey(e.target.value)}
+                                            placeholder={config.has_stt_api_key ? "••••••••" : "Your provider's API key"}
+                                            disabled={busy}
+                                            className="h-8 w-full sm:w-64"
+                                            autoComplete="new-password"
+                                        />
+                                    </SettingRow>
+                                ) : sttProvider === "google" ? (
+                                    <div className="space-y-2 px-4 py-3">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="stt-google-json" className="text-sm font-medium leading-5">
+                                                Service account JSON
+                                            </Label>
+                                            <p id="stt-google-json-desc" className="text-xs text-muted-foreground text-pretty">
+                                                {withSource(
+                                                    config.has_google_credentials
+                                                        ? "Saved. Leave it blank to keep it, or paste new JSON to replace it."
+                                                        : "Not set yet. Paste the key file Google gives you for a service account.",
+                                                    config.google_source,
+                                                )}
+                                            </p>
+                                        </div>
+                                        <Textarea
+                                            id="stt-google-json"
+                                            aria-describedby="stt-google-json-desc"
+                                            value={googleCreds}
+                                            onChange={(e) => setGoogleCreds(e.target.value)}
+                                            placeholder={config.has_google_credentials ? "••••••••" : '{ "type": "service_account", … }'}
+                                            rows={4}
+                                            disabled={busy}
+                                            spellCheck={false}
+                                            className="font-mono text-xs md:text-xs"
+                                        />
+                                    </div>
+                                ) : null}
+                            </SettingsList>
+
+                            <div className="flex flex-wrap items-center gap-2">
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={runTest}
-                                    disabled={testing || savingBackend || loading}
-                                    className="gap-1.5"
+                                    onClick={() => void runTest()}
+                                    disabled={busy}
+                                    className="h-8 gap-1.5"
                                 >
-                                    {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                                    {testing ? "Testing…" : "Save & test"}
+                                    {testing && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+                                    {testing ? "Testing…" : backendDirty ? "Save and test the connection" : "Test the connection"}
                                 </Button>
                             </div>
 
@@ -406,17 +498,25 @@ export default function TranscriptionSettingsCard() {
                                     role="status"
                                 >
                                     {testResult.ok ? (
-                                        <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                                        <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
                                     ) : (
-                                        <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                                        <XCircle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
                                     )}
                                     <span>{testResult.message}</span>
                                 </div>
                             )}
+
+                            <SaveBar
+                                dirty={backendDirty}
+                                saving={savingBackend && !testing}
+                                what="speech-to-text changes"
+                                onSave={() => void saveBackend()}
+                                onDiscard={() => resetBackend(config)}
+                            />
                         </div>
-                    </>
-                )}
-            </CardContent>
-        </Card>
+                    )}
+                </>
+            )}
+        </SettingsSection>
     )
 }
