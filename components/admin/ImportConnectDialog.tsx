@@ -24,7 +24,7 @@
  * overwrites.
  */
 
-import React, { useState } from "react"
+import React, { useRef, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Field } from "@/components/ui/field"
 import { useToast } from "@/hooks/use-toast"
 import { connectImport, importProblemOf, importProviderLabel, type ImportProvider } from "@/services/importService"
 import { Loader2 } from "lucide-react"
@@ -69,6 +69,9 @@ const TOKEN_HINT: Partial<Record<ImportProvider, string>> = {
   monday: "In monday.com, click your avatar, then Developers → My access tokens → Show, and copy the personal API token. Imports see the boards that user can open.",
 }
 
+type FieldKey = "siteURL" | "email" | "apiKey" | "accessToken"
+const FIELD_ORDER: FieldKey[] = ["siteURL", "email", "apiKey", "accessToken"]
+
 export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenChange, onConnected }) => {
   const { toast } = useToast()
   const [accessToken, setAccessToken] = useState("")
@@ -80,30 +83,37 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
   // What the provider said about the token, kept in the dialog so the admin
   // can fix the field it is about instead of chasing a toast.
   const [problem, setProblem] = useState("")
+  // What each field is missing, said under it. Each was a red toast, away
+  // from the field and gone in five seconds.
+  const [missing, setMissing] = useState<Partial<Record<FieldKey, string>>>({})
+  const refs = {
+    siteURL: useRef<HTMLInputElement>(null),
+    email: useRef<HTMLInputElement>(null),
+    apiKey: useRef<HTMLInputElement>(null),
+    accessToken: useRef<HTMLInputElement>(null),
+  }
 
   const needsApiKey = provider === "trello"
   const needsEmail = provider === "jira"
   const needsSiteURL = provider === "jira"
+  const tokenWord = needsApiKey ? "Trello user token" : needsEmail ? "Jira API token" : "access token"
+
+  const clear = (k: FieldKey) => setMissing((m) => (m[k] ? { ...m, [k]: undefined } : m))
 
   const handleSubmit = async () => {
-    if (!accessToken.trim()) {
-      toast({ title: "Token required", variant: "destructive" })
-      return
+    // In the order the fields are on screen, so the cursor goes to the first.
+    const found: Partial<Record<FieldKey, string>> = {}
+    if (needsSiteURL && !/^https?:\/\/\S+/i.test(siteURL.trim())) {
+      found.siteURL = "Enter your Atlassian site's address, like https://acme.atlassian.net."
     }
-    if (needsApiKey && !apiKey.trim()) {
-      toast({ title: "API key required for Trello", variant: "destructive" })
+    if (needsEmail && !email.trim()) found.email = "Enter the email you sign in to Jira with."
+    if (needsApiKey && !apiKey.trim()) found.apiKey = "Paste the Trello API key."
+    if (!accessToken.trim()) found.accessToken = `Paste the ${tokenWord}.`
+    setMissing(found)
+    const first = FIELD_ORDER.find((k) => found[k])
+    if (first) {
+      refs[first].current?.focus()
       return
-    }
-    if (needsEmail && !email.trim()) {
-      toast({ title: "Email required for Jira", variant: "destructive" })
-      return
-    }
-    if (needsSiteURL) {
-      const url = siteURL.trim()
-      if (!url || !/^https?:\/\//i.test(url)) {
-        toast({ title: "Atlassian site URL required (https://acme.atlassian.net)", variant: "destructive" })
-        return
-      }
     }
     setSubmitting(true)
     setProblem("")
@@ -148,68 +158,78 @@ export const ImportConnectDialog: React.FC<Props> = ({ provider, open, onOpenCha
 
         <div className="space-y-4 py-2">
           {needsSiteURL && (
-            <div className="space-y-1.5">
-              <Label htmlFor="siteURL">Atlassian site URL</Label>
+            <Field label="Atlassian site URL" error={missing.siteURL}>
               <Input
-                id="siteURL"
+                ref={refs.siteURL}
+                type="url"
+                inputMode="url"
                 value={siteURL}
-                onChange={(e) => setSiteURL(e.target.value)}
-                placeholder="https://acme.atlassian.net"
+                onChange={(e) => {
+                  setSiteURL(e.target.value)
+                  clear("siteURL")
+                }}
+                placeholder="https://acme.atlassian.net…"
                 autoComplete="off"
+                spellCheck={false}
               />
-            </div>
+            </Field>
           )}
           {needsEmail && (
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Atlassian account email</Label>
+            <Field label="Atlassian account email" error={missing.email}>
               <Input
-                id="email"
+                ref={refs.email}
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  clear("email")
+                }}
+                placeholder="you@company.com…"
                 autoComplete="off"
+                spellCheck={false}
               />
-            </div>
+            </Field>
           )}
           {needsApiKey && (
-            <div className="space-y-1.5">
-              <Label htmlFor="apiKey">API key</Label>
+            <Field label="API key" error={missing.apiKey}>
               <Input
-                id="apiKey"
+                ref={refs.apiKey}
                 type="password"
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="32-char Trello API key"
+                onChange={(e) => {
+                  setApiKey(e.target.value)
+                  clear("apiKey")
+                }}
+                placeholder="The 32-character Trello API key…"
                 autoComplete="off"
               />
-            </div>
+            </Field>
           )}
-          <div className="space-y-1.5">
-            <Label htmlFor="accessToken">
-              {needsApiKey ? "User token" : needsEmail ? "API token" : "Access token"}
-            </Label>
+          <Field
+            label={needsApiKey ? "User token" : needsEmail ? "API token" : "Access token"}
+            help={TOKEN_HINT[provider]}
+            error={missing.accessToken}
+          >
             <Input
-              id="accessToken"
+              ref={refs.accessToken}
               type="password"
               value={accessToken}
-              onChange={(e) => setAccessToken(e.target.value)}
-              placeholder="Paste the token"
+              onChange={(e) => {
+                setAccessToken(e.target.value)
+                clear("accessToken")
+              }}
+              placeholder="Paste the token…"
               autoComplete="off"
             />
-            {TOKEN_HINT[provider] && (
-              <p className="text-xs text-muted-foreground">{TOKEN_HINT[provider]}</p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="accountName">Workspace label (optional)</Label>
+          </Field>
+          <Field label="Workspace label (optional)">
             <Input
-              id="accountName"
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
-              placeholder="e.g., Acme Inc."
+              placeholder="Acme Inc.…"
+              autoComplete="off"
             />
-          </div>
+          </Field>
         </div>
 
         {problem && (
