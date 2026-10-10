@@ -228,6 +228,7 @@ export {
   Settings2,
   Filter,
   Database,
+  Sigma,
   LogOut,
   Moon,
   Sun,
