@@ -62,7 +62,7 @@ function BoardsPage() {
         title="Boards"
         className="mb-5"
         actions={
-          <Button onClick={createBoard} disabled={isSubmitting} className="shrink-0 gap-1.5">
+          <Button onClick={createBoard} disabled={isSubmitting} className="shrink-0 gap-1.5 max-sm:hidden">
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             New board
           </Button>
@@ -103,7 +103,9 @@ function BoardsPage() {
             illustration={<SpotWelcome hue="dusk" />}
             title="No boards yet"
             description="A board is a blank canvas for sketches, flows and screens your team draws on together."
-            className="rounded-lg border border-border/60"
+            // On the page's ground, as the docs and tables lists' are: it sat
+            // in a bordered card of its own.
+            className="pt-10"
             action={
               <Button variant="outline" size="sm" onClick={createBoard} disabled={isSubmitting}>
                 Create a board

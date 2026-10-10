@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/helpers/cn";
 import { VirtuosoGrid } from 'react-virtuoso';
 import { EmptyState } from "@/components/ui/empty-state";
-import { ListSkeleton } from "@/components/ui/ListSkeleton";
+import { ErrorState } from "@/components/ui/error-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate, searchQuery}: {docList: DocInfoInterface[], onLoadMore?: ()=>void, hasMore?: boolean, isLoading?: boolean, onCreate?: ()=>void, /** What the list was searched for, if it was. */ searchQuery?: string}) => {
+export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, isError, onRetry, onCreate, searchQuery}: {docList: DocInfoInterface[], onLoadMore?: ()=>void, hasMore?: boolean, isLoading?: boolean, /** The first page failed to load. */ isError?: boolean, onRetry?: () => void, onCreate?: ()=>void, /** What the list was searched for, if it was. */ searchQuery?: string}) => {
 
     // Merge potential "Create Doc" card into the data list
     // We use a discriminated union type approach or just a mixed array
@@ -24,8 +25,16 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
     }, [docList, onCreate]);
 
 
+    // Loading draws the cards the list will draw, in the grid they will sit
+    // in: it was six text rows, 36px apart, that the card grid then replaced.
     if (isLoading && docList.length === 0) {
-        return <ListSkeleton rows={6} showAvatar={false} className="pt-6" />;
+        return <DocGridSkeleton withCreateCard={!!onCreate} />;
+    }
+
+    // A failed load says so where the cards would be, with a way to try
+    // again; it was the empty state, telling someone with docs they had none.
+    if (isError && docList.length === 0) {
+        return <ErrorState subject="these docs" onRetry={onRetry} className="pt-10" />;
     }
 
     // Nothing to show. A search that found nothing says so: this used to be
@@ -38,7 +47,7 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                 <EmptyState
                     illustration={<SpotSearch />}
                     title={`No documents match \u201c${query}\u201d.`}
-                    className="h-full"
+                    className="pt-10"
                 />
             )
         }
@@ -48,7 +57,9 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
                 tone="accent"
                 title="No documents yet"
                 description="Create your first document to get started."
-                className="h-full"
+                // Near the top, where the cards start, as on every other tab:
+                // centred in the page it sat 300px lower than the grid.
+                className="pt-10"
                 action={onCreate && (
                     <Button variant="outline" size="sm" onClick={onCreate} className="gap-1.5">
                         <Plus className="h-4 w-4" aria-hidden="true" /> New document
@@ -137,3 +148,35 @@ const ItemContainer = React.forwardRef(({ children, ...props }: any, ref) => (
   </div>
 ));
 ItemContainer.displayName = "ItemContainer";
+
+/** The list's own cards while the first page loads: the same grid, the same card. */
+export function DocGridSkeleton({ withCreateCard }: { withCreateCard: boolean }) {
+    return (
+        <div role="status" aria-label="Loading docs" className="w-full flex-1 min-h-0" data-doc-skeleton="">
+            <div className="flex w-full max-w-[1400px] flex-wrap mx-auto px-4 md:px-8 py-6" aria-hidden="true">
+                {Array.from({ length: withCreateCard ? 5 : 4 }).map((_, i) => (
+                    <div key={i} className="w-1/2 md:w-1/3 lg:w-1/4 xl:w-1/5 p-2">
+                        {withCreateCard && i === 0 ? (
+                            <div className="h-64 rounded-lg border border-dashed border-border md:h-72" />
+                        ) : (
+                            <div className="flex h-64 flex-col overflow-hidden rounded-lg border border-border md:h-72">
+                                <div className="flex-1 border-b border-border bg-muted/30 p-4">
+                                    <Skeleton className="h-2.5 w-11/12" />
+                                    <Skeleton className="mt-2 h-2.5 w-4/5" />
+                                    <Skeleton className="mt-2 h-2.5 w-3/5" />
+                                </div>
+                                <div className="flex h-16 items-center gap-2.5 px-3">
+                                    <Skeleton className="h-6 w-6 rounded-[10px]" />
+                                    <div className="min-w-0 flex-1 space-y-1.5">
+                                        <Skeleton className="h-3.5 w-3/5" />
+                                        <Skeleton className="h-3 w-12" />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}

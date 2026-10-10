@@ -85,3 +85,25 @@ describe("the docs tabs", () => {
     })
   }
 })
+
+describe("the docs list's frame on either tab", () => {
+  it("loads as the card grid it will be, not as text rows", () => {
+    render(<DocListResult docList={[]} isLoading onCreate={vi.fn()} />)
+    const skeleton = screen.getByRole("status", { name: "Loading docs" })
+    expect(skeleton.querySelector(".max-w-\\[1400px\\]")).toBeTruthy()
+    expect(skeleton.querySelectorAll(".h-64").length).toBeGreaterThan(3)
+  })
+
+  it("says a failed load failed, with Try again, where it said there were no docs", () => {
+    const onRetry = vi.fn()
+    render(<DocListResult docList={[]} isError onRetry={onRetry} onCreate={vi.fn()} />)
+    expect(screen.getByRole("heading", { name: /Couldn't load these docs/ })).toBeTruthy()
+    expect(screen.queryByText("No documents yet")).toBeNull()
+  })
+
+  it("puts its empty state near the top, where the cards start, not centred in the page", () => {
+    render(<DocListResult docList={[]} onCreate={vi.fn()} />)
+    const state = screen.getByRole("heading", { name: "No documents yet" }).closest("[class*='pt-10']")
+    expect(state).toBeTruthy()
+  })
+})

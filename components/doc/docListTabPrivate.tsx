@@ -25,7 +25,7 @@ export const DocListTabPrivate = ({searchQuery, onCreate}: {searchQuery: string,
 
     // Fetch data for the main list
     const endpoint = `${GetEndpointUrl.GetUserPrivateDocList}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
-    const { data: pageData, isLoading } = useFetch<DocInfoListInterfaceResp>(searchQuery.trim().length === 0 ? endpoint : "")
+    const { data: pageData, isLoading, isError, mutate } = useFetch<DocInfoListInterfaceResp>(searchQuery.trim().length === 0 ? endpoint : "")
 
     // Function to fetch search results
     const fetchSearchResults = async (query: string, page: number) => {
@@ -118,6 +118,8 @@ export const DocListTabPrivate = ({searchQuery, onCreate}: {searchQuery: string,
             onLoadMore={onLoadMore}
             hasMore={currentHasMore}
             isLoading={currentIsLoading}
+            isError={!searching && !!isError && allDocs.length === 0}
+            onRetry={() => void mutate()}
             onCreate={searchQuery.trim().length > 0 ? undefined : onCreate}
             searchQuery={searchQuery}
         />
