@@ -6,7 +6,7 @@
 // dead link stops it). A guest has no account, so their name lives in this
 // browser, per link.
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { AlertCircle, Loader2, Send } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -133,9 +133,18 @@ export function useGuestName(token: string) {
   return [name, setName] as const
 }
 
-/** Asks for the guest's name before they can write. */
+/**
+ * Asks for the guest's name before they can write. The cursor goes to it on a
+ * computer; on a phone it would pull the keyboard up over the page the guest
+ * came to read, so there it waits for a tap.
+ */
 export function GuestNameForm({ onName }: { onName: (name: string) => void }) {
   const [draft, setDraft] = useState("")
+  const box = useRef<HTMLInputElement>(null)
+  const id = useId()
+  useEffect(() => {
+    if (window.matchMedia?.("(pointer: fine)").matches) box.current?.focus()
+  }, [])
   return (
     <form
       onSubmit={(e) => {
@@ -144,9 +153,12 @@ export function GuestNameForm({ onName }: { onName: (name: string) => void }) {
       }}
       className="border-t p-3"
     >
-      <div className="mx-auto flex w-full max-w-3xl gap-2">
-        <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Your name, as the team will see it" aria-label="Your name" autoComplete="name" maxLength={GUEST_NAME_MAX} autoFocus />
-        <Button type="submit" disabled={!draft.trim()}>Continue</Button>
+      <div className="mx-auto grid w-full max-w-3xl gap-1.5">
+        <label htmlFor={id} className="text-xs text-muted-foreground">Your name, as the team will see it</label>
+        <div className="flex gap-2">
+          <Input ref={box} id={id} name="name" value={draft} onChange={(e) => setDraft(e.target.value)} autoComplete="name" maxLength={GUEST_NAME_MAX} />
+          <Button type="submit" disabled={!draft.trim()}>Continue</Button>
+        </div>
       </div>
     </form>
   )
@@ -159,7 +171,9 @@ export function GuestMessageView({ m }: { m: Pick<GuestChannelMessage, "author" 
         <span className="font-semibold">{m.author}</span>
         <time className="text-xs text-muted-foreground" dateTime={m.created_at} title={fullDateTime(new Date(m.created_at))}>{guestWhen(m.created_at)}</time>
       </p>
-      <p className="whitespace-pre-wrap break-words text-sm">{m.text}</p>
+      {/* A readable measure: the column is wide enough to run a line past
+          a hundred characters. */}
+      <p className="max-w-prose whitespace-pre-wrap break-words text-sm">{m.text}</p>
     </article>
   )
 }
@@ -208,7 +222,7 @@ export function GuestComposer({ placeholder, onSend, name, onRename, quiet = fal
       {name && onRename && (
         <p className="mx-auto mt-1 max-w-3xl text-xs text-muted-foreground">
           Posting as {name} (guest).{" "}
-          <button type="button" className="underline" onClick={onRename}>Change</button>
+          <button type="button" className="rounded-sm underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70" onClick={onRename}>Change</button>
         </p>
       )}
     </div>
@@ -294,7 +308,7 @@ export function GuestLoading() {
 export function GuestLinkGone({ detail = "It may have expired or been turned off. Ask the person who invited you for a new one." }: { detail?: string }) {
   return (
     <GuestCentered>
-      <AlertCircle className="h-8 w-8 text-muted-foreground" />
+      <AlertCircle className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
       <h1 className="text-base font-semibold">This link is no longer available</h1>
       <p className="max-w-sm text-sm text-muted-foreground">{detail}</p>
     </GuestCentered>
