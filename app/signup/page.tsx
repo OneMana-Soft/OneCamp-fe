@@ -19,7 +19,7 @@ import { landingPath } from "@/lib/landing"
 import { nameProblem } from "@/lib/validation/names"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { AuthDivider, AuthField, AuthHeading, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
+import { AuthDivider, AuthField, AuthHeading, AuthPlaceholder, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
 import { EnterpriseSSOButtons, OAuthButtons } from "@/components/auth/ProviderButtons"
 
 /** How long the page says who they are before opening the workspace. */
@@ -150,12 +150,7 @@ function SignupForm() {
   }
 
   if (isValidating) {
-    return (
-      <div role="status" className="flex items-center gap-3 text-sm text-muted-foreground">
-        <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-        Checking your invitation…
-      </div>
-    )
+    return <AuthPlaceholder label="Checking your invitation" fields={2} />
   }
 
   if (checkFailed) {

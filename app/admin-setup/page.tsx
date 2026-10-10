@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react"
 import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
 import { useRouter } from "next/navigation"
-import { AuthField, AuthHeading, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
+import { AuthField, AuthHeading, AuthPlaceholder, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
 
 export default function AdminSetupPage() {
   const [email, setEmail] = useState("")
@@ -92,10 +92,7 @@ export default function AdminSetupPage() {
   if (isChecking) {
     return (
       <AuthShell>
-        <div role="status" className="flex items-center gap-3 text-sm text-muted-foreground">
-          <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Checking this server…
-        </div>
+        <AuthPlaceholder label="Checking this server" fields={4} />
       </AuthShell>
     )
   }
