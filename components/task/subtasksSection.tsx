@@ -278,8 +278,8 @@ const SubtaskItem = React.memo(function SubtaskItem({
     return (
         <div
             className={cn(
-                "flex flex-wrap items-center gap-x-1 gap-y-1.5 p-1 py-1 rounded-lg hover:bg-primary/5",
-                isCompleted && "bg-primary/5",
+                "flex flex-wrap items-center gap-x-1 gap-y-1.5 p-1 py-1 rounded-lg hover:bg-muted/60",
+                isCompleted && "text-muted-foreground",
                 isAnimating && "animate-gradient-completion"
             )}
         >

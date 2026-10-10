@@ -14,4 +14,4 @@ export function fieldRow(align: "center" | "start" = "center", className?: strin
   )
 }
 
-export const fieldLabel = "whitespace-nowrap text-xs text-muted-foreground sm:text-foreground"
+export const fieldLabel = "whitespace-nowrap text-xs text-muted-foreground"

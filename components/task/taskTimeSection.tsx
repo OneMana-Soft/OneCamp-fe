@@ -1,4 +1,5 @@
 "use client"
+import { shortDate } from "@/lib/utils/date/shortDate"
 
 // The task panel's Time row: start or stop a timer on the task, add time by
 // hand, and see who spent how long. Anyone who can see the task can log time;
@@ -17,7 +18,7 @@ import { startTimer, stopTimer, useElapsed, useRunningTimer, useTaskTime, type S
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 import { localDay } from "@/lib/utils/timeZone"
 
-const shortDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+const shortDay = (iso: string) => shortDate(new Date(iso))
 
 export function TaskTimeSection({ taskUUID, estimateMinutes }: { taskUUID: string; estimateMinutes?: number }) {
   const { toast } = useToast()

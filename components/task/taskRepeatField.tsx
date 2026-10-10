@@ -99,10 +99,10 @@ export function TaskRepeatField({
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
-              className={cn("md:-ml-4 max-w-full justify-start font-normal", !current && "text-muted-foreground")}
+              className={cn("-ml-2 h-8 max-w-full justify-start px-2 font-normal", !current && "text-muted-foreground")}
               disabled={!isAdmin}
             >
-              <Repeat className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+              <Repeat className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
               <span className="truncate">{current ? describeRepeat(current) : "Doesn't repeat"}</span>
             </Button>
           </PopoverTrigger>

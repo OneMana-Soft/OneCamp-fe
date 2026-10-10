@@ -1074,7 +1074,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         <div className="min-w-0">
                             <Button
                                 variant="ghost"
-                                className="md:-ml-4 hover:underline font-normal max-w-full truncate"
+                                className="-ml-2 h-8 px-2 hover:underline font-normal max-w-full truncate"
                                 onClick={() => handleProjectClick(taskInfo.data?.data.task_project.project_uuid || "")}
                             >
                                 <ColorIcon size="xs" name={taskInfo.data?.data.task_project.project_uuid || ""} />
@@ -1089,7 +1089,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                         <div className="min-w-0">
                             <Button
                                 variant="ghost"
-                                className="md:-ml-4 hover:underline font-normal max-w-full truncate"
+                                className="-ml-2 h-8 px-2 hover:underline font-normal max-w-full truncate"
                                 onClick={() => handleTeamClick(taskInfo.data?.data.task_team.team_uuid || "")}
                             >
                                 <span className="truncate">{taskInfo.data?.data.task_team.team_name}</span>

@@ -52,14 +52,14 @@ export function TaskAssigneePicker({ isAdmin, label, members, assignee, onChange
             <div>
                 <span className={fieldLabel}>{label}</span>
             </div>
-            <div className="min-w-0 sm:-ml-0 md:-ml-4">
+            <div className="min-w-0 -ml-2">
                 <Popover open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild>
                         <Button
                             variant="ghost"
                             role="combobox"
                             aria-expanded={open}
-                            className="w-full max-w-[220px] justify-between font-normal h-10 bg-transparent group hover:bg-muted/40 transition-colors duration-150 px-4"
+                            className="w-full max-w-[220px] justify-between font-normal h-8 bg-transparent group hover:bg-muted/40 transition-colors duration-150 px-2"
                             disabled={!isAdmin}
                         >
                             <div className='flex text-sm font-medium gap-x-2 items-center truncate'>
