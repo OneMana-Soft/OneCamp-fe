@@ -54,3 +54,14 @@ describe("a field that needs fixing", () => {
     expect(sent.some((p) => p.endsWith("auth/admin-setup"))).toBe(false)
   })
 })
+
+describe("checking the server", () => {
+  it("holds the form's place, and says what it is doing", () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}))
+    const { container } = render(<AdminSetupPage />)
+    const waiting = screen.getByRole("status", { name: "Checking this server" })
+    expect(waiting.getAttribute("aria-busy")).toBe("true")
+    expect(container.querySelector(".animate-spin")).toBeNull()
+  })
+})
+

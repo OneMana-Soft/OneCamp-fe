@@ -17,6 +17,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Eye, EyeOff } from "@/lib/icons"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 
 export function AuthShell({
@@ -82,6 +83,40 @@ export function AuthHeading({ title, children, art }: { title: React.ReactNode; 
           "Join the" into one word. */}
       <h1 className="font-display text-2xl font-semibold text-balance">{title}</h1>
       {children && <div className="text-sm text-muted-foreground text-pretty">{children}</div>}
+    </div>
+  )
+}
+
+/**
+ * A page's place while it checks something before it can draw (a session, an
+ * invitation, whether the server needs an admin): its heading and form in
+ * outline, the same size as what follows, announced as `label`. Nothing in it
+ * reads as an action. It was a spinner beside a line of text, or nothing.
+ */
+export function AuthPlaceholder({ label, fields = 0, buttons = 1 }: { label: string; fields?: number; buttons?: number }) {
+  return (
+    <div role="status" aria-label={label} aria-busy="true">
+      <div aria-hidden="true">
+        {/* AuthHeading's shape: a 32px title over a line, 32px above the form. */}
+        <div className="mb-8 space-y-2">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-full max-w-64" />
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: fields }, (_, i) => (
+            // AuthField's shape: a 20px label line over the field.
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-5 w-24" />
+              <Skeleton className="h-11 w-full md:h-10" />
+            </div>
+          ))}
+          <div className="space-y-2">
+            {Array.from({ length: buttons }, (_, i) => (
+              <Skeleton key={i} className={authControl} />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

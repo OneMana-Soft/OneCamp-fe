@@ -185,3 +185,15 @@ describe("a field that needs fixing", () => {
   })
 })
 
+// While the link is checked, the page holds the form's place in outline, as the
+// sign-in page does; it was a spinner beside a line of text.
+describe("checking the invitation", () => {
+  it("holds the form's place, and says what it is doing", () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}))
+    const { container } = render(<SignupPage />)
+    const waiting = screen.getByRole("status", { name: "Checking your invitation" })
+    expect(waiting.getAttribute("aria-busy")).toBe("true")
+    expect(container.querySelector(".animate-spin")).toBeNull()
+  })
+})
+
