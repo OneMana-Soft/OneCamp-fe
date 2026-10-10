@@ -12,7 +12,7 @@
 
 import { LoaderCircle, Users } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { useCallback, useEffect, useState, Suspense } from "react"
+import { useCallback, useEffect, useRef, useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
 import { landingPath } from "@/lib/landing"
@@ -56,6 +56,9 @@ function SignupForm() {
   const [checkFailed, setCheckFailed] = useState(false)
   // Until /auth/providers answers, a password is the one way offered.
   const [providers, setProviders] = useState<Providers>({ email: true, google: false, github: false, oidc: false, saml: false, ldap: false })
+  // The field an error is about gets the cursor, so the fix starts there.
+  const nameRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
   // Joined: who they are now, and where they are going.
   const [joined, setJoined] = useState<{ name: string; handle: string; destination: string } | null>(null)
 
@@ -107,18 +110,21 @@ function SignupForm() {
     if (problem) {
       setError(problem)
       setErrorField("name")
+      nameRef.current?.focus()
       return
     }
 
     if (password.length < 8) {
       setError("Use at least 8 characters.")
       setErrorField("password")
+      passwordRef.current?.focus()
       return
     }
 
     if (password.length > 72) {
       setError("Use 72 characters or fewer.")
       setErrorField("password")
+      passwordRef.current?.focus()
       return
     }
 
@@ -237,6 +243,7 @@ function SignupForm() {
 
           <form onSubmit={handleSignup} className="space-y-4" noValidate>
             <AuthField
+              ref={nameRef}
               id="name"
               name="name"
               label="Your name"
@@ -251,6 +258,7 @@ function SignupForm() {
             />
 
             <PasswordField
+              ref={passwordRef}
               id="password"
               name="new-password"
               label="Password"
