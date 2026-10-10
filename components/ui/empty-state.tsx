@@ -1,6 +1,8 @@
 import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { LucideIcon } from "lucide-react";
+import type { CampHue } from "@/lib/campHue"
+import { Tile } from "@/components/ui/graphics/Tile"
 
 /**
  * Emphasis of an empty state. Not decoration — it answers "is this space empty
@@ -51,11 +53,18 @@ interface EmptyStateProps {
   descriptionClassName?: string
   /**
    * The title's heading level, so the empty state sits right in the page's
-   * outline: 2 when it is the page's main content under the page title, 3
-   * (the default, as before) inside a section, 4 inside a card in a section.
+   * outline: 1 when it is the whole page (an error page), 2 when it is the
+   * page's main content under the page title, 3 (the default, as before)
+   * inside a section, 4 inside a card in a section.
    */
-  headingLevel?: 2 | 3 | 4 | 5 | 6
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
   tone?: EmptyStateTone
+  /**
+   * A camp hue for the icon's tile (the playful layer: icons in empty states
+   * sit on a hued tint tile). Take the hue of the section the empty state is
+   * in, so a section keeps one colour. Without it the icon stands bare.
+   */
+  hue?: CampHue
 }
 
 export function EmptyState({
@@ -68,9 +77,10 @@ export function EmptyState({
   descriptionClassName,
   headingLevel = 3,
   tone = "muted",
+  hue,
 }: EmptyStateProps) {
   const accent = tone === "accent"
-  const Heading = `h${headingLevel}` as "h2" | "h3" | "h4" | "h5" | "h6"
+  const Heading = `h${headingLevel}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
   return (
     <div
       className={cn(
@@ -82,12 +92,11 @@ export function EmptyState({
         className
       )}
     >
-      {/* The icon stands on its own, in muted ink. It used to sit in a grey
-          circle (muted) or an orange tile (accent): an icon in a tinted chip
-          is the most recognisable shape of a templated UI, and the orange one
-          spent the accent on an illustration rather than on the action under
-          it (design direction: "never put an icon inside a tinted chip").
-          The accent tone is now carried by scale, not colour. */}
+      {/* In order: a spot illustration, sized by the tone; otherwise an icon
+          with a hue, on that hue's tint tile (the playful layer), in a camp
+          colour and never the accent, which belongs to the action under it;
+          otherwise the icon on its own, in muted ink, as after the calm pass
+          of 10 Oct. */}
       {illustration ? (
         <div
           aria-hidden="true"
@@ -96,14 +105,18 @@ export function EmptyState({
         >
           {illustration}
         </div>
-      ) : Icon && (
+      ) : Icon && hue ? (
+        <Tile hue={hue} size={accent ? "lg" : "md"}>
+          <Icon aria-hidden="true" data-empty-icon="" strokeWidth={1.5} />
+        </Tile>
+      ) : Icon ? (
         <Icon
           aria-hidden="true"
           data-empty-icon=""
           className={cn("shrink-0 text-muted-foreground", accent ? "size-7" : "size-5")}
           strokeWidth={1.5}
         />
-      )}
+      ) : null}
       <div className={cn("space-y-1", accent && "max-w-sm")}>
         <Heading className={cn("font-medium text-foreground text-balance", accent ? "text-base" : "text-sm")}>{title}</Heading>
         {description && (
