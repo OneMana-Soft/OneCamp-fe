@@ -17,6 +17,8 @@ const confirm = vi.fn<(o: ConfirmOpts) => void>()
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => confirm }))
 
 import { GuestLinkSection } from "./GuestLinkSection"
+import { GUEST_HUE } from "./guestUi"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
 
 describe("sharing a project with a client", () => {
   afterEach(() => cleanup())
@@ -62,5 +64,17 @@ describe("the links a resource already has", () => {
     expect(asked.destructive).toBe(true)
     await act(async () => asked.onConfirm())
     expect(turnOffGuestLink).toHaveBeenCalledWith("l1")
+  })
+})
+
+describe("the way in to sharing, in a share dialog", () => {
+  afterEach(() => cleanup())
+
+  it("puts its globe on a tile in the hue the shared page will wear", () => {
+    render(<GuestLinkSection resourceType="doc" resourceId="d1" canShare />)
+    const open = screen.getByRole("button", { name: /Create an external link/ })
+    const tile = open.querySelector(`span.${HUE_CLASS[GUEST_HUE]}`)
+    expect(tile).not.toBeNull()
+    expect(open.querySelector(".rounded-full")).toBeNull()
   })
 })

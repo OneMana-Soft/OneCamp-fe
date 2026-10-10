@@ -22,6 +22,8 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { Copy, Check, ExternalLink, Link2, Globe } from "@/lib/icons"
 import { createGuestLink, guestResourceLink, resourceGuestLinksKey, turnOffGuestLink, type GuestCapability, type GuestResourceType, type ResourceGuestLink } from "@/services/guestService"
 import { useFetch } from "@/hooks/useFetch"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { GUEST_HUE } from "@/components/guest/guestUi"
 import { formatDistanceToNow } from "date-fns"
 
 interface GuestLinkSectionProps {
@@ -152,11 +154,12 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex items-center gap-3 rounded-md p-2 -mx-2 text-left transition-colors hover:bg-muted/50"
+          className="flex items-center gap-3 rounded-md p-2 -mx-2 text-left transition-colors hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
         >
-          <div className="rounded-full bg-muted p-2 text-muted-foreground">
-            <Globe className="h-5 w-5" />
-          </div>
+          {/* In the hue the shared page will wear for its guests. */}
+          <Tile hue={GUEST_HUE} size="lg">
+            <Globe />
+          </Tile>
           <div className="flex flex-col">
             <span className="text-sm font-medium">{kind.title}</span>
             <span className="text-xs text-muted-foreground">{kind.blurb}</span>
