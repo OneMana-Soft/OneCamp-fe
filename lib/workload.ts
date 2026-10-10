@@ -97,6 +97,16 @@ export function formatLoad(load: number, measure: Measure): string {
 }
 
 /**
+ * What a week's cell says: its load, or, counting hours in a week whose tasks
+ * have no estimates yet, how many tasks there are. Unestimated work isn't no
+ * work, so "0h" would be wrong, and a lone dash said nothing at all.
+ */
+export function loadText(load: number, measure: Measure, tasks: number): string {
+  if (measure === "hours" && load === 0 && tasks > 0) return `${tasks} ${tasks === 1 ? "task" : "tasks"}`
+  return formatLoad(load, measure)
+}
+
+/**
  * The hours of a task's estimate in each week shown: the estimate spread
  * evenly over the working days it runs (over all its days when it runs only on
  * a weekend). Days before the first week shown are past; their share is gone.
@@ -277,7 +287,8 @@ export function cellLabel(row: WorkloadRow, week: number, when: string, measure:
   const count = row.loads[week] ?? 0
   const unit = (n: number) =>
     measure === "hours" ? `${formatLoad(n, measure).slice(0, -1)} ${n === 1 ? "hour" : "hours"}` : `${n} ${n === 1 ? "task" : "tasks"}`
-  const tasks = unit(count)
+  const listed = row.weeks[week]?.length ?? 0
+  const tasks = measure === "hours" && count === 0 && listed > 0 ? `${loadText(0, measure, listed)}, none estimated` : unit(count)
   const capacity = row.capacities[week] ?? null
   if (capacity === null) return `${who}, ${when}: ${tasks}`
   const days = row.awayDays[week] ?? 0

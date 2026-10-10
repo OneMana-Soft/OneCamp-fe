@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   UNASSIGNED,
   cellLabel,
+  loadText,
   formatLoad,
   hoursByWeek,
   isWorkloadKey,
@@ -257,6 +258,19 @@ describe("how full a week is", () => {
     const hours = { ...row, capacity: 40, capacities: [40, 40, 40, 24], loads: [42.5, 12, 0, 24] }
     expect(cellLabel(hours, 0, "this week", "hours")).toBe("Alice, this week: 42.5 hours, 2.5 over their 40")
     expect(cellLabel(hours, 1, "next week", "hours")).toBe("Alice, next week: 12 hours, room for 28 more")
+    // Tasks with no estimates are counted, not called "0 hours".
+    const t = { task_uuid: "x" } as WorkloadTask
+    expect(cellLabel({ ...hours, weeks: [[], [], [t, t, t]] }, 2, "19 Oct", "hours")).toBe("Alice, 19 Oct: 3 tasks, none estimated, room for 40 more")
+  })
+})
+
+describe("what a week's cell says", () => {
+  it("counts tasks that have no estimates instead of a dash or 0h", () => {
+    expect(loadText(0, "hours", 3)).toBe("3 tasks")
+    expect(loadText(0, "hours", 1)).toBe("1 task")
+    expect(loadText(2.5, "hours", 3)).toBe("2.5h")
+    expect(loadText(0, "hours", 0)).toBe("0h")
+    expect(loadText(4, "tasks", 4)).toBe("4")
   })
 })
 

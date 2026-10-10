@@ -27,6 +27,7 @@ import {
   cellLabel,
   formatLoad,
   loadOf,
+  loadText,
   weekLabel,
   weeksToNextWeek,
   workloadRows,
@@ -61,6 +62,13 @@ const METER: Record<Load, string> = {
   full: "bg-foreground/70",
   over: "bg-destructive",
 }
+
+/** Counting hours, a week whose tasks have no estimates: how many tasks, smaller, in the cell's own colour. */
+const Unestimated = ({ tasks }: { tasks: number }) => (
+  <span className="text-2xs font-normal" title={`${tasks} ${tasks === 1 ? "task" : "tasks"}, none estimated yet`}>
+    {loadText(0, "hours", tasks)}
+  </span>
+)
 
 /** A cell with nothing in it: blank to the eye, said to a screen reader. */
 const Empty = ({ title }: { title?: string }) => (
@@ -536,8 +544,8 @@ function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: Work
       meter={capacity === null ? null : { load, share: Math.min(1, value / Math.max(1, capacity)) }}
     >
       {load === "over" && <AlertTriangle aria-hidden className="h-3 w-3" />}
-      {/* Tasks with no estimate aren't no work: a dash, not "0h". */}
-      {measure === "hours" && value === 0 ? <span title="No estimates yet">–</span> : formatLoad(value, measure)}
+      {/* Tasks with no estimate aren't no work: their count, not "0h". */}
+      {measure === "hours" && value === 0 ? <Unestimated tasks={tasks.length} /> : formatLoad(value, measure)}
       {away > 0 && (
         <span aria-hidden className="absolute right-0.5 top-0 text-2xs font-normal text-muted-foreground">
           {away >= 5 ? "off" : `−${away}d`}
@@ -567,7 +575,7 @@ function OverdueCell({ row, weeks, ...rest }: CellProps & { weeks: Date[] }) {
       className="bg-destructive/10 font-medium text-danger-ink hover:bg-destructive/20"
       meter={null}
     >
-      {rest.measure === "hours" && row.overdueLoad === 0 ? <span title="No estimates yet">–</span> : formatLoad(row.overdueLoad, rest.measure)}
+      {rest.measure === "hours" && row.overdueLoad === 0 ? <Unestimated tasks={tasks.length} /> : formatLoad(row.overdueLoad, rest.measure)}
     </TasksPopover>
   )
 }
