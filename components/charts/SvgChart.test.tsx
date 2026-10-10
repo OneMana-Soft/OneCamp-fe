@@ -180,7 +180,7 @@ describe("SvgChart", () => {
         const [guide, left] = Array.from(container.querySelectorAll("path"))
         expect(guide.getAttribute("stroke")).toBe("var(--faint-foreground)")
         // The data series takes the first chart colour, as if the guide weren't there.
-        expect(left.getAttribute("stroke")).toBe("var(--info)")
+        expect(left.getAttribute("stroke")).toBe("var(--camp-sky)")
     })
 
     it("renders a placeholder message for an all-zero pie", () => {
