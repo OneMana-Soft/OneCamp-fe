@@ -412,13 +412,14 @@ type TimelineRow =
   | { kind: "task"; key: string; task: TimelineTask; span: Span }
 
 /**
- * A bar's fill: one neutral graphite step for every status, so a timeline of
- * twenty tasks is not twenty saturated blocks in five hues. The status is
- * carried by the dot beside the task's name and the mark at the bar's start
- * (barMark); finished work steps back to a fainter fill and muted name. Both
- * fills hold the name at well over 4.5:1 in light and dark.
+ * A bar's fill: the project's own colour (its camp hue, set once on the
+ * timeline as hue-*), the same for every status, so the project reads as
+ * itself and twenty tasks are not twenty blocks in five hues. Open work is the
+ * hue's tint, its ink name (5.9:1 or more) and a hairline of the strong cut;
+ * the status is the dot beside the name and the mark at the bar's start.
+ * Finished work steps back to a faint neutral fill and a muted name.
  */
-const BAR_OPEN = "bg-muted-foreground/25 text-foreground dark:bg-muted-foreground/35"
+const BAR_OPEN = "bg-hue-tint text-hue-ink ring-1 ring-inset ring-hue/40"
 const BAR_DONE = "bg-muted-foreground/10 text-muted-foreground"
 
 /** A built-in status's dot: the status tokens the task list's dots use (types/table). */

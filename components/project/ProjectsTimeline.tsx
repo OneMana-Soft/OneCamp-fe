@@ -12,6 +12,8 @@ import { healthOf } from "@/lib/projectUpdates"
 import { progressOf, type ProjectOverview } from "@/lib/projectsOverview"
 import { DAY_WIDTH, ZOOMS, barBox, offsetOf, spanLabel, spanOf, timelineRange, type Zoom } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
+import { hueFor } from "@/lib/campHue"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { app_project_path } from "@/types/paths"
 
 const ROW_HEIGHT = 40
@@ -67,7 +69,7 @@ export function ProjectsTimeline({ projects, compact = false }: { projects: Proj
               const box = span ? barBox(span, range, dayWidth) : null
               const label = [p.project_name, span ? spanLabel(span, today) : "no dated tasks yet", `${pct}% done`, health?.label].filter(Boolean).join(", ")
               return (
-                <div key={p.project_uuid} className="group absolute left-0 flex border-b border-border/50" style={{ top: i * ROW_HEIGHT, height: ROW_HEIGHT, width: nameWidth + gridWidth }}>
+                <div key={p.project_uuid} className={cn(HUE_CLASS[hueFor(p.project_uuid)], "group absolute left-0 flex border-b border-border/50")} style={{ top: i * ROW_HEIGHT, height: ROW_HEIGHT, width: nameWidth + gridWidth }}>
                   <div className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r bg-background px-3 group-hover:bg-muted" style={{ width: nameWidth }}>
                     <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", health?.dot ?? "bg-muted-foreground/40")} />
                     <Link href={timelineOf(p)} tabIndex={-1} className="truncate text-sm hover:underline" title={p.project_name}>
@@ -81,13 +83,15 @@ export function ProjectsTimeline({ projects, compact = false }: { projects: Proj
                           href={timelineOf(p)}
                           aria-label={label}
                           title={label}
-                          className="absolute top-3 h-4 overflow-hidden rounded-sm bg-muted-foreground/15 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                          className="absolute top-3 h-4 overflow-hidden rounded-sm bg-hue-tint ring-1 ring-inset ring-hue/30 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                           style={{ left: box.left, width: box.width }}
                         >
-                          {/* How much is done, in an ink step: progress is not the
-                              accent's job (DESIGN.md), and health has the dot by
-                              the name. Finished reads in the success token. */}
-                          <span aria-hidden className={cn("block h-full", pct === 100 ? "bg-success" : "bg-muted-foreground/60")} style={{ width: `${pct}%` }} />
+                          {/* The project's own colour, as on its board and its
+                              timeline: its tint for the span, its strong cut for
+                              how much is done. Progress is not the accent's job
+                              (DESIGN.md), and health has the dot by the name.
+                              Finished reads in the success token. */}
+                          <span aria-hidden className={cn("block h-full", pct === 100 ? "bg-success" : "bg-hue")} style={{ width: `${pct}%` }} />
                         </Link>
                         <span aria-hidden className="pointer-events-none absolute top-3 flex h-4 items-center text-xs tabular-nums text-muted-foreground" style={{ left: box.left + box.width + 6 }}>
                           {pct}%

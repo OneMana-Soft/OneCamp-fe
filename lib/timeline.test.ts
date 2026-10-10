@@ -249,8 +249,11 @@ describe("bar colours", () => {
     for (const c of STATUS_COLORS) {
       expect(dotColor({ task_status: "todo", task_custom_status: c }, options), c).toBe(`bg-${c}-500`)
     }
-    // A built-in status's bar is the same neutral as a custom one's.
+    // A built-in status's bar is the same fill as a custom one's: the project's
+    // own hue (set once on the timeline), its tint with its ink.
     expect(barColor({ task_status: "inProgress" }, statusOptions(null))).toBe([...fills][0])
+    expect([...fills][0]).toMatch(/bg-hue-tint/)
+    expect([...fills][0]).toMatch(/text-hue-ink/)
   })
 
   it("keep done work quiet without fading its name, and its dot in full colour", () => {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
 import { useDispatch } from "react-redux"
 import { TaskAssigneeCell } from "@/components/task/taskAssigneeCell"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { ErrorState } from "@/components/ui/error-state"
@@ -686,11 +687,15 @@ function TaskLine({
         >
           {t.task_name}
         </button>
-        <p className="truncate text-xs text-muted-foreground">
-          {t.project_name}
-          {t.parent_name && ` · in ${t.parent_name}`}
-          {span && ` · ${spanLabel(span, today)}`}
-          {!!t.task_estimate_minutes && ` · ${formatDuration(t.task_estimate_minutes * 60)}`}
+        <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          {/* The project in its own colour, as everywhere it shows. */}
+          <IdentityMark id={t.project_uuid} variant="square" size={8} />
+          <span className="truncate">
+            {t.project_name}
+            {t.parent_name && ` · in ${t.parent_name}`}
+            {span && ` · ${spanLabel(span, today)}`}
+            {!!t.task_estimate_minutes && ` · ${formatDuration(t.task_estimate_minutes * 60)}`}
+          </span>
         </p>
       </div>
       {t.can_edit && (

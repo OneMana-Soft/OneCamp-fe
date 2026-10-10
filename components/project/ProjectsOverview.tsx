@@ -35,6 +35,9 @@ import {
   type ProjectOverview,
 } from "@/lib/projectsOverview"
 import { cn } from "@/lib/utils/helpers/cn"
+import { hueFor } from "@/lib/campHue"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { projectGlanceParts } from "@/lib/utils/projectGlance"
 import { daysAgo } from "@/lib/utils/relativeTime"
 import { openUI } from "@/store/slice/uiSlice"
@@ -66,16 +69,18 @@ function Progress({ p, className }: { p: ProjectOverview; className?: string }) 
   if (p.open + p.done === 0) return null
   const pct = Math.round(progressOf(p) * 100)
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    // In the project's own colour: its tint for the track, its strong cut for
+    // what's done (never the accent), success once it's all done.
+    <div className={cn(HUE_CLASS[hueFor(p.project_uuid)], "flex items-center gap-2", className)}>
       <div
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}
         aria-label={`${p.project_name}: ${pct}% of tasks done`}
-        className="h-1.5 w-full min-w-16 overflow-hidden rounded-full bg-muted"
+        className="h-1.5 w-full min-w-16 overflow-hidden rounded-full bg-hue-tint"
       >
-        <div className={cn("h-full rounded-full", pct === 100 ? "bg-success" : "bg-foreground/70")} style={{ width: `${pct}%` }} />
+        <div className={cn("h-full rounded-full", pct === 100 ? "bg-success" : "bg-hue")} style={{ width: `${pct}%` }} />
       </div>
       <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{pct}%</span>
     </div>
@@ -106,7 +111,10 @@ function MobileRow({ p }: { p: ProjectOverview }) {
       <Link href={href(p)} className="block outline-none active:bg-muted focus-visible:bg-muted">
         <div className="px-4 py-3" {...longPress}>
           <div className="flex items-center justify-between gap-3">
-            <span className="truncate font-medium">{p.project_name}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <IdentityMark id={p.project_uuid} variant="square" />
+              <span className="truncate font-medium">{p.project_name}</span>
+            </span>
             {p.health && <HealthPill health={p.health} className="text-2xs" />}
           </div>
           <p className="mt-0.5 truncate text-xs">
@@ -227,10 +235,14 @@ export function ProjectsOverview() {
               }}
             >
               <td className="py-3 pr-4">
-                <Link href={href(p)} title={p.project_name} className="block truncate font-medium outline-none hover:underline focus-visible:underline">
-                  {p.project_name}
-                </Link>
-                {p.project_team?.team_name && <span className="block truncate text-xs text-muted-foreground">{p.project_team.team_name}</span>}
+                {/* The project's mark in its own colour, as in the sidebar and on its board. */}
+                <span className="flex min-w-0 items-center gap-2">
+                  <IdentityMark id={p.project_uuid} variant="square" />
+                  <Link href={href(p)} title={p.project_name} className="block truncate font-medium outline-none hover:underline focus-visible:underline">
+                    {p.project_name}
+                  </Link>
+                </span>
+                {p.project_team?.team_name && <span className="block truncate pl-[18px] text-xs text-muted-foreground">{p.project_team.team_name}</span>}
               </td>
               <td className="py-3 pr-4">
                 <Health p={p} />
