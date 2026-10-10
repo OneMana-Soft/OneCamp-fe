@@ -9,6 +9,11 @@ import { checkAuthCookieExists } from "@/lib/utils/helpers/getCookie"
 
 const MIN_SYNC_INTERVAL_MS = 5000
 
+// The shared demo account belongs to every visitor: a visitor's theme is not
+// saved to it (ThemeSync keeps it in their browser), or the next visitor would
+// open in it.
+const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
+
 /**
  * Watches for theme changes (color + mode) and syncs them to the backend.
  *
@@ -38,6 +43,8 @@ export function useThemeBackendSync() {
   useEffect(() => {
     // Skip while theme is still resolving from hydration
     if (theme === undefined) return
+
+    if (DEMO) return
 
     // Don't push theme writes from unauthenticated pages (login, signup,
     // forgot-password, etc.). Without this guard, an anonymous visit
