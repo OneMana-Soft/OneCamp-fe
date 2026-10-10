@@ -168,28 +168,37 @@ export interface AuditVerifyResult {
     first_bad_id?: string
     message: string
     /**
-     * Fields the SERVER HAS ALWAYS SENT and this file never declared.
-     *
-     * The audit model reports all three on both editions. Declaring none of them
-     * meant the two numbers that qualify a verification result — how much of the
-     * chain was actually walked, and how many rows were taken at their word after
-     * redaction — were dropped between the server and the screen. "The last 500
-     * entries verify", "the log has not been altered" and "I verified every row"
-     * are three different claims, and an auditor is entitled to know which one
-     * they are being given.
+     * True when only a WINDOW of the chain was recomputed. A window seeds from
+     * its earliest row's stored hash rather than from the first entry ever
+     * written, so it proves the links inside itself and takes that one value on
+     * trust: "the last 500 entries verify" and "the log has not been altered" are
+     * different claims and the UI must not blur them.
      */
-    /** True when only a WINDOW of the chain was recomputed, seeded from its first row's stored hash. */
     partial?: boolean
-    /** Where that window began, so a reader can see what was not covered. */
+    /** Where the window began, so a reader can see what was not covered. */
     from_seq?: number
-    /** How many rows had their content cleared by retention and so could not be recomputed from. */
+    /**
+     * How many rows had their content cleared by the retention policy and so
+     * could not be recomputed from it.
+     *
+     * The server has always sent this and nothing here declared it, so the one
+     * number that separates "I verified this row" from "I took this row's word
+     * for it" was dropped on the floor between the two. An auditor is entitled
+     * to both, which is why the server reports them separately.
+     */
     redacted?: number
 }
 
-// verifyAuditLog recomputes the server-side hash chain and reports whether the
-// log is provably unaltered (the tamper-evidence an auditor relies on).
-export async function verifyAuditLog(): Promise<AuditVerifyResult | null> {
-    const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}/verify`)
+/**
+ * Recompute the server-side hash chain.
+ *
+ * "recent" by default because the log only grows: a full walk is instant on a
+ * fresh install and a gateway timeout on a workspace that has been running a
+ * year, which is exactly when an auditor most wants the answer. "full" is the
+ * explicit, slower check, offered once the fast one has come back.
+ */
+export async function verifyAuditLog(scope: "recent" | "full" = "recent"): Promise<AuditVerifyResult | null> {
+    const res = await axiosInstance.get(`${GetEndpointUrl.GetAdminAuditLog}/verify`, { params: { scope } })
     return (res.data as { data?: AuditVerifyResult })?.data ?? null
 }
 
