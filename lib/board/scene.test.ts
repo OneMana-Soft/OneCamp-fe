@@ -1,5 +1,21 @@
 import { describe, expect, it, vi } from "vitest"
-import { whenSceneReady } from "./scene"
+import { sceneSignature, whenSceneReady } from "./scene"
+
+describe("sceneSignature", () => {
+  const scene = [
+    { id: "a", version: 3, versionNonce: 11 },
+    { id: "b", version: 1, versionNonce: 7 },
+  ]
+  it("is the same for the same scene, so a pan sends nothing", () => {
+    expect(sceneSignature(scene)).toBe(sceneSignature(scene.map((e) => ({ ...e }))))
+  })
+  it("changes when an element changes, is deleted, or is added", () => {
+    const base = sceneSignature(scene)
+    expect(sceneSignature([{ ...scene[0], version: 4, versionNonce: 99 }, scene[1]])).not.toBe(base)
+    expect(sceneSignature([...scene, { id: "c", version: 1, versionNonce: 1 }])).not.toBe(base)
+    expect(sceneSignature([scene[0], { ...scene[1], version: 2, versionNonce: 5 }])).not.toBe(base)
+  })
+})
 
 describe("whenSceneReady", () => {
   it("waits, frame by frame, until the scene has loaded, then calls once", () => {

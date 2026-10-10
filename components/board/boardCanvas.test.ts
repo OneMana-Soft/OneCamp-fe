@@ -14,4 +14,12 @@ describe("the board canvas", () => {
     expect(src).toMatch(/if \(!api \|\| !synced \|\| !sceneReady\) return/)
     expect(src).toMatch(/if \(!api \|\| !sceneReady \|\| viewportRestoredRef\.current\) return/)
   })
+
+  it("sends nothing, and schedules no thumbnail, for a pan or a zoom", () => {
+    const change = src.slice(src.indexOf("const handleChange = React.useCallback("))
+    const skip = change.indexOf("if (signature === lastSignatureRef.current) return")
+    expect(skip).toBeGreaterThan(0)
+    expect(change.indexOf("yDoc.transact(() => {\n        for (const el of allEls)")).toBeGreaterThan(skip)
+    expect(change.indexOf("scheduleThumbnail()")).toBeGreaterThan(skip)
+  })
 })

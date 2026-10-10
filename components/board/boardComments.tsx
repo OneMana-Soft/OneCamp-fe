@@ -114,7 +114,10 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
 
   const [comments, setComments] = React.useState<BoardComment[]>([])
   const [openId, setOpenId] = React.useState<string | null>(null)
-  const view = useBoardView(api)
+  const [draft, setDraft] = React.useState<{ x: number; y: number } | null>(null)
+  // Where the board is looking, only while there is something to place on
+  // it: pins, an open thread, a draft, or a click to place a new one.
+  const view = useBoardView(api, comments.length > 0 || commentMode || !!openId || !!draft)
   const overlayRef = React.useRef<HTMLDivElement | null>(null)
 
   // Subscribe to the shared comments map.
@@ -221,8 +224,6 @@ function BoardComments({ provider, api, user, boardId, editable, commentMode, on
     // Open a draft pin composer at this location.
     setDraft({ x: scene.x, y: scene.y })
   }
-
-  const [draft, setDraft] = React.useState<{ x: number; y: number } | null>(null)
 
   // Escape exits comment-placement mode / closes an open thread or draft, so
   // the user is never stuck in comment mode.
