@@ -1,21 +1,48 @@
 "use client"
 
+/**
+ * GitHubIntegrationCard: connect GitHub, link repositories to projects, and
+ * choose what their events do to tasks.
+ *
+ * A settings section like its neighbours on the Integrations tab; it used to
+ * be a full-height scroll box between two sections that aren't. Not
+ * connected, it shows the connections plug with one way to connect, and when
+ * the server has no GitHub app yet, Connect opens the credentials instead of
+ * telling the administrator to ask their system administrator.
+ *
+ * An import's progress is followed only while the section is on screen: the
+ * poll used to run on for up to three minutes after it was gone.
+ */
+
 import { eyebrowClass } from "@/components/ui/eyebrow"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useDispatch } from "react-redux"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { GitBranch, Link2, Unlink, RefreshCw, Download, CheckCircle2, Github, Search, Settings2, AlertTriangle, GitPullRequest } from "@/lib/icons";
-import { ExternalLink, Plug, PlugZap, Workflow } from "lucide-react";
+import { SpotPlug } from "@/components/ui/graphics"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import {
+  AlertTriangle,
+  Download,
+  ExternalLink,
+  GitBranch,
+  GitPullRequest,
+  Github,
+  Link2,
+  RefreshCw,
+  Search,
+  Settings2,
+  Unlink,
+  Workflow,
+} from "@/lib/icons"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
@@ -67,6 +94,53 @@ interface GitHubRepo {
   full_name: string; owner: string; name: string; description: string; private: boolean; html_url: string
 }
 
+const DEFAULT_BRANCH_FORMAT = "feature/{taskId}-{slug}"
+
+const RULE_GROUPS: { section: string; items: { key: keyof AutomationRules; label: string; desc: string }[] }[] = [
+  { section: "Issues", items: [
+    { key: "issue_opened", label: "Issue opened", desc: "When an issue is opened" },
+    { key: "issue_closed", label: "Issue closed", desc: "When an issue is closed" },
+    { key: "issue_reopened", label: "Issue reopened", desc: "When an issue is reopened" },
+  ]},
+  { section: "Pull requests", items: [
+    { key: "pr_drafted", label: "PR drafted", desc: "When a PR is converted to a draft" },
+    { key: "pr_opened", label: "PR opened", desc: "When a PR is opened, not as a draft" },
+    { key: "review_requested", label: "Review requested", desc: "When a review is requested" },
+    { key: "changes_requested", label: "Changes requested", desc: "When a reviewer asks for changes" },
+    { key: "approved", label: "PR approved", desc: "When a PR is approved" },
+    { key: "pr_merged", label: "PR merged", desc: "When a PR is merged" },
+    { key: "pr_closed_without_merge", label: "PR closed, not merged", desc: "When a PR is closed without merging" },
+  ]},
+  { section: "Commits", items: [
+    { key: "commit_linked", label: "Commit linked", desc: "When a commit message says it fixes or closes a task" },
+  ]},
+]
+
+/** What a linked repository does, as one quiet line. Pure. */
+export function linkSummary(link: Pick<GitHubLink, "sync_issues" | "sync_prs" | "auto_create_tasks">, projectName: string): string {
+  const syncs =
+    link.sync_issues && link.sync_prs
+      ? "Issues and PRs sync"
+      : link.sync_issues
+        ? "Issues sync"
+        : link.sync_prs
+          ? "PRs sync"
+          : "Nothing syncs"
+  return [projectName, syncs, link.auto_create_tasks ? "New ones become tasks" : ""].filter(Boolean).join(" · ")
+}
+
+const safeParseAutomationRules = (rules?: AutomationRules | string): AutomationRules | undefined => {
+  if (!rules) return undefined
+  if (typeof rules === "string") {
+    try {
+      return JSON.parse(rules) as AutomationRules
+    } catch {
+      return undefined
+    }
+  }
+  return rules
+}
+
 const GitHubIntegrationCard = () => {
   const dispatch = useDispatch()
   const { data: statusData, isLoading, isError, mutate } = useFetch<GitHubStatusResp>(GetEndpointUrl.GetGitHubStatus)
@@ -80,18 +154,29 @@ const GitHubIntegrationCard = () => {
   const [showRepoDialog, setShowRepoDialog] = useState(false)
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [reposLoading, setReposLoading] = useState(false)
+  const [reposFailed, setReposFailed] = useState(false)
   const [importingIssuesLink, setImportingIssuesLink] = useState<string | null>(null)
   const [importingPRsLink, setImportingPRsLink] = useState<string | null>(null)
   const [linkingRepo, setLinkingRepo] = useState<string | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<string>("")
+  const [projectError, setProjectError] = useState("")
+  const projectRef = useRef<HTMLButtonElement>(null)
   const [syncIssues, setSyncIssues] = useState(true)
   const [syncPRs, setSyncPRs] = useState(true)
   const [autoCreateTasks, setAutoCreateTasks] = useState(false)
   const [repoSearch, setRepoSearch] = useState("")
   const [showSettingsLinkId, setShowSettingsLinkId] = useState<string | null>(null)
-  const [savingSettings, setSavingSettings] = useState(false)
   const [showConfigDialog, setShowConfigDialog] = useState(false)
+  const [configReason, setConfigReason] = useState<string | undefined>()
 
+  // False once the section is gone, so an import's poll stops with it.
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
+  }, [])
 
   const status = statusData?.status
   const isConnected = status?.connected || false
@@ -117,6 +202,11 @@ const GitHubIntegrationCard = () => {
     return map
   }, [projects])
 
+  const openCredentials = (reason?: string) => {
+    setConfigReason(reason)
+    setShowConfigDialog(true)
+  }
+
   const handleConnect = async () => {
     try {
       const res = await post.makeRequest<any, { auth_url: string }>({
@@ -125,29 +215,43 @@ const GitHubIntegrationCard = () => {
       })
       const authUrl = res?.auth_url
       if (authUrl) window.location.href = authUrl
-      else toast({ title: "Not Configured", description: "GitHub integration is not configured. Please contact your system administrator.", variant: "destructive" })
+      // No GitHub app on this server yet. The credentials are one dialog
+      // away, so open it rather than send the admin to "your administrator".
+      else openCredentials("GitHub needs an OAuth app before it can connect. Add its client ID and secret, then connect.")
     } catch {}
   }
 
-  const handleFetchRepos = async () => {
-    setShowRepoDialog(true)
+  const loadRepos = async () => {
     setReposLoading(true)
-    setSelectedProjectId("")
-    setRepoSearch("")
-    setSyncIssues(true); setSyncPRs(true); setAutoCreateTasks(false)
+    setReposFailed(false)
     try {
       const res = await post.makeRequest<any, { repos: GitHubRepo[] }>({
         method: "GET",
         apiEndpoint: GetEndpointUrl.GetGitHubRepos as any,
       })
       setRepos(res?.repos || [])
-    } catch { setRepos([]) }
-    finally { setReposLoading(false) }
+    } catch {
+      // Not "No repositories found": the list is unknown, not empty.
+      setRepos([])
+      setReposFailed(true)
+    } finally {
+      setReposLoading(false)
+    }
+  }
+
+  const handleFetchRepos = () => {
+    setShowRepoDialog(true)
+    setSelectedProjectId("")
+    setProjectError("")
+    setRepoSearch("")
+    setSyncIssues(true); setSyncPRs(true); setAutoCreateTasks(false)
+    void loadRepos()
   }
 
   const handleLinkRepo = async (repo: GitHubRepo) => {
     if (!selectedProjectId) {
-      toast({ title: "Project Required", description: "Please select a project to link this repository to.", variant: "destructive" })
+      setProjectError("Choose the project first.")
+      projectRef.current?.focus()
       return
     }
     setLinkingRepo(repo.full_name)
@@ -157,7 +261,7 @@ const GitHubIntegrationCard = () => {
         payload: { project_id: selectedProjectId, repo_owner: repo.owner, repo_name: repo.name, sync_issues: syncIssues, sync_prs: syncPRs, auto_create_tasks: autoCreateTasks },
         showToast: true,
       })
-      toast({ title: "Webhook Registered", description: `Webhook has been registered on ${repo.full_name}. Events will be delivered automatically.` })
+      toast({ title: "Repository linked", description: `GitHub now sends ${repo.full_name}'s events here.` })
       setShowRepoDialog(false)
       mutate()
     } catch {} finally { setLinkingRepo(null) }
@@ -167,10 +271,11 @@ const GitHubIntegrationCard = () => {
   // We use a fixed 1.5s cadence and cap the wait at ~3 minutes; the
   // background worker drains far quicker than that for typical
   // repositories. On a hard cap timeout we tell the user the job is
-  // still running and surface the job id so they can check later.
+  // still running. Stops at once when the section goes away.
   const pollImportJob = async (jobId: string, kind: "issues" | "PRs"): Promise<void> => {
     const maxAttempts = 120 // 120 * 1500ms = 3 minutes
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (!alive.current) return
       try {
         const res = await axiosInstance.get(`${GetEndpointUrl.GetGitHubImportJob}/${jobId}`)
         const job = res.data?.job
@@ -181,12 +286,12 @@ const GitHubIntegrationCard = () => {
           const parts = [`${imported} ${kind} imported`]
           if (skipped > 0) parts.push(`${skipped} skipped`)
           if (failed > 0) parts.push(`${failed} failed`)
-          toast({ title: "Import complete", description: parts.join(" · ") })
+          toast({ title: "Import finished", description: parts.join(" · ") })
           return
         }
         if (job?.Status === "failed" || job?.status === "failed") {
-          const errMsg = job.ErrorMessage ?? job.error_message ?? "import failed"
-          toast({ title: "Import failed", description: errMsg, variant: "destructive" })
+          const errMsg = job.ErrorMessage ?? job.error_message ?? "Try again in a moment."
+          toast({ title: `Couldn't import the ${kind}`, description: errMsg, variant: "destructive" })
           return
         }
       } catch {
@@ -194,473 +299,436 @@ const GitHubIntegrationCard = () => {
       }
       await new Promise(r => setTimeout(r, 1500))
     }
+    if (!alive.current) return
     toast({
       title: "Import still running",
-      description: "The import is taking longer than expected. It will continue in the background.",
+      description: "It is taking longer than usual and carries on in the background.",
     })
   }
 
-  const handleImportIssues = async (linkId: string) => {
-    setImportingIssuesLink(linkId)
+  const handleImport = async (link: GitHubLink, kind: "issues" | "PRs") => {
+    const setBusy = kind === "issues" ? setImportingIssuesLink : setImportingPRsLink
+    setBusy(link.id)
     try {
       const res = await post.makeRequest<any, { job_id: string }>({
-        apiEndpoint: PostEndpointUrl.GitHubImportIssues,
-        appendToUrl: `/${linkId}`,
+        apiEndpoint: kind === "issues" ? PostEndpointUrl.GitHubImportIssues : PostEndpointUrl.GitHubImportPRs,
+        appendToUrl: `/${link.id}`,
         showErrorToast: true,
       })
       const jobId = res?.job_id
-      if (!jobId) {
-        toast({ title: "Import scheduled", description: "Import will run in the background." })
-        return
-      }
-      toast({ title: "Import scheduled", description: "Importing issues: this may take a moment." })
-      await pollImportJob(jobId, "issues")
-    } catch {} finally { setImportingIssuesLink(null) }
-  }
-
-  const handleImportPRs = async (linkId: string) => {
-    setImportingPRsLink(linkId)
-    try {
-      const res = await post.makeRequest<any, { job_id: string }>({
-        apiEndpoint: PostEndpointUrl.GitHubImportPRs,
-        appendToUrl: `/${linkId}`,
-        showErrorToast: true,
+      toast({
+        title: `Importing ${kind} from ${link.repo_owner}/${link.repo_name}`,
+        description: jobId ? "This can take a moment." : "It runs in the background.",
       })
-      const jobId = res?.job_id
-      if (!jobId) {
-        toast({ title: "Import scheduled", description: "Import will run in the background." })
-        return
-      }
-      toast({ title: "Import scheduled", description: "Importing PRs: this may take a moment." })
-      await pollImportJob(jobId, "PRs")
-    } catch {} finally { setImportingPRsLink(null) }
-  }
-
-  const getProjectName = (projectId: string) => projectNameMap.get(projectId) || "Unknown Project"
-
-  const safeParseAutomationRules = (rules?: AutomationRules | string): AutomationRules | undefined => {
-    if (!rules) return undefined
-    if (typeof rules === 'string') {
-      try {
-        return JSON.parse(rules) as AutomationRules
-      } catch {
-        return undefined
-      }
+      if (jobId) await pollImportJob(jobId, kind)
+    } catch {} finally {
+      if (alive.current) setBusy(null)
     }
-    return rules
   }
+
+  const getProjectName = (projectId: string) => projectNameMap.get(projectId) || "Unknown project"
 
   const filteredRepos = useMemo(() => {
     if (!repoSearch.trim()) return repos;
     const lowerSearch = repoSearch.toLowerCase();
-    return repos.filter(repo => 
-      repo.full_name.toLowerCase().includes(lowerSearch) || 
+    return repos.filter(repo =>
+      repo.full_name.toLowerCase().includes(lowerSearch) ||
       (repo.description && repo.description.toLowerCase().includes(lowerSearch))
     );
   }, [repos, repoSearch]);
 
+  const linkRepoButton = (
+    <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleFetchRepos}>
+      <Link2 className="h-3.5 w-3.5" aria-hidden="true" />Link a repository
+    </Button>
+  )
+
+  const settingsLink = linkedRepos.find(l => l.id === showSettingsLinkId)
+
   return (
-    <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-6 flex-shrink-0">
-        <div className="flex items-center gap-2 mb-1">
-          <CardTitle className="text-base font-semibold">GitHub</CardTitle>
+    <SettingsSection
+      title={
+        <span className="flex items-center gap-2.5">
+          <Tile hue={ADMIN_GROUP_HUE.connections} size="md"><Github /></Tile>
+          GitHub
+        </span>
+      }
+      description="Link repositories to projects, so issues and pull requests stay in step with their tasks and branches."
+    >
+      {isLoading ? (
+        <div role="status" aria-label="Loading the GitHub connection" className="rounded-lg border border-border px-4 py-3">
+          <SkeletonRows rows={2} avatar={false} />
         </div>
-        <CardDescription className="text-sm text-muted-foreground">Connect external services for bidirectional sync. Link GitHub repositories to sync issues, PRs, and branches with your tasks.</CardDescription>
-      </CardHeader>
-
-      <CardContent className="px-0 flex-1 overflow-y-auto pr-4 custom-scrollbar pb-10 min-h-0">
-        {isLoading ? (
-          <div className="text-sm text-muted-foreground animate-pulse">Loading integration status…</div>
-        ) : (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="bg-gray-900 dark:bg-gray-100 p-2.5 rounded-xl shrink-0"><Github className="h-5 w-5 text-white dark:text-gray-900" /></div>
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-sm">GitHub</h3>
-                  <p className="text-xs text-muted-foreground truncate">Sync issues, PRs, and branches with OneCamp tasks</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap shrink-0">
-                {isConnected ? (
-                  <>
-                    <Badge className="gap-1 bg-success/10 text-success-ink border-success/20"><CheckCircle2 className="h-3 w-3" />Connected</Badge>
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={handleFetchRepos}><Link2 className="h-3.5 w-3.5" />Link Repo</Button>
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowConfigDialog(true)}><Settings2 className="h-3.5 w-3.5" />Credentials</Button>
-                    <Button variant="outline" size="sm" className="gap-1.5 text-danger-ink hover:text-danger-ink" onClick={() => dispatch(openUI({ key: "githubDisconnect", data: { repoCount: linkedRepos.length } }))}>
-                      <Unlink className="h-3.5 w-3.5" />Disconnect
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowConfigDialog(true)}><Settings2 className="h-3.5 w-3.5" />Credentials</Button>
-                    <Button size="sm" className="gap-1.5" onClick={handleConnect}><Plug className="h-3.5 w-3.5" />Connect GitHub</Button>
-                  </>
-                )}
-              </div>
+      ) : isError ? (
+        <ErrorState subject="the GitHub connection status" onRetry={() => void mutate()} />
+      ) : !isConnected ? (
+        // After the failure branch: isConnected is `status?.connected || false`,
+        // so a failed fetch would otherwise read as "not connected" and offer a
+        // Connect that starts a redundant OAuth flow.
+        <EmptyState
+          illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
+          title="GitHub isn't connected"
+          description="Connect it to keep issues and pull requests in step with tasks, both ways."
+          className="py-6"
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => void handleConnect()}>
+                <Github className="h-3.5 w-3.5" aria-hidden="true" />Connect GitHub
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => openCredentials()}>
+                <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />Credentials
+              </Button>
             </div>
-
-            {isConnected && rateLimitData?.connected && (rateLimitData.percent || 100) < 20 && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-warning/10 border border-warning/20 text-warning-ink">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <div className="text-xs">
-                  <span className="font-medium">GitHub API rate limit low:</span> {rateLimitData.remaining} / {rateLimitData.limit} requests remaining. Sync operations may fail until the limit resets.
-                </div>
-              </div>
-            )}
-
-            {isConnected && linkedRepos.length > 0 && (
-              <>
-                <Separator />
-                <div>
-                  <h4 className={cn(eyebrowClass, "mb-3")}>Linked Repositories</h4>
-                  <div className="space-y-3">
-                    {linkedRepos.map(link => (
-                      <div key={link.id} className="border border-border/50 rounded-lg bg-card/50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Github className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <a href={`https://github.com/${link.repo_owner}/${link.repo_name}`} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:underline flex items-center gap-1 truncate">{link.repo_owner}/{link.repo_name}<ExternalLink className="h-3 w-3 shrink-0" /></a>
-                              <Badge variant="outline" className="text-2xs">{getProjectName(link.project_id)}</Badge>
-                            </div>
-                            <div className="flex gap-2 mt-1 flex-wrap">
-                              {link.sync_issues && <Badge variant="outline" className="text-2xs">Issues</Badge>}
-                              {link.sync_prs && <Badge variant="outline" className="text-2xs">PRs</Badge>}
-                              {link.auto_create_tasks && <Badge variant="secondary" className="text-2xs">Auto-create tasks</Badge>}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 flex-wrap shrink-0">
-                          <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7" onClick={() => handleImportIssues(link.id)} disabled={importingIssuesLink === link.id || importingPRsLink === link.id}>
-                            {importingIssuesLink === link.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}Import Issues
-                          </Button>
-                          <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7" onClick={() => handleImportPRs(link.id)} disabled={importingIssuesLink === link.id || importingPRsLink === link.id}>
-                            {importingPRsLink === link.id ? <RefreshCw className="h-3 w-3 animate-spin" /> : <GitPullRequest className="h-3 w-3" />}Import PRs
-                          </Button>
-                          <Button aria-label="Link settings" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowSettingsLinkId(link.id)}>
-                            <Settings2 className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button aria-label="Unlink repository" variant="ghost" size="icon" className="h-7 w-7 text-danger-ink hover:text-danger-ink"
-                            onClick={() => dispatch(openUI({ key: "githubUnlink", data: { id: link.id, repo_owner: link.repo_owner, repo_name: link.repo_name } }))}>
-                            <Unlink className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Webhook delivery health — only meaningful once we're
-                 connected and have at least one linked repo (no repos
-                 means no webhooks were registered). */}
-            {isConnected && linkedRepos.length > 0 && (
-              <>
-                <Separator />
-                <GitHubWebhookHealth />
-              </>
-            )}
-
-            {!isError && isConnected && linkedRepos.length === 0 && (
-              <>
-                <Separator />
-                <EmptyState
-                  tone="accent"
-                  icon={PlugZap}
-                  title="No repositories linked yet"
-                  description="Link a GitHub repository to start syncing issues and PRs."
-                  action={
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={handleFetchRepos}>
-                      <Link2 className="h-3.5 w-3.5" />Link Repository
-                    </Button>
-                  }
-                />
-              </>
-            )}
-
-            {isError && (
-              <ErrorState subject="the GitHub connection status" onRetry={() => void mutate()} />
-            )}
-            {/* !isError as well: isConnected is `status?.connected || false`, so a
-                failed fetch reads as disconnected. Without this the card would
-                claim GitHub is not connected — and offer a Connect button that
-                starts a redundant OAuth flow — when the status request merely
-                failed. Sequential blocks, so ordering alone is not enough. */}
-            {!isError && !isConnected && (
-              <EmptyState
-                tone="accent"
-                icon={Github}
-                title="GitHub not connected"
-                description="Connect your GitHub account to enable bidirectional sync between issues, pull requests, and OneCamp tasks."
-                className="rounded-lg border border-dashed border-border/50"
-                action={
-                  <Button className="gap-2" onClick={handleConnect}>
-                    <Github className="h-4 w-4" />Connect GitHub
-                  </Button>
-                }
-              />
-            )}
+          }
+        />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Words, like the sign-in providers on this tab. */}
+            <p className="text-sm font-medium text-success-ink">Connected</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {linkedRepos.length > 0 && linkRepoButton}
+              <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => openCredentials()}>
+                <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />Credentials
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-danger-ink hover:text-danger-ink" onClick={() => dispatch(openUI({ key: "githubDisconnect", data: { repoCount: linkedRepos.length } }))}>
+                <Unlink className="h-3.5 w-3.5" aria-hidden="true" />Disconnect
+              </Button>
+            </div>
           </div>
-        )}
 
-        <Dialog open={showRepoDialog} onOpenChange={setShowRepoDialog}>
-          <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden p-0 bg-background">
-            <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
-              <DialogTitle>Link a Repository</DialogTitle>
-            </DialogHeader>
-            <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4 custom-scrollbar">
+          {rateLimitData?.connected && (rateLimitData.percent || 100) < 20 && (
+            <div className="flex items-start gap-2 rounded-lg border border-warning/20 bg-warning/10 p-3 text-warning-ink" role="status">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p className="text-xs">
+                <span className="font-medium">GitHub&apos;s request limit is nearly used up:</span>{" "}
+                {rateLimitData.remaining} of {rateLimitData.limit} left. Syncing may fail until it resets.
+              </p>
+            </div>
+          )}
+
+          {linkedRepos.length === 0 ? (
+            <EmptyState
+              icon={Link2}
+              hue={ADMIN_GROUP_HUE.connections}
+              title="No repositories linked yet"
+              description="Link one to a project to start syncing its issues and pull requests."
+              className="py-6"
+              action={linkRepoButton}
+            />
+          ) : (
+            <>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Target Project *</label>
-                <Select value={selectedProjectId} onValueChange={setSelectedProjectId} disabled={projectsLoading}>
-                  <SelectTrigger>
-                    {projectsLoading ? <span className="text-muted-foreground animate-pulse">Loading projects…</span> : <SelectValue placeholder="Select a project…" />}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.length === 0 && !projectsLoading ? (
-                      <div className="text-sm text-muted-foreground px-2 py-4 text-center">No projects available</div>
-                    ) : (
-                      projects.map(p => <SelectItem key={p.project_uuid} value={p.project_uuid}>{p.project_name}</SelectItem>)
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-2xs text-muted-foreground">GitHub issues and PRs will create tasks in this project.</p>
-              </div>
-              <Separator />
-              <div className="space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Label className="text-sm font-semibold">Sync Issue Updates</Label>
-                    <p className="text-2xs text-muted-foreground mt-0.5">Keep linked tasks up-to-date with GitHub issue changes (status, assignees, labels).</p>
-                  </div>
-                  <Switch 
-                    checked={syncIssues} 
-                    onCheckedChange={(checked) => {
-                      setSyncIssues(checked);
-                      if (!checked && !syncPRs) setAutoCreateTasks(false);
-                    }} 
-                  />
-                </div>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <Label className="text-sm font-semibold">Sync PR Updates</Label>
-                    <p className="text-2xs text-muted-foreground mt-0.5">Keep linked tasks up-to-date with GitHub pull request changes (merges, closures).</p>
-                  </div>
-                  <Switch 
-                    checked={syncPRs} 
-                    onCheckedChange={(checked) => {
-                      setSyncPRs(checked);
-                      if (!checked && !syncIssues) setAutoCreateTasks(false);
-                    }} 
-                  />
-                </div>
-                <div className="flex items-start justify-between gap-4">
-                  <div className={(!syncIssues && !syncPRs) ? "opacity-50" : ""}>
-                    <Label className="text-sm font-semibold">Auto-create Tasks</Label>
-                    <p className="text-2xs text-muted-foreground mt-0.5">Automatically create a new OneCamp task when a new issue or PR is opened in GitHub.</p>
-                  </div>
-                  <Switch 
-                    checked={autoCreateTasks} 
-                    onCheckedChange={setAutoCreateTasks} 
-                    disabled={!syncIssues && !syncPRs}
-                  />
-                </div>
-              </div>
-              <Separator />
-              <div className="space-y-3 flex-1 min-h-0 flex flex-col">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  {/* Was a raw <input> carrying a hand-copied replica of the Input
-                      primitive's class string — including the shadow the primitive
-                      no longer has, so it re-floated itself. Using the component
-                      means it tracks the design system instead of a stale copy. */}
-                  <Input
-                    type="text"
-                    placeholder="Search repositories…"
-                    value={repoSearch}
-                    onChange={(e) => setRepoSearch(e.target.value)}
-                    disabled={!selectedProjectId || reposLoading || repos.length === 0}
-                    className="pl-9"
-                  />
-                </div>
-                <div className="space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-1">
-                  {!selectedProjectId ? <div className="text-sm text-muted-foreground text-center py-8">Select a project above first.</div> :
-                  reposLoading ? (
-                    <div className="space-y-3 py-2">
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border/50 animate-pulse bg-muted/20">
-                          <div className="space-y-2 flex-1 pr-4">
-                            <div className="h-4 bg-muted rounded w-3/4"></div>
-                            <div className="h-3 bg-muted rounded w-1/2"></div>
-                          </div>
-                          <div className="h-8 w-16 bg-muted rounded"></div>
-                        </div>
-                      ))}
-                    </div>
-                  ) :
-                  repos.length === 0 ? <div className="text-sm text-muted-foreground text-center py-8">No repositories found.</div> :
-                  filteredRepos.length === 0 ? <div className="text-sm text-muted-foreground text-center py-8">No repositories match your search.</div> :
-                  filteredRepos.map(repo => {
-                    const alreadyLinked = linkedRepos.some(l => l.repo_owner === repo.owner && l.repo_name === repo.name)
+                <h3 id="github-linked-repos" className="text-sm font-medium">Linked repositories</h3>
+                <ul aria-labelledby="github-linked-repos" className="divide-y divide-border rounded-lg border border-border">
+                  {linkedRepos.map(link => {
+                    const full = `${link.repo_owner}/${link.repo_name}`
+                    const importing = importingIssuesLink === link.id || importingPRsLink === link.id
                     return (
-                      <div key={repo.full_name} className={`flex items-center justify-between p-3 rounded-lg border border-border/50 transition-colors ${alreadyLinked ? "opacity-50" : "hover:bg-muted/30"}`}>
-                        <div className="min-w-0 flex-1 pr-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm truncate">{repo.full_name}</span>
-                            {repo.private && <Badge variant="secondary" className="text-2xs shrink-0">Private</Badge>}
-                            {alreadyLinked && <Badge variant="outline" className="text-2xs shrink-0">Already linked</Badge>}
-                          </div>
-                          {repo.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{repo.description}</p>}
+                      <li key={link.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                        <div className="min-w-0 space-y-0.5">
+                          <a
+                            href={`https://github.com/${full}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex max-w-full items-center gap-1 text-sm font-medium hover:underline"
+                          >
+                            <span className="truncate">{full}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            <span className="sr-only"> (opens GitHub)</span>
+                          </a>
+                          <p className="truncate text-xs text-muted-foreground">{linkSummary(link, getProjectName(link.project_id))}</p>
                         </div>
-                        <Button variant="outline" size="sm" className="gap-1.5 flex-shrink-0" onClick={() => handleLinkRepo(repo)} disabled={alreadyLinked || linkingRepo === repo.full_name}>
-                          {linkingRepo === repo.full_name ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
-                          {alreadyLinked ? "Linked" : "Link"}
-                        </Button>
-                      </div>
+                        <div className="flex shrink-0 flex-wrap items-center gap-1">
+                          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" aria-label={`Import issues from ${full}`} onClick={() => void handleImport(link, "issues")} disabled={importing}>
+                            {importingIssuesLink === link.id ? <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" /> : <Download className="h-3 w-3" aria-hidden="true" />}Import issues
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" aria-label={`Import PRs from ${full}`} onClick={() => void handleImport(link, "PRs")} disabled={importing}>
+                            {importingPRsLink === link.id ? <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" /> : <GitPullRequest className="h-3 w-3" aria-hidden="true" />}Import PRs
+                          </Button>
+                          <Button aria-label={`Automation rules for ${full}`} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSettingsLinkId(link.id)}>
+                            <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          </Button>
+                          <Button aria-label={`Unlink ${full}`} variant="ghost" size="icon" className="h-8 w-8 text-danger-ink hover:text-danger-ink"
+                            onClick={() => dispatch(openUI({ key: "githubUnlink", data: { id: link.id, repo_owner: link.repo_owner, repo_name: link.repo_name } }))}>
+                            <Unlink className="h-3.5 w-3.5" aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </li>
                     )
                   })}
-                </div>
+                </ul>
               </div>
+
+              {/* Webhook delivery health: only meaningful with a linked repo,
+                  since no repos means no webhooks were registered. */}
+              <GitHubWebhookHealth />
+            </>
+          )}
+        </>
+      )}
+
+      <Dialog open={showRepoDialog} onOpenChange={setShowRepoDialog}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden p-0 bg-background">
+          <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
+            <DialogTitle>Link a repository</DialogTitle>
+            <DialogDescription>Its issues and pull requests stay in step with tasks in the project you choose.</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4 custom-scrollbar">
+            <div className="space-y-1.5">
+              <Label htmlFor="github-link-project" className="text-sm font-medium">Project</Label>
+              <Select
+                value={selectedProjectId}
+                onValueChange={(v) => { setSelectedProjectId(v); setProjectError("") }}
+                disabled={projectsLoading}
+              >
+                <SelectTrigger
+                  id="github-link-project"
+                  ref={projectRef}
+                  aria-invalid={projectError ? true : undefined}
+                  aria-describedby={projectError ? "github-link-project-error" : "github-link-project-help"}
+                >
+                  <SelectValue placeholder={projectsLoading ? "Loading projects…" : "Choose a project"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.length === 0 && !projectsLoading ? (
+                    <div className="text-sm text-muted-foreground px-2 py-4 text-center">No projects yet</div>
+                  ) : (
+                    projects.map(p => <SelectItem key={p.project_uuid} value={p.project_uuid}>{p.project_name}</SelectItem>)
+                  )}
+                </SelectContent>
+              </Select>
+              {projectError ? (
+                <p id="github-link-project-error" role="alert" className="text-xs text-danger-ink">{projectError}</p>
+              ) : (
+                <p id="github-link-project-help" className="text-xs text-muted-foreground">Issues and pull requests from GitHub become tasks in this project.</p>
+              )}
             </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={!!showSettingsLinkId} onOpenChange={() => setShowSettingsLinkId(null)}>
-          <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0 bg-background">
-            {(() => {
-              const link = linkedRepos.find(l => l.id === showSettingsLinkId)
-              if (!link) return null
-
-              const currentRules = safeParseAutomationRules(link.automation_rules) || {}
-
-              const allRules = [
-                { section: "Issues", items: [
-                  { key: "issue_opened", label: "Issue opened", desc: "When an issue is opened" },
-                  { key: "issue_closed", label: "Issue closed", desc: "When an issue is closed" },
-                  { key: "issue_reopened", label: "Issue reopened", desc: "When an issue is reopened" },
-                ]},
-                { section: "Pull Requests", items: [
-                  { key: "pr_drafted", label: "PR drafted", desc: "When a PR is converted to draft" },
-                  { key: "pr_opened", label: "PR opened", desc: "When a PR is opened (not draft)" },
-                  { key: "review_requested", label: "Review requested", desc: "When a review is requested" },
-                  { key: "changes_requested", label: "Changes requested", desc: "When a reviewer requests changes" },
-                  { key: "approved", label: "PR approved", desc: "When a PR is approved" },
-                  { key: "pr_merged", label: "PR merged", desc: "When a PR is merged" },
-                  { key: "pr_closed_without_merge", label: "PR closed (not merged)", desc: "When a PR is closed without merging" },
-                ]},
-                { section: "Commits", items: [
-                  { key: "commit_linked", label: "Commit linked", desc: "When a commit message contains fix/close keywords" },
-                ]},
-              ]
-
-              return (
-                <>
-                  <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
-                    <DialogTitle className="flex items-center gap-2">
-                      <Workflow className="h-4 w-4" /> Automation Rules
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="px-6 pb-2 shrink-0">
-                    <p className="text-sm text-muted-foreground">
-                      Configure automatic status transitions for <span className="font-medium text-foreground">{link.repo_owner}/{link.repo_name}</span>.
-                    </p>
-                  </div>
-                  <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-4 custom-scrollbar">
-                    {allRules.map((group, gIdx) => (
-                      <div key={group.section} className="space-y-2">
-                        <p className={cn(eyebrowClass, "sticky top-0 bg-background py-1 z-10")}>{group.section}</p>
-                        <div className="space-y-1">
-                          {group.items.map(rule => (
-                            <div key={rule.key} className="flex items-center justify-between gap-3 py-1.5">
-                              <div className="min-w-0">
-                                <Label className="text-sm font-medium">{rule.label}</Label>
-                                <p className="text-2xs text-muted-foreground leading-tight">{rule.desc}</p>
-                              </div>
-                              <Select
-                                value={currentRules[rule.key as keyof AutomationRules] || ""}
-                                onValueChange={async (val) => {
-                                  setSavingSettings(true)
-                                  try {
-                                    const updated = { ...currentRules, [rule.key]: val }
-                                    await post.makeRequest({
-                                      apiEndpoint: PostEndpointUrl.GitHubUpdateAutomationRules,
-                                      url: `/admin/github/links/${link.id}/automation-rules`,
-                                      payload: { automation_rules: updated },
-                                      showToast: true,
-                                    })
-                                    mutate()
-                                  } catch {
-                                    // Error toast handled by usePost
-                                  } finally {
-                                    setSavingSettings(false)
-                                  }
-                                }}
-                              >
-                                <SelectTrigger className="w-[150px] h-7 text-xs">
-                                  <SelectValue placeholder="No change" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="_none">No change</SelectItem>
-                                  {ruleStatusOptions.map(s => (
-                                    <SelectItem key={s.value} value={s.value} className={cn(s.custom && "pl-6")}>{s.label}</SelectItem>
-                                  ))}
-                                  {/* A value saved before statuses were checked, which this
-                                      project no longer has: shown, so the rule is not silently blank. */}
-                                  {(() => {
-                                    const v = currentRules[rule.key as keyof AutomationRules]
-                                    return v && v !== "_none" && !ruleStatusOptions.some(o => o.value === v)
-                                      ? <SelectItem value={v}>{v} (not a status here)</SelectItem>
-                                      : null
-                                  })()}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          ))}
+            <SettingsList>
+              <SwitchRow
+                label="Sync issue updates"
+                description="Keep linked tasks up to date with changes to issues: status, assignees and labels."
+                checked={syncIssues}
+                onChange={(checked) => {
+                  setSyncIssues(checked)
+                  if (!checked && !syncPRs) setAutoCreateTasks(false)
+                }}
+              />
+              <SwitchRow
+                label="Sync pull request updates"
+                description="Keep linked tasks up to date with merges and closures."
+                checked={syncPRs}
+                onChange={(checked) => {
+                  setSyncPRs(checked)
+                  if (!checked && !syncIssues) setAutoCreateTasks(false)
+                }}
+              />
+              <SwitchRow
+                label="Create tasks automatically"
+                description="A new issue or pull request in GitHub becomes a new task."
+                checked={autoCreateTasks}
+                disabled={!syncIssues && !syncPRs}
+                onChange={setAutoCreateTasks}
+              />
+            </SettingsList>
+            <div className="space-y-3">
+              <div className="relative">
+                <Label htmlFor="github-repo-search" className="sr-only">Search repositories</Label>
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <Input
+                  id="github-repo-search"
+                  type="search"
+                  placeholder="Search repositories…"
+                  value={repoSearch}
+                  onChange={(e) => setRepoSearch(e.target.value)}
+                  disabled={reposLoading || repos.length === 0}
+                  className="pl-9"
+                />
+              </div>
+              {reposLoading ? (
+                <div role="status" aria-label="Loading your repositories" className="rounded-lg border border-border px-3 py-2">
+                  <SkeletonRows rows={3} avatar={false} />
+                </div>
+              ) : reposFailed ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
+                  <p className="text-sm text-muted-foreground">Couldn&apos;t load your repositories.</p>
+                  <Button variant="outline" size="sm" className="h-8" onClick={() => void loadRepos()}>Try again</Button>
+                </div>
+              ) : repos.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">GitHub has no repositories for this account.</p>
+              ) : filteredRepos.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">No repositories match “{repoSearch.trim()}”.</p>
+              ) : (
+                <ul className="divide-y divide-border rounded-lg border border-border">
+                  {filteredRepos.map(repo => {
+                    const alreadyLinked = linkedRepos.some(l => l.repo_owner === repo.owner && l.repo_name === repo.name)
+                    return (
+                      <li key={repo.full_name} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                        <div className={cn("min-w-0 flex-1", alreadyLinked && "opacity-60")}>
+                          <p className="flex items-center gap-2 text-sm">
+                            <span className="truncate font-medium">{repo.full_name}</span>
+                            {repo.private && <span className="shrink-0 text-xs text-muted-foreground">Private</span>}
+                          </p>
+                          {repo.description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{repo.description}</p>}
                         </div>
-                        {gIdx < allRules.length - 1 && <div className="border-t mt-3" />}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="px-6 pb-6 pt-2 border-t space-y-2 shrink-0">
-                    <Label className="text-sm font-medium flex items-center gap-2">
-                      <GitBranch className="h-3.5 w-3.5" /> Branch name format
-                    </Label>
-                    <p className="text-2xs text-muted-foreground">
-                      Default format for copying branch names. Variables: {"{taskId}"}, {"{slug}"}, {"{user}"}
-                    </p>
-                    <div className="flex gap-2">
-                      <Input
-                        type="text"
-                        defaultValue={link.branch_format || "feature/{taskId}-{slug}"}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 shrink-0 gap-1.5"
+                          aria-label={alreadyLinked ? `${repo.full_name} is already linked` : `Link ${repo.full_name}`}
+                          onClick={() => void handleLinkRepo(repo)}
+                          disabled={alreadyLinked || linkingRepo === repo.full_name}
+                        >
+                          {linkingRepo === repo.full_name ? <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" /> : <Link2 className="h-3 w-3" aria-hidden="true" />}
+                          {alreadyLinked ? "Linked" : "Link"}
+                        </Button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-                        onBlur={async (e) => {
-                          setSavingSettings(true)
-                          try {
-                            await post.makeRequest({
-                              apiEndpoint: PostEndpointUrl.GitHubUpdateBranchFormat,
-                              url: `/admin/github/links/${link.id}/branch-format`,
-                              payload: { branch_format: e.target.value },
-                              showToast: true,
-                            })
-                            mutate()
-                          } catch {
-                            // Error toast handled by usePost
-                          } finally {
-                            setSavingSettings(false)
-                          }
-                        }}
-                      />
+      <Dialog open={!!settingsLink} onOpenChange={() => setShowSettingsLinkId(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden p-0 gap-0 bg-background">
+          {settingsLink && (
+            <AutomationRulesBody
+              link={settingsLink}
+              ruleStatusOptions={ruleStatusOptions}
+              onSaved={() => mutate()}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <GitHubConfigDialog
+        open={showConfigDialog}
+        onOpenChange={setShowConfigDialog}
+        onSaved={() => mutate()}
+        reason={configReason}
+      />
+    </SettingsSection>
+  )
+}
+
+/**
+ * The rules for one linked repository. Each pick saves at once, and the
+ * branch format when you leave its field, so the dialog says so.
+ */
+function AutomationRulesBody({
+  link,
+  ruleStatusOptions,
+  onSaved,
+}: {
+  link: GitHubLink
+  ruleStatusOptions: { value: string; label: string; custom?: boolean }[]
+  onSaved: () => void
+}) {
+  const post = usePost()
+  const currentRules = safeParseAutomationRules(link.automation_rules) || {}
+  const savedFormat = link.branch_format || DEFAULT_BRANCH_FORMAT
+
+  const saveRule = async (key: keyof AutomationRules, val: string) => {
+    try {
+      await post.makeRequest({
+        apiEndpoint: PostEndpointUrl.GitHubUpdateAutomationRules,
+        url: `/admin/github/links/${link.id}/automation-rules`,
+        payload: { automation_rules: { ...currentRules, [key]: val } },
+        showToast: true,
+      })
+      onSaved()
+    } catch {
+      // usePost shows the error, in the server's words.
+    }
+  }
+
+  const saveFormat = async (value: string) => {
+    if (value === savedFormat) return
+    try {
+      await post.makeRequest({
+        apiEndpoint: PostEndpointUrl.GitHubUpdateBranchFormat,
+        url: `/admin/github/links/${link.id}/branch-format`,
+        payload: { branch_format: value },
+        showToast: true,
+      })
+      onSaved()
+    } catch {
+      // usePost shows the error, in the server's words.
+    }
+  }
+
+  return (
+    <>
+      <DialogHeader className="px-6 pt-6 pb-3 shrink-0">
+        <DialogTitle className="flex items-center gap-2">
+          <Tile hue={ADMIN_GROUP_HUE.connections} size="sm"><Workflow /></Tile>
+          Automation rules
+        </DialogTitle>
+        <DialogDescription>
+          What GitHub events do to tasks linked from{" "}
+          <span className="font-medium text-foreground">{link.repo_owner}/{link.repo_name}</span>. Changes save as you make them.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-4 custom-scrollbar">
+        {RULE_GROUPS.map((group, gIdx) => (
+          <div key={group.section} className="space-y-2">
+            <p className={cn(eyebrowClass, "sticky top-0 bg-background py-1 z-10")}>{group.section}</p>
+            <div className="space-y-1">
+              {group.items.map(rule => {
+                const id = `github-rule-${rule.key}`
+                const v = currentRules[rule.key]
+                return (
+                  <div key={rule.key} className="flex items-center justify-between gap-3 py-1.5">
+                    <div className="min-w-0">
+                      <Label htmlFor={id} className="text-sm font-medium">{rule.label}</Label>
+                      <p id={`${id}-desc`} className="text-xs text-muted-foreground leading-tight">{rule.desc}</p>
                     </div>
+                    <Select value={v || ""} onValueChange={(val) => void saveRule(rule.key, val)}>
+                      <SelectTrigger id={id} aria-describedby={`${id}-desc`} className="h-8 w-40 shrink-0 text-xs">
+                        <SelectValue placeholder="No change" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none">No change</SelectItem>
+                        {ruleStatusOptions.map(s => (
+                          <SelectItem key={s.value} value={s.value} className={cn(s.custom && "pl-6")}>{s.label}</SelectItem>
+                        ))}
+                        {/* A value saved before statuses were checked, which this
+                            project no longer has: shown, so the rule is not silently blank. */}
+                        {v && v !== "_none" && !ruleStatusOptions.some(o => o.value === v) ? (
+                          <SelectItem value={v}>{v} (not a status here)</SelectItem>
+                        ) : null}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </>
-              )
-            })()}
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-      <GitHubConfigDialog open={showConfigDialog} onOpenChange={setShowConfigDialog} onSaved={() => mutate()} />
-    </Card>
+                )
+              })}
+            </div>
+            {gIdx < RULE_GROUPS.length - 1 && <div className="border-t mt-3" />}
+          </div>
+        ))}
+      </div>
+      <div className="px-6 pb-6 pt-3 border-t space-y-1.5 shrink-0">
+        <Label htmlFor="github-branch-format" className="text-sm font-medium flex items-center gap-2">
+          <GitBranch className="h-3.5 w-3.5" aria-hidden="true" /> Branch name format
+        </Label>
+        <p id="github-branch-format-help" className="text-xs text-muted-foreground">
+          Used when someone copies a branch name from a task. You can use {"{taskId}"}, {"{slug}"} and {"{user}"}.
+        </p>
+        <Input
+          id="github-branch-format"
+          aria-describedby="github-branch-format-help"
+          type="text"
+          defaultValue={savedFormat}
+          spellCheck={false}
+          autoComplete="off"
+          className="h-8"
+          onBlur={(e) => void saveFormat(e.target.value)}
+        />
+      </div>
+    </>
   )
 }
 
