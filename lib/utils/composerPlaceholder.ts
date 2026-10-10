@@ -17,3 +17,18 @@ export function channelComposerPlaceholder(
   if (!agent) return base
   return compact ? `Message, or ask @${agent}` : `${base}, or ask @${agent}`
 }
+
+/**
+ * A direct message's placeholder names who it goes to: "Message Maya Chen".
+ * Until the name is known it says "Message…".
+ */
+export function dmComposerPlaceholder(name: string | null | undefined): string {
+  const n = name?.trim()
+  return n ? `Message ${n}` : "Message…"
+}
+
+/** A group's members are already in its header; the placeholder says where it goes. */
+export const GROUP_COMPOSER_PLACEHOLDER = "Message the group"
+
+/** Every thread's reply box, on desktop and the phone. */
+export const THREAD_COMPOSER_PLACEHOLDER = "Reply…"

@@ -1,5 +1,6 @@
 "use client"
 
+import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholder";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
@@ -80,7 +81,7 @@ export const MobileGroupChatTextInput = ({ grpId, handleSend }: { grpId: string,
                         output="html"
                         content={chatInputState.chatBody}
                         contentRevision={chatInputState.restoredUnsent}
-                        placeholder={"Type a message…"}
+                        placeholder={GROUP_COMPOSER_PLACEHOLDER}
                         editable={true}
                         buttonOnclick={handleSend}
                         onSchedule={scheduleSend?.schedule}

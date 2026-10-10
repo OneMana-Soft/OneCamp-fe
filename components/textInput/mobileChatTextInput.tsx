@@ -1,5 +1,7 @@
 "use client"
 
+import { dmComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
+import { displayNameOf } from "@/lib/personName";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import { HeldNotificationsBar } from "@/components/messages/heldNotificationsBar";
@@ -37,6 +39,8 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
 
 
     const chatInputState = useSelector((state: RootState) => state.chat.chatInputState[chatId] || EMPTY_CHAT_INPUT_STATE);
+    // Who it goes to, for the placeholder: the same profile the header fetched, so SWR answers it from cache.
+    const otherUser = useFetchOnlyOnce<UserProfileInterface>(`${GetEndpointUrl.SelfProfile}/${chatId}`);
 
     useEffect(() => {
         if (!contentRef.current) return;
@@ -87,7 +91,7 @@ export const MobileChatTextInput = ({chatId, handleSend}: {chatId: string, handl
                         output="html"
                         content={chatInputState.chatBody}
                         contentRevision={chatInputState.restoredUnsent}
-                        placeholder={"Type a message…"}
+                        placeholder={dmComposerPlaceholder(displayNameOf(otherUser.data?.data))}
                         editable={true}
                         buttonOnclick={handleSend}
                         onSchedule={scheduleSend?.schedule}

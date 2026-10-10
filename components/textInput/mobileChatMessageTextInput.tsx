@@ -1,5 +1,6 @@
 "use client"
 
+import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholder";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
@@ -96,7 +97,7 @@ export const MobileChatMessageTextInput = ({ chatId, chatMessageUUID }: { chatId
                         editorContentClassName="overflow-auto mb-2"
                         output="html"
                         content={chatCommentState.commentBody}
-                        placeholder={"Reply…"}
+                        placeholder={THREAD_COMPOSER_PLACEHOLDER}
                         editable={true}
                         buttonOnclick={handleSend}
                         ButtonIcon={SendHorizontal}
