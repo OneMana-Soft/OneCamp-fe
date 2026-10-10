@@ -253,9 +253,9 @@ export function ProjectsOverview() {
   // Goals and reports have their own controls: no project search, filter or sort.
   const ownTools = goalsView || view === "reports"
   const tools = (all.length > 0 || ownTools) && (
-    <div className={cn("flex flex-wrap items-center gap-2", isDesktop ? "px-8 pt-4" : "px-0 pb-1")}>
-      {!ownTools && <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "w-80 shrink-0" : "w-full"} />}
-      <div className={cn("flex flex-wrap items-center gap-2", !isDesktop && "px-3")}>
+    <div className={cn("flex flex-wrap items-center gap-2", isDesktop ? "px-8 pt-4" : "px-4 pb-1")}>
+      {!ownTools && <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "-ml-4 w-80 shrink-0" : "-mx-3 w-[calc(100%+1.5rem)] md:-mx-4 md:w-[calc(100%+2rem)]"} />}
+      <div className="flex flex-wrap items-center gap-2">
         <ToggleGroup type="single" size="sm" value={view} onValueChange={(v) => isView(v) && choose(v)} aria-label="View as" className="rounded-md border p-0.5">
           <ToggleGroupItem value="table" className="h-7 px-2.5 text-xs">
             {isDesktop ? "Table" : "List"}
@@ -308,7 +308,7 @@ export function ProjectsOverview() {
     return (
       <div className="flex h-full flex-col">
         {tools}
-        <div className={cn("flex-1", fills ? "flex min-h-0 flex-col px-3 pb-3 pt-2" : "overflow-y-auto", view === "reports" && "px-3 pb-3 pt-2")}>{body}</div>
+        <div className={cn("flex-1", fills ? "flex min-h-0 flex-col px-4 pb-3 pt-2" : "overflow-y-auto", view === "reports" && "px-4 pb-3 pt-2")}>{body}</div>
       </div>
     )
   }
