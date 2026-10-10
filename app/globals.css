@@ -263,11 +263,21 @@
   /* line: hairlines, structure only. line-strong: input borders. */
   --border: oklch(0.9220 0.0042 271.37);
   --input: oklch(0.8729 0.0072 268.54);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
+  /* CHART SERIES: five categorical hues, one per series, in this fixed order.
+     They were five steps of one blue, so a chart with three or more series
+     could only be read through its legend. Blue leads (not the brand orange:
+     the accent marks the one action, and an orange series would read as
+     "selected"). The order is the colour-blindness mechanism, not taste:
+     every adjacent pair stays apart under protanopia and deuteranopia
+     (OKLab dE >= 8) and under normal vision (dE >= 15), the first three stay
+     apart as a set for scatter and pie, and each holds 3:1 against the card.
+     app/chartPalette.test.ts measures all of that; re-run it before touching
+     a value. Never cycle past five: fold the rest into "Other". */
+  --chart-1: #2a78d6; /* blue */
+  --chart-2: #c74c80; /* rose */
+  --chart-3: #a86f00; /* amber */
+  --chart-4: #4a3aa7; /* violet */
+  --chart-5: #11865f; /* teal */
   /* The canvas is the frame the work sits on: the sidebar, the top bar and the
      gutter around the sheet share it (surface-2), so the chrome reads as one
      quiet L and the page is the brightest thing on screen. */
@@ -323,11 +333,12 @@
   --destructive-foreground: oklch(0.1682 0.0045 264.45);
   --border: oklch(0.2769 0.0096 268.32);
   --input: oklch(0.3327 0.0130 267.15);
-  --chart-1: var(--color-blue-300);
-  --chart-2: var(--color-blue-500);
-  --chart-3: var(--color-blue-600);
-  --chart-4: var(--color-blue-700);
-  --chart-5: var(--color-blue-800);
+  /* The same five hues, stepped for the dark card (chartPalette.test.ts). */
+  --chart-1: #3987e5;
+  --chart-2: #d55181;
+  --chart-3: #c98500;
+  --chart-4: #9085e9;
+  --chart-5: #199e70;
   /* surface-2, as in light: the sidebar steps up from the page. */
   --canvas: oklch(0.2426 0.0105 260.69);
   --sidebar: var(--canvas);
