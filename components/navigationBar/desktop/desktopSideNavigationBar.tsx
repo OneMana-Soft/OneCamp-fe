@@ -44,7 +44,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
             className={cn(
                 "group/nav flex items-center gap-2 w-full h-7 px-2 rounded-md",
                 "text-sm transition-colors duration-100",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                 isActive ? "nav-active font-medium" : "nav-idle",
             )}
         >
@@ -109,7 +109,7 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
                 onClick={() => dispatch(openInSplit(pane))}
                 aria-label={`Open ${ch.title} side by side`}
                 title="Open side by side (Alt + click)"
-                className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center rounded bg-canvas text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 group-hover/item:opacity-100"
+                className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-5 w-5 items-center justify-center rounded bg-canvas text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 group-hover/item:opacity-100"
             >
                 <Columns2 className="h-3.5 w-3.5" />
             </button>
@@ -132,7 +132,7 @@ const CollapsedNavItem = memo(({ link }: { link: DesktopNavType }) => {
 
     const itemClass = cn(
         "flex items-center justify-center h-9 w-9 rounded-md transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
         link.variant === "sidebarActive" ? "nav-active" : "nav-idle",
     )
 
@@ -210,7 +210,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                                         "text-2xs font-medium capitalize",
                                                         "text-muted-foreground hover:text-foreground",
                                                         "transition-colors duration-100 cursor-pointer text-left",
-                                                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                                                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                                                     )}
                                                     type="button"
                                                     aria-expanded={link.isOpen}
@@ -269,7 +269,7 @@ export const DesktopSideNavigationBar = memo(({ links, isCollapsed }: {links:Des
                                         className={cn(
                                             "flex-1 flex items-center gap-2 h-7 px-2 rounded-md",
                                             "text-sm transition-colors duration-100",
-                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                                             link.variant === "sidebarActive" ? "nav-active font-medium" : "nav-idle",
                                         )}
                                     >

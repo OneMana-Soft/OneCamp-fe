@@ -78,7 +78,7 @@ export function MobileTopNavigationBarSecondChat({ chatUUID }: { chatUUID: strin
             }
             className={cn(
                 "flex w-full items-center justify-center gap-2 px-2 min-w-0",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 rounded-md",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 rounded-md",
             )}
         >
             <div className="relative shrink-0">

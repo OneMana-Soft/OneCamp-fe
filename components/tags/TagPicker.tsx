@@ -68,7 +68,7 @@ export function TagPicker({
         <button
           type="button"
           aria-label={current.length ? `Tags: ${current.join(", ")}. Change tags` : "Add tags"}
-          className="inline-flex min-h-7 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="inline-flex min-h-7 max-w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
         >
           {current.length ? (
             <TagPills label={label} />

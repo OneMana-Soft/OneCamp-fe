@@ -76,7 +76,7 @@ const SheetContent = React.forwardRef<
         className={cn(
           "absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md",
           "text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
           "disabled:pointer-events-none",
         )}
       >

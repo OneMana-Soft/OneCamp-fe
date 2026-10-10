@@ -347,7 +347,7 @@ export const Item = React.memo(
                             "hover:border-border",
                             !handle && "cursor-pointer",
                             disabled && "opacity-60 pointer-events-none",
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                             selected && "border-primary/50 bg-primary/5",
                             highlighted && "ring-2 ring-ring/40",
                         )}

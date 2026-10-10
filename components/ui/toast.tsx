@@ -111,7 +111,7 @@ const ToastClose = React.forwardRef<
       "absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md",
       "text-foreground/60 hover:text-foreground hover:bg-accent",
       "transition-colors",
-      "focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+      "focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
       "group-[.destructive]:text-destructive-foreground/70 group-[.destructive]:hover:text-destructive-foreground",
       "group-[.destructive]:hover:bg-destructive-foreground/10",
       "group-[.destructive]:focus-visible:ring-destructive-foreground/40",

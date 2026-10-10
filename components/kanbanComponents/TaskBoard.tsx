@@ -456,7 +456,7 @@ function CardStack({
                             <button
                                 type="button"
                                 onClick={() => onShowMore(column)}
-                                className="rounded-md px-2 py-1 font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                className="rounded-md px-2 py-1 font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                             >
                                 Show {Math.min(BOARD_CLOSED_STEP, total - tasks.length)} more
                             </button>
@@ -531,7 +531,7 @@ function LaneGrid({
                                         type="button"
                                         onClick={() => onShowMore(status.value)}
                                         title={`The newest ${loaded} of ${total} are on the board`}
-                                        className="rounded-md px-1.5 py-0.5 text-xs font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                        className="rounded-md px-1.5 py-0.5 text-xs font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                                     >
                                         Show more
                                     </button>
@@ -551,7 +551,7 @@ function LaneGrid({
                                         type="button"
                                         onClick={() => onToggleLane(lane.id)}
                                         aria-expanded={!isFolded}
-                                        className="group/lane inline-flex items-center gap-2 rounded-md px-1.5 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                        className="group/lane inline-flex items-center gap-2 rounded-md px-1.5 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                                     >
                                         {isFolded ? (
                                             <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform" />
@@ -691,7 +691,7 @@ function QuickAdd({ onAdd, compact = false }: { onAdd: (name: string) => Promise
                 type="button"
                 onClick={() => setOpen(true)}
                 className={cn(
-                    "inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-[color,background-color,opacity] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                    "inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-[color,background-color,opacity] hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                     // In a lane cell it waits for the pointer, so a board of
                     // many cells stays quiet; a touch screen always shows it.
                     compact

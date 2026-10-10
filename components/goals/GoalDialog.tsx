@@ -207,7 +207,7 @@ export function GoalDialog({
                   aria-checked={measure === m.value}
                   onClick={() => setMeasure(m.value)}
                   className={cn(
-                    "flex flex-col gap-1 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                    "flex flex-col gap-1 rounded-lg border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                     measure === m.value ? "border-primary bg-primary/5" : "border-border/70 hover:bg-accent",
                   )}
                 >
