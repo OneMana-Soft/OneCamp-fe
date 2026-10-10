@@ -219,8 +219,76 @@ export function GuestCentered({ children }: { children: React.ReactNode }) {
   return <main className="flex min-h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">{children}</main>
 }
 
+/** The shape of the page a guest link opens, held while it loads. */
+export type GuestPageShape = "page" | "chat" | "board" | "table" | "call"
+
+/**
+ * What a guest page shows before its first answer: the page's own shape, with
+ * what is happening in words where its title will be. A centred spinner used
+ * to stand in for every page, and the page then arrived all at once.
+ */
+export function GuestPageSkeleton({ label, shape = "page" }: { label: string; shape?: GuestPageShape }) {
+  if (shape === "call") {
+    return (
+      <GuestCentered>
+        <div aria-busy="true" className="grid w-full max-w-md gap-3 text-left">
+          <p role="status" className="text-sm text-muted-foreground">{label}</p>
+          <Skeleton aria-hidden="true" className="aspect-video w-full rounded-lg" />
+          <Skeleton aria-hidden="true" className="h-9 w-full" />
+        </div>
+      </GuestCentered>
+    )
+  }
+  return (
+    <div aria-busy="true" className="flex min-h-dvh w-full flex-col bg-background">
+      <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
+        <Skeleton aria-hidden="true" className="h-6 w-6 shrink-0" />
+        <p role="status" className="truncate text-sm text-muted-foreground">{label}</p>
+      </div>
+      {shape === "page" && (
+        <div aria-hidden="true" className="mx-auto grid w-full max-w-3xl gap-3 px-4 py-8 sm:px-6">
+          <Skeleton className="h-7 w-1/2" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-11/12" />
+          <Skeleton className="h-3 w-4/5" />
+          <Skeleton className="mt-3 h-3 w-full" />
+          <Skeleton className="h-3 w-2/3" />
+        </div>
+      )}
+      {shape === "chat" && (
+        <div aria-hidden="true" className="mx-auto grid w-full max-w-3xl gap-5 px-4 py-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="grid gap-1.5">
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className={i % 2 ? "h-3 w-2/3" : "h-3 w-5/6"} />
+            </div>
+          ))}
+        </div>
+      )}
+      {shape === "table" && (
+        <div aria-hidden="true" className="mx-auto grid w-full max-w-6xl gap-2 px-4 py-8 sm:px-6">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className={i === 0 ? "h-8 w-full" : "h-6 w-full"} />
+          ))}
+        </div>
+      )}
+      {shape === "board" && (
+        <div aria-hidden="true" className="grid w-full flex-1 gap-4 px-4 py-6 sm:grid-cols-3 sm:px-6">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="grid content-start gap-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-16 w-full rounded-lg" />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function GuestLoading() {
-  return <GuestCentered><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></GuestCentered>
+  return <GuestPageSkeleton label="Opening the link…" />
 }
 
 export function GuestLinkGone({ detail = "It may have expired or been turned off. Ask the person who invited you for a new one." }: { detail?: string }) {
@@ -234,19 +302,26 @@ export function GuestLinkGone({ detail = "It may have expired or been turned off
 }
 
 /**
- * What a guest page shows before its first answer: loading, why it's still
+ * What a guest page shows before its first answer: the page's shape while it
+ * loads (saying what it is opening), the same shape saying why it is still
  * trying, or the dead link.
  */
-export function GuestNotYet({ trouble, loading = <GuestLoading />, gone = <GuestLinkGone /> }: { trouble: PublicTrouble | null; loading?: React.ReactNode; gone?: React.ReactNode }) {
+export function GuestNotYet({
+  trouble,
+  shape = "page",
+  label = "Opening the link…",
+  loading,
+  gone = <GuestLinkGone />,
+}: {
+  trouble: PublicTrouble | null
+  shape?: GuestPageShape
+  label?: string
+  loading?: React.ReactNode
+  gone?: React.ReactNode
+}) {
   if (trouble === "gone") return <>{gone}</>
-  if (trouble)
-    return (
-      <GuestCentered>
-        <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" aria-hidden />
-        <p role="status" className="text-sm text-muted-foreground">{retryingText[trouble]}</p>
-      </GuestCentered>
-    )
-  return <>{loading}</>
+  if (trouble) return <GuestPageSkeleton label={retryingText[trouble]} shape={shape} />
+  return <>{loading ?? <GuestPageSkeleton label={label} shape={shape} />}</>
 }
 
 /**

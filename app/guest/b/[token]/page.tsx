@@ -3,8 +3,8 @@
 import { use, useCallback } from "react";
 import { getGuestCollabSession, guestCollabToken } from "@/services/guestService";
 import { GuestBoardViewer } from "@/components/guest/GuestBoardViewer";
-import { GuestCentered, GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
-import { Loader2, Network, Eye } from "@/lib/icons";
+import { GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { Network, Eye } from "@/lib/icons";
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 const gone = <GuestLinkGone detail="The share link may have expired or been revoked. Ask the person who shared it for a new link." />;
@@ -19,16 +19,7 @@ export default function GuestBoardPage({ params }: { params: Promise<{ token: st
 
     if (!session) {
         return (
-            <GuestNotYet
-                trouble={trouble}
-                gone={gone}
-                loading={
-                    <GuestCentered>
-                        <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">Opening the shared board…</p>
-                    </GuestCentered>
-                }
-            />
+            <GuestNotYet trouble={trouble} gone={gone} shape="board" label="Opening the shared board…" />
         );
     }
     if (session.resource_type !== "board" || !session.document_name) return gone;

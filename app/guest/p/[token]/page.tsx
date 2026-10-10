@@ -111,7 +111,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
 
   useGuestPoll(token, BOARD_POLL_MS, (first) => refresh(!first))
 
-  if (state === "loading") return <GuestNotYet trouble={trouble} />
+  if (state === "loading") return <GuestNotYet trouble={trouble} shape="board" label="Opening the project…" />
   if (state === "missing" || !view) return <GuestLinkGone />
 
   const pct = view.total_tasks ? Math.round((view.done_tasks / view.total_tasks) * 100) : 0

@@ -59,16 +59,7 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
 
     if (!status) {
         return (
-            <GuestNotYet
-                trouble={trouble}
-                gone={gone}
-                loading={
-                    <Centered>
-                        <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">Checking your invite…</p>
-                    </Centered>
-                }
-            />
+            <GuestNotYet trouble={trouble} gone={gone} shape="call" label="Checking your invite…" />
         );
     }
 
