@@ -7,7 +7,8 @@ import {UserProfileDataInterface} from "@/types/user";
 import {GroupedReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {PostsRes} from "@/types/post";
-import { ExtendedChats, chatContentDiffers } from "./chatSlice";
+import { ExtendedChats, chatContentDiffers, CHAT_ACCESS } from "./chatSlice";
+import { hasServerIdElsewhere, indexOfEchoed, indexOfLocal } from "@/lib/chat/pendingSend";
 import { withUnsent, type Draft } from "@/lib/chat/unsentMessage";
 import { isTombstoned, markTombstone, pruneTombstones, reconcileLatestWindow, type LatestWindowAuthority, type TombstoneMap } from "@/lib/utils/deletionTombstone";
 
@@ -323,6 +324,56 @@ const groupChatSlice = createSlice({
             }
         },
 
+        // A message shown the moment Send is pressed, before the server has it
+        // (lib/chat/pendingSend). It carries its local id and "sending".
+        addPendingGroupChat: (state, action: {payload: {grpId: string, chat: ChatInfo}}) => {
+            const { grpId, chat } = action.payload;
+            if (!state.chatMessages[grpId]) {
+                state.chatMessages[grpId] = [] as ChatInfo[]
+            }
+            state.chatMessages[grpId].push(chat)
+            keepRecentlyLoaded(state.chatMessages, state.loadedOrder, grpId);
+        },
+
+        // The server has it: its id and time. If the realtime echo of it came
+        // first and was added as a message of its own, this one goes.
+        confirmPendingGroupChat: (state, action: {payload: {grpId: string, localId: string, chatUUID: string, createdAt?: string}}) => {
+            const { grpId, localId, chatUUID, createdAt } = action.payload;
+            const list = state.chatMessages[grpId];
+            if (!list) return
+            const i = indexOfLocal(list, CHAT_ACCESS, localId);
+            if (i < 0) return
+            if (chatUUID && hasServerIdElsewhere(list, CHAT_ACCESS, chatUUID, i)) {
+                list.splice(i, 1)
+                return
+            }
+            const c = list[i]
+            if (chatUUID) c.chat_uuid = chatUUID
+            if (createdAt) c.chat_created_at = createdAt
+            c.chat_send_state = undefined
+        },
+
+        failPendingGroupChat: (state, action: {payload: {grpId: string, localId: string}}) => {
+            const { grpId, localId } = action.payload;
+            const list = state.chatMessages[grpId];
+            const i = list ? indexOfLocal(list, CHAT_ACCESS, localId) : -1;
+            if (i >= 0) list[i].chat_send_state = "failed"
+        },
+
+        retryPendingGroupChat: (state, action: {payload: {grpId: string, localId: string}}) => {
+            const { grpId, localId } = action.payload;
+            const list = state.chatMessages[grpId];
+            const i = list ? indexOfLocal(list, CHAT_ACCESS, localId) : -1;
+            if (i >= 0) list[i].chat_send_state = "sending"
+        },
+
+        removePendingGroupChat: (state, action: {payload: {grpId: string, localId: string}}) => {
+            const { grpId, localId } = action.payload;
+            const list = state.chatMessages[grpId];
+            const i = list ? indexOfLocal(list, CHAT_ACCESS, localId) : -1;
+            if (i >= 0) list.splice(i, 1)
+        },
+
         createGroupChat: (state, action: {payload: CreateChat}) => {
             const {chatId, chatText, chatCreatedAt, grpId, chatBy, attachments, fwdChat, fwdPost, replyTo, addedLocally = false} = action.payload;
             // Ignore an out-of-order create delivered after this message's
@@ -332,6 +383,16 @@ const groupChatSlice = createSlice({
                 state.chatMessages[grpId] = [] as ChatInfo[]
             }
             if (state.chatMessages[grpId].some(c => c.chat_uuid === chatId)) return;
+            // The echo of a message this tab is still sending: it becomes that
+            // message, in its place, rather than a second copy below it.
+            const echoed = !fwdPost && !fwdChat ? indexOfEchoed(state.chatMessages[grpId], CHAT_ACCESS, chatBy?.user_uuid, chatText) : -1;
+            if (echoed >= 0) {
+                const c = state.chatMessages[grpId][echoed]
+                c.chat_uuid = chatId
+                c.chat_created_at = chatCreatedAt
+                c.chat_send_state = undefined
+                return
+            }
             state.chatMessages[grpId].push({
                 chat_to: {} as UserProfileDataInterface,
                 chat_from: chatBy,
@@ -562,6 +623,11 @@ const groupChatSlice = createSlice({
 });
 
 export const {
+    addPendingGroupChat,
+    confirmPendingGroupChat,
+    failPendingGroupChat,
+    retryPendingGroupChat,
+    removePendingGroupChat,
     createOrUpdateGroupChatBody,
     addGroupChatPreviewFiles,
     deleteGroupChatPreviewFiles,

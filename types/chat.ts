@@ -3,6 +3,7 @@ import {GroupedReaction} from "@/types/reaction";
 import {AttachmentMediaReq} from "@/types/attachment";
 import {PostsRes} from "@/types/post";
 import {CommentInfoInterface} from "@/types/comment";
+import type {SendState} from "@/lib/chat/pendingSend";
 
 export interface ChatInfo {
     uid?: string
@@ -24,6 +25,10 @@ export interface ChatInfo {
     chat_dm?: UserDMInterface
     /** Client-created row awaiting confirmation from an authoritative latest page. */
     chat_added_locally?: boolean
+    /** The id it was sent with, before the server gave it one (lib/chat/pendingSend). */
+    chat_local_id?: string
+    /** Sent from here and not yet confirmed: still sending, or not sent. */
+    chat_send_state?: SendState
 }
 
 export interface CreateOrUpdateChatsReq {

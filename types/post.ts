@@ -4,6 +4,7 @@ import {GroupedReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {ChannelInfoInterface} from "@/types/channel";
 import {ChatInfo} from "@/types/chat";
+import type {SendState} from "@/lib/chat/pendingSend";
 
 export interface PostsRes {
     post_uuid: string
@@ -22,6 +23,10 @@ export interface PostsRes {
     // Discord-style inline reply: the post this post replies to (same channel).
     // One level deep — the parent's own reply reference is not expanded.
     post_reply_to?: PostsRes
+    /** The id it was sent with, before the server gave it one (lib/chat/pendingSend). */
+    post_local_id?: string
+    /** Sent from here and not yet confirmed: still sending, or not sent. */
+    post_send_state?: SendState
 }
 
 export interface CreateOrUpdatePostsReq {

@@ -9,6 +9,21 @@ import {GroupedReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {ChatInfo} from "@/types/chat";
 import { withUnsent, type Draft } from "@/lib/chat/unsentMessage";
+import { hasServerIdElsewhere, indexOfEchoed, indexOfLocal, type PendingAccess } from "@/lib/chat/pendingSend";
+
+// How a post is read for the pending-send helpers (lib/chat/pendingSend).
+const POST_ACCESS: PendingAccess<PostsRes> = {
+    localId: (p) => p.post_local_id,
+    id: (p) => p.post_uuid,
+    author: (p) => p.post_by?.user_uuid,
+    html: (p) => p.post_text,
+    state: (p) => p.post_send_state,
+}
+
+interface PendingPost {
+    channelId: string
+    localId: string
+}
 
 
 // postContentDiffers reports whether a freshly-fetched server post differs
@@ -516,6 +531,56 @@ const channelSlice = createSlice({
             })
         },
 
+        // A post shown the moment Send is pressed, before the server has it
+        // (lib/chat/pendingSend). It carries its local id and "sending".
+        addPendingPost: (state, action: {payload: {channelId: string, post: PostsRes}}) => {
+            const { channelId, post } = action.payload;
+            if (!state.channelPosts[channelId]) {
+                state.channelPosts[channelId] = [] as PostsRes[]
+            }
+            state.channelPosts[channelId].push(post)
+            keepRecentlyLoaded(state.channelPosts, state.loadedOrder, channelId);
+        },
+
+        // The server has it: its id and time. If the realtime echo of it came
+        // first and was added as a post of its own, this one goes.
+        confirmPendingPost: (state, action: {payload: PendingPost & {postUUID: string, createdAt?: string}}) => {
+            const { channelId, localId, postUUID, createdAt } = action.payload;
+            const list = state.channelPosts[channelId];
+            if (!list) return
+            const i = indexOfLocal(list, POST_ACCESS, localId);
+            if (i < 0) return
+            if (postUUID && hasServerIdElsewhere(list, POST_ACCESS, postUUID, i)) {
+                list.splice(i, 1)
+                return
+            }
+            const p = list[i]
+            if (postUUID) p.post_uuid = postUUID
+            if (createdAt) p.post_created_at = createdAt
+            p.post_send_state = undefined
+        },
+
+        failPendingPost: (state, action: {payload: PendingPost}) => {
+            const { channelId, localId } = action.payload;
+            const list = state.channelPosts[channelId];
+            const i = list ? indexOfLocal(list, POST_ACCESS, localId) : -1;
+            if (i >= 0) list[i].post_send_state = "failed"
+        },
+
+        retryPendingPost: (state, action: {payload: PendingPost}) => {
+            const { channelId, localId } = action.payload;
+            const list = state.channelPosts[channelId];
+            const i = list ? indexOfLocal(list, POST_ACCESS, localId) : -1;
+            if (i >= 0) list[i].post_send_state = "sending"
+        },
+
+        removePendingPost: (state, action: {payload: PendingPost}) => {
+            const { channelId, localId } = action.payload;
+            const list = state.channelPosts[channelId];
+            const i = list ? indexOfLocal(list, POST_ACCESS, localId) : -1;
+            if (i >= 0) list.splice(i, 1)
+        },
+
         createPost: (state, action: {payload: CreatePost}) => {
             const {postId, postText, postCreatedAt, channelId, postBy, fwdPost, fwdChat, replyTo, attachments} = action.payload;
             // MQTT delivery is not guaranteed to be ordered. A create that
@@ -523,6 +588,16 @@ const channelSlice = createSlice({
             if (postId && isTombstoned(state.deletedPosts, channelId, postId)) return;
             if(!state.channelPosts[channelId]) {
                 state.channelPosts[channelId] = [] as PostsRes[]
+            }
+            // The echo of a post this tab is still sending: it becomes that
+            // post, in its place, rather than a second copy below it.
+            const echoed = !fwdPost && !fwdChat ? indexOfEchoed(state.channelPosts[channelId], POST_ACCESS, postBy?.user_uuid, postText) : -1;
+            if (echoed >= 0) {
+                const p = state.channelPosts[channelId][echoed]
+                p.post_uuid = postId
+                p.post_created_at = postCreatedAt
+                p.post_send_state = undefined
+                return
             }
             // Dedup by post_uuid so the MQTT echo for a post the current user
             // sent (from another device or this same one) doesn't duplicate.
@@ -647,6 +722,11 @@ export const {
     removePostByPostId,
     createPost,
     createPostLocally,
+    addPendingPost,
+    confirmPendingPost,
+    failPendingPost,
+    retryPendingPost,
+    removePendingPost,
     updateChannelScrollToBottom,
     updateChannelMessageReplyIncrement,
     updateChannelMessageReplyDecrement,
