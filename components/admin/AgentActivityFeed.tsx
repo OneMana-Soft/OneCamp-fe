@@ -12,6 +12,17 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils/helpers/cn"
 import { formatTimeForReplyCount } from "@/lib/utils/date/formatTimeForReplyCount"
 import { listAgentActivity, type AgentActivityItem } from "@/services/agentService"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+
+// The dot's word, for anyone who can't tell the colours apart or can't see
+// them: the dot was colour alone, with only a hover title.
+const STATUS_WORD: Record<string, string> = {
+  succeeded: "Finished",
+  failed: "Failed",
+  running: "Running",
+  stopped: "Stopped",
+}
 
 const STATUS_DOT: Record<string, string> = {
   succeeded: "bg-success",
@@ -37,12 +48,18 @@ function triggerLabel(src: string): string {
 const AgentActivityFeed: React.FC = () => {
   const [items, setItems] = useState<AgentActivityItem[] | null>(null)
   const [loading, setLoading] = useState(true)
+  // A failed read used to set an empty list, which hides the panel: as if no
+  // agent had ever run.
+  const [failed, setFailed] = useState(false)
 
   const load = React.useCallback(() => {
     setLoading(true)
     listAgentActivity(40)
-      .then(setItems)
-      .catch(() => setItems([]))
+      .then((next) => {
+        setItems(next)
+        setFailed(false)
+      })
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false))
   }, [])
 
@@ -52,15 +69,26 @@ const AgentActivityFeed: React.FC = () => {
 
   // First load: render nothing (no flash). After load: hide entirely when the
   // workspace has no agent runs yet, so the panel never shows an empty shell.
+  if (failed && items === null) {
+    return (
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border/60 px-4 py-3">
+        <p role="alert" className="text-sm text-muted-foreground">Couldn&apos;t load recent agent activity.</p>
+        <Button variant="outline" size="sm" className="h-8" onClick={load} disabled={loading}>
+          Try again
+        </Button>
+      </div>
+    )
+  }
   if (items === null) return null
   if (items.length === 0) return null
 
   return (
     <div className="mb-4 rounded-xl border border-border/60 bg-card/40 overflow-hidden">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
-        <div className="bg-primary/10 p-1 rounded-md">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-        </div>
+        {/* On the AI and automation group's tile; it was an orange one. */}
+        <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
+          <Sparkles />
+        </Tile>
         <h3 className="text-sm font-semibold">Recent agent activity</h3>
         <Button
           variant="ghost"
@@ -79,12 +107,14 @@ const AgentActivityFeed: React.FC = () => {
         {items.map((it) => (
           <li key={it.run_id} className="flex items-start gap-2.5 px-4 py-2.5">
             <span
+              aria-hidden="true"
               className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", STATUS_DOT[it.status] || "bg-muted-foreground/40")}
-              title={it.status}
+              title={STATUS_WORD[it.status] || it.status}
             />
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-baseline gap-x-1.5">
                 <span className="text-sm font-medium truncate">{it.agent_name}</span>
+                <span className="sr-only">{STATUS_WORD[it.status] || it.status}</span>
                 <span className="text-2xs text-muted-foreground">· {triggerLabel(it.trigger_source)}</span>
                 <span className="text-2xs text-muted-foreground/70">
                   · {formatTimeForReplyCount(it.started_at)}

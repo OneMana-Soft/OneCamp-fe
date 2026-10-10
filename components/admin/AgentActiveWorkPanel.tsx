@@ -15,9 +15,8 @@
 // dialog stay identical in wording, ordering and behaviour.
 
 import React, { useEffect, useState } from "react"
-import { Loader2, RefreshCw } from "@/lib/icons"
+import { Activity, Loader2, RefreshCw } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useStreamGapResync } from "@/hooks/useStreamGapResync"
@@ -25,6 +24,8 @@ import { useAgentWorkEvents } from "@/hooks/useAgentWorkEvents"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
 import { AgentWorkRow, sortAgentWork } from "@/components/ai/AgentWorkRow"
 import { listActiveAgentWork, type ActiveWorkItem } from "@/services/agentService"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 // Poll interval for live work state. Gentle so it never hammers the API; the
 // evolving in-thread status comment is the real-time surface, this is the
@@ -78,9 +79,12 @@ const AgentActiveWorkPanel: React.FC = () => {
   return (
     <div className="mb-4 overflow-hidden rounded-xl border border-border/60 bg-card/40">
       <div className="flex items-center gap-2 border-b border-border/50 px-4 py-3">
-        <div className="rounded-md bg-warning/10 p-1">
-          <Loader2 className={cn("h-3.5 w-3.5 text-warning-ink", loading && "animate-spin")} />
-        </div>
+        {/* A still tile in the AI and automation group's hue. A spinner glyph
+            sat here and turned whenever it refreshed, so the title said
+            "loading" for a list that was there; the refresh button says that. */}
+        <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
+          <Activity />
+        </Tile>
         <h3 className="text-sm font-semibold">In progress</h3>
         <span className="text-2xs text-muted-foreground">
           {items.length} active{blockedCount > 0 ? ` · ${blockedCount} waiting on you` : ""}
