@@ -42,4 +42,18 @@ describe("a guest's live document", () => {
     view()
     expect(screen.getByText("The document")).toBeInTheDocument()
   })
+
+  // A blip in the network sets the hook's synced flag back to false, and the
+  // provider never says "synced" again while its socket survived the blip. The
+  // document used to be swapped for the skeleton, then "Can't reach the
+  // document", for good, though it was connected all along.
+  it("keeps showing the document once it has arrived, through a network blip", () => {
+    collab.synced = true
+    const { rerender } = view()
+    expect(screen.getByText("The document")).toBeInTheDocument()
+    collab.synced = false
+    rerender(<GuestDocViewer documentName="doc-1" tokenFetcher={async () => "jwt"} />)
+    act(() => vi.advanceTimersByTime(GUEST_DOC_SLOW_MS + 10))
+    expect(screen.getByText("The document")).toBeInTheDocument()
+  })
 })

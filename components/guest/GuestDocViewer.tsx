@@ -55,7 +55,14 @@ export function GuestDocViewer({ documentName, tokenFetcher }: GuestDocViewerPro
   // soon as the connection object existed, so a document that never arrived
   // (the link turned off between the check and the connect, the collaboration
   // service down) looked like an empty document.
-  const ready = !!provider && !!editor && synced
+  //
+  // Once it has arrived it stays. A network blip sets the hook's synced flag
+  // back to false, and the provider never says "synced" again when its socket
+  // survived the blip, so waiting on the flag swapped a connected document for
+  // the skeleton, and then "Can't reach the document", until a reload.
+  const [arrived, setArrived] = useState(false)
+  if (synced && !arrived) setArrived(true)
+  const ready = !!provider && !!editor && (synced || arrived)
   const [slow, setSlow] = useState(false)
   useEffect(() => {
     if (ready) {
