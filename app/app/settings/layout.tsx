@@ -21,8 +21,9 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const inSection = SETTINGS_SECTIONS.some((s) => pathname?.startsWith(s.href))
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6">
+      {/* From sm up: a phone's top bar already has Back, which returns here. */}
       {inSection && (
-        <div className="mb-1.5">
+        <div className="mb-1.5 hidden sm:block">
           <Link
             href="/app/settings"
             className={cn(kicker, "inline-flex items-center gap-1 rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70")}
