@@ -27,8 +27,9 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Database, Loader2 } from "@/lib/icons"
+import { Database } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
+import { Skeleton } from "@/components/ui/skeleton"
 import { PersonActionWord, personActionClass } from "@/components/admin/PeopleFrame"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
@@ -54,8 +55,8 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
             setInventory((await getPersonalDataInventory(userUUID)) ?? null)
         } catch (e: unknown) {
             toast({
-                title: "Could not build the inventory",
-                description: apiErrorMessage(e, "failed"),
+                title: `Couldn't count ${displayName}'s data`,
+                description: apiErrorMessage(e, "Try again in a moment."),
                 variant: "destructive",
             })
             setOpen(false)
@@ -102,9 +103,18 @@ export const DataInventoryButton: React.FC<Props> = ({ userUUID, displayName }) 
                 </DialogHeader>
 
                 {loading ? (
-                    <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Counting rows across every table…
+                    // The table's own shape while the counts run, not a spinner.
+                    <div role="status" aria-label="Counting rows across every table" className="space-y-3">
+                        <Skeleton className="h-4 w-56" />
+                        <div className="divide-y divide-border rounded-lg border border-border">
+                            {[0, 1, 2, 3, 4].map((i) => (
+                                <div key={i} className="flex items-center gap-4 px-3 py-2">
+                                    <Skeleton className={i % 2 === 0 ? "h-3 w-32" : "h-3 w-40"} />
+                                    <Skeleton className="h-3 w-24" />
+                                    <Skeleton className="ml-auto h-3 w-8" />
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 ) : !inventory ? null : inventory.locations.length === 0 ? (
                     <p className="py-6 text-sm text-muted-foreground">
