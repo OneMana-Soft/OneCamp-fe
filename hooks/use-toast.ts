@@ -143,7 +143,7 @@ function dispatch(action: Action) {
 
 export type Toast = Omit<ToasterToast, "id">
 
-function toast({ duration, ...props }: Toast) {
+function toast(props: Toast) {
   const id = genId()
 
   const update = (props: ToasterToast) =>
@@ -156,6 +156,11 @@ function toast({ duration, ...props }: Toast) {
   dispatch({
     type: "ADD_TOAST",
     toast: {
+      // `duration` stays on the toast: the Toaster hands it to the Radix toast,
+      // which keeps the time (and pauses it while the toast is hovered or
+      // focused). It used to be taken off here and given to a setTimeout,
+      // while the Radix toast closed itself at the provider's 5 seconds, so a
+      // toast asked for 20 seconds was gone at 5.
       ...props,
       id,
       open: true,
@@ -165,11 +170,6 @@ function toast({ duration, ...props }: Toast) {
     },
   })
 
-  // Auto-dismiss after specified duration
-  if (duration && duration > 0) {
-    setTimeout(dismiss, duration)
-  }
-
   return {
     id: id,
     dismiss,
@@ -177,24 +177,42 @@ function toast({ duration, ...props }: Toast) {
   }
 }
 
-function useToast() {
-  const [state, setState] = React.useState<State>(memoryState)
+const dismissToast = (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId })
 
-  React.useEffect(() => {
-    listeners.push(setState)
-    return () => {
-      const index = listeners.indexOf(setState)
-      if (index > -1) {
-        listeners.splice(index, 1)
-      }
-    }
-  }, [state])
-
-  return {
-    ...state,
-    toast,
-    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+function subscribe(listener: (state: State) => void) {
+  listeners.push(listener)
+  return () => {
+    const index = listeners.indexOf(listener)
+    if (index > -1) listeners.splice(index, 1)
   }
 }
 
-export { useToast, toast }
+const getSnapshot = () => memoryState
+const SERVER_STATE: State = { toasts: [] }
+const getServerSnapshot = () => SERVER_STATE
+
+/**
+ * The toasts on screen, for the one component that draws them (Toaster).
+ */
+function useToastState(): State {
+  return React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+}
+
+/**
+ * toast() and dismiss() for any component that shows toasts.
+ *
+ * DOES NOT SUBSCRIBE. It used to hold the toast list in state and listen to
+ * every change (re-subscribing on each one), so the 142 components that call
+ * it re-rendered, with their children, whenever any toast appeared or closed.
+ * `toasts` is still returned for compatibility, as it is at render time;
+ * the Toaster reads the live list through useToastState.
+ */
+function useToast() {
+  return {
+    toasts: memoryState.toasts,
+    toast,
+    dismiss: dismissToast,
+  }
+}
+
+export { useToast, useToastState, toast }
