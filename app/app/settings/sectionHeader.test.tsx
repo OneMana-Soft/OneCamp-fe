@@ -19,7 +19,7 @@ describe("a settings section's header", () => {
   })
 
   it("opens every section page", () => {
-    for (const page of ["notifications", "workflows", "agents", "assistants"]) {
+    for (const page of ["notifications", "connectors", "workflows", "agents", "assistants"]) {
       const src = readFileSync(resolve(__dirname, page, "page.tsx"), "utf8")
       expect(src, `${page}/page.tsx must open with SectionHeader`).toMatch(/<SectionHeader\b/)
       // The frame (width and spacing) is the layout's, so no page sets its own.

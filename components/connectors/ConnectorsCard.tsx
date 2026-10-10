@@ -4,32 +4,71 @@
 // workspace AI read and (with confirmation) act on the user's external account.
 // We surface exactly what each connector can see/do (read vs write permissions)
 // so consent is informed, and connect/disconnect is one click.
+//
+// The page's header (app/app/settings/connectors) names the section and says
+// what connecting does; this is the list under it.
 
 import React, { useCallback, useEffect, useState } from "react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog"
-import { useToast } from "@/hooks/use-toast"
-import { Github, Mail, Calendar, ShieldCheck, Check, Eye, Loader2, RefreshCw } from "@/lib/icons"
+import { toast } from "@/hooks/use-toast"
+import { Github, Mail, Calendar, ShieldCheck, Eye, Loader2 } from "@/lib/icons"
 import { Plug } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SettingsList } from "@/components/ui/settingsSection"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { hueFor, type CampHue } from "@/lib/campHue"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { listConnectors, startConnect, disconnectConnector } from "@/services/connectorService"
 import type { ConnectorStatus } from "@/types/connector"
 
 const ICONS: Record<string, React.ReactNode> = {
-    gmail: <Mail className="h-5 w-5" />,
-    calendar: <Calendar className="h-5 w-5" />,
-    github: <Github className="h-5 w-5" />,
+    gmail: <Mail />,
+    calendar: <Calendar />,
+    github: <Github />,
+}
+
+/**
+ * A connector's own hue, fixed per provider so it reads the same everywhere:
+ * Gmail berry, Google Calendar sky, GitHub dusk. One the list doesn't know
+ * yet takes a stable hue from its id.
+ */
+const HUES: Record<string, CampHue> = { gmail: "berry", calendar: "sky", github: "dusk" }
+const hueOf = (c: ConnectorStatus): CampHue => HUES[c.icon_key] ?? hueFor(c.id)
+
+/** The section's hue (lib/settingsSections), for the list's empty state. */
+const SECTION_HUE: CampHue = "lake"
+
+/** The list's rows while it loads: a tile, two lines and a button's place each. */
+function LoadingRows() {
+    return (
+        <div role="status" aria-label="Loading your connectors">
+            <SettingsList>
+                {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} aria-hidden="true" className="flex items-start gap-3 px-4 py-3">
+                        <Skeleton className="size-8 shrink-0 rounded-lg" />
+                        <div className="min-w-0 flex-1 space-y-2 pt-1">
+                            <Skeleton className={i % 2 ? "h-3.5 w-24" : "h-3.5 w-32"} />
+                            <Skeleton className="h-3 w-3/4" />
+                        </div>
+                        <Skeleton className="h-8 w-20 shrink-0" />
+                    </div>
+                ))}
+            </SettingsList>
+        </div>
+    )
 }
 
 export default function ConnectorsCard() {
-    const { toast } = useToast()
-    const { data: connectors, isLoading, mutate } = useSWR("user-connectors", listConnectors, {
+    const { data: connectors, error, isLoading, mutate } = useSWR("user-connectors", listConnectors, {
         revalidateOnFocus: false,
     })
+    const isError = !!error
 
     const [confirmDisconnect, setConfirmDisconnect] = useState<ConnectorStatus | null>(null)
     const [busyId, setBusyId] = useState<string | null>(null)
@@ -43,100 +82,104 @@ export default function ConnectorsCard() {
             toast({ title: "Connected", description: "Your account is now connected." })
             mutate()
         } else if (status === "error") {
-            toast({ title: "Connection failed", description: "We couldn't complete the connection.", variant: "destructive" })
+            toast({
+                title: "Couldn't connect your account",
+                description: "The sign-in didn't finish. Press Connect to try again.",
+                variant: "destructive",
+            })
         }
         if (status) {
             window.history.replaceState({}, document.title, window.location.pathname)
         }
-    }, [toast, mutate])
+    }, [mutate])
 
     const handleConnect = useCallback(async (c: ConnectorStatus) => {
         setBusyId(c.id)
         try {
             await startConnect(c.id) // redirects away on success
-        } catch {
+        } catch (e) {
             setBusyId(null)
             toast({
-                title: "Couldn't start connection",
-                description: `${c.name} may not be configured by your admin yet.`,
+                title: `Couldn't connect ${c.name}`,
+                description: apiErrorMessage(e, `${c.name} may not be set up on this server yet. Ask an admin.`),
                 variant: "destructive",
             })
         }
-    }, [toast])
+    }, [])
 
     const handleDisconnect = useCallback(async () => {
         if (!confirmDisconnect) return
         setBusyId(confirmDisconnect.id)
         try {
             await disconnectConnector(confirmDisconnect.id)
-            toast({ title: "Disconnected" })
+            toast({ title: `${confirmDisconnect.name} disconnected` })
             setConfirmDisconnect(null)
             mutate()
-        } catch {
-            toast({ title: "Failed to disconnect", variant: "destructive" })
+        } catch (e) {
+            toast({
+                title: `Couldn't disconnect ${confirmDisconnect.name}`,
+                description: apiErrorMessage(e, "Check your connection and try again."),
+                variant: "destructive",
+            })
         } finally {
             setBusyId(null)
         }
-    }, [confirmDisconnect, mutate, toast])
+    }, [confirmDisconnect, mutate])
 
     return (
         <div className="flex flex-col">
-            <div className="mb-5">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <Plug className="h-5 w-5 text-primary" /> Connectors
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                    Connect your accounts so the AI can help across your tools. The AI only ever uses your
-                    own connections, and actions like sending email always ask for your confirmation first.
-                </p>
-            </div>
-
-            <div className="space-y-2.5">
-                {isLoading && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
-                        <RefreshCw className="h-4 w-4 animate-spin" /> Loading connectors…
-                    </div>
-                )}
-                {!isLoading && (!connectors || connectors.length === 0) && (
-                    <EmptyState
-                        tone="accent"
-                        icon={Plug}
-                        title="No connectors are available yet"
-                        description="Ask your admin to configure Google or GitHub OAuth."
-                    />
-                )}
-                {connectors?.map((c) => (
-                    <div key={c.id} className="rounded-xl border border-border/70 bg-card p-4">
-                        <div className="flex items-start gap-3">
-                            <div className="h-10 w-10 shrink-0 rounded-lg bg-muted flex items-center justify-center text-foreground">
-                                {ICONS[c.icon_key] || <Plug className="h-5 w-5" />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium text-sm">{c.name}</span>
+            {isLoading ? (
+                <LoadingRows />
+            ) : isError ? (
+                // Before the empty case: a failed request is not a server with
+                // nothing to connect, which is what it used to say.
+                <ErrorState subject="your connectors" onRetry={() => void mutate()} />
+            ) : !connectors || connectors.length === 0 ? (
+                <EmptyState
+                    tone="accent"
+                    icon={Plug}
+                    hue={SECTION_HUE}
+                    title="No connectors are set up on this server"
+                    description="They appear here once an admin sets up Google or GitHub sign-in, under Admin, Integrations."
+                />
+            ) : (
+                <SettingsList>
+                    {connectors.map((c) => (
+                        <div key={c.id} data-connector={c.id} className="flex items-start gap-3 px-4 py-3">
+                            <Tile hue={hueOf(c)} size="md">
+                                {ICONS[c.icon_key] || <Plug />}
+                            </Tile>
+                            <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className="text-sm font-medium leading-5">{c.name}</span>
+                                    {/* A status is a dot and a word, in the status colour. */}
                                     {c.connected && (
-                                        <Badge className="text-2xs bg-success/10 text-success-ink">
-                                            <Check className="h-3 w-3 mr-0.5" />Connected
-                                        </Badge>
+                                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success-ink">
+                                            <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
+                                            Connected
+                                        </span>
                                     )}
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-0.5">{c.description}</p>
-                                <ul className="mt-2 space-y-1">
+                                <p className="text-xs text-muted-foreground text-pretty">{c.description}</p>
+                                <ul className="space-y-0.5 pt-1">
                                     {c.permissions.map((p, i) => (
-                                        <li key={i} className="flex items-center gap-1.5 text-2xs text-muted-foreground">
+                                        <li key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                             {p.capability === "write"
-                                                ? <ShieldCheck className="h-3 w-3 text-warning-ink" />
-                                                : <Eye className="h-3 w-3 text-muted-foreground" />}
+                                                ? <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-warning-ink" aria-hidden="true" />
+                                                : <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
                                             {p.description}
                                         </li>
                                     ))}
                                 </ul>
                             </div>
                             <div className="shrink-0">
+                                {/* Outlined, both: a list where every row carried a
+                                    filled button had no one primary action. */}
                                 {c.connected ? (
                                     <Button
                                         size="sm"
                                         variant="outline"
+                                        aria-label={`Disconnect ${c.name}`}
                                         onClick={() => setConfirmDisconnect(c)}
                                         disabled={busyId === c.id}
                                     >
@@ -145,19 +188,20 @@ export default function ConnectorsCard() {
                                 ) : (
                                     <Button
                                         size="sm"
+                                        variant="outline"
+                                        aria-label={`Connect ${c.name}`}
                                         onClick={() => handleConnect(c)}
                                         disabled={busyId === c.id}
-                                        className="gap-1.5"
                                     >
-                                        {busyId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                                        {busyId === c.id ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
                                         Connect
                                     </Button>
                                 )}
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </SettingsList>
+            )}
 
             <Dialog open={!!confirmDisconnect} onOpenChange={(o) => !o && setConfirmDisconnect(null)}>
                 <DialogContent>
@@ -165,13 +209,13 @@ export default function ConnectorsCard() {
                         <DialogTitle>Disconnect {confirmDisconnect?.name}?</DialogTitle>
                         <DialogDescription>
                             The AI will no longer be able to access your {confirmDisconnect?.name} account. Your
-                            stored access token is deleted. You can reconnect anytime.
+                            stored access token is deleted. You can connect it again any time.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setConfirmDisconnect(null)}>Cancel</Button>
                         <Button variant="destructive" onClick={handleDisconnect} disabled={busyId === confirmDisconnect?.id}>
-                            {busyId === confirmDisconnect?.id ? "Disconnecting…" : "Disconnect"}
+                            {busyId === confirmDisconnect?.id ? "Disconnecting…" : `Disconnect ${confirmDisconnect?.name ?? ""}`.trim()}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
