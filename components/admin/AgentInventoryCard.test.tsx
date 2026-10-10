@@ -9,6 +9,9 @@ import {
   type AgentInventory,
 } from "@/services/agentService"
 
+const toastSpy = vi.hoisted(() => vi.fn())
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastSpy }), toast: toastSpy }))
+
 vi.mock("@/services/agentService", async (orig) => ({
   ...(await orig<typeof import("@/services/agentService")>()),
   getAgentInventory: vi.fn(),
@@ -81,6 +84,37 @@ describe("the agent inventory", () => {
     const dialog = await screen.findByRole("alertdialog")
     fireEvent.click(Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "Revoke")!)
     await waitFor(() => expect(revokeInventoryCredential).toHaveBeenCalledWith("t1"))
+  })
+
+  // Revoking can't be undone, and it was confirmed with the orange primary
+  // button, the colour of "go ahead".
+  it("confirms a revoke with the danger colour", async () => {
+    vi.mocked(getAgentInventory).mockResolvedValue(inventory())
+    render(<AgentInventoryCard />)
+    fireEvent.click(await screen.findByRole("button", { name: "Revoke" }))
+    const dialog = await screen.findByRole("alertdialog")
+    const confirm = Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "Revoke")!
+    expect(confirm.className).toContain("bg-destructive")
+  })
+
+  // "Could not pause X", with nothing about why, replaced the server's own
+  // explanation (one toast shows at a time).
+  it("says why a pause failed, in the server's words", async () => {
+    vi.mocked(getAgentInventory).mockResolvedValue(inventory())
+    vi.mocked(setAgentActive).mockRejectedValueOnce({ response: { data: { msg: "Only its sponsor or an admin can pause it." } } })
+    render(<AgentInventoryCard />)
+    fireEvent.click(await screen.findByRole("switch", { name: "Pause Release Captain" }))
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Couldn't pause Release Captain", description: "Only its sponsor or an admin can pause it." }),
+      ),
+    )
+  })
+
+  it("is a section of the AI tab with its own heading", async () => {
+    vi.mocked(getAgentInventory).mockResolvedValue(inventory())
+    render(<AgentInventoryCard />)
+    expect(await screen.findByRole("heading", { name: "Agent inventory" })).toBeTruthy()
   })
 
   it("offers a retry when it cannot load", async () => {

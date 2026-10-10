@@ -15,7 +15,11 @@
  */
 
 import * as React from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { SettingsSection } from "@/components/ui/settingsSection"
+import { ErrorState } from "@/components/ui/error-state"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { buttonVariants } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -34,6 +38,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Key } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { relativeTime } from "@/lib/utils/relativeTime"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
   getAgentInventory,
   revokeInventoryCredential,
@@ -81,7 +86,7 @@ function InventoryAgentRow({
   onToggle: (a: InventoryAgent, next: boolean) => void
 }) {
   return (
-    <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 py-3">
+    <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-4 py-3">
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="font-medium text-foreground">{a.name}</span>
@@ -128,7 +133,7 @@ function InventoryCredentialRow({
   onRevoke: (c: InventoryCredential) => void
 }) {
   return (
-    <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 py-3">
+    <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-4 py-3">
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="font-medium text-foreground">{c.name}</span>
@@ -194,8 +199,12 @@ export function AgentInventoryCard() {
               ? "It stops now, and so do its credentials."
               : "It stops now. Nothing it started is undone.",
         })
-      } catch {
-        toast({ title: `Could not ${next ? "resume" : "pause"} ${a.name}`, variant: "destructive" })
+      } catch (e) {
+        toast({
+          title: `Couldn't ${next ? "resume" : "pause"} ${a.name}`,
+          description: apiErrorMessage(e, "Try again in a moment."),
+          variant: "destructive",
+        })
       } finally {
         setBusy(null)
         void load()
@@ -213,8 +222,7 @@ export function AgentInventoryCard() {
       await revokeInventoryCredential(c.id)
       toast({ title: `${c.name} revoked`, description: "Its next request is refused." })
     } catch (e) {
-      const msg = (e as { response?: { data?: { msg?: string } } })?.response?.data?.msg
-      toast({ title: `Could not revoke ${c.name}`, description: msg, variant: "destructive" })
+      toast({ title: `Couldn't revoke ${c.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
     } finally {
       setBusy(null)
       void load()
@@ -223,28 +231,20 @@ export function AgentInventoryCard() {
 
   const days = inv?.window_days ?? 7
 
+  // A section of the AI tab like the others, a heading, one line and hairline
+  // lists, where it was a bordered card of its own.
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold">Agent inventory
-        </CardTitle>
-        <CardDescription>
-          Every agent and credential that can act here, the person each one answers to, and what it did or was
-          refused in the last {days} days.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-6">
+    <SettingsSection
+      title="Agent inventory"
+      description={`Every agent and credential that can act here, the person each one answers to, and what it did or was refused in the last ${days} days.`}
+    >
+      <div className="grid gap-6">
         {!inv && !failed ? (
           <div role="status" aria-label="Loading the inventory" className="py-1">
             <SkeletonRows rows={4} />
           </div>
         ) : failed && !inv ? (
-          <div className="flex items-center gap-3 py-4 text-sm text-muted-foreground">
-            The inventory could not be loaded.
-            <Button size="sm" variant="outline" onClick={() => void load()}>
-              Try again
-            </Button>
-          </div>
+          <ErrorState subject="the agent inventory" onRetry={() => void load()} />
         ) : inv ? (
           <>
             <section aria-labelledby="inventory-agents">
@@ -254,7 +254,7 @@ export function AgentInventoryCard() {
               {inv.agents.length === 0 ? (
                 <p className="py-3 text-sm text-muted-foreground">No agents yet.</p>
               ) : (
-                <ul className="flex flex-col divide-y divide-border/60">
+                <ul className="mt-2 flex flex-col divide-y divide-border rounded-lg border border-border">
                   {inv.agents.map((a) => (
                     <InventoryAgentRow key={a.id} agent={a} busy={busy === a.id} onToggle={toggle} />
                   ))}
@@ -262,14 +262,14 @@ export function AgentInventoryCard() {
               )}
             </section>
             <section aria-labelledby="inventory-credentials">
-              <h3 id="inventory-credentials" className="flex items-center gap-1.5 text-sm font-medium">
-                <Key className="h-3.5 w-3.5 text-muted-foreground" />
+              <h3 id="inventory-credentials" className="flex items-center gap-2 text-sm font-medium">
+                <Tile hue={ADMIN_GROUP_HUE.ai} size="sm"><Key /></Tile>
                 Credentials <span className="font-normal text-muted-foreground">{inv.credentials.length}</span>
               </h3>
               {inv.credentials.length === 0 ? (
                 <p className="py-3 text-sm text-muted-foreground">No live credentials. Nothing outside can act here.</p>
               ) : (
-                <ul className="flex flex-col divide-y divide-border/60">
+                <ul className="mt-2 flex flex-col divide-y divide-border rounded-lg border border-border">
                   {inv.credentials.map((c) => (
                     <InventoryCredentialRow key={c.id} credential={c} busy={busy === c.id} onRevoke={setRevoking} />
                   ))}
@@ -278,7 +278,7 @@ export function AgentInventoryCard() {
             </section>
           </>
         ) : null}
-      </CardContent>
+      </div>
 
       <AlertDialog open={!!revoking} onOpenChange={(o) => !o && setRevoking(null)}>
         <AlertDialogContent>
@@ -292,11 +292,15 @@ export function AgentInventoryCard() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void revoke()}>Revoke</AlertDialogAction>
+            {/* Destructive: it can't be undone. It was the orange primary,
+                the colour of "go ahead". */}
+            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={() => void revoke()}>
+              Revoke
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </SettingsSection>
   )
 }
 
