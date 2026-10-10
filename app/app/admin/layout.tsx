@@ -3,11 +3,54 @@
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import {ErrorState} from "@/components/ui/error-state";
+import {Skeleton} from "@/components/ui/skeleton";
 import {Lock} from "@/lib/icons";
 
-export default function ChatLayout({
+/**
+ * The admin page's frame while the gate asks who you are: its header, the
+ * menu down the side and the first rows of a section, at the sizes the page
+ * draws them, so the page arrives into its own shape instead of replacing a
+ * spinner in the middle of nothing.
+ */
+function AdminFrameSkeleton() {
+    return (
+        <div role="status" aria-label="Loading Admin" className="flex h-full min-h-0 flex-col bg-background">
+            <div className="shrink-0 border-b border-border px-4 py-5 sm:px-6 lg:px-8" aria-hidden="true">
+                <div className="mx-auto w-full max-w-6xl space-y-2">
+                    <Skeleton className="h-3.5 w-20" />
+                    <Skeleton className="h-7 w-28" />
+                </div>
+            </div>
+            <div className="px-4 py-6 sm:px-6 lg:px-8" aria-hidden="true">
+                <div className="mx-auto w-full max-w-6xl lg:flex lg:items-start lg:gap-8">
+                    <div className="hidden w-52 shrink-0 space-y-2 lg:block">
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <Skeleton key={i} className={i % 3 === 0 ? "h-3 w-20" : "h-7 w-full"} />
+                        ))}
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-4">
+                        <Skeleton className="h-5 w-32" />
+                        <div className="divide-y divide-border rounded-lg border border-border">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                                    <Skeleton variant="circle" className="h-9 w-9 shrink-0" />
+                                    <div className="flex-1 space-y-1.5">
+                                        <Skeleton className={i % 2 === 0 ? "h-3.5 w-32" : "h-3.5 w-40"} />
+                                        <Skeleton className="h-3 w-56 max-w-full" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export default function AdminGate({
                                       children,
                                   }: Readonly<{
     children: React.ReactNode;
@@ -16,7 +59,18 @@ export default function ChatLayout({
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
 
     if (selfProfile.isLoading) {
-        return <LoadingStateCircle/>
+        return <AdminFrameSkeleton/>
+    }
+
+    // Asked before "are you an admin": a failed request leaves no profile, and
+    // the page used to answer that with "Admins only", telling an admin they
+    // weren't one.
+    if (selfProfile.isError && !selfProfile.data) {
+        return (
+            <div className="flex h-full items-center justify-center">
+                <ErrorState subject="this page" onRetry={() => void selfProfile.mutate()} />
+            </div>
+        )
     }
 
     if (!selfProfile.data?.data.user_is_admin) {
