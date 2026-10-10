@@ -10,6 +10,15 @@
 import axiosInstance from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
 
+/**
+ * A search is a read sent as a POST. Unflagged, a request that got no answer
+ * raised the write's toast, "Couldn't reach the server. Your change wasn't
+ * saved.", on a search. Every caller already treats a failure as no extra
+ * results (the palette, the search page's answer and connected apps), and the
+ * offline notice says the server can't be reached.
+ */
+const AS_A_READ = { suppressErrorToast: true } as Record<string, unknown>
+
 export type UnifiedSource = "workspace" | "memory" | "gmail" | "github"
 
 export interface UnifiedHit {
@@ -53,7 +62,7 @@ interface UnifiedSearchResponse {
 // the handler's context is the request's, so a cancelled search stops fanning out
 // instead of finishing work nobody will read.
 export async function unifiedSearch(query: string, signal?: AbortSignal): Promise<UnifiedSearchResponse> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearch, { query }, { signal })
+  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearch, { query }, { signal, ...AS_A_READ })
   return (
     res.data?.data ?? {
       enabled: false,
@@ -116,7 +125,7 @@ export interface UnifiedAnswerResponse {
 }
 
 export async function unifiedSearchAnswer(query: string, signal?: AbortSignal): Promise<UnifiedAnswerResponse> {
-  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearchAnswer, { query }, { signal })
+  const res = await axiosInstance.post(PostEndpointUrl.AIUnifiedSearchAnswer, { query }, { signal, ...AS_A_READ })
   return (
     res.data?.data ?? {
       enabled: false,
