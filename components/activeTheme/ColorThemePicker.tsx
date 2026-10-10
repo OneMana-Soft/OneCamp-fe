@@ -20,21 +20,22 @@ export function ColorThemePicker() {
 
     return (
         <div className="w-full">
-            <div className="text-xs text-muted-foreground mb-2 font-medium">Accent color</div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <p id="accent-label" className="mb-2 text-sm font-medium">Accent colour</p>
+            <div role="group" aria-labelledby="accent-label" className="flex items-center gap-2 flex-wrap">
                 {VALID_COLOR_THEMES.map((color) => (
                     <button
                         key={color}
                         type="button"
                         onClick={() => setActiveTheme(color)}
                         className={cn(
-                            "w-7 h-7 rounded-full transition duration-150",
+                            "w-7 h-7 rounded-full transition-[opacity,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                             `theme-${color} bg-brand`,
                             activeTheme === color
                                 ? "ring-2 ring-offset-2 ring-primary scale-110"
                                 : "opacity-70 hover:opacity-100 hover:scale-105"
                         )}
-                        aria-label={`Set theme color to ${color}`}
+                        aria-label={color}
+                        aria-pressed={activeTheme === color}
                         title={color}
                     />
                 ))}

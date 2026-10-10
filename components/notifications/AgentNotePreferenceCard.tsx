@@ -6,9 +6,7 @@
  */
 
 import * as React from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/settings/SettingsSection"
 import { useToast } from "@/hooks/use-toast"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { getAgentNoteEnabled, setAgentNoteEnabled } from "@/services/agentNoteService"
@@ -39,21 +37,15 @@ export function AgentNotePreferenceCard() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Daily note from OneCamp AI</CardTitle>
-        <CardDescription>
-          The first time you open OneCamp each day, OneCamp AI sends you a DM listing what needs you: approvals,
-          overdue tasks, commitments and today&apos;s meetings. Reply to it for help. Nothing is sent on a day with
-          nothing to say.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex items-center justify-between gap-4">
-        <Label htmlFor="agent-note" className="text-sm font-normal">
-          Send me the daily note
-        </Label>
-        <Switch id="agent-note" checked={enabled} onCheckedChange={(v) => void change(v)} />
-      </CardContent>
-    </Card>
+    <SettingsSection title="Daily note from OneCamp AI" description="Saved as soon as you switch it.">
+      <SettingsList>
+        <SwitchRow
+          label="Send me the daily note"
+          description="The first time you open OneCamp each day, OneCamp AI sends you a DM listing what needs you: approvals, overdue tasks, commitments and today's meetings. Reply to it for help. Nothing is sent on a day with nothing to say."
+          checked={enabled}
+          onChange={(v) => void change(v)}
+        />
+      </SettingsList>
+    </SettingsSection>
   )
 }

@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Fingerprint, LoaderCircle, Pencil, Trash2 } from "@/lib/icons"
+import { LoaderCircle, Pencil, Trash2 } from "@/lib/icons"
+import { useConfirm } from "@/hooks/useConfirm"
 import { serverMessage } from "@/lib/http/serverMessage"
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn"
 import { addPasskey, listPasskeys, removePasskey, renamePasskey, type Passkey } from "@/services/passkeyService"
@@ -27,6 +28,7 @@ export function PasskeySection() {
   const [error, setError] = useState("")
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null)
   const supported = passkeysSupported()
+  const confirm = useConfirm()
 
   const refresh = useCallback(async () => {
     try {
@@ -56,22 +58,18 @@ export function PasskeySection() {
   }
 
   return (
-    <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm">
+    <div className="space-y-4 px-4 py-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 rounded-full bg-primary/10">
-            <Fingerprint className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-sm font-medium">Passkeys</h3>
-            <p className="text-xs text-muted-foreground">
-              {supported ? "Sign in with your fingerprint, face or device PIN instead of a password." : "This browser can't use passkeys."}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium">Passkeys</h3>
+          <p className="text-xs text-muted-foreground text-pretty">
+            {supported ? "Sign in with your fingerprint, face or device PIN instead of a password." : "This browser can't use passkeys."}
+          </p>
         </div>
         {supported && (
           <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => addPasskey(deviceName()))}>
-            {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : "Add a passkey"}
+            {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+            Add a passkey
           </Button>
         )}
       </div>
@@ -110,7 +108,15 @@ export function PasskeySection() {
                     <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Rename this passkey" onClick={() => setRenaming({ id: k.id, name: k.name })}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Remove this passkey" disabled={busy} onClick={() => run(() => removePasskey(k.id))}>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Remove this passkey" disabled={busy} onClick={() =>
+                        confirm({
+                          title: "Remove this passkey?",
+                          description: `"${k.name}" will stop signing you in. To use it again you'd add it again.`,
+                          confirmText: "Remove passkey",
+                          destructive: true,
+                          onConfirm: () => run(() => removePasskey(k.id)),
+                        })
+                      }>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </span>

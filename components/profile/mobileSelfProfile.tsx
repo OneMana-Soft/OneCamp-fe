@@ -2,10 +2,8 @@
 
 import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Eyebrow, eyebrowClass } from "@/components/ui/eyebrow"
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
-import { useConfirm } from "@/hooks/useConfirm";
 import { updateUserInfoStatus } from "@/store/slice/userSlice";
 
 import { useForm, type Resolver } from "react-hook-form";
@@ -25,16 +23,10 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Switch } from "@/components/ui/switch";
 import { AppLanguageCombobox } from "@/components/dialog/appLanguageCombobox";
-import { Trash, Calendar, Moon, Sun } from "@/lib/icons";
-import { Camera } from "@/lib/icons";
-import axiosInstance from "@/lib/axiosInstance";
-import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
-import { TwoFactorSection } from "@/components/profile/TwoFactorSection";
-import { PasskeySection } from "@/components/profile/PasskeySection";
-import { useTheme } from "next-themes";
-import { ColorThemePicker } from "@/components/activeTheme/ColorThemePicker";
+import { Camera, Loader2 } from "@/lib/icons";
+import { AppearanceSection, CalendarSection, SigningInSection } from "@/components/profile/ProfileSettingsSections";
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/settings/SettingsSection";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -46,7 +38,6 @@ const NO_NAMES: SavedNames = { fullName: "", displayName: "", handle: "" };
 export function MobileSelfProfile() {
     const router = useRouter();
     const dispatch = useDispatch();
-    const confirm = useConfirm();
 
     const profileInfo = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile);
     const {src: imageSrc} = useUserAvatar(profileInfo?.data?.data?.user_profile_object_key);
@@ -56,7 +47,7 @@ export function MobileSelfProfile() {
     const uploadFile = useUploadFile();
     const post = usePost();
     const { t } = useTranslation();
-    const { theme, setTheme } = useTheme();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (imageSrc) {
@@ -178,94 +169,50 @@ export function MobileSelfProfile() {
         });
     };
 
-    const handleConnectGoogleCalendar = async (e: React.MouseEvent) => {
-        e.preventDefault();
-        try {
-            const response = await axiosInstance.get(GetEndpointUrl.GoogleCalendarAuthUrl);
-            if (response.data?.data) {
-                window.location.href = response.data.data;
-            }
-        } catch (e) {
-            console.error("Failed to get Google Calendar Auth URL", e);
-        }
-    };
-
-    const [gcalStatus, setGcalStatus] = useState<{ isConnected: boolean; taskSyncEnabled: boolean } | null>(null);
-    const [updatingSync, setUpdatingSync] = useState(false);
-
-    useEffect(() => {
-        const fetchGcalStatus = async () => {
-            try {
-                const response = await axiosInstance.get(GetEndpointUrl.GoogleCalendarStatus);
-                if (response.data?.data) {
-                    setGcalStatus(response.data.data);
-                }
-            } catch (e) {
-                console.error("Failed to get Google Calendar status", e);
-            }
-        };
-        fetchGcalStatus();
-    }, []);
-
-    const handleToggleTaskSync = async (enabled: boolean) => {
-        setUpdatingSync(true);
-        try {
-            await axiosInstance.post(PostEndpointUrl.UpdateGoogleCalendarSyncTask, { enabled });
-            setGcalStatus(prev => prev ? { ...prev, taskSyncEnabled: enabled } : null);
-        } catch (e) {
-            console.error("Failed to update task sync preference", e);
-        } finally {
-            setUpdatingSync(false);
-        }
-    };
-
-    const handleUnlinkGoogleCalendar = async (e: React.MouseEvent) => {
-        e.preventDefault();
-        confirm({
-            title: "Unlink Google Calendar",
-            description: "Are you sure you want to unlink Google Calendar?",
-            confirmText: "Unlink",
-            onConfirm: async () => {
-                try {
-                    await axiosInstance.post(PostEndpointUrl.GoogleCalendarUnlink);
-                    setGcalStatus({ isConnected: false, taskSyncEnabled: false });
-                } catch (e) {
-                    console.error("Failed to unlink Google Calendar", e);
-                }
-            },
-        });
-    };
-
     const shownName = displayNameOf(profileInfo.data?.data);
     const fullName = secondaryNameOf(profileInfo.data?.data);
     const handle = handleOf(profileInfo.data?.data);
     const userSeed = shownName || "User";
     const nameIntial = getNameInitials(userSeed);
 
+    const field = "h-11"
+    const saving = uploadFile.isSubmitting || post.isSubmitting
+
     return (
         <div className="flex flex-col h-full bg-background w-full">
-
-            {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto w-full">
-                <div className="p-4 md:p-6 lg:p-8 space-y-6 pb-[calc(env(safe-area-inset-bottom)+7rem)]">
-                    
-                    {/* Avatar Upload Section */}
-                    <div className="flex flex-col justify-center items-center">
-                        <div className="relative group mb-3">
-                            <Avatar className="h-32 w-32 ring-2 ring-border/50">
-                                <AvatarImage src={selectedImage || undefined} alt="Profile" />
-                                <AvatarFallback className={cn("text-3xl font-semibold", getAvatarFallbackClass(userSeed))}>
+                <div className="space-y-10 px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+7rem)]">
+                    {/* PROFILE: waits for Save profile, which ends its own fields. */}
+                    <SettingsSection title="Profile" description="Saved together when you press Save profile.">
+                        <div className="flex items-center gap-4">
+                            <Avatar className="h-16 w-16">
+                                <AvatarImage src={selectedImage || undefined} alt="" />
+                                <AvatarFallback className={cn("text-lg font-semibold", getAvatarFallbackClass(userSeed))}>
                                     {nameIntial}
                                 </AvatarFallback>
                             </Avatar>
-                            <label
-                                htmlFor="imageUploadMobile"
-                                className="absolute bottom-1 right-1 p-2.5 bg-primary text-primary-foreground rounded-full shadow-overlay cursor-pointer hover:bg-primary/90 transition-colors"
-                                aria-label="Upload profile photo"
-                            >
-                                <Camera className="h-4 w-4" />
-                            </label>
+                            <div className="min-w-0 flex-1 space-y-1">
+                                <p className="truncate text-base font-medium text-foreground">{shownName}</p>
+                                {(fullName || handle) && (
+                                    <p className="truncate text-sm text-muted-foreground">
+                                        {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
+                                    </p>
+                                )}
+                                <p className="truncate text-sm text-muted-foreground">{profileInfo.data?.data?.user_email_id}</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="outline" size="sm" className="h-10" onClick={() => fileInputRef.current?.click()}>
+                                <Camera aria-hidden="true" />
+                                {selectedImage ? "Change photo" : "Add a photo"}
+                            </Button>
+                            {selectedImage && (
+                                <Button type="button" variant="ghost" size="sm" className="h-10" onClick={removeImage}>
+                                    {t("removeImage")}
+                                </Button>
+                            )}
                             <Input
+                                ref={fileInputRef}
                                 id="imageUploadMobile"
                                 type="file"
                                 accept="image/*"
@@ -273,42 +220,17 @@ export function MobileSelfProfile() {
                                 onChange={handleImageUpload}
                             />
                         </div>
-                        {selectedImage && (
-                            <Button
-                                variant="ghost"
-                                className="text-muted-foreground hover:text-destructive"
-                                size="sm"
-                                onClick={removeImage}
-                            >
-                                <Trash className="h-3.5 w-3.5 mr-1.5" />
-                                {t("removeImage")}
-                            </Button>
-                        )}
-                        <h2 className="text-xl font-semibold text-foreground mt-3">
-                            {shownName}
-                        </h2>
-                        {(fullName || handle) && (
-                            <p className="text-sm text-muted-foreground">
-                                {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
-                            </p>
-                        )}
-                        <p className="text-sm text-muted-foreground">
-                            {profileInfo.data?.data?.user_email_id}
-                        </p>
-                    </div>
 
-                    {/* Form Section */}
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4">
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 pt-2">
                                 <FormField
                                     control={form.control}
                                     name="displayName"
-                                    render={({ field }) => (
+                                    render={({ field: f }) => (
                                         <FormItem>
-                                            <FormLabel className={eyebrowClass}>{profileNameField("displayName").label}</FormLabel>
+                                            <FormLabel>{profileNameField("displayName").label}</FormLabel>
                                             <FormControl>
-                                                <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="Enter a display name" />
+                                                <Input {...f} autoComplete="nickname" className={field} />
                                             </FormControl>
                                             <FormDescription className="text-xs">{profileNameField("displayName").help}</FormDescription>
                                             <FormMessage />
@@ -318,11 +240,11 @@ export function MobileSelfProfile() {
                                 <FormField
                                     control={form.control}
                                     name="fullName"
-                                    render={({ field }) => (
+                                    render={({ field: f }) => (
                                         <FormItem>
-                                            <FormLabel className={eyebrowClass}>{profileNameField("fullName").label}</FormLabel>
+                                            <FormLabel>{profileNameField("fullName").label}</FormLabel>
                                             <FormControl>
-                                                <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="Enter your full name" />
+                                                <Input {...f} autoComplete="name" className={field} />
                                             </FormControl>
                                             <FormDescription className="text-xs">{profileNameField("fullName").help}</FormDescription>
                                             <FormMessage />
@@ -332,13 +254,13 @@ export function MobileSelfProfile() {
                                 <FormField
                                     control={form.control}
                                     name="handle"
-                                    render={({ field }) => (
+                                    render={({ field: f }) => (
                                         <FormItem>
-                                            <FormLabel className={eyebrowClass}>{profileNameField("handle").label}</FormLabel>
+                                            <FormLabel>{profileNameField("handle").label}</FormLabel>
                                             <div className="relative">
                                                 <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-muted-foreground">@</span>
                                                 <FormControl>
-                                                    <Input {...field} autoCapitalize="off" autoCorrect="off" spellCheck={false} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1 pl-7' placeholder="your-handle" />
+                                                    <Input {...f} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={cn(field, "pl-7")} />
                                                 </FormControl>
                                             </div>
                                             <FormDescription className="text-xs">{profileNameField("handle").help}</FormDescription>
@@ -349,11 +271,11 @@ export function MobileSelfProfile() {
                                 <FormField
                                     control={form.control}
                                     name="jobTitle"
-                                    render={({ field }) => (
+                                    render={({ field: f }) => (
                                         <FormItem>
-                                            <FormLabel className={eyebrowClass}>Job Title</FormLabel>
+                                            <FormLabel>Job title</FormLabel>
                                             <FormControl>
-                                                <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="e.g. Software Engineer" />
+                                                <Input {...f} autoComplete="organization-title" className={field} placeholder="Product designer…" />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -362,140 +284,59 @@ export function MobileSelfProfile() {
                                 <FormField
                                     control={form.control}
                                     name="hobbies"
-                                    render={({ field }) => (
+                                    render={({ field: f }) => (
                                         <FormItem>
-                                            <FormLabel className={eyebrowClass}>Hobbies</FormLabel>
+                                            <FormLabel>Hobbies</FormLabel>
                                             <FormControl>
-                                                <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="What do you like to do?" />
+                                                <Input {...f} autoComplete="off" className={field} placeholder="Climbing, film photography…" />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
-                                
-                                <div className="grid grid-cols-2 gap-4 pt-2">
-                                    <FormField
-                                        control={form.control}
-                                        name="language"
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-col col-span-1">
-                                                <FormLabel className={eyebrowClass}>{t('language')}</FormLabel>
-                                                <div className="mt-1">
-                                                    <AppLanguageCombobox
-                                                        onLangChange={field.onChange}
-                                                        userLang={field.value}
-                                                    />
-                                                </div>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="status"
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-col col-span-1">
-                                                <FormLabel className={eyebrowClass}>{t('status')}</FormLabel>
-                                                <div className="mt-1 flex items-center justify-between border rounded-xl px-3 h-12 bg-background/50">
-                                                    <span 
-                                                        className={cn(eyebrowClass, "cursor-pointer leading-none")}
-                                                        onClick={() => field.onChange(!field.value)}
-                                                    >
-                                                        Appear online
-                                                    </span>
-                                                    <Switch
-                                                        id="status-mobile"
-                                                        checked={!!field.value}
-                                                        onCheckedChange={field.onChange}
-                                                        className="m-0"
-                                                    />
-                                                </div>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4">
-                                <Eyebrow as="h3">Appearance</Eyebrow>
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
-                                                {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-                                            </div>
-                                            <div className="text-sm font-medium">Dark Mode</div>
-                                        </div>
-                                        <Switch
-                                            checked={theme === "dark"}
-                                            onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
-                                            aria-label="Toggle dark mode"
-                                        />
-                                    </div>
-                                    <ColorThemePicker />
-                                </div>
-                            </div>
-
-                            <div className="mt-4 space-y-4">
-                                <Eyebrow as="h3">Security</Eyebrow>
-                                <ChangePasswordSection />
-                                <TwoFactorSection />
-                                <PasskeySection />
-                            </div>
-
-                            <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 mt-4">
-                                <Eyebrow as="h3" className="mb-3">Integrations</Eyebrow>
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="bg-primary/10 p-2 rounded-full">
-                                                <Calendar className="h-5 w-5 text-primary" />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium">Google Calendar</p>
-                                                <p className="text-xs text-muted-foreground">Sync your tasks and personal events</p>
-                                            </div>
-                                        </div>
-                                        {!gcalStatus?.isConnected ? (
-                                            <Button variant="outline" size="sm" onClick={handleConnectGoogleCalendar}>
-                                                Connect
-                                            </Button>
-                                        ) : (
-                                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleUnlinkGoogleCalendar}>
-                                                Unlink
-                                            </Button>
-                                        )}
-                                    </div>
-
-                                    {gcalStatus?.isConnected && (
-                                        <div className="flex items-center justify-between p-3 bg-background/50 rounded-xl border animate-in fade-in slide-in-from-top-1">
-                                            <div className="flex flex-col">
-                                                <p className="text-sm font-medium text-foreground">Sync Tasks to Google Calendar</p>
-                                                <p className="text-xs text-muted-foreground">Tasks with due dates will appear on your calendar</p>
-                                            </div>
-                                            <Switch
-                                                checked={gcalStatus?.taskSyncEnabled}
-                                                onCheckedChange={handleToggleTaskSync}
-                                                disabled={updatingSync}
+                                <FormField
+                                    control={form.control}
+                                    name="language"
+                                    render={({ field: f }) => (
+                                        <FormItem className="flex flex-col">
+                                            <FormLabel>{t('language')}</FormLabel>
+                                            <AppLanguageCombobox
+                                                onLangChange={f.onChange}
+                                                userLang={f.value}
                                             />
-                                        </div>
+                                            <FormMessage />
+                                        </FormItem>
                                     )}
-                                </div>
-                            </div>
-                            
-                            <div className="pt-4">
-                                <Button 
-                                    className="w-full h-12 text-base font-medium rounded-xl" 
-                                    disabled={uploadFile.isSubmitting || post.isSubmitting} 
-                                    type="submit"
-                                >
-                                    {t('update')}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="status"
+                                    render={({ field: f }) => (
+                                        <FormItem>
+                                            <SettingsList>
+                                                <SwitchRow
+                                                    label="Appear online"
+                                                    description="Off, others see you as offline even while you're here."
+                                                    checked={!!f.value}
+                                                    onChange={f.onChange}
+                                                />
+                                            </SettingsList>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <Button className="h-11 w-full" disabled={saving} type="submit">
+                                    {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
+                                    {saving ? "Saving…" : "Save profile"}
                                 </Button>
-                            </div>
-                        </form>
-                    </Form>
+                            </form>
+                        </Form>
+                    </SettingsSection>
+
+                    <AppearanceSection />
+                    <CalendarSection />
+                    <SigningInSection />
                 </div>
             </div>
         </div>

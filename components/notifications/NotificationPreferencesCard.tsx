@@ -10,14 +10,11 @@
  * "your admin hasn't configured email yet" message.
  */
 
-import { useEffect, useId, useMemo, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
+import { useEffect, useMemo, useState } from "react"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
-import { Bell, Mail, Save, Moon, Loader2 } from "@/lib/icons"
+import { cn } from "@/lib/utils/helpers/cn"
+import { SaveBar, SettingsList, SettingsSection, SwitchRow } from "@/components/settings/SettingsSection"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
@@ -142,136 +139,136 @@ export function NotificationPreferencesCard() {
 
   const supported = working.email_supported
   const masterOff = !supported || !working.email_enabled
+  const discard = () => setWorking(original)
 
   return (
-    <Card className="w-full border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="bg-primary/10 p-1.5 rounded-md">
-            <Bell className="h-4 w-4 text-primary" />
-          </div>
-          <CardTitle className="text-xl font-bold tracking-tight">Email notifications</CardTitle>
-        </div>
-        <CardDescription className="text-sm text-muted-foreground">
-          Pick which OneCamp activity should reach your inbox. Quiet hours below hold push
-          notifications too; the rest of these switches are for email only.
-        </CardDescription>
-      </CardHeader>
+    <div className="space-y-10">
+      {!supported && !isLoading && (
+        <p role="status" className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
+          Your workspace admin hasn&apos;t turned email on yet. Push and in-app notifications still work.
+        </p>
+      )}
 
-      <CardContent className="px-0 space-y-6">
-        {!supported && !isLoading && (
-          <div className="text-sm rounded-md border border-warning/30 bg-warning/10 p-3 text-foreground">
-            Your workspace admin hasn't enabled email yet. Push and in-app
-            notifications still work as expected.
-          </div>
-        )}
-
-        {/* Master switch */}
-        <div className="flex items-center justify-between rounded-lg border bg-card/50 p-4">
-          <div className="space-y-0.5">
-            <Label htmlFor="email_enabled" className="text-sm font-semibold flex items-center gap-2">
-              <Mail className="h-4 w-4" /> Email me about activity
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Master switch. Disabling this stops all notification emails.
-            </p>
-          </div>
-          <Switch
-            id="email_enabled"
+      <SettingsSection
+        title="Email"
+        description="Which activity reaches your inbox. Changes here wait for Save."
+      >
+        <SettingsList>
+          <SwitchRow
+            label="Email me about activity"
+            description="Turn this off to stop every notification email."
             checked={working.email_enabled && supported}
             disabled={!supported || isLoading || post.isSubmitting}
-            onCheckedChange={(v) => setField("email_enabled", v)}
+            onChange={(v) => setField("email_enabled", v)}
           />
-        </div>
-
-        {/* Per-event toggles */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground">What to email me about</h3>
-          <div className="divide-y divide-border/60 rounded-lg border border-border/70">
-            <ToggleRow
-              label="Direct messages"
-              description="When someone sends you a 1:1 chat or messages a group you're in."
-              checked={working.email_dms}
-              disabled={masterOff || isLoading}
-              onChange={(v) => setField("email_dms", v)}
-            />
-            <ToggleRow
-              label="Mentions"
-              description="When you're @-mentioned in a channel, post, comment, or task."
-              checked={working.email_mentions}
-              disabled={masterOff || isLoading}
-              onChange={(v) => setField("email_mentions", v)}
-            />
-            <ToggleRow
-              label="Task assignments"
-              description="When a task is assigned to you."
-              checked={working.email_task_assigned}
-              disabled={masterOff || isLoading}
-              onChange={(v) => setField("email_task_assigned", v)}
-            />
-            <ToggleRow
-              label="Task status changes"
-              description="When the status of a task you own or watch changes."
-              checked={working.email_task_status}
-              disabled={masterOff || isLoading}
-              onChange={(v) => setField("email_task_status", v)}
-            />
-            <ToggleRow
-              label="Comments and replies"
-              description="On posts, docs, tasks, or chat threads you're part of."
-              checked={working.email_comments}
-              disabled={masterOff || isLoading}
-              onChange={(v) => setField("email_comments", v)}
-            />
-            <ToggleRow
-              label="Calls"
-              description="When a video call starts in a channel or chat you're in."
-              checked={working.email_calls}
-              disabled={masterOff || isLoading}
-              onChange={(v) => setField("email_calls", v)}
-            />
-            <ToggleRow
-              label="Channel and project invites"
-              description="When you're added to a new space."
-              checked={working.email_channel_invites}
-              disabled={masterOff || isLoading}
-              onChange={(v) => setField("email_channel_invites", v)}
-            />
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Smart delivery */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground">Smart delivery</h3>
-          <ToggleRow
-            label="Only email me when I'm offline"
-            description="Skip the inbox if I'm already active in OneCamp on any device."
+        </SettingsList>
+        <SettingsList>
+          <SwitchRow
+            label="Direct messages"
+            description="When someone sends you a 1:1 chat or messages a group you're in."
+            checked={working.email_dms}
+            disabled={masterOff || isLoading}
+            onChange={(v) => setField("email_dms", v)}
+          />
+          <SwitchRow
+            label="Mentions"
+            description="When you're @-mentioned in a channel, post, comment or task."
+            checked={working.email_mentions}
+            disabled={masterOff || isLoading}
+            onChange={(v) => setField("email_mentions", v)}
+          />
+          <SwitchRow
+            label="Task assignments"
+            description="When a task is assigned to you."
+            checked={working.email_task_assigned}
+            disabled={masterOff || isLoading}
+            onChange={(v) => setField("email_task_assigned", v)}
+          />
+          <SwitchRow
+            label="Task status changes"
+            description="When the status of a task you own or watch changes."
+            checked={working.email_task_status}
+            disabled={masterOff || isLoading}
+            onChange={(v) => setField("email_task_status", v)}
+          />
+          <SwitchRow
+            label="Comments and replies"
+            description="On posts, docs, tasks or chat threads you're part of."
+            checked={working.email_comments}
+            disabled={masterOff || isLoading}
+            onChange={(v) => setField("email_comments", v)}
+          />
+          <SwitchRow
+            label="Calls"
+            description="When a video call starts in a channel or chat you're in."
+            checked={working.email_calls}
+            disabled={masterOff || isLoading}
+            onChange={(v) => setField("email_calls", v)}
+          />
+          <SwitchRow
+            label="Channel and project invites"
+            description="When you're added to a new space."
+            checked={working.email_channel_invites}
+            disabled={masterOff || isLoading}
+            onChange={(v) => setField("email_channel_invites", v)}
+          />
+        </SettingsList>
+        <SettingsList>
+          <SwitchRow
+            label="Only when I'm away"
+            description="Skip the email if you're already active in OneCamp on any device."
             checked={working.email_only_when_offline}
             disabled={masterOff || isLoading}
             onChange={(v) => setField("email_only_when_offline", v)}
           />
+        </SettingsList>
+
+        {/* A choice of one, so a group of radio-like toggles rather than three primary buttons. */}
+        <div className="space-y-2 pt-2">
+          <p id="digest-label" className="text-sm font-medium">Activity digest</p>
+          <div role="radiogroup" aria-labelledby="digest-label" className="inline-flex gap-1 rounded-md bg-muted p-1">
+            {(["off", "daily", "weekly"] as const).map((opt) => {
+              const on = working.email_digest_frequency === opt
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  disabled={masterOff || isLoading}
+                  onClick={() => setField("email_digest_frequency", opt)}
+                  className={cn(
+                    "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50",
+                    on ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {opt === "off" ? "Off" : opt === "daily" ? "Daily" : "Weekly"}
+                </button>
+              )
+            })}
+          </div>
+          <p className="max-w-[65ch] text-xs text-muted-foreground text-pretty">
+            A summary of your open items: overdue commitments and unanswered questions OneCamp&apos;s AI picked up from
+            your meetings, channels and projects. Weekly digests arrive on Mondays.
+          </p>
         </div>
+      </SettingsSection>
 
-        <Separator />
-
-        {/* Quiet hours */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-            <Moon className="h-4 w-4" /> Quiet hours
-          </h3>
-          <ToggleRow
-            label="Hold notifications during my quiet hours"
-            description="Push notifications and emails wait until quiet hours end, in your time zone. To go quiet right now, use Pause notifications in your profile menu."
+      <SettingsSection
+        title="Quiet hours"
+        description="Push notifications and emails wait until quiet hours end, in your time zone. To go quiet right now, use Pause notifications in your profile menu."
+      >
+        <SettingsList>
+          <SwitchRow
+            label="Hold notifications during quiet hours"
             checked={working.quiet_hours_enabled}
             disabled={isLoading}
             onChange={(v) => setField("quiet_hours_enabled", v)}
           />
           {working.quiet_hours_enabled && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-md border p-3">
-              <div className="space-y-1">
-                <Label htmlFor="qh_start" className="text-xs">Start</Label>
+            <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="qh_start">From</Label>
                 <Input
                   id="qh_start"
                   type="time"
@@ -279,8 +276,8 @@ export function NotificationPreferencesCard() {
                   onChange={(e) => setField("quiet_hours_start", e.target.value)}
                 />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="qh_end" className="text-xs">End</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="qh_end">Until</Label>
                 <Input
                   id="qh_end"
                   type="time"
@@ -288,85 +285,28 @@ export function NotificationPreferencesCard() {
                   onChange={(e) => setField("quiet_hours_end", e.target.value)}
                 />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="qh_tz" className="text-xs">Timezone (IANA)</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="qh_tz">Time zone</Label>
                 <Input
                   id="qh_tz"
                   placeholder={browserTZ()}
                   value={working.quiet_hours_tz || ""}
                   onChange={(e) => setField("quiet_hours_tz", e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
                 />
               </div>
             </div>
           )}
-        </div>
+        </SettingsList>
+      </SettingsSection>
 
-        <Separator />
-
-        {/* Digest */}
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">Activity digest</h3>
-          <div className="flex flex-wrap gap-2">
-            {(["off", "daily", "weekly"] as const).map((opt) => (
-              <Button
-                key={opt}
-                variant={working.email_digest_frequency === opt ? "default" : "outline"}
-                size="sm"
-                disabled={masterOff || isLoading}
-                onClick={() => setField("email_digest_frequency", opt)}
-              >
-                {opt === "off" ? "Off" : opt[0].toUpperCase() + opt.slice(1)}
-              </Button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            A periodic summary of your open items: overdue commitments and unresolved
-            questions OneCamp&apos;s AI captured from your meetings, channels, and projects.
-            Weekly digests arrive on Mondays.
-          </p>
-        </div>
-
-        <div className="flex justify-end pt-4">
-          <Button
-            onClick={handleSave}
-            disabled={!dirty || isLoading || post.isSubmitting}
-            className="gap-2"
-          >
-            {post.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {post.isSubmitting ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// One row of a preference list. The label is tied to its switch, so a screen
-// reader announces what each switch controls (the page had eleven unnamed
-// switches) and clicking the text toggles it. A group of rows sits in one
-// bordered list rather than a box per row.
-function ToggleRow(props: {
-  label: string
-  description?: string
-  checked: boolean
-  disabled?: boolean
-  onChange: (v: boolean) => void
-}) {
-  const id = useId()
-  return (
-    <div className="flex items-start justify-between gap-4 px-3 py-3">
-      <div className="space-y-0.5">
-        <Label htmlFor={id} className="text-sm font-medium">{props.label}</Label>
-        {props.description && (
-          <p id={`${id}-desc`} className="text-xs text-muted-foreground">{props.description}</p>
-        )}
-      </div>
-      <Switch
-        id={id}
-        aria-describedby={props.description ? `${id}-desc` : undefined}
-        checked={props.checked}
-        disabled={props.disabled}
-        onCheckedChange={props.onChange}
+      <SaveBar
+        dirty={dirty}
+        saving={post.isSubmitting}
+        onSave={() => void handleSave()}
+        onDiscard={discard}
+        what="email and quiet-hours changes"
       />
     </div>
   )

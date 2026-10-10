@@ -6,7 +6,8 @@ import McpServersCard from "@/components/admin/McpServersCard"
 import DataSourcesCard from "@/components/admin/DataSourcesCard"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_AGENT_MANAGE } from "@/services/capabilityService"
-import { Loader2, Sparkles } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
+import { PageHeader } from "@/components/ui/pageHeader"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 
 export default function AgentsSettingsPage() {
@@ -23,19 +24,12 @@ export default function AgentsSettingsPage() {
 
   if (!aiAvailable) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-16">
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 px-6 py-12 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
-            <Sparkles className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium">AI agents are not on this server</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              This workspace is running an edition or configuration without AI, so
-              there is nothing here to manage.
-            </p>
-          </div>
-        </div>
+      <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-4">
+        <PageHeader title="Agents and skills">
+          <p className="text-sm text-muted-foreground">
+            This server runs without AI, so there are no agents to build or watch here.
+          </p>
+        </PageHeader>
       </div>
     )
   }
@@ -46,31 +40,28 @@ export default function AgentsSettingsPage() {
   // to is none of their business.
   if (!can(CAP_AGENT_MANAGE)) {
     return (
-      <div className="container mx-auto max-w-3xl space-y-6 px-4 py-8">
+      <div className="mx-auto w-full max-w-3xl space-y-8 px-4 pb-16 pt-4">
+        <PageHeader title="Agents and skills">
+          <p className="text-sm text-muted-foreground text-pretty">
+            Building agents is turned off for you. An admin can turn it on under Admin, Permissions. Everything an
+            agent did in your name is below.
+          </p>
+        </PageHeader>
         <MyAIActivityCard />
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 px-6 py-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
-            <Sparkles className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Building agents isn&apos;t enabled for you</p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              A workspace admin can turn on member-built agents in Settings &rarr;
-              Permissions. You can still see everything done in your name above.
-            </p>
-          </div>
-        </div>
       </div>
     )
   }
 
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-8">
-      <MyAIActivityCard />
+    // The agents first: the page is named for them. The record of what was
+    // done in your name follows the things that do it.
+    <div className="mx-auto w-full max-w-3xl space-y-8 px-4 pb-16 pt-4">
+      <PageHeader title="Agents and skills" />
       <AgentsCard />
       <McpServersCard />
       <DataSourcesCard />
+      <MyAIActivityCard />
     </div>
   )
 }

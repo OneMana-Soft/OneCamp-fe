@@ -11,8 +11,6 @@ import {
     Copy,
     Download,
     LoaderCircle,
-    Shield,
-    ShieldCheck,
     Smartphone,
 } from "@/lib/icons"
 import { TwoFactorCodeField } from "@/components/auth/TwoFactorCodeField"
@@ -182,28 +180,14 @@ export function TwoFactorSection() {
         ? `On: a code from your authenticator app is required to sign in. ${status.unusedRecoveryCodes} recovery ${
               status.unusedRecoveryCodes === 1 ? "code" : "codes"
           } left.`
-        : "Require a code from your phone as well as your password"
+        : "Off. Turn it on to need a code from your phone as well as your password."
 
     return (
-        <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm">
+        <div className="space-y-4 px-4 py-4">
             <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center space-x-3">
-                    {/* The warning TOKEN, not a raw amber utility. The sibling card uses the raw hue and
-                        is part of the backlog app/statusColour.test.ts pins; copying it here pushed the
-                        count from 350 to 351 and failed the ratchet, which is the guard working. That
-                        scanner reads comments too, so this one describes the class rather than spelling
-                        it — a note about not using a hue should not itself count as a usage. */}
-                    <div className={`p-2 rounded-full ${enrolled ? "bg-success/10" : "bg-warning/10"}`}>
-                        {enrolled ? (
-                            <ShieldCheck className="h-5 w-5 text-success" />
-                        ) : (
-                            <Shield className="h-5 w-5 text-warning" />
-                        )}
-                    </div>
-                    <div>
-                        <h3 className="text-sm font-medium">Two-step verification</h3>
-                        <p className="text-xs text-muted-foreground">{description}</p>
-                    </div>
+                <div className="min-w-0">
+                    <h3 className="text-sm font-medium">Two-step verification</h3>
+                    <p className="text-xs text-muted-foreground text-pretty">{description}</p>
                 </div>
 
                 {/* No control while the codes are on screen: every button here navigates away from the
@@ -224,7 +208,7 @@ export function TwoFactorSection() {
                             }
                         }}
                     >
-                        {busy && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
                         {enrolled ? "Turn off" : "Turn on"}
                     </Button>
                 )}
@@ -275,7 +259,7 @@ export function TwoFactorSection() {
                         e.preventDefault()
                         void confirmSetup(code)
                     }}
-                    className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200"
+                    className="space-y-4 "
                 >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                         {/*
@@ -326,15 +310,15 @@ export function TwoFactorSection() {
                         autoFocus
                     />
 
-                    <Button type="submit" className="w-full h-12" disabled={busy || code.trim() === ""}>
-                        {busy && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                    <Button type="submit" className="w-full" disabled={busy || code.trim() === ""}>
+                        {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
                         Turn on two-step verification
                     </Button>
                 </form>
             )}
 
             {view.name === "codes" && (
-                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="space-y-3 ">
                     <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                         <div className="space-y-1">
@@ -399,7 +383,7 @@ export function TwoFactorSection() {
 
                     <Button
                         type="button"
-                        className="w-full h-12"
+                        className="w-full"
                         disabled={!savedAcknowledged}
                         onClick={backToSummary}
                     >
@@ -414,7 +398,7 @@ export function TwoFactorSection() {
                         e.preventDefault()
                         void disable(code)
                     }}
-                    className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200"
+                    className="space-y-3 "
                 >
                     <p className="text-xs text-muted-foreground">
                         Enter a current code to turn this off. Removing your second factor is the first thing
@@ -453,10 +437,10 @@ export function TwoFactorSection() {
                     <Button
                         type="submit"
                         variant="destructive"
-                        className="w-full h-12"
+                        className="w-full"
                         disabled={busy || code.trim() === ""}
                     >
-                        {busy && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        {busy && <LoaderCircle className="animate-spin" aria-hidden="true" />}
                         Turn off two-step verification
                     </Button>
                 </form>

@@ -1,12 +1,12 @@
 import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
-import { eyebrowClass } from "@/components/ui/eyebrow"
 import { cn } from "@/lib/utils/helpers/cn"
 import {zodResolver} from "@hookform/resolvers/zod";
 import {useForm, type Resolver} from "react-hook-form";
 
 import {Button} from "@/components/ui/button";
 import {Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage,} from "@/components/ui/form";
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/settings/SettingsSection";
 import {Input} from "@/components/ui/input";
 
 import {useEffect, useMemo, useRef, useState} from "react";
@@ -14,9 +14,7 @@ import {useEffect, useMemo, useRef, useState} from "react";
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,} from "../ui/dialog";
 
 import {Avatar, AvatarFallback, AvatarImage} from "../ui/avatar";
-import {Separator} from "../ui/separator";
-import { Trash, Calendar } from "@/lib/icons";
-import { Camera } from "@/lib/icons";
+import { Camera, Loader2 } from "@/lib/icons";
 import {AppLanguageCombobox} from "@/components/dialog/appLanguageCombobox";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {USER_STATUS_OFFLINE, USER_STATUS_ONLINE, UserProfileInterface, UserProfileUpdateInterface} from "@/types/user";
@@ -25,17 +23,9 @@ import {useUserAvatar} from "@/hooks/useUserAvatar";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {usePost} from "@/hooks/usePost";
 import {useTranslation} from "react-i18next";
-import {Switch} from "@/components/ui/switch";
 import {useDispatch} from "react-redux";
-import { useConfirm } from "@/hooks/useConfirm";
-import { useTheme } from "next-themes";
-import { ColorThemePicker } from "@/components/activeTheme/ColorThemePicker";
-import { Moon, Sun } from "@/lib/icons";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
-import axiosInstance from "@/lib/axiosInstance";
-import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
-import { TwoFactorSection } from "@/components/profile/TwoFactorSection";
-import { PasskeySection } from "@/components/profile/PasskeySection";
+import { AppearanceSection, CalendarSection, SigningInSection } from "@/components/profile/ProfileSettingsSections";
 import { profileFormSchema, profileNamesPayload, type ProfileFormValues, type SavedNames, profileNameField } from "@/lib/validation/profileForm";
 
 const NO_NAMES: SavedNames = { fullName: "", displayName: "", handle: "" }
@@ -60,12 +50,8 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     const {t} = useTranslation()
 
     const dispatch = useDispatch()
-    const confirm = useConfirm()
-    const { theme, setTheme } = useTheme();
 
-    const handleThemeToggle = () => {
-        setTheme(theme === "dark" ? "light" : "dark");
-    };
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (imageSrc) {
@@ -102,64 +88,6 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     const removeImage = () => {
         setSelectedImage("");
         selectedImageSetFile(null);
-    };
-
-    const handleConnectGoogleCalendar = async (e: React.MouseEvent) => {
-        e.preventDefault();
-        try {
-            const response = await axiosInstance.get(GetEndpointUrl.GoogleCalendarAuthUrl);
-            if (response.data?.data) {
-                window.location.href = response.data.data;
-            }
-        } catch (e) {
-            console.error("Failed to get Google Calendar Auth URL", e);
-        }
-    };
-
-    const [gcalStatus, setGcalStatus] = useState<{ isConnected: boolean; taskSyncEnabled: boolean } | null>(null);
-    const [updatingSync, setUpdatingSync] = useState(false);
-
-    useEffect(() => {
-        const fetchGcalStatus = async () => {
-            try {
-                const response = await axiosInstance.get(GetEndpointUrl.GoogleCalendarStatus);
-                if (response.data?.data) {
-                    setGcalStatus(response.data.data);
-                }
-            } catch (e) {
-                console.error("Failed to get Google Calendar status", e);
-            }
-        };
-        fetchGcalStatus();
-    }, []);
-
-    const handleToggleTaskSync = async (enabled: boolean) => {
-        setUpdatingSync(true);
-        try {
-            await axiosInstance.post(PostEndpointUrl.UpdateGoogleCalendarSyncTask, { enabled });
-            setGcalStatus(prev => prev ? { ...prev, taskSyncEnabled: enabled } : null);
-        } catch (e) {
-            console.error("Failed to update task sync preference", e);
-        } finally {
-            setUpdatingSync(false);
-        }
-    };
-
-    const handleUnlinkGoogleCalendar = async (e: React.MouseEvent) => {
-        e.preventDefault();
-        confirm({
-            title: "Unlink Google Calendar",
-            description: "Are you sure you want to unlink Google Calendar?",
-            confirmText: "Unlink",
-            onConfirm: async () => {
-                try {
-                    await axiosInstance.post(PostEndpointUrl.GoogleCalendarUnlink);
-                    setGcalStatus({ isConnected: false, taskSyncEnabled: false });
-                } catch (e) {
-                    console.error("Failed to unlink Google Calendar", e);
-                }
-            },
-        });
     };
 
     const onSubmit = async (data: ProfileFormValues) => {
@@ -271,74 +199,76 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     const handle = handleOf(profileInfo.data?.data);
     const nameIntial = getNameInitials(shownName || "Unknown");
 
+    const field = "h-10"
+
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
-            {/*<DialogTrigger asChild>*/}
-            {/*    <Button variant="secondary">Save</Button>*/}
-            {/*</DialogTrigger>*/}
-            <DialogContent className="sm:max-w-2xl p-0 md:overflow-hidden border-none shadow-2xl md:h-[85dvh]">
-                <div className="flex flex-col md:flex-row md:h-full md:max-h-[85dvh]">
-                    {/* Left Sidebar - Profile Summary */}
-                    <div className="w-full md:w-1/3 bg-muted/30 p-8 flex flex-col items-center border-b md:border-b-0 md:border-r">
-                        <DialogHeader className="w-full mb-8">
-                            <DialogTitle className="text-base font-semibold">Profile</DialogTitle>
-                            <DialogDescription className="text-xs">{t('editProfile')}</DialogDescription>
-                        </DialogHeader>
-                        
-                        <div className="relative group mb-6">
-                            <Avatar className="h-40 w-40 ring-4 ring-background shadow-xl transition-transform duration-150 group-hover:scale-[1.02]">
-                                <AvatarImage src={selectedImage || undefined} alt="Profile Image" className="object-cover" />
-                                <AvatarFallback className="text-4xl font-medium">{nameIntial}</AvatarFallback>
-                            </Avatar>
-                            <label
-                                htmlFor="imageUpload"
-                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto rounded-full cursor-pointer transition duration-300 backdrop-blur-[2px]"
-                            >
-                                <Camera className="text-white h-8 w-8" />
-                            </label>
-                            <Input
-                                id="imageUpload"
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={handleImageUpload}
-                            />
+            <DialogContent className="flex max-h-[90dvh] flex-col gap-0 p-0 sm:max-w-2xl md:h-[85dvh]">
+                <DialogHeader className="border-b border-border px-6 py-5 text-left">
+                    <DialogTitle className="text-lg font-semibold">Your profile</DialogTitle>
+                    <DialogDescription>How people here see you, how OneCamp looks to you, and how you sign in.</DialogDescription>
+                </DialogHeader>
+
+                <div className="min-h-0 flex-1 space-y-10 overflow-y-auto px-6 py-6 custom-scrollbar">
+                    {/* PROFILE: the one part of this window that waits for a button.
+                        Its Save sits at the end of its own fields, not at the foot of
+                        the window under sections that save the moment they change. */}
+                    <SettingsSection title="Profile" description="Saved together when you press Save profile.">
+                        <div className="flex items-center gap-4">
+                            <div className="relative group">
+                                <Avatar className="h-16 w-16">
+                                    <AvatarImage src={selectedImage || undefined} alt="" className="object-cover" />
+                                    <AvatarFallback className="text-lg font-medium">{nameIntial}</AvatarFallback>
+                                </Avatar>
+                                {/* A pointer's shortcut to the button beside it. */}
+                                <label
+                                    htmlFor="imageUpload"
+                                    aria-hidden="true"
+                                    className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
+                                >
+                                    <Camera className="h-5 w-5 text-white" />
+                                </label>
+                                <Input
+                                    ref={fileInputRef}
+                                    id="imageUpload"
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleImageUpload}
+                                />
+                            </div>
+                            <div className="min-w-0 flex-1 space-y-1">
+                                <p className="truncate text-sm font-medium text-foreground">{shownName}</p>
+                                {(fullName || handle) && (
+                                    <p className="truncate text-xs text-muted-foreground">
+                                        {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
+                                    </p>
+                                )}
+                                <p className="truncate text-xs text-muted-foreground">{profileInfo.data?.data.user_email_id}</p>
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                    <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                                        {selectedImage ? "Change photo" : "Add a photo"}
+                                    </Button>
+                                    {selectedImage && (
+                                        <Button type="button" variant="ghost" size="sm" onClick={removeImage}>
+                                            {t('removeImage')}
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
-                        {selectedImage && (
-                            <Button variant="ghost" size="sm" onClick={removeImage} className="text-destructive hover:text-destructive hover:bg-destructive/10 mb-4 h-8 px-2">
-                                <Trash className="h-3 w-3 mr-2" />{t('removeImage')}
-                            </Button>
-                        )}
-                        
-                        <div className="text-center space-y-1">
-                            <h3 className="font-medium text-lg text-foreground truncate max-w-full">
-                                {shownName}
-                            </h3>
-                            {(fullName || handle) && (
-                                <p className="text-xs text-muted-foreground truncate max-w-full">
-                                    {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
-                                </p>
-                            )}
-                            <p className="text-xs text-muted-foreground truncate max-w-full">
-                                {profileInfo.data?.data.user_email_id}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Right Content - Form */}
-                    <div className="w-full md:w-2/3 p-8 md:overflow-y-auto bg-background custom-scrollbar">
                         <Form {...form}>
-                            <form id="profile-edit-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <form id="profile-edit-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 pt-2">
+                                <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
                                     <FormField
                                         control={form.control}
                                         name="displayName"
-                                        render={({ field }) => (
+                                        render={({ field: f }) => (
                                             <FormItem>
-                                                <FormLabel className={eyebrowClass}>{profileNameField("displayName").label}</FormLabel>
+                                                <FormLabel>{profileNameField("displayName").label}</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
+                                                    <Input {...f} autoComplete="nickname" className={field} />
                                                 </FormControl>
                                                 <FormDescription className="text-xs">{profileNameField("displayName").help}</FormDescription>
                                                 <FormMessage />
@@ -348,11 +278,11 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                     <FormField
                                         control={form.control}
                                         name="fullName"
-                                        render={({ field }) => (
+                                        render={({ field: f }) => (
                                             <FormItem>
-                                                <FormLabel className={eyebrowClass}>{profileNameField("fullName").label}</FormLabel>
+                                                <FormLabel>{profileNameField("fullName").label}</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
+                                                    <Input {...f} autoComplete="name" className={field} />
                                                 </FormControl>
                                                 <FormDescription className="text-xs">{profileNameField("fullName").help}</FormDescription>
                                                 <FormMessage />
@@ -362,13 +292,13 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                     <FormField
                                         control={form.control}
                                         name="handle"
-                                        render={({ field }) => (
+                                        render={({ field: f }) => (
                                             <FormItem>
-                                                <FormLabel className={eyebrowClass}>{profileNameField("handle").label}</FormLabel>
+                                                <FormLabel>{profileNameField("handle").label}</FormLabel>
                                                 <div className="relative">
                                                     <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">@</span>
                                                     <FormControl>
-                                                        <Input {...field} autoCapitalize="off" autoCorrect="off" spellCheck={false} className="bg-muted/20 border-0 focus-visible:ring-1 h-10 pl-7" />
+                                                        <Input {...f} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} className={cn(field, "pl-7")} />
                                                     </FormControl>
                                                 </div>
                                                 <FormDescription className="text-xs">{profileNameField("handle").help}</FormDescription>
@@ -379,11 +309,11 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                     <FormField
                                         control={form.control}
                                         name="jobTitle"
-                                        render={({ field }) => (
+                                        render={({ field: f }) => (
                                             <FormItem>
-                                                <FormLabel className={eyebrowClass}>{t('jobTitle')}</FormLabel>
+                                                <FormLabel>{t('jobTitle')}</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" placeholder="e.g. Software Engineer" />
+                                                    <Input {...f} autoComplete="organization-title" className={field} placeholder="Product designer…" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -392,146 +322,66 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                     <FormField
                                         control={form.control}
                                         name="hobbies"
-                                        render={({ field }) => (
+                                        render={({ field: f }) => (
                                             <FormItem>
-                                                <FormLabel className={eyebrowClass}>Hobbies</FormLabel>
+                                                <FormLabel>Hobbies</FormLabel>
                                                 <FormControl>
-                                                    <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" placeholder="What do you like to do?" />
+                                                    <Input {...f} autoComplete="off" className={field} placeholder="Climbing, film photography…" />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
                                         name="language"
-                                        render={({ field }) => (
+                                        render={({ field: f }) => (
                                             <FormItem className="flex flex-col">
-                                                <FormLabel className={eyebrowClass}>{t('language')}</FormLabel>
+                                                <FormLabel>{t('language')}</FormLabel>
                                                 <AppLanguageCombobox
-                                                    onLangChange={field.onChange}
-                                                    userLang={field.value}
+                                                    onLangChange={f.onChange}
+                                                    userLang={f.value}
                                                 />
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="status"
-                                        render={({ field }) => (
-                                            <FormItem className="flex flex-col">
-                                                <FormLabel className={eyebrowClass}>{t('status')}</FormLabel>
-                                                <div className="flex items-center justify-between bg-muted/20 border border-transparent rounded-md px-4 h-10">
-                                                    {/* A switch's own label, so it reads as what the switch does
-                                                        rather than as another section heading. */}
-                                                    <label htmlFor="status-switch" className="cursor-pointer text-sm leading-none text-foreground">
-                                                        Appear online
-                                                    </label>
-                                                    <Switch
-                                                        id="status-switch"
-                                                        checked={!!field.value}
-                                                        onCheckedChange={field.onChange}
-                                                        className="m-0"
-                                                    />
-                                                </div>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
                                 </div>
 
-                                <Separator className="my-2" />
-                                
-                                </form>
-                        </Form>
-
-                        <div className="space-y-6 mt-6">
-                            <div className="space-y-4">
-                                <h3 className={eyebrowClass}>Appearance</h3>
-                                <div className="rounded-xl border bg-muted/10 p-4 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent">
-                                                {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-                                            </div>
-                                            <div className="text-sm font-medium">Dark Mode</div>
-                                        </div>
-                                        <Switch
-                                            checked={theme === "dark"}
-                                            onCheckedChange={handleThemeToggle}
-                                            aria-label="Toggle dark mode"
-                                        />
-                                    </div>
-                                    <ColorThemePicker />
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <h3 className={eyebrowClass}>{t('integrations') || 'Integrations'}</h3>
-                                
-                                <div className="group relative overflow-hidden rounded-xl border bg-muted/10 p-4 transition hover:bg-muted/20">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
-                                                <Calendar className="h-5 w-5 text-primary" />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium">Google Calendar</p>
-                                                <p className="text-2xs text-muted-foreground leading-tight">Sync your workflow and events</p>
-                                            </div>
-                                        </div>
-                                        {!gcalStatus?.isConnected ? (
-                                            <Button variant="outline" size="sm" type="button" onClick={handleConnectGoogleCalendar} className="h-8 rounded-full px-4 text-xs font-medium">
-                                                Connect
-                                            </Button>
-                                        ) : (
-                                            <Button variant="ghost" size="sm" type="button" className="h-8 text-destructive hover:text-destructive hover:bg-destructive/10 text-xs px-2" onClick={handleUnlinkGoogleCalendar}>
-                                                Unlink
-                                            </Button>
-                                        )}
-                                    </div>
-
-                                    {gcalStatus?.isConnected && (
-                                        <div className="mt-4 flex items-center justify-between rounded-lg bg-background/50 p-3 ring-1 ring-border/50 animate-in slide-in-from-top-2 duration-300">
-                                            <div className="space-y-0.5">
-                                                <p className="text-xs font-medium text-foreground">Sync Tasks</p>
-                                                <p className="text-2xs text-muted-foreground">Due dates will appear on your calendar</p>
-                                            </div>
-                                            <Switch
-                                                checked={gcalStatus?.taskSyncEnabled}
-                                                onCheckedChange={handleToggleTaskSync}
-                                                disabled={updatingSync}
-                                                className="scale-75"
-                                            />
-                                        </div>
+                                <FormField
+                                    control={form.control}
+                                    name="status"
+                                    render={({ field: f }) => (
+                                        <FormItem>
+                                            <SettingsList>
+                                                <SwitchRow
+                                                    label="Appear online"
+                                                    description="Off, others see you as offline even while you're here."
+                                                    checked={!!f.value}
+                                                    onChange={f.onChange}
+                                                />
+                                            </SettingsList>
+                                            <FormMessage />
+                                        </FormItem>
                                     )}
-                                </div>
-                            </div>
-                            
-                            <div className="space-y-4">
-                                <h3 className={eyebrowClass}>Security</h3>
-                                <ChangePasswordSection />
-                                <TwoFactorSection />
-                                <PasskeySection />
-                            </div>
-                        </div>
+                                />
 
-                        <DialogFooter className="pt-8">
-                            <Button 
-                                form="profile-edit-form"
-                                disabled={uploadFile.isSubmitting || post.isSubmitting} 
-                                type="submit"
-                                className="w-full h-11 rounded-xl font-medium text-sm transition hover:translate-y-[-1px]"
-                            >
-                                {t('update')} Profile
-                            </Button>
-                        </DialogFooter>
-                    </div>
+                                <div className="flex justify-end">
+                                    <Button
+                                        disabled={uploadFile.isSubmitting || post.isSubmitting}
+                                        type="submit"
+                                    >
+                                        {(uploadFile.isSubmitting || post.isSubmitting) && <Loader2 className="animate-spin" aria-hidden="true" />}
+                                        {uploadFile.isSubmitting || post.isSubmitting ? "Saving…" : "Save profile"}
+                                    </Button>
+                                </div>
+                            </form>
+                        </Form>
+                    </SettingsSection>
+
+                    <AppearanceSection />
+                    <CalendarSection />
+                    <SigningInSection />
                 </div>
             </DialogContent>
         </Dialog>
