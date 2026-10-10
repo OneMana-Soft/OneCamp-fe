@@ -8,6 +8,8 @@ import { usePost } from "@/hooks/usePost"
 import { ExternalUserList, ExternalUserItem } from "./ExternalUserList"
 
 import { useToast } from "@/hooks/use-toast"
+import { useConfirm } from "@/hooks/useConfirm"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 
 interface ExternalUsersResponse {
   msg: string
@@ -26,6 +28,7 @@ const ExternalUsersCard = () => {
     `${GetEndpointUrl.GetExternalUsers}?pageIndex=${pageIndex}&pageSize=20`
   )
   const post = usePost()
+  const confirm = useConfirm()
 
   useEffect(() => {
     if (userList.data?.data) {
@@ -49,8 +52,23 @@ const ExternalUsersCard = () => {
     }
   }
 
+  // Asked first, naming the person: unlinking went on one click of a small
+  // icon, and the row vanished at once.
   const handleUnlink = (userUUID: string) => {
     if (!userUUID || post.isSubmitting) return
+    const user = allUsers.find((u) => u.user_uuid === userUUID)
+    const name = user?.display_name || user?.user_name || user?.user_email_id || "this person"
+    confirm({
+      title: `Unlink ${name} from GitHub?`,
+      description:
+        "Their work here stays, but their account is no longer matched to their GitHub account, so new GitHub activity is not tied to them.",
+      confirmText: "Unlink",
+      destructive: true,
+      onConfirm: () => unlink(userUUID, name),
+    })
+  }
+
+  const unlink = (userUUID: string, name: string) => {
     const previous = allUsers
     setAllUsers((prev) => prev.filter((u) => u.user_uuid !== userUUID))
 
@@ -60,16 +78,13 @@ const ExternalUsersCard = () => {
         payload: { user_uuid: userUUID },
       })
       .then(() => {
-        toast({
-          title: "Unlinked",
-          description: "External user has been unlinked from GitHub.",
-        })
+        toast({ title: `${name} is unlinked from GitHub` })
       })
-      .catch(() => {
+      .catch((e) => {
         setAllUsers(previous)
         toast({
-          title: "Error",
-          description: "Failed to unlink external user. Please try again.",
+          title: "Couldn't unlink them from GitHub",
+          description: apiErrorMessage(e, "Try again in a moment."),
           variant: "destructive",
         })
       })
@@ -88,7 +103,8 @@ const ExternalUsersCard = () => {
           </span>
         </div>
         <CardDescription className="text-sm text-muted-foreground">
-          View and manage ghost users auto-provisioned from GitHub. Unlinking clears their GitHub association.
+          People created from GitHub when they took part in a linked repository, who haven&apos;t joined the workspace.
+          Unlinking removes the link to their GitHub account.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-0 flex-1 min-h-0 flex flex-col">
@@ -98,6 +114,8 @@ const ExternalUsersCard = () => {
           onLoadMore={handleLoadMore}
           hasMore={hasMore && !searchQuery.trim()}
           isLoading={userList.isLoading}
+          isError={!!userList.isError && allUsers.length === 0}
+          onRetry={() => void userList.mutate()}
           onUnlink={handleUnlink}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
