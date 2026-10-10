@@ -22,9 +22,13 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { ChevronDown, ChevronRight, History, Activity, Clock, Zap, CheckCircle, RefreshCw, Trash2, AlertTriangle, ShieldAlert, Layers, MessageSquare } from "@/lib/icons"
+import { ChevronDown, ChevronRight, History, RefreshCw, Trash2, AlertTriangle, ShieldAlert, Layers, MessageSquare } from "@/lib/icons"
 import {
   AgentRun,
   AgentRunStep,
@@ -71,7 +75,7 @@ function formatDuration(start?: string | null, end?: string | null): string {
 }
 
 function formatMs(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return "—"
+  if (!Number.isFinite(ms) || ms <= 0) return "no time"
   if (ms < 1000) return `${Math.round(ms)}ms`
   const s = ms / 1000
   if (s < 60) return `${s.toFixed(1)}s`
@@ -92,21 +96,6 @@ function completedRuns(s: AgentRunStats): number {
 }
 
 // StatTile is one Notion-like metric cell.
-const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: string; hint?: string }> = ({
-  icon,
-  label,
-  value,
-  hint,
-}) => (
-  <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-    <div className="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-      {icon}
-      {label}
-    </div>
-    <div className="mt-1 text-lg font-semibold text-foreground">{value}</div>
-    {hint && <div className="text-2xs text-muted-foreground">{hint}</div>}
-  </div>
-)
 
 // todayUsageParts renders today's consumption as short phrases — AI tokens
 // against the agent's cap, and sandbox runs/seconds against theirs — including
@@ -180,31 +169,24 @@ const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
 
   return (
     <div className="space-y-3 rounded-xl border border-border/60 p-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatTile
-          icon={<CheckCircle className="h-3 w-3" />}
-          label="Success rate"
-          value={successRate === null ? "—" : `${successRate}%`}
-          hint={done > 0 ? `${stats.succeeded}/${done} completed` : "no completed runs"}
-        />
-        <StatTile
-          icon={<Activity className="h-3 w-3" />}
-          label="Total runs"
-          value={stats.total_runs.toLocaleString()}
-          hint={stats.running > 0 ? `${stats.running} running now` : `avg ${stats.avg_steps.toFixed(1)} steps`}
-        />
-        <StatTile
-          icon={<Zap className="h-3 w-3" />}
-          label="AI spend"
-          value={`${formatTokens(stats.total_tokens)} tok`}
-          hint={`${formatTokens(stats.last_7d_tokens)} in 7d`}
-        />
-        <StatTile
-          icon={<Clock className="h-3 w-3" />}
-          label="Avg run time"
-          value={formatMs(stats.avg_duration_ms)}
-          hint={`${stats.last_7d_runs} run${stats.last_7d_runs === 1 ? "" : "s"} in 7d`}
-        />
+      {/* The numbers as sentences, as Home's glance line says its counts: they
+          were four tiles with uppercase labels and an em dash when empty. */}
+      <div className="space-y-1 text-sm">
+        <p className="text-foreground">
+          {successRate === null
+            ? "No run has finished yet."
+            : `${successRate}% finished without an error (${stats.succeeded} of ${done}).`}
+          {stats.running > 0 ? ` ${stats.running} running now.` : ""}
+        </p>
+        <p className="text-muted-foreground">
+          {[
+            `${stats.total_runs.toLocaleString()} ${stats.total_runs === 1 ? "run" : "runs"}, ${stats.avg_steps.toFixed(1)} steps on average`,
+            `${formatTokens(stats.total_tokens)} tokens, ${formatTokens(stats.last_7d_tokens)} of them this week`,
+            stats.avg_duration_ms > 0 ? `about ${formatMs(stats.avg_duration_ms)} a run` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
       </div>
 
       {/* Today's usage reads as ONE line, not two more tiles. Four tiles fill the
@@ -214,7 +196,7 @@ const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
           no sandbox sees nothing here at all. */}
       {(todayUsageParts(stats).length > 0) && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
-          <span className="font-medium uppercase tracking-wide text-muted-foreground/80">Today</span>
+          <span className="font-medium text-muted-foreground">Today</span>
           {todayUsageParts(stats).map((part) => (
             <span key={part}>{part}</span>
           ))}
@@ -241,7 +223,7 @@ const ReliabilityPanel: React.FC<{ stats: AgentRunStats }> = ({ stats }) => {
           surfaced for transparency into what long-running work it's advancing. */}
       {stats.working_notes && stats.working_notes.trim() !== "" && (
         <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-          <div className="mb-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">Working notes</div>
+          <div className="mb-1 text-xs font-medium text-muted-foreground">Working notes</div>
           <p className="whitespace-pre-wrap break-words text-xs text-foreground/80">{stats.working_notes}</p>
         </div>
       )}
@@ -363,8 +345,8 @@ const RoutinesPanel: React.FC<{
 
   return (
     <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-        <RefreshCw className="h-3 w-3" /> Routines
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <RefreshCw className="h-3 w-3" aria-hidden="true" /> Routines
       </div>
       <div className="space-y-1.5">
         {routines.map((r) => (
@@ -420,7 +402,7 @@ const CompactionDivider: React.FC<{ compaction: AgentRunCompaction }> = ({ compa
         <span className={rule} />
         <span
           className={
-            "inline-flex items-center gap-1 text-2xs uppercase tracking-wide " +
+            "inline-flex items-center gap-1 text-2xs font-medium " +
             (compaction.rescue ? "text-warning-ink" : "text-muted-foreground")
           }
         >
@@ -437,12 +419,13 @@ const CompactionDivider: React.FC<{ compaction: AgentRunCompaction }> = ({ compa
 // SteeringNote shows the instructions a person sent while the run was working,
 // at the point they were folded in. Without it the transcript reads as the agent
 // inexplicably changing plan mid-run; with it, the human's words are right where
-// they took effect. Rendered in the accent colour a human turn deserves — this is
-// the one thing in a transcript that isn't the agent's own doing.
+// they took effect. Set apart in the people group's hue (sky): it is the one
+// thing in a transcript that isn't the agent's own doing. It was in the accent,
+// which is for the one action a view asks for.
 const SteeringNote: React.FC<{ steering: string[] }> = ({ steering }) => (
-  <div className="rounded-md border-l-2 border-primary/50 bg-primary/5 px-2 py-1.5">
-    <div className="flex items-center gap-1 text-2xs font-medium uppercase tracking-wide text-primary/80">
-      <MessageSquare className="h-3 w-3" />
+  <div className={cn(HUE_CLASS[ADMIN_GROUP_HUE.people], "rounded-md border-l-2 border-hue/50 bg-hue-tint/50 px-2 py-1.5")}>
+    <div className="flex items-center gap-1 text-2xs font-medium text-hue-ink">
+      <MessageSquare className="h-3 w-3" aria-hidden="true" />
       New instruction while working
     </div>
     <ul className="mt-1 space-y-0.5">
@@ -557,7 +540,7 @@ const RunProvenance: React.FC<{ run: AgentRun; current: Map<string, string> }> =
                 key={sk.id}
                 title={changed ? "This skill has been edited since this run" : undefined}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs",
+                  "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-2xs",
                   // The semantic warning token rather than a raw hue: this chip
                   // means the same thing as every other "needs a second look"
                   // mark in the product, and it has to keep meaning it in both
@@ -649,6 +632,9 @@ export const AgentRunsDialog: React.FC<{
   const [stats, setStats] = useState<AgentRunStats | null>(null)
   const [routines, setRoutines] = useState<AgentRoutine[]>([])
   const [loading, setLoading] = useState(false)
+  // A failed read used to set the runs to none, which said "No runs yet" about
+  // an agent that may have run every day.
+  const [failed, setFailed] = useState(false)
   // Fingerprints of the skill library as it stands NOW, so a run can say which
   // of the skills it used have been edited since. Empty when the browser has no
   // SubtleCrypto, in which case the viewer shows no "edited since" marks rather
@@ -666,6 +652,7 @@ export const AgentRunsDialog: React.FC<{
       setRuns(runsRes)
       setStats(statsRes)
       setRoutines(routinesRes)
+      setFailed(false)
 
       // Deliberately after the runs are set: the transcript is what somebody
       // opened the dialog for, and the comparison is an enrichment that should
@@ -680,7 +667,7 @@ export const AgentRunsDialog: React.FC<{
         setCurrentSkills(new Map())
       }
     } catch {
-      setRuns([])
+      setFailed(true)
     } finally {
       setLoading(false)
     }
@@ -694,9 +681,12 @@ export const AgentRunsDialog: React.FC<{
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <History className="h-5 w-5 text-primary" />
-            Run history: {agentName}
+          {/* On the AI and automation group's tile; it was orange. */}
+          <DialogTitle className="flex items-center gap-2.5">
+            <Tile hue={ADMIN_GROUP_HUE.ai} size="sm">
+              <History />
+            </Tile>
+            Runs of {agentName}
           </DialogTitle>
           <DialogDescription>
             Every run this agent made: what triggered it, the tools it called, and what it changed.
@@ -723,11 +713,14 @@ export const AgentRunsDialog: React.FC<{
             <div role="status" aria-label="Loading run history">
               <SkeletonRows rows={4} lines={1} avatar={false} />
             </div>
+          ) : failed && !runs ? (
+            <ErrorState subject="the runs" onRetry={() => void load()} retrying={loading} />
           ) : runs && runs.length > 0 ? (
             runs.map((r) => <RunRow key={r.id} run={r} currentSkills={currentSkills} />)
           ) : (
             <EmptyState
               icon={History}
+              hue={ADMIN_GROUP_HUE.ai}
               title="No runs yet"
               description="Trigger this agent or run it manually to see its activity here."
             />
