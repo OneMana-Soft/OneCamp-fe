@@ -6,9 +6,16 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 // has one (and offer to set one), hide two-step verification entirely, or
 // leave "Couldn't load your passkeys." with nothing to press.
 
-const { get, getStatus, listPasskeys } = vi.hoisted(() => ({ get: vi.fn(), getStatus: vi.fn(), listPasskeys: vi.fn() }))
+const { get, getStatus, beginSetup, confirmSetup, disable, listPasskeys } = vi.hoisted(() => ({
+  get: vi.fn(),
+  getStatus: vi.fn(),
+  beginSetup: vi.fn(),
+  confirmSetup: vi.fn(),
+  disable: vi.fn(),
+  listPasskeys: vi.fn(),
+}))
 vi.mock("@/lib/axiosInstance", () => ({ default: { get }, OWN_ERRORS: { suppressErrorToast: true } }))
-vi.mock("@/services/twoFactorService", () => ({ default: { getStatus } }))
+vi.mock("@/services/twoFactorService", () => ({ default: { getStatus, beginSetup, confirmSetup, disable } }))
 vi.mock("@/services/passkeyService", () => ({ listPasskeys, addPasskey: vi.fn(), removePasskey: vi.fn(), renamePasskey: vi.fn() }))
 vi.mock("@/lib/auth/webauthn", () => ({ passkeysSupported: () => true, passkeyErrorMessage: () => null }))
 vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => vi.fn() }))
@@ -21,9 +28,15 @@ import { PasskeySection } from "./PasskeySection"
 beforeEach(() => {
   get.mockReset()
   getStatus.mockReset()
+  beginSetup.mockReset()
+  confirmSetup.mockReset()
+  disable.mockReset()
   listPasskeys.mockReset()
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 describe("the password row", () => {
   it("says the check failed rather than that there is no password, and tries again", async () => {
@@ -80,5 +93,61 @@ describe("the passkeys row", () => {
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: /try again/i })))
     expect(await screen.findByText("Passkey on Mac")).toBeInTheDocument()
     expect(screen.queryByText(/Couldn't load your passkeys/)).toBeNull()
+  })
+})
+
+// After a wrong code the cursor is in the field, so the next code is typed
+// straight in. The field used to be disabled while a code was checked: a
+// browser doesn't focus a disabled field, and drops the focus of one that
+// becomes disabled, so the next code went nowhere until the person clicked
+// back in. jsdom lets a disabled field take focus, so the tests record whether
+// the field was disabled whenever it was focused.
+describe("a two-step code that is refused", () => {
+  const watchFocus = () => {
+    const disabledWhenFocused: boolean[] = []
+    const focus = HTMLInputElement.prototype.focus
+    vi.spyOn(HTMLInputElement.prototype, "focus").mockImplementation(function (this: HTMLInputElement, options?: FocusOptions) {
+      disabledWhenFocused.push(this.disabled)
+      focus.call(this, options)
+    })
+    return disabledWhenFocused
+  }
+
+  it("leaves the cursor in the field when turning it on", async () => {
+    getStatus.mockResolvedValue({ ok: true, data: { enrolled: false, pendingEnrolment: false, unusedRecoveryCodes: 0 } })
+    beginSetup.mockResolvedValue({ ok: true, data: { secret: "JBSWY3DPEHPK3PXP", uri: "otpauth://totp/OneCamp:sam?secret=JBSWY3DPEHPK3PXP" } })
+    let answer: (v: unknown) => void = () => {}
+    confirmSetup.mockReturnValue(new Promise((r) => (answer = r)))
+    const disabledWhenFocused = watchFocus()
+    render(<TwoFactorSection />)
+    const turnOn = await screen.findByRole("button", { name: "Turn on" })
+    await act(async () => void fireEvent.click(turnOn))
+    const field = screen.getByLabelText("Enter the 6-digit code to finish") as HTMLInputElement
+
+    fireEvent.change(field, { target: { value: "123456" } })
+    // While the code is checked the field can't be changed, but it isn't disabled.
+    expect(field.disabled).toBe(false)
+    expect(field).toHaveAttribute("aria-busy", "true")
+
+    await act(async () => answer({ ok: false, msg: "That code didn't work. Try the newest one.", code: "" }))
+    expect(field.value).toBe("")
+    expect(document.activeElement).toBe(field)
+    expect(disabledWhenFocused).not.toContain(true)
+  })
+
+  it("brings the cursor back to the field when turning it off", async () => {
+    getStatus.mockResolvedValue({ ok: true, data: { enrolled: true, pendingEnrolment: false, unusedRecoveryCodes: 8 } })
+    disable.mockResolvedValue({ ok: false, msg: "That code didn't work. Try the newest one.", code: "" })
+    const disabledWhenFocused = watchFocus()
+    render(<TwoFactorSection />)
+    fireEvent.click(await screen.findByRole("button", { name: "Turn off" }))
+    const field = screen.getByLabelText("6-digit code") as HTMLInputElement
+    fireEvent.change(field, { target: { value: "123456" } })
+    const submit = screen.getByRole("button", { name: "Turn off two-step verification" })
+    submit.focus()
+    await act(async () => void fireEvent.click(submit))
+
+    expect(document.activeElement).toBe(field)
+    expect(disabledWhenFocused).not.toContain(true)
   })
 })
