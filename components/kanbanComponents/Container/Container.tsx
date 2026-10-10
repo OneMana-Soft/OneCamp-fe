@@ -67,7 +67,7 @@ export const Container = forwardRef<HTMLDivElement, Props>(
     ) => {
         const Component = onClick ? "button" : "div"
         const status = taskStatuses.find((s) => s.value == label)
-        const Icon = icon ?? status?.icon
+        const Icon = icon ?? (swatchClass ? undefined : status?.icon)
         const name = title ?? status?.label ?? label
 
         // Folded: a strip with the name running down it, and the count. Still a
@@ -115,7 +115,9 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                         // out, the browser re-lays out this column and not the
                         // whole page, which is most of the cost of a crossing.
                         "[contain:layout]",
-                        "bg-card border border-border/60",
+                        // A lane on the sheet, not a box around boxes: the
+                        // cards carry the hairline, the column only a tint.
+                        "bg-muted/50",
                         "transition-colors duration-150",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                     ],
@@ -131,8 +133,8 @@ export const Container = forwardRef<HTMLDivElement, Props>(
                 tabIndex={onClick ? 0 : undefined}
             >
                 {label ? (
-                    <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/60">
-                        <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                    <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+                        <h2 className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
                             {Icon && <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={2} />}
                             {swatchClass && <span aria-hidden="true" className={cn("h-2 w-2 rounded-full", swatchClass)} />}
                             {name}

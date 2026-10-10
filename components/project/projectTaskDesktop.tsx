@@ -162,7 +162,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                                 <ProjectTaskTable projectId={projectId} />
                             </TabsContent>
                             <TabsContent value="kanban" className="h-full mt-0 outline-none">
-                                <ProjectTaskKanban projectId={projectId} />
+                                <ProjectTaskKanban projectId={projectId} className="px-0 pt-0" />
                             </TabsContent>
                             <TabsContent value="timeline" className="h-full mt-0 outline-none">
                                 <ProjectTimeline
