@@ -3,6 +3,7 @@
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
+import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
 import { cn } from "@/lib/utils/helpers/cn";
 import { SendHorizontal } from "@/lib/icons";
 import DraggableDrawer from "@/components/drawers/dragableDrawer";
@@ -97,7 +98,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
                         output="html"
                         content={channelInputState.inputTextHTML}
                         contentRevision={channelInputState.restoredUnsent}
-                        placeholder={`Message #${channelDisplayName}`}
+                        placeholder={channelComposerPlaceholder(channelDisplayName)}
                         editable={true}
                         buttonOnclick={handleSend}
                         onSchedule={scheduleSend?.schedule}

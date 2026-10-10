@@ -4,6 +4,7 @@ import {useFetch} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
 import { ScheduledMessagesBar } from "@/components/messages/scheduledMessagesBar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { channelComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
 import {
     ChannelInfoInterfaceResp,
     ChannelJoinInterface,
@@ -225,7 +226,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
             output="html"
             content={channelState.inputTextHTML}
             contentRevision={channelState.restoredUnsent}
-            placeholder={"Message #" + channelDisplayName}
+            placeholder={channelComposerPlaceholder(channelDisplayName)}
             editable={true}
             ButtonIcon={SendHorizontal}
             buttonOnclick={handleSend}
