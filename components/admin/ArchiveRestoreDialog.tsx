@@ -2,15 +2,20 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { RefreshCw, Undo2, Search } from "@/lib/icons";
-import { usePost } from "@/hooks/usePost"
+import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { RefreshCw, Search } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { PostEndpointUrl } from "@/services/endPoints"
-import axiosInstance from "@/lib/axiosInstance"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import { cn } from "@/lib/utils/helpers/cn"
+import { shortDateTime } from "@/lib/utils/date/shortDate"
+import { archiveProblem } from "@/components/admin/archiveProblem"
 
 interface ArchivedItem {
   id: string
@@ -25,188 +30,246 @@ interface Props {
 }
 
 const ENTITY_LABELS: Record<string, string> = {
-  posts: "Channel Posts",
-  chats: "Direct Messages",
+  posts: "Channel posts",
+  chats: "Direct messages",
   tasks: "Tasks",
   docs: "Documents",
   recordings: "Recordings",
   attachments: "Attachments",
 }
 
+const PAGE = 50
+
+const itemCount = (n: number) => `${n.toLocaleString("en")} ${n === 1 ? "item" : "items"}`
+
 export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: Props) {
-  const post = usePost()
   const { toast } = useToast()
   const [entityType, setEntityType] = useState("posts")
-  const [items, setItems] = useState<ArchivedItem[]>([])
+  const [list, setList] = useState<ArchivedItem[]>([])
+  const [total, setTotal] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
+  // A failed first page is said in place of the list, with a way to try again.
+  // It used to read "No recently archived channel posts found", a claim about
+  // the workspace made on behalf of a request that never answered.
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [moreFailed, setMoreFailed] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState("")
+  const [restoring, setRestoring] = useState(false)
+  // Why a restore was refused, said in the dialog beside the selection it is about.
+  const [problem, setProblem] = useState("")
 
   const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return items
+    if (!searchQuery.trim()) return list
     const q = searchQuery.toLowerCase()
-    return items.filter(i => i.name.toLowerCase().includes(q) || i.id.toLowerCase().includes(q))
-  }, [items, searchQuery])
+    return list.filter((i) => i.name.toLowerCase().includes(q) || i.id.toLowerCase().includes(q))
+  }, [list, searchQuery])
 
-  const fetchItems = useCallback(async (pg: number, append: boolean) => {
-    setLoading(true)
-    try {
-      const res = await axiosInstance.get(`/admin/archive/recent-items/${entityType}?limit=50&offset=${pg * 50}`)
-      const newItems = res.data?.items || []
-      setItems(prev => append ? [...prev, ...newItems] : newItems)
-      setHasMore(newItems.length === 50)
-      setPage(pg)
-    } catch {
-      if (!append) setItems([])
-    } finally {
-      setLoading(false)
-    }
-  }, [entityType])
+  const fetchItems = useCallback(
+    async (pg: number, append: boolean) => {
+      setLoading(true)
+      if (append) setMoreFailed(false)
+      else setLoadFailed(false)
+      try {
+        const res = await axiosInstance.get(`/admin/archive/recent-items/${entityType}?limit=${PAGE}&offset=${pg * PAGE}`)
+        const newItems: ArchivedItem[] = res.data?.items || []
+        const all = typeof res.data?.total === "number" ? res.data.total : null
+        setList((prev) => (append ? [...prev, ...newItems] : newItems))
+        setTotal(all)
+        setHasMore(all !== null ? (pg + 1) * PAGE < all : newItems.length === PAGE)
+        setPage(pg)
+      } catch {
+        if (append) setMoreFailed(true)
+        else {
+          setList([])
+          setLoadFailed(true)
+        }
+      } finally {
+        setLoading(false)
+      }
+    },
+    [entityType],
+  )
 
   useEffect(() => {
     if (open) {
       setSelected(new Set())
       setSearchQuery("")
+      setProblem("")
       setPage(0)
       fetchItems(0, false)
     }
   }, [open, entityType, fetchItems])
 
-  const loadMore = () => {
-    fetchItems(page + 1, true)
-  }
-
-  const toggleItem = (id: string) => {
-    setSelected(prev => {
+  // Set, not toggle: a box reports what it now is, so a click that reaches the
+  // box and its row together can't tick it and untick it in the same moment.
+  const setItem = (id: string, on: boolean) => {
+    setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      if (on) next.add(id)
+      else next.delete(id)
       return next
     })
   }
 
-  const toggleAll = () => {
-    if (selected.size === filteredItems.length) {
-      setSelected(new Set())
-    } else {
-      setSelected(new Set(filteredItems.map(i => i.id)))
-    }
-  }
+  const allOn = filteredItems.length > 0 && filteredItems.every((i) => selected.has(i.id))
+  const setAll = (on: boolean) => setSelected(on ? new Set(filteredItems.map((i) => i.id)) : new Set())
 
   const handleSubmit = async () => {
     const ids = [...selected]
-    if (ids.length === 0) {
-      toast({ title: "Nothing selected", description: "Select items from the list to restore", variant: "destructive" })
-      return
-    }
+    if (ids.length === 0) return
+    setRestoring(true)
+    setProblem("")
     try {
-      await post.makeRequest({
-        apiEndpoint: PostEndpointUrl.RestoreArchiveItems,
-        payload: { entity_type: entityType, entity_ids: ids },
-        showToast: true,
-      })
+      const res = await axiosInstance.post(
+        PostEndpointUrl.RestoreArchiveItems,
+        { entity_type: entityType, entity_ids: ids },
+        OWN_ERRORS,
+      )
+      const count = typeof res.data?.count === "number" ? res.data.count : ids.length
+      toast({ title: `Restored ${itemCount(count)}`, description: "They are back where they were." })
       onSuccess()
       onOpenChange(false)
-    } catch {
-      // handled by usePost
+    } catch (err) {
+      setProblem(archiveProblem(err, "Couldn't restore them. Try again in a moment."))
+    } finally {
+      setRestoring(false)
     }
   }
 
+  const label = ENTITY_LABELS[entityType]?.toLowerCase() || entityType
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[80vh]">
+    <Dialog open={open} onOpenChange={(o) => !restoring && onOpenChange(o)}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle>Restore Archived Items</DialogTitle>
+          <DialogTitle>Restore archived items</DialogTitle>
           <DialogDescription>
-            To undo an entire archive job, use the <Undo2 className="h-3 w-3 inline" /> <strong>Undo</strong> button on the completed job in Job History.
+            Pick what to bring back. To bring back everything one archive run took, use Undo on that run in the
+            archive history.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label>Entity Type</Label>
+            <Label htmlFor="restore-kind">What to restore</Label>
             <Select value={entityType} onValueChange={setEntityType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger id="restore-kind">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {Object.entries(ENTITY_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                {Object.entries(ENTITY_LABELS).map(([key, name]) => (
+                  <SelectItem key={key} value={key}>
+                    {name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {(entityType === "posts" || entityType === "chats") && (
               <p className="text-xs text-muted-foreground">
-                Restoring also revives any AI memory that was archived with these
-                items, so it surfaces again in AI search and briefings.
+                Restoring also brings back what OneCamp AI remembered from them, so it shows up again in AI search
+                and briefings.
               </p>
             )}
           </div>
 
-          <div>
-            <div className="flex items-center gap-2 mb-2">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search by name or ID…"
-                  className="w-full h-8 pl-8 pr-3 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  aria-label="Search archived items"
+                  placeholder="Search by name…"
+                  className="h-8 pl-8 md:text-sm"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => fetchItems(0, false)} disabled={loading}>
-                <RefreshCw className={`h-3 w-3 mr-1 ${loading ? "animate-spin" : ""}`} />Refresh
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2" onClick={() => fetchItems(0, false)} disabled={loading}>
+                <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                Refresh
               </Button>
             </div>
 
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={filteredItems.length > 0 && selected.size === filteredItems.length}
-                  onCheckedChange={toggleAll}
-                />
-                <Label className="text-sm cursor-pointer" onClick={toggleAll}>
-                  {selected.size === 0 ? "Select All" : `${selected.size} selected`}
+            {!loadFailed && filteredItems.length > 0 && (
+              <div className="flex items-center gap-2 px-3">
+                <Checkbox id="restore-all" checked={allOn} onCheckedChange={(v) => setAll(v === true)} aria-label="Select all" />
+                <Label htmlFor="restore-all" className="cursor-pointer text-sm font-normal text-muted-foreground">
+                  {selected.size === 0 ? "Select all" : `${selected.size.toLocaleString("en")} selected`}
                 </Label>
               </div>
-            </div>
+            )}
 
-            <div className="border rounded-md max-h-52 overflow-y-auto">
-              {loading ? (
-                <div className="text-sm text-muted-foreground animate-pulse p-4 text-center">Loading archived items…</div>
-              ) : filteredItems.length === 0 ? (
-                <div className="text-sm text-muted-foreground p-4 text-center">
-                  {searchQuery.trim() ? "No items match your search." : `No recently archived ${ENTITY_LABELS[entityType]?.toLowerCase() || entityType} found.`}
+            <div className="max-h-56 overflow-y-auto rounded-md border border-border">
+              {loading && list.length === 0 ? (
+                <div role="status" aria-label={`Loading archived ${label}`} className="px-3 py-1">
+                  <SkeletonRows rows={4} avatar={false} />
                 </div>
+              ) : loadFailed ? (
+                <ErrorState subject={`the archived ${label}`} onRetry={() => fetchItems(0, false)} retrying={loading} className="py-6" />
+              ) : filteredItems.length === 0 ? (
+                <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                  {searchQuery.trim() ? "Nothing archived matches that." : `No ${label} have been archived recently.`}
+                </p>
               ) : (
-                filteredItems.map(item => (
-                  <div
-                    key={item.id}
-                    className={`flex items-center gap-3 px-3 py-2 hover:bg-muted/30 cursor-pointer border-b last:border-0 transition-colors ${selected.has(item.id) ? "bg-primary/5" : ""}`}
-                    onClick={() => toggleItem(item.id)}
-                  >
-                    <Checkbox checked={selected.has(item.id)} onCheckedChange={() => toggleItem(item.id)} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-mono truncate">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(item.archived_at).toLocaleString()}</p>
-                    </div>
-                  </div>
-                ))
+                <ul aria-label={`Archived ${label}`} className="divide-y divide-border">
+                  {filteredItems.map((item) => {
+                    const on = selected.has(item.id)
+                    return (
+                      <li key={item.id}>
+                        {/* One label around the box and the words: a click on either
+                            ticks the box once, by the label's own behaviour. */}
+                        <label
+                          className={cn(
+                            "flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-highlight",
+                            on && "bg-primary/5",
+                          )}
+                        >
+                          <Checkbox checked={on} onCheckedChange={(v) => setItem(item.id, v === true)} aria-label={item.name} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm">{item.name}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              Archived {shortDateTime(new Date(item.archived_at))}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
-              {hasMore && !loading && !searchQuery.trim() && (
-                <div className="p-2 text-center">
-                  <Button variant="ghost" size="sm" className="text-xs" onClick={loadMore}>Load More</Button>
+              {!loadFailed && hasMore && !searchQuery.trim() && list.length > 0 && (
+                <div className="flex flex-col items-center gap-1 border-t border-border p-2">
+                  {moreFailed && (
+                    <p role="alert" className="text-xs text-danger-ink">
+                      Couldn&apos;t load more. Try again.
+                    </p>
+                  )}
+                  <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => fetchItems(page + 1, true)} disabled={loading}>
+                    {loading ? "Loading…" : total !== null ? `Show more (${(total - list.length).toLocaleString("en")} left)` : "Show more"}
+                  </Button>
                 </div>
               )}
             </div>
           </div>
+
+          {problem && (
+            <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-danger-ink">
+              {problem}
+            </p>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={post.isSubmitting || selected.size === 0}>
-            {post.isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
-            Restore ({selected.size})
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={restoring}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={restoring || selected.size === 0}>
+            {restoring && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+            {restoring ? "Restoring…" : selected.size === 0 ? "Restore" : `Restore ${itemCount(selected.size)}`}
           </Button>
         </DialogFooter>
       </DialogContent>
