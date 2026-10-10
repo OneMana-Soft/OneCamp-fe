@@ -92,7 +92,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                             so a member could not quiet a busy project. It stays out
                             of the menu because its icon says the current setting. */}
                         <NotificationBell notificationType={projectNotification} isLoading={postNotification.isSubmitting} onNotCLick={UpdateNotification}/>
-                        {/* Everything else is one menu: time, forms, sharing, saving as
+                        {/* Everything else is one menu: forms, sharing, saving as
                             a template, renaming and members. Create task stays where
                             the list's tools are. */}
                         <ProjectActionsMenu

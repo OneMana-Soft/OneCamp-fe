@@ -60,4 +60,15 @@ describe("tracking", () => {
     }
     expect(offenders, "negative tracking on small text runs words together").toEqual([])
   })
+
+  // A primitive's size usually comes from its caller (CardTitle is used at
+  // 14 and 18 px), so the line check above can't see it. No primitive tightens
+  // its tracking; a caller at display size may add it.
+  it("puts no negative tracking on a shared UI primitive", () => {
+    const offenders = walk(resolve(root, "components/ui"), [".tsx"])
+      .filter((f) => !f.endsWith(".test.tsx"))
+      .filter((f) => readFileSync(f, "utf8").split("\n").some((l) => !/^\s*(\/\/|\*|\{\/\*)/.test(l) && NEGATIVE.test(l)))
+      .map((f) => f.slice(root.length + 1))
+    expect(offenders, "a primitive sets negative tracking for every caller").toEqual([])
+  })
 })
