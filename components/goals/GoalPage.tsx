@@ -51,6 +51,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { daysAgo } from "@/lib/utils/relativeTime"
 import { localDay } from "@/lib/utils/timeZone"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { app_project_path } from "@/types/paths"
 import type { UserProfileInterface } from "@/types/user"
 
@@ -73,11 +74,15 @@ function ProjectRow({ p, canEdit, onRemove }: { p: GoalProjectLine; canEdit: boo
   const total = p.open + p.done
   return (
     <li className="group flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border/60 px-3 py-2.5">
-      <div className="min-w-0 flex-1">
-        <Link href={`${app_project_path}/${p.project_uuid}`} className="block truncate text-sm font-medium hover:underline">
-          {p.project_name}
+      {/* At least 14rem before the progress and health wrap under it: on a
+          phone the name was squeezed to one word a line beside them. The
+          project's own colour leads it, as everywhere else. */}
+      <div className="min-w-[min(100%,14rem)] flex-1">
+        <Link href={`${app_project_path}/${p.project_uuid}`} className="flex min-w-0 items-center gap-2 text-sm font-medium hover:underline">
+          <IdentityMark id={p.project_uuid} variant="square" />
+          <span className="truncate">{p.project_name}</span>
         </Link>
-        <p className="text-xs text-muted-foreground">
+        <p className="pl-[18px] text-xs text-muted-foreground">
           {p.archived ? (
             "Archived: it no longer counts"
           ) : total === 0 ? (
@@ -99,7 +104,7 @@ function ProjectRow({ p, canEdit, onRemove }: { p: GoalProjectLine; canEdit: boo
         <Button
           size="icon"
           variant="ghost"
-          className="h-7 w-7 md:pointer-events-none md:opacity-0 md:focus-visible:pointer-events-auto md:focus-visible:opacity-100 md:group-hover:pointer-events-auto md:group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+          className="h-7 w-7 pointer-coarse:h-11 pointer-coarse:w-11 md:pointer-events-none md:opacity-0 md:focus-visible:pointer-events-auto md:focus-visible:opacity-100 md:group-hover:pointer-events-auto md:group-hover:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
           aria-label={`Take ${p.project_name} off the goal`}
           onClick={onRemove}
         >
