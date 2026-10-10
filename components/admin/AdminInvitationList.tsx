@@ -150,7 +150,11 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
                   </time>
                   {getStatusBadge(inv.status)}
                   {expiryText(inv) && (
-                    <span className="text-xs text-muted-foreground">{expiryText(inv)}</span>
+                    <>
+                      {/* A separator, so the expiry doesn't run into the status word. */}
+                      <span aria-hidden="true" className="text-xs text-faint-foreground">·</span>
+                      <span className="text-xs text-muted-foreground">{expiryText(inv)}</span>
+                    </>
                   )}
                 </div>
               </div>
