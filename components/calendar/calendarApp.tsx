@@ -40,6 +40,10 @@ import { useMedia } from "@/context/MediaQueryContext";
 import { useRouter } from "next/navigation";
 import { useConfirm } from "@/hooks/useConfirm";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
+import { SpotCalendar } from "@/components/ui/graphics";
+import { ErrorState } from "@/components/ui/error-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { inlineAdd } from "@/lib/ui/fieldRow";
 import { CALENDAR_HUE, hueOf, toneOf } from "@/components/calendar/calendarTones";
 import { dayKey, itemsByDay, layoutWeek, monthGridRange, placeItems, type DatedItem } from "@/components/calendar/calendarLayout";
 
@@ -103,13 +107,16 @@ export function CalendarApp() {
     // A new month keeps the last one on screen until its answer comes.
     const rangeQuery = `startDate=${monthGridStart.toISOString()}&endDate=${monthGridEnd.toISOString()}`;
     const keep = { keepPreviousData: true };
-    const { data: eventsRes, isLoading: isLoadingEvents, mutate: mutateEvents } = useFetch<GetEventsResponse>(
+    const { data: eventsRes, isLoading: isLoadingEvents, isError: eventsError, mutate: mutateEvents } = useFetch<GetEventsResponse>(
         `${GetEndpointUrl.GoogleCalendarEvents}?${rangeQuery}`, undefined, keep
     );
-    const { data: tasksRes, isLoading: isLoadingTasks } = useFetch<UserInfoRawInterface>(
+    const { data: tasksRes, isLoading: isLoadingTasks, isError: tasksError, mutate: mutateTasks } = useFetch<UserInfoRawInterface>(
         `${GetEndpointUrl.GetUserTaskList}?pageIndex=0&pageSize=100&${rangeQuery}`, undefined, keep
     );
     const loading = isLoadingEvents || isLoadingTasks;
+    // A failed load is not a free month: every view says so, in one place.
+    const failed = !loading && !!(eventsError || tasksError);
+    const retry = () => { void mutateEvents(); void mutateTasks(); };
 
     // Fetch Gcal Status
     const { data: gcalStatus, mutate: mutateGcalStatus } = useFetch<{ data: { isConnected: boolean } }>(
@@ -210,6 +217,10 @@ export function CalendarApp() {
         }
         return out;
     }, [shownView, startDate, endDate, placed]);
+
+    // A month with nothing in it says so, as a free week and a free day do.
+    const monthKey = format(currentMonth, "yyyy-MM");
+    const monthBlank = shownView === "month" && !loading && !failed && ![...byDay.keys()].some((k) => k.startsWith(monthKey));
 
     // The tasks' projects, for the legend: tasks wear their project's colour.
     const taskProjects = useMemo(() => {
@@ -360,99 +371,142 @@ export function CalendarApp() {
                                 </span>
                             </label>
                         </div>
+                        {/* Another calendar is added where the calendars are listed,
+                            not in the grid's header, where it and Booking pages took
+                            a second row whenever the event panel narrowed the grid. */}
+                        <div className="mt-2">
+                            {gcalStatus?.data?.isConnected ? (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(inlineAdd, "hover:text-danger-ink")}
+                                    onClick={askUnlinkGCal}
+                                    disabled={post.isSubmitting}
+                                >
+                                    Disconnect Google Calendar
+                                </Button>
+                            ) : (
+                                <Button variant="ghost" size="sm" className={inlineAdd} onClick={handleConnectGCal} disabled={post.isSubmitting}>
+                                    <Plus className="h-4 w-4" aria-hidden="true" />
+                                    Connect Google Calendar
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                    <div>
+                        <h2 className="text-xs font-medium text-muted-foreground mb-1">Booking</h2>
+                        <Button variant="ghost" size="sm" className={inlineAdd} onClick={() => setBookingOpen(true)}>
+                            <Link2 className="h-4 w-4" aria-hidden="true" />
+                            Booking pages
+                        </Button>
                     </div>
                 </div>
             </aside>
 
             {/* Main Calendar Area */}
             <main className="flex-1 flex flex-col h-full overflow-hidden">
-                {/* sm:flex-wrap: where the actions and the date controls do not fit
-                    on one line (a tablet), the actions take a second line. Without
-                    it they kept their width and squeezed the date controls until
-                    their wrapped lines ran over the title. */}
-                <header className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3 px-4 md:px-6 py-3 border-b border-border/60 bg-background z-10 sticky top-0">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <h1 className="sr-only">Calendar</h1>
-                        <div className="flex flex-wrap items-center gap-2 min-w-0">
-                            <Button variant="outline" size="sm" className="h-8" onClick={goToToday}>
-                                Today
+                {/* Two groups. Where you are (today, back, forward and the range on
+                    screen) on the left; how you look at it, and on a narrower screen
+                    what you can add, on the right. The view switch leads the right
+                    group, so nothing that changes with the view moves it: it sat
+                    after the title, whose width changes with every view ("October
+                    2026", "4 - 10 Oct 2026"), and slid 20 to 60px under the pointer
+                    on each switch, about 60px more while "Loading…" showed beside
+                    it. sm:flex-wrap: where both groups do not fit on one line (a
+                    tablet), the right one takes a second line rather than squeezing
+                    the dates. On a phone the switch starts the second line. */}
+                <header className="relative flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2 sm:gap-3 px-4 md:px-6 py-3 border-b border-border/60 bg-background z-10 sticky top-0" data-calendar-header="">
+                    <h1 className="sr-only">Calendar</h1>
+                    <div className="flex min-w-0 items-center gap-2">
+                        <Button variant="outline" size="sm" className="h-8 shrink-0 extend-touch-target" onClick={goToToday}>
+                            Today
+                        </Button>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 extend-touch-target" onClick={() => step(-1)} aria-label={`Previous ${unit}`}>
+                                <ChevronLeft className="h-4 w-4" />
                             </Button>
-                            <div className="flex items-center gap-0.5">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => step(-1)} aria-label={`Previous ${unit}`}>
-                                    <ChevronLeft className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => step(1)} aria-label={`Next ${unit}`}>
-                                    <ChevronRight className="h-4 w-4" />
-                                </Button>
-                            </div>
-                            <span className="font-display text-lg font-semibold text-foreground tabular-nums truncate" aria-live="polite">
-                                {title}
-                            </span>
-                            {loading && <span className="text-xs text-muted-foreground" role="status">Loading…</span>}
-                            <div className="ml-1 flex items-center gap-0.5 rounded-md border border-border bg-muted/50 p-0.5" role="group" aria-label="View">
-                                {views.map((v) => (
-                                    <button
-                                        key={v}
-                                        type="button"
-                                        onClick={() => { setView(v); setViewChosen(true); }}
-                                        aria-pressed={shownView === v}
-                                        className={cn(
-                                            "rounded-sm px-2.5 py-1 text-xs font-medium capitalize transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-                                            shownView === v
-                                                ? "bg-background text-foreground ring-1 ring-border"
-                                                : "text-muted-foreground hover:text-foreground",
-                                        )}
-                                    >
-                                        {v}
-                                    </button>
-                                ))}
-                            </div>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 extend-touch-target" onClick={() => step(1)} aria-label={`Next ${unit}`}>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
                         </div>
+                        <span className="min-w-0 truncate font-display text-lg font-semibold text-foreground tabular-nums" aria-live="polite">
+                            {title}
+                        </span>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                        {/* The one thing a calendar is for. A phone had no way to add an
-                            event at all: the week grid's empty slots are desktop-only. The wide
-                            layout has the same button in its sidebar. */}
-                        <Button size="sm" className="h-8 gap-1.5 lg:hidden" onClick={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}>
-                            <Plus className="h-3.5 w-3.5" aria-hidden />
-                            New event
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className={cn("h-8 gap-1.5", isMobile && "w-8 px-0")}
-                            onClick={() => setBookingOpen(true)}
-                            aria-label="Booking pages"
-                            title="Booking pages"
-                        >
-                            <Link2 className="h-3.5 w-3.5" aria-hidden />
-                            {!isMobile && "Booking pages"}
-                        </Button>
-                    {isDesktop && (
-                        gcalStatus?.data?.isConnected ? (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 text-muted-foreground hover:text-danger-ink"
-                                onClick={askUnlinkGCal}
-                                disabled={post.isSubmitting}
-                            >
-                                Disconnect Google Calendar
+                    <div className="flex items-center justify-between gap-2 sm:justify-end">
+                        <div className="flex shrink-0 items-center gap-0.5 rounded-md border border-border bg-muted/50 p-0.5" role="group" aria-label="View" data-calendar-views="">
+                            {views.map((v) => (
+                                <button
+                                    key={v}
+                                    type="button"
+                                    onClick={() => { setView(v); setViewChosen(true); }}
+                                    aria-pressed={shownView === v}
+                                    className={cn(
+                                        "extend-touch-target rounded-sm px-2.5 py-1 text-xs font-medium capitalize transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                                        shownView === v
+                                            ? "bg-background text-foreground ring-1 ring-border"
+                                            : "text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    {v}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Below the wide layout's sidebar, its actions live here: the
+                            one thing a calendar is for (a phone had no way to add an
+                            event at all), the booking pages, and Google Calendar. */}
+                        <div className="flex shrink-0 items-center gap-2 lg:hidden">
+                            <Button size="sm" className="h-8 gap-1.5 extend-touch-target" onClick={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}>
+                                <Plus className="h-3.5 w-3.5" aria-hidden />
+                                New event
                             </Button>
-                        ) : (
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8"
-                                onClick={handleConnectGCal}
-                                disabled={post.isSubmitting}
+                                className={cn("h-8 gap-1.5 extend-touch-target", isMobile && "w-8 px-0")}
+                                onClick={() => setBookingOpen(true)}
+                                aria-label="Booking pages"
+                                title="Booking pages"
                             >
-                                Connect Google Calendar
+                                <Link2 className="h-3.5 w-3.5" aria-hidden />
+                                {!isMobile && "Booking pages"}
                             </Button>
-                        )
-                    )}
+                            {isDesktop && (
+                                gcalStatus?.data?.isConnected ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-muted-foreground hover:text-danger-ink"
+                                        onClick={askUnlinkGCal}
+                                        disabled={post.isSubmitting}
+                                    >
+                                        Disconnect Google Calendar
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8"
+                                        onClick={handleConnectGCal}
+                                        disabled={post.isSubmitting}
+                                    >
+                                        Connect Google Calendar
+                                    </Button>
+                                )
+                            )}
+                        </div>
                     </div>
+
+                    {/* Loading says so along the header's bottom edge, in the theme's
+                        colour, and moves nothing; the grid under it is aria-busy. */}
+                    {loading && (
+                        <div role="status" className="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 overflow-hidden" data-calendar-loading="">
+                            <span className="sr-only">Loading…</span>
+                            <div aria-hidden="true" className="h-full w-full animate-pulse bg-primary/70 motion-reduce:animate-none" />
+                        </div>
+                    )}
                 </header>
 
                 {/* Scrolls in BOTH directions, which it did not.
@@ -462,16 +516,21 @@ export function CalendarApp() {
                     On a phone that did not shrink the calendar, it cut it off:
                     the last three days of every week were behind the right edge
                     with nothing to scroll and no way to reach them. */}
-                <div ref={gridRef} className="flex-1 overflow-y-auto overflow-x-auto overscroll-contain bg-background custom-scrollbar" aria-busy={loading || undefined}>
+                <div ref={gridRef} className="relative flex-1 overflow-y-auto overflow-x-auto overscroll-contain bg-background custom-scrollbar" aria-busy={loading || undefined}>
+                    {failed && (
+                        // Over the grid, where an empty view says it is empty.
+                        <div className="absolute inset-0 z-40 flex items-start justify-center bg-background/90 pt-16" data-calendar-failed="">
+                            <ErrorState subject="your calendar" onRetry={retry} />
+                        </div>
+                    )}
                     {shownView === "agenda" ? (
-                        loading ? null : (
+                        loading ? <AgendaSkeleton /> : failed ? null : (
                         <CalendarAgenda
                             // A task sits on its due day in a list; drawn on every day it
                             // spans, one task filled a week of the agenda.
                             days={agendaDays(startDate, endDate, (day) =>
                                 (byDay.get(dayKey(day)) || []).filter((item) => !item.isTask || isSameDay(parseISO(item.event_end_time), day)))}
                             onOpen={(item) => router.push(item.isTask ? `/app/task/${item.event_uuid}` : `/app/calendar/event/${item.event_uuid}`)}
-                            onCreate={() => { setDefaultDate(undefined); setIsCreateOpen(true); }}
                         />
                         )
                     ) : shownView === "week" || shownView === "day" ? (
@@ -501,7 +560,16 @@ export function CalendarApp() {
                         // 800px wide, more than a tablet's calendar area (about
                         // 560px at 768, 600px at 1024 beside the mini month), so
                         // Friday and Saturday sat behind the right edge.
-                        <div className="min-w-0 flex flex-col h-full">
+                        <div className="min-w-0 @container/month relative flex flex-col h-full">
+                            {monthBlank && (
+                                // The same quiet note a free week and a free day get,
+                                // in the middle of the grid; the days under it still
+                                // take a click.
+                                <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-2" data-calendar-blank="">
+                                    <SpotCalendar size={64} />
+                                    <p className="rounded-md bg-background/85 px-2 py-0.5 text-sm text-muted-foreground">Nothing on this month</p>
+                                </div>
+                            )}
                             {/* Days of week header */}
                             <div className="grid grid-cols-7 w-full border-b border-border/60 sticky top-0 bg-background z-20 border-l text-center" aria-hidden="true">
                                 {/* Sentence case: a grid header read on every glance does not need to shout. */}
@@ -647,7 +715,11 @@ export function CalendarApp() {
                                                             >
                                                                 {item.isTask && <CircleCheck className="h-3 w-3 shrink-0" aria-hidden="true" />}
                                                                 <span className="truncate leading-none tabular-nums">
-                                                                    {timePrefix}{item.event_title}
+                                                                    {/* The time only where a bar has room for it: beside
+                                                                        the event panel a day is about 80px wide, and
+                                                                        every bar read "9:30am…" with no title at all. */}
+                                                                    {timePrefix && <span className="hidden @[46rem]/month:inline">{timePrefix}</span>}
+                                                                    {item.event_title}
                                                                 </span>
                                                             </div>
                                                         );
@@ -671,6 +743,34 @@ export function CalendarApp() {
                 defaultStartDate={defaultDate}
                 isGCalConnected={gcalStatus?.data?.isConnected}
             />
+        </div>
+    );
+}
+
+/**
+ * The agenda's shape while it loads: a day heading and rows the size of its
+ * own (56px, a colour edge, two lines), where it showed nothing at all and
+ * then everything at once while the other views drew their grid at once.
+ */
+function AgendaSkeleton() {
+    return (
+        <div role="status" aria-label="Loading the agenda" data-agenda-skeleton="">
+            {[3, 2].map((rows, d) => (
+                <div key={d} aria-hidden="true">
+                    <div className="px-4 pb-1.5 pt-4">
+                        <Skeleton className="h-3 w-20" />
+                    </div>
+                    {Array.from({ length: rows }).map((_, i) => (
+                        <div key={i} className="flex min-h-[56px] items-center gap-3 px-4 py-2.5">
+                            <Skeleton className="h-9 w-1 shrink-0 rounded-full" />
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                                <Skeleton className={cn("h-3.5", i % 2 ? "w-2/5" : "w-3/5")} />
+                                <Skeleton className="h-3 w-24" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ))}
         </div>
     );
 }
