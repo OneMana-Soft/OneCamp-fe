@@ -45,7 +45,8 @@ describe("chat headers stay consistent", () => {
     ["group", group],
     ["channel", channel],
   ])("%s title uses the shared type treatment", (_name, src) => {
-    expect(src).toContain("text-sm font-semibold text-foreground truncate leading-tight")
+    // 16px since the QA pass: 14px was a list row's size, not a header's.
+    expect(src).toContain("text-base font-semibold text-foreground truncate leading-tight")
   })
 
   // Both carry a muted second line, which is what keeps the two headers the same
@@ -77,5 +78,21 @@ describe("chat headers stay consistent", () => {
     expect(iconButtons).toBeGreaterThanOrEqual(3)
     expect(iconButtons, "the channel header is crowding again; move actions into More").toBeLessThanOrEqual(5)
     expect(tooltips, "icon controls in the channel header with no visible name").toBeGreaterThanOrEqual(iconButtons - 1)
+  })
+})
+
+// The bar's header: a big, calm title, and metadata as dot plus word under it.
+// Titles were 14px, the size of a list row; a DM had a second line only while
+// the person was online.
+describe("chat headers read as headers", () => {
+  it("draw every title at 16px", () => {
+    for (const src of [dm, group, channel]) expect(src).toContain("data-header-title='' className='text-base font-semibold")
+  })
+  it("always give a DM its presence line", () => {
+    expect(dm).toMatch(/data-header-meta=''/)
+    expect(dm).not.toMatch(/\{isOnline && <span className='text-2xs text-muted-foreground leading-tight'>Active now/)
+  })
+  it("keeps the channel menu's items on one line", () => {
+    expect(channel).toContain('<DropdownMenuContent align="end" className="w-72">')
   })
 })

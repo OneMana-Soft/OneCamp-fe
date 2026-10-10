@@ -202,7 +202,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
                         its name is read. */}
                     <IdentityMark id={channelId} variant="tile" size={32} icon={<Hash />} />
                     <div className='flex flex-col min-w-0'>
-                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>{channelDisplayName}</span>
+                        <span data-header-title='' className='text-base font-semibold text-foreground truncate leading-tight'>{channelDisplayName}</span>
                         {/* The second line keeps this header the same height as a
                             DM's, and a member count is the thing people actually
                             want to know about a channel they just opened. */}
@@ -256,7 +256,7 @@ export const ChannelIdDesktop = ({channelId, handleSend, unreadCount, focusCompo
                                 <Button size='icon' variant='ghost' aria-label="More channel actions"><MoreHorizontal /></Button>
                             </DropdownMenuTrigger>
                         </WithTooltip>
-                        <DropdownMenuContent align="end" className="w-64">
+                        <DropdownMenuContent align="end" className="w-72">
                             <FeatureGate feature={FEATURE_AI}>
                                 <DropdownMenuItem onClick={() => dispatch(openUI({ key: 'extractTasks', data: { sourceType: 'channel', sourceId: channelId } }))}>
                                     <CheckSquare className="text-muted-foreground" /> Create tasks from this conversation

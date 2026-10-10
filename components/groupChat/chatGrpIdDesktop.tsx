@@ -148,7 +148,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         {/* Joined rather than a span per participant with manual
                             separators: truncation applies to the whole line, so a
                             long list ends in an ellipsis instead of a stray comma. */}
-                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>
+                        <span data-header-title='' className='text-base font-semibold text-foreground truncate leading-tight'>
                             {participants.map((u) => displayNameOf(u)).join(', ')}
                         </span>
                         {/* Mirrors "Active now" on the 1:1 header, so both have a

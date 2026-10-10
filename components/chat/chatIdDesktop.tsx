@@ -115,8 +115,14 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
 
                     </div>
                     <div className='flex flex-col min-w-0'>
-                        <span className='text-sm font-semibold text-foreground truncate leading-tight'>{userDisplayName(otherUserInfo.data?.data)}</span>
-                        {isOnline && <span className='text-2xs text-muted-foreground leading-tight'>Active now</span>}
+                        <span data-header-title='' className='text-base font-semibold text-foreground truncate leading-tight'>{userDisplayName(otherUserInfo.data?.data)}</span>
+                        {/* Always a second line, dot and word, as a channel's member
+                            count is: the header was one line unless the person was
+                            online, so it changed shape with their presence. */}
+                        <span data-header-meta='' className='flex items-center gap-1.5 text-2xs text-muted-foreground leading-tight'>
+                            {!isBotPeer && <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', isOnline ? statusColors.online.solid : 'bg-muted-foreground/50')} />}
+                            {isBotPeer ? 'Agent' : isOnline ? 'Active now' : currentStatus === 'away' ? 'Away' : 'Offline'}
+                        </span>
                     </div>
                 </div>
                 <div className='flex items-center gap-0.5 shrink-0'>
