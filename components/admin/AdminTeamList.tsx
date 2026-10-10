@@ -139,6 +139,29 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
+                  {/* The way in first, the destructive one last, as on Members. */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() =>
+                          dispatch(
+                            openUI({
+                              key: "teamMembers",
+                              data: { teamUUID: team.team_uuid, teamName: team.team_name },
+                            })
+                          )
+                        }
+                        aria-label={`View members of ${team.team_name}`}
+                      >
+                        <Users className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Team members</TooltipContent>
+                  </Tooltip>
+
                   {isDeleted ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -172,28 +195,6 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
                       <TooltipContent>Delete team</TooltipContent>
                     </Tooltip>
                   )}
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={() =>
-                          dispatch(
-                            openUI({
-                              key: "teamMembers",
-                              data: { teamUUID: team.team_uuid, teamName: team.team_name },
-                            })
-                          )
-                        }
-                        aria-label={`View members of ${team.team_name}`}
-                      >
-                        <Users className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Team members</TooltipContent>
-                  </Tooltip>
                 </div>
               </li>
             )
