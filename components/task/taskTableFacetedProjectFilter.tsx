@@ -1,10 +1,9 @@
 import { useTranslation } from "react-i18next"
-import { CheckIcon, PlusCircledIcon } from "@radix-ui/react-icons";
+import { FilterChip } from "@/components/task/filterChip"
+import { CheckIcon, } from "@radix-ui/react-icons";
 import { Column } from "@tanstack/react-table";
 
 import { cn } from "@/lib/utils/helpers/cn";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
     Command,
     CommandEmpty,
@@ -19,7 +18,6 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
@@ -44,43 +42,7 @@ export function TaskTableFacetedProjectFilter<TData, TValue>({
     return (
         <Popover>
             <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 border-dashed">
-                    <PlusCircledIcon className="mr-2 h-4 w-4" />
-                    {title}
-                    {selectedValues?.size > 0 && (
-                        <>
-                            <Separator orientation="vertical" className="mx-2 h-4" />
-                            <Badge
-                                variant="secondary"
-                                className="rounded-sm px-1 font-normal lg:hidden"
-                            >
-                                {selectedValues.size}
-                            </Badge>
-                            <div className="hidden space-x-1 lg:flex">
-                                {selectedValues.size > 2 ? (
-                                    <Badge
-                                        variant="secondary"
-                                        className="rounded-sm px-1 font-normal"
-                                    >
-                                        {selectedValues.size} {('selected          ')}
-                                    </Badge>
-                                ) : selfUserProfile.data?.data.user_projects && (
-                                    selfUserProfile.data?.data.user_projects
-                                        .filter((option) => selectedValues.has(option.uid || ""))
-                                        .map((option) => (
-                                            <Badge
-                                                variant="secondary"
-                                                key={option.uid}
-                                                className="rounded-sm px-1 font-normal"
-                                            >
-                                                {option.project_name}
-                                            </Badge>
-                                        ))
-                                )}
-                            </div>
-                        </>
-                    )}
-                </Button>
+                <FilterChip title={title ?? ""} count={selectedValues.size} selected={(selfUserProfile.data?.data.user_projects ?? []).filter((o) => selectedValues.has(o.uid || "")).map((o) => o.project_name)} />
             </PopoverTrigger>
             <PopoverContent className="w-[200px] p-0" align="start">
                 <Command>

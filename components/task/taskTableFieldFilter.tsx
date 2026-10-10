@@ -5,10 +5,9 @@
 // none. A field's filter is its column's, so it goes to the server with the
 // list's other filters and into saved views like them.
 
-import { CheckIcon, PlusCircledIcon } from "@radix-ui/react-icons"
+import { CheckIcon, } from "@radix-ui/react-icons"
+import { FilterChip } from "@/components/task/filterChip"
 import type { Table } from "@tanstack/react-table"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { OptionPill } from "@/components/task/fieldValue"
@@ -49,15 +48,7 @@ export function TaskTableFieldFilter<TData>({ table, fields, people }: { table: 
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 border-dashed">
-          <PlusCircledIcon className="h-4 w-4" />
-          Fields
-          {active > 0 && (
-            <Badge variant="secondary" className="ml-2 rounded-sm px-1 font-normal">
-              {active}
-            </Badge>
-          )}
-        </Button>
+        <FilterChip title="Fields" count={active} />
       </PopoverTrigger>
       <PopoverContent className="w-[260px] p-0" align="start">
         <Command>

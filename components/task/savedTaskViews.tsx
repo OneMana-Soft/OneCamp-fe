@@ -101,7 +101,7 @@ export function SavedTaskViewsButton(props: Omit<PanelProps, "enabled">) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-1.5">
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground hover:text-foreground">
           <Bookmark className="h-3.5 w-3.5" aria-hidden />
           Views
         </Button>

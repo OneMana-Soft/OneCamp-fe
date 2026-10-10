@@ -1,11 +1,9 @@
 "use client"
 
-import { PlusCircledIcon } from "@radix-ui/react-icons"
 import { Check } from "@/lib/icons"
-import { Button } from "@/components/ui/button"
+import { FilterChip } from "@/components/task/filterChip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils/helpers/cn"
 import { tagTone } from "@/lib/tags"
 import { useProjectTags } from "@/components/tags/TagPicker"
@@ -18,16 +16,7 @@ export function TagFilter({ projectId, active, onChange }: { projectId: string; 
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 border-dashed">
-          <PlusCircledIcon className="mr-2 h-4 w-4" />
-          Tag
-          {active.length > 0 && (
-            <>
-              <Separator orientation="vertical" className="mx-2 h-4" />
-              <span className="rounded-sm bg-secondary px-1 text-xs font-normal">{active.length > 1 ? `${active.length} selected` : active[0]}</span>
-            </>
-          )}
-        </Button>
+        <FilterChip title="Tag" selected={active} />
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">
         <Command>
