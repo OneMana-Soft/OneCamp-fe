@@ -13,3 +13,16 @@ export function userDisplayName(
   if (user.is_bot && user.user_full_name) return user.user_full_name
   return user.user_name || user.user_full_name || ""
 }
+
+/**
+ * The name above a message. A bot is named by its display name; a person by
+ * the live name the store holds for them (it follows renames), else the name
+ * the message carries.
+ */
+export function messageAuthorName(
+  from?: { user_name?: string | null; user_full_name?: string | null; is_bot?: boolean | null } | null,
+  liveName?: string | null,
+): string {
+  if (from?.is_bot && from.user_full_name) return from.user_full_name
+  return liveName || from?.user_name || ""
+}

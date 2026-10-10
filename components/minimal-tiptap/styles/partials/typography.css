@@ -40,10 +40,15 @@
   @apply leading-relaxed;
 }
 
-.minimal-tiptap-editor .ProseMirror a.link {
-  @apply cursor-pointer text-primary underline underline-offset-4 decoration-primary/30 hover:decoration-primary transition-all;
+/* A link in a message, whether an editor renders it (a.link) or the static
+   renderer does (a bare <a>, see lib/utils/staticRichText). Without the second
+   selector every link in a statically rendered message looked like plain text. */
+.minimal-tiptap-editor .ProseMirror a.link,
+.static-rich a[href] {
+  @apply cursor-pointer text-primary underline underline-offset-4 decoration-primary/30 transition-colors;
 }
 
-.minimal-tiptap-editor .ProseMirror a.link:hover {
+.minimal-tiptap-editor .ProseMirror a.link:hover,
+.static-rich a[href]:hover {
   @apply decoration-primary;
 }

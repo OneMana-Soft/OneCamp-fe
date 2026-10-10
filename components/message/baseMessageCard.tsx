@@ -56,6 +56,7 @@ import type { GroupedReaction } from "@/types/reaction"
 import type { CommentInfoInterface } from "@/types/comment"
 import type { ChatInfo } from "@/types/chat"
 import type { PostsRes } from "@/types/post"
+import { messageAuthorName } from "@/lib/utils/userDisplayName"
 
 interface NormalizedForwardMessage {
   from: UserProfileDataInterface

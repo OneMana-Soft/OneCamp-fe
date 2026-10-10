@@ -31,6 +31,7 @@ import {messageDomId, scrollToMessage} from "@/lib/utils/scrollToMessage";
 import {useUserInfoState} from "@/hooks/useUserInfoState";
 import {useInternalLinkRouter} from "@/lib/utils/useInternalLinkRouter";
 import { makeTaskAction } from "@/lib/task/makeTaskAction";
+import { messageAuthorName } from "@/lib/utils/userDisplayName"
 
 interface ChatMessageProps {
     chatInfo: ChatInfo
@@ -204,7 +205,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
             <div className='h-9 w-9 mt-0.5 flex-shrink-0' onClick={handleUserClick}>
                 <ChannelMessageAvatar
-                    userName={userInfoState?.userName || chatInfo.chat_from.user_name}
+                    userName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)}
                     userProfileKey={userInfoState?.profileKey ?? chatInfo.chat_from.user_profile_object_key}
                     isBot={!!chatInfo.chat_from?.is_bot}
                     userUUID={chatInfo.chat_from?.user_uuid}
@@ -214,7 +215,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
             <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-2'>
                     <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
-                        {userInfoState.userName || chatInfo.chat_from.user_name}
+                        {messageAuthorName(chatInfo.chat_from, userInfoState.userName)}
                     </div>
                     {chatInfo.chat_from?.is_bot && <BotTag userUUID={chatInfo.chat_from.user_uuid} />}
                     <div className='text-2xs tabular-nums text-muted-foreground shrink-0'>
