@@ -7,9 +7,7 @@
  */
 
 import * as React from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/settings/SettingsSection"
 import { useToast } from "@/hooks/use-toast"
 import { useFetch } from "@/hooks/useFetch"
 import axiosInstance from "@/lib/axiosInstance"
@@ -36,25 +34,25 @@ export function ReadReceiptsCard() {
     }
   }
 
+  // Saves the moment it changes, and says so: the section's line names it.
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Read receipts</CardTitle>
-        <CardDescription>
-          In DMs and group chats of up to 20 people, others see &quot;Seen&quot; under their latest message once
-          you&apos;ve read it, and you see theirs. Turn it off and nobody sees when you&apos;ve read their messages,
-          and you don&apos;t see when they&apos;ve read yours.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-2">
-        <div className="flex items-center justify-between gap-4">
-          <Label htmlFor="read-receipts" className="text-sm font-normal">
-            Send and see read receipts
-          </Label>
-          <Switch id="read-receipts" checked={allowed && !!data.read_receipts} disabled={!allowed} onCheckedChange={(v) => void change(v)} />
-        </div>
-        {!allowed && <p className="text-xs text-muted-foreground">Your workspace has turned read receipts off.</p>}
-      </CardContent>
-    </Card>
+    <SettingsSection
+      title="Read receipts"
+      description="In DMs and group chats of up to 20 people. Saved as soon as you switch it."
+    >
+      <SettingsList>
+        <SwitchRow
+          label="Send and see read receipts"
+          description={
+            allowed
+              ? "Others see \u201cSeen\u201d under their latest message once you've read it, and you see theirs. Off, nobody sees when you've read their messages, and you don't see when they've read yours."
+              : "Your workspace has turned read receipts off."
+          }
+          checked={allowed && !!data.read_receipts}
+          disabled={!allowed}
+          onChange={(v) => void change(v)}
+        />
+      </SettingsList>
+    </SettingsSection>
   )
 }

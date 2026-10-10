@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Eye, EyeOff, Lock, Shield, LoaderCircle, CheckCircle2 } from "@/lib/icons";
+import { LoaderCircle } from "@/lib/icons";
+import { AuthField, PasswordField } from "@/components/auth/AuthShell";
 import AuthService from "@/services/auth/AuthService";
 
 export function ChangePasswordSection() {
@@ -38,23 +38,23 @@ export function ChangePasswordSection() {
         setError("");
         setSuccess("");
 
+        if (hasPassword && !currentPassword) {
+            setError("Enter your current password first.");
+            return;
+        }
+
         if (newPassword.length < 8) {
-            setError("Password must be at least 8 characters");
+            setError("Use at least 8 characters for the new password.");
             return;
         }
 
         if (newPassword.length > 72) {
-            setError("Password must not exceed 72 characters");
+            setError("Use 72 characters or fewer for the new password.");
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            setError("Passwords do not match");
-            return;
-        }
-
-        if (hasPassword && !currentPassword) {
-            setError("Current password is required");
+            setError("The two new passwords are different. Type the same one in both.");
             return;
         }
 
@@ -62,7 +62,7 @@ export function ChangePasswordSection() {
         try {
             const result = await AuthService.changePassword(currentPassword, newPassword);
             if (result.ok) {
-                setSuccess(result.msg || "Password updated successfully");
+                setSuccess(result.msg || "Password changed.");
                 setHasPassword(true);
                 resetForm();
                 setTimeout(() => {
@@ -70,7 +70,7 @@ export function ChangePasswordSection() {
                     setSuccess("");
                 }, 2000);
             } else {
-                setError(result.msg || "Failed to update password");
+                setError(result.msg || "Couldn't change your password. Try again.");
             }
         } catch {
             setError("Something went wrong. Please try again.");
@@ -81,26 +81,23 @@ export function ChangePasswordSection() {
 
     if (hasPassword === null) return null;
 
-    const title = hasPassword ? "Change Password" : "Set Password";
+    const title = hasPassword ? "Change password" : "Set a password";
     const description = hasPassword
-        ? "Update your password for email login"
-        : "Add a password to enable email login";
+        ? "The password you sign in with by email."
+        : "You sign in another way. Add a password to sign in by email too.";
 
     return (
-        <div className="bg-muted/10 p-5 rounded-2xl border space-y-4 shadow-sm">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                    <div className="bg-warning/10 p-2 rounded-full">
-                        <Shield className="h-5 w-5 text-warning" />
-                    </div>
-                    <div>
-                        <h3 className="text-sm font-medium">{title}</h3>
-                        <p className="text-xs text-muted-foreground">{description}</p>
-                    </div>
+        <div className="space-y-4 px-4 py-4">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <h3 className="text-sm font-medium">{hasPassword ? "Password" : "No password yet"}</h3>
+                    <p className="text-xs text-muted-foreground text-pretty">{description}</p>
                 </div>
                 <Button
                     variant="outline"
                     size="sm"
+                    className="shrink-0"
+                    aria-expanded={isExpanded}
                     onClick={() => {
                         setIsExpanded(!isExpanded);
                         if (isExpanded) resetForm();
@@ -110,77 +107,61 @@ export function ChangePasswordSection() {
                 </Button>
             </div>
 
+            {success && !isExpanded && (
+                <p role="status" className="text-sm text-success">{success}</p>
+            )}
+
             {isExpanded && (
-                <form onSubmit={handleSubmit} className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                <form onSubmit={handleSubmit} className="space-y-4">
                     {hasPassword && (
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type={showCurrentPassword ? "text" : "password"}
-                                placeholder="Current password"
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                                className="pl-10 pr-10 bg-background/50 border-0 shadow-none h-12 focus-visible:ring-1"
-                                required
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                                {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type={showNewPassword ? "text" : "password"}
-                            placeholder="New password (min 8 characters)"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            className="pl-10 pr-10 bg-background/50 border-0 shadow-none h-12 focus-visible:ring-1"
+                        <PasswordField
+                            id="current-password"
+                            name="current-password"
+                            label="Current password"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            autoComplete="current-password"
                             required
-                            minLength={8}
+                            visible={showCurrentPassword}
+                            onVisibleChange={setShowCurrentPassword}
                         />
-                        <button
-                            type="button"
-                            onClick={() => setShowNewPassword(!showNewPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                            {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                    </div>
-
-                    <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type="password"
-                            placeholder="Confirm new password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            className="pl-10 bg-background/50 border-0 shadow-none h-12 focus-visible:ring-1"
-                            required
-                            minLength={8}
-                        />
-                    </div>
-
-                    {error && (
-                        <p className="text-sm text-destructive animate-in fade-in">{error}</p>
                     )}
 
-                    {success && (
-                        <div className="flex items-center space-x-2 text-sm text-success animate-in fade-in">
-                            <CheckCircle2 className="h-4 w-4" />
-                            <span>{success}</span>
-                        </div>
-                    )}
+                    <PasswordField
+                        id="new-password"
+                        name="new-password"
+                        label="New password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        autoComplete="new-password"
+                        hint="At least 8 characters."
+                        required
+                        minLength={8}
+                        visible={showNewPassword}
+                        onVisibleChange={setShowNewPassword}
+                    />
 
-                    <Button type="submit" className="w-full h-12" disabled={isSubmitting}>
-                        {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                        {title}
-                    </Button>
+                    <AuthField
+                        id="confirm-new-password"
+                        name="confirm-new-password"
+                        label="Type the new one again"
+                        type={showNewPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
+                        required
+                        minLength={8}
+                    />
+
+                    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+                    {success && <p role="status" className="text-sm text-success">{success}</p>}
+
+                    <div className="flex justify-end">
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+                            {isSubmitting ? "Saving…" : hasPassword ? "Change password" : "Set password"}
+                        </Button>
+                    </div>
                 </form>
             )}
         </div>

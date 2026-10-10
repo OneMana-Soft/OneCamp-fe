@@ -10,6 +10,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { buttonVariants } from "@/components/ui/button"
 
 interface ConfirmAlertDialogProps {
     title: string
@@ -17,6 +18,8 @@ interface ConfirmAlertDialogProps {
     onConfirm?: () => void
     confirmText?: string
     cancelText?: string
+    /** The action loses something: its button is the danger colour, not the brand's. */
+    destructive?: boolean
     open: boolean;
     onOpenChange: (open: boolean) => void;
 
@@ -30,6 +33,7 @@ export function ConfirmAlertDialog({
                                        onConfirm,
                                        confirmText = "Continue",
                                        cancelText = "Cancel",
+                                       destructive = false,
                                    }: ConfirmAlertDialogProps) {
 
 
@@ -42,7 +46,7 @@ export function ConfirmAlertDialog({
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel >{cancelText}</AlertDialogCancel>
-                    <AlertDialogAction onClick={onConfirm}>
+                    <AlertDialogAction onClick={onConfirm} className={destructive ? buttonVariants({ variant: "destructive" }) : undefined}>
                         {confirmText}
                     </AlertDialogAction>
                 </AlertDialogFooter>
