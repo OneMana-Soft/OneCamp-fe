@@ -18,7 +18,7 @@
 // together, so its edits wait in a save bar. Until the stored settings are
 // read there is no form: a failed read used to show "Browser" as the mode.
 
-import { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -74,8 +74,15 @@ const PROVIDER_LABEL: Record<STTProvider, string> = {
 // Shown under the picker. Only the bundled option keeps the audio on the
 // machine, and that is the difference an admin is actually choosing between,
 // so it is stated rather than left to be inferred from the provider's name.
-const PROVIDER_NOTE: Record<STTProvider, string> = {
-    local: "Meeting audio never leaves this server, and there is nothing to pay per minute. Start it with `make stt_up`. The first call after a restart is slower while the model loads.",
+const PROVIDER_NOTE: Record<STTProvider, React.ReactNode> = {
+    // The command in code type: written in backticks, it showed them.
+    local: (
+        <>
+            Meeting audio never leaves this server, and there is nothing to pay per minute. Start it with{" "}
+            <code className="rounded-sm bg-muted px-1 font-mono text-2xs">make stt_up</code>. The first call after a
+            restart is slower while the model loads.
+        </>
+    ),
     deepgram: "Meeting audio is sent to Deepgram and billed per minute.",
     google: "Meeting audio is sent to Google Cloud and billed per minute.",
     openai: "Meeting audio is sent to the endpoint you enter below. Billing depends on who runs it.",
@@ -86,6 +93,12 @@ const MODEL_PLACEHOLDER: Record<STTProvider, string> = {
     deepgram: "nova-2",
     google: "The provider's default",
     openai: "whisper-1",
+}
+
+/** Where a value comes from when that isn't here, after a help line drawn on its own. */
+const sourceNote = (source: string | undefined) => {
+    const note = source ? SOURCE_NOTE[source] : undefined
+    return note ? ` ${note}` : null
 }
 
 /** A help line, with where the value comes from when that isn't here. */
@@ -341,7 +354,12 @@ export default function TranscriptionSettingsCard() {
                                 <SettingRow
                                     label="Provider"
                                     controlId="stt-provider"
-                                    description={withSource(PROVIDER_NOTE[sttProvider], config.stt_provider_source)}
+                                    description={
+                                        <>
+                                            {PROVIDER_NOTE[sttProvider]}
+                                            {sourceNote(config.stt_provider_source)}
+                                        </>
+                                    }
                                 >
                                     <Select
                                         value={sttProvider}

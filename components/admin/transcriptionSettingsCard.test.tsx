@@ -109,6 +109,15 @@ describe("call transcription settings", () => {
     expect(screen.getByLabelText("Provider")).toBeTruthy()
   })
 
+  // The bundled server's note wrote its command in backticks, which showed.
+  it("shows the command that starts the bundled server in code type, without backticks", async () => {
+    vi.mocked(getTranscriptionConfig).mockResolvedValue(stored({ mode: "backend", stt_provider: "local" }))
+    render(<TranscriptionSettingsCard />)
+    const command = await screen.findByText("make stt_up")
+    expect(command.tagName).toBe("CODE")
+    expect(document.body.textContent).not.toContain("`")
+  })
+
   it("takes Google's service account in the shared text area", async () => {
     vi.mocked(getTranscriptionConfig).mockResolvedValue(stored({ mode: "backend", stt_provider: "google" }))
     render(<TranscriptionSettingsCard />)
