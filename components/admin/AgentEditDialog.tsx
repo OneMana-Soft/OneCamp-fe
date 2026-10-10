@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
 import { A2ACardSummary } from "@/components/admin/A2ACardSummary"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -73,6 +74,19 @@ const TRIGGERS: { value: AgentTriggerType; label: string; hint: string }[] = [
   { value: "schedule", label: "On a schedule", hint: "Runs on a recurring schedule." },
   { value: "event", label: "On an event", hint: "Runs when a workspace event happens." },
 ]
+
+/** The single choices of the trigger, for the shared segmented control. */
+const TRIGGER_OPTIONS = TRIGGERS.map((t) => ({ value: t.value, label: t.label }))
+const SCHEDULE_MODE_OPTIONS = [
+  { value: "interval", label: "Every N minutes" },
+  { value: "clock", label: "At a set time" },
+] as const
+const PRESET_OPTIONS = SCHEDULE_PRESETS.map((p) => ({ value: String(p.value), label: p.label }))
+const DAY_OPTIONS = [
+  { value: "daily", label: "Every day" },
+  { value: "weekdays", label: "Weekdays" },
+  { value: "custom", label: "Custom" },
+] as const
 
 const WEEKDAY_TOKENS: { token: string; label: string }[] = [
   { token: "MO", label: "Mon" },
@@ -844,70 +858,41 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
 
           <div className="grid gap-2">
             <Label id="agent-trigger-label">Trigger</Label>
-            <div role="radiogroup" aria-labelledby="agent-trigger-label" className="flex flex-wrap gap-1.5">
-              {TRIGGERS.map((t) => (
-                <button
-                  key={t.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={triggerType === t.value}
-                  onClick={() => setTriggerType(t.value)}
-                  className={cn(
-                    "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
-                    triggerType === t.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+            {/* Single choices are the house segmented control, here and below:
+                they were rows of bordered chips with the choice in the accent. */}
+            <SegmentedControl
+              aria-labelledby="agent-trigger-label"
+              value={triggerType}
+              onValueChange={setTriggerType}
+              options={TRIGGER_OPTIONS}
+              className="w-fit"
+            />
             <p className="text-xs text-muted-foreground">{TRIGGERS.find((t) => t.value === triggerType)?.hint}</p>
 
             {/* Per-trigger configuration */}
             {triggerType === "schedule" && (
               <div className="mt-1 grid gap-2 rounded-lg border bg-muted/30 p-3">
-                {/* Mode toggle: fixed interval vs a set time on chosen days. */}
-                <div role="radiogroup" aria-label="How it is scheduled" className="flex items-center gap-1.5">
-                  {([
-                    { v: "interval", label: "Every N minutes" },
-                    { v: "clock", label: "At a set time" },
-                  ] as const).map((opt) => (
-                    <button
-                      key={opt.v}
-                      type="button"
-                      role="radio"
-                      aria-checked={scheduleMode === opt.v}
-                      onClick={() => setScheduleMode(opt.v)}
-                      className={cn(
-                        "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
-                        scheduleMode === opt.v ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+                {/* Opens with its label, as Event ("Run when…") and Mention do:
+                    it opened with an unlabelled row of buttons. */}
+                <Label id="agent-schedule-mode-label" className="text-xs">When it runs</Label>
+                <SegmentedControl
+                  aria-labelledby="agent-schedule-mode-label"
+                  value={scheduleMode}
+                  onValueChange={setScheduleMode}
+                  options={SCHEDULE_MODE_OPTIONS}
+                  className="w-fit"
+                />
 
                 {scheduleMode === "interval" ? (
                   <>
                     <Label id="agent-often-label" className="text-xs">How often should it run?</Label>
-                    <div role="radiogroup" aria-labelledby="agent-often-label" className="flex flex-wrap gap-1.5">
-                      {SCHEDULE_PRESETS.map((p) => (
-                        <button
-                          key={p.value}
-                          type="button"
-                          role="radio"
-                          aria-checked={scheduleMinutes === p.value}
-                          onClick={() => setScheduleMinutes(p.value)}
-                          className={cn(
-                            "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
-                            scheduleMinutes === p.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
+                    <SegmentedControl
+                      aria-labelledby="agent-often-label"
+                      value={String(scheduleMinutes)}
+                      onValueChange={(v) => setScheduleMinutes(Number(v))}
+                      options={PRESET_OPTIONS}
+                      className="w-fit"
+                    />
                     <div className="flex items-center gap-2">
                       <Label htmlFor="agent-interval" className="text-xs text-muted-foreground">Custom (minutes)</Label>
                       <Input
@@ -922,28 +907,14 @@ export function AgentEditDialog({ agent, open, onClose, onSaved }: AgentEditDial
                   </>
                 ) : (
                   <>
-                    <Label className="text-xs">On which days?</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {([
-                        { v: "daily", label: "Every day" },
-                        { v: "weekdays", label: "Weekdays" },
-                        { v: "custom", label: "Custom" },
-                      ] as const).map((opt) => (
-                        <button
-                          key={opt.v}
-                          type="button"
-                          role="radio"
-                          aria-checked={scheduleDays === opt.v}
-                          onClick={() => setScheduleDays(opt.v)}
-                          className={cn(
-                            "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
-                            scheduleDays === opt.v ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
+                    <Label id="agent-days-label" className="text-xs">On which days?</Label>
+                    <SegmentedControl
+                      aria-labelledby="agent-days-label"
+                      value={scheduleDays}
+                      onValueChange={setScheduleDays}
+                      options={DAY_OPTIONS}
+                      className="w-fit"
+                    />
                     {scheduleDays === "custom" && (
                       <div className="flex flex-wrap gap-1.5">
                         {WEEKDAY_TOKENS.map((d) => {
