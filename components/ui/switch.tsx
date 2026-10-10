@@ -29,7 +29,9 @@ const Switch = React.forwardRef<
   >
     <SwitchPrimitives.Thumb
       className={cn(
-        "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=checked]:bg-primary-foreground data-[state=unchecked]:translate-x-0"
+        // The thumb lands with a slight overshoot (transition-spring, 220ms),
+        // which stands still under prefers-reduced-motion.
+        "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-spring data-[state=checked]:translate-x-4 data-[state=checked]:bg-primary-foreground data-[state=unchecked]:translate-x-0"
       )}
     />
   </SwitchPrimitives.Root>

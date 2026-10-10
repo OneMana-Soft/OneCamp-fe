@@ -190,6 +190,14 @@
   --default-transition-duration: 120ms;
   --default-transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* THE SPRING (the playful layer, "Motion"): checks and toggles land with a
+     slight overshoot, at 220ms. animate-spring is the check's 1 -> 1.12 -> 1
+     on the house curve, for something that appears because of a click (never
+     on a page load: an already-done task does not bounce); ease-spring is the
+     curve for a thumb or knob that travels (transition-spring). Both stand
+     still under prefers-reduced-motion with everything else. */
+  --ease-spring: cubic-bezier(0.3, 1.35, 0.5, 1);
+  --animate-spring: spring-pop 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   /* The highlight under a hovered or keyboard-focused row in a menu, a select,
      the command list and a ghost button. It is surface-3, one step past
      --accent (surface-2): --accent IS the canvas, so a ghost button in the top
@@ -260,6 +268,8 @@
   --brand-wash: oklch(0.972 0.007 65);
   --progress-from: #FF8A00;
   --progress-to: #FF3D00;
+  /* hover-lift's shadow: a card a pixel off the page, not floating. */
+  --shadow-lift: 0 1px 2px rgb(20 22 26 / 0.04), 0 6px 16px -6px rgb(20 22 26 / 0.12);
 
   /* AGENTS HAVE A COLOUR OF THEIR OWN: an indigo, a quarter-turn from the
      brand, used only for agent identity (tag, avatar, anything an agent did),
@@ -393,6 +403,7 @@
   --brand-text: oklch(0.7514 0.1610 46.76);
   --brand-muted: oklch(0.2356 0.0313 52.65);
   --brand-wash: oklch(0.232 0.014 55);
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 20px -8px rgb(0 0 0 / 0.6);
   --agent: oklch(0.7629 0.1064 278.81);
   --agent-foreground: oklch(0.1682 0.0045 264.45);
   --agent-muted: oklch(0.2621 0.0577 277.45);
@@ -515,6 +526,20 @@
 @keyframes skeleton-breathe {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
+}
+
+/* The springy check: up past full size and back. `scale`, not transform, so
+   it composes with whatever transform the element already has. */
+@keyframes spring-pop {
+  0%, 100% { scale: 1; }
+  45% { scale: 1.12; }
+}
+
+/* A knob or thumb that travels (a switch) lands with a slight overshoot. */
+@utility transition-spring {
+  transition-property: transform, translate, scale, rotate;
+  transition-duration: 220ms;
+  transition-timing-function: var(--ease-spring);
 }
 
 @utility glass {
@@ -782,10 +807,13 @@ body {
    any information at all. Card/Input/Textarea/Button were flattened for exactly
    this reason.
 
-   The hover-lift utility that used to live here is gone. It applied
-   -translate-y-0.5 + shadow on hover; a surface that rises under the cursor is the
-   clearest tell of a 2021-era UI, and it had zero usages. Hover belongs in a
-   background or border change — see hover-surface below. */
+   One exception, and only on purpose: hover-lift (the playful layer, "Motion")
+   lifts a card a single pixel under the cursor, with the shadow growing a
+   little, for a card that IS a thing to open (a Home card, a template). The
+   old lift rose 2px on everything and read as a 2021 template; this one is
+   opt-in, 1px, and stands still for prefers-reduced-motion (the shadow alone
+   says it). Rows, inputs and buttons never take it: their hover is a
+   background step (hover-surface below). */
 @utility shadow-overlay {
   @apply shadow-lg ring-1 ring-black/[0.06] dark:ring-white/10;
 }
@@ -797,6 +825,23 @@ body {
 
 @utility hover-surface {
   @apply transition-hover hover:bg-highlight hover:text-accent-foreground;
+}
+
+@utility hover-lift {
+  transition-property: translate, box-shadow;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-standard);
+  @media (hover: hover) {
+    &:hover {
+      translate: 0 -1px;
+      box-shadow: var(--shadow-lift);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &:hover {
+      translate: none;
+    }
+  }
 }
 
 @layer components {
