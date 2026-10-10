@@ -12,7 +12,7 @@ import { GuestLinkSection } from "@/components/guest/GuestLinkSection"
 import { useMqttTopic } from "@/hooks/useMqttTopic"
 import { DataTableGrid } from "@/components/table/DataTableGrid"
 import { DataTableBoard } from "@/components/table/DataTableBoard"
-import { DataTableCalendar } from "@/components/table/DataTableCalendar"
+import { CalendarMonthNav, DataTableCalendar, monthOf } from "@/components/table/DataTableCalendar"
 import { DataTableChart } from "@/components/table/DataTableChart"
 import { PublishTemplateDialog } from "@/components/marketplace/PublishTemplateDialog"
 import { nextRowPosition, TableBundle, updateTable, Visibility, ViewType, parseFieldConfig, parseViewConfig, tableBundleKey } from "@/services/tableService"
@@ -21,7 +21,8 @@ import { ViewRulesBar } from "@/components/table/ViewRulesBar"
 import { TableGlyph } from "@/components/table/TableGlyph"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SpotError, SpotImported, SpotSearch } from "@/components/ui/graphics"
+import { SpotError } from "@/components/ui/graphics"
+import { TableViewState, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
 import { hueFor } from "@/lib/campHue"
 import { viewFromQuery, type ViewChoice } from "@/lib/tables/tableView"
 
@@ -53,6 +54,9 @@ export default function TableDetailPage() {
     else url.searchParams.set("view", view)
     window.history.replaceState(window.history.state, "", url)
   }, [])
+  // The calendar view's month, kept here so its controls sit in the toolbar
+  // row with Sort and Filter rather than in a second row of their own.
+  const [calendarMonth, setCalendarMonth] = React.useState(() => monthOf(new Date()))
   const [publishing, setPublishing] = React.useState(false)
   const [sharing, setSharing] = React.useState(false)
   React.useEffect(() => {
@@ -115,6 +119,8 @@ export default function TableDetailPage() {
   // Once per row set, not once per view on every render.
   const nextPosition = React.useMemo(() => nextRowPosition(bundle?.rows || []), [bundle?.rows])
   const clearFilters = React.useCallback(() => changeRules({ ...rules, filters: [] }), [changeRules, rules])
+  // Filters that hide every row: every view says so the same way.
+  const noMatch = (bundle?.rows?.length ?? 0) > 0 && shownRows.length === 0
 
   const commitName = async () => {
     if (!bundle?.table || !bundle.can_manage) return
@@ -153,7 +159,7 @@ export default function TableDetailPage() {
   }
 
   if (isLoading) {
-    return <TablePageSkeleton />
+    return <TablePageSkeleton view={activeView} />
   }
 
   if (!bundle?.table) {
@@ -212,7 +218,9 @@ export default function TableDetailPage() {
           right edge. */}
       <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-3">
         <div className="flex min-w-0 flex-1 basis-64 items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" asChild>
+          {/* Not on a phone: its app bar has the way back, and two back
+              arrows stacked one under the other read as two levels. */}
+          <Button variant="ghost" size="icon" className="hidden h-8 w-8 shrink-0 sm:inline-flex" asChild>
             <Link href="/app/tables" aria-label="Back to tables">
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
@@ -234,14 +242,14 @@ export default function TableDetailPage() {
         </div>
         {bundle.can_manage && (
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <Button variant="ghost" size="sm" onClick={toggleVisibility} className="gap-1.5 text-muted-foreground" aria-label={t.visibility === "workspace" ? "Visible to the workspace" : "Private to you"}>
+            <Button variant="ghost" size="sm" onClick={toggleVisibility} className="gap-1.5 text-muted-foreground extend-touch-target" aria-label={t.visibility === "workspace" ? "Visible to the workspace" : "Private to you"}>
               {t.visibility === "workspace" ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
               <span className="hidden sm:inline">{t.visibility === "workspace" ? "Workspace" : "Private"}</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setPublishing(true)} className="gap-1.5 text-muted-foreground" aria-label="Save as template" title="Save as template">
+            <Button variant="ghost" size="sm" onClick={() => setPublishing(true)} className="gap-1.5 text-muted-foreground extend-touch-target" aria-label="Save as template" title="Save as template">
               <LayoutTemplate className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Publish</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setSharing(true)} className="gap-1.5" aria-label="Share" title="Share externally">
+            <Button variant="outline" size="sm" onClick={() => setSharing(true)} className="gap-1.5 extend-touch-target" aria-label="Share" title="Share externally">
               <Share2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Share</span>
             </Button>
           </div>
@@ -271,7 +279,10 @@ export default function TableDetailPage() {
         })}
       </div>
 
-      <div className="rounded-lg border border-border/60">
+      {/* One frame for every view (components/table/TableViewFrame): the
+          toolbar row, then a body that scrolls inside the frame, and one
+          place where a view says it has nothing to show. */}
+      <div className="rounded-lg border border-border/60" data-table-frame="">
         {activeView !== "chart" && (
           <ViewRulesBar
             fields={[...fields].sort((a, b) => a.position - b.position)}
@@ -280,6 +291,11 @@ export default function TableDetailPage() {
             shown={shownRows.length}
             total={rows.length}
             truncated={!!bundle.rows_truncated}
+            end={
+              activeView === "calendar" && fields.some((f) => f.type === "date") ? (
+                <CalendarMonthNav month={calendarMonth} onMonth={setCalendarMonth} />
+              ) : undefined
+            }
           />
         )}
         {activeView === "grid" && (
@@ -293,28 +309,16 @@ export default function TableDetailPage() {
             empty={
               rows.length === 0 ? (
                 // In the table's own hue, the one its icon wears.
-                <EmptyState
-                  illustration={<SpotImported hue={hueFor(tableId)} />}
-                  title="No rows yet"
-                  description="Each row is one record: a lead, an order, a task. Add the first one below."
-                  className="py-10"
-                />
+                <TableViewState kind="no-rows" hue={hueFor(tableId)} />
               ) : (
-                <EmptyState
-                  illustration={<SpotSearch />}
-                  title="No rows match these filters"
-                  className="py-10"
-                  action={
-                    <Button variant="outline" size="sm" onClick={clearFilters}>
-                      Clear filters
-                    </Button>
-                  }
-                />
+                <TableViewState kind="no-match" onClear={clearFilters} />
               )
             }
           />
         )}
-        {activeView === "board" && (
+        {(activeView === "board" || activeView === "calendar") && noMatch ? (
+          <TableViewState kind="no-match" onClear={clearFilters} />
+        ) : activeView === "board" ? (
           <DataTableBoard
             tableId={tableId}
             fields={fields}
@@ -322,9 +326,9 @@ export default function TableDetailPage() {
             nextPosition={nextPosition}
             canManage={bundle.can_manage}
             onChange={mutate}
+            onOpenGrid={() => showView("grid")}
           />
-        )}
-        {activeView === "calendar" && (
+        ) : activeView === "calendar" ? (
           <DataTableCalendar
             tableId={tableId}
             fields={fields}
@@ -332,8 +336,10 @@ export default function TableDetailPage() {
             nextPosition={nextPosition}
             canManage={bundle.can_manage}
             onChange={mutate}
+            month={calendarMonth}
+            onOpenGrid={() => showView("grid")}
           />
-        )}
+        ) : null}
         {activeView === "chart" && (
           <DataTableChart tableId={tableId} fields={fields} dataVersion={chartDataVersion} />
         )}
@@ -364,15 +370,17 @@ export default function TableDetailPage() {
 }
 
 /**
- * The table page's shape while it loads: its title row, its views, the rules
- * bar and a grid of rows the height the real ones are, so nothing moves when
- * the table arrives. It was a spinner in an empty page.
+ * The table page's shape while it loads: its title row, its views, the toolbar
+ * row and the view the address names, at its real size, so nothing moves when
+ * the table arrives. It was a spinner in an empty page, and then the grid's
+ * rows whatever the view, so a board, calendar or chart link reflowed from
+ * grid rows when its data landed.
  */
-function TablePageSkeleton() {
+function TablePageSkeleton({ view = "grid" }: { view?: ViewChoice }) {
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-6" role="status" aria-label="Loading table">
+    <div className="container mx-auto max-w-6xl px-4 py-6" role="status" aria-label="Loading table" data-table-skeleton={view}>
       <div className="mb-4 flex items-center gap-2" aria-hidden="true">
-        <div className="h-8 w-8 shrink-0" />
+        <div className="hidden h-8 w-8 shrink-0 sm:block" />
         <Skeleton className="h-8 w-8 shrink-0 rounded-[10px]" />
         <Skeleton className="h-6 w-56 rounded" />
       </div>
@@ -383,17 +391,46 @@ function TablePageSkeleton() {
         <Skeleton className="h-4 w-14 rounded" />
       </div>
       <div className="rounded-lg border border-border/60" aria-hidden="true">
-        <div className="flex h-10 items-center gap-2 border-b border-border/60 px-2">
+        <div className="flex min-h-10 items-center gap-2 border-b border-border/60 px-2">
           <Skeleton className="h-4 w-14 rounded" />
           <Skeleton className="h-4 w-16 rounded" />
         </div>
-        {Array.from({ length: 9 }).map((_, i) => (
-          <div key={i} className="flex h-[37px] items-center gap-6 border-b border-border/40 px-3 last:border-b-0">
-            <Skeleton className={cn("h-3 rounded", i % 3 === 0 ? "w-40" : i % 3 === 1 ? "w-32" : "w-48")} />
-            <Skeleton className="h-3 w-20 rounded" />
-            <Skeleton className="hidden h-3 w-24 rounded sm:block" />
+        {view === "board" ? (
+          <div className={cn("flex gap-3", TABLE_VIEW_INSET)}>
+            {[3, 2, 1].map((cards, c) => (
+              <div key={c} className="w-72 shrink-0 space-y-2 rounded-xl bg-muted/30 p-2">
+                <Skeleton className="m-1 h-5 w-20 rounded" />
+                {Array.from({ length: cards }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                ))}
+              </div>
+            ))}
           </div>
-        ))}
+        ) : view === "calendar" ? (
+          <div className="grid grid-cols-7">
+            {Array.from({ length: 35 }).map((_, i) => (
+              <div key={i} className="min-h-[96px] border-b border-r border-border/50 p-1 [&:nth-child(7n)]:border-r-0">
+                <Skeleton className="h-3 w-4 rounded" />
+              </div>
+            ))}
+          </div>
+        ) : view === "chart" ? (
+          <div className={TABLE_VIEW_INSET}>
+            <div className="flex h-[18rem] items-end gap-6 border-b border-l border-border/60 px-6">
+              {[62, 88, 45, 70, 30].map((h, i) => (
+                <Skeleton key={i} className="w-full max-w-12 rounded-b-none" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="flex h-[37px] items-center gap-6 border-b border-border/40 px-3 last:border-b-0">
+              <Skeleton className={cn("h-3 rounded", i % 3 === 0 ? "w-40" : i % 3 === 1 ? "w-32" : "w-48")} />
+              <Skeleton className="h-3 w-20 rounded" />
+              <Skeleton className="hidden h-3 w-24 rounded sm:block" />
+            </div>
+          ))
+        )}
       </div>
     </div>
   )

@@ -21,32 +21,15 @@ import {
 import { Check } from "@/lib/icons"
 import { formulaText, showFormulaValue } from "@/lib/tables/formula"
 import { shortDate } from "@/lib/utils/date/shortDate"
-import { campHueOf } from "@/lib/campHue"
-import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { OptionChip } from "@/components/table/optionChip"
 
 interface GuestTableViewerProps {
   fields: TableField[]
   rows: TableRow[]
 }
 
-/**
- * An option's chip colour. Options are categories, not statuses, so a picked
- * colour becomes its camp hue (tint behind ink) rather than danger, success or
- * warning: a red "Blocked" chip read as an error. No colour, or one that names
- * no hue, stays neutral.
- */
-function optionColorClass(color?: string): string {
-  const hue = campHueOf(color)
-  return hue ? `${HUE_CLASS[hue]} bg-hue-tint text-hue-ink` : "bg-muted text-muted-foreground"
-}
-
-function Chip({ label, color }: { label: string; color?: string }) {
-  return (
-    <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-2xs font-medium ${optionColorClass(color)}`}>
-      {label}
-    </span>
-  )
-}
+// The chip a member sees too (components/table/optionChip).
+const Chip = OptionChip
 
 function CellValue({ field, value }: { field: TableField; value: unknown }) {
   if (value === null || value === undefined || value === "") {

@@ -8,12 +8,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Loader2 } from "@/lib/icons"
 import SvgChart from "@/components/charts/SvgChart"
+import { ErrorState } from "@/components/ui/error-state"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
+import { hueFor } from "@/lib/campHue"
+import { cn } from "@/lib/utils/helpers/cn"
+import { TableToolbar, TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
 import { normalizeChartSpec, type NormalizedChart } from "@/lib/utils/chartSpec"
 import { aggregateTable, type AggregateOp, type AggregateResult, type TableField, isComputed, computedOf } from "@/services/tableService"
 import { partialNote } from "@/lib/tables/chartNote"
-import { TABLE_CHART_PALETTE } from "@/components/table/tableChartPalette"
 
 // DataTableChart — a Notion-style "chart view" for a table. The user picks a
 // column to group by, an aggregation (count / sum / avg / min / max) and a chart
@@ -115,6 +119,8 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
     const [result, setResult] = React.useState<AggregateResult | null>(null)
     const [loading, setLoading] = React.useState(false)
     const [error, setError] = React.useState("")
+    // Try again re-runs the same aggregation.
+    const [attempt, setAttempt] = React.useState(0)
 
     const needsValue = op !== "count"
 
@@ -143,7 +149,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
             cancelled = true
         }
         // dataVersion re-runs the aggregation when the table's rows change.
-    }, [tableId, groupBy, op, valueField, needsValue, dataVersion])
+    }, [tableId, groupBy, op, valueField, needsValue, dataVersion, attempt])
 
     const chart: NormalizedChart | null = React.useMemo(() => {
         if (!result || result.buckets.length === 0) return null
@@ -160,118 +166,120 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
 
     if (fields.length === 0) {
         return (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-                Add a column to this table to chart it.
-            </div>
+            <>
+                <TableToolbar />
+                <EmptyState className="py-10" headingLevel={3} title="Nothing to chart yet" description="Add a column to this table to chart it." />
+            </>
         )
     }
 
+    const trigger = "h-7 w-auto min-w-0 gap-1.5 px-2 text-xs"
     return (
-        <div className="p-4">
-            <div className="mb-4 flex flex-wrap items-end gap-3">
-                <Control label="Chart">
-                    <Select value={chartType} onValueChange={(v) => setChartType(v as ChartType)}>
-                        <SelectTrigger dense className="h-8 w-32 capitalize">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {CHART_TYPES.map((t) => (
-                                <SelectItem key={t} value={t} className="capitalize">
-                                    {t}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </Control>
+        <>
+            {/* The chart's choices sit in the toolbar row every view of the
+                table has, at its height: they were labelled selects in a row
+                of their own, about 52px, where the other views had Sort and
+                Filter. Each keeps its name, inside the control. */}
+            <TableToolbar>
+                <Select value={chartType} onValueChange={(v) => setChartType(v as ChartType)}>
+                    <SelectTrigger dense className={cn(trigger, "capitalize")} aria-label="Chart">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {CHART_TYPES.map((t) => (
+                            <SelectItem key={t} value={t} className="capitalize">
+                                {t}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
 
-                <Control label="Group by">
-                    <Select value={groupBy} onValueChange={setGroupBy}>
-                        <SelectTrigger dense className="h-8 w-40">
-                            <SelectValue placeholder="Column" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {fields.map((f) => (
-                                <SelectItem key={f.id} value={f.id}>
-                                    {f.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </Control>
+                <Select value={groupBy} onValueChange={setGroupBy}>
+                    <SelectTrigger dense className={trigger} aria-label="Group by">
+                        <span className="text-muted-foreground">Group by</span>
+                        <SelectValue placeholder="Column" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {fields.map((f) => (
+                            <SelectItem key={f.id} value={f.id}>
+                                {f.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
 
-                <Control label="Measure">
-                    <Select value={op} onValueChange={(v) => setOp(v as AggregateOp)}>
-                        <SelectTrigger dense className="h-8 w-32 capitalize">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {AGG_OPS.map((o) => (
-                                <SelectItem key={o} value={o} className="capitalize">
-                                    {o}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </Control>
+                <Select value={op} onValueChange={(v) => setOp(v as AggregateOp)}>
+                    <SelectTrigger dense className={cn(trigger, "capitalize")} aria-label="Measure">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {AGG_OPS.map((o) => (
+                            <SelectItem key={o} value={o} className="capitalize">
+                                {o}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
 
                 {needsValue && (
-                    <Control label="Of column">
-                        <Select value={valueField} onValueChange={setValueField}>
-                            <SelectTrigger dense className="h-8 w-40">
-                                <SelectValue placeholder="Number column" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {numericFields.length === 0 ? (
-                                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                        No number columns
-                                    </div>
-                                ) : (
-                                    numericFields.map((f) => (
-                                        <SelectItem key={f.id} value={f.id}>
-                                            {f.name}
-                                        </SelectItem>
-                                    ))
-                                )}
-                            </SelectContent>
-                        </Select>
-                    </Control>
+                    <Select value={valueField} onValueChange={setValueField}>
+                        <SelectTrigger dense className={trigger} aria-label="Of column">
+                            <span className="text-muted-foreground">of</span>
+                            <SelectValue placeholder="Number column" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {numericFields.length === 0 ? (
+                                <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                    No number columns
+                                </div>
+                            ) : (
+                                numericFields.map((f) => (
+                                    <SelectItem key={f.id} value={f.id}>
+                                        {f.name}
+                                    </SelectItem>
+                                ))
+                            )}
+                        </SelectContent>
+                    </Select>
                 )}
-            </div>
+            </TableToolbar>
 
-            <div className="min-h-[18rem]">
-                {loading ? (
-                    <div className="flex items-center justify-center py-20 text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                    </div>
-                ) : error ? (
-                    <div className="py-20 text-center text-sm text-muted-foreground">{error}</div>
-                ) : needsValue && numericFields.length === 0 ? (
-                    <div className="py-20 text-center text-sm text-muted-foreground">
-                        {`"${op}" needs a number column. Add one, or switch the measure to "count".`}
-                    </div>
-                ) : chart ? (
-                    <>
-                        <SvgChart chart={chart} palette={TABLE_CHART_PALETTE} />
-                        {note && <p className="mt-2 text-center text-xs text-muted-foreground">{note}</p>}
-                    </>
-                ) : (
-                    <div className="py-20 text-center text-sm text-muted-foreground">
-                        No data to chart yet.
-                    </div>
-                )}
+            <div className={cn(TABLE_VIEW_BODY, TABLE_VIEW_INSET)} data-table-chart="">
+                <div className="min-h-[18rem]">
+                    {loading ? (
+                        <ChartSkeleton />
+                    ) : error ? (
+                        <ErrorState subject="this chart" onRetry={() => setAttempt((n) => n + 1)} className="py-10" />
+                    ) : needsValue && numericFields.length === 0 ? (
+                        <EmptyState
+                            className="py-10"
+                            headingLevel={3}
+                            title={`"${op}" needs a number column`}
+                            description="Add one, or switch the measure to count."
+                        />
+                    ) : chart ? (
+                        <>
+                            {/* In the app's one chart order, as every chart is; on
+                                the frame's ground, without a second border. */}
+                            <SvgChart chart={chart} className="my-0 border-0 p-0" />
+                            {note && <p className="mt-2 text-center text-xs text-muted-foreground">{note}</p>}
+                        </>
+                    ) : (
+                        <TableViewState kind="nothing-to-chart" hue={hueFor(tableId)} />
+                    )}
+                </div>
             </div>
-        </div>
+        </>
     )
 }
 
-// Control is a small labeled wrapper for a chart control.
-const Control: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-    <label className="flex flex-col gap-1">
-        {/* Sentence case, quiet: a label beside a control, not a heading. */}
-        <span className="text-xs text-muted-foreground">
-            {label}
-        </span>
-        {children}
-    </label>
-)
-
+/** A chart's shape while it is worked out: an axis and bars, where a spinner sat alone in the box. */
+function ChartSkeleton() {
+    return (
+        <div role="status" aria-label="Building the chart" className="flex h-[18rem] items-end gap-6 border-b border-l border-border/60 px-6 pb-px">
+            {[62, 88, 45, 70, 30].map((h, i) => (
+                <Skeleton key={i} className="w-full max-w-12 rounded-b-none" style={{ height: `${h}%` }} />
+            ))}
+        </div>
+    )
+}
