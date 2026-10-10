@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useEffect } from "react"
-import { motion, useAnimation, useDragControls, type PanInfo } from "framer-motion"
+import { useEffect, useRef } from "react"
+import { motion, useAnimation, useDragControls, useReducedMotion, type PanInfo } from "framer-motion"
 
 interface DraggableDrawerProps {
     children: React.ReactNode
@@ -11,29 +11,51 @@ interface DraggableDrawerProps {
     setIsExpanded: (isExpanded: boolean) => void
 }
 
+/** How far the sheet settles from when it opens or closes, in px: a cue, not a journey. */
+const SETTLE_PX = 24
+
+/**
+ * The phone's composer sheet: on every channel, DM, group chat and thread.
+ *
+ * Its height is the composer's content, or the whole screen when it is
+ * expanded, and it changes in ONE step. It used to tween height for 200ms
+ * with Motion on every change, which lays the page out on every frame: on
+ * each new line typed, and on every open and close. Opening and closing now
+ * settle by transform (a short slide on y, compositor only, and none at all
+ * for prefers-reduced-motion), so the change still reads as motion.
+ *
+ * The drag handle follows the finger by setting the height directly on the
+ * element (a gesture, not an animation, and no React render per frame).
+ */
 const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
                                                              children,
                                                              initialHeight = 200,
                                                              isExpanded,
                                                              setIsExpanded,
                                                          }) => {
-    const controls = useAnimation()
+    const settle = useAnimation()
     const dragControls = useDragControls()
+    const reduceMotion = useReducedMotion()
+    const sheetRef = useRef<HTMLDivElement>(null)
 
-    // Handle height changes based on expanded state and initialHeight updates
+    // 100dvh, not 100vh: on mobile Safari 100vh is the LARGEST viewport (URL
+    // bar hidden), so expanding overshot the visible area and pushed the
+    // toolbar off-screen. dvh tracks the viewport as it actually is.
+    const collapsedHeight = typeof window === "undefined" ? initialHeight : Math.min(initialHeight, window.innerHeight)
+    const height = isExpanded ? "100dvh" : `${collapsedHeight}px`
+
+    // Opening or closing settles by transform: from a little below when it
+    // opens, a little above when it closes. Never on the first render.
+    const shownExpanded = useRef(isExpanded)
     useEffect(() => {
-        // 100dvh, not 100vh: on mobile Safari 100vh is the LARGEST viewport (URL
-        // bar hidden), so expanding overshot the visible area and pushed the
-        // toolbar off-screen. dvh tracks the viewport as it actually is.
-        const targetHeight = isExpanded ? "100dvh" : Math.min(initialHeight, window.innerHeight);
-        
-        // We use a quick animation when adjusting for text (initialHeight), 
-        // and standard animation for expanding.
-        controls.start(
-            { height: targetHeight },
-            { duration: 0.2, ease: "easeOut" }
+        if (shownExpanded.current === isExpanded) return
+        shownExpanded.current = isExpanded
+        if (reduceMotion) return
+        void settle.start(
+            { y: [isExpanded ? SETTLE_PX : -SETTLE_PX, 0] },
+            { duration: 0.2, ease: [0.2, 0.8, 0.2, 1] },
         )
-    }, [isExpanded, initialHeight, controls])
+    }, [isExpanded, reduceMotion, settle])
 
     // Publish the drawer's current collapsed height to the document root
     // as a CSS variable (`--mobile-drawer-h`) so siblings — for example the
@@ -64,39 +86,28 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
     ) => {
         const thresholdDistance = window.innerHeight * 0.2 // 20% of screen height
         const thresholdVelocity = 500 // minimum velocity to count as a flick
-        
+
+        // What the drag set by hand gives way to the height for the state.
+        if (sheetRef.current) sheetRef.current.style.height = ""
+
         // Check for quick flick or passing the distance threshold
         if (info.offset.y < -thresholdDistance || info.velocity.y < -thresholdVelocity) {
             setIsExpanded(true)
         } else if (info.offset.y > thresholdDistance || info.velocity.y > thresholdVelocity) {
             setIsExpanded(false)
-        } else {
-            // Snap back to current state
-            controls.start(
-                { height: isExpanded ? "100dvh" : initialHeight },
-                { duration: 0.3 }
-            )
         }
+        // Otherwise the sheet is back at the height for its state already.
     }
 
-    // Handle dragging to animate in both directions
+    // The sheet follows the finger: its height set directly, between the
+    // composer's own height and the whole screen.
     const handleDrag = (
         event: MouseEvent | TouchEvent | PointerEvent,
         info: PanInfo
     ) => {
-        // Calculate the new height based on the drag direction
-        const currentHeight = isExpanded ? window.innerHeight : initialHeight
-        const dragOffset = info.offset.y
-        const newHeight = currentHeight - dragOffset
-
-        // Ensure the height stays within bounds (initialHeight to 100vh)
-        const constrainedHeight = Math.min(
-            Math.max(newHeight, initialHeight),
-            window.innerHeight
-        )
-
-        // Update the height in real-time smoothly
-        controls.set({ height: constrainedHeight })
+        const currentHeight = isExpanded ? window.innerHeight : collapsedHeight
+        const constrainedHeight = Math.min(Math.max(currentHeight - info.offset.y, collapsedHeight), window.innerHeight)
+        if (sheetRef.current) sheetRef.current.style.height = `${constrainedHeight}px`
     }
 
     return (
@@ -108,26 +119,27 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
             dragElastic={0}
             dragMomentum={false}
             style={{ zIndex: 350 }}
-            onDrag={handleDrag} // Real-time height adjustment during drag
+            onDrag={handleDrag}
             onDragEnd={handleDragEnd}
-            animate={controls}
-            initial={{ height: initialHeight }}
+            animate={settle}
             // Same home-indicator reservation as ui/drawer.tsx. This is the
             // composer on every channel, DM, group chat and thread, so the send
             // button and toolbar sat in the OS gesture strip on every message.
             className="fixed bottom-0 left-0 border-t right-0 rounded-t-3xl opacity-100 bg-background top-shadow pb-[env(safe-area-inset-bottom)]"
         >
-            <div 
-                className="w-full py-3 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none"
-                onPointerDown={(e) => dragControls.start(e)}
-            >
-                <div className="h-1.5 w-[100px] rounded-full bg-muted-foreground/40"></div>
-            </div>
-            <div
-                className="overflow-y-auto p-1 pt-0 [touch-action:auto]"
-                style={{ height: "calc(100% - 30px)" }}
-            >
-                {children}
+            <div ref={sheetRef} data-composer-sheet="" style={{ height }}>
+                <div
+                    className="w-full py-3 flex justify-center items-center cursor-grab active:cursor-grabbing touch-none"
+                    onPointerDown={(e) => dragControls.start(e)}
+                >
+                    <div className="h-1.5 w-[100px] rounded-full bg-muted-foreground/40"></div>
+                </div>
+                <div
+                    className="overflow-y-auto p-1 pt-0 [touch-action:auto]"
+                    style={{ height: "calc(100% - 30px)" }}
+                >
+                    {children}
+                </div>
             </div>
         </motion.div>
     )
