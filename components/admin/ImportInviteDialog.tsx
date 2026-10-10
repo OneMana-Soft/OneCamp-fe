@@ -24,7 +24,10 @@ import {
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorState } from "@/components/ui/error-state"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { Tile } from "@/components/ui/graphics/Tile"
 import { Loader2, Users } from "@/lib/icons"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { appMutate } from "@/lib/swrMutate"
@@ -97,8 +100,12 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
     <Dialog open={open} onOpenChange={(o) => !sending && onOpenChange(o)}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2.5">
+            {/* The workspace group's tile, as Import is in the admin menu: the
+                icon was orange, the colour that means "press me". */}
+            <Tile hue={ADMIN_GROUP_HUE.workspace} size="sm">
+              <Users />
+            </Tile>
             Invite the people who came across
           </DialogTitle>
           <DialogDescription>
@@ -109,8 +116,8 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
         </DialogHeader>
 
         {isLoading && !data ? (
-          <div role="status" aria-label="Loading the people" className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div role="status" aria-label="Loading the people" className="rounded-md border px-3 py-1">
+            <SkeletonRows rows={4} avatar={false} />
           </div>
         ) : isError && !data ? (
           <ErrorState subject="the people from this import" onRetry={() => void mutate()} />
