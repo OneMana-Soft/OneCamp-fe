@@ -570,7 +570,13 @@ export const useMinimalTiptapEditor = ({
 
   const editor = useEditor({
     extensions,
-    onUpdate: ({ editor }) => handleUpdate(editor),
+    // Only a change to the document is an edit. Tiptap also emits "update"
+    // from setEditable, with nothing changed; passed on, that read as an edit
+    // and opening a task wrote its description back (POST /task/updateTaskDesc).
+    onUpdate: ({ editor, transaction }) => {
+      if (!transaction.docChanged) return
+      handleUpdate(editor)
+    },
     onCreate: ({ editor }) => handleCreate(editor),
     onBlur: ({ editor }) => handleBlur(editor),
     immediatelyRender: false,
@@ -588,7 +594,9 @@ export const useMinimalTiptapEditor = ({
   // Update editor editable state dynamically
   React.useEffect(() => {
     if (editor && !editor.isDestroyed && editable !== undefined) {
-      editor.setEditable(editable)
+      // false: changing who may edit is not an edit (setEditable emits
+      // "update" by default).
+      editor.setEditable(editable, false)
     }
   }, [editor, editable])
 
