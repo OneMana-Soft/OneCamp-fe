@@ -59,6 +59,11 @@ interface DataTableGridProps {
   rows: TableRow[]
   canManage: boolean
   onChange: () => void // ask the parent to revalidate the bundle
+  /**
+   * What to say when there are no rows to show: under the column names and
+   * above "New row", which both stay, so the next step is right there.
+   */
+  empty?: React.ReactNode
 }
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
@@ -199,7 +204,7 @@ function cellKind(f: TableField): CellKind {
   }
 }
 
-export function DataTableGrid({ tableId, fields, rows, canManage, onChange, nextPosition }: DataTableGridProps) {
+export function DataTableGrid({ tableId, fields, rows, canManage, onChange, nextPosition, empty }: DataTableGridProps) {
   const { toast } = useToast()
   const confirm = useConfirm()
   const [adding, setAdding] = React.useState(false)
@@ -541,6 +546,10 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
       </table>
     </div>
 
+      {/* Outside the scrolling frame, so it is as wide as the grid's card
+          however wide the columns run. */}
+      {rows.length === 0 && empty && <div className="border-b border-border/40">{empty}</div>}
+
       {addingColumn && canManage && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2">
           <Input
@@ -654,7 +663,7 @@ const GridRow = React.memo(
               variant="ghost"
               size="icon"
               aria-label="Delete this row"
-              className="h-7 w-7 text-danger-ink opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+              className="h-7 w-7 text-danger-ink opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
               disabled={busy}
               onClick={() => onDelete(row.id)}
               title="Delete row"
