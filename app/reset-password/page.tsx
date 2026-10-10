@@ -1,13 +1,12 @@
 "use client"
 
-import { LoaderCircle, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from "@/lib/icons";
+import { LoaderCircle } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Input } from "@/components/ui/input"
+import { AuthField, AuthHeading, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
@@ -19,36 +18,40 @@ function ResetPasswordForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [isReset, setIsReset] = useState(false)
   const [error, setError] = useState("")
+  // Which field the error is about; null for the form as a whole (the server's answer).
+  const [errorField, setErrorField] = useState<"password" | "confirm" | null>(null)
 
   if (!token) {
     return (
-      <div className="space-y-4 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
-        <h2 className="text-lg font-semibold">Invalid Reset Link</h2>
-        <p className="text-sm text-muted-foreground">
-          This password reset link is invalid. Please request a new one.
-        </p>
-        <Button variant="outline" className="mt-4" asChild><Link href="/forgot-password">Request New Link</Link></Button>
-      </div>
+      <>
+        <AuthHeading title="This link is incomplete">
+          It&apos;s missing the part that says whose password to reset. Ask for a new link and open it from the email.
+        </AuthHeading>
+        <Button variant="outline" className={authControl} asChild><Link href="/forgot-password">Ask for a new link</Link></Button>
+      </>
     )
   }
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setErrorField(null)
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match")
+      setError("The two passwords are different. Type the same one in both.")
+      setErrorField("confirm")
       return
     }
 
     if (password.length < 8) {
-      setError("Password must be at least 8 characters")
+      setError("Use at least 8 characters.")
+      setErrorField("password")
       return
     }
 
     if (password.length > 72) {
-      setError("Password must not exceed 72 characters")
+      setError("Use 72 characters or fewer.")
+      setErrorField("password")
       return
     }
 
@@ -69,105 +72,67 @@ function ResetPasswordForm() {
 
   if (isReset) {
     return (
-      <div className="space-y-4 text-center animate-in fade-in duration-300">
-        <CheckCircle className="h-12 w-12 text-success mx-auto" />
-        <h1 className="text-2xl font-semibold tracking-tight">Password Updated!</h1>
-        <p className="text-sm text-muted-foreground">
-          Your password has been successfully reset. You can now sign in with your new password.
-        </p>
-        <Button className="mt-4" asChild><Link href="/">Go to Login</Link></Button>
+      <div role="status">
+        <AuthHeading title="Your password is changed">
+          Sign in with the new one.
+        </AuthHeading>
+        <Button className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Set new password</h1>
-        <p className="text-sm text-muted-foreground">
-          Enter your new password below.
-        </p>
-      </div>
+    <>
+      <AuthHeading title="Choose a new password" />
 
       <form onSubmit={handleReset} className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="password">New Password</label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              placeholder="New password (min 8 chars)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="pl-10 pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors md:h-9 md:w-9"
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
+        <PasswordField
+          id="password"
+          name="new-password"
+          label="New password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={8}
+          autoComplete="new-password"
+          hint="At least 8 characters."
+          error={errorField === "password" ? error : undefined}
+          visible={showPassword}
+          onVisibleChange={setShowPassword}
+        />
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="confirm-password">Confirm Password</label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="confirm-password"
-              type={showPassword ? "text" : "password"}
-              placeholder="Confirm new password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="pl-10"
-            />
-          </div>
-          {password && confirmPassword && password === confirmPassword && (
-            <p className="text-xs text-success flex items-center gap-1">
-              <CheckCircle className="h-3 w-3" /> Passwords match
-            </p>
-          )}
-        </div>
+        <AuthField
+          id="confirm-password"
+          name="confirm-password"
+          label="Type it again"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          minLength={8}
+          autoComplete="new-password"
+          hint={password && confirmPassword && password === confirmPassword ? "They match." : undefined}
+          error={errorField === "confirm" ? error : undefined}
+          // The show button on the first field shows both.
+          type={showPassword ? "text" : "password"}
+        />
 
-        {error && (
-          <p className="text-sm text-destructive">{error}</p>
-        )}
+        {errorField === null && <FormProblem>{error}</FormProblem>}
 
-        <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
-          {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-          Reset Password
+        <Button type="submit" className={authControl} disabled={isLoading}>
+          {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+          {isLoading ? "Saving…" : "Save new password"}
         </Button>
       </form>
-    </div>
+    </>
   )
 }
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen text-foreground flex flex-col justify-center items-center px-4 py-12 relative">
-      <div className="absolute right-4 top-4 md:right-8 md:top-8">
-        <ThemeToggle />
-      </div>
-
-      <div className="w-full max-w-sm mb-8 flex justify-center">
-        <img src="/logo.svg" alt="OneCamp Logo" width={48} height={48} className="h-12 w-12 mx-auto" />
-      </div>
-
-      <div className="w-full max-w-sm">
-        <Suspense fallback={<div className="flex justify-center"><LoaderCircle className="h-8 w-8 animate-spin" /></div>}>
-          <ResetPasswordForm />
-        </Suspense>
-      </div>
-    </div>
+    <AuthShell>
+      <Suspense fallback={null}>
+        <ResetPasswordForm />
+      </Suspense>
+    </AuthShell>
   )
 }

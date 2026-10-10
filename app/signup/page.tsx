@@ -10,9 +10,8 @@
 // Someone an import already knows finds their name filled in. It says who
 // invited them and to which workspace, as the email did.
 
-import { LoaderCircle, User, Lock, Eye, EyeOff, AlertCircle, CheckCircle, Users } from "@/lib/icons";
+import { LoaderCircle, Users } from "@/lib/icons";
 import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/themeProvider/theme-toggle"
 import { useEffect, useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
@@ -20,7 +19,7 @@ import { landingPath } from "@/lib/landing"
 import { nameProblem } from "@/lib/validation/names"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Input } from "@/components/ui/input"
+import { AuthDivider, AuthField, AuthHeading, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
 import { EnterpriseSSOButtons, OAuthButtons } from "@/components/auth/ProviderButtons"
 
 /** How long the page says who they are before opening the workspace. */
@@ -50,6 +49,8 @@ function SignupForm() {
   // Who invited them, and the workspace's address; either may be unknown.
   const [invitedBy, setInvitedBy] = useState({ inviter: "", workspace: "" })
   const [error, setError] = useState("")
+  // Which field the error is about, so it is said under that field; null for the form as a whole.
+  const [errorField, setErrorField] = useState<"name" | "password" | null>(null)
   const [tokenInvalid, setTokenInvalid] = useState(false)
   // Until /auth/providers answers, a password is the one way offered.
   const [providers, setProviders] = useState<Providers>({ email: true, google: false, github: false, oidc: false, saml: false, ldap: false })
@@ -90,20 +91,24 @@ function SignupForm() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setErrorField(null)
 
     const problem = nameProblem("person", "Your name", name)
     if (problem) {
       setError(problem)
+      setErrorField("name")
       return
     }
 
     if (password.length < 8) {
-      setError("Password must be at least 8 characters")
+      setError("Use at least 8 characters.")
+      setErrorField("password")
       return
     }
 
     if (password.length > 72) {
-      setError("Password must not exceed 72 characters")
+      setError("Use 72 characters or fewer.")
+      setErrorField("password")
       return
     }
 
@@ -130,36 +135,32 @@ function SignupForm() {
 
   if (isValidating) {
     return (
-      <div className="flex flex-col items-center gap-4">
-        <LoaderCircle className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">Validating invitation…</p>
+      <div role="status" className="flex items-center gap-3 text-sm text-muted-foreground">
+        <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+        Checking your invitation…
       </div>
     )
   }
 
   if (tokenInvalid) {
     return (
-      <div className="space-y-4 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
-        <h2 className="text-lg font-semibold">Invalid Invitation</h2>
-        <p className="text-sm text-muted-foreground">
-          {error || "This invitation link is invalid or has expired. Please contact your administrator for a new invitation."}
-        </p>
-        <Button variant="outline" className="mt-4" asChild><Link href="/">Back to Login</Link></Button>
-      </div>
+      <>
+        <AuthHeading title="This invitation can't be used">
+          {error || "The link is incomplete or has expired. Ask whoever invited you to send a new one."}
+        </AuthHeading>
+        <Button variant="outline" className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
+      </>
     )
   }
 
   if (joined) {
     return (
-      <div className="space-y-4 text-center" role="status" aria-live="polite">
-        <CheckCircle className="h-12 w-12 text-success mx-auto" />
-        <h1 className="text-2xl font-semibold tracking-tight">You&apos;re in, {joined.name}</h1>
-        <p className="text-sm text-muted-foreground">
+      <div role="status" aria-live="polite">
+        <AuthHeading title={`You're in, ${joined.name}`}>
           Your handle is <span className="font-medium text-foreground">@{joined.handle}</span>. You can change it in your
           profile.
-        </p>
-        <Button className="w-full h-11 md:h-10" onClick={() => router.push(joined.destination)}>
+        </AuthHeading>
+        <Button className={authControl} onClick={() => router.push(joined.destination)}>
           Continue
         </Button>
       </div>
@@ -171,27 +172,18 @@ function SignupForm() {
   const hasOtherWays = hasOAuth || hasSSO || providers.ldap
 
   return (
-    <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Join the workspace</h1>
-        {(invitedBy.inviter || invitedBy.workspace) && (
-          <p className="text-sm text-muted-foreground">
-            {invitedBy.inviter ? <><span className="font-medium text-foreground">{invitedBy.inviter}</span> invited you</> : "You're invited"}
-            {invitedBy.workspace && <> to <span className="font-medium text-foreground">{invitedBy.workspace}</span></>}.
-          </p>
-        )}
-        <p className="text-sm text-muted-foreground">
-          You were invited as <span className="font-medium text-foreground">{invitationEmail}</span>
+    <>
+      <AuthHeading title="Join your team">
+        <p>
+          {invitedBy.inviter ? <><span className="font-medium text-foreground">{invitedBy.inviter}</span> invited you</> : "You're invited"}
+          {invitedBy.workspace && <> to <span className="font-medium text-foreground" translate="no">{invitedBy.workspace}</span></>}
+          {" as "}<span className="font-medium text-foreground">{invitationEmail}</span>.
         </p>
-      </div>
+      </AuthHeading>
 
+      <div className="space-y-6">
       {hasOtherWays && (
-        <div className="space-y-4">
-          <p className="text-xs text-center text-muted-foreground">
-            {providers.email
-              ? <>Use the account for {invitationEmail}, or set a password below.</>
-              : <>Use the account for {invitationEmail}.</>}
-          </p>
+        <div className="space-y-2">
           {hasOAuth && (
             <OAuthButtons
               google={providers.google}
@@ -203,114 +195,84 @@ function SignupForm() {
           )}
           {hasSSO && <EnterpriseSSOButtons oidc={providers.oidc} saml={providers.saml} disabled={isLoading} />}
           {providers.ldap && (
-            <Button variant="outline" className="w-full border-border/50 hover:bg-muted/50 transition-colors" asChild>
+            <Button variant="outline" className={authControl} asChild>
               <Link href="/?tab=directory">
-                <Users className="mr-2 h-4 w-4" />
+                <Users aria-hidden="true" />
                 Sign in with your directory account
               </Link>
             </Button>
           )}
+          <p className="pt-1 text-xs text-muted-foreground">
+            Use the account for {invitationEmail}.
+          </p>
         </div>
       )}
 
       {providers.email && (
         <>
-          {hasOtherWays && (
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border/50" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or set a password</span>
-              </div>
-            </div>
-          )}
+          {hasOtherWays && <AuthDivider>or set a password</AuthDivider>}
 
           <form onSubmit={handleSignup} className="space-y-4" noValidate>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="name">Your name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="How your team will see you"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  maxLength={60}
-                  autoComplete="name"
-                  className="pl-10"
-                />
-              </div>
-            </div>
+            <AuthField
+              id="name"
+              name="name"
+              label="Your name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              maxLength={60}
+              autoComplete="name"
+              hint="How your team will see you, in any language."
+              error={errorField === "name" ? error : undefined}
+            />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="password">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="At least 8 characters"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  className="pl-10 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors md:h-9 md:w-9"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
+            <PasswordField
+              id="password"
+              name="new-password"
+              label="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+              autoComplete="new-password"
+              hint="At least 8 characters."
+              error={errorField === "password" ? error : undefined}
+              visible={showPassword}
+              onVisibleChange={setShowPassword}
+            />
 
-            {error && (
-              <p role="alert" className="text-sm text-destructive">{error}</p>
-            )}
+            {/* Hidden from view, there for a password manager: the address the
+                new password belongs to, so it saves under the right account. */}
+            <input type="email" name="email" autoComplete="username" value={invitationEmail} readOnly hidden />
 
-            <Button type="submit" className="w-full h-11 md:h-10" disabled={isLoading}>
-              {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Create account
+            {errorField === null && <FormProblem>{error}</FormProblem>}
+
+            <Button type="submit" className={authControl} disabled={isLoading}>
+              {isLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+              {isLoading ? "Creating account…" : "Create account"}
             </Button>
           </form>
         </>
       )}
 
-      {!providers.email && error && (
-        <p role="alert" className="text-sm text-destructive text-center">{error}</p>
-      )}
+      {!providers.email && <FormProblem>{error}</FormProblem>}
 
-      <p className="text-xs text-center text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/" className="text-foreground hover:underline">Sign in</Link>
+        <Link href="/" className="font-medium text-foreground underline-offset-4 hover:underline">Sign in</Link>
       </p>
-    </div>
+      </div>
+    </>
   )
 }
 
 export default function SignupPage() {
   return (
-    <div className="min-h-screen text-foreground flex flex-col justify-center items-center px-4 py-12 relative">
-      <div className="absolute right-4 top-4 md:right-8 md:top-8">
-        <ThemeToggle />
-      </div>
-
-      <div className="w-full max-w-sm mb-8 flex justify-center">
-        <img src="/logo.svg" alt="OneCamp Logo" width={48} height={48} className="h-12 w-12 mx-auto" />
-      </div>
-
-      <div className="w-full max-w-sm">
-        <Suspense fallback={<div className="flex justify-center"><LoaderCircle className="h-8 w-8 animate-spin" /></div>}>
-          <SignupForm />
-        </Suspense>
-      </div>
-    </div>
+    <AuthShell>
+      <Suspense fallback={null}>
+        <SignupForm />
+      </Suspense>
+    </AuthShell>
   )
 }

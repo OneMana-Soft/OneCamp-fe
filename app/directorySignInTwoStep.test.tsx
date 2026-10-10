@@ -58,10 +58,10 @@ afterEach(() => {
 /** The page, on its directory form, with a name and password entered and sent. */
 async function signInThroughTheDirectory() {
   render(<SignInPage />)
-  fireEvent.click(await screen.findByRole("button", { name: "Directory Login" }))
-  fireEvent.change(screen.getByLabelText("Directory Username or Email"), { target: { value: "sam" } })
-  fireEvent.change(screen.getByLabelText("Directory Password"), { target: { value: "directory-password" } })
-  await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign in via Directory" })))
+  fireEvent.click(await screen.findByRole("tab", { name: "Company directory" }))
+  fireEvent.change(screen.getByLabelText("Directory username or email"), { target: { value: "sam" } })
+  fireEvent.change(screen.getByLabelText("Directory password"), { target: { value: "directory-password" } })
+  await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign in with directory" })))
 }
 
 const enterCode = async (code: string) => {
@@ -73,7 +73,7 @@ describe("signing in through the directory with two-step on", () => {
     await signInThroughTheDirectory()
     expect(await screen.findByText("Two-step verification")).toBeTruthy()
     expect(screen.getByText("Enter the code from your authenticator app.")).toBeTruthy()
-    expect(screen.queryByRole("button", { name: "Sign in via Directory" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Sign in with directory" })).toBeNull()
     expect(router.push).not.toHaveBeenCalled()
   })
 
@@ -92,10 +92,10 @@ describe("signing in through the directory with two-step on", () => {
     await enterCode("123456")
     expect(await screen.findByText("This sign-in has expired. Start again.")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Start again" }))
-    expect(await screen.findByRole("button", { name: "Sign in via Directory" })).toBeTruthy()
+    expect(await screen.findByRole("button", { name: "Sign in with directory" })).toBeTruthy()
     expect(screen.queryByText("Two-step verification")).toBeNull()
-    expect((screen.getByLabelText("Directory Username or Email") as HTMLInputElement).value).toBe("sam")
-    expect((screen.getByLabelText("Directory Password") as HTMLInputElement).value).toBe("")
+    expect((screen.getByLabelText("Directory username or email") as HTMLInputElement).value).toBe("sam")
+    expect((screen.getByLabelText("Directory password") as HTMLInputElement).value).toBe("")
     expect(router.push).not.toHaveBeenCalled()
   })
 })
@@ -112,7 +112,7 @@ describe("signing in through the directory", () => {
     directoryAnswer = { status: 401, body: { msg: "Invalid directory credentials." } }
     await signInThroughTheDirectory()
     expect(await screen.findByText("Invalid directory credentials.")).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Sign in via Directory" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Sign in with directory" })).toBeTruthy()
     expect(router.push).not.toHaveBeenCalled()
   })
 })
@@ -123,7 +123,7 @@ describe("signing in with an email password with two-step on", () => {
     render(<SignInPage />)
     fireEvent.change(await screen.findByLabelText("Email address"), { target: { value: "sam@example.com" } })
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "email-password" } })
-    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign In" })))
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign in" })))
     expect(await screen.findByText("Two-step verification")).toBeTruthy()
     expect(router.push).not.toHaveBeenCalled()
     await enterCode("654321")
@@ -140,6 +140,6 @@ describe("arriving from the sign-up page to use the directory", () => {
   it("opens on the directory form", async () => {
     window.history.replaceState(null, "", "/?tab=directory")
     render(<SignInPage />)
-    expect(await screen.findByRole("button", { name: "Sign in via Directory" })).toBeTruthy()
+    expect(await screen.findByRole("button", { name: "Sign in with directory" })).toBeTruthy()
   })
 })

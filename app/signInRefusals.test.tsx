@@ -64,7 +64,7 @@ describe("a refused sign-in", () => {
     render(<SignInPage />)
     const box = await refusalBox()
     const text = box.textContent ?? ""
-    expect(box.querySelector("h3")?.textContent).toBe(title)
+    expect(box.querySelector("h2")?.textContent).toBe(title)
     expect(text).not.toContain("Authentication Failed")
     expect(box.dataset.tone).toBe(tone)
     if (typeof words === "string") expect(text).toContain(words)
@@ -103,7 +103,7 @@ describe("passwords off", () => {
     render(<SignInPage />)
     await screen.findByRole("button", { name: "Continue with Google" })
     expect(screen.queryByLabelText("Password")).toBeNull()
-    expect(screen.queryByRole("button", { name: "Sign in with Email" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Sign in with email" })).toBeNull()
   })
 
   it("still offers an admin theirs, at /?admin", async () => {

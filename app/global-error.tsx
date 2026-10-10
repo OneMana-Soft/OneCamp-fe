@@ -14,11 +14,25 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
   }, [chunk])
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: "system-ui, sans-serif", display: "grid", placeItems: "center", minHeight: "100vh", padding: 16, textAlign: "center" }}>
+      <head>
+        {/* This page replaces the root layout, so the app's stylesheet may be
+            missing: the colours are the design tokens, written out. */}
+        <style>{`
+          :root { color-scheme: light dark; --bg: #FCFCFD; --fg: #14161A; --muted: #5F6470; --brand: #CC4A0B; --on-brand: #FFFFFF; }
+          @media (prefers-color-scheme: dark) { :root { --bg: #0E0F11; --fg: #EDEEF0; --muted: #9BA0AA; --brand: #FF7A33; --on-brand: #0E0F11; } }
+          body { margin: 0; min-height: 100dvh; background: var(--bg); color: var(--fg); font: 14px/20px Inter, system-ui, sans-serif; }
+          main { box-sizing: border-box; max-width: 360px; margin: 0 auto; padding: clamp(24px, 14vh, 112px) 16px 64px; }
+          h1 { font-size: 24px; line-height: 32px; font-weight: 600; margin: 0 0 8px; }
+          p { margin: 0 0 32px; color: var(--muted); }
+          button { width: 100%; height: 40px; border: 0; border-radius: 6px; background: var(--brand); color: var(--on-brand); font: inherit; font-weight: 500; cursor: pointer; }
+          button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+        `}</style>
+      </head>
+      <body>
         <main>
-          <h1 style={{ fontSize: 18, margin: "0 0 8px" }}>{chunk ? "OneCamp was just updated" : "Something went wrong"}</h1>
-          <p style={{ margin: "0 0 16px", opacity: 0.75 }}>{chunk ? "Reloading to get the new version…" : "Reload the page to carry on. If it keeps happening, tell your admin."}</p>
-          <button type="button" onClick={() => (chunk ? location.reload() : reset())} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #ccc", background: "transparent", cursor: "pointer" }}>
+          <h1>{chunk ? "OneCamp was just updated" : "Something went wrong"}</h1>
+          <p>{chunk ? "Reloading to get the new version…" : "Reload the page to carry on. If it keeps happening, tell your admin."}</p>
+          <button type="button" onClick={() => (chunk ? location.reload() : reset())}>
             Reload
           </button>
         </main>

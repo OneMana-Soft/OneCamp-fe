@@ -101,7 +101,7 @@ export function TwoFactorCodeField({
 
     return (
         <div className="space-y-1.5">
-            <Label htmlFor={id} className="text-xs">
+            <Label htmlFor={id}>
                 {label ?? (usingRecoveryCode ? "Recovery code" : "6-digit code")}
             </Label>
             <Input
