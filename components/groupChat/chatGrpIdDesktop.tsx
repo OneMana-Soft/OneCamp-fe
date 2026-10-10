@@ -1,4 +1,5 @@
 import { displayNameOf } from "@/lib/personName"
+import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholder";
 import { useOpenBeside } from "@/hooks/useSplitView";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useFetchOnlyOnce} from "@/hooks/useFetch";
@@ -237,7 +238,7 @@ export const ChatGrpIdDesktop = ({grpId, handleSend, unreadCount}: {grpId: strin
                         output="html"
                         content={chatState.chatBody}
                         contentRevision={chatState.restoredUnsent}
-                        placeholder={"Type a message…"}
+                        placeholder={GROUP_COMPOSER_PLACEHOLDER}
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={handleSend}

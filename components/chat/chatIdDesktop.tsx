@@ -1,4 +1,6 @@
 import { useOpenBeside } from "@/hooks/useSplitView";
+import { dmComposerPlaceholder } from "@/lib/utils/composerPlaceholder";
+import { displayNameOf } from "@/lib/personName";
 import { useMedia } from "@/context/MediaQueryContext";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import { useScheduleSend } from "@/context/ScheduleSendContext";
@@ -217,7 +219,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                         output="html"
                         content={chatState.chatBody}
                         contentRevision={chatState.restoredUnsent}
-                        placeholder={"Type a message…"}
+                        placeholder={dmComposerPlaceholder(displayNameOf(otherUserInfo.data?.data))}
                         editable={true}
                         ButtonIcon={SendHorizontal}
                         buttonOnclick={handleSend}

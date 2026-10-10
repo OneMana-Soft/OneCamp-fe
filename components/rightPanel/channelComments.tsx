@@ -1,3 +1,4 @@
+import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholder";
 import {useDispatch, useSelector} from "react-redux"
 import type { RootState } from "@/store/store"
 
@@ -475,7 +476,7 @@ export const ChannelComments = () => {
                     className={cn("max-w-full rounded-xl h-auto border bg-muted/30 p-2")}
                     editorContentClassName="overflow-auto"
                     output="html"
-                    placeholder={"Reply…"}
+                    placeholder={THREAD_COMPOSER_PLACEHOLDER}
                     editable={true}
                     toggleToolbar={ true}
                     editorClassName="focus:outline-none"
