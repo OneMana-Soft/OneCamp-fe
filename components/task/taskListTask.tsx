@@ -69,7 +69,7 @@ export const TaskListTask = ({
     const status = statusOptionOf(taskInfo);
 
     return (
-        <div className={cn("flex items-start gap-3 px-3 py-3 border-b hover:bg-accent/40 transition-colors duration-150", isAnimating && "animate-gradient-completion", isSelected && "bg-accent/60")} >
+        <div className={cn("flex items-start gap-3 px-3 py-3 border-b hover:bg-accent/40 transition-colors duration-150", isSelected && "bg-accent/60")} >
             <div className={cn("mt-0.5 flex flex-col items-center gap-2", selectionMode ? "w-10" : "w-6")}>
                 {selectionMode && (
                     <div

@@ -122,7 +122,6 @@ export function RightPanelTaskHeader({
         <div
             className={cn(
                 "flex h-12 items-center justify-between gap-2 px-3 border-b border-border/60 bg-background shrink-0",
-                isAnimating && "animate-gradient-completion",
             )}
         >
             <div className="flex items-center gap-2 min-w-0">
