@@ -25,6 +25,7 @@ import { Loader2, Pin, PinOff } from "@/lib/icons";
 import { VideoControls } from "./VideoControls";
 import { CameraOffFace, CaptionsOverlay, RecordingIndicator } from "./CallStage";
 import { FrontendTranscriber, type TranscriberState } from "./FrontendTranscriber";
+import { cn } from "@/lib/utils/helpers/cn"
 
 interface VideoConferenceProps {
   token: string;
@@ -46,6 +47,15 @@ interface VideoConferenceProps {
   // queries), so a narrow pane gets the compact controls a phone gets.
   embedded?: boolean;
 }
+
+
+/**
+ * Speaker and grid draw in one frame: the same inset (8px, 16px from a 768px
+ * stage) and the dock's 96px kept clear at the bottom. Speaker was p-2 pb-24
+ * and grid p-2 @3xl:p-4 pb-20, so in a wide call every tile moved 8px on a
+ * switch, and a narrow grid kept 80px clear of an 82px dock.
+ */
+export const STAGE_FRAME = "p-2 pb-24 @3xl:p-4 @3xl:pb-24"
 
 export function VideoConference({
   token,
@@ -78,7 +88,7 @@ export function VideoConference({
   }
 
   return (
-    <div className={`dark @container relative w-full bg-background text-foreground overflow-hidden ${embedded ? "h-full" : "h-full md:h-screen"}`} data-lk-theme="default">
+    <div className={`dark @container relative w-full bg-background text-foreground overflow-hidden ${embedded ? "h-full" : "h-full md:h-dvh"}`} data-lk-theme="default">
       {place && (
         <p className="pointer-events-none absolute left-9 top-9 z-10 max-w-[50%] truncate rounded-md border border-border bg-popover px-2 py-1 text-xs font-medium text-foreground">
           Call {place}
@@ -500,7 +510,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
 
         <div className="flex-1 overflow-hidden relative flex bg-background">
             {layout === 'speaker' && effectiveFocusedTrack ? (
-                <div className="flex w-full h-full p-2 pb-24 gap-2">
+                <div className={cn("flex w-full h-full gap-2", STAGE_FRAME)}>
                     <FocusedTile 
                         trackRef={effectiveFocusedTrack}
                         isPinned={
@@ -537,7 +547,7 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
                  </div>
             ) : (
 
-                    <div className="w-full h-full p-2 @3xl:p-4 pb-20 @3xl:pb-24">
+                    <div className={cn("w-full h-full", STAGE_FRAME)}>
                         <GridLayout tracks={tracks}>
                         <CustomTile onParticipantClick={onParticipantClick} />
                     </GridLayout>

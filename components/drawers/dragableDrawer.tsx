@@ -73,7 +73,7 @@ const DraggableDrawer: React.FC<DraggableDrawerProps> = ({
         } else {
             // Snap back to current state
             controls.start(
-                { height: isExpanded ? "100vh" : initialHeight },
+                { height: isExpanded ? "100dvh" : initialHeight },
                 { duration: 0.3 }
             )
         }

@@ -137,14 +137,14 @@ export function AppProtectedRoute({ children }: { children: React.ReactNode }) {
     // again (SWR also retries on its own).
     if (userProfile.isError && !sessionGone(userProfile.isError)) {
         return (
-            <div className="flex h-[100vh] items-center justify-center px-4">
+            <div className="flex h-dvh items-center justify-center px-4">
                 <ErrorState subject="your workspace" onRetry={() => void userProfile.mutate()} retrying={userProfile.isValidating} />
             </div>
         );
     }
 
     return (
-        <div className='flex justify-center items-center h-[100vh] space-x-3'>
+        <div className='flex justify-center items-center h-dvh space-x-3'>
             <Loader2 className="size-10 animate-spin" />
         </div>
     );
