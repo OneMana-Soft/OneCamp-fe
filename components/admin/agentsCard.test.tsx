@@ -44,12 +44,15 @@ describe("agents", () => {
     expect(src).not.toMatch(/^import[^\n]*from "\.\/AgentRunsDialog"/m)
   })
 
-  it("is titled 'Agents' on the AI group's tile, not 'AI Agents' in orange", () => {
+  // A flat section now, as every settings page and admin tab is: the title is
+  // an h2 with no tile (the settings index carries the section's tile), and
+  // nothing in it is orange but its one action.
+  it("is titled 'Agents' as a section, with no tile and no orange icon", () => {
     responses.agents = { data: [agent] }
     responses.overview = undefined
     render(<AgentsCard />)
-    const title = screen.getByRole("heading", { name: "Agents" })
-    expect(title.querySelector(".hue-dusk")).toBeTruthy()
+    const title = screen.getByRole("heading", { level: 2, name: "Agents" })
+    expect(title.querySelector("svg")).toBeNull()
     expect(document.querySelector("svg.text-primary")).toBeNull()
   })
 

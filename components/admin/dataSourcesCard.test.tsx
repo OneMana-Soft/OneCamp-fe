@@ -40,10 +40,11 @@ const source = {
 }
 
 describe("data sources", () => {
-  it("puts the title icon on the AI group's tile, and adds a source from an outline button", () => {
+  // A flat section now: no tile beside its title, nothing orange in it.
+  it("has no tile on its title, and adds a source from an outline button", () => {
     fetchState.value = { data: { data: [source] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<DataSourcesCard />)
-    expect(document.querySelector(".hue-dusk")).toBeTruthy()
+    expect(screen.getByRole("heading", { level: 2, name: "Data sources" }).querySelector("svg")).toBeNull()
     expect(document.querySelector("svg.text-primary")).toBeNull()
     expect(screen.getByRole("button", { name: /Add source/ }).className).not.toMatch(/\bbg-primary\b/)
   })
