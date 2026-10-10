@@ -12,6 +12,7 @@ import { ErrorState } from "@/components/ui/error-state"
 import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { AtSign } from "@/lib/icons"
+import { SpotWelcome } from "@/components/ui/graphics"
 
 export const ActivityMentionListResult = () => {
     const [pageIndex, setPageIndex] = useState(0)
@@ -72,6 +73,7 @@ export const ActivityMentionListResult = () => {
             <PageContainer align="center" className="flex items-center justify-center">
                 <EmptyState
                     icon={AtSign}
+                    illustration={<SpotWelcome hue="dusk" />}
                     title="No mentions yet"
                     description="When someone @mentions you, it'll show up here."
                 />

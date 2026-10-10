@@ -3,6 +3,7 @@
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { SpotDocs } from "@/components/ui/graphics"
 import { ToastAction } from "@/components/ui/toast"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -162,6 +163,7 @@ export function LaterItems({ state }: { state: "open" | "done" }) {
       <EmptyState
         tone="accent"
         className="py-16"
+        illustration={<SpotDocs />}
         title="Nothing saved for later"
         description="Use the bookmark on a message, task or doc to keep it here. Ask for a reminder and it comes back when you need it."
       />
