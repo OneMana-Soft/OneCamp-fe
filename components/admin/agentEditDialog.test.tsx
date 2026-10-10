@@ -68,4 +68,31 @@ describe("the agent editor", () => {
     expect(radios.length).toBeGreaterThan(1)
     expect(radios.some((r) => r.getAttribute("aria-checked") === "true")).toBe(true)
   })
+
+  // Schedule opened with an unlabelled row of buttons where Event and Mention
+  // open with a label.
+  it("opens Schedule with a label, as Event and Mention open with theirs", () => {
+    render(<AgentEditDialog agent={null} open onClose={() => {}} onSaved={() => {}} />)
+    fireEvent.click(screen.getByRole("radio", { name: "On a schedule" }))
+    const mode = screen.getByRole("radiogroup", { name: "When it runs" })
+    const label = screen.getByText("When it runs")
+    expect(label.tagName).toBe("LABEL")
+    expect(label.compareDocumentPosition(mode) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  // Each single choice was a row of bordered chips with the choice in the
+  // accent, beside the house segmented control everywhere else.
+  it("makes each single choice with the house segmented control", () => {
+    render(<AgentEditDialog agent={null} open onClose={() => {}} onSaved={() => {}} />)
+    fireEvent.click(screen.getByRole("radio", { name: "On a schedule" }))
+    for (const name of ["Trigger", "When it runs", "How often should it run?"]) {
+      const group = screen.getByRole("radiogroup", { name })
+      const radios = Array.from(group.querySelectorAll('[role="radio"]'))
+      expect(radios.length).toBeGreaterThan(1)
+      for (const r of radios) {
+        expect(r.className).toContain("data-[state=checked]:bg-card")
+        expect(r.className).not.toContain("border-primary")
+      }
+    }
+  })
 })
