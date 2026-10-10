@@ -34,11 +34,15 @@ export default function GuestTablePage({ params }: { params: Promise<{ token: st
     return (
         <div className="min-h-dvh w-full bg-background">
             <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border/60 bg-card px-4 py-2.5">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                         <TableIcon className="h-3.5 w-3.5" />
                     </span>
-                    {bundle.table?.name || "Shared table"}
+                    {/* The page's heading, as the doc and board pages have; a long
+                        name truncates rather than pushing the badges off the bar. */}
+                    <h1 className="truncate" title={bundle.table?.name || undefined}>
+                        {bundle.table?.name || "Shared table"}
+                    </h1>
                 </div>
                 <div className="flex items-center gap-3">
                     <MadeWithOneCamp surface="guest-table" className="hidden sm:block" />
