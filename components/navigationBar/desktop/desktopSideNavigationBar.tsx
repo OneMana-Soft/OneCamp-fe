@@ -24,6 +24,8 @@ import {formatCount} from "@/lib/utils/helpers/formatCount";
 import {GroupedAvatar} from "@/components/groupedAvatar/groupedAvatar";
 import {useMedia} from "@/context/MediaQueryContext";
 import {CallActiveIndicator} from "@/components/callIndicator/CallActiveIndicator";
+import { hueFor } from "@/lib/campHue";
+import { HUE_CLASS } from "@/components/ui/graphics/hues";
 
 
 const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
@@ -33,6 +35,15 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
     const dispatch = useDispatch();
     // Channels, chats, docs and projects can open beside the page (split view).
     const pane = !isMobile ? paneFromHref(String(ch.path || "")) : null;
+    // A channel, doc or team draws its glyph (the #, the page, the people) in
+    // its own camp hue, so the sidebar shows what is what at a glance. The
+    // strong cut at rest; the ink cut where the row is a step darker (hover,
+    // the current place), which keeps the mark 3:1 on every ground in every
+    // theme (paletteContrast). The label stays ink: identity is never text
+    // colour. A destination (All docs, Home) has no hue_id and stays neutral.
+    const glyph = ch.hue_id
+        ? cn(HUE_CLASS[hueFor(ch.hue_id)], isActive ? "text-hue-ink" : "text-hue group-hover/nav:text-hue-ink")
+        : isActive ? "text-foreground" : "text-muted-foreground";
 
     return (
         <div className="group/item relative">
@@ -60,19 +71,13 @@ const SideNavLink = memo(({ ch, link }: { ch: any, link: DesktopNavType }) => {
             )}
             {ch.icon && (
                 <ch.icon
-                    className={cn(
-                        "shrink-0 h-4 w-4",
-                        isActive ? "text-foreground" : "text-muted-foreground",
-                    )}
+                    className={cn("shrink-0 h-4 w-4", glyph)}
                     strokeWidth={1.75}
                 />
             )}
             {!ch.icon && !ch.userProfile && !ch.userParticipants && !ch.project_uuid && link.icon && (
                 <link.icon
-                    className={cn(
-                        "shrink-0 h-4 w-4",
-                        isActive ? "text-foreground" : "text-muted-foreground",
-                    )}
+                    className={cn("shrink-0 h-4 w-4", glyph)}
                     strokeWidth={1.75}
                 />
             )}

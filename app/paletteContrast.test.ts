@@ -346,6 +346,16 @@ describe("every theme's wash keeps the frame readable", () => {
       expect(at(rgb("foreground", mode), active), say("ink on the current place", rgb("foreground", mode), active)).toBeGreaterThanOrEqual(4.5)
       expect(distance(active, wash), `${theme} (${mode}): the current place is ${rgbToHex(active)} on the wash ${rgbToHex(wash)}, too close to see`).toBeGreaterThanOrEqual(0.04)
 
+      // A sidebar glyph in its identity hue takes the ink cut where the row is
+      // a step darker than the wash: the current place, and hover (.nav-idle,
+      // ink at 6% over the wash). The strong cut is checked on the wash above.
+      const hover = mixOklab(rgb("foreground", mode), wash, 0.06)
+      for (const hue of CAMP_HUES) {
+        const ink = rgb(`camp-${hue}-ink`, mode)
+        expect(at(ink, active), say(`a ${hue} glyph on the current place`, ink, active)).toBeGreaterThanOrEqual(3)
+        expect(at(ink, hover), say(`a ${hue} glyph on a hovered row`, ink, hover)).toBeGreaterThanOrEqual(3)
+      }
+
       // Selected text: the accent at 26% under the text's own ink.
       const selected = over(brand, rgb("background", mode), 0.26)
       expect(at(rgb("foreground", mode), selected), say("selected text", rgb("foreground", mode), selected)).toBeGreaterThanOrEqual(4.5)
