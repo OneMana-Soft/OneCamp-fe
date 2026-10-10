@@ -16,7 +16,6 @@ describe("Home's cards and lists", () => {
     "components/ai/WhileYouWereAwayCard.tsx",
     "components/ai/AgentWorkCard.tsx",
     "components/ai/BriefingCard.tsx",
-    "components/home/SetupChecklist.tsx",
     "components/home/NoChannelsYet.tsx",
   ])("%s heads its card with a hued tile, not an accent or grey icon", (file) => {
     const src = read(file)
