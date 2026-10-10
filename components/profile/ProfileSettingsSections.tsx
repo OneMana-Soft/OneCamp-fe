@@ -18,7 +18,7 @@ import { ColorThemePicker } from "@/components/activeTheme/ColorThemePicker"
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection"
 import { TwoFactorSection } from "@/components/profile/TwoFactorSection"
 import { PasskeySection } from "@/components/profile/PasskeySection"
-import { SettingsList, SettingsSection, SwitchRow } from "@/components/settings/SettingsSection"
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 
 const THEMES = [
   ["light", "Light", Sun],

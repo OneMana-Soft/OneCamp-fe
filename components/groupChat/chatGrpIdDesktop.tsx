@@ -1,5 +1,5 @@
 import { displayNameOf } from "@/lib/personName"
-import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholder";
+import { GROUP_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
 import { useOpenBeside } from "@/hooks/useSplitView";
 import { useMedia } from "@/context/MediaQueryContext";
 import { useFetchOnlyOnce} from "@/hooks/useFetch";

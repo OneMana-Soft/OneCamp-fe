@@ -26,7 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AppLanguageCombobox } from "@/components/dialog/appLanguageCombobox";
 import { Camera, Loader2 } from "@/lib/icons";
 import { AppearanceSection, CalendarSection, SigningInSection } from "@/components/profile/ProfileSettingsSections";
-import { SettingsList, SettingsSection, SwitchRow } from "@/components/settings/SettingsSection";
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection";
 import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor";
 import { cn } from "@/lib/utils/helpers/cn";

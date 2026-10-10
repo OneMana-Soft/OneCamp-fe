@@ -1,6 +1,5 @@
 "use client"
 
-import { userDisplayName } from "@/lib/utils/userDisplayName";
 import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import {
     Dialog,
@@ -92,7 +91,9 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
         setOpenState(false);
     }
 
-    const shownName = userDisplayName(profileInfo.data?.data);
+    // By the one name rule; a bot made before bots took their name as
+    // user_name has its login handle there, and goes by its full name.
+    const shownName = (isBot && profileInfo.data?.data?.user_full_name?.trim()) || displayNameOf(profileInfo.data?.data);
     const fullName = isBot ? "" : secondaryNameOf(profileInfo.data?.data);
     const handle = isBot ? "" : handleOf(profileInfo.data?.data);
     const userSeed = shownName || "User";

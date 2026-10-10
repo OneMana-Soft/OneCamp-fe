@@ -1,4 +1,4 @@
-import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholder";
+import { THREAD_COMPOSER_PLACEHOLDER } from "@/lib/utils/composerPlaceholders";
 import {useDispatch, useSelector} from "react-redux"
 import type { RootState } from "@/store/store"
 

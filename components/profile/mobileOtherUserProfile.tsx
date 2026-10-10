@@ -1,6 +1,5 @@
 "use client"
 
-import { userDisplayName } from "@/lib/utils/userDisplayName";
 import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
@@ -31,8 +30,10 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const profileInfo = useFetch<UserProfileInterface>(userUUID ? GetEndpointUrl.SelfProfile + '/' + userUUID : '');
     const {src: imageSrc} = useUserAvatar(profileInfo?.data?.data?.user_profile_object_key);
 
-    const shownName = userDisplayName(profileInfo.data?.data);
     const isBotProfile = profileInfo.data?.data?.is_bot === true;
+    // By the one name rule; a bot made before bots took their name as
+    // user_name has its login handle there, and goes by its full name.
+    const shownName = (isBotProfile && profileInfo.data?.data?.user_full_name?.trim()) || displayNameOf(profileInfo.data?.data);
     const fullName = isBotProfile ? "" : secondaryNameOf(profileInfo.data?.data);
     const handle = isBotProfile ? "" : handleOf(profileInfo.data?.data);
     const userSeed = shownName || "User";
