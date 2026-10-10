@@ -5,16 +5,16 @@
 // the API returns only has_* booleans and a source indicator, never the value.
 // Saving reloads the providers server-side, so changes take effect immediately.
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import React, { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState } from "@/components/ui/error-state"
+import { SaveBar, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, AlertTriangle } from "@/lib/icons"
-import axiosInstance from "@/lib/axiosInstance"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { cn } from "@/lib/utils/helpers/cn"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
 interface OAuthConfigStatus {
@@ -28,143 +28,220 @@ interface OAuthConfigStatus {
     github_source: "db" | "env" | "none"
 }
 
-const SOURCE_LABEL: Record<string, string> = {
-    db: "Saved here",
-    env: "From environment",
-    none: "Not configured",
+type Provider = "google" | "github"
+
+/** Where a provider's credentials come from, as a short phrase; nothing when unset. */
+const SOURCE: Record<string, string> = {
+    db: "saved here",
+    env: "from the server's environment",
 }
+
+const PROVIDERS: {
+    key: Provider
+    name: string
+    idPlaceholder: string
+    secretPlaceholder: string
+    help: React.ReactNode
+}[] = [
+    {
+        key: "google",
+        name: "Google",
+        idPlaceholder: "xxxx.apps.googleusercontent.com",
+        secretPlaceholder: "GOCSPX-…",
+        help: "Also used for the Google Calendar connection.",
+    },
+    {
+        key: "github",
+        name: "GitHub",
+        idPlaceholder: "Iv1.xxxxxxxx",
+        secretPlaceholder: "Client secret…",
+        help: (
+            <>
+                For signing in with GitHub, separate from the GitHub repository integration above.
+            </>
+        ),
+    },
+]
+
+type Draft = Record<Provider, { id: string; secret: string }>
+const emptyDraft: Draft = { google: { id: "", secret: "" }, github: { id: "", secret: "" } }
 
 export default function OAuthConfigCard() {
     const { toast } = useToast()
     const [status, setStatus] = useState<OAuthConfigStatus | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [savingGoogle, setSavingGoogle] = useState(false)
-    const [savingGithub, setSavingGithub] = useState(false)
+    const [state, setState] = useState<"loading" | "failed" | "ready">("loading")
+    const [draft, setDraft] = useState<Draft>(emptyDraft)
+    const [saving, setSaving] = useState(false)
 
-    const [googleId, setGoogleId] = useState("")
-    const [googleSecret, setGoogleSecret] = useState("")
-    const [githubId, setGithubId] = useState("")
-    const [githubSecret, setGithubSecret] = useState("")
-
+    // A failed load used to leave the fields empty and both providers looking
+    // unset, beside a toast that soon left.
     const load = () => {
-        setLoading(true)
+        setState("loading")
         axiosInstance
             .get(GetEndpointUrl.GetOAuthConfig)
             .then((res) => {
                 const s = (res.data as { data?: OAuthConfigStatus })?.data ?? null
+                if (!s) {
+                    setState("failed")
+                    return
+                }
                 setStatus(s)
-                setGoogleId(s?.google_client_id ?? "")
-                setGithubId(s?.github_client_id ?? "")
-                setGoogleSecret("")
-                setGithubSecret("")
+                setDraft({
+                    google: { id: s.google_client_id ?? "", secret: "" },
+                    github: { id: s.github_client_id ?? "", secret: "" },
+                })
+                setState("ready")
             })
-            .catch(() => toast({ title: "Couldn't load OAuth config", variant: "destructive" }))
-            .finally(() => setLoading(false))
+            .catch(() => setState("failed"))
     }
 
     useEffect(() => {
         load()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const saveGoogle = async () => {
-        setSavingGoogle(true)
+    const changed = (p: Provider) =>
+        !!status && (draft[p].id !== (status[`${p}_client_id`] ?? "") || draft[p].secret !== "")
+    const dirty = changed("google") || changed("github")
+
+    const set = (p: Provider, field: "id" | "secret", value: string) =>
+        setDraft((d) => ({ ...d, [p]: { ...d[p], [field]: value } }))
+
+    // One save for the card, sending only the provider that changed, and only
+    // the fields that did; it was a Save button per provider.
+    const save = async () => {
+        if (!status) return
+        setSaving(true)
         try {
-            const body: Record<string, string> = {}
-            if (googleId !== (status?.google_client_id ?? "")) body.google_client_id = googleId
-            if (googleSecret) body.google_client_secret = googleSecret
-            await axiosInstance.post(PostEndpointUrl.UpdateOAuthConfig, body)
-            toast({ title: "Google credentials saved" })
+            for (const p of PROVIDERS) {
+                if (!changed(p.key)) continue
+                const body: Record<string, string> = {}
+                if (draft[p.key].id !== (status[`${p.key}_client_id`] ?? "")) body[`${p.key}_client_id`] = draft[p.key].id
+                if (draft[p.key].secret) body[`${p.key}_client_secret`] = draft[p.key].secret
+                try {
+                    await axiosInstance.post(PostEndpointUrl.UpdateOAuthConfig, body, OWN_ERRORS)
+                } catch (e) {
+                    toast({ title: `Couldn't save the ${p.name} sign-in`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+                    return
+                }
+            }
+            toast({ title: "Sign-in providers saved" })
             load()
-        } catch {
-            toast({ title: "Failed to save Google credentials", variant: "destructive" })
         } finally {
-            setSavingGoogle(false)
+            setSaving(false)
         }
     }
 
-    const saveGithub = async () => {
-        setSavingGithub(true)
-        try {
-            const body: Record<string, string> = {}
-            if (githubId !== (status?.github_client_id ?? "")) body.github_client_id = githubId
-            if (githubSecret) body.github_client_secret = githubSecret
-            await axiosInstance.post(PostEndpointUrl.UpdateOAuthConfig, body)
-            toast({ title: "GitHub sign-in credentials saved" })
-            load()
-        } catch {
-            toast({ title: "Failed to save GitHub credentials", variant: "destructive" })
-        } finally {
-            setSavingGithub(false)
-        }
+    let body: React.ReactNode
+    if (state === "loading") {
+        body = (
+            <SettingsList>
+                {PROVIDERS.map((p, i) => (
+                    <div
+                        key={p.key}
+                        aria-busy={i === 0 ? "true" : undefined}
+                        aria-label={i === 0 ? "Loading the sign-in providers" : undefined}
+                        aria-hidden={i === 0 ? undefined : "true"}
+                        className="space-y-3 px-4 py-3"
+                    >
+                        <Skeleton className="h-4 w-24" />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <Skeleton className="h-8 w-full" />
+                            <Skeleton className="h-8 w-full" />
+                        </div>
+                    </div>
+                ))}
+            </SettingsList>
+        )
+    } else if (state === "failed" || !status) {
+        body = <ErrorState subject="the sign-in providers" onRetry={load} />
+    } else {
+        body = (
+            <>
+                <SettingsList>
+                    {PROVIDERS.map((p) => {
+                        const configured = status[`${p.key}_configured`]
+                        const hasSecret = status[`${p.key}_has_client_secret`]
+                        const source = SOURCE[status[`${p.key}_source`]]
+                        const helpId = `${p.key}-oauth-help`
+                        return (
+                            <div key={p.key} className="space-y-3 px-4 py-3">
+                                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                    <h3 className="text-sm font-medium">{p.name}</h3>
+                                    {/* Words, not a pill with an icon: set up or not, and from where. */}
+                                    <p className="text-xs">
+                                        <span className={cn("font-medium", configured ? "text-success-ink" : "text-muted-foreground")}>
+                                            {configured ? "Set up" : "Not set up"}
+                                        </span>
+                                        {source && <span className="text-muted-foreground">, {source}</span>}
+                                    </p>
+                                </div>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor={`${p.key}-client-id`} className="text-xs text-muted-foreground">
+                                            Client ID<span className="sr-only"> for {p.name}</span>
+                                        </Label>
+                                        <Input
+                                            id={`${p.key}-client-id`}
+                                            name={`${p.key}-client-id`}
+                                            autoComplete="off"
+                                            spellCheck={false}
+                                            value={draft[p.key].id}
+                                            onChange={(e) => set(p.key, "id", e.target.value)}
+                                            placeholder={p.idPlaceholder}
+                                            aria-describedby={helpId}
+                                            className="h-8"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor={`${p.key}-client-secret`} className="text-xs text-muted-foreground">
+                                            Client secret<span className="sr-only"> for {p.name}</span>
+                                        </Label>
+                                        {/* new-password: a browser never fills the admin's own saved
+                                            password into a secret field and saves it as the secret. */}
+                                        <Input
+                                            id={`${p.key}-client-secret`}
+                                            name={`${p.key}-client-secret`}
+                                            type="password"
+                                            autoComplete="new-password"
+                                            spellCheck={false}
+                                            value={draft[p.key].secret}
+                                            onChange={(e) => set(p.key, "secret", e.target.value)}
+                                            placeholder={hasSecret ? "••••••••" : p.secretPlaceholder}
+                                            aria-describedby={helpId}
+                                            className="h-8"
+                                        />
+                                    </div>
+                                </div>
+                                <p id={helpId} className="text-xs text-muted-foreground text-pretty">
+                                    {p.help}
+                                    {hasSecret ? " Leave the secret empty to keep the current one." : ""}
+                                </p>
+                            </div>
+                        )
+                    })}
+                </SettingsList>
+                <SaveBar
+                    dirty={dirty}
+                    saving={saving}
+                    onSave={() => void save()}
+                    onDiscard={() =>
+                        setDraft({
+                            google: { id: status.google_client_id ?? "", secret: "" },
+                            github: { id: status.github_client_id ?? "", secret: "" },
+                        })
+                    }
+                    what="sign-in provider changes"
+                />
+            </>
+        )
     }
-
-    const StatusBadge = ({ configured, source }: { configured: boolean; source: string }) => (
-        <div className="flex items-center gap-2 text-xs">
-            {configured ? (
-                <Badge className="gap-1 bg-success/10 text-success-ink border-success/20">
-                    <CheckCircle2 className="h-3 w-3" /> Configured
-                </Badge>
-            ) : (
-                <Badge variant="outline" className="gap-1"><AlertTriangle className="h-3 w-3" /> Not configured</Badge>
-            )}
-            <span className="text-muted-foreground">Source: {SOURCE_LABEL[source]}</span>
-        </div>
-    )
 
     return (
-        <Card className="border-border/60">
-            <CardHeader>
-                <div className="flex items-center gap-2">
-                    <CardTitle className="text-base font-semibold">Sign-in providers</CardTitle>
-                </div>
-                <CardDescription>
-                    Configure Google and GitHub social sign-in. Credentials are encrypted at rest and applied without a restart.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                {/* Google */}
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium">Google</h3>
-                        {status && <StatusBadge configured={status.google_configured} source={status.google_source} />}
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                            <Label className="text-xs">Client ID</Label>
-                            <Input value={googleId} onChange={(e) => setGoogleId(e.target.value)} placeholder="xxxx.apps.googleusercontent.com" disabled={loading} />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-xs">Client Secret {status?.google_has_client_secret && <span className="text-muted-foreground font-normal">· leave blank to keep</span>}</Label>
-                            <Input type="password" value={googleSecret} onChange={(e) => setGoogleSecret(e.target.value)} placeholder={status?.google_has_client_secret ? "••••••••" : "GOCSPX-…"} disabled={loading} />
-                        </div>
-                    </div>
-                    <p className="text-2xs text-muted-foreground">Also used for Google Calendar integration.</p>
-                    <Button size="sm" variant="outline" onClick={saveGoogle} disabled={savingGoogle || loading}>{savingGoogle ? "Saving…" : "Save Google"}</Button>
-                </div>
-
-                <Separator />
-
-                {/* GitHub */}
-                <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium">GitHub (sign-in)</h3>
-                        {status && <StatusBadge configured={status.github_configured} source={status.github_source} />}
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                            <Label className="text-xs">Client ID</Label>
-                            <Input value={githubId} onChange={(e) => setGithubId(e.target.value)} placeholder="Iv1.xxxxxxxx" disabled={loading} />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label className="text-xs">Client Secret {status?.github_has_client_secret && <span className="text-muted-foreground font-normal">· leave blank to keep</span>}</Label>
-                            <Input type="password" value={githubSecret} onChange={(e) => setGithubSecret(e.target.value)} placeholder={status?.github_has_client_secret ? "••••••••" : "client secret"} disabled={loading} />
-                        </div>
-                    </div>
-                    <p className="text-2xs text-muted-foreground">This is for GitHub <strong>login</strong>, separate from the GitHub repo integration above.</p>
-                    <Button size="sm" variant="outline" onClick={saveGithub} disabled={savingGithub || loading}>{savingGithub ? "Saving…" : "Save GitHub"}</Button>
-                </div>
-            </CardContent>
-        </Card>
+        <SettingsSection
+            title="Sign-in providers"
+            description="Let people sign in with Google or GitHub. Secrets are stored encrypted and never shown again; changes apply without a restart."
+        >
+            {body}
+        </SettingsSection>
     )
 }
