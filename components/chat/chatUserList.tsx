@@ -26,7 +26,6 @@ import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundar
 import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { Search } from "@/lib/icons"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 import { withOpenRead } from "@/lib/chat/conversation"
 import { dataToSeed } from "@/lib/swrMutate"
@@ -117,7 +116,8 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                 <SearchField
                     onChange={handleDmSearchOnChange}
                     value={dmSearchText}
-                    placeholder="Search messages…"
+                    // It finds a conversation by who is in it, not a message.
+                    placeholder="Find a conversation…"
                 />
             </div>
 
@@ -175,7 +175,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                                 // As the channel list: page and code are ready
                                 // before the tap, so only messages are awaited.
                                 prefetch
-                                className="block focus:outline-none"
+                                className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                             >
                                 <ChatUserListUser
                                     lastMessageTime={lastMessageTime}
@@ -200,9 +200,15 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
 
                 {showSearchEmpty && (
                     <EmptyState
-                        icon={Search}
-                        title="No conversations match"
-                        description={`We couldn't find any chats for "${dmSearchText}".`}
+                        title={`No conversations with “${dmSearchText}”`}
+                        description="Try part of a name, or start a new conversation."
+                    />
+                )}
+                {/* No DMs at all said nothing: an empty column under the search. */}
+                {!dmSearchText && latestChats.data && (latestChats.data.data?.user_dms?.length ?? 0) === 0 && userChatListState.length === 0 && (
+                    <EmptyState
+                        title="No direct messages yet"
+                        description="Message anyone in the workspace with New message."
                     />
                 )}
             </div>

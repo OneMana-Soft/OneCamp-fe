@@ -135,7 +135,6 @@ function NudgeBell() {
             <PopoverContent align="end" className="w-[360px] p-0 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
                     <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-primary" />
                         <span className="text-sm font-semibold">Nudges</span>
                     </div>
                     {hasNudges && (
@@ -151,10 +150,7 @@ function NudgeBell() {
                 </div>
 
                 {!hasNudges ? (
-                    <div className="flex flex-col items-center justify-center gap-2 py-10 px-6 text-center">
-                        <div className="bg-primary/10 p-2.5 rounded-full">
-                            <Bell className="h-5 w-5 text-primary" />
-                        </div>
+                    <div className="px-4 py-8">
                         <p className="text-sm font-medium">You&apos;re all caught up</p>
                         <p className="text-xs text-muted-foreground">
                             {hydrated
@@ -168,27 +164,38 @@ function NudgeBell() {
                             {nudges.map((n) => {
                                 const Icon = KIND_ICON[n.kind] ?? Sparkles
                                 return (
+                                    // Reachable from the keyboard as well as the mouse: it was
+                                    // a div with only a click handler. Not a <button>, since
+                                    // Dismiss sits inside it.
                                     <div
                                         key={n.id}
+                                        role="button"
+                                        tabIndex={0}
                                         className={cn(
-                                            "group flex gap-3 px-4 py-3 transition-colors cursor-pointer hover:bg-accent/40",
+                                            "group flex gap-3 px-4 py-3 transition-colors cursor-pointer hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none",
                                             busyId === n.id && "opacity-50 pointer-events-none",
                                         )}
                                         onClick={() => handleOpen(n)}
+                                        onKeyDown={(e) => {
+                                            if (e.target !== e.currentTarget) return
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault()
+                                                handleOpen(n)
+                                            }
+                                        }}
                                     >
-                                        <div className={cn(
-                                            "shrink-0 h-8 w-8 rounded-md flex items-center justify-center",
-                                            n.priority > 0 ? "bg-warning/15 text-warning" : "bg-primary/10 text-primary",
-                                        )}>
+                                        {/* A plain glyph, in warning only when it is urgent; an
+                                            orange tile on every row spent the accent on decoration. */}
+                                        <span aria-hidden="true" className={cn("mt-0.5 shrink-0", n.priority > 0 ? "text-warning" : "text-muted-foreground")}>
                                             <Icon className="h-4 w-4" />
-                                        </div>
+                                        </span>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-start justify-between gap-2">
                                                 <p className="text-sm font-medium leading-snug">{n.title}</p>
                                                 <button
                                                     aria-label="Dismiss"
                                                     onClick={(e) => handleDismiss(e, n)}
-                                                    className="shrink-0 text-2xs text-muted-foreground opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:text-foreground transition-opacity"
+                                                    className="shrink-0 rounded-sm text-2xs text-muted-foreground opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto hover:text-foreground transition-opacity"
                                                 >
                                                     Dismiss
                                                 </button>

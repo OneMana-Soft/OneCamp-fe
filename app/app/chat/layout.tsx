@@ -2,6 +2,7 @@
 
 import { useMedia } from "@/context/MediaQueryContext"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { openUI } from "@/store/slice/uiSlice"
 import { MessageCircle, Plus } from "@/lib/icons"
 import { useDispatch } from "react-redux"
@@ -36,17 +37,25 @@ export default function ChatLayout({
             <aside className="flex flex-col w-[300px] xl:w-[320px] h-full border-r border-border/60 bg-background">
                 <header className="flex items-center justify-between h-12 md:h-14 px-3 md:px-4 border-b border-border/60">
                     <div className="flex items-center gap-2">
-                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                        <h1 className="text-sm font-semibold text-foreground">Messages</h1>
+                        <MessageCircle aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
+                        {/* The sidebar calls this DMs; "Messages" here read as a
+                            different place, since channels hold messages too. */}
+                        <h1 className="text-sm font-semibold text-foreground">Direct messages</h1>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="New message"
-                        onClick={() => dispatch(openUI({ key: "createChatMessage" }))}
-                    >
-                        <Plus className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                aria-label="New message"
+                                onClick={() => dispatch(openUI({ key: "createChatMessage" }))}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>New message</TooltipContent>
+                    </Tooltip>
                 </header>
                 <div className="flex-1 overflow-hidden">
                     <ChatUserList chatId={chatId} />

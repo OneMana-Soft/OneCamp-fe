@@ -7,8 +7,6 @@ import { X, Search, Eye } from "@/lib/icons";
 import { SearchResult } from "@/services/searchService"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
-import { Badge } from "@/components/ui/badge"
-import { EmptyState } from "@/components/ui/empty-state"
 import { useSearch } from "@/hooks/useSearch"
 import { getIcon, getHighlightedTitle, getContext, isResultPreviewable } from "@/lib/utils/helpers/search"
 
@@ -16,37 +14,37 @@ const SearchResultItem = memo(({ result, onClick, onPreview }: { result: SearchR
     const isPreviewable = isResultPreviewable(result)
 
     return (
-        <div
-            onClick={() => onClick(result)}
-            className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/60 cursor-pointer group transition"
-        >
-            <div className={cn(
-                "shrink-0 transition",
-                result.type === "user" ? "" : "mt-1 p-1.5 rounded-md bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10"
-            )}>
-                {getIcon(result)}
-            </div>
-            <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                    <Badge variant="secondary" size="sm" caps className="rounded group-hover:bg-primary/10 group-hover:text-primary">
-                        {result.type}
-                    </Badge>
-                </div>
-                <div className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
-                    {getHighlightedTitle(result)}
-                </div>
-                <div className="text-2xs text-muted-foreground truncate">
-                    {getContext(result)}
-                </div>
-            </div>
+        // A row, and a real button: it was a div with a click handler, so a
+        // result could be clicked but never reached from the keyboard. The type
+        // is said by the icon and the line under the title ("Task assigned
+        // to…"), not again in a capitals badge above it; the hover is a neutral step, not the accent.
+        <div className="group flex items-center gap-1 rounded-md hover:bg-muted/60 focus-within:bg-muted/60 transition-colors">
+            <button
+                type="button"
+                onClick={() => onClick(result)}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+            >
+                <span className="shrink-0 text-muted-foreground" aria-hidden="true">
+                    {getIcon(result)}
+                </span>
+                <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium text-foreground truncate">
+                        {getHighlightedTitle(result)}
+                    </span>
+                    <span className="block text-2xs text-muted-foreground truncate">
+                        {getContext(result)}
+                    </span>
+                </span>
+            </button>
             {isPreviewable && (
                 <button
                     onClick={(e) => {
                         e.stopPropagation()
                         onPreview(result)
                     }}
-                    className="p-2 rounded-full hover:bg-primary/10 text-muted-foreground hover:text-primary transition opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
-                    title="Preview Attachment"
+                    className="mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                    aria-label="Preview attachment"
+                    title="Preview attachment"
                 >
                     <Eye className="h-4 w-4" />
                 </button>
@@ -89,21 +87,25 @@ export default function DesktopNavigationSearch() {
             <Popover open={open && !!inputValue} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors pointer-events-none" />
+                        <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
                             ref={searchRef}
                             type="search"
-                            placeholder="Global Search…"
+                            // Says what it searches. "Global Search" named the
+                            // feature, in title case, rather than the task.
+                            placeholder="Search messages, docs and tasks…"
+                            aria-label="Search messages, docs and tasks"
+                            autoComplete="off"
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={handleKeyDownCapture}
                             onFocus={() => inputValue && setOpen(true)}
                             className={cn(
-                                "h-10 w-full pl-9 pr-9 font-medium",
-                                "text-sm placeholder:text-muted-foreground/60",
-                                "rounded-xl border-border bg-muted/20",
-                                "focus-visible:ring-1 focus-visible:ring-primary focus-visible:bg-background",
-                                "transition duration-150",
+                                "h-9 w-full pl-9 pr-9",
+                                "text-sm placeholder:text-muted-foreground",
+                                "rounded-md border-border bg-background/60",
+                                "focus-visible:bg-background",
+                                "transition-colors duration-150",
                                 "[&::-webkit-search-cancel-button]:appearance-none"
                             )}
                         />
@@ -111,7 +113,7 @@ export default function DesktopNavigationSearch() {
                             {inputValue && (
                                 <button
                                     onClick={onClear}
-                                    className="p-1 rounded-full hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
+                                    className="p-1 rounded-md hover:bg-muted text-muted-foreground transition-colors cursor-pointer"
                                     aria-label="Clear search"
                                 >
                                     <X className="h-4 w-4" />
@@ -127,7 +129,7 @@ export default function DesktopNavigationSearch() {
                     </div>
                 </PopoverTrigger>
                 <PopoverContent
-                    className="w-[500px] p-0 shadow-2xl border-border bg-background rounded-xl overflow-hidden"
+                    className="w-[500px] p-0 shadow-overlay border-border bg-background rounded-lg overflow-hidden"
                     align="start"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
@@ -148,19 +150,18 @@ export default function DesktopNavigationSearch() {
                                                 onPreview={handlePreview}
                                             />
                                         ))}
-                                        <div
+                                        <button
+                                            type="button"
                                             onClick={() => handleSearchSubmit()}
-                                            className="p-3 text-center border-t border-border/50 hover:bg-muted/50 cursor-pointer transition-colors"
+                                            className="block w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-primary border-t border-border/50 hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
                                         >
-                                            <p className="text-xs font-medium text-primary">View all results for "{inputValue}"</p>
-                                        </div>
+                                            See all results for “{inputValue}”
+                                        </button>
                                     </div>
                                 ) : (
-                                    <EmptyState
-                                        icon={Search}
-                                        title="No matches found"
-                                        description="Try a different search term"
-                                    />
+                                    <p className="px-2.5 py-6 text-sm text-muted-foreground">
+                                        Nothing matches “{inputValue}”. Try another word, or press Enter for the full search.
+                                    </p>
                                 )}
                             </div>
                         )}

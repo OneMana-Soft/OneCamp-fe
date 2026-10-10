@@ -81,40 +81,49 @@ export function PreJoin({ onJoin, username, nameEditable = false, joinLabel = "J
 
   return (
     <div className={`flex w-full items-center justify-center bg-background p-4 ${embedded ? "min-h-full" : "min-h-dvh"}`}>
-    <div className="flex w-full max-w-md flex-col items-center space-y-6 rounded-lg border bg-card p-6 shadow-sm">
+    <div className="flex w-full max-w-md flex-col items-center space-y-6 rounded-lg border bg-card p-6">
       <div className="space-y-1.5 text-center">
         {place && <p className={kicker}>Call {place}</p>}
         <h1 className="font-display text-2xl font-semibold tracking-tight text-balance">Ready to join?</h1>
       </div>
       
-      <div className="relative aspect-video w-full bg-muted rounded-md overflow-hidden flex items-center justify-center">
-        {videoTrack && videoEnabled ? (
-          <VideoTrackPreview track={videoTrack} />
-        ) : (
-          <div className="flex flex-col items-center text-muted-foreground">
-             <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-                 <span className="text-2xl font-bold">{(name || "?").charAt(0).toUpperCase()}</span>
-             </div>
-             <p className="max-w-[18rem] text-center text-sm text-pretty">{cameraProblem ?? "Camera is off"}</p>
-          </div>
-        )}
-        
-        <div className="absolute bottom-4 flex space-x-2 rounded-full bg-black/60 p-2">
-             <Button 
-                variant={audioEnabled ? "secondary" : "destructive"} 
-                size="icon" 
+      {/* The microphone and camera sit under the preview, not on it. Floated
+          over the frame they covered the "camera could not be opened" line,
+          which is the one time the frame has words in it. */}
+      <div className="w-full space-y-3">
+        <div className="relative aspect-video w-full bg-muted rounded-md overflow-hidden flex items-center justify-center">
+          {videoTrack && videoEnabled ? (
+            <VideoTrackPreview track={videoTrack} />
+          ) : (
+            <div className="flex flex-col items-center gap-2 px-4 text-muted-foreground">
+               <div className="h-14 w-14 rounded-full bg-background flex items-center justify-center" aria-hidden="true">
+                   <span className="text-xl font-semibold text-foreground">{(name || "?").charAt(0).toUpperCase()}</span>
+               </div>
+               <p className="max-w-[18rem] text-center text-sm text-pretty">{cameraProblem ?? "Camera is off"}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-center gap-2">
+             <Button
+                variant={audioEnabled ? "outline" : "destructive"}
+                size="icon"
                 aria-label={audioEnabled ? "Mute microphone" : "Unmute microphone"}
-                className="h-10 w-10 rounded-full"
+                aria-pressed={!audioEnabled}
+                title={audioEnabled ? "Mute microphone" : "Unmute microphone"}
+                className="h-10 w-10"
                 onClick={toggleAudio}
              >
                 {audioEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
              </Button>
-             <Button 
-                variant={videoEnabled ? "secondary" : "destructive"} 
+             <Button
+                variant={videoEnabled ? "outline" : "destructive"}
                 size="icon"
                 aria-label={videoEnabled ? "Turn camera off" : "Turn camera on"}
-                className="h-10 w-10 rounded-full"
-                 onClick={toggleVideo}
+                aria-pressed={!videoEnabled}
+                title={videoEnabled ? "Turn camera off" : "Turn camera on"}
+                className="h-10 w-10"
+                onClick={toggleVideo}
              >
                 {videoEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
              </Button>
