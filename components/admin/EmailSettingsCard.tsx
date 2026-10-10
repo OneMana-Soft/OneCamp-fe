@@ -3,13 +3,16 @@
 import { useConfirm } from "@/hooks/useConfirm"
 import { displayNameOf } from "@/lib/personName"
 import React, { useState, useEffect, useRef } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Separator } from "@/components/ui/separator"
-import { Trash2, Mail, Save, RefreshCw } from "@/lib/icons";
+import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState } from "@/components/ui/error-state"
+import { SaveBar, SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { Trash2, Mail, RefreshCw } from "@/lib/icons";
 import { ImagePlus } from "lucide-react";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
@@ -18,6 +21,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
 import { sanitizeImportedDocument } from "@/lib/sanitizeHtml"
 import { SafeHtml } from "@/components/safeHtml/SafeHtml"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import axiosInstance from "@/lib/axiosInstance"
 
 interface EmailConfigResponse {
@@ -55,57 +59,55 @@ export function fillPreview(text: string, values: Record<string, string>): strin
   return text.replace(/\{\{(\w+)\}\}/g, (whole, key: string) => (key in values ? values[key] : whole))
 }
 
+type EmailForm = { sender_email: string; subject: string; template: string }
+
+const sameForm = (a: EmailForm, b: EmailForm) =>
+  a.sender_email === b.sender_email && a.subject === b.subject && a.template === b.template
+
 const EmailSettingsCard = () => {
-  const { data: configData, isLoading, mutate } = useFetch<{ data: EmailConfigResponse }>(GetEndpointUrl.GetEmailConfig)
+  const { data: configData, isLoading, isError, mutate } = useFetch<{ data: EmailConfigResponse }>(GetEndpointUrl.GetEmailConfig)
   // The preview names whoever is looking as the one inviting.
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const post = usePost()
   const confirm = useConfirm()
   const { toast } = useToast()
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [formData, setFormData] = useState({
-    sender_email: "",
-    subject: "",
-    template: ""
-  })
-  
+  const [formData, setFormData] = useState<EmailForm>({ sender_email: "", subject: "", template: "" })
   const [hasLogo, setHasLogo] = useState(false)
   const [logoTs, setLogoTs] = useState(Date.now()) // Used to force refresh the logo image
 
-  // Keep a reference to the "original" data straight from the server for dirty checking
-  const [originalData, setOriginalData] = useState({
-    sender_email: "",
-    subject: "",
-    template: ""
-  })
+  // What the server holds, for telling an edit from the saved text.
+  const [originalData, setOriginalData] = useState<EmailForm>({ sender_email: "", subject: "", template: "" })
+  // The form is filled once. A later answer (SWR refetches on focus) only moves
+  // the baseline: it used to overwrite the form, wiping an edit in progress.
+  const filled = useRef(false)
 
   useEffect(() => {
-    if (configData?.data) {
-      const data = configData.data
-      const initialForm = {
-        // Empty when unset, NOT a literal address. This used to prefill our own
-        // domain, which is not the customer's: an admin who opened this screen
-        // and pressed Save adopted it as their sender, and their invitations
-        // then failed SPF from a domain they do not own. Empty is also correct
-        // rather than merely safe, because the backend already computes
-        // noreply@<this install's domain> when no sender is configured. Showing
-        // nothing lets that default stand.
-        sender_email: data.sender_email || "",
-        subject: data.invitation_email_subject || DEFAULT_SUBJECT,
-        template: data.invitation_email_template || DEFAULT_TEMPLATE,
-      }
-      setFormData(initialForm)
-      setOriginalData(initialForm)
-      setHasLogo(data.has_logo || false)
+    if (!configData?.data) return
+    const data = configData.data
+    const server: EmailForm = {
+      // Empty when unset, NOT a literal address. This used to prefill our own
+      // domain, which is not the customer's: an admin who opened this screen
+      // and pressed Save adopted it as their sender, and their invitations
+      // then failed SPF from a domain they do not own. Empty is also correct
+      // rather than merely safe, because the backend already computes
+      // noreply@<this install's domain> when no sender is configured. Showing
+      // nothing lets that default stand.
+      sender_email: data.sender_email || "",
+      subject: data.invitation_email_subject || DEFAULT_SUBJECT,
+      template: data.invitation_email_template || DEFAULT_TEMPLATE,
+    }
+    setOriginalData(server)
+    setHasLogo(data.has_logo || false)
+    if (!filled.current) {
+      filled.current = true
+      setFormData(server)
     }
   }, [configData])
 
-  const isDirty = 
-    formData.sender_email !== originalData.sender_email ||
-    formData.subject !== originalData.subject ||
-    formData.template !== originalData.template
+  const isDirty = filled.current && !sameForm(formData, originalData)
 
   const handleSaveConfig = async () => {
     if (post.isSubmitting) return
@@ -122,8 +124,8 @@ const EmailSettingsCard = () => {
       })
       // Update our baseline for dirty checking
       setOriginalData(formData)
-    } catch (e) {
-      // Error handled by usePost
+    } catch {
+      // usePost says why, in one toast.
     }
   }
 
@@ -142,8 +144,8 @@ const EmailSettingsCard = () => {
     // Quick frontend validation: 2MB max
     if (file.size > 2 * 1024 * 1024) {
       toast({
-        title: "File too large",
-        description: "Logo must be less than 2MB",
+        title: "Couldn't upload the logo",
+        description: "It must be 2 MB or smaller.",
         variant: "destructive"
       })
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -157,18 +159,18 @@ const EmailSettingsCard = () => {
       const res = await axiosInstance.post(PostEndpointUrl.UploadEmailLogo, formDataUpload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      
+
       if (res.data.status !== "failed") {
         setHasLogo(true)
         setLogoTs(Date.now())
-        toast({ title: "Success", description: "Email logo uploaded successfully." })
+        toast({ title: "Logo uploaded" })
       } else {
-          toast({ title: "Error", description: res.data.msg || "Failed to upload logo", variant: "destructive" })
+        toast({ title: "Couldn't upload the logo", description: res.data.msg || "Try another image.", variant: "destructive" })
       }
-    } catch (error: any) {
+    } catch (error) {
       toast({
-        title: "Error",
-        description: error.response?.data?.msg || "Failed to upload logo",
+        title: "Couldn't upload the logo",
+        description: apiErrorMessage(error, "Try again in a moment."),
         variant: "destructive"
       })
     } finally {
@@ -184,8 +186,8 @@ const EmailSettingsCard = () => {
         showToast: true
       })
       setHasLogo(false)
-    } catch (e) {
-      // Handled by usePost
+    } catch {
+      // usePost says why, in one toast.
     }
   }
 
@@ -209,206 +211,205 @@ const EmailSettingsCard = () => {
   })
   const previewSubject = subjectPreview(formData.subject, previewWorkspace)
 
-  return (
-    <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-6 flex-shrink-0">
-        <div className="flex items-center gap-2 mb-1">
-          <CardTitle className="text-base font-semibold">
-            Invitation email
-          </CardTitle>
+  let body: React.ReactNode
+  if (isLoading && !configData) {
+    body = (
+      <div aria-busy="true" aria-label="Loading the invitation email" className="flex flex-col gap-8 xl:flex-row">
+        <div className="min-w-0 flex-1 space-y-3" aria-hidden="true">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-48 w-full" />
         </div>
-        <CardDescription className="text-sm text-muted-foreground">
-          Configure the sender address and template for automated invitation emails.
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent className="px-0 flex-1 overflow-y-auto pr-4 custom-scrollbar pb-10 min-h-0">
-        {isLoading ? (
-          <div className="text-sm text-muted-foreground animate-pulse">Loading configuration…</div>
-        ) : (
-          <div className="flex flex-col xl:flex-row gap-8 lg:gap-12 h-full">
-            {/* Form Section */}
-            <div className="space-y-6 flex-1 min-w-[50%]">
-              
-              {/* Logo Section */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <ImagePlus className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Email Logo</h3>
-                </div>
-                <div className="p-4 rounded-lg border border-border bg-card/50 flex flex-col items-start gap-4">
-                  {hasLogo ? (
-                    <div className="w-full space-y-4">
-                      <div className="bg-white p-4 rounded border flex items-center justify-center min-h-[100px]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img 
-                          src={getPublicLogoUrl()} 
-                          alt="The logo invitation emails carry" 
-                          className="max-h-[80px] max-w-[200px] object-contain"
-                        />
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={post.isSubmitting}
-                        onClick={() =>
-                          confirm({
-                            title: "Remove the email logo?",
-                            description: "Invitation emails go out without a logo until you upload one again.",
-                            confirmText: "Remove logo",
-                            destructive: true,
-                            onConfirm: () => void handleRemoveLogo(),
-                          })
-                        }
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        Remove logo
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="w-full text-center p-6 border-2 border-dashed rounded-lg text-muted-foreground flex flex-col items-center gap-2 transition-colors hover:border-primary/50 hover:bg-muted/50">
-                      <ImagePlus className="h-8 w-8 mb-2 opacity-50" />
-                      <p className="text-sm">No logo uploaded</p>
-                      <p className="text-xs">PNG, JPEG, WebP, SVG up to 2MB</p>
-                      <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        className="mt-2"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        Choose an image
-                      </Button>
-                    </div>
-                  )}
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    accept="image/png, image/jpeg, image/webp, image/svg+xml"
-                    onChange={handleLogoUpload}
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Template Section */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Message Template</h3>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="senderEmail">Sender Email Address</Label>
-                    <Input 
-                      id="senderEmail" 
-                      type="email" 
-                      placeholder="noreply@yourdomain.com" 
-                      value={formData.sender_email}
-                      onChange={(e) => setFormData({...formData, sender_email: e.target.value})}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Leave empty to send from your workspace domain. Whatever you set
-                      here must be a domain you control, or invitations will be
-                      rejected as spoofed.
-                    </p>
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="subject">Email Subject</Label>
-                    <Input 
-                      id="subject" 
-                      value={formData.subject}
-                      onChange={(e) => setFormData({...formData, subject: e.target.value})}
+        <Skeleton className="h-96 w-full xl:max-w-md" aria-hidden="true" />
+      </div>
+    )
+  } else if (isError && !configData) {
+    // No form: its fields would be empty, and saving them would replace the
+    // invitation's subject and template with nothing.
+    body = <ErrorState subject="the invitation email" onRetry={() => void mutate()} />
+  } else {
+    body = (
+      <div className="flex flex-col gap-8 xl:flex-row">
+        <div className="min-w-0 flex-1 space-y-6">
+          <section className="space-y-3" aria-labelledby="email-logo-heading">
+            {/* The workspace group's hue, as the admin menu draws Email. */}
+            <h3 id="email-logo-heading" className="flex items-center gap-2 text-sm font-medium">
+              <Tile hue={ADMIN_GROUP_HUE.workspace} size="sm">
+                <ImagePlus />
+              </Tile>
+              Logo
+            </h3>
+            <div className="rounded-lg border border-border p-4">
+              {hasLogo ? (
+                <div className="w-full space-y-4">
+                  <div className="flex min-h-[100px] items-center justify-center rounded-md border border-border bg-white p-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={getPublicLogoUrl()}
+                      alt="The logo invitation emails carry"
+                      className="max-h-[80px] max-w-[200px] object-contain"
                     />
                   </div>
-
-                  <div className="grid gap-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="template">HTML Template</Label>
-                      <Button variant="ghost" size="sm" onClick={handleResetToDefault} className="h-8 text-xs px-2">
-                        <RefreshCw className="h-3 w-3 mr-1" /> Reset to Default
-                      </Button>
-                    </div>
-                    <Textarea 
-                      id="template" 
-                      className="font-mono text-xs min-h-[250px]"
-                      value={formData.template}
-                      onChange={(e) => setFormData({...formData, template: e.target.value})}
-                      placeholder="HTML goes here…"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Available variables: <code className="bg-muted px-1 rounded">{"{{inviter_name}}"}</code> (who sent it; a subject says
-                      &quot;A teammate&quot; instead),{" "}
-                      <code className="bg-muted px-1 rounded">{"{{workspace_url}}"}</code>, <code className="bg-muted px-1 rounded">{"{{signup_link}}"}</code>,{" "}
-                      <code className="bg-muted px-1 rounded">{"{{logo_image}}"}</code>. Replies go to whoever sent the invitation.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-4 flex justify-end">
-                  <Button 
-                    onClick={handleSaveConfig} 
-                    disabled={!isDirty || post.isSubmitting}
-                    className="gap-2"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={post.isSubmitting}
+                    onClick={() =>
+                      confirm({
+                        title: "Remove the email logo?",
+                        description: "Invitation emails go out without a logo until you upload one again.",
+                        confirmText: "Remove logo",
+                        destructive: true,
+                        onConfirm: () => void handleRemoveLogo(),
+                      })
+                    }
                   >
-                    <Save className="h-4 w-4" aria-hidden="true" />
-                    Save invitation email
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    Remove logo
                   </Button>
                 </div>
+              ) : (
+                <div className="flex w-full flex-col items-center gap-2 rounded-md border-2 border-dashed border-border p-6 text-center text-muted-foreground transition-colors hover:border-foreground/30">
+                  <p className="text-sm">No logo yet. Invitations go out without one.</p>
+                  <p className="text-xs">PNG, JPEG, WebP or SVG, up to 2 MB.</p>
+                  <Button variant="secondary" size="sm" className="mt-1" onClick={() => fileInputRef.current?.click()}>
+                    Choose an image
+                  </Button>
+                </div>
+              )}
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/png, image/jpeg, image/webp, image/svg+xml"
+                aria-label="Choose a logo image"
+                onChange={handleLogoUpload}
+              />
+            </div>
+          </section>
+
+          <section className="space-y-3" aria-labelledby="email-message-heading">
+            <h3 id="email-message-heading" className="flex items-center gap-2 text-sm font-medium">
+              <Tile hue={ADMIN_GROUP_HUE.workspace} size="sm">
+                <Mail />
+              </Tile>
+              Message
+            </h3>
+            <SettingsList>
+              <SettingRow
+                label="Sender address"
+                description="Leave it empty to send from your workspace's domain. Whatever you set must be a domain you control, or invitations are rejected as spoofed."
+                controlId="senderEmail"
+              >
+                <Input
+                  id="senderEmail"
+                  name="sender-email"
+                  type="email"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={configData?.data?.default_sender || "noreply@yourdomain.com"}
+                  value={formData.sender_email}
+                  onChange={(e) => setFormData({ ...formData, sender_email: e.target.value })}
+                  aria-describedby="senderEmail-desc"
+                  className="h-8 w-64"
+                />
+              </SettingRow>
+
+              <div className="space-y-2 px-4 py-3">
+                <Label htmlFor="subject" className="text-sm font-medium leading-5">Subject</Label>
+                <Input
+                  id="subject"
+                  name="invitation-subject"
+                  autoComplete="off"
+                  value={formData.subject}
+                  onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                  className="h-8"
+                />
               </div>
 
-            </div>
+              <div className="space-y-2 px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="template" className="text-sm font-medium leading-5">Template (HTML)</Label>
+                  <Button variant="ghost" size="sm" onClick={handleResetToDefault} className="h-8 gap-1 px-2 text-xs">
+                    <RefreshCw className="h-3 w-3" aria-hidden="true" /> Reset to default
+                  </Button>
+                </div>
+                <Textarea
+                  id="template"
+                  name="invitation-template"
+                  className="min-h-[250px] font-mono text-xs"
+                  value={formData.template}
+                  onChange={(e) => setFormData({ ...formData, template: e.target.value })}
+                  placeholder="HTML goes here…"
+                  aria-describedby="template-help"
+                />
+                <p id="template-help" className="text-xs text-muted-foreground">
+                  Available variables: <code className="rounded-sm bg-muted px-1">{"{{inviter_name}}"}</code> (who sent it; a
+                  subject says &ldquo;A teammate&rdquo; instead),{" "}
+                  <code className="rounded-sm bg-muted px-1">{"{{workspace_url}}"}</code>,{" "}
+                  <code className="rounded-sm bg-muted px-1">{"{{signup_link}}"}</code>,{" "}
+                  <code className="rounded-sm bg-muted px-1">{"{{logo_image}}"}</code>. Replies go to whoever sent the
+                  invitation.
+                </p>
+              </div>
+            </SettingsList>
+          </section>
 
-            {/* Preview Section */}
-            <div className="flex-1 w-full xl:max-w-md 2xl:max-w-lg space-y-4 xl:sticky xl:top-0 h-fit">
-               <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">Live Preview</h3>
-                </div>
-                <div className="rounded-xl border border-black/10 bg-white shadow-xl overflow-hidden text-black min-h-[450px] flex flex-col">
-                  {/* macOS style header */}
-                  <div className="bg-[#f6f6f6] flex items-center px-4 py-3 border-b border-[#e5e5e5]">
-                    <div className="flex gap-2 mr-4">
-                      <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e]"></div>
-                      <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123]"></div>
-                      <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29]"></div>
-                    </div>
-                    <div className="text-xs font-semibold text-gray-500 text-center flex-1 pr-12">New Message</div>
-                  </div>
-                  {/* Email header mockup */}
-                  <div className="bg-white px-6 py-4 border-b border-[#e5e5e5] text-sm space-y-2">
-                    <div className="flex items-start">
-                      <span className="text-gray-400 font-medium w-16">From:</span> 
-                      <span className="font-medium text-gray-800 break-all">
-                        {formData.sender_email || configData?.data?.default_sender || (
-                          <span className="italic text-gray-500">your workspace default</span>
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex items-start">
-                      <span className="text-gray-400 font-medium w-16">Subject:</span> 
-                      <span className="font-bold text-gray-900">{previewSubject || "No subject"}</span>
-                    </div>
-                    <div className="flex items-start">
-                      <span className="text-gray-400 font-medium w-16">To:</span> 
-                      <span className="text-gray-500">invitee@example.com</span>
-                    </div>
-                  </div>
-                  {/* Email body preview */}
-                  <SafeHtml
-                    as="div"
-                    className="p-8 prose prose-sm max-w-none flex-1 bg-white break-words"
-                    html={previewHtml || "<div class='text-gray-400 italic'>Template is empty…</div>"}
-                    sanitizer={sanitizeImportedDocument}
-                  />
-                </div>
+          {/* Edits wait here until saved or put back, in view while the page
+              scrolls; the Save button sat at the foot of a long form. */}
+          <SaveBar
+            dirty={isDirty}
+            saving={post.isSubmitting}
+            onSave={() => void handleSaveConfig()}
+            onDiscard={() => setFormData(originalData)}
+            what="invitation email changes"
+          />
+        </div>
+
+        {/* The email as it is sent: a plain message on white, as a mail client
+            shows it. It was dressed as a macOS window, with three coloured dots
+            in raw hex under a heavy shadow, which is a fake screenshot. */}
+        <div className="h-fit w-full flex-1 space-y-3 xl:sticky xl:top-0 xl:max-w-md 2xl:max-w-lg">
+          <h3 className="text-sm font-medium">Preview</h3>
+          <div className="flex min-h-[450px] flex-col overflow-hidden rounded-lg border border-border bg-white text-black">
+            <div className="space-y-2 border-b border-neutral-200 px-6 py-4 text-sm">
+              <div className="flex items-start">
+                <span className="w-16 font-medium text-neutral-500">From</span>
+                <span className="break-all font-medium text-neutral-800">
+                  {formData.sender_email || configData?.data?.default_sender || (
+                    <span className="italic text-neutral-500">your workspace default</span>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-start">
+                <span className="w-16 font-medium text-neutral-500">Subject</span>
+                <span className="font-semibold text-neutral-900">{previewSubject || "No subject"}</span>
+              </div>
+              <div className="flex items-start">
+                <span className="w-16 font-medium text-neutral-500">To</span>
+                <span className="text-neutral-600">invitee@example.com</span>
+              </div>
             </div>
+            <SafeHtml
+              as="div"
+              className="prose prose-sm max-w-none flex-1 break-words bg-white p-8"
+              html={previewHtml || "<div class='text-gray-400 italic'>The template is empty.</div>"}
+              sanitizer={sanitizeImportedDocument}
+            />
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <SettingsSection
+      title="Invitation email"
+      description="Who invitations come from and what they say. The preview shows the email as it is sent."
+    >
+      {body}
+    </SettingsSection>
   )
 }
 
