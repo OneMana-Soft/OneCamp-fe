@@ -138,6 +138,21 @@ describe("how the invite dialog reads", () => {
     const status = screen.getByRole("status", { name: "Loading the people" })
     expect(status.querySelector(".animate-spin")).toBeNull()
     expect(status.querySelector(".animate-shimmer")).toBeTruthy()
+    // The list's own frame and rows (a box, a name, an address), where it was
+    // the generic rows in a box of their own.
+    expect(status.tagName).toBe("UL")
+    expect(status.className).toContain("rounded-md")
+    const rows = status.querySelectorAll("li")
+    expect(rows.length).toBe(4)
+    expect(rows[0].className).toContain("px-3 py-2")
+    expect(rows[0].querySelector(".size-4")).toBeTruthy()
+  })
+
+  it("says nobody is left to invite as an empty state, not a line in a dashed box", () => {
+    people = offer(null, 0)
+    render(<ImportInviteDialog jobId="j1" label="Acme" open onOpenChange={() => {}} />)
+    expect(screen.getByText("Nobody left to invite")).toBeTruthy()
+    expect(document.querySelector(".border-dashed")).toBeNull()
   })
 
   // Its title's icon was orange, the colour that means "press me".

@@ -74,4 +74,16 @@ describe("a Slack import's plan and options", () => {
     expect(planSlackImport.mock.calls[1][1]).toMatchObject({ channel_prefix: "slack-" })
     await waitFor(() => expect(screen.queryByText("These counts are from before your changes.")).toBeNull())
   })
+
+  // The prefix field was w-40 and the size cap w-28, so two fields in one
+  // list started at two places once the row put them at its end.
+  it("gives the options' two fields one width and one height", async () => {
+    open()
+    const prefix = await screen.findByLabelText("Channel name prefix (optional)")
+    const cap = screen.getByLabelText("Skip files larger than (MB)")
+    for (const field of [prefix, cap]) {
+      expect(field.className).toContain("w-40")
+      expect(field.className).toMatch(/(^|\s)h-8(\s|$)/)
+    }
+  })
 })

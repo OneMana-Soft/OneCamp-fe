@@ -24,7 +24,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tile } from "@/components/ui/graphics/Tile"
 import { Loader2, Users } from "@/lib/icons"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
@@ -116,11 +117,20 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
         </DialogHeader>
 
         {isLoading && !data ? (
-          <div role="status" aria-label="Loading the people" className="rounded-md border px-3 py-1">
-            <SkeletonRows rows={4} avatar={false} />
-          </div>
+          // The list's own rows: a box, a name and an address, at the rows' padding.
+          <ul role="status" aria-label="Loading the people" className="divide-y rounded-md border">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <li key={i} aria-hidden="true" className="flex items-center gap-3 px-3 py-2">
+                <Skeleton className="size-4 shrink-0 rounded-sm" />
+                <span className="min-w-0 flex-1 space-y-1.5">
+                  <Skeleton className={i % 2 === 0 ? "h-3.5 w-32" : "h-3.5 w-24"} />
+                  <Skeleton className="h-3 w-44" />
+                </span>
+              </li>
+            ))}
+          </ul>
         ) : isError && !data ? (
-          <ErrorState subject="the people from this import" onRetry={() => void mutate()} />
+          <ErrorState compact subject="the people from this import" onRetry={() => void mutate()} />
         ) : run ? (
           <ul className="space-y-2 text-sm" aria-label="What happened">
             {inviteSummary(run, data?.email).map((line) => (
@@ -146,9 +156,13 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
               </p>
             )}
             {people.length === 0 ? (
-              <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-                Nobody left to invite: everyone who came across is already here or invited.
-              </p>
+              // An empty state with the workspace's tile, where it was a line in a dashed box.
+              <EmptyState
+                icon={Users}
+                hue={ADMIN_GROUP_HUE.workspace}
+                title="Nobody left to invite"
+                description="Everyone who came across is already here or invited."
+              />
             ) : (
               <ul className="divide-y rounded-md border" aria-label="People who came across">
                 {people.map((p) => {
