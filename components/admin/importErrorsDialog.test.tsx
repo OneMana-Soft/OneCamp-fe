@@ -57,3 +57,35 @@ describe("an import's error log", () => {
     expect(screen.getByRole("radio", { name: "Warnings" }).getAttribute("aria-checked")).toBe("true")
   })
 })
+
+// The log reads as the rest of the import tab: the shared segmented control,
+// severities as a dot and a word, an empty log as an empty state, and Show
+// more in the footer beside Close, as the Slack import's log has it.
+describe("how an import's error log reads", () => {
+  it("filters with the shared segmented control and says severity as a dot and a word", async () => {
+    getImportErrors.mockResolvedValue([row(1, "fatal")])
+    render(<ImportErrorsDialog jobId="j1" open onOpenChange={() => {}} />)
+    await screen.findByText("File 1 was over the size cap and was left out.")
+    expect(screen.getByRole("radio", { name: "All" }).className).toContain("data-[state=checked]:bg-card")
+    const fatal = screen.getByText("Fatal", { selector: "[data-status-word]" })
+    expect(fatal.getAttribute("data-status-word")).toBe("danger")
+    expect(fatal.className).not.toMatch(/border|bg-destructive/)
+  })
+
+  it("says an empty log with the workspace's tile, not a line in a box", async () => {
+    getImportErrors.mockResolvedValue([])
+    render(<ImportErrorsDialog jobId="j1" open onOpenChange={() => {}} />)
+    expect(await screen.findByText("Nothing was logged")).toBeTruthy()
+    expect(document.querySelector(".hue-sun")).toBeTruthy()
+    expect(document.querySelector("p.rounded-md")).toBeNull()
+  })
+
+  it("keeps Show more in the footer, beside Close", async () => {
+    getImportErrors.mockResolvedValue(Array.from({ length: 100 }, (_, i) => row(i)))
+    render(<ImportErrorsDialog jobId="j1" open onOpenChange={() => {}} />)
+    const more = await screen.findByRole("button", { name: "Show more" })
+    // The dialog's corner X is named Close too; this is the footer's.
+    const close = screen.getAllByRole("button", { name: "Close" }).find((b) => b.textContent?.trim() === "Close")!
+    expect(more.closest("[class*='justify-between']")).toBe(close.closest("[class*='justify-between']"))
+  })
+})

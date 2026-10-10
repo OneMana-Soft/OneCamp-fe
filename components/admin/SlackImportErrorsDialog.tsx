@@ -21,9 +21,8 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { getSlackImportErrors, type SlackImportError } from "@/services/slackImportService"
-import { ErrorRow, SeverityFilter, type SeverityChoice } from "@/components/admin/ImportErrorsDialog"
+import { EmptyLog, ErrorRow, ErrorRowsSkeleton, LOG_LIST, SeverityFilter, type SeverityChoice } from "@/components/admin/ImportErrorsDialog"
 
 interface Props {
   jobId: string
@@ -33,12 +32,6 @@ interface Props {
 
 const PAGE_SIZE = 100
 
-const EMPTY_LINE: Record<SeverityChoice, string> = {
-  "": "Nothing was logged: the import brought everything across.",
-  warning: "No warnings.",
-  error: "No errors.",
-  fatal: "Nothing stopped this import.",
-}
 
 export const SlackImportErrorsDialog: React.FC<Props> = ({ jobId, open, onOpenChange }) => {
   const [filter, setFilter] = useState<SeverityChoice>("")
@@ -90,15 +83,13 @@ export const SlackImportErrorsDialog: React.FC<Props> = ({ jobId, open, onOpenCh
 
         <div className="min-h-0 flex-1 overflow-auto">
           {loading && items.length === 0 ? (
-            <div role="status" aria-label="Loading the error log" className="rounded-md border border-border px-3 py-1">
-              <SkeletonRows rows={4} avatar={false} />
-            </div>
+            <ErrorRowsSkeleton />
           ) : failed === "first" ? (
-            <ErrorState subject="the error log" onRetry={() => void fetchPage(0)} retrying={loading} />
+            <ErrorState compact subject="the error log" onRetry={() => void fetchPage(0)} retrying={loading} />
           ) : items.length === 0 ? (
-            <p className="rounded-md border border-border px-3 py-8 text-center text-sm text-muted-foreground">{EMPTY_LINE[filter]}</p>
+            <EmptyLog choice={filter} />
           ) : (
-            <ul aria-label="Logged problems" className="divide-y divide-border rounded-md border border-border">
+            <ul aria-label="Logged problems" className={LOG_LIST}>
               {items.map((r) => (
                 <ErrorRow key={r.id} row={{ ...r, source: r.slack_id }} />
               ))}
@@ -111,10 +102,10 @@ export const SlackImportErrorsDialog: React.FC<Props> = ({ jobId, open, onOpenCh
           )}
         </div>
 
-        <DialogFooter className="flex justify-between">
+        <DialogFooter className="flex-row justify-between gap-2 sm:justify-between">
           <div>
             {!done && items.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => void fetchPage(items.length)} disabled={loading}>
+              <Button variant="outline" onClick={() => void fetchPage(items.length)} disabled={loading}>
                 {loading ? "Loading…" : "Show more"}
               </Button>
             )}
