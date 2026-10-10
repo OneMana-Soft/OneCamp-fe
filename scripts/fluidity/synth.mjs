@@ -111,6 +111,8 @@ export async function manyMembers(ctx, channelId, { total = 200 } = {}) {
       ch_member_is_admin: false,
       is_bot: false,
     }))
+    // The last one by a name the steps wait for: the list has drawn to its end.
+    if (made.length) Object.assign(made[made.length - 1], { user_name: "Rhea Silva", user_full_name: "Rhea Silva" })
     if (!info) return route.fulfill({ response: resp })
     info.ch_members = [...real, ...made]
     if (typeof info.ch_member_count === "number") info.ch_member_count = info.ch_members.length
