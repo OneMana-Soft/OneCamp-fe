@@ -2,10 +2,11 @@
 
 import { bottomNavTab, pageOwnsBottomEdge } from "@/lib/utils/mobileBottomNav"
 import { Bell, Hash, Home, MessageCircle, MoreHorizontal } from "@/lib/icons"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
+import Link from "next/link"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store/store"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { formatCount } from "@/lib/utils/helpers/formatCount"
 import { UserProfileDrawer } from "@/components/drawers/userProfileDrawer"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -41,7 +42,6 @@ const NAV_ITEMS: NavItem[] = [
 
 export function MobileBottomNavigationBar() {
     const pathname = usePathname()
-    const router = useRouter()
     const [drawerOpen, setDrawerOpen] = useState(false)
 
     // Which surfaces own the bottom edge of the screen.
@@ -61,6 +61,17 @@ export function MobileBottomNavigationBar() {
     // The list, and why each entry is on it: lib/utils/mobileBottomNav.ts.
     const isVisible = !pageOwnsBottomEdge(pathname)
     const currentTab = bottomNavTab(pathname, NAV_ITEMS.map((it) => it.page))
+
+    // The tab you move to lands with a small spring (the playful layer's
+    // animate-spring, 1 -> 1.12 -> 1 over 220ms): on a change of tab only,
+    // never when a page loads, and still under prefers-reduced-motion.
+    const shownTab = useRef(currentTab)
+    const [springTab, setSpringTab] = useState<string | null>(null)
+    useEffect(() => {
+        if (shownTab.current === currentTab) return
+        shownTab.current = currentTab
+        setSpringTab(currentTab)
+    }, [currentTab])
 
     const userSidebarState = useSelector((state: RootState) => state.users.userSidebar)
 
@@ -99,11 +110,15 @@ export function MobileBottomNavigationBar() {
         <>
             <nav
                 aria-label="Primary"
+                // Off screen on a page that owns the bottom edge, and out of the
+                // tab order with it: translated away, its tabs still took focus.
+                inert={!isVisible}
+                aria-hidden={!isVisible || undefined}
                 className={cn(
                     "fixed bottom-0 left-0 right-0 z-[var(--z-fixed)]",
                     // The theme's wash, as the top bar and the desktop sidebar.
                     "bg-sidebar border-t border-border/60",
-                    "transition-transform duration-300 ease-out",
+                    "transition-transform duration-200 ease-standard",
                     isVisible ? "translate-y-0" : "translate-y-full",
                 )}
                 style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -114,21 +129,30 @@ export function MobileBottomNavigationBar() {
                         const unread = getUnreadCount(unreadKey)
                         return (
                             <li key={page} className="contents">
-                                <button
-                                    type="button"
-                                    onClick={() => router.push(`/${page}`)}
+                                {/* A link, prefetched: a tab is navigation, and a
+                                    button that pushed the route waited for the
+                                    route's code after the tap instead of before. */}
+                                <Link
+                                    href={`/${page}`}
+                                    prefetch={true}
                                     aria-current={isActive ? "page" : undefined}
                                     aria-label={name ?? label}
                                     className={cn(
                                         "flex flex-col items-center justify-center gap-1 h-full",
                                         "transition-colors duration-100",
                                         "active:bg-accent/40",
+                                        // The current place in the theme's accent, as
+                                        // the desktop sidebar marks it with the accent's
+                                        // bar: choosing a theme re-colours it too.
                                         isActive
-                                            ? "text-foreground"
+                                            ? "text-primary"
                                             : "text-muted-foreground hover:text-foreground",
                                     )}
                                 >
-                                    <span className="relative">
+                                    <span
+                                        className={cn("relative", springTab === page && "animate-spring")}
+                                        onAnimationEnd={() => setSpringTab(null)}
+                                    >
                                         <Icon
                                             className={cn(
                                                 "h-[22px] w-[22px] transition-transform duration-100",
@@ -149,15 +173,16 @@ export function MobileBottomNavigationBar() {
                                             </span>
                                         )}
                                     </span>
+                                    {/* 12px: 11 is the floor, kept for counts. */}
                                     <span
                                         className={cn(
-                                            "text-3xs leading-none",
+                                            "text-2xs leading-none",
                                             isActive ? "font-semibold" : "font-medium",
                                         )}
                                     >
                                         {label}
                                     </span>
-                                </button>
+                                </Link>
                             </li>
                         )
                     })}
@@ -171,12 +196,16 @@ export function MobileBottomNavigationBar() {
                                 "flex flex-col items-center justify-center gap-1 h-full",
                                 "transition-colors duration-100 active:bg-accent/40",
                                 currentTab === "more"
-                                    ? "text-foreground"
+                                    ? "text-primary"
                                     : "text-muted-foreground hover:text-foreground",
                             )}
                         >
-                            <MoreHorizontal className="h-[22px] w-[22px]" strokeWidth={currentTab === "more" ? 2.25 : 1.75} />
-                            <span className={cn("text-3xs leading-none", currentTab === "more" ? "font-semibold" : "font-medium")}>More</span>
+                            <MoreHorizontal
+                                className={cn("h-[22px] w-[22px]", springTab === "more" && "animate-spring")}
+                                onAnimationEnd={() => setSpringTab(null)}
+                                strokeWidth={currentTab === "more" ? 2.25 : 1.75}
+                            />
+                            <span className={cn("text-2xs leading-none", currentTab === "more" ? "font-semibold" : "font-medium")}>More</span>
                         </button>
                     </li>
                 </ul>
