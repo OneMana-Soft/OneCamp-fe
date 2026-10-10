@@ -27,6 +27,7 @@ import React from "react"
 import { Button } from "@/components/ui/button"
 import { Download, ShieldCheck, ShieldAlert } from "@/lib/icons"
 import type { EvidencePack, EvidenceManifestEntry } from "@/services/settingsService"
+import { kicker } from "@/components/ui/pageHeader"
 
 /** A section title a person reads, from an id a programmer wrote. */
 export function sectionTitle(id: string): string {
@@ -73,7 +74,8 @@ export function cellText(value: unknown): string {
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="min-w-0">
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+            {/* A quiet label over its value, as the task panel's fields are. */}
+            <dt className={kicker}>{label}</dt>
             <dd className="mt-0.5 break-words text-sm text-foreground">{value}</dd>
         </div>
     )
@@ -90,7 +92,7 @@ const EvidencePackView: React.FC<{
     return (
         <article className="mx-auto max-w-4xl px-4 py-8 print:max-w-none print:px-0 print:py-0">
             <header className="border-b border-border pb-6">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                <p className={kicker}>
                     {pack.pack.product} · Evidence pack
                 </p>
                 <h1 className="mt-1 text-2xl font-semibold tracking-tight">
