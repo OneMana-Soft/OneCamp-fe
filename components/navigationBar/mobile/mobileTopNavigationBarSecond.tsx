@@ -135,7 +135,8 @@ export function MobileTopNavigationBarSecond() {
                 if (path.length < 5)
                     return <MobileTopNavigationBarSecondDoc docId={path[3]}/>;
                 if (path.length < 6)
-                    return "Comment";
+                    // A doc's comments page lists all of them.
+                    return "Comments";
                 break;
             case "board":
                 if (path.length < 4)

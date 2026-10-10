@@ -40,6 +40,7 @@ describe("the phone's top bar", () => {
     ["/app/settings/assistants", "Your AI assistants"],
     ["/app/settings/api-tokens", "API tokens"],
     ["/app/settings", "Settings"],
+    ["/app/doc/d1/comments", "Comments"],
   ])("titles %s as %s", (path, title) => {
     pathname = path
     render(<MobileTopNavigationBarSecond />)

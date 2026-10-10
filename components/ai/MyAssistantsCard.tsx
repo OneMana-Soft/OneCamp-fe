@@ -59,7 +59,7 @@ const PROMISES = [
 ]
 
 /** `withTitle={false}` under a page header that already names it. */
-function MyAssistantsCard({ withTitle = true }: { withTitle?: boolean } = {}) {
+function MyAssistantsCard({ withTitle = true }: { withTitle?: boolean }) {
   const res = useFetch<MyAssistantsResponse>(GetEndpointUrl.MyAssistants)
   const post = usePost()
   const recipes = React.useMemo(() => mcpConnectRecipes(), [])
@@ -222,4 +222,4 @@ function MyAssistantsCard({ withTitle = true }: { withTitle?: boolean } = {}) {
   )
 }
 
-export default withAI(MyAssistantsCard)
+export default withAI<{ withTitle?: boolean }>(MyAssistantsCard)
