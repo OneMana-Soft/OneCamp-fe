@@ -16,6 +16,7 @@ import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { archiveProblem } from "@/components/admin/archiveProblem"
+import { ARCHIVE_ENTITY_ORDER, archiveEntity } from "@/components/admin/archiveEntities"
 
 interface ArchivedItem {
   id: string
@@ -29,14 +30,6 @@ interface Props {
   onSuccess: () => void
 }
 
-const ENTITY_LABELS: Record<string, string> = {
-  posts: "Channel posts",
-  chats: "Direct messages",
-  tasks: "Tasks",
-  docs: "Documents",
-  recordings: "Recordings",
-  attachments: "Attachments",
-}
 
 const PAGE = 50
 
@@ -139,7 +132,7 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
     }
   }
 
-  const label = ENTITY_LABELS[entityType]?.toLowerCase() || entityType
+  const label = archiveEntity(entityType).label.toLowerCase()
 
   return (
     <Dialog open={open} onOpenChange={(o) => !restoring && onOpenChange(o)}>
@@ -160,9 +153,9 @@ export default function ArchiveRestoreDialog({ open, onOpenChange, onSuccess }: 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(ENTITY_LABELS).map(([key, name]) => (
+                {ARCHIVE_ENTITY_ORDER.map((key) => (
                   <SelectItem key={key} value={key}>
-                    {name}
+                    {archiveEntity(key).label}
                   </SelectItem>
                 ))}
               </SelectContent>
