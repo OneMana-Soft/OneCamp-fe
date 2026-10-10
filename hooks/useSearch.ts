@@ -12,6 +12,8 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import {getOtherUserId} from "@/lib/utils/getOtherUserId";
 import { getAttachmentLightboxData } from "@/lib/utils/helpers/search";
 
+const NO_RESULTS: SearchResult[] = []
+
 interface UseSearchProps {
     initialQuery?: string;
     debounceMs?: number;
@@ -30,14 +32,20 @@ export const useSearch = ({
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
     const dispatch = useDispatch()
 
+    const searching = debouncedValue.length >= 2
+    // The last answer stays up while the next word's is on its way. Each new
+    // query was a new key with nothing in it, so the results blinked to a
+    // skeleton and back on every pause in typing, and the command palette
+    // swapped its commands in and out under the cursor.
     const { data: searchData, isLoading } = useFetch<any>(
-        debouncedValue && debouncedValue.length >= 2
-            ? GlobalSearchGet(debouncedValue)
-            : ""
+        searching ? GlobalSearchGet(debouncedValue) : "",
+        undefined,
+        { keepPreviousData: true },
     )
 
-    const results: SearchResult[] = searchData?.data?.page || []
-    const isSearching = isLoading && debouncedValue.length >= 2
+    const results: SearchResult[] = (searching && searchData?.data?.page) || NO_RESULTS
+    // Waiting with nothing to show yet: a first search, not a refinement.
+    const isSearching = isLoading && searching && !searchData
 
     useEffect(() => {
         if (inputValue && debouncedValue) {

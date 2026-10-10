@@ -65,6 +65,27 @@ const contextText = (result: SearchResult): string => {
     }
 }
 
+// The id fields a hit of each kind carries, in the order they're trusted.
+const ID_FIELDS = ["uuid", "id", "chat_id", "post_id", "comment_id", "comment_uuid", "attachment_id", "doc_uuid", "board_uuid", "task_id", "user_id", "project_id", "ch_id", "team_id"]
+
+/**
+ * Keys for a list of search hits that stay with each hit, not with its
+ * position: a refined query reorders the list, and keyed by index every row
+ * re-rendered as somebody else's. A hit with no id, or one listed twice, falls
+ * back to its position, so the keys are always unique.
+ */
+export function searchResultKeys(results: SearchResult[]): string[] {
+  const seen = new Set<string>()
+  return results.map((result, index) => {
+    const item = (result as unknown as Record<string, Record<string, unknown> | undefined>)[result.type]
+    const id = item ? ID_FIELDS.map((f) => item[f]).find((v) => typeof v === "string" && v !== "") : undefined
+    let key = `${result.type}:${id ?? `#${index}`}`
+    if (seen.has(key)) key = `${key}#${index}`
+    seen.add(key)
+    return key
+  })
+}
+
 export const getIcon = (result: SearchResult, iconClassName = "h-4 w-4") => {
     if (result.type === "user") {
         return (
