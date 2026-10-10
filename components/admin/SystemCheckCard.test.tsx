@@ -203,3 +203,42 @@ describe("SystemCheckCard", () => {
         expect(screen.getByText("go-one-camp journey")).toBeTruthy()
     })
 })
+
+describe("how the health check reads", () => {
+    // A spinner and "Probing each subsystem…" held no space, so the list
+    // jumped in when it came.
+    it("stands rows of the checks' shape in while it checks", () => {
+        runSystemCheck.mockReturnValue(new Promise(() => {}))
+        render(<SystemCheckCard />)
+        expect(screen.getByRole("status", { name: "Checking the installation" })).toBeTruthy()
+        expect(screen.getByRole("button", { name: "Checking…" })).toBeTruthy()
+    })
+
+    // Each check was a bordered card of its own.
+    it("lists each group's checks as rows of one list", async () => {
+        runSystemCheck.mockResolvedValue(
+            report({
+                healthy: 2,
+                total: 2,
+                checks: [
+                    { name: "storage", kind: "dependency", describe: "MinIO is reachable.", healthy: true, took_ms: 8 },
+                    { name: "search", kind: "dependency", describe: "OpenSearch is reachable.", healthy: true, took_ms: 5 },
+                ],
+            }),
+        )
+        render(<SystemCheckCard />)
+        const list = await screen.findByRole("list", { name: "Services this install needs" })
+        expect(list.querySelectorAll("li")).toHaveLength(2)
+    })
+
+    // The verdict carried an icon inside its tinted chip, beside the words.
+    it("says its verdict as a tinted word, and its title's icon sits on the system tile", async () => {
+        runSystemCheck.mockResolvedValue(
+            report({ healthy: 1, total: 1, checks: [{ name: "email", kind: "dependency", describe: "A key is set.", healthy: true, took_ms: 2 }] }),
+        )
+        const { container } = render(<SystemCheckCard />)
+        const verdict = await screen.findByText("All 1 healthy")
+        expect(verdict.querySelector("svg")).toBeNull()
+        expect(container.querySelector(".hue-moss")).toBeTruthy()
+    })
+})

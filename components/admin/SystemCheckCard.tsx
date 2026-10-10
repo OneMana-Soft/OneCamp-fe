@@ -31,8 +31,12 @@ import React, { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { Tile } from "@/components/ui/graphics/Tile"
 import { Activity, AlertTriangle, CheckCircle2, Info, Loader2, RefreshCw } from "@/lib/icons"
 import { apiErrorMessage } from "@/lib/utils/apiError"
+import { shortTime } from "@/lib/utils/date/shortDate"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { runSystemCheck, type SystemCheckKind, type SystemCheckReport, type SystemCheckResult } from "@/services/systemCheckService"
 
 /** Sub-second timings read as noise; whole milliseconds are what an operator compares. */
@@ -46,7 +50,7 @@ function formatCheckedAt(unixSeconds: number): string {
     if (!unixSeconds) return ""
     const d = new Date(unixSeconds * 1000)
     if (Number.isNaN(d.getTime())) return ""
-    return d.toLocaleTimeString()
+    return shortTime(d)
 }
 
 /**
@@ -71,8 +75,9 @@ const SECTIONS: { kind: SystemCheckKind; title: string; blurb: string }[] = [
     },
 ]
 
+// One check: a row of its group's list. Each was a bordered card of its own.
 const CheckRow: React.FC<{ check: SystemCheckResult }> = ({ check }) => (
-    <div className="rounded-lg border border-border bg-card px-3 py-2.5">
+    <li className="px-3 py-2.5">
         <div className="flex items-start gap-2">
             {check.healthy ? (
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />
@@ -103,7 +108,7 @@ const CheckRow: React.FC<{ check: SystemCheckResult }> = ({ check }) => (
                     ))}
             </div>
         </div>
-    </div>
+    </li>
 )
 
 const SystemCheckCard: React.FC = () => {
@@ -133,28 +138,28 @@ const SystemCheckCard: React.FC = () => {
     const unhealthy = report?.unhealthy ?? 0
     const total = report?.total ?? 0
 
+    // The verdict as a tinted word, its status in the status tokens. It carried
+    // an icon inside the chip beside the words.
     const summary = (() => {
-        if (loading && !report) return <Badge variant="outline">Checking…</Badge>
+        if (loading && !report) return null
         if (error) {
             return (
-                <Badge variant="outline" className="border-warning/30 text-warning-ink">
+                <Badge variant="outline" className="rounded-sm border-warning/30 text-warning-ink">
                     Unavailable
                 </Badge>
             )
         }
         if (!report) return null
-        if (total === 0) return <Badge variant="outline">No checks in this build</Badge>
+        if (total === 0) return <Badge variant="outline" className="rounded-sm">No checks in this build</Badge>
         if (unhealthy > 0) {
             return (
-                <Badge className="border-destructive/30 bg-destructive/10 text-danger-ink">
-                    <AlertTriangle className="mr-1 h-3.5 w-3.5" />
+                <Badge className="rounded-sm border-destructive/30 bg-destructive/10 text-danger-ink">
                     {unhealthy} of {total} need attention
                 </Badge>
             )
         }
         return (
-            <Badge className="border-success/30 bg-success/10 text-success-ink">
-                <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+            <Badge className="rounded-sm border-success/30 bg-success/10 text-success-ink">
                 All {total} healthy
             </Badge>
         )
@@ -165,8 +170,10 @@ const SystemCheckCard: React.FC = () => {
             <CardHeader className="pb-3">
                 {/* Wraps: on a phone the title, the verdict and the button do not fit
                     one row, and the title was squeezed onto two lines. */}
-                <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                    <Activity className="h-4 w-4" />
+                <CardTitle className="flex flex-wrap items-center gap-2.5 text-base">
+                    <Tile hue={ADMIN_GROUP_HUE.system} size="md">
+                        <Activity />
+                    </Tile>
                     <span className="whitespace-nowrap">Installation health</span>
                     <span className="ml-auto flex items-center gap-2">
                         {summary}
@@ -175,14 +182,14 @@ const SystemCheckCard: React.FC = () => {
                             size="sm"
                             onClick={() => void run()}
                             disabled={loading}
-                            className="h-7"
+                            className="h-8"
                         >
                             {loading ? (
                                 <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                             ) : (
                                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                             )}
-                            {loading ? "Running" : "Run again"}
+                            {loading ? "Checking…" : "Run again"}
                         </Button>
                     </span>
                 </CardTitle>
@@ -208,10 +215,10 @@ const SystemCheckCard: React.FC = () => {
                     </p>
                 )}
 
+                {/* Rows of the checks' shape, so the list doesn't jump in when it comes. */}
                 {!error && !report && loading && (
-                    <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Probing each subsystem…
+                    <div role="status" aria-label="Checking the installation" className="rounded-lg border border-border px-3 py-1">
+                        <SkeletonRows rows={4} avatar={false} />
                     </div>
                 )}
 
@@ -229,11 +236,11 @@ const SystemCheckCard: React.FC = () => {
                                     <h3 className="text-sm font-medium">{title}</h3>
                                     <p className="text-xs text-muted-foreground">{blurb}</p>
                                 </div>
-                                <div className="space-y-2">
+                                <ul aria-label={title} className="divide-y divide-border rounded-lg border border-border">
                                     {rows.map((check) => (
                                         <CheckRow key={check.name} check={check} />
                                     ))}
-                                </div>
+                                </ul>
                             </section>
                         )
                     })}
