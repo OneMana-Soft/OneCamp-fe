@@ -269,6 +269,11 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
     const isAdmin = Boolean(projectInfo.data?.data?.project_is_admin)
     const canEdit = useCallback(() => isAdmin, [isAdmin])
     const rowIds = table.getRowModel().rows.map((r) => r.id)
+    // The first rows reach the table through the store, an effect after the
+    // answer. Until they do, the skeleton stays (not a frame of "No tasks yet"),
+    // and the pagination waits under it: drawn under the skeleton, it moved
+    // down as the rows came in (a layout shift opening a project).
+    const firstLoad = taskListState.length === 0 && (projectInfo.isLoading || (projectInfo.data?.data.project_tasks?.length ?? 0) > 0)
 
     return (
         <KeyboardList tasks={taskListState} canEdit={canEdit} listProjectId={projectId} statusOptions={statusOpts} className="space-y-4">
@@ -296,7 +301,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                                     ))}
                                 </TaskTableRow>
                             ))
-                        ) : projectInfo.isLoading ? (
+                        ) : projectInfo.isLoading || firstLoad ? (
                             <TableRowsSkeleton columns={table.getVisibleLeafColumns().length + 1} />
                         ) : (
                             <TableRow>
@@ -318,7 +323,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                     </TableBody>
                 </Table>
             </div>
-            <TaskTablePagination table={table} />
+            {!firstLoad && <TaskTablePagination table={table} />}
         </KeyboardList>
     )
 }
