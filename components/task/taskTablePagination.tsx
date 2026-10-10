@@ -40,7 +40,7 @@ export function TaskTablePagination<TData>({
                             table.setPageSize(Number(value));
                         }}
                     >
-                        <SelectTrigger className="h-8 w-[70px] text-xs tabular-nums" aria-label={t("rowsPerPage", { defaultValue: "Rows per page" })}>
+                        <SelectTrigger dense className="h-8 w-[70px] text-xs tabular-nums" aria-label={t("rowsPerPage", { defaultValue: "Rows per page" })}>
                             <SelectValue placeholder={table.getState().pagination.pageSize} />
                         </SelectTrigger>
                         <SelectContent side="top">

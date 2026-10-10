@@ -59,7 +59,7 @@ const AiModelPicker: React.FC = () => {
 
   return (
     <Select value={selected} onValueChange={handleChange} disabled={saving}>
-      <SelectTrigger
+      <SelectTrigger dense
         className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs text-muted-foreground hover:text-foreground focus:ring-0"
         aria-label="AI model"
       >

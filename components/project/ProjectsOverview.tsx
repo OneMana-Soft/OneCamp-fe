@@ -298,7 +298,7 @@ export function ProjectsOverview() {
         )}
         {view !== "workload" && !ownTools && (
           <Select value={sort} onValueChange={(v) => isSort(v) && setSort(v)}>
-            <SelectTrigger className="h-8 w-auto gap-1.5 text-xs" aria-label="Sort">
+            <SelectTrigger dense className="h-8 w-auto gap-1.5 text-xs" aria-label="Sort">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

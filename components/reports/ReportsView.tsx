@@ -166,7 +166,7 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   const controls = (
     <div className="flex flex-wrap items-center gap-2">
       <Select value={String(weeks)} onValueChange={(v) => isWeeks(Number(v)) && setWeeks(Number(v))}>
-        <SelectTrigger className="h-8 w-auto gap-1.5 text-xs" aria-label="Weeks">
+        <SelectTrigger dense className="h-8 w-auto gap-1.5 text-xs" aria-label="Weeks">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

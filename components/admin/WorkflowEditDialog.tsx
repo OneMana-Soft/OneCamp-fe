@@ -492,7 +492,7 @@ export function WorkflowEditDialog({ open, workflow, onClose, onSaved }: Props) 
                                     <div className="flex items-center gap-2 pt-1">
                                         <Label htmlFor="wf-match" className="text-xs font-normal text-muted-foreground">Match</Label>
                                         <Select value={matchType} onValueChange={(v) => setMatchType(v as "any" | "all")}>
-                                            <SelectTrigger id="wf-match" className="h-8 w-auto gap-1">
+                                            <SelectTrigger dense id="wf-match" className="h-8 w-auto gap-1">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>

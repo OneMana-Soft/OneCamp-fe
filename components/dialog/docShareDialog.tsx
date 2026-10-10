@@ -237,7 +237,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                                         onValueChange={handlePrivacyChange}
                                         disabled={isUpdating || !isOwner}
                                     >
-                                        <SelectTrigger className="h-auto p-0 border-none shadow-none focus:ring-0 text-sm font-medium hover:text-primary transition-colors justify-start gap-1 w-auto">
+                                        <SelectTrigger dense className="h-auto p-0 border-none shadow-none focus:ring-0 text-sm font-medium hover:text-primary transition-colors justify-start gap-1 w-auto">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>

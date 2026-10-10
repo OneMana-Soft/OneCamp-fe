@@ -43,7 +43,7 @@ export function TaskCycleField({ taskUUID, projectId, isAdmin }: { taskUUID: str
       </div>
       <div className="min-w-0">
         <Select value={current?.id ?? NONE} onValueChange={change} disabled={!isAdmin || isSubmitting}>
-          <SelectTrigger className={inlineSelect} aria-label="Cycle">
+          <SelectTrigger dense className={inlineSelect} aria-label="Cycle">
             <SelectValue>{current ? cycleLabel(current) : <span className="text-muted-foreground">No cycle</span>}</SelectValue>
           </SelectTrigger>
           <SelectContent>
