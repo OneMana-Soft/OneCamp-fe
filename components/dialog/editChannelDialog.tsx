@@ -53,25 +53,39 @@ interface EditTeamDialogProps {
 }
 
 // A consistent settings row: icon + label + description on the left, control on
-// the right. Keeps Private / Announcement / Archive visually aligned.
-const SettingRow: React.FC<{
+// the right. Keeps Private / Announcement / Archive visually aligned. Exported
+// so the create dialog's rows line up with this one's.
+//
+// A row of a list between hairlines (ChannelSettingsList), not a box of its
+// own: the dialog stacked four bordered boxes, a card in a card four times.
+// Given the control's id, the label names it and a click on it toggles it.
+export const SettingRow: React.FC<{
     icon: React.ReactNode;
     label: string;
     description: string;
     children: React.ReactNode;
     tone?: "default" | "danger";
-}> = ({icon, label, description, children, tone = "default"}) => (
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 px-3 py-2.5">
+    /** The id its control carries, so the label names it. */
+    controlId?: string;
+}> = ({icon, label, description, children, tone = "default", controlId}) => (
+    <div data-setting-row="" className="flex items-start justify-between gap-4 py-3">
         <div className="flex items-start gap-2.5 min-w-0">
             <span className={tone === "danger" ? "mt-0.5 text-danger-ink" : "mt-0.5 text-muted-foreground"}>
                 {icon}
             </span>
             <div className="space-y-0.5 min-w-0">
-                <Label className="text-sm font-medium">{label}</Label>
-                <p className="text-2xs leading-snug text-muted-foreground">{description}</p>
+                <Label htmlFor={controlId} className="text-sm font-medium leading-5">{label}</Label>
+                <p className="text-xs leading-snug text-muted-foreground text-pretty">{description}</p>
             </div>
         </div>
         <div className="shrink-0 pt-0.5">{children}</div>
+    </div>
+);
+
+/** The rows of a channel's settings, between hairlines: one list, no boxes. */
+export const ChannelSettingsList: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+    <div data-channel-settings="" className="divide-y divide-border/70 border-y border-border/70">
+        {children}
     </div>
 );
 
@@ -244,7 +258,7 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
                     </div>
 
                     {/* Settings */}
-                    <div className="space-y-2">
+                    <ChannelSettingsList>
                         <Controller
                             name="channel_private"
                             control={control}
@@ -253,8 +267,9 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
                                     icon={<Lock className="h-4 w-4" />}
                                     label="Private channel"
                                     description="Only invited members can find and join this channel."
+                                    controlId="channel-private"
                                 >
-                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                    <Switch id="channel-private" checked={field.value} onCheckedChange={field.onChange} />
                                 </SettingRow>
                             )}
                         />
@@ -267,8 +282,9 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
                                     icon={<Megaphone className="h-4 w-4" />}
                                     label="Announcement channel"
                                     description="Only channel moderators can post. Everyone can still read and react."
+                                    controlId="channel-announcement"
                                 >
-                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                    <Switch id="channel-announcement" checked={field.value} onCheckedChange={field.onChange} />
                                 </SettingRow>
                             )}
                         />
@@ -282,12 +298,13 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
                                     label="Archive channel"
                                     description="Hide the channel and stop new posts. You can restore it later."
                                     tone={field.value ? "danger" : "default"}
+                                    controlId="channel-archived"
                                 >
-                                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                    <Switch id="channel-archived" checked={field.value} onCheckedChange={field.onChange} />
                                 </SettingRow>
                             )}
                         />
-                    </div>
+                    </ChannelSettingsList>
 
                     <DialogFooter className="gap-2 sm:gap-2">
                         <Button type="button" variant="ghost" onClick={closeModal} disabled={isSubmitting}>
