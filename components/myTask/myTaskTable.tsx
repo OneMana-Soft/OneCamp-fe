@@ -253,6 +253,12 @@ export const MyTaskTable = () => {
     }, [pageIndex, pageSize, sorting, columnFilters, columnVisibility, globalFilter, pathname, router]);
 
     const rowIds = table.getRowModel().rows.map((r) => r.id);
+    // The first rows reach the table through the store, an effect after the
+    // answer, and the request itself starts an effect after the first render
+    // (its query comes from the address). Until the rows are in, the skeleton
+    // stays (not a frame of "Nothing is assigned to you"), and the pagination
+    // waits under it rather than move down as the rows come in.
+    const firstLoad = taskListState.length === 0 && (!urlParam || userInfo.isLoading || (userInfo.data?.data.user_tasks?.length ?? 0) > 0);
 
     return (
         <KeyboardList tasks={taskListState} canEdit={canEditTask} className="space-y-4">
@@ -290,7 +296,7 @@ export const MyTaskTable = () => {
                                     ))}
                                 </TaskTableRow>
                             ))
-                        ) : userInfo.isLoading ? (
+                        ) : userInfo.isLoading || firstLoad ? (
                             <TableRowsSkeleton columns={table.getVisibleLeafColumns().length + 1} />
                         ) : (
                             <TableRow>
@@ -306,7 +312,7 @@ export const MyTaskTable = () => {
                     </TableBody>
                 </Table>
             </div>
-            <TaskTablePagination table={table} />
+            {!firstLoad && <TaskTablePagination table={table} />}
         </KeyboardList>
     );
 };
