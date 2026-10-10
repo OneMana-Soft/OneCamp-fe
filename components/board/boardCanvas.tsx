@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import { approxDataUrlBytes, exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
 import { sceneSignature, whenSceneReady } from "@/lib/board/scene"
+import { collaboratorColour } from "@/components/board/boardColours"
 import "@excalidraw/excalidraw/index.css"
 
 // Types are erased at runtime; importing them as types keeps SSR safe.
@@ -711,7 +712,10 @@ function BoardCanvas({
           username: u.name,
           pointer: pointer ? { x: pointer.x, y: pointer.y, tool: "pointer" } : undefined,
           button: (state.button as "down" | "up") || "up",
-          color: { background: u.color || "#6366f1", stroke: "#ffffff" },
+          // Their identity hue (lib/campHue), the colour their avatar and
+          // name carry everywhere else, read from the theme's tokens because
+          // the canvas needs a colour, not a class.
+          color: collaboratorColour(u.id || u.name || String(clientId)),
           id: u.id,
         } as Collaborator)
       })

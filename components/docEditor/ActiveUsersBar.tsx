@@ -1,12 +1,9 @@
 /**
- * Active Users Bar — shows who is currently editing the document
- * Notion/Google Docs style colored avatar stack with portal-based tooltips
- * Uses Radix UI Tooltip (ported) so tooltips escape the top bar stacking context
- */
-/**
- * Active Users Bar — shows who is currently editing the document
- * (Notion / Google Docs style colored avatar stack with portal tooltips).
- * Uses Radix Tooltip so popups escape the top bar stacking context.
+ * Active Users Bar: who else has the doc or board open, as a row of faces.
+ * Each is their photo, or their initials in their identity hue (lib/campHue,
+ * the same colour their cursor, their name and their avatar carry everywhere
+ * else), so a collaborator is recognisable at a glance. The name shows in an
+ * ink tooltip, the app's one tooltip style.
  */
 "use client"
 
@@ -14,7 +11,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
-import { getNameInitials } from "@/lib/utils/getNameInitials"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 
 interface ActiveUser {
     id: string
@@ -29,70 +26,26 @@ interface ActiveUsersBarProps {
     className?: string
 }
 
-function AvatarImage({
-    profileKey,
-    name,
-    color,
-}: {
-    profileKey?: string
-    name: string
-    color: string
-}) {
-    const { src } = useUserAvatar(profileKey)
-    const hasImage = !!src
+const FACE = 24
 
+function UserAvatar({ user }: { user: ActiveUser }) {
+    const { src } = useUserAvatar(user.profileKey)
     return (
-        <div
-            className={cn(
-                "relative flex items-center justify-center rounded-full overflow-hidden",
-                "size-6 border-2 border-background shadow-sm",
-                !hasImage && "text-2xs font-bold text-white",
-            )}
-            style={{ backgroundColor: hasImage ? undefined : color }}
-        >
-            {hasImage ? (
-                <img
-                    src={src}
-                    alt={name}
-                    className="size-full object-cover"
-                    onError={(e) => {
-                        ;(e.target as HTMLImageElement).style.display = "none"
-                    }}
-                />
-            ) : (
-                getNameInitials(name)
-            )}
-        </div>
-    )
-}
-
-function UserAvatar({
-    user,
-    index,
-    total,
-}: {
-    user: ActiveUser
-    index: number
-    total: number
-}) {
-    return (
-        <div style={{ zIndex: total - index }}>
-            <Tooltip delayDuration={200}>
-                <TooltipTrigger asChild>
-                    <div className="cursor-default transition-transform duration-150 hover:scale-110 hover:-translate-y-0.5">
-                        <AvatarImage profileKey={user.profileKey} name={user.name} color={user.color} />
-                    </div>
-                </TooltipTrigger>
-                <TooltipContent
-                    side="top"
-                    sideOffset={6}
-                    className="px-2 py-0.5 text-2xs font-semibold text-white border-0 shadow-lg"
-                    style={{ backgroundColor: user.color }}
+        <Tooltip delayDuration={200}>
+            <TooltipTrigger asChild>
+                <span
+                    tabIndex={0}
+                    role="img"
+                    aria-label={user.name}
+                    className="inline-flex rounded-full ring-2 ring-background transition-transform duration-[120ms] ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-px focus-visible:outline-none focus-visible:ring-ring motion-reduce:transform-none"
                 >
-                    {user.name}
-                </TooltipContent>
-            </Tooltip>
-        </div>
+                    <IdentityMark id={user.id} label={user.name} src={src || undefined} variant="avatar" size={FACE} />
+                </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6} className="text-2xs font-medium">
+                {user.name}
+            </TooltipContent>
+        </Tooltip>
     )
 }
 
@@ -100,11 +53,16 @@ function RemainingBadge({ remaining, names }: { remaining: number; names: string
     return (
         <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
-                <div className="flex items-center justify-center rounded-full size-6 border-2 border-background bg-muted text-2xs font-medium text-muted-foreground cursor-default hover:bg-muted/80 transition-colors">
+                <span
+                    tabIndex={0}
+                    role="img"
+                    aria-label={`${remaining} more: ${names}`}
+                    className="flex size-6 items-center justify-center rounded-full bg-muted text-2xs font-medium tabular-nums text-muted-foreground ring-2 ring-background focus-visible:outline-none focus-visible:ring-ring"
+                >
                     +{remaining}
-                </div>
+                </span>
             </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6} className="text-2xs font-medium">
+            <TooltipContent side="bottom" sideOffset={6} className="text-2xs font-medium">
                 {names}
             </TooltipContent>
         </Tooltip>
@@ -121,6 +79,8 @@ export function ActiveUsersBar({ users, maxShown = 4, className }: ActiveUsersBa
         })
     }, [users])
 
+    if (uniqueUsers.length === 0) return null
+
     const shown = uniqueUsers.slice(0, maxShown)
     const remaining = uniqueUsers.length - maxShown
     const remainingNames = uniqueUsers
@@ -128,15 +88,12 @@ export function ActiveUsersBar({ users, maxShown = 4, className }: ActiveUsersBa
         .map((u) => u.name)
         .join(", ")
 
-    if (uniqueUsers.length === 0) return null
-
     return (
-        <div className={cn("flex items-center gap-0.5", className)}>
-            {shown.map((user, i) => (
-                <UserAvatar key={user.id} user={user} index={i} total={shown.length} />
+        <div role="group" className={cn("flex items-center -space-x-1.5", className)} aria-label="Here now">
+            {shown.map((user) => (
+                <UserAvatar key={user.id} user={user} />
             ))}
             {remaining > 0 && <RemainingBadge remaining={remaining} names={remainingNames} />}
         </div>
     )
 }
-

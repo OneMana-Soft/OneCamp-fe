@@ -9,15 +9,30 @@
 
 export type StickyColour = "yellow" | "green" | "red" | "blue" | "purple" | "grey"
 
-/** Excalidraw's own light palette, so templates match notes people draw by hand. */
-export const STICKY_FILL: Record<StickyColour, string> = {
-  yellow: "#ffec99",
-  green: "#b2f2bb",
-  red: "#ffc9c9",
-  blue: "#a5d8ff",
-  purple: "#d0bfff",
-  grey: "#e9ecef",
+/**
+ * A note's colours: the camp palette's tint as its paper, the hue's ink for
+ * its words and a hairline of the strong cut round it, the treatment a tag
+ * or an avatar has everywhere else in the app (the playful layer). Hex, the
+ * light theme's token values (app/globals.css), because a board stores its
+ * colours in the shared document; Excalidraw's dark theme inverts the canvas,
+ * which turns a tint into a dark ground and an ink into a light one.
+ *
+ * Yellow is sun, green moss, red berry, blue sky and purple dusk; grey is the
+ * app's own neutral, for a note that should not stand out.
+ */
+export const STICKY_COLOURS: Record<StickyColour, { fill: string; edge: string; ink: string }> = {
+  yellow: { fill: "#FFF6D6", edge: "#B98200", ink: "#7A5200" },
+  green: { fill: "#E6F6EC", edge: "#2F9E5B", ink: "#1D6A3C" },
+  red: { fill: "#FCE8EF", edge: "#D9467C", ink: "#962556" },
+  blue: { fill: "#E7EFFC", edge: "#3B7DDD", ink: "#1E4E9A" },
+  purple: { fill: "#EFEBFC", edge: "#7B61D9", ink: "#4B3699" },
+  grey: { fill: "#F5F6F7", edge: "#D3D5DA", ink: "#14161A" },
 }
+
+/** A note's paper colour. */
+export const STICKY_FILL: Record<StickyColour, string> = Object.fromEntries(
+  Object.entries(STICKY_COLOURS).map(([k, v]) => [k, v.fill]),
+) as Record<StickyColour, string>
 
 /** The subset of Excalidraw's element skeleton the templates use. */
 export type Skeleton =
@@ -30,6 +45,8 @@ export type Skeleton =
       height: number
       backgroundColor: string
       strokeColor: string
+      strokeWidth: number
+      roughness: number
       fillStyle: "solid"
       roundness: { type: 3 }
       label: { text: string; fontSize: number; strokeColor: string }
@@ -46,7 +63,7 @@ export interface BoardTemplate {
 
 export const STICKY = 180
 const GAP = 24
-const INK = "#1e1e1e"
+const INK = "#14161A" // the app's own text colour (--foreground, light)
 
 /**
  * Line breaks for a note's label. Excalidraw does not re-wrap a label made from
@@ -75,13 +92,16 @@ function sticky(id: string, x: number, y: number, text: string, colour: StickyCo
     y,
     width: size,
     height: size,
-    backgroundColor: STICKY_FILL[colour],
-    strokeColor: "transparent",
+    backgroundColor: STICKY_COLOURS[colour].fill,
+    // A clean hairline (roughness 0): a note is paper, not a sketch of one.
+    strokeColor: STICKY_COLOURS[colour].edge,
+    strokeWidth: 1,
+    roughness: 0,
     fillStyle: "solid",
     roundness: { type: 3 },
-    // A label takes its container's stroke unless told otherwise, and a note
-    // has no outline, so the ink is set here or the words are invisible.
-    label: { text: wrapLabel(text, Math.floor((size - 20) / 11)), fontSize: 18, strokeColor: INK },
+    // A label takes its container's stroke unless told otherwise, so the
+    // words are given the hue's ink here, not its edge.
+    label: { text: wrapLabel(text, Math.floor((size - 20) / 11)), fontSize: 18, strokeColor: STICKY_COLOURS[colour].ink },
   }
 }
 
