@@ -220,7 +220,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                     <div className="flex-1 flex flex-col gap-5">
                         {isBot ? (
                             <div className="space-y-1">
-                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">About</p>
+                                <p className="text-xs font-medium text-muted-foreground">About</p>
                                 <p className="text-sm text-foreground leading-relaxed">
                                     {profileInfo.data?.data?.user_name || botCopy.defaultName} {botCopy.bio}
                                     {botCopy.invite ? ` ${botCopy.invite}` : ""}
@@ -229,12 +229,12 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                         ) : (
                             <>
                                 <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Full Name</p>
+                                    <p className="text-xs font-medium text-muted-foreground">Full name</p>
                                     <p className="text-sm text-foreground">{profileInfo.data?.data?.user_full_name || "—"}</p>
                                 </div>
 
                                 <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Display Name</p>
+                                    <p className="text-xs font-medium text-muted-foreground">Display name</p>
                                     <p className="text-sm text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
                                 </div>
 
@@ -246,12 +246,12 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                 )}
 
                                 <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Job Title</p>
+                                    <p className="text-xs font-medium text-muted-foreground">Job title</p>
                                     <p className="text-sm text-foreground">{profileInfo.data?.data?.user_job_title || "—"}</p>
                                 </div>
 
                                 <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hobbies</p>
+                                    <p className="text-xs font-medium text-muted-foreground">Hobbies</p>
                                     <p className="text-sm text-foreground">{profileInfo.data?.data?.user_hobbies || "—"}</p>
                                 </div>
                             </>

@@ -1,6 +1,5 @@
 "use client"
 
-import { eyebrowClass } from "@/components/ui/eyebrow"
 import { userDisplayName } from "@/lib/utils/userDisplayName";
 import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import { useRouter } from "next/navigation";
@@ -153,21 +152,23 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
 
                     {/* Details Section */}
                     {isBot ? (
-                        <div className="bg-muted/10 p-5 rounded-2xl border space-y-2 ">
-                            <p className={eyebrowClass}>About</p>
-                            <p className="text-base text-foreground leading-relaxed">
-                                {profileInfo.data?.data?.user_name || botCopy.defaultName} {botCopy.bio}
-                            </p>
+                        <div className="rounded-2xl border p-5">
+                            <div className="space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground">About</p>
+                                <p className="text-base text-foreground leading-relaxed">
+                                    {profileInfo.data?.data?.user_name || botCopy.defaultName} {botCopy.bio}
+                                </p>
+                            </div>
                         </div>
                     ) : (
-                    <div className="bg-muted/10 p-5 rounded-2xl border space-y-5 ">
+                    <div className="rounded-2xl border p-5 space-y-5">
                         <div className="space-y-1">
-                            <p className={eyebrowClass}>Full Name</p>
+                            <p className="text-xs font-medium text-muted-foreground">Full name</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_full_name || "—"}</p>
                         </div>
                         
                         <div className="space-y-1">
-                            <p className={eyebrowClass}>Display Name</p>
+                            <p className="text-xs font-medium text-muted-foreground">Display name</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
                         </div>
 
@@ -179,12 +180,12 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                         )}
                         
                         <div className="space-y-1">
-                            <p className={eyebrowClass}>Job Title</p>
+                            <p className="text-xs font-medium text-muted-foreground">Job title</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_job_title || "—"}</p>
                         </div>
                         
                         <div className="space-y-1">
-                            <p className={eyebrowClass}>Hobbies</p>
+                            <p className="text-xs font-medium text-muted-foreground">Hobbies</p>
                             <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_hobbies || "—"}</p>
                         </div>
                     </div>
