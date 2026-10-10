@@ -112,3 +112,54 @@ describe("accepting an invitation", () => {
     expect(screen.getByText(/Use the account for ana@example.com/).textContent).toBe("Use the account for ana@example.com.")
   })
 })
+
+// A link that couldn't be checked is not a dead link. When the server can't be
+// reached, or answers with its own failure, the page said "This invitation
+// can't be used" and offered only the sign-in page, so a good invitation looked
+// spent and the person asked for a new one they didn't need.
+describe("an invitation that couldn't be checked", () => {
+  const answer = (status: number, body: unknown) =>
+    ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response
+
+  it("says it couldn't check, and checks again when asked", async () => {
+    let reachable = false
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const path = String(input).split("?")[0]
+      if (path.endsWith("auth/providers")) return answer(200, { providers })
+      if (path.endsWith("auth/validate-token")) {
+        if (!reachable) throw new TypeError("Failed to fetch")
+        return answer(200, { valid: true, email: "ana@example.com" })
+      }
+      throw new Error(`no route for ${path}`)
+    })
+    render(<SignupPage />)
+    expect(await screen.findByRole("heading", { name: "Couldn't check your invitation" })).toBeTruthy()
+    expect(screen.queryByRole("heading", { name: "This invitation can't be used" })).toBeNull()
+    reachable = true
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Try again" })))
+    expect(await screen.findByLabelText("Your name")).toBeTruthy()
+  })
+
+  it("reads the server's own failure the same way", async () => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const path = String(input).split("?")[0]
+      if (path.endsWith("auth/providers")) return answer(200, { providers })
+      if (path.endsWith("auth/validate-token")) return { ok: false, status: 502, json: async () => { throw new SyntaxError("Unexpected token <") } } as unknown as Response
+      throw new Error(`no route for ${path}`)
+    })
+    render(<SignupPage />)
+    expect(await screen.findByRole("heading", { name: "Couldn't check your invitation" })).toBeTruthy()
+  })
+
+  it("still says an invitation the server refused can't be used, and why", async () => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const path = String(input).split("?")[0]
+      if (path.endsWith("auth/providers")) return answer(200, { providers })
+      if (path.endsWith("auth/validate-token")) return answer(400, { valid: false, msg: "This invitation has expired. Ask Sam Rivera to send it again." })
+      throw new Error(`no route for ${path}`)
+    })
+    render(<SignupPage />)
+    expect(await screen.findByRole("heading", { name: "This invitation can't be used" })).toBeTruthy()
+    expect(screen.getByText("This invitation has expired. Ask Sam Rivera to send it again.")).toBeTruthy()
+  })
+})

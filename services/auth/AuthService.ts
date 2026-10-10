@@ -74,6 +74,18 @@ export interface SignupOutcome {
     name?: string;
 }
 
+/** What checking an invitation's link found (see validateInvitationToken). */
+export interface InvitationCheck {
+    valid: boolean;
+    /** No answer about the link: the server couldn't be reached, or failed itself. */
+    unreachable: boolean;
+    email: string;
+    name: string;
+    inviterName: string;
+    workspace: string;
+    msg: string;
+}
+
 /** The outcome of answering a second-factor challenge. */
 type TOTPLoginOutcome =
     | { status: 'success' }
@@ -327,30 +339,40 @@ class AuthService {
         }
     }
 
-    /** name: the name to suggest, one an import already knows them by, or "". */
     /**
      * Checks an invitation's link before the sign-up form shows: the address
-     * it is for, a name an import knows them by, who invited them and to which
-     * workspace (its address), or why the link can't be used.
+     * it is for, a name an import knows them by (`name`, or ""), who invited
+     * them and to which workspace (its address), or why the link can't be used.
+     *
+     * `unreachable` is a check that got no answer about the link: the server
+     * couldn't be reached in time, or answered with its own failure (a 5xx, or
+     * a proxy's page that isn't the API's). That is not a dead link, and the
+     * page says so and offers to check again, rather than "this invitation
+     * can't be used" for an invitation that may be fine.
      */
-    static async validateInvitationToken(token: string): Promise<{ valid: boolean; email: string; name: string; inviterName: string; workspace: string; msg: string }> {
+    static async validateInvitationToken(token: string): Promise<InvitationCheck> {
         const text = (v: unknown) => (typeof v === 'string' ? v : '');
+        const noAnswer: InvitationCheck = { valid: false, unreachable: true, email: '', name: '', inviterName: '', workspace: '', msg: '' };
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/validate-token?token=${encodeURIComponent(token)}`,
-                { credentials: 'include' }
-            );
-            const data = await res.json();
-            return {
-                valid: data.valid === true,
-                email: text(data.email),
-                name: text(data.name),
-                inviterName: text(data.inviter_name),
-                workspace: text(data.workspace),
-                msg: text(data.msg),
-            };
+            return await within(async (signal) => {
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/validate-token?token=${encodeURIComponent(token)}`,
+                    { credentials: 'include', signal }
+                );
+                if (res.status >= 500) return noAnswer;
+                const data = await res.json();
+                return {
+                    valid: data.valid === true,
+                    unreachable: false,
+                    email: text(data.email),
+                    name: text(data.name),
+                    inviterName: text(data.inviter_name),
+                    workspace: text(data.workspace),
+                    msg: text(data.msg),
+                };
+            });
         } catch {
-            return { valid: false, email: '', name: '', inviterName: '', workspace: '', msg: "Couldn't check the invitation. Check your connection and try again." };
+            return noAnswer;
         }
     }
 
