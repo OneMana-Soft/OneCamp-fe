@@ -1,7 +1,6 @@
 "use client"
 
 import { cn } from "@/lib/utils/helpers/cn"
-import { eyebrowClass } from "@/components/ui/eyebrow"
 import { useState, useEffect, useCallback } from "react";
 import { DateRangeField } from "@/components/dateRangePicker/dateRangeField";
 import { DateRange } from "react-day-picker";
@@ -10,19 +9,30 @@ import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { RecordingInfoInterface, RecordingPaginationResRaw } from "@/types/recording";
 import { useMedia } from "@/context/MediaQueryContext";
-import { Loader2, Video } from "@/lib/icons";
-import { statusColors } from "@/lib/colors";
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder";
 import { ErrorState } from "@/components/ui/error-state"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotCalendar } from "@/components/ui/graphics"
+import { Skeleton } from "@/components/ui/skeleton"
+import { PageHeader } from "@/components/ui/pageHeader"
+import { PageContainer } from "@/components/ui/pageContainer"
 import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll";
-import { Separator } from "@/components/ui/separator";
 import { RecordingListRecording } from "@/components/recording/recordingListRecording";
 import { openUI } from "@/store/slice/uiSlice";
 import { useDispatch } from "react-redux";
-import { ConditionalWrap } from "@/components/conditionalWrap/conditionalWrap";
-import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import { UserProfileInterface } from "@/types/user";
 
+/**
+ * Every call recorded where you were, in a date range.
+ *
+ * Reworked in the final visual check (10 Oct): it was the one page left from
+ * before the redesign, with a solid green tile, an uppercase "GLOBAL MEETING
+ * HISTORY" eyebrow, a 48px box of US-ordered dates, rows drawn as cards, a
+ * spinner over "Gathering your recordings…" and a grey inbox icon when empty.
+ * It is now the app's page: a title with the range beside it, rows in the
+ * lists' shape on the start-aligned 880px column Activity and Later use, a
+ * skeleton in the rows' frame, and its empty and failed states where those
+ * pages put theirs.
+ */
 const RecordingsPage = () => {
     const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>({
         from: subDays(new Date(), 30),
@@ -32,7 +42,7 @@ const RecordingsPage = () => {
     const [allRecordings, setAllRecordings] = useState<RecordingInfoInterface[]>([]);
     const [hasMore, setHasMore] = useState(true);
     const pageSize = 20;
-    const { isMobile, isDesktop } = useMedia();
+    const { isDesktop } = useMedia();
     const dispatch = useDispatch();
 
     const { data: selfProfile } = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfile);
@@ -40,7 +50,7 @@ const RecordingsPage = () => {
     const startDate = selectedDateRange?.from?.toISOString() || "";
     const endDate = selectedDateRange?.to?.toISOString() || "";
 
-    const endpoint = startDate && endDate 
+    const endpoint = startDate && endDate
         ? `${GetEndpointUrl.UserRecordingList}?startDate=${startDate}&endDate=${endDate}&pageIndex=${pageIndex}&pageSize=${pageSize}`
         : "";
 
@@ -78,7 +88,7 @@ const RecordingsPage = () => {
         } else if (recording.recording_dm?.dm_participants.length <= 2) {
              const otherUser = recording.recording_dm.dm_participants.find(p => p.user_uuid !== selfProfile?.data.user_uuid);
              const peerUuid = otherUser?.user_uuid || selfProfile?.data.user_uuid; // Fallback
-             
+
              getMediaURL = GetEndpointUrl.GetChatRecordingMedia + '/' + peerUuid;
              getTranscriptURL = GetEndpointUrl.GetChatRecordingTranscript + '/' + peerUuid;
         } else if (recording.recording_dm?.dm_participants.length > 2) {
@@ -88,7 +98,7 @@ const RecordingsPage = () => {
 
         const date = new Date(recording.recording_stared_at);
         const fileName = `Recording-${date.toLocaleDateString()}-${date.toLocaleTimeString()}.mp4`;
-        
+
         dispatch(openUI({
             key: 'recordingPlayer',
             data: {
@@ -102,106 +112,96 @@ const RecordingsPage = () => {
         }));
     };
 
+    // Hairlines between rows, as in Later and search.
     const renderItem = (recording: RecordingInfoInterface, i: number) => (
-        <ConditionalWrap key={recording.recording_egress_id} condition={isMobile} wrap={
-            (c) => (
-                <TouchableDiv rippleBrightness={0.8} rippleDuration={800} onClick={() => handleClick(recording)}>
-                    {c}
-                </TouchableDiv>
-            )
-        }>
-            {i !== 0 && <Separator orientation="horizontal" className="w-[calc(100%-3rem)]" />}
-            <div onClick={isMobile ? undefined : () => handleClick(recording)}>
-                <RecordingListRecording recordingInfo={recording} currentUserId={selfProfile?.data.user_uuid} />
-            </div>
-            {i == (allRecordings.length-1) && <Separator orientation="horizontal" className="w-[calc(100%-3rem)]" />}
-
-        </ConditionalWrap>
+        <div className={cn(i > 0 && "border-t border-border/60")}>
+            <RecordingListRecording
+                recordingInfo={recording}
+                currentUserId={selfProfile?.data.user_uuid}
+                onOpen={() => handleClick(recording)}
+            />
+        </div>
     );
 
-    return (
-        <div className="flex h-full flex-col bg-background/30">
-            {isDesktop && (
-                <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-3 p-2">
-                    <div className="flex items-center gap-3">
-                        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${statusColors.online.solid} text-white`}>
-                            <Video size={18} />
-                        </div>
-                        <div>
-                            <h1 className="text-base md:text-lg font-semibold text-foreground">Recordings</h1>
-                            <p className={cn(eyebrowClass, "text-2xs opacity-80")}>
-                                Global Meeting History
-                            </p>
-                        </div>
-                    </div>
+    const range = (
+        <DateRangeField
+            dateRange={selectedDateRange}
+            setDateRange={setSelectedDateRange}
+        />
+    );
 
-                    <div className="flex items-center gap-4">
-                         <DateRangeField
-                            dateRange={selectedDateRange}
-                            setDateRange={setSelectedDateRange}
-                        />
-                        {isLoading && (
-                            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
-                                <Loader2 className="h-4 w-4 animate-spin text-primary/60" />
-                            </div>
+    // The first page is on its way: nothing to show yet, nothing failed.
+    const firstLoad = allRecordings.length === 0 && isLoading && !isError;
+
+    return (
+        <div className="flex h-full min-h-0 flex-col bg-background">
+            {/* On a phone the top bar names the page; the range is its control. */}
+            <PageContainer className="h-auto shrink-0 px-4 pb-3 pt-4 md:px-6 md:pb-4 md:pt-6">
+                {isDesktop ? (
+                    <PageHeader title="Recordings" actions={range}>
+                        <p className="text-sm text-muted-foreground">Calls recorded in your channels and conversations.</p>
+                    </PageHeader>
+                ) : (
+                    range
+                )}
+            </PageContainer>
+
+            <PageContainer className="flex min-h-0 flex-1 flex-col">
+                {allRecordings.length > 0 ? (
+                    <VirtualInfiniteScroll
+                        items={allRecordings}
+                        renderItem={renderItem}
+                        onLoadMore={onLoadMore}
+                        hasMore={hasMore}
+                        isLoading={isLoading}
+                        className="no-scrollbar min-h-0 flex-1"
+                        keyExtractor={(item: RecordingInfoInterface) => item.recording_egress_id}
+                    />
+                ) : firstLoad ? (
+                    <RecordingRowsSkeleton />
+                ) : (
+                    // Anchored near the top of the list's space, where Activity
+                    // and Later put theirs, not in the middle of the screen.
+                    <div data-recordings-state="" className="flex justify-center pt-4 md:pt-10">
+                        {isError ? (
+                            // Ahead of the empty answer: "no recordings in this
+                            // range" would send someone changing dates to fix a
+                            // request that failed.
+                            <ErrorState subject="your recordings" onRetry={() => void mutate()} />
+                        ) : (
+                            <EmptyState
+                                illustration={<SpotCalendar />}
+                                title="No recordings in this range"
+                                description="Calls recorded in your channels and conversations show up here. Pick earlier dates to look further back."
+                                className="py-6"
+                            />
                         )}
                     </div>
-                </div>
-            )}
-
-            {isMobile && (
-
-
-                    <DateRangeField
-                        dateRange={selectedDateRange}
-                        setDateRange={setSelectedDateRange}
-                    />
-            )}
-
-            <div className="flex-1 overflow-auto">
-                {allRecordings.length > 0 ? (
-                    <div className="w-full h-full flex justify-center">
-                        <div className="w-full max-w-[760px] flex flex-col">
-                            <VirtualInfiniteScroll
-                                items={allRecordings}
-                                renderItem={renderItem}
-                                onLoadMore={onLoadMore}
-                                hasMore={hasMore}
-                                isLoading={isLoading}
-                                className="no-scrollbar"
-                                keyExtractor={(item: RecordingInfoInterface) => item.recording_egress_id}
-                            />
-                        </div>
-                    </div>
-                ) : isError ? (
-                    // Ahead of the empty branch. "No recordings for the selected
-                    // date range" would send the user off changing dates to fix a
-                    // request that failed.
-                    <div className="flex h-full items-center justify-center p-8">
-                        <ErrorState subject="your recordings" onRetry={() => void mutate()} />
-                    </div>
-                ) : !isLoading ? (
-                    <div className="flex h-full items-center justify-center p-8">
-                        <StatePlaceholder
-                            type="empty"
-                            title="No recordings found"
-                            description="We couldn't find any recordings for the selected date range."
-                        />
-                    </div>
-                ) : (
-                    <div className="flex h-full items-center justify-center">
-                        <div className="flex flex-col items-center gap-4 text-muted-foreground">
-                            <div className="relative">
-                                <div className="h-14 w-14 rounded-2xl bg-muted animate-pulse" />
-                                <Loader2 className="absolute inset-0 m-auto h-6 w-6 animate-spin text-primary/40" />
-                            </div>
-                            <span className="text-sm font-medium tracking-wide">Gathering your recordings…</span>
-                        </div>
-                    </div>
                 )}
-            </div>
+            </PageContainer>
         </div>
     );
 };
+
+/** Loading, in the rows' own frame: a 24px mark, a title line and a line of details. */
+function RecordingRowsSkeleton() {
+    return (
+        <div role="status" aria-label="Loading your recordings">
+            {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} data-recording-skeleton-row="" aria-hidden="true" className={cn("flex items-start gap-3 px-2 py-3", i > 0 && "border-t border-border/60")}>
+                    <Skeleton className="-mt-0.5 size-6 shrink-0 rounded-md" />
+                    <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-3">
+                            <Skeleton className={cn("h-5", i % 2 === 0 ? "w-1/3" : "w-1/4")} />
+                            <Skeleton className="ml-auto h-4 w-24" />
+                        </span>
+                        {/* text-xs sets an 18px line */}
+                        <Skeleton className={cn("mt-0.5 h-[18px]", i % 2 === 0 ? "w-1/2" : "w-2/5")} />
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+}
 
 export default RecordingsPage;
