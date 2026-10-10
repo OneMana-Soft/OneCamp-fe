@@ -110,6 +110,10 @@ interface TaskInfoPanelProps {
     taskUUID: string
 }
 
+
+/** The body of the panel's Comments, Activity and GitHub tabs: one inset for the three. */
+const PANEL_TAB = "pr-2 pt-2"
+
 export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
     const dispatch = useDispatch()
     const post = usePost()
@@ -1155,7 +1159,9 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                                     </TabsTrigger>
                                 )}
                             </TabsList>
-                            <TabsContent value="comments" className="pr-2 pt-2">
+                            {/* Comments, Activity and GitHub share one body: a switch
+                                moved the first row 16px sideways and 8px down. */}
+                            <TabsContent value="comments" className={PANEL_TAB}>
                                 {taskInfo.isError ? (
                                     // Ahead of the empty branch: "Be the first to
                                     // share an update" on a failed fetch invites a
@@ -1184,11 +1190,16 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                                     />
                                 )}
                             </TabsContent>
-                            <TabsContent value="activities" className="p-2 sm:p-4">
-                                <TaskActivitySection taskActivity={taskInfo.data?.data.task_activities} />
+                            <TabsContent value="activities" className={PANEL_TAB}>
+                                {taskInfo.isError ? (
+                                    // Not "No activities yet" on a failed fetch.
+                                    <ErrorState subject="the activity" onRetry={() => void taskInfo.mutate()} className="py-8" />
+                                ) : (
+                                    <TaskActivitySection taskActivity={taskInfo.data?.data.task_activities} />
+                                )}
                             </TabsContent>
                             {(taskInfo.data?.data.task_github_issue_url || taskInfo.data?.data.task_github_pr_url || taskInfo.data?.data.task_github_branch) && (
-                                <TabsContent value="github" className="pr-2 pt-2">
+                                <TabsContent value="github" className={PANEL_TAB}>
                                     <GitHubActivityTab taskUUID={taskUUID} />
                                 </TabsContent>
                             )}

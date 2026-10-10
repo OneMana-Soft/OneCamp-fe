@@ -1,5 +1,6 @@
 "use client"
 
+import { Skeleton } from "@/components/ui/skeleton"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Github, GitBranch, MessageSquare, Smile, GitCommit, AlertCircle, CheckCircle2, RotateCcw, Tag, User, GitPullRequest, GitPullRequestDraft, GitMerge } from "@/lib/icons";
@@ -92,8 +93,22 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
 
   const activities = activitiesRes.data?.activities || []
 
+  // The panel's other tabs' shape and padding (taskInfoPanel PANEL_TAB): rows
+  // while loading, not a line of text, and py-8 states.
   if (activitiesRes.isLoading) {
-    return <div className="text-xs text-muted-foreground py-4">Loading GitHub activity…</div>
+    return (
+      <div role="status" aria-label="Loading GitHub activity" className="flex flex-col gap-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i} aria-hidden="true" className="flex items-start gap-3 p-2">
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-3.5 w-1/2" />
+              <Skeleton className="h-3 w-3/4" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   if (activitiesRes.isError) {
@@ -101,6 +116,7 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
       <ErrorState
         subject="the GitHub activity"
         onRetry={() => void activitiesRes.mutate()}
+        className="py-8"
       />
     )
   }
@@ -110,12 +126,13 @@ export default function GitHubActivityTab({ taskUUID }: Props) {
         icon={Github}
         title="No GitHub activity yet"
         description="Activity from linked issues, PRs, and branches will appear here."
+        className="py-8"
       />
     )
   }
 
   return (
-    <div className="flex flex-col gap-3 py-2 pr-2">
+    <div className="flex flex-col gap-3">
       {activities.map((activity) => (
         <div key={activity.id} className="flex gap-3 items-start p-2 rounded-lg hover:bg-muted/40 transition-colors">
           <div className="mt-0.5">{activityIcon(activity.activity_type)}</div>

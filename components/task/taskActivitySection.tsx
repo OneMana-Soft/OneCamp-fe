@@ -27,7 +27,7 @@ function TaskActivitySection({ taskActivity }: TaskActivitySectionProps) {
                 items={taskActivity}
                 renderItem={(activity) => <TaskActivity taskActivity={activity} openOtherUserProfile={openOtherUserProfile} />}
                 getItemKey={(activity) => activity.activity_uuid || ''}
-                emptyState={<EmptyState icon={Activity} title="No activities yet" description="Task activities will appear here as changes are made." className="py-6" />}
+                emptyState={<EmptyState icon={Activity} title="No activities yet" description="Task activities will appear here as changes are made." className="py-8" />}
                 className="space-y-6"
                 initialCount={50}
                 batchSize={50}
