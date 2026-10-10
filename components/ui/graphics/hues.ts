@@ -27,3 +27,12 @@ export const HUE_CLASS: Record<CampHue, string> = {
 export function avatarHueClass(hue: CampHue): string {
   return `${HUE_CLASS[hue]} bg-hue-tint text-hue-ink ring-1 ring-inset ring-hue/40`
 }
+
+/**
+ * Joins class names, skipping the empty ones. The motif files use this rather
+ * than cn so they are the same file in the storefront, which carries no
+ * tailwind-merge; nothing they join ever conflicts.
+ */
+export function cx(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(" ")
+}
