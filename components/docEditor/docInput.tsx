@@ -381,7 +381,9 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
 
                 {/* Content area — scrollable body */}
                 <div 
-                    className="w-full relative flex-1 min-h-0 overflow-y-auto overflow-x-clip cursor-text"
+                    // doc-scroll: the size container that wide blocks measure
+                    // their breakout against (minimal-tiptap/styles/index.css).
+                    className="doc-scroll w-full relative flex-1 min-h-0 overflow-y-auto overflow-x-clip cursor-text"
                 >
                     <div 
                         className={cn("w-full min-h-full flex flex-col", !isFullWidth && "doc-measure mx-auto")}
