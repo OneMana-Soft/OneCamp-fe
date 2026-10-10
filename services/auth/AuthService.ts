@@ -331,7 +331,14 @@ class AuthService {
      * say "use the address you gave the installer" before the operator finds out
      * from a refusal.
      */
-    static async getAdminSetupStatus(): Promise<{ required: boolean; pinned: boolean }> {
+    /**
+     * Whether this server still needs its first admin. `unreachable` when the
+     * check got no answer: the sign-in page reads that as "not needed" and
+     * carries on, but the setup page says so and offers to check again, since
+     * sending the operator of a fresh install to a sign-in page with no
+     * accounts is a dead end.
+     */
+    static async getAdminSetupStatus(): Promise<{ required: boolean; pinned: boolean; unreachable?: boolean }> {
         try {
             return await within(async (signal) => {
                 const res = await fetch(
@@ -342,7 +349,7 @@ class AuthService {
                 return { required: data.required === true, pinned: data.pinned === true };
             });
         } catch {
-            return { required: false, pinned: false };
+            return { required: false, pinned: false, unreachable: true };
         }
     }
 

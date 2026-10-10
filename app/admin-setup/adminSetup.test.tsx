@@ -65,3 +65,19 @@ describe("checking the server", () => {
   })
 })
 
+// A fresh install on a slow server: a setup check that gets no answer used to
+// read as "no admin needed" and send the operator to a sign-in page on a server
+// with no accounts.
+describe("a setup check that gets no answer", () => {
+  it("says so, offers to check again, and stays on setup", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("Failed to fetch")
+    })
+    render(<AdminSetupPage />)
+    expect(await screen.findByRole("heading", { name: "Couldn't reach this server" })).toBeInTheDocument()
+    expect(router.push).not.toHaveBeenCalled()
+    vi.stubGlobal("fetch", async () => ({ ok: true, status: 200, json: async () => ({ required: true, pinned: false }) }) as Response)
+    await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Check again" })))
+    expect(await screen.findByLabelText("Your email")).toBeInTheDocument()
+  })
+})
