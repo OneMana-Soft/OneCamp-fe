@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast"
 import UserCard from "@/components/admin/userCard"
 import { SectionJumps } from "@/components/admin/SectionJumps"
 import { AdminCardSkeleton } from "@/components/admin/AdminCardSkeleton"
+import { ADMIN_GROUP_HUE, type AdminGroup } from "@/components/admin/adminHues"
+import { Tile } from "@/components/ui/graphics/Tile"
 import dynamic from "next/dynamic"
 import { Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
 import { Users2, Webhook, Archive, UserX, Database, Sparkles, Plug, SlidersHorizontal, Zap, KeyRound, Lock, ScrollText } from "lucide-react"
@@ -76,10 +78,11 @@ type TabDef = {
 // tabs apart). Admin consoles people already know (Slack, Linear, GitHub) group
 // settings under a few headings in a column, so an admin scans a short list for
 // the right heading instead of scrolling a strip for the right word.
-type TabGroup = { label: string; tabs: TabDef[] }
+type TabGroup = { key: AdminGroup; label: string; tabs: TabDef[] }
 
 const TAB_GROUPS: TabGroup[] = [
   {
+    key: "people",
     label: "People",
     tabs: [
       { value: "users", label: "Members", icon: Users2 },
@@ -90,6 +93,7 @@ const TAB_GROUPS: TabGroup[] = [
     ],
   },
   {
+    key: "workspace",
     label: "Workspace",
     tabs: [
       { value: "settings", label: "General", icon: SlidersHorizontal },
@@ -106,6 +110,7 @@ const TAB_GROUPS: TabGroup[] = [
     ],
   },
   {
+    key: "ai",
     label: "AI and automation",
     tabs: [
       { value: "ai-models", label: "AI & agents", icon: Sparkles },
@@ -114,6 +119,7 @@ const TAB_GROUPS: TabGroup[] = [
     ],
   },
   {
+    key: "connections",
     label: "Connections",
     tabs: [
       { value: "integrations", label: "Integrations", icon: GitBranch },
@@ -122,6 +128,7 @@ const TAB_GROUPS: TabGroup[] = [
     ],
   },
   {
+    key: "system",
     label: "System",
     tabs: [{ value: "health", label: "Health and updates", icon: Activity }],
   },
@@ -349,7 +356,11 @@ const AdminPage = () => {
                           "data-[state=active]:bg-brand-muted data-[state=active]:text-foreground data-[state=active]:shadow-none",
                           )}
                         >
-                          <Icon className="h-4 w-4 shrink-0" />
+                          {/* The group's hue on every section in it: five places in
+                              five colours, not nineteen (components/admin/adminHues). */}
+                          <Tile hue={ADMIN_GROUP_HUE[group.key]} size="sm">
+                            <Icon />
+                          </Tile>
                           {label}
                         </TabsTrigger>
                       ))}
