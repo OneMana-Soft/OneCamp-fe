@@ -32,7 +32,10 @@ describe("no field zooms the page on a touch screen", () => {
   it("raises any field set under 16px, on touch screens only", () => {
     const css = readFileSync("app/globals.css", "utf8")
     const block = css.slice(css.indexOf("NO ZOOM ON FOCUS"))
-    expect(block).toMatch(/@media \(pointer: coarse\) \{\s*:is\(input:not\([^)]*\), textarea, select\):is\(\.text-sm, \.text-xs, \.text-2xs, \.text-3xs\) \{\s*font-size: 1rem;/)
+    expect(block).toMatch(/@media \(pointer: coarse\) \{\s*:is\(input:not\([^)]*\), textarea, select\):is\(\.text-sm, \.text-xs, \.text-2xs, \.text-3xs, [^)]*\) \{\s*font-size: 1rem;/)
+    // The shared Input steps down to md:text-sm at 768, an iPad's width.
+    const sizes = block.match(/textarea, select\):is\(([^)]*)\)/)?.[1] ?? ""
+    for (const cls of ["md\\:text-sm", "sm\\:text-sm", "lg\\:text-sm", "md\\:text-xs"]) expect(sizes).toContain(`.${cls}`)
   })
 
   it("types into editors at 16px on touch screens, and still reads messages at 15px", () => {
