@@ -49,13 +49,3 @@ export function useDocCounts(editor: Editor | null, delayMs = 400): DocCounts {
   }, [editor, delayMs])
   return counts
 }
-
-/** What kind of block the caret is in, as the footer names it. */
-export function blockLabel(editor: Editor): string {
-  if (editor.isActive("heading")) {
-    const level = editor.getAttributes("heading").level
-    return level ? `Heading ${level}` : "Heading"
-  }
-  if (editor.isActive("paragraph")) return "Paragraph"
-  return ""
-}
