@@ -9,7 +9,7 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Pencil, Plug, Check, ExternalLink } from "@/lib/icons"
+import { Plus, Trash2, Pencil, Plug, ExternalLink } from "@/lib/icons"
 import {
   McpServer,
   McpCatalogEntry,
@@ -22,6 +22,24 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { McpToolRiskBadge, McpToolRiskLegend } from "./McpToolRisk"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { hueFor } from "@/lib/campHue"
+import { cn } from "@/lib/utils/helpers/cn"
+
+/** A state is a dot and a word, not a filled badge. */
+function StateWord({ tone, children }: { tone: "ok" | "off" | "bad"; children: React.ReactNode }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 text-xs", tone === "bad" ? "text-danger-ink" : "text-muted-foreground")}>
+      <span
+        aria-hidden="true"
+        className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone === "ok" ? "bg-success" : tone === "bad" ? "bg-destructive" : "bg-faint-foreground")}
+      />
+      {children}
+    </span>
+  )
+}
 
 const McpServersCard = () => {
   const { data, isLoading, isError, mutate } = useFetch<{ data: McpServer[] }>(GetEndpointUrl.GetMcpServers)
@@ -42,7 +60,7 @@ const McpServersCard = () => {
     setBusyId(s.id)
     try {
       await setMcpServerEnabled(s.id, next)
-      toast({ title: next ? "Server enabled" : "Server disabled" })
+      toast({ title: next ? `${s.name} is on` : `${s.name} is off` })
       mutate()
     } catch {
       // interceptor surfaces the error
@@ -61,7 +79,7 @@ const McpServersCard = () => {
         setBusyId(s.id)
         try {
           await deleteMcpServer(s.id)
-          toast({ title: "Server removed" })
+          toast({ title: `${s.name} removed` })
           mutate()
         } catch {
           // interceptor surfaces the error
@@ -74,23 +92,30 @@ const McpServersCard = () => {
 
   return (
     <Card className="border-border/60">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+      <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Plug className="h-5 w-5 text-primary" />
+          {/* The title's icon on the AI and automation group's tile; it was
+              orange, which is for the one action a view asks for. */}
+          <CardTitle as="h2" className="flex items-center gap-2.5 text-base font-semibold">
+            <Tile hue={ADMIN_GROUP_HUE.ai} size="md">
+              <Plug />
+            </Tile>
             MCP servers
           </CardTitle>
           <CardDescription className="max-w-xl">
-            Connect external Model Context Protocol servers to extend your agents with new tools,
-            from GitHub to your own internal services.
+            Give your agents new tools from Model Context Protocol servers, from GitHub to your own internal
+            services.
           </CardDescription>
         </div>
+        {/* Outline: the page's one primary action is elsewhere (Run the drill
+            on the AI tab, New agent in your settings). */}
         <Button
+          variant="outline"
           onClick={() => {
             setPrefill(null)
             setCreating(true)
           }}
-          className="shrink-0"
+          className="shrink-0 self-start"
         >
           <Plus className="h-4 w-4 mr-1.5" />
           Add server
@@ -108,37 +133,31 @@ const McpServersCard = () => {
           <EmptyState
             tone="accent"
             icon={Plug}
-            title="No MCP servers connected"
-            description="Add a server to bring its tools into your agents."
-            action={
-              <Button variant="outline" onClick={() => setCreating(true)}>
-                <Plus className="h-4 w-4 mr-1.5" />
-                Add your first server
-              </Button>
-            }
+            hue={ADMIN_GROUP_HUE.ai}
+            title="No MCP servers yet"
+            description="Add a server to bring its tools to your agents, or install one from the catalogue below."
           />
         ) : (
           <div className="space-y-3">
             {/* Read once for the whole list: every tool chip below is labelled
                 with the risk OneCamp enforces for it. */}
             <McpToolRiskLegend />
+            {/* One hairline list of rows, where each server was a card. */}
+            <ul className="divide-y divide-border rounded-lg border border-border">
             {servers.map((s) => {
               const tools = parseMcpTools(s)
               return (
-                <div
-                  key={s.id}
-                  className="flex items-start justify-between gap-4 rounded-xl border border-border/60 p-4 transition-colors hover:border-border"
-                >
+                <li key={s.id} className="flex items-start justify-between gap-4 px-4 py-3">
                   <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-medium">{s.name}</span>
-                      {!s.enabled && <Badge variant="secondary" className="text-2xs">Disabled</Badge>}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="truncate text-sm font-medium">{s.name}</span>
+                      {!s.enabled && <StateWord tone="off">Turned off</StateWord>}
                       {s.auth_secret_unreadable ? (
-                        <Badge variant="destructive" className="text-2xs">Secret unreadable</Badge>
+                        <StateWord tone="bad">Secret unreadable</StateWord>
                       ) : s.last_error ? (
-                        <Badge variant="destructive" className="text-2xs">Connection error</Badge>
+                        <StateWord tone="bad">Can&apos;t connect</StateWord>
                       ) : (
-                        <Badge variant="outline" className="text-2xs">{tools.length} tool{tools.length === 1 ? "" : "s"}</Badge>
+                        <span className="text-xs text-muted-foreground">{tools.length} {tools.length === 1 ? "tool" : "tools"}</span>
                       )}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">{s.url}</p>
@@ -158,12 +177,12 @@ const McpServersCard = () => {
                         a URL, and its tool list is the one it last reported. It is
                         contributing none of them. */}
                     {s.auth_secret_unreadable && (
-                      <p className="text-2xs text-danger-ink">
-                        The stored secret cannot be decrypted, so this server is contributing no tools.
-                        This usually means the AI_CONFIG_KEK setting changed. Edit the server and enter the secret again.
+                      <p className="text-xs text-danger-ink">
+                        Its saved secret can&apos;t be read, so it gives agents no tools. This usually means the
+                        AI_CONFIG_KEK setting changed: edit the server and enter the secret again.
                       </p>
                     )}
-                    {s.last_error && <p className="text-2xs text-danger-ink">{s.last_error}</p>}
+                    {s.last_error && <p className="text-xs text-danger-ink">{s.last_error}</p>}
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1">
@@ -171,15 +190,15 @@ const McpServersCard = () => {
                       checked={s.enabled}
                       disabled={busyId === s.id}
                       onCheckedChange={(v) => handleToggle(s, v)}
-                      aria-label="Toggle server"
+                      aria-label={`Use ${s.name}`}
                     />
-                    <Button variant="ghost" size="icon" aria-label="Edit this server" className="h-8 w-8" onClick={() => setEditing(s)} title="Edit">
+                    <Button variant="ghost" size="icon" aria-label={`Edit ${s.name}`} className="h-8 w-8" onClick={() => setEditing(s)} title="Edit">
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Delete this server"
+                      aria-label={`Remove ${s.name}`}
                       className="h-8 w-8 text-danger-ink hover:text-danger-ink"
                       disabled={busyId === s.id}
                       onClick={() => handleDelete(s)}
@@ -188,9 +207,10 @@ const McpServersCard = () => {
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                </div>
+                </li>
               )
             })}
+            </ul>
           </div>
         )}
 
@@ -200,10 +220,10 @@ const McpServersCard = () => {
         {catalog.length > 0 && (
           <div className="mt-6 space-y-3">
             <div className="space-y-0.5">
-              <h4 className="text-sm font-semibold">Connector catalog</h4>
+              <h3 className="text-sm font-semibold">Connector catalogue</h3>
               <p className="text-xs text-muted-foreground">
-                Vetted connectors. Install one to prefill the setup, then paste your deployed
-                server&apos;s URL and token.
+                Connectors we&apos;ve checked. Install one to fill in the setup, then paste your server&apos;s
+                address and token.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -215,22 +235,24 @@ const McpServersCard = () => {
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{c.name}</span>
-                      <Badge variant="outline" className="text-2xs font-normal">{c.category}</Badge>
+                      {/* A category is a thing with a colour: its camp hue's
+                          tint and ink, fixed per category. */}
+                      <span className={cn(HUE_CLASS[hueFor(c.category)], "rounded-sm bg-hue-tint px-1.5 py-0.5 text-2xs font-medium text-hue-ink")}>
+                        {c.category}
+                      </span>
                     </div>
-                    <p className="line-clamp-2 text-2xs text-muted-foreground">{c.description}</p>
+                    <p className="line-clamp-2 text-xs text-muted-foreground">{c.description}</p>
                     <a
                       href={c.docs_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-2xs text-primary hover:underline"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                     >
-                      Setup guide <ExternalLink className="h-3 w-3" />
+                      Setup guide <ExternalLink className="h-3 w-3" aria-hidden="true" />
                     </a>
                   </div>
                   {c.installed ? (
-                    <Badge variant="secondary" className="shrink-0 gap-1 text-2xs">
-                      <Check className="h-3 w-3" /> Installed
-                    </Badge>
+                    <StateWord tone="ok">Installed</StateWord>
                   ) : (
                     <Button
                       variant="outline"
