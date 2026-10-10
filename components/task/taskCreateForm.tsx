@@ -10,7 +10,7 @@ import { RootState } from "@/store/store";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import type { UserProfileInterface } from "@/types/user";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   CreateTaskFormData,
@@ -42,6 +42,7 @@ import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/
 import { useMedia } from "@/context/MediaQueryContext";
 import type { TaskDraft } from "@/lib/task/messageToTask";
 import { lastTaskProject, rememberTaskProject, startingProject } from "@/lib/task/startingProject";
+import { myTaskAssignee } from "@/lib/task/myTaskAssignee";
 
 type TaskCreateFormProps = {
   submitLabel?: string;
@@ -168,6 +169,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
     control,
     formState: { errors },
     setValue,
+    getValues,
     watch,
   } = useForm<CreateTaskFormData>({
     resolver: zodResolver(createTaskFormSchema),
@@ -196,13 +198,15 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
 
   // From My Tasks a task is yours, or it would vanish from the list you made
   // it in. Applied once a project you belong to is picked; you can change it.
+  // The rule is myTaskAssignee, which a pick that finishes Create also applies.
   const self = useFetchOnlyOnce<UserProfileInterface>(assignToMe ? GetEndpointUrl.SelfProfile : "");
   const selfUUID = self.data?.data?.user_uuid;
   useEffect(() => {
-    if (!assignToMe || !selfUUID || taskAssigneeUUID || !taskProjectUUID) return;
+    if (!taskProjectUUID) return;
     const project = projectsInfo.data?.data.find((p) => p.project_uuid === taskProjectUUID);
-    if (project?.project_members?.some((m) => m.user_uuid === selfUUID)) {
-      setValue("task_assignee_uuid", selfUUID, { shouldValidate: true });
+    const assignee = myTaskAssignee({ assignToMe, selfUUID, assignee: taskAssigneeUUID, project });
+    if (assignee && assignee !== taskAssigneeUUID) {
+      setValue("task_assignee_uuid", assignee, { shouldValidate: true });
     }
   }, [assignToMe, selfUUID, taskAssigneeUUID, taskProjectUUID, projectsInfo.data, setValue]);
 
@@ -330,19 +334,49 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
       });
   };
 
+  // Create, pressed with the project all that's missing, opens the picker,
+  // and then a pick there is the answer it asked for: it finishes the create,
+  // so Create isn't pressed twice. Closing the picker without a pick drops it,
+  // and a pick in the picker opened by hand only picks.
+  const createOnPick = useRef(false);
+  const submitCreate = handleSubmit(handleCreateTask, (invalid: FieldErrors<CreateTaskFormData>) => {
+    if (invalid.task_project_uuid && Object.keys(invalid).length === 1) {
+      createOnPick.current = true;
+      setPopOpenProjectName(true);
+    }
+  });
+  const onProjectPickerOpenChange = (open: boolean) => {
+    if (!open) createOnPick.current = false;
+    setPopOpenProjectName(open);
+  };
+  const onProjectPicked = (projectUUID: string) => {
+    if (!createOnPick.current) return;
+    createOnPick.current = false;
+    // From My Tasks the task must go out as yours. The effect that makes it
+    // yours runs once this pick has rendered, after the request has left
+    // with nobody on it, and the task would not be on the list it was made in.
+    const assignee = myTaskAssignee({
+      assignToMe,
+      selfUUID,
+      assignee: getValues("task_assignee_uuid"),
+      project: projectChoices?.find((p) => p.project_uuid === projectUUID),
+    });
+    if (assignee) setValue("task_assignee_uuid", assignee, { shouldValidate: true });
+    void submitCreate();
+  };
+
   const startDateWatch = watch("task_start_date");
   const dueDateWatch = watch("task_due_date");
 
   return (
     <div>
       {/* Create is never a dead end: pressed without a project, it says so and
-          opens the picker, where a disabled button gave no reason at all. Only
-          when the project is all that's missing: with another field wrong,
-          focus goes to that field, and the picker would open and shut again. */}
+          opens the picker, where a disabled button gave no reason at all, and
+          the project picked there finishes the create. Only when the project
+          is all that's missing: with another field wrong, focus goes to that
+          field, and the picker would open and shut again. */}
       <form
-        onSubmit={handleSubmit(handleCreateTask, (invalid) => {
-          if (invalid.task_project_uuid && Object.keys(invalid).length === 1) setPopOpenProjectName(true);
-        })}
+        onSubmit={submitCreate}
         className="grid gap-4 py-4"
       >
         <div className="grid gap-2 mb-2">
@@ -360,7 +394,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                 control={control}
                 name="task_project_uuid"
                 render={({ field }) => (
-                  <Popover open={popOpenProjectName} onOpenChange={setPopOpenProjectName}>
+                  <Popover open={popOpenProjectName} onOpenChange={onProjectPickerOpenChange}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="justify-start">
                         {selectedProject ? (
@@ -385,6 +419,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                                 onSelect={(value) => {
                                   field.onChange(value);
                                   setPopOpenProjectName(false);
+                                  onProjectPicked(value);
                                 }}
                               >
                                 <span>
