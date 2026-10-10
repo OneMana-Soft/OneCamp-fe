@@ -102,8 +102,10 @@ export function throughputChart(r: Report): NormalizedChart {
     // Done is the story, in the one chart hue; what came in is its context, in
     // the neutral ink. Two steps of one blue ramp were too close to tell apart.
     series: [
-      { name: "Done", values: r.done, color: "var(--info)" },
-      { name: "Added", values: r.added, color: "var(--faint-foreground)" },
+      // Two series in the chart's own order (sky, then moss): neither is a
+      // status, so neither borrows a status colour.
+      { name: "Done", values: r.done },
+      { name: "Added", values: r.added },
     ],
   }
 }

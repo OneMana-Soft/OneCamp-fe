@@ -11,27 +11,24 @@ import { niceTicks, type NormalizedChart } from "@/lib/utils/chartSpec";
  * It renders a NormalizedChart (see chartSpec.ts) as inline SVG built from React
  * nodes — no charting library, no canvas, no dangerouslySetInnerHTML — so it
  * carries no new bundle weight and no XSS surface, matching MarkdownMessage's
- * philosophy. Series colors come from the existing --chart-1..5 theme tokens so
- * charts follow light/dark mode automatically.
+ * philosophy. Series colours are the camp hues (--camp-*), so charts follow
+ * light and dark mode automatically.
  *
  * Supported types: bar (grouped), line, area, pie/donut. It is purely
  * presentational: all validation/bounding happens upstream in normalizeChartSpec.
  */
 
-// One calm palette: the first series in the info token, the one chart hue
-// (with its own dark-mode step); the second in the neutral faint ink, so a
-// pair reads as "this, against that" (validated: ΔE 18.5 light, 20.7 dark).
-// Only a third series onward reaches into the theme's chart ramp, alternating
-// light and dark steps. The ramp is one blue, so past two series identity
-// leans on the legend and tooltips; a categorical chart set is a token change
-// in globals.css, not something to invent here.
-const SERIES_COLORS = [
-    "var(--info)",
-    "var(--faint-foreground)",
-    "var(--chart-1)",
-    "var(--chart-5)",
-    "var(--chart-2)",
-];
+// The camp hues, in the playful layer's fixed order: sky, moss, sun, dusk,
+// berry, lake, the same six every person and project is drawn in. Never
+// cycled by rank: a series keeps its slot. Measured with the dataviz validator
+// (app/chartPalette.test.ts): every adjacent pair clears the normal-vision
+// floor (16.7 at worst) and 3:1 on the card; two pairs sit in the 6-8 band
+// for colour blindness (moss and sun 6.3, protan; berry and lake 6.5, deutan
+// in dark), which the validator allows with secondary encoding, and this
+// chart always has it: a legend for two series or more, 2px gaps between
+// fills, end dots on lines.
+export const SERIES_HUES = ["sky", "moss", "sun", "dusk", "berry", "lake"] as const
+const SERIES_COLORS = SERIES_HUES.map((h) => `var(--camp-${h})`);
 
 const colorAt = (i: number) => SERIES_COLORS[i % SERIES_COLORS.length];
 
