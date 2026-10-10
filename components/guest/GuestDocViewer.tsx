@@ -13,10 +13,17 @@
  */
 
 import "@/components/minimal-tiptap/styles/index.css"
+import { useEffect, useState } from "react"
 import { EditorContent } from "@tiptap/react"
 import { useMinimalTiptapEditor } from "@/components/minimal-tiptap/hooks/use-minimal-tiptap"
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider"
-import { Loader2 } from "@/lib/icons"
+import { Skeleton } from "@/components/ui/skeleton"
+
+/**
+ * How long a document may take to arrive before the guest is told it can't be
+ * reached yet. The connection keeps trying either way.
+ */
+export const GUEST_DOC_SLOW_MS = 8_000
 
 interface GuestDocViewerProps {
   /** Fully-formed Hocuspocus document name (the bare doc uuid for docs). */
@@ -44,12 +51,35 @@ export function GuestDocViewer({ documentName, tokenFetcher }: GuestDocViewerPro
     editorClassName: "focus:outline-none",
   })
 
-  // Gate on the provider being ready so the editor is built already bound to
-  // Yjs (same pattern as the member editor) — avoids a flash of empty content.
-  if (!provider || !editor) {
+  // Shown only once the document has synced. The editor used to render as
+  // soon as the connection object existed, so a document that never arrived
+  // (the link turned off between the check and the connect, the collaboration
+  // service down) looked like an empty document.
+  const ready = !!provider && !!editor && synced
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (ready) {
+      setSlow(false)
+      return
+    }
+    const t = setTimeout(() => setSlow(true), GUEST_DOC_SLOW_MS)
+    return () => clearTimeout(t)
+  }, [ready])
+
+  if (!ready) {
     return (
-      <div className="flex min-h-[40vh] w-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div aria-busy="true" className="grid min-h-[40vh] w-full content-start gap-3 px-1 py-2">
+        <p role="status" className={slow ? "text-sm text-muted-foreground" : "sr-only"}>
+          {slow ? "Can't reach the document right now; still trying." : "Opening the document…"}
+        </p>
+        <div aria-hidden="true" className="grid gap-3">
+          <Skeleton className="h-6 w-1/2" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-11/12" />
+          <Skeleton className="h-3 w-4/5" />
+          <Skeleton className="mt-3 h-3 w-full" />
+          <Skeleton className="h-3 w-3/4" />
+        </div>
       </div>
     )
   }
