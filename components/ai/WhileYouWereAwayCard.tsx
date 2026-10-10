@@ -171,7 +171,7 @@ function WhileYouWereAwayCard({
 
   return (
     <section
-      className="ai-panel"
+      className="ai-panel hover-lift"
       aria-labelledby="away-recap-heading"
     >
       <div className="ai-panel-head">

@@ -164,7 +164,7 @@ function AttentionCard() {
   // cursor. Saying "nothing needs you" is the moment the page is finished.
   if (items.length === 0) {
     return (
-      <div className="ai-panel" role="status">
+      <div className="ai-panel hover-lift" role="status">
         <div className="ai-panel-head">
           <Tile hue="moss" size="sm"><CircleCheck strokeWidth={1.75} /></Tile>
           <h2 className="text-sm font-medium text-foreground">Nothing needs you right now</h2>
@@ -188,7 +188,7 @@ function AttentionCard() {
   }
 
   return (
-    <div className="ai-panel">
+    <div className="ai-panel hover-lift">
       <div className="ai-panel-head">
         <Tile hue="sun" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
         <h2 className="text-sm font-medium text-foreground">What needs me now</h2>

@@ -13,6 +13,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { springPop } from "@/lib/celebrate"
 import { useDispatch } from "react-redux"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -234,7 +235,11 @@ export default function InboxPage() {
         )}
         {listError && <p className="p-4 text-sm text-danger-ink">{listError}</p>}
         {threads && threads.length === 0 && !listError && (
-          <p className="p-6 text-center text-sm text-muted-foreground">{applied ? "Nothing matches that search." : "Your inbox is empty."}</p>
+          applied ? (
+            <p className="p-6 text-center text-sm text-muted-foreground">Nothing matches that search.</p>
+          ) : (
+            <InboxZero />
+          )
         )}
         <ul>
           {threads?.map((t) => (
@@ -391,5 +396,22 @@ export default function InboxPage() {
       {list}
       {detail}
     </div>
+  )
+}
+
+/**
+ * Nothing in the inbox: a small moment, so the line springs once as it
+ * arrives (springPop, which stands still for reduced motion). Not a burst:
+ * those are for a task done or an import finished.
+ */
+function InboxZero() {
+  const ref = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    springPop(ref.current)
+  }, [])
+  return (
+    <p ref={ref} data-inbox-zero="" className="p-6 text-center text-sm text-muted-foreground">
+      Your inbox is empty.
+    </p>
   )
 }

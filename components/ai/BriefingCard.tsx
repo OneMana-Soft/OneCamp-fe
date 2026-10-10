@@ -185,7 +185,7 @@ function BriefingCard() {
   }
 
   return (
-    <div className="ai-panel">
+    <div className="ai-panel hover-lift">
       <div className="ai-panel-head">
         <Tile hue="lake" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
         <h2 className="text-sm font-medium text-foreground">Your briefing</h2>

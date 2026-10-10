@@ -56,7 +56,7 @@ function AgentWorkCardInner() {
     if (items.length === 0 && kept.decided === 0) return null
 
     return (
-        <section className="ai-panel" aria-labelledby="agent-work-heading">
+        <section className="ai-panel hover-lift" aria-labelledby="agent-work-heading">
             <div className="ai-panel-head">
                 <Tile hue="dusk" size="sm"><Bot strokeWidth={1.75} /></Tile>
                 <h2 id="agent-work-heading" className="text-sm font-medium text-foreground">
