@@ -69,7 +69,7 @@ function ResetPasswordForm() {
       if (result.status === "failed") setError(result.msg)
       else setOutcome(result.status)
     } catch {
-      setError("Something went wrong. Please try again.")
+      setError("Your password wasn't changed. Try again.")
     } finally {
       setIsLoading(false)
     }

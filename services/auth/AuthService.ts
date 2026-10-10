@@ -12,6 +12,14 @@ import { withCsrfHeader } from "@/lib/utils/csrf";
 export const PROBE_TIMEOUT_MS = 8_000;
 
 /**
+ * What a sign-in page says when its request never reached the workspace. It
+ * said "Network error. Please try again." (and "Directory server
+ * unreachable." for the directory sign-in, though it was this workspace that
+ * couldn't be reached): the browser's words, not what happened or what to do.
+ */
+const UNREACHABLE = "Couldn't reach this workspace. Check your connection and try again.";
+
+/**
  * Runs `work` with a signal, and stops waiting for it after `ms`.
  *
  * The request is aborted, so a browser lets go of the connection, AND raced, so
@@ -147,16 +155,16 @@ class AuthService {
                 /* response wasn't JSON */
             }
             if (res.status === 404) {
-                msg = msg || 'Demo login is not available on this server.';
+                msg = msg || "There's no demo on this server.";
             } else if (res.status === 401 || res.status === 403) {
-                msg = msg || 'Demo access is currently disabled.';
+                msg = msg || 'The demo is turned off right now.';
             } else if (res.status >= 500) {
-                msg = msg || 'Demo login is temporarily unavailable. Please try again.';
+                msg = msg || "The demo isn't available right now. Try again in a few minutes.";
             }
             return { ok: false, msg };
         } catch (error) {
             console.error('Demo login failed:', error);
-            return { ok: false, msg: 'Network error. Please check your connection.' };
+            return { ok: false, msg: "Couldn't reach the demo. Check your connection and try again." };
         }
     }
 
@@ -192,7 +200,7 @@ class AuthService {
             return loginOutcome(res.ok, await res.json());
         } catch (error) {
             console.error('Email login failed:', error);
-            return { status: 'failed', msg: 'Network error. Please try again.' };
+            return { status: 'failed', msg: UNREACHABLE };
         }
     }
 
@@ -223,12 +231,12 @@ class AuthService {
             // than flattened, so the screen can say which.
             return {
                 status: 'failed',
-                msg: data?.msg || 'That did not work. Please try again.',
+                msg: data?.msg || "That code didn't work. Check it and try again.",
                 reason: data?.code === 'totp_challenge_invalid' ? 'challenge_expired' : 'code_invalid',
             };
         } catch (error) {
             console.error('Two-factor login failed:', error);
-            return { status: 'failed', msg: 'Network error. Please try again.', reason: 'code_invalid' };
+            return { status: 'failed', msg: UNREACHABLE, reason: 'code_invalid' };
         }
     }
 
@@ -259,7 +267,7 @@ class AuthService {
             };
         } catch (error) {
             console.error('Signup failed:', error);
-            return { ok: false, msg: 'Network error. Please try again.' };
+            return { ok: false, msg: UNREACHABLE };
         }
     }
 
@@ -278,7 +286,7 @@ class AuthService {
             return { ok: res.ok, msg: data.msg || '' };
         } catch (error) {
             console.error('Forgot password failed:', error);
-            return { ok: false, msg: 'Network error. Please try again.' };
+            return { ok: false, msg: UNREACHABLE };
         }
     }
 
@@ -310,7 +318,7 @@ class AuthService {
             return { status: 'failed', msg };
         } catch (error) {
             console.error('Reset password failed:', error);
-            return { status: 'failed', msg: 'Network error. Please try again.' };
+            return { status: 'failed', msg: UNREACHABLE };
         }
     }
 
@@ -357,7 +365,7 @@ class AuthService {
             return { ok: res.ok, msg: data.msg || '' };
         } catch (error) {
             console.error('Admin setup failed:', error);
-            return { ok: false, msg: 'Network error. Please try again.' };
+            return { ok: false, msg: UNREACHABLE };
         }
     }
 
@@ -413,7 +421,7 @@ class AuthService {
             return { ok: res.ok, msg: data.msg || '' };
         } catch (error) {
             console.error('Change password failed:', error);
-            return { ok: false, msg: 'Network error. Please try again.' };
+            return { ok: false, msg: UNREACHABLE };
         }
     }
 
@@ -523,7 +531,7 @@ class AuthService {
             return loginOutcome(res.ok, await res.json());
         } catch (error) {
             console.error('LDAP authentication failed:', error);
-            return { status: 'failed', msg: 'Directory server unreachable.' };
+            return { status: 'failed', msg: UNREACHABLE };
         }
     }
 

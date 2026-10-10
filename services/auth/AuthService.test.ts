@@ -75,3 +75,47 @@ describe("a server that never answers", () => {
     await expect(answer).resolves.toMatchObject({ email: true, google: false })
   })
 })
+
+// What a sign-in page says when the request itself fails. "Network error.
+// Please try again." and "Directory server unreachable." said what the browser
+// saw; the person's question is what happened and what to do.
+describe("a request that can't reach the workspace", () => {
+  const UNREACHABLE = "Couldn't reach this workspace. Check your connection and try again."
+  const offline = () => vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch") }))
+
+  it("says so in the same words wherever it happens", async () => {
+    offline()
+    expect(await AuthService.loginWithEmail("sam@example.com", "a-password")).toEqual({ status: "failed", msg: UNREACHABLE })
+    expect(await AuthService.loginWithLDAP("sam", "a-password")).toEqual({ status: "failed", msg: UNREACHABLE })
+    expect((await AuthService.signup("t", "Sam", "a-password")).msg).toBe(UNREACHABLE)
+    expect((await AuthService.forgotPassword("sam@example.com")).msg).toBe(UNREACHABLE)
+    expect(await AuthService.resetPassword("t", "a-password")).toEqual({ status: "failed", msg: UNREACHABLE })
+    expect((await AuthService.adminSetup("sam@example.com", "a-password", "")).msg).toBe(UNREACHABLE)
+    expect(await AuthService.completeTOTPLogin("c", "123456")).toMatchObject({ status: "failed", msg: UNREACHABLE })
+  })
+
+  it("says the demo couldn't be reached, not that the network erred", async () => {
+    offline()
+    expect(await AuthService.loginAsDemo()).toEqual({ ok: false, msg: "Couldn't reach the demo. Check your connection and try again." })
+  })
+
+  it("says what the demo's own refusals mean", async () => {
+    const answer = (status: number) => vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status, json: async () => ({}) }) as unknown as Response))
+    answer(404)
+    expect((await AuthService.loginAsDemo()).msg).toBe("There's no demo on this server.")
+    answer(403)
+    expect((await AuthService.loginAsDemo()).msg).toBe("The demo is turned off right now.")
+    answer(503)
+    expect((await AuthService.loginAsDemo()).msg).toBe("The demo isn't available right now. Try again in a few minutes.")
+  })
+
+  it("says a refused code didn't work, and to check it, when the server gives no words", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) }) as unknown as Response))
+    expect(await AuthService.completeTOTPLogin("c", "123456")).toEqual({
+      status: "failed",
+      msg: "That code didn't work. Check it and try again.",
+      reason: "code_invalid",
+    })
+  })
+})
+
