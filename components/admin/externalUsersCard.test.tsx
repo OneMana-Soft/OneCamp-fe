@@ -50,7 +50,7 @@ describe("external users", () => {
     expect(post.makeRequest).not.toHaveBeenCalled()
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
       title: "Unlink Mona Lisa from GitHub?",
-      confirmText: "Unlink",
+      confirmText: "Unlink from GitHub",
       destructive: true,
     }))
     await act(async () => confirm.mock.calls[0][0].onConfirm())
