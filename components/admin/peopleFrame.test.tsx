@@ -181,3 +181,16 @@ describe("a people tab with nothing in it yet", () => {
     },
   )
 })
+
+// At 390 the toolbar's search is about 220px wide: "Search by name or
+// email…" was cut to "Search by name or e". Each tab says "Search <them>…".
+describe("the people search's placeholder", () => {
+  it("is short enough for a phone's toolbar on every tab", async () => {
+    const { readFileSync } = await import("node:fs")
+    for (const f of ["userCard", "adminCard", "teamCard", "invitationCard", "ExternalUsersCard"]) {
+      const m = readFileSync(`components/admin/${f}.tsx`, "utf8").match(/placeholder: "([^"]+)"/)
+      expect(m?.[1], f).toMatch(/^Search [a-z ]+…$/)
+      expect(m![1].length, f).toBeLessThanOrEqual(24)
+    }
+  })
+})

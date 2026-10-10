@@ -281,7 +281,7 @@ const UserCard = () => {
       search={{
         value: search,
         onChange: setSearch,
-        placeholder: "Search by name or email…",
+        placeholder: "Search members…",
         label: "Search members",
         name: "member-search",
         inputRef: searchRef,
