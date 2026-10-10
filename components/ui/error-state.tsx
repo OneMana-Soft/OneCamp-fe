@@ -1,7 +1,10 @@
 "use client"
+import type * as React from "react"
 import { AlertCircle, RefreshCw } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { SpotError } from "@/components/ui/graphics/spots"
+import { cn } from "@/lib/utils/helpers/cn"
 
 /**
  * ErrorState — "this failed to load", which is NOT the same sentence as "there
@@ -41,20 +44,35 @@ export function ErrorState({
   /** Set while a retry is in flight, so the button cannot be double-fired. */
   retrying,
   className,
+  compact,
+  detail,
 }: {
   subject: string
   onRetry?: () => void
   retrying?: boolean
   className?: string
+  /**
+   * Inside a section, under its title: half the padding, and the error spot at
+   * 48px (the playful layer's drawing for errors) instead of a bare icon. Admin
+   * sections each drew their own version of this: a red banner, an amber one, a
+   * line of text, none with Try again.
+   */
+  compact?: boolean
+  /**
+   * The server's own reason ("You don't have permission to do that."), said in
+   * place of the guess about the connection, which would then be wrong.
+   */
+  detail?: React.ReactNode
 }) {
   return (
     <EmptyState
-      icon={AlertCircle}
+      icon={compact ? undefined : AlertCircle}
+      illustration={compact ? <SpotError /> : undefined}
       title={`Couldn't load ${subject}`}
       // Names the likely cause and rules out the frightening one, because the
       // question a user actually has is "is my work gone?".
-      description="Nothing has been lost. This is usually a connection problem: try again in a moment."
-      className={className}
+      description={detail ?? "Nothing has been lost. This is usually a connection problem: try again in a moment."}
+      className={cn(compact && "py-6 [&_[data-empty-illustration]>svg]:size-12", className)}
       action={
         onRetry ? (
           <Button variant="outline" size="sm" onClick={onRetry} disabled={retrying} className="gap-1.5">

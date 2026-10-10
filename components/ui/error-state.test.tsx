@@ -57,4 +57,21 @@ describe("ErrorState", () => {
     // to distrust the surface. The icon carries the meaning.
     expect(container.innerHTML).not.toMatch(/bg-destructive(?!\/0)/)
   })
+
+  // Inside a section, under its title: the admin sections each drew their own
+  // failure (a red banner, an amber one, a line of text, none with Try again).
+  it("draws a compact form with the error spot for a failure inside a section", () => {
+    const { container } = render(<ErrorState compact subject="the installation's health" onRetry={() => {}} />)
+    const root = container.firstElementChild as HTMLElement
+    expect(root.className).toContain("py-6")
+    expect(root.querySelector("[data-empty-illustration] svg")).toBeTruthy()
+    expect(root.querySelector("[data-empty-icon]")).toBeNull()
+    expect(screen.getByRole("button", { name: /try again/i })).toBeTruthy()
+  })
+
+  it("says the server's own reason in place of the guess about the connection", () => {
+    render(<ErrorState subject="the AI settings" detail="You don't have permission to do that." />)
+    expect(screen.getByText("You don't have permission to do that.")).toBeTruthy()
+    expect(screen.queryByText(/connection problem/i)).toBeNull()
+  })
 })
