@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Eyebrow, eyebrowClass } from "@/components/ui/eyebrow"
 import { useRouter } from "next/navigation";
@@ -9,7 +10,7 @@ import { updateUserInfoStatus } from "@/store/slice/userSlice";
 
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { profileFormSchema, profileNamesPayload, type ProfileFormValues, type SavedNames } from "@/lib/validation/profileForm";
+import { profileFormSchema, profileNamesPayload, type ProfileFormValues, type SavedNames, profileNameField } from "@/lib/validation/profileForm";
 
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { useUploadFile } from "@/hooks/useUploadFile";
@@ -21,7 +22,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { useUserAvatar } from "@/hooks/useUserAvatar";
 
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
@@ -235,7 +236,10 @@ export function MobileSelfProfile() {
         });
     };
 
-    const userSeed = profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "User";
+    const shownName = displayNameOf(profileInfo.data?.data);
+    const fullName = secondaryNameOf(profileInfo.data?.data);
+    const handle = handleOf(profileInfo.data?.data);
+    const userSeed = shownName || "User";
     const nameIntial = getNameInitials(userSeed);
 
     return (
@@ -281,8 +285,13 @@ export function MobileSelfProfile() {
                             </Button>
                         )}
                         <h2 className="text-xl font-semibold text-foreground mt-3">
-                            {profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name}
+                            {shownName}
                         </h2>
+                        {(fullName || handle) && (
+                            <p className="text-sm text-muted-foreground">
+                                {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
+                            </p>
+                        )}
                         <p className="text-sm text-muted-foreground">
                             {profileInfo.data?.data?.user_email_id}
                         </p>
@@ -294,26 +303,28 @@ export function MobileSelfProfile() {
                             <div className="bg-muted/10 p-5 rounded-2xl border space-y-4">
                                 <FormField
                                     control={form.control}
-                                    name="fullName"
+                                    name="displayName"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className={eyebrowClass}>Full Name</FormLabel>
+                                            <FormLabel className={eyebrowClass}>{profileNameField("displayName").label}</FormLabel>
                                             <FormControl>
-                                                <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="Enter your full name" />
+                                                <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="Enter a display name" />
                                             </FormControl>
+                                            <FormDescription className="text-xs">{profileNameField("displayName").help}</FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
                                 <FormField
                                     control={form.control}
-                                    name="displayName"
+                                    name="fullName"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className={eyebrowClass}>Display Name</FormLabel>
+                                            <FormLabel className={eyebrowClass}>{profileNameField("fullName").label}</FormLabel>
                                             <FormControl>
-                                                <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="Enter a display name" />
+                                                <Input {...field} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1' placeholder="Enter your full name" />
                                             </FormControl>
+                                            <FormDescription className="text-xs">{profileNameField("fullName").help}</FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -323,13 +334,14 @@ export function MobileSelfProfile() {
                                     name="handle"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel className={eyebrowClass}>Handle</FormLabel>
+                                            <FormLabel className={eyebrowClass}>{profileNameField("handle").label}</FormLabel>
                                             <div className="relative">
                                                 <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-muted-foreground">@</span>
                                                 <FormControl>
                                                     <Input {...field} autoCapitalize="off" autoCorrect="off" spellCheck={false} className='bg-background/50 border-0 shadow-none text-base h-12 focus-visible:ring-1 pl-7' placeholder="your-handle" />
                                                 </FormControl>
                                             </div>
+                                            <FormDescription className="text-xs">{profileNameField("handle").help}</FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}

@@ -84,3 +84,29 @@ describe("saving a profile", () => {
     expect(setOpenState).not.toHaveBeenCalledWith(false)
   })
 })
+
+// The three names are told apart: which one people see on messages, which is
+// the whole name, and which one they @mention. The fields used to read "Full
+// Name", "Display Name" and "Handle" with nothing to say what each was for.
+describe("the name fields", () => {
+  it("come display name first, each with a line saying what it is for", async () => {
+    open()
+    await waitFor(() => expect(screen.getByLabelText("Display name")).toBeInTheDocument())
+    expect(screen.getByLabelText("Display name")).toHaveAccessibleDescription("Shown on your messages.")
+    expect(screen.getByLabelText("Full name")).toHaveAccessibleDescription(/Your whole name/)
+    expect(screen.getByLabelText("Handle")).toHaveAccessibleDescription("How people @mention you.")
+    const inputs = Array.from(document.querySelectorAll<HTMLInputElement>("#profile-edit-form input[name]")).map((i) => i.name)
+    expect(inputs.slice(0, 3)).toEqual(["displayName", "fullName", "handle"])
+  })
+
+  it("show the full name and handle under the shown name when they differ", async () => {
+    const before = fetched.data.data
+    fetched.data.data = { ...profile, user_name: "Sam", user_full_name: "Samuel Rivera", user_handle: "srivera" }
+    try {
+      open()
+      await waitFor(() => expect(screen.getByText("Samuel Rivera · @srivera")).toBeInTheDocument())
+    } finally {
+      fetched.data.data = before
+    }
+  })
+})

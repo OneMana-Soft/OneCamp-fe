@@ -62,3 +62,17 @@ export function profileNamesPayload(
   if (handle && handle !== normalizeHandle(saved.handle)) out.user_handle = handle
   return out
 }
+
+/**
+ * The three name fields, in the order the editor shows them, with the line
+ * under each that says what it is for. The display name is the one people
+ * see (lib/personName); the full name stands in when it is empty.
+ */
+export const PROFILE_NAME_FIELDS = [
+  { name: "displayName", label: "Display name", help: "Shown on your messages." },
+  { name: "fullName", label: "Full name", help: "Your whole name, on your profile. Shown when you have no display name." },
+  { name: "handle", label: "Handle", help: "How people @mention you." },
+] as const satisfies ReadonlyArray<{ name: keyof SavedNames; label: string; help: string }>
+
+/** A name field's label and help line. */
+export const profileNameField = (name: keyof SavedNames) => PROFILE_NAME_FIELDS.find((f) => f.name === name)!
