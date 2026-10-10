@@ -64,12 +64,17 @@ describe("a toolbar section", () => {
   })
 
   it("still lights a button when its mark turns on", async () => {
+    // On is said (aria-pressed) and shown (the highlight step) by the
+    // toolbar button itself (content's 492a0301).
     const { editor } = setup()
     await settle()
-    expect(screen.getByRole("button", { name: "Bold" }).className).not.toContain("bg-accent")
+    const bold = () => screen.getByRole("button", { name: "Bold" })
+    expect(bold().getAttribute("aria-pressed")).toBe("false")
+    expect(bold().className).not.toContain("bg-highlight text-foreground")
     act(() => void editor.chain().toggleBold().insertContent("bold").run())
     await settle()
-    expect(screen.getByRole("button", { name: "Bold" }).className).toContain("bg-accent")
+    expect(bold().getAttribute("aria-pressed")).toBe("true")
+    expect(bold().className).toContain("bg-highlight text-foreground")
   })
 
   it("doesn't re-render when its parent does", async () => {
