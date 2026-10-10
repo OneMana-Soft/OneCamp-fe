@@ -84,13 +84,30 @@ describe("the audit log", () => {
     expect(nobody.className).not.toMatch(/bg-primary/)
   })
 
-  it("draws an agent row in the agent's colour", async () => {
-    getAdminAuditLog.mockResolvedValue(page([entry(1, { category: "agent", summary: "Release Captain was refused" })]))
+  it("draws each category as a chip in its own camp hue, agent in dusk", async () => {
+    getAdminAuditLog.mockResolvedValue({
+      entries: [
+        entry(1, { category: "agent", summary: "Release Captain was refused" }),
+        entry(2, { category: "settings", summary: "Retention set to 365 days" }),
+        entry(3, { category: "integration", summary: "GitHub connected" }),
+      ],
+      categories: ["settings", "integration", "agent"],
+      initiators: [],
+    })
     render(<AdminAuditLog />)
     await screen.findByText("Release Captain was refused")
-    const badge = screen.getAllByText("agent").find((el) => el.tagName !== "BUTTON")!
-    expect(badge.className).toMatch(/text-agent/)
-    expect(badge.className).not.toMatch(/teal/)
+    const chip = (name: string) => screen.getAllByText(name).find((el) => el.tagName !== "BUTTON")!
+    // Tint behind ink, in one fixed hue per category: a category names a
+    // thing, so its colour is identity, never the accent or a raw hue.
+    expect(chip("agent").className).toMatch(/hue-dusk/)
+    expect(chip("settings").className).toMatch(/hue-sun/)
+    expect(chip("integration").className).toMatch(/hue-lake/)
+    for (const name of ["agent", "settings", "integration"]) {
+      expect(chip(name).className).toMatch(/bg-hue-tint/)
+      expect(chip(name).className).toMatch(/text-hue-ink/)
+      expect(chip(name).className).toMatch(/rounded-sm/)
+      expect(chip(name).className).not.toMatch(/(blue|violet|teal)-\d|primary/)
+    }
   })
 
   it("writes a time in the app's one format", async () => {
