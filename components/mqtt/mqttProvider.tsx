@@ -339,14 +339,17 @@ export const MqttProvider: React.FC<MqttProviderProps> = ({ children }) => {
         }
     }, [dispatch])
 
-    const contextValue: MqttContextValue = {
+    // One object while nothing in it changes. A new one on every render of
+    // this provider (a device count, a config answer, a typing sweep) re-rendered
+    // everything that reads the connection, for nothing.
+    const contextValue: MqttContextValue = useMemo(() => ({
         connectionState,
         publish,
         connect,
         disconnect,
         subscribeToTopic: handleSubscribeToTopic,
         unsubscribeFromTopic: handleUnsubscribeFromTopic,
-    }
+    }), [connectionState, publish, connect, disconnect, handleSubscribeToTopic, handleUnsubscribeFromTopic])
 
     return <MqttContext.Provider value={contextValue}>{children}</MqttContext.Provider>
 }
