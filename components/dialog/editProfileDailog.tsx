@@ -11,7 +11,7 @@ import {Input} from "@/components/ui/input";
 
 import {useEffect, useMemo, useRef, useState} from "react";
 
-import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,} from "../ui/dialog";
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,} from "../ui/dialog";
 
 import {Avatar, AvatarFallback, AvatarImage} from "../ui/avatar";
 import { Camera, Loader2 } from "@/lib/icons";
@@ -21,7 +21,9 @@ import {USER_STATUS_OFFLINE, USER_STATUS_ONLINE, UserProfileInterface, UserProfi
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {useUserAvatar} from "@/hooks/useUserAvatar";
 import {useUploadFile} from "@/hooks/useUploadFile";
-import {usePost} from "@/hooks/usePost";
+import {useConfirm} from "@/hooks/useConfirm";
+import axiosInstance, {OWN_ERRORS} from "@/lib/axiosInstance";
+import {apiErrorMessage, apiErrorStatus} from "@/lib/utils/apiError";
 import {useTranslation} from "react-i18next";
 import {useDispatch} from "react-redux";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
@@ -46,7 +48,11 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     const [selectedImage, setSelectedImage] = useState<string>("");
     const [selectedImageFile, selectedImageSetFile] = useState<FileList | null>(null);
     const uploadFile = useUploadFile()
-    const post = usePost()
+    const confirm = useConfirm()
+    const [saving, setSaving] = useState(false)
+    // A failure the dialog can't place under one field: said under the fields,
+    // where the person is looking, and kept until they try again.
+    const [saveProblem, setSaveProblem] = useState("")
     const {t} = useTranslation()
 
     const dispatch = useDispatch()
@@ -91,42 +97,50 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     };
 
     const onSubmit = async (data: ProfileFormValues) => {
+        setSaveProblem("")
         let profileKey = profileInfo.data?.data.user_profile_object_key || "";
 
         if (selectedImage == "" && selectedImageFile == null) {
             profileKey = "";
         }
         if (selectedImageFile) {
-
             const responses = await uploadFile.makeRequestToUploadToPublic(selectedImageFile)
-            if (responses.length > 0) {
-                profileKey = responses[0].object_uuid
+            if (responses.length === 0) {
+                // The upload answers an empty list when it failed. Saving on
+                // would keep the old photo and close as if the new one were in.
+                setSaveProblem("Couldn't upload your photo. Try again, or remove it and save the rest.")
+                return
             }
-
-
+            profileKey = responses[0].object_uuid
         }
 
-
         const names = profileNamesPayload(data, saved)
+        setSaving(true)
         try {
-            await post.makeRequest<UserProfileUpdateInterface>({
-                payload: {
-                    ...names,
-                    user_job_title:
-                        data.jobTitle || profileInfo.data?.data.user_job_title || "",
-                    user_profile_object_key: profileKey,
-                    user_app_lang:
-                        data.language || profileInfo.data?.data.user_app_lang || "en",
-                    user_hobbies: data.hobbies || profileInfo.data?.data.user_hobbies || "",
-                    user_status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
-                },
-                apiEndpoint: PostEndpointUrl.UpdateUserProfile
-
-            })
-        } catch {
-            // The server's reason is shown (a taken handle, a name the rule
-            // refuses), and the dialog stays open to fix it.
+            // The dialog says what went wrong itself, so the global toast stays quiet.
+            await axiosInstance.post(PostEndpointUrl.UpdateUserProfile, {
+                ...names,
+                user_job_title:
+                    data.jobTitle || profileInfo.data?.data.user_job_title || "",
+                user_profile_object_key: profileKey,
+                user_app_lang:
+                    data.language || profileInfo.data?.data.user_app_lang || "en",
+                user_hobbies: data.hobbies || profileInfo.data?.data.user_hobbies || "",
+                user_status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
+            } satisfies UserProfileUpdateInterface, OWN_ERRORS)
+        } catch (e) {
+            // Said where it can be fixed, and the dialog stays open to fix it.
+            // Someone else's handle is the one refusal with its own answer
+            // (409, "@x is taken. Try another."), so it goes under that field.
+            if (apiErrorStatus(e) === 409) {
+                form.setError("handle", { type: "server", message: apiErrorMessage(e, "That handle is taken. Try another.") })
+                form.setFocus("handle")
+            } else {
+                setSaveProblem(`Couldn't save your profile. ${apiErrorMessage(e, "Check your connection and try again.")}`)
+            }
             return
+        } finally {
+            setSaving(false)
         }
         dispatch(updateUserInfoStatus({
             userUUID: profileInfo.data?.data.user_uuid || '',
@@ -194,6 +208,29 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
         mode: "onChange",
     });
 
+    // Escape, a click outside and the close button all come here. With changes
+    // not saved it asks first: it used to throw them away without a word.
+    const photoChanged = selectedImageFile !== null || (selectedImage === "" && !!imageSrc)
+    const requestClose = () => {
+        // Read when closing, not from the last render: a typed change does not
+        // re-render this dialog, so a value kept from render was stale. Fields,
+        // not isDirty, which lagged a change in this form; a field set back to
+        // its saved value leaves dirtyFields.
+        const formChanged = Object.keys(form.formState.dirtyFields).length > 0
+        if (!formChanged && !photoChanged) {
+            closeModal()
+            return
+        }
+        confirm({
+            title: "Discard your profile changes?",
+            description: "Your changes to your name, photo or details haven't been saved.",
+            confirmText: "Discard changes",
+            cancelText: "Keep editing",
+            destructive: true,
+            onConfirm: closeModal,
+        })
+    }
+
     const shownName = displayNameOf(profileInfo.data?.data);
     const fullName = secondaryNameOf(profileInfo.data?.data);
     const handle = handleOf(profileInfo.data?.data);
@@ -202,7 +239,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
     const field = "h-10"
 
     return (
-        <Dialog onOpenChange={closeModal} open={dialogOpenState}>
+        <Dialog onOpenChange={(open) => { if (!open) requestClose() }} open={dialogOpenState}>
             <DialogContent className="flex max-h-[90dvh] flex-col gap-0 p-0 sm:max-w-2xl md:h-[85dvh]">
                 <DialogHeader className="border-b border-border px-6 py-5 text-left">
                     <DialogTitle className="text-lg font-semibold">Your profile</DialogTitle>
@@ -366,13 +403,16 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                     )}
                                 />
 
+                                {saveProblem && (
+                                    <p role="alert" className="text-sm text-danger-ink text-pretty">{saveProblem}</p>
+                                )}
                                 <div className="flex justify-end">
                                     <Button
-                                        disabled={uploadFile.isSubmitting || post.isSubmitting}
+                                        disabled={uploadFile.isSubmitting || saving}
                                         type="submit"
                                     >
-                                        {(uploadFile.isSubmitting || post.isSubmitting) && <Loader2 className="animate-spin" aria-hidden="true" />}
-                                        {uploadFile.isSubmitting || post.isSubmitting ? "Saving…" : "Save profile"}
+                                        {(uploadFile.isSubmitting || saving) && <Loader2 className="animate-spin" aria-hidden="true" />}
+                                        {uploadFile.isSubmitting || saving ? "Saving…" : "Save profile"}
                                     </Button>
                                 </div>
                             </form>
