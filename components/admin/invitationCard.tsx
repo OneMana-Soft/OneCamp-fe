@@ -17,36 +17,52 @@ import { toast } from "@/hooks/use-toast"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import { resendInvitation } from "@/services/invitationService"
 import { couldntEmail } from "@/components/invite/InvitationOutcome"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import type { Invitation } from "@/types/user"
 
 const InvitationCard = () => {
   const dispatch = useDispatch()
   const [resendingEmail, setResendingEmail] = useState<string | null>(null)
   const [search, setSearch] = useState("")
 
-  const { data: response, mutate, isLoading } = useFetch<InvitationListResponseInterface>(
+  const { data: response, mutate, isLoading, isError } = useFetch<InvitationListResponseInterface>(
     GetEndpointUrl.GetAdminInvitationList
   )
 
-  const invitations = response?.data || []
+  // Memoised, so the filtered list below is not rebuilt on every render.
+  const invitations = useMemo(() => response?.data ?? [], [response])
   const post = usePost()
   const confirm = useConfirm()
   const { copy } = useCopyToClipboard()
 
-  // Confirmed: revoking invalidates the link already sitting in someone's inbox, so
-  // the consequence lands on a person outside this screen who will just find a dead
-  // link. The prompt names the address so the admin can see they picked the right row.
-  const handleDeleteInvitation = (email: string) => {
-    if (!email || post.isSubmitting) return
-    confirm({
-      title: `Revoke the invitation to ${email}?`,
-      description:
-        "Their invite link stops working. You can invite them again, which sends a new email.",
-      confirmText: "Revoke invitation",
-      destructive: true,
-      onConfirm: () => {
-        void revokeInvitation(email)
-      },
-    })
+  // Confirmed, in words that fit the row. Revoking a live invitation kills the
+  // link already sitting in someone's inbox, so the consequence lands on a
+  // person outside this screen; the prompt names the address so the admin can
+  // see they picked the right row. A joined or expired one has no live link,
+  // and telling the admin "their link stops working" about someone who joined
+  // last week was simply untrue: clearing it only tidies the list.
+  const handleDeleteInvitation = (inv: Invitation) => {
+    if (!inv.email || post.isSubmitting) return
+    const live = inv.status !== "joined" && inv.status !== "expired"
+    confirm(
+      live
+        ? {
+            title: `Revoke the invitation to ${inv.email}?`,
+            description: "Their invite link stops working. You can invite them again, which sends a new email.",
+            confirmText: "Revoke invitation",
+            destructive: true,
+            onConfirm: () => void revokeInvitation(inv.email),
+          }
+        : {
+            title: `Clear ${inv.email}'s invitation from the list?`,
+            description:
+              inv.status === "joined"
+                ? "They have joined, so nothing changes for them. Only this record goes."
+                : "Its link had already run out. Only this record goes.",
+            confirmText: "Clear",
+            onConfirm: () => void revokeInvitation(inv.email),
+          },
+    )
   }
 
   const revokeInvitation = async (email: string) => {
@@ -100,7 +116,13 @@ const InvitationCard = () => {
         })
       }
     } catch (error) {
-      console.error("Failed to resend invitation:", error)
+      // A request that never got an answer used to end here in the console,
+      // with the spinner stopping and nothing said at all.
+      toast({
+        title: "Couldn't send it again",
+        description: apiErrorMessage(error, "Try again in a moment."),
+        variant: "destructive",
+      })
     } finally {
       setResendingEmail(null)
     }
@@ -157,8 +179,10 @@ const InvitationCard = () => {
               className="h-9 gap-1.5 shrink-0"
               onClick={() => dispatch(openUI({ key: "addInvitation" }))}
             >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline sm:inline">Invite User</span>
+              {/* Words at every width: the label hid below an xs: breakpoint
+                  that does not exist, so a phone showed a bare "+". */}
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Invite people
             </Button>
           </div>
         </div>
@@ -173,6 +197,8 @@ const InvitationCard = () => {
           isSubmitting={post.isSubmitting}
           resendingEmail={resendingEmail}
           isLoading={isLoading}
+          isError={!!isError && invitations.length === 0}
+          onRetry={() => void mutate()}
           isFiltered={!!normalisedSearch}
           totalLoaded={invitations.length}
         />

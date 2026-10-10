@@ -53,7 +53,9 @@ describe("the admin's invitation list", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send late@example.com a new invitation link" }))
     expect(onResend).toHaveBeenCalledWith("late@example.com")
     expect(screen.queryByRole("button", { name: /(Resend invitation to|new invitation link).*in@example.com/ })).toBeNull()
-    expect(screen.getByRole("button", { name: "Remove invitation for in@example.com" })).toBeTruthy()
+    // A joined one can only be cleared from the list: nothing about it is live.
+    expect(screen.getByRole("button", { name: "Clear in@example.com's invitation from the list" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Revoke the invitation to live@example.com" })).toBeTruthy()
   })
 })
 
