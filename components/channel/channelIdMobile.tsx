@@ -13,7 +13,7 @@ import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import { clearChannelReplyTarget } from "@/store/slice/channelSlice";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 
-export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string)=>void, unreadCount?: number, focusComposer?: boolean }) => {
+export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusComposer}: {channelId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number, focusComposer?: boolean }) => {
 
     const dispatch = useDispatch();
     const userChannels = useSelector((state: RootState) => state.users.userSidebar.userChannels);

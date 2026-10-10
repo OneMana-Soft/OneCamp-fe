@@ -4,6 +4,7 @@ import {useEmojiMartData} from "@/hooks/reactions/useEmojiMartData";
 import {findEmojiMartEmojiByEmojiID} from "@/lib/utils/reaction/findReaction";
 import {cn} from "@/lib/utils/helpers/cn";
 import {nameList} from "@/lib/utils/format/nameList";
+import {springPop} from "@/lib/celebrate";
 
 interface reactionPillProps {
     emojiId: string;
@@ -16,6 +17,9 @@ export const ReactionPill =  ({ emojiId, reactionUserNames, onClickEmoji, isSele
 
     const onClickEmojiHandle = (e: React.MouseEvent)=>{
         e.stopPropagation()
+        // Adding your reaction answers with a little spring (lib/celebrate);
+        // taking it back does not.
+        if (!isSelected) springPop(e.currentTarget)
         onClickEmoji(emojiId)
     }
 

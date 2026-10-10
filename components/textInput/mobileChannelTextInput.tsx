@@ -22,9 +22,11 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { ChannelInfoInterfaceResp } from "@/types/channel";
 import { GetEndpointUrl } from "@/services/endPoints";
 import CommandSurface from "@/components/command/CommandSurface";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { celebrate } from "@/lib/celebrate";
 
 
-export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { channelId: string, handleSend: (latestContent?: string)=>void, autoFocus?: boolean }) => {
+export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { channelId: string, handleSend: (latestContent?: string) => boolean | void, autoFocus?: boolean }) => {
     const scheduleSend = useScheduleSend()
     const editorRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
@@ -33,6 +35,10 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
     const dispatch = useDispatch();
     const { publishTyping } = usePublishTyping({ targetType: 'channel', targetId: channelId });
     const uploadFile = useUploadFile()
+    // A first message here bursts sparks from Send (lib/celebrate).
+    const send = useStableCallback((latestContent?: string) => {
+        if (handleSend(latestContent)) celebrate(editorRef.current?.querySelector('button[aria-label="Send"]'))
+    })
 
     const channelInputState = useSelector((state: RootState) => state.channel.channelInputState[channelId] || {});
 
@@ -100,7 +106,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
                         contentRevision={channelInputState.restoredUnsent}
                         placeholder={channelComposerPlaceholder(channelDisplayName)}
                         editable={true}
-                        buttonOnclick={handleSend}
+                        buttonOnclick={send}
                         onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
                         hasAttachments={(channelInputState.filesUploaded?.length ?? 0) > 0}

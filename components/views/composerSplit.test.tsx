@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, render } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { Provider } from "react-redux"
 
 // Typing changes the draft, and only the message box reads it. The channel,
@@ -39,11 +39,13 @@ vi.mock("@/components/groupedAvatar/groupedAvatar", () => ({
 }))
 let composerRenders = 0
 vi.mock("@/components/textInput/textInput", () => ({
-  default: () => {
+  default: ({ buttonOnclick }: { buttonOnclick?: () => void }) => {
     composerRenders++
-    return null
+    return <button aria-label="Send" onClick={() => buttonOnclick?.()} />
   },
 }))
+const sparks = vi.fn()
+vi.mock("@/lib/celebrate", () => ({ celebrate: (el: Element) => sparks(el), springPop: () => null }))
 vi.mock("@/components/channel/channelMessageList", () => ({ ChannelMessageList: () => null }))
 vi.mock("@/components/chat/chatMessageList", () => ({ ChatMessageList: () => null }))
 vi.mock("@/components/groupChat/groupChatMessageList", () => ({ GroupChatMessageList: () => null }))
@@ -94,5 +96,28 @@ describe.each(views)("typing in %s", (_, view, typed) => {
     for (let n = 1; n <= 5; n++) act(() => void store.dispatch(typed(n)))
     expect(headerRenders).toBe(header)
     expect(composerRenders).toBeGreaterThan(box)
+  })
+})
+
+
+// A first message (the view says so) bursts sparks from the composer's Send.
+describe.each([
+  ["a channel", (send: () => boolean) => <ChannelIdDesktop channelId="c1" handleSend={send} />],
+  ["a DM", (send: () => boolean) => <ChatIdDesktop chatId="maya" handleSend={send} />],
+] as const)("sending a first message in %s", (_, view) => {
+  it("celebrates from Send, and a routine send does not", () => {
+    let first = true
+    render(
+      <Provider store={store}>
+        <TooltipProvider>{view(() => first)}</TooltipProvider>
+      </Provider>,
+    )
+    const send = screen.getByRole("button", { name: "Send" })
+    fireEvent.click(send)
+    expect(sparks).toHaveBeenCalledWith(send)
+    sparks.mockReset()
+    first = false
+    fireEvent.click(send)
+    expect(sparks).not.toHaveBeenCalled()
   })
 })

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMedia } from "@/context/MediaQueryContext";
 import { ChannelIdDesktop } from "@/components/channel/chanelIdDesktop";
 import {ChannelIdMobile} from "@/components/channel/channelIdMobile";
-import {CreateOrUpdatePostsReq, CreatePostsRes, PostsRes} from "@/types/post";
+import {CreateOrUpdatePostsReq, CreatePostPaginationResRaw, CreatePostsRes, PostsRes} from "@/types/post";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {
     addPendingPost,
@@ -37,6 +37,8 @@ import { appMutate } from "@/lib/swrMutate";
 import axiosInstance from "@/lib/axiosInstance";
 import { PendingSendContext } from "@/components/message/sendStatus";
 import { SEND_QUIETLY, usePendingSend, viewingLinkedMessage } from "@/components/views/usePendingSend";
+import { useSWRConfig } from "swr";
+import { claimFirstMessage, isFirstMessage } from "@/lib/chat/firstMessage";
 
 
 const EMPTY_INPUT_STATE: MessageInputState = { inputTextHTML: '', filesUploaded: [], filePreview: [] }
@@ -47,6 +49,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
     const { toast } = useToast()
     const dispatch = useDispatch();
     const store = useStore<RootState>()
+    const { cache } = useSWRConfig()
 
     const channelInfo  = useFetch<ChannelInfoInterfaceResp>(channelId ? `${GetEndpointUrl.ChannelBasicInfo}/${channelId}` : '')
 
@@ -150,7 +153,9 @@ export function ChannelView({ channelId }: { channelId: string }) {
         return ok
     })
 
-    const handleSend = useStableCallback((latestContent?: string) => {
+    // Sends the message in the box. True when it is the sender's first message
+    // in this channel, which the composer celebrates (lib/chat/firstMessage).
+    const handleSend = useStableCallback((latestContent?: string): boolean => {
         // The draft as it is now, read when sending rather than subscribed to:
         // the view used to re-render on every change to it while typing.
         const channelState = store.getState().channel.channelInputState[channelId] || EMPTY_INPUT_STATE
@@ -162,7 +167,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
         const files = channelState.filesUploaded || []
 
         // Words, or files on their own: a message of only a photo is a message.
-        if (body.length == 0 && files.length == 0) return
+        if (body.length == 0 && files.length == 0) return false
 
         const replyToUuid = channelState.replyToUuid
         const replyTo: PostsRes | undefined = replyToUuid
@@ -191,8 +196,18 @@ export function ChannelView({ channelId }: { channelId: string }) {
                 dispatch(restoreUnsentChannelPost({channelId, unsent}))
                 toast(NOT_SENT_TOAST)
             })
-            return
+            return false
         }
+
+        // The sender's first message here: none of theirs among the messages
+        // held, and the latest page from the server is all there is.
+        const self = selfProfile.data?.data?.user_uuid
+        const held = store.getState().channel.channelPosts[channelId] || []
+        const page = cache.get(latestKey)?.data as CreatePostPaginationResRaw | undefined
+        const first = !!self && isFirstMessage({
+            mine: held.some((p) => p.post_by?.user_uuid === self),
+            wholeHistory: page?.data?.has_more === false,
+        }) && claimFirstMessage(`channel:${channelId}`)
 
         const localId = newLocalId()
         send(localId, {
@@ -208,6 +223,7 @@ export function ChannelView({ channelId }: { channelId: string }) {
             post_comment_count: 0,
         })
         dispatch(updateChannelScrollToBottom({channelId, scrollToBottom: true}))
+        return first
     })
 
     const schedule = useMemo(() => ({ kind: "channel" as const, target: channelId, schedule: handleSchedule }), [channelId, handleSchedule])

@@ -9,7 +9,7 @@ import { ChatSkeleton } from "@/components/ui/AppSkeleton";
 import { clearChatReplyTarget } from "@/store/slice/chatSlice";
 import { ComposerReplyPill } from "@/components/message/composerReplyPill";
 
-export const ChatIdMobile = ({chatId, handleSend}: {chatId: string, handleSend: (latestContent?: string)=>void }) => {
+export const ChatIdMobile = ({chatId, handleSend, unreadCount}: {chatId: string, handleSend: (latestContent?: string) => boolean | void, unreadCount?: number }) => {
     const dispatch = useDispatch();
     const otherUserInfo = useFetchOnlyOnce<UserProfileInterface>(chatId ? `${GetEndpointUrl.SelfProfile}/${chatId}` : '');
     const replyState = useSelector((state: RootState) => state.chat.chatInputState[chatId]);
@@ -19,7 +19,7 @@ export const ChatIdMobile = ({chatId, handleSend}: {chatId: string, handleSend: 
     return (
         <div className='flex flex-col h-full'>
             <div className="flex-1 min-h-0">
-                <ChatMessageList chatId={chatId} />
+                <ChatMessageList chatId={chatId} unreadOnOpen={unreadCount} />
             </div>
             <div>
                 {replyState?.replyToUuid && (
