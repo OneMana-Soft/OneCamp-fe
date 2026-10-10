@@ -521,7 +521,7 @@ export function ProjectTimeline({
             <WorkState className="flex-1">
               <ErrorState subject="the timeline" onRetry={() => void mutate()} />
             </WorkState>
-          ) : (
+          ) : !isError && noTasks ? (
             <WorkState className="flex-1">
               <EmptyState
                 illustration={<SpotCalendar hue={hueFor(projectId)} />}
@@ -533,7 +533,7 @@ export function ProjectTimeline({
                 }
               />
             </WorkState>
-          )}
+          ) : null}
         </div>
       </div>
     )
