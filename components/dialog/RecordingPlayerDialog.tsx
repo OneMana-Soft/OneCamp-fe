@@ -262,7 +262,9 @@ export const RecordingPlayerDialog = () => {
 
                     {/* Transcript Area */}
                     <div className={cn(
-                        "flex flex-col border-l border-border bg-background transition-[width,height,max-width,max-height,margin,padding,opacity,transform,color,background-color,border-color,box-shadow] duration-300",
+                        // Its size snaps when full screen changes: a transitioned
+                        // width and height laid the dialog out on every frame.
+                        "flex flex-col border-l border-border bg-background transition-colors",
                         isFullscreen && !isMobile ? "w-[350px]" : "w-full md:w-[350px] h-[40vh] md:h-full"
                     )}>
                         <div className="p-3 border-b font-medium text-sm bg-muted/10 flex justify-between items-center">
