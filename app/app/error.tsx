@@ -2,9 +2,9 @@
 
 import { useEffect } from "react"
 import Link from "next/link"
-import { AlertCircle } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { SpotError } from "@/components/ui/graphics/spots"
 
 /**
  * A page inside the app that crashes, caught inside the app's frame.
@@ -25,7 +25,7 @@ export default function AppRouteError({ error, reset }: { error: Error & { diges
       <EmptyState
         tone="accent"
         headingLevel={1}
-        icon={AlertCircle}
+        illustration={<SpotError />}
         title="This page hit a problem"
         description="Nothing you saved is lost, and the rest of OneCamp still works. Try the page again, or go back to Home."
         action={

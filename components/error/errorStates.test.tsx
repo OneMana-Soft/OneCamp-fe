@@ -42,6 +42,8 @@ describe("a page that crashes inside the app", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     expect(reset).toHaveBeenCalled()
     expect(screen.getByRole("link", { name: /go to home/i }).getAttribute("href")).toBe("/app/home")
+    // The playful layer's error spot above the heading, decorative.
+    expect(document.querySelector("[data-empty-illustration] svg")).not.toBeNull()
   })
 })
 
@@ -61,6 +63,7 @@ describe("a crash the app can't recover from", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toMatch(/couldn't recover/i)
     expect(document.body.textContent).not.toMatch(/notified|looking into it/i)
     expect(screen.getAllByRole("button")).toHaveLength(1)
+    expect(document.querySelector("[data-empty-illustration] svg")).not.toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Reload page" }))
     expect(reload).toHaveBeenCalled()
   })

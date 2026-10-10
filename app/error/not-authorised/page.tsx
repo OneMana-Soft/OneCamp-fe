@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AuthHeading, AuthShell, authControl } from "@/components/auth/AuthShell"
+import { SpotError } from "@/components/ui/graphics/spots"
 import { app_home_path, app_login_path } from "@/types/paths"
 
 /**
@@ -15,7 +16,7 @@ import { app_home_path, app_login_path } from "@/types/paths"
 export default function NotAuthorised() {
     return (
         <AuthShell>
-            <AuthHeading title="Sign in again to carry on">
+            <AuthHeading title="Sign in again to carry on" art={<SpotError />}>
                 Your session ended, or this page belongs to an account you aren&apos;t signed in with.
             </AuthHeading>
             <div className="space-y-4">

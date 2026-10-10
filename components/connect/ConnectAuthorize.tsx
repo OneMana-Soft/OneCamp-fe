@@ -20,8 +20,9 @@
 import * as React from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { AlertCircle, ShieldCheck } from "@/lib/icons"
+import { ShieldCheck } from "@/lib/icons"
 import { AuthHeading, authControl } from "@/components/auth/AuthShell"
+import { SpotError } from "@/components/ui/graphics/spots"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -180,9 +181,7 @@ export function ConnectAuthorize() {
       <>
         <AuthHeading
           title="This sign-in can't continue"
-          // In the heading's picture slot until the playful layer's picture
-          // for a failed state takes its place.
-          art={<AlertCircle className="h-6 w-6 text-danger-ink" />}
+          art={<SpotError />}
         >
           {phase.message}
         </AuthHeading>

@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AuthHeading, AuthShell } from "@/components/auth/AuthShell"
+import { SpotSearch } from "@/components/ui/graphics/spots"
 import { app_home_path, app_login_path } from "@/types/paths"
 
 /**
@@ -14,7 +15,7 @@ import { app_home_path, app_login_path } from "@/types/paths"
 export default function NotFoundPage() {
     return (
         <AuthShell>
-            <AuthHeading title="This page doesn't exist">
+            <AuthHeading title="This page doesn't exist" art={<SpotSearch />}>
                 The link may be old or mistyped, or what it pointed to was deleted.
             </AuthHeading>
             <div className="space-y-4">

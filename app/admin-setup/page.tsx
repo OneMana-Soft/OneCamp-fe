@@ -7,6 +7,7 @@ import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
 import { useRouter } from "next/navigation"
 import { AuthField, AuthHeading, AuthPlaceholder, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
+import { SpotWelcome } from "@/components/ui/graphics/spots"
 
 export default function AdminSetupPage() {
   const [email, setEmail] = useState("")
@@ -99,7 +100,7 @@ export default function AdminSetupPage() {
 
   return (
     <AuthShell>
-      <AuthHeading title="Set up your workspace">
+      <AuthHeading title="Set up your workspace" art={<SpotWelcome size={64} />}>
         Nobody has an account on this server yet. The one you make now is its admin, and you&apos;ll invite your team
         from inside.
       </AuthHeading>

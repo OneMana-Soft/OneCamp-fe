@@ -11,6 +11,7 @@
 // invited them and to which workspace, as the email did.
 
 import { LoaderCircle, Users } from "@/lib/icons";
+import { SpotError, SpotWelcome } from "@/components/ui/graphics/spots"
 import { Button } from "@/components/ui/button"
 import { useCallback, useEffect, useRef, useState, Suspense } from "react"
 import authService from "@/services/auth/AuthService"
@@ -156,7 +157,7 @@ function SignupForm() {
   if (checkFailed) {
     return (
       <>
-        <AuthHeading title="Couldn't check your invitation">
+        <AuthHeading title="Couldn't check your invitation" art={<SpotError />}>
           This workspace didn&apos;t answer, so the link may well be fine. Check your connection and try again.
         </AuthHeading>
         <Button className={authControl} onClick={checkInvitation}>
@@ -169,7 +170,7 @@ function SignupForm() {
   if (tokenInvalid) {
     return (
       <>
-        <AuthHeading title="This invitation can't be used">
+        <AuthHeading title="This invitation can't be used" art={<SpotError />}>
           {error || "The link is incomplete or has expired. Ask whoever invited you to send a new one."}
         </AuthHeading>
         <Button variant="outline" className={authControl} asChild><Link href="/">Go to sign in</Link></Button>
@@ -180,7 +181,7 @@ function SignupForm() {
   if (joined) {
     return (
       <div role="status" aria-live="polite">
-        <AuthHeading title={`You're in, ${joined.name}`}>
+        <AuthHeading title={`You're in, ${joined.name}`} art={<SpotWelcome />}>
           Your handle is <span className="font-medium text-foreground">@{joined.handle}</span>. You can change it in your
           profile.
         </AuthHeading>

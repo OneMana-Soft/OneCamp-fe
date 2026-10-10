@@ -7,6 +7,7 @@ import authService from "@/services/auth/AuthService"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { AuthField, AuthHeading, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
+import { SpotError } from "@/components/ui/graphics/spots"
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
@@ -29,7 +30,7 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <>
-        <AuthHeading title="This link is incomplete">
+        <AuthHeading title="This link is incomplete" art={<SpotError />}>
           It&apos;s missing the part that says whose password to reset. Ask for a new link and open it from the email.
         </AuthHeading>
         <Button variant="outline" className={authControl} asChild><Link href="/forgot-password">Ask for a new link</Link></Button>
@@ -91,7 +92,7 @@ function ResetPasswordForm() {
   if (outcome === "link_refused") {
     return (
       <div role="status">
-        <AuthHeading title="This link has expired">
+        <AuthHeading title="This link has expired" art={<SpotError />}>
           A reset link works once, for an hour. Ask for a new one and open it from the email.
         </AuthHeading>
         <Button className={authControl} asChild><Link href="/forgot-password">Ask for a new link</Link></Button>
