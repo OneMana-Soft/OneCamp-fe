@@ -35,6 +35,9 @@ import { useState } from "react"
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { Switch } from "@/components/ui/switch"
+import { destinationHue } from "@/lib/destinationHue"
+import { Tile } from "@/components/ui/graphics/Tile"
+import type { CampHue } from "@/lib/campHue"
 import {
     Drawer,
     DrawerContent,
@@ -53,13 +56,15 @@ interface DrawerItemProps {
     label: string
     onClick: () => void
     destructive?: boolean
+    /** A place's hue (lib/destinationHue): the icon sits on a tint tile in it. */
+    hue?: CampHue
 }
 
 /**
  * DrawerItem — single tappable row matching the rest of the mobile UI's
  * 48px touch target with Tailwind active state for press feedback.
  */
-function DrawerItem({ icon: Icon, label, onClick, destructive }: DrawerItemProps) {
+function DrawerItem({ icon: Icon, label, onClick, destructive, hue }: DrawerItemProps) {
     return (
         <button
             type="button"
@@ -74,13 +79,19 @@ function DrawerItem({ icon: Icon, label, onClick, destructive }: DrawerItemProps
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
             )}
         >
-            <Icon
-                className={cn(
-                    "h-5 w-5 shrink-0",
-                    destructive ? "text-danger-ink" : "text-muted-foreground",
-                )}
-                strokeWidth={1.75}
-            />
+            {hue && !destructive ? (
+                <Tile hue={hue}>
+                    <Icon strokeWidth={1.75} />
+                </Tile>
+            ) : (
+                <Icon
+                    className={cn(
+                        "h-5 w-5 shrink-0",
+                        destructive ? "text-danger-ink" : "text-muted-foreground",
+                    )}
+                    strokeWidth={1.75}
+                />
+            )}
             <span className="flex-1 truncate">{label}</span>
         </button>
     )
@@ -125,7 +136,9 @@ function DrawerSwitchRow({
  */
 function DrawerSection({ label }: { label: string }) {
     return (
-        <p className="px-3 pt-3 pb-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+        // Sentence case, as the desktop sidebar's groups: a label read on
+        // every visit is not a thing to shout (DESIGN.md, "Navigation").
+        <p className="px-3 pt-3 pb-1 text-xs font-medium text-muted-foreground">
             {label}
         </p>
     )
@@ -170,31 +183,37 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerItem
                         icon={ClipboardCheck}
                         label="My Tasks"
+                        hue={destinationHue("/app/myTask")}
                         onClick={() => handleNavigate("/app/myTask")}
                     />
                     <DrawerItem
                         icon={InboxIcon}
                         label="Inbox"
+                        hue={destinationHue("/app/inbox")}
                         onClick={() => handleNavigate("/app/inbox")}
                     />
                     <DrawerItem
                         icon={Bookmark}
                         label="Later"
+                        hue={destinationHue("/app/later")}
                         onClick={() => handleNavigate("/app/later")}
                     />
                     <DrawerItem
                         icon={Calendar}
                         label="Calendar"
+                        hue={destinationHue("/app/calendar")}
                         onClick={() => handleNavigate("/app/calendar")}
                     />
                     <DrawerItem
                         icon={FileIcon}
                         label="Docs"
+                        hue={destinationHue("/app/doc")}
                         onClick={() => handleNavigate("/app/doc")}
                     />
                     <DrawerItem
                         icon={LayoutDashboard}
                         label="Boards"
+                        hue={destinationHue("/app/board")}
                         onClick={() => handleNavigate("/app/board")}
                     />
                     {/* Tables is a top-level destination on desktop and had no door at
@@ -203,6 +222,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerItem
                         icon={TableIcon}
                         label="Tables"
+                        hue={destinationHue("/app/tables")}
                         onClick={() => handleNavigate("/app/tables")}
                     />
 
@@ -215,6 +235,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                             <DrawerItem
                                 icon={Bell}
                                 label="AI activity"
+                        hue={destinationHue("/app/activity?tab=ai")}
                                 onClick={() => handleNavigate("/app/activity?tab=ai")}
                             />
                             {/* The agent builder, and with it the shared skill library,
@@ -228,6 +249,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                                 <DrawerItem
                                     icon={Sparkles}
                                     label="Agents & skills"
+                        hue={destinationHue("/app/settings/agents")}
                                     onClick={() => handleNavigate("/app/settings/agents")}
                                 />
                             )}
@@ -241,6 +263,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         <DrawerItem
                             icon={Shield}
                             label="Admin"
+                        hue={destinationHue("/app/admin")}
                             onClick={() => handleNavigate("/app/admin")}
                         />
                     )}
@@ -248,6 +271,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerItem
                         icon={Plug}
                         label="Connectors"
+                        hue={destinationHue("/app/settings/connectors")}
                         onClick={() => handleNavigate("/app/settings/connectors")}
                     />
 
@@ -255,6 +279,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         <DrawerItem
                             icon={Zap}
                             label="Workflows"
+                        hue={destinationHue("/app/settings/workflows")}
                             onClick={() => handleNavigate("/app/settings/workflows")}
                         />
                     )}
@@ -263,6 +288,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         <DrawerItem
                             icon={MailPlus}
                             label="Invite people"
+                        hue={destinationHue("invite")}
                             onClick={() => {
                                 setInviteOpen(true)
                                 closeDrawer()
@@ -274,7 +300,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
 
                     <DrawerItem
                         icon={CircleUser}
-                        label="My Profile"
+                        label="Your profile"
                         onClick={() => handleNavigate("/app/profile")}
                     />
 

@@ -105,3 +105,30 @@ describe("the mobile More drawer", () => {
         expect(document.getElementById(toggle.getAttribute("aria-labelledby")!)?.textContent).toBe("Dark mode")
     })
 })
+
+describe("the More menu's look", () => {
+    // Group labels were uppercase and tracked; DESIGN.md keeps labels read on
+    // every visit in sentence case. Places sit on a tile in their hue (the
+    // playful layer), the same hue wherever that place is listed.
+    it("labels its groups in sentence case", () => {
+        open()
+        for (const label of ["Work", "AI", "Workspace"]) {
+            const el = screen.getByText(label)
+            expect(el.className, label).not.toMatch(/uppercase|tracking/)
+        }
+    })
+
+    it("sets each place on a tile in its own hue, and leaves Sign out plain", () => {
+        caps = ["agent.manage", "workflow.manage", "invitation.create"]
+        open()
+        const tileOf = (name: string) => {
+            const b = screen.getByRole("button", { name: new RegExp(`^${name}`) })
+            return b.querySelector("span[aria-hidden='true']")
+        }
+        expect(tileOf("My Tasks")?.className).toContain("hue-moss")
+        expect(tileOf("Calendar")?.className).toContain("hue-berry")
+        expect(tileOf("AI activity")?.className).toContain("hue-dusk")
+        expect(tileOf("Sign out")).toBeNull()
+        expect(screen.getByRole("button", { name: /^Your profile/ })).toBeTruthy()
+    })
+})
