@@ -3,6 +3,7 @@
 import {CommentInfoInterface} from "@/types/comment";
 import {MobileMessage} from "@/components/mobileMessage/mobileMessage";
 import {UserProfileDataInterface} from "@/types/user";
+import { continuedFlags } from "@/lib/messageGrouping";
 
 interface CommentsListProps {
     comments: CommentInfoInterface[]
@@ -27,6 +28,9 @@ export const MobileMessageCommentList = ({ groupUUID, docId, updateMessage, isAd
     if (!comments || comments.length === 0) {
         return null
     }
+
+    // Replies by the same person within five minutes read as one turn.
+    const continued = continuedFlags(comments, (c) => ({ author: c.comment_by?.user_uuid, at: c.comment_created_at, isBot: !!c.comment_by?.is_bot }))
 
 
 
@@ -53,6 +57,7 @@ export const MobileMessageCommentList = ({ groupUUID, docId, updateMessage, isAd
                     docId={docId}
                     rawReactions={comment.comment_reactions}
                     isAdmin={isAdmin}
+                    continued={continued[idx]}
                 />
             ))}
         </div>

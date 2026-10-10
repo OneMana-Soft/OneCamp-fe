@@ -3,6 +3,7 @@ import { displayNameOf } from "@/lib/personName"
 import {useLongPress} from "@/hooks/useLongPress";
 import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
+import { ContinuedGutter } from "@/components/message/continuedGutter";
 import MinimalTiptapTextInput from "@/components/textInput/textInput";
 import {cn} from "@/lib/utils/helpers/cn";
 import { Check, X } from "@/lib/icons";
@@ -50,9 +51,11 @@ interface mobileMessageProps {
     updateMessage: (id: string, body: string) => void;
     deleteMessage: (id: string) => void;
     getMediaUrl: string
+    /** Continues the reply above it (lib/messageGrouping): no avatar or name. */
+    continued?: boolean
 }
 
-export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMessage, chatMessageUUID, content, rawReactions, addReaction, removeReaction, updateMessage, chatUUID, channelUUID, postUUID, commentUUID, attachments, getMediaUrl, forwardedMessage, replyMessage, createdAt}: mobileMessageProps) => {
+export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMessage, chatMessageUUID, content, rawReactions, addReaction, removeReaction, updateMessage, chatUUID, channelUUID, postUUID, commentUUID, attachments, getMediaUrl, forwardedMessage, replyMessage, createdAt, continued = false}: mobileMessageProps) => {
 
 
     const dispatch = useDispatch();
@@ -305,18 +308,23 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
         >
 
-            <div  className='flex gap-3 px-4 pt-3 w-[100vw] select-none' {...longPressEvent}
+            <div  className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? 'pt-1' : 'pt-3'} w-[100vw] select-none`} {...longPressEvent}
 
 
             >
 
+                {continued && !isMessageEditEnabled ? (
+                    <ContinuedGutter createdAt={createdAt} authorName={authorName} />
+                ) : (
                 <div className='h-9 w-9 shrink-0 mt-0.5' onClick={handleUserClick}>
                     {relayed
                         ? <RelayedAvatar name={relayed.name}/>
                         : <ChannelMessageAvatar userName={authorName} userProfileKey={userInfo.user_profile_object_key} isBot={!!userInfo.is_bot} userUUID={userInfo.user_uuid}/>}
 
                 </div>
+                )}
                 <div className='w-full min-w-0'>
+                    {!(continued && !isMessageEditEnabled) && (
                     <div className='flex items-baseline gap-2'>
                         <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
                             {authorName}
@@ -327,6 +335,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
                         </div>
                     </div>
+                    )}
                     {replyMessage && (
                         <div className="mb-1 border-l-2 border-primary/40 pl-2">
                             <MessagePreview

@@ -3,7 +3,8 @@ import {CommentInfoInterface} from "@/types/comment";
 import {ProgressiveList} from "@/components/ui/progressiveList";
 import { EmptyState } from "@/components/ui/empty-state"
 import { MessageSquare } from "@/lib/icons";
-import { memo } from "react";
+import { memo, useMemo } from "react";
+import { continuedFlags } from "@/lib/messageGrouping";
 import { useStableCallback } from "@/hooks/useStableCallback";
 
 
@@ -34,6 +35,11 @@ export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, re
 }
 
 const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL }: CommentsListProps) {
+    // Replies by the same person within five minutes read as one turn.
+    const continued = useMemo(
+        () => continuedFlags(comments ?? [], (c) => ({ author: c.comment_by?.user_uuid, at: c.comment_created_at, isBot: !!c.comment_by?.is_bot })),
+        [comments],
+    )
     if (!comments || comments.length === 0) {
         return null
     }
@@ -56,6 +62,7 @@ const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdat
                         commentUUID={comment.comment_uuid}
                         getMediaUrl={getMediaURL}
                         attachments={comment.comment_attachments}
+                        continued={continued[idx]}
                     />}
                     getItemKey={(comment) => comment.comment_uuid || ''}
                     emptyState={<EmptyState icon={MessageSquare} title="No comments yet" description="Be the first to share an update or ask a question." className="py-6" />}

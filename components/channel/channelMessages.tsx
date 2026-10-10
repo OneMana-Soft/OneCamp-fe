@@ -1,6 +1,7 @@
 "use client"
 
 // src/components/channel/ChannelMessages.tsx
+import { withContinuation } from "@/lib/messageGrouping"
 import { displayNameOf } from "@/lib/personName"
 import {useCallback, useEffect, useMemo, useRef} from "react"
 import { groupByDate } from "@/lib/utils/date/groupByDate"
@@ -322,11 +323,13 @@ export const ChannelMessages = ({
             groupedPosts[date].forEach((post) => items.push({ type: "item", data: post, key: post.post_uuid }))
         })
 
-        return items
+        // Same author within five minutes: drawn as one turn (lib/messageGrouping).
+
+        return withContinuation(items, (p) => ({ author: p.post_by?.user_uuid, at: p.post_created_at, isBot: !!p.post_by?.is_bot, standalone: !!(p.post_reply_to || p.post_fwd_msg_post || p.post_fwd_msg_chat) }))
     }, [groupedPosts])
 
     const renderItem = useCallback(
-        (post: PostsRes, index: number, total: number) => {
+        (post: PostsRes, index: number, total: number, continued?: boolean) => {
             const isPriority = index >= total - 5;
             return (
             <div>
@@ -349,6 +352,7 @@ export const ChannelMessages = ({
                                 handleUpdatePost(body, post.post_uuid)
                             }}
                             priority={isPriority}
+                            continued={continued}
                         />
                     </TouchableDiv>
                 ) : (
@@ -368,6 +372,7 @@ export const ChannelMessages = ({
                             handleUpdatePost(body, post.post_uuid)
                         }}
                         priority={isPriority}
+                    continued={continued}
                     />
                 )}
             </div>

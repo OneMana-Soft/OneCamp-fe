@@ -19,6 +19,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { BottomMenu } from "@/components/message/bottomMenu"
 import { MessageAttachments } from "@/components/message/MessageAttachments"
+import { ContinuedGutter } from "@/components/message/continuedGutter"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import type { AttachmentMediaReq } from "@/types/attachment"
@@ -192,6 +193,11 @@ interface BaseMessageCardProps {
   // hover menu and arms the composer to reply to this message. Omitted on
   // surfaces without a composer (e.g. thread/right-panel previews).
   onReply?: () => void
+  /**
+   * Continues the message above it (lib/messageGrouping): no avatar or name,
+   * and the time shows in the gutter on hover.
+   */
+  continued?: boolean
 }
 
 export const BaseMessageCard = React.memo(({
@@ -209,6 +215,7 @@ export const BaseMessageCard = React.memo(({
   showErrorBoundary = false,
   onAvatarClick,
   onReply,
+  continued = false,
 }: BaseMessageCardProps) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
@@ -367,7 +374,10 @@ export const BaseMessageCard = React.memo(({
         // py-1.5, not 2.5: a message is a line of a conversation, and the
         // extra 8px on every row (plus a margin under every body) made a
         // channel read as a stack of cards.
-        "group relative flex gap-3 px-4 py-1.5",
+        "group relative flex gap-3 px-4",
+        // A continued message sits close under the one above; the first of a
+        // group keeps the room that separates one turn from the next.
+        continued && !isMessageEditEnabled ? "py-0.5" : "py-1.5",
         "transition-colors duration-100",
         "hover:bg-accent/40",
         (isDropdownOpen || isEmojiPickerOpen) && "bg-accent/40",
@@ -402,6 +412,10 @@ export const BaseMessageCard = React.memo(({
             />
           </div>
         )}
+        {continued && !isMessageEditEnabled ? (
+          <ContinuedGutter createdAt={message.createdAt} authorName={authorName} />
+        ) : (
+          <>
         {/* A second, mouse-only way to the profile the name already opens: the
             name is the control, so the picture stays out of the tab order. */}
         <div
@@ -419,8 +433,10 @@ export const BaseMessageCard = React.memo(({
             />
           )}
         </div>
+          </>
+        )}
         <div className="flex-1 min-w-0">
-          {!isMessageEditEnabled && (
+          {!isMessageEditEnabled && !continued && (
             <div className="flex items-baseline gap-2">
               {relayed ? (
                 // A guest or Slack person has no profile to open: the name is only a name.

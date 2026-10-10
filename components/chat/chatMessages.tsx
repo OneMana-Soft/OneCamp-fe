@@ -1,4 +1,5 @@
 // src/components/channel/ChannelMessages.tsx
+import { withContinuation } from "@/lib/messageGrouping"
 import { displayNameOf } from "@/lib/personName"
 import { useCallback, useEffect, useMemo, useRef} from "react";
 import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
@@ -339,13 +340,14 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
             items.push({ type: "separator", date, key:  "separator"+date});
             groupedChats[date].forEach((chat) => items.push({ type: "item", data: chat, key: chat.chat_uuid}));
         });
-        return items;
+        // Same author within five minutes: drawn as one turn (lib/messageGrouping).
+        return withContinuation(items, (c) => ({ author: c.chat_from?.user_uuid, at: c.chat_created_at, isBot: !!c.chat_from?.is_bot, standalone: !!(c.chat_reply_to || c.chat_fwd_msg_post || c.chat_fwd_msg_chat) }))
     }, [groupedChats]);
 
     // Read receipts: whose they are (a DM by the other person, a group by its id).
     const receiptTarget = useMemo<ChatTarget>(() => ({ kind: "dm", otherUUID: chatId }), [chatId]);
 
-    const renderItem = useCallback((chat: ChatInfo, index: number, total: number) => {
+    const renderItem = useCallback((chat: ChatInfo, index: number, total: number, continued?: boolean) => {
         const isPriority = index >= total - 5;
         return (
         <div >
@@ -362,6 +364,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                         removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
                         updateChat={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
                         priority={isPriority}
+                    continued={continued}
 
                     />
                 </TouchableDiv>
@@ -373,6 +376,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                     removePost={()=>{handleDeleteChat(chat.chat_uuid)}}
                     updatePost={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
                     priority={isPriority}
+                    continued={continued}
                 />
             }
             {index === total - 1 && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
