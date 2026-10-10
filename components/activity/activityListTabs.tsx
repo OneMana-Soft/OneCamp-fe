@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Bell } from "@/lib/icons"
+import Link from "next/link"
+import { Bell, Settings } from "@/lib/icons"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useDispatch } from "react-redux"
 import { ActivityListTabContent } from "@/components/activity/activityListTabContent"
@@ -80,6 +81,18 @@ export function ActivityListTabs() {
             onValueChange={handleChangeTab}
             icon={Bell}
             title="Activity"
+            // What reaches you, and how, is decided in settings; it was
+            // reachable only through the profile menu or the palette.
+            actions={
+                <Link
+                    href="/app/settings/notifications"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-highlight hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                    aria-label="Notification settings"
+                >
+                    <Settings className="h-4 w-4" aria-hidden="true" />
+                    <span className="hidden md:inline">Notification settings</span>
+                </Link>
+            }
         >
             <ActivityListTabContent selectedTab={selectedTab} onSelectTab={handleChangeTab} />
         </SectionTabs>
