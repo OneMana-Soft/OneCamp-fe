@@ -122,10 +122,12 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                 />
             </div>
 
-            <div className="flex-1 overflow-y-auto px-1 py-1.5">
+            {/* The channel list's frame (px-2 py-2): a DM row starts where a
+                channel row does, 8px in, its face at 20. It was 4px in. */}
+            <div data-list-frame="" className="flex-1 overflow-y-auto px-2 py-2">
                 <LocalizedErrorBoundary
-                    fallbackTitle="Chat List Error"
-                    fallbackDescription="We couldn't load your recent chats."
+                    fallbackTitle="Your conversations didn't load"
+                    fallbackDescription="The rest of OneCamp still works. Try again."
                 >
                     {latestChats.isLoading && !sortedDmList && <ListSkeleton rows={10} />}
                     {/* LocalizedErrorBoundary above catches render errors, not fetch
