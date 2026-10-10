@@ -52,6 +52,17 @@ describe("the phone's tab bar", () => {
     expect(nav.getAttribute("aria-hidden")).toBe("true")
   })
 
+  it("springs the tab you move to, and nothing when a page loads", () => {
+    pathname = "/app/home"
+    const { rerender, container } = render(<MobileBottomNavigationBar />)
+    expect(container.querySelector(".animate-spring"), "a tab bounced on load").toBeNull()
+    pathname = "/app/chat"
+    rerender(<MobileBottomNavigationBar />)
+    const dms = screen.getByRole("link", { name: "Direct messages" })
+    expect(dms.querySelector(".animate-spring")).not.toBeNull()
+    expect(container.querySelectorAll(".animate-spring")).toHaveLength(1)
+  })
+
   it("labels its tabs at 12px, above the 11px floor kept for counts", () => {
     pathname = "/app/home"
     render(<MobileBottomNavigationBar />)
