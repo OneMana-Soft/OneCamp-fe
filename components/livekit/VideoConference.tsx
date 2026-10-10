@@ -23,6 +23,7 @@ import { Track, RoomEvent, RemoteParticipant, DataPacket_Kind } from "livekit-cl
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Loader2, Pin, PinOff } from "@/lib/icons";
 import { VideoControls } from "./VideoControls";
+import { CameraOffFace, CaptionsOverlay, RecordingIndicator } from "./CallStage";
 import { FrontendTranscriber, type TranscriberState } from "./FrontendTranscriber";
 import { InCallAIPanel } from "./InCallAIPanel";
 import { useInCallAgent } from "./useInCallAgent";
@@ -68,20 +69,20 @@ export function VideoConference({
       <div
         role="status"
         aria-label="Connecting to the call"
-        className="flex h-full w-full items-center justify-center bg-zinc-950 text-white"
+        className="dark flex h-full w-full items-center justify-center bg-background text-foreground"
       >
         <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary" />
-            <p>Connecting…</p>
+            <Loader2 className="mx-auto mb-2 h-8 w-8 text-muted-foreground motion-safe:animate-spin" />
+            <p className="text-sm text-muted-foreground">Connecting to the call…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`@container relative w-full bg-zinc-950 overflow-hidden ${embedded ? "h-full" : "h-full md:h-screen"}`} data-lk-theme="default">
+    <div className={`dark @container relative w-full bg-background text-foreground overflow-hidden ${embedded ? "h-full" : "h-full md:h-screen"}`} data-lk-theme="default">
       {place && (
-        <p className="pointer-events-none absolute left-9 top-9 z-10 max-w-[50%] truncate rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white/90">
+        <p className="pointer-events-none absolute left-9 top-9 z-10 max-w-[50%] truncate rounded-md border border-border bg-popover px-2 py-1 text-xs font-medium text-foreground">
           Call {place}
         </p>
       )}
@@ -504,16 +505,9 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
 
   return (
     <div className="flex flex-col h-full w-full relative">
-        {/* Recording Banner */}
-        {isRecording && recordingUser && (
-            <div className="absolute top-0 left-0 w-full flex justify-center z-20 pointer-events-none">
-                <div className="bg-destructive/90 backdrop-blur text-white text-xs font-medium px-4 py-1 rounded-b-lg shadow-lg animate-in slide-in-from-top-full duration-300">
-                    {recordingUser} is recording
-                </div>
-            </div>
-        )}
+        {isRecording && <RecordingIndicator by={recordingUser} />}
 
-        <div className="flex-1 overflow-hidden relative flex bg-black">
+        <div className="flex-1 overflow-hidden relative flex bg-background">
             {layout === 'speaker' && effectiveFocusedTrack ? (
                 <div className="flex w-full h-full p-2 pb-24 gap-2">
                     <FocusedTile 
@@ -534,13 +528,18 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
                     {tracks.filter(t => t.participant.identity !== effectiveFocusedTrack.participant.identity || t.source !== effectiveFocusedTrack.source).length > 0 && (
                         <div className="w-[100px] @2xl:w-[220px] h-full flex flex-col gap-2 overflow-y-auto pr-1 shrink-0">
                              {tracks.filter(t => t.participant.identity !== effectiveFocusedTrack.participant.identity || t.source !== effectiveFocusedTrack.source).map((track) => (
-                                 <div 
-                                    key={track.participant.identity + track.source} 
-                                    className="aspect-video w-full rounded-lg overflow-hidden border border-white/5 bg-zinc-800 cursor-pointer hover:border-blue-500 transition-colors shrink-0 relative"
+                                 // A button: the thumbnails were clickable divs the
+                                 // keyboard couldn't reach.
+                                 <button
+                                    type="button"
+                                    key={track.participant.identity + track.source}
+                                    aria-label={`Show ${track.participant.name || track.participant.identity}`}
+                                    className="relative aspect-video w-full shrink-0 cursor-pointer overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     onClick={() => onParticipantClick({ participant: track.participant, track: track.publication } as ParticipantClickEvent)}
                                  >
                                      <ParticipantTile trackRef={track} />
-                                 </div>
+                                     <CameraOffFace trackRef={track} size="sm" />
+                                 </button>
                              ))}
                         </div>
                     )}
@@ -554,33 +553,12 @@ function MyVideoConference({ onDisconnect,parentToggleRecording, isAdmin, guest 
                     </div>
             )}
             
-            {/* Transcript Overlay */}
+            {/* Captions, read out as they change. */}
             {showCaptions && (
-                <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-full max-w-2xl flex flex-col justify-end items-center gap-3 pointer-events-none z-[var(--z-fixed)] px-4">
-                    {/* Sort by lastUpdate to keep stable order? No, keep fixed slots? Just map. */}
-                    {Object.keys(activeTranscripts).length === 0 && (
-                        <div className="bg-black/70 backdrop-blur-md text-slate-200 px-5 py-3 rounded-2xl text-sm shadow-lg border border-white/10">
-                            {captionMessage(captionState)}
-                        </div>
-                    )}
-                    {Object.entries(activeTranscripts).map(([pIdentity, data]) => (
-                        <div 
-                            key={pIdentity} 
-                            className="bg-black/70 backdrop-blur-md text-white px-6 py-4 rounded-2xl text-left shadow-lg transform transition duration-200 ease-out animate-in slide-in-from-bottom-4 fade-in w-auto min-w-[320px] max-w-full border border-white/10"
-                        >
-                             <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-bold text-blue-400 uppercase tracking-wide opacity-90">{data.name}</span>
-                             </div>
-                             <div className="text-lg text-slate-100 font-medium antialiased tracking-wide">
-                                 {/* Only display accumulated (Final) text with Typing Effect */}
-                                 <TypingText 
-                                    text={data.accumulated || ""} 
-                                    isFinal={true} /* Always true for display purposes compared to interim */
-                                 />
-                             </div>
-                        </div>
-                    ))}
-                </div>
+                <CaptionsOverlay
+                    idleMessage={captionMessage(captionState)}
+                    entries={Object.entries(activeTranscripts).map(([identity, data]) => ({ identity, name: data.name, text: data.accumulated || "" }))}
+                />
             )}
 
             {/* In-Call AI Assistant side panel. On desktop it docks to the
@@ -648,86 +626,6 @@ function captionMessage(state: TranscriberState): string {
     }
 }
 
-// Sub-component for smooth typing effect
-function TypingText({ text = "", isFinal }: { text?: string, isFinal: boolean }) {
-    const [displayedText, setDisplayedText] = useState(text || "");
-    
-    // Normalize for comparison to ignore case/punctuation changes which cause snapping
-    const normalize = (s: string) => (s || "").toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "").trim();
-
-    useEffect(() => {
-        if (!text) return;
-        
-        // 1. If strict match (append only), type it out
-        if (text.startsWith(displayedText)) {
-             if (text.length > displayedText.length) {
-                const delta = text.slice(displayedText.length);
-                let charIndex = 0;
-                // Type faster for longer chunks to keep up
-                const speed = Math.max(10, 40 - Math.min(30, delta.length * 2)); 
-                
-                const interval = setInterval(() => {
-                    charIndex++;
-                     setDisplayedText(prev => text.slice(0, prev.length + 1));
-                    if (charIndex >= delta.length) clearInterval(interval);
-                }, speed);
-                return () => clearInterval(interval);
-             }
-             return;
-        }
-
-        // 2. If normalized match (e.g. "hello" -> "Hello"), just update cleanly without typing scan
-        // This handles capitalization/punctuation corrections instantly without "retyping"
-        const normText = normalize(text);
-        const normDisplayed = normalize(displayedText);
-        
-        if (normText.startsWith(normDisplayed)) {
-            // It's effectively an append, but with some prefix correction.
-            // We want to KEEP the suffix typing effect if there is new content.
-            // Strategy: Update the "matched" part instantly to the new version, then type the rest.
-            
-            // Heuristic: overlap length
-            // If new text is "Hello World" and old was "hello", overlap is 5.
-            // We set displayed to "Hello" instantly. Then type " World".
-            // But we don't know exactly where the split is easily without diff.
-            // Simple fallback: If length grew, type the new tail relative to index.
-            if (text.length > displayedText.length) {
-                // Instantly snap to the new version of the existing length
-                // Then type the rest
-                const stableLength = displayedText.length;
-                const newPrefix = text.slice(0, stableLength);
-                
-                // Set base
-                setDisplayedText(newPrefix);
-                
-                // Animate tail
-                const delta = text.slice(stableLength);
-                let charIndex = 0;
-                const speed = Math.max(10, 40 - Math.min(30, delta.length * 2));
-                
-                const interval = setInterval(() => {
-                    charIndex++;
-                    setDisplayedText(prev => text.slice(0, prev.length + 1));
-                    if (charIndex >= delta.length) clearInterval(interval);
-                }, speed);
-                return () => clearInterval(interval);
-            }
-        }
-
-        // 3. Fallback: Content changed significantly (correction or new sentence)
-        // Just snap. No animation to avoid confusion.
-        setDisplayedText(text);
-
-    }, [text]); // Dependence on text update
-
-    return (
-        <span>
-            {displayedText}
-            {/* No cursor needed for Final-Only mode as it implies completed sentences */}
-        </span>
-    );
-}
-
 // Sub-component for the Focused Tile in Speaker View
 interface FocusedTileProps {
     trackRef: TrackReferenceOrPlaceholder;
@@ -738,11 +636,11 @@ interface FocusedTileProps {
 function FocusedTile({ trackRef, isPinned, onTileClick }: FocusedTileProps) {
     return (
         <div 
-            className="flex-1 rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-zinc-900 relative group"
+            className="relative flex-1 overflow-hidden rounded-lg border border-border bg-card"
         >
             <ParticipantTile 
                 trackRef={trackRef} 
-                className="h-full w-full [&_video]:object-contain bg-black [&_button]:!hidden"
+                className="h-full w-full bg-background [&_video]:object-contain [&_button]:!hidden"
             >
                 {/* Only render VideoTrack if we have a valid publication (not a placeholder) */}
                 {trackRef.publication && (
@@ -755,15 +653,19 @@ function FocusedTile({ trackRef, isPinned, onTileClick }: FocusedTileProps) {
                 {trackRef.publication && <AudioTrack trackRef={trackRef as TrackReference} />}
                 
                 {/* Connection Quality & Name Overlay */}
-                <div className="absolute top-2 left-2 bg-black/50 px-2 py-1 rounded text-white text-sm flex items-center gap-2 pointer-events-none">
+                <div className="pointer-events-none absolute left-2 top-2 flex items-center gap-2 rounded-md border border-border bg-popover px-2 py-1 text-sm text-foreground">
                     <ConnectionQualityIndicator className="h-4 w-4" />
                     <ParticipantName />
                 </div>
             </ParticipantTile>
+            <CameraOffFace trackRef={trackRef} size="lg" />
             
-            {/* Pin State Indicator Overlay - Now the ONLY clickable trigger */}
-            <div 
-                className="absolute top-4 right-4 p-2 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 text-white/70 hover:text-white transition z-10 cursor-pointer pointer-events-auto hover:bg-black/70"
+            {/* Pin or unpin: a real button, named, that says which it is. */}
+            <button
+                type="button"
+                aria-label={isPinned ? "Unpin" : "Pin to the stage"}
+                aria-pressed={isPinned}
+                className="absolute right-4 top-4 z-10 rounded-md border border-border bg-popover p-2 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={(e) => {
                     e.stopPropagation();
                     onTileClick();
@@ -774,7 +676,7 @@ function FocusedTile({ trackRef, isPinned, onTileClick }: FocusedTileProps) {
                 ) : (
                     <Pin className="w-4 h-4" />
                 )}
-            </div>
+            </button>
         </div>
     );
 }
@@ -784,15 +686,16 @@ function CustomTile({ trackRef, onParticipantClick, ...props }: any) {
     return (
         <div 
             {...props} 
-            className="w-full h-full cursor-pointer relative group [&_video]:object-contain bg-black"
+            className="group relative h-full w-full cursor-pointer bg-background [&_video]:object-contain"
         >
             <ParticipantTile 
                 trackRef={trackRef} 
                 className="h-full w-full" 
                 onParticipantClick={onParticipantClick} 
             />
+            <CameraOffFace trackRef={trackRef} />
             {/* Hover visual hint */}
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-white/5 transition-colors pointer-events-none rounded-xl" />
+            <div className="pointer-events-none absolute inset-0 rounded-lg transition-colors group-hover:bg-foreground/5" />
         </div>
     )
 }

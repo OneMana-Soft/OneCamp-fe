@@ -8,6 +8,7 @@ import { GuestBand, GuestCentered as Centered, GuestLinkGone, GuestNotYet, Guest
 import { publicTrouble, sendFailedText } from "@/services/publicApi";
 import { Loader2, Video } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
+import { Tile } from "@/components/ui/graphics/Tile";
 
 type Phase = "prejoin" | "joining" | "in-call" | "ended" | "unavailable";
 
@@ -66,22 +67,17 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
     if (phase === "unavailable") return gone;
 
     // Any disconnect lands here, a dropped connection included, and the link
-    // still works: the way back in is one press, as the same name.
+    // still works. Leaving by mistake was a dead end ("You can close this
+    // tab"); the way back in is one press, as the same name. (The error line
+    // is always empty by now: a join that reached the call cleared it.)
     if (phase === "ended") {
         return (
             <Centered>
-                <div aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                    <Video className="h-6 w-6 text-muted-foreground" />
-                </div>
+                <Tile hue="sky" size="lg"><Video /></Tile>
                 <h1 className="text-base font-semibold text-foreground">You left the meeting</h1>
-                <p className="text-sm text-muted-foreground">If you dropped out by mistake, rejoin. Otherwise you can close this tab.</p>
-                <Button
-                    onClick={() => {
-                        setErrorMsg("");
-                        setPhase("prejoin");
-                    }}
-                >
-                    Rejoin
+                <p className="text-sm text-muted-foreground">If you dropped out by mistake, join again under the same name. Otherwise you can close this tab.</p>
+                <Button onClick={() => setPhase("prejoin")}>
+                    Join again
                 </Button>
             </Centered>
         );
@@ -119,8 +115,8 @@ export default function GuestMeetingPage({ params }: { params: Promise<{ token: 
                 <PreJoin onJoin={handleJoin} username={lastName} nameEditable joinLabel={phase === "joining" ? "Joining…" : "Join call"} />
             </div>
             {phase === "joining" && (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50" role="status" aria-label="Joining the meeting">
+                    <Loader2 className="h-6 w-6 text-muted-foreground motion-safe:animate-spin" aria-hidden="true" />
                 </div>
             )}
         </div>

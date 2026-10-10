@@ -89,7 +89,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
   )
 
   if (!joined) {
-    return <PreJoin onJoin={join} username={displayNameOf(self.data?.data) || ""} place={place} onCancel={onLeave} embedded={embedded} />
+    return <PreJoin onJoin={join} username={displayNameOf(self.data?.data) || ""} hueId={self.data?.data.user_uuid} place={place} onCancel={onLeave} embedded={embedded} />
   }
   return (
     <VideoConference
