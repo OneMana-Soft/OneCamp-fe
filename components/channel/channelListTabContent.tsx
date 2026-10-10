@@ -40,10 +40,14 @@ export const ChannelListTabContent = ({ selectedTab, onDiscover }: { selectedTab
     return (
         <div className="flex flex-col flex-1 min-h-0">
             <div className="border-b border-border/60">
+                {/* Held to the rows' 880px column, so the search and the rows
+                    end on one line (the search ran to the panel's edge, 314px
+                    past the rows at 1440). */}
                 <SearchField
                     onChange={handleChSearchOnChange}
                     value={inputValue}
                     placeholder="Search channels…"
+                    className="max-w-[880px]"
                 />
             </div>
             {/* A flex column, so each tab's flex-1 list gets the height left

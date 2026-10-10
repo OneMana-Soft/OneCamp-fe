@@ -9,6 +9,8 @@ import {sortChannelList} from "@/lib/utils/sortChannelList";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotSearch, SpotInbox } from "@/components/ui/graphics/spots";
 import { ErrorState } from "@/components/ui/error-state"
+import { ChannelListSkeleton, ChannelListState, useRowsWhileSearching } from "@/components/channel/channelListFrame";
+import { cn } from "@/lib/utils/helpers/cn";
 
 export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
     const post = usePost();
@@ -24,6 +26,9 @@ export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
     const [searchAllChannels, setSearchAllChannels] = useState<ChannelInfoInterface[]>([])
     const [searchHasMore, setSearchHasMore] = useState(true)
     const [isSearchLoading, setIsSearchLoading] = useState(false)
+    // The query the search results are for: until they are for this one, the
+    // rows already shown stay, dimmed (useRowsWhileSearching).
+    const [searchedFor, setSearchedFor] = useState("")
 
     // Fetch data for the current page
     const endpoint = `${GetEndpointUrl.GetUserArchiveChannelList}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
@@ -32,29 +37,31 @@ export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
     // Function to fetch search results
     const fetchSearchResults = async (query: string, page: number) => {
         setIsSearchLoading(true)
-        const resp = await post.makeRequest<GenericSearchTextInterface, ChannelInfoInterface[] >({
-            apiEndpoint: PostEndpointUrl.SearchArchiveUserChannelList,
-            payload: {
-                search_text: query,
-                page_index: page,
-                page_size: pageSize
-            }
-        })
-        setIsSearchLoading(false)
-        if (resp) {
-            const sorted = sortChannelList(resp)
-            if (page === 0) {
-                setSearchAllChannels(sorted)
-            } else {
-                setSearchAllChannels(prev => [...prev, ...sorted])
-            }
-            if (resp.length < pageSize) {
-                setSearchHasMore(false)
-            } else {
-                setSearchHasMore(true)
-            }
-            setSearchPageIndex(page)
+        let resp: ChannelInfoInterface[] | undefined
+        try {
+            resp = await post.makeRequest<GenericSearchTextInterface, ChannelInfoInterface[] >({
+                apiEndpoint: PostEndpointUrl.SearchArchiveUserChannelList,
+                payload: {
+                    search_text: query,
+                    page_index: page,
+                    page_size: pageSize
+                }
+            })
+        } catch {
+            resp = undefined
+        } finally {
+            setIsSearchLoading(false)
         }
+        const sorted = resp ? sortChannelList(resp) : []
+        if (page === 0) {
+            setSearchAllChannels(sorted)
+            // Answered, found or not: the dimmed rows give way either way.
+            setSearchedFor(query)
+        } else {
+            setSearchAllChannels(prev => [...prev, ...sorted])
+        }
+        setSearchHasMore(!!resp && resp.length >= pageSize)
+        setSearchPageIndex(page)
     }
 
     // Effect for Search Query Change
@@ -62,7 +69,6 @@ export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
         if (searchQuery.trim().length > 0) {
             setSearchPageIndex(0)
             setSearchHasMore(true)
-            setSearchAllChannels([])
             fetchSearchResults(searchQuery, 0)
         } else {
             setSearchAllChannels([])
@@ -102,38 +108,51 @@ export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
         }
     }
 
-    const renderChannelList =  (searchQuery.trim().length > 0) ? searchAllChannels : allChannels
+    const searching = searchQuery.trim().length > 0
+    const searchPending = searching && searchedFor !== searchQuery
+    const shown = useRowsWhileSearching(searching ? searchAllChannels : allChannels, searchPending)
+    const renderChannelList = shown.rows
     const currentIsLoading = (searchQuery.trim().length > 0) ? isSearchLoading : isLoading
     const currentHasMore = (searchQuery.trim().length > 0) ? searchHasMore : hasMore
 
+    // One frame for every tab (channelListFrame): the rows' own skeleton on the
+    // first load, which drew nothing at all; the empty and failed states in
+    // one place under the search; and while a search is on its way, the rows
+    // already shown, dimmed.
+    const firstLoad = !searching && isLoading && allChannels.length === 0
+
     return (
         <div className="flex-1 overflow-hidden flex flex-col">
-            {
-                renderChannelList && renderChannelList.length > 0 ? 
-                <ChannelListResult 
-                    channelList={renderChannelList}
-                    onLoadMore={onLoadMore}
-                    hasMore={currentHasMore}
-                    isLoading={currentIsLoading}
-                /> :
-                isError ? (
-                    <div className="p-4">
-                        <ErrorState subject="your archived channels" onRetry={() => void mutate()} />
-                    </div>
-                ) :
-                (!currentIsLoading && (
-                    <div className="p-4">
-                        <EmptyState
-                            illustration={searchQuery.trim().length > 0 ? <SpotSearch /> : <SpotInbox />}
-                            title={searchQuery.trim().length > 0 ? "No matches found" : "No archived channels"}
-                            description={searchQuery.trim().length > 0 
+            {firstLoad ? (
+                <ChannelListSkeleton />
+            ) : renderChannelList.length > 0 ? (
+                <div aria-busy={shown.stale || undefined} className={cn("flex min-h-0 flex-1 flex-col transition-opacity duration-150", shown.stale && "opacity-60")}>
+                    <ChannelListResult
+                        channelList={renderChannelList}
+                        onLoadMore={onLoadMore}
+                        hasMore={currentHasMore}
+                        isLoading={currentIsLoading}
+                    />
+                </div>
+            ) : isError && !searching ? (
+                // Ahead of the empty branch: an empty list would tell a member
+                // of twelve channels that they belong to none.
+                <ChannelListState>
+                    <ErrorState subject="your archived channels" onRetry={() => void mutate()} />
+                </ChannelListState>
+            ) : searchPending || currentIsLoading ? (
+                <ChannelListSkeleton />
+            ) : (
+                <ChannelListState>
+                    <EmptyState
+                            illustration={searching ? <SpotSearch /> : <SpotInbox />}
+                            title={searching ? "No matches found" : "No archived channels"}
+                            description={searching
                                 ? `No archived channel has “${searchQuery.trim()}” in its name.`
                                 : "You haven't joined any archived channels yet."}
                         />
-                    </div>
-                ))
-            }
+                </ChannelListState>
+            )}
         </div>
     )
-
 }
