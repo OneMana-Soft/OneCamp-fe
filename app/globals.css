@@ -1310,3 +1310,21 @@ html[data-media-collapsed="true"] [data-message-media] {
 @media print {
   @page { margin: 16mm; }
 }
+
+/* THE ON-SCREEN KEYBOARD (lib/ui/visualViewport.ts). While it is up, the
+   app's frame (data-app-viewport, on both shells) is fitted to the part of
+   the screen left visible: its height is the visual viewport's, and it moves
+   with iOS's pan, so the top bar stays on screen and a composer on the bottom
+   edge sits on the keyboard instead of behind it. The transform also makes
+   the frame the box its fixed children (the phone composer) are placed in.
+   Unlayered, so it outranks the frame's own h-dvh. With the keyboard down
+   none of this applies and the frame is the plain 100dvh it always was. */
+html[data-keyboard="open"] [data-app-viewport] {
+  height: var(--app-vvh);
+  transform: translateY(var(--app-vv-top));
+}
+/* The tab bar goes under the keyboard, as it does in a native app: above it,
+   it took 57px of the half screen that is left. */
+html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
+  visibility: hidden;
+}

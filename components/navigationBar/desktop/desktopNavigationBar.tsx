@@ -457,7 +457,9 @@ export function DesktopNavigationBar({
     };
 
     return (
-        <div className="flex flex-col h-dvh overflow-hidden bg-canvas">
+        // data-app-viewport: on a tablet, fitted to what the on-screen
+        // keyboard leaves while it is up (lib/ui/visualViewport.ts).
+        <div data-app-viewport="" className="flex flex-col h-dvh overflow-hidden bg-canvas">
             <DesktopNavigationTopBar />
             <div className="flex-1 overflow-hidden">
                 <ResizablePanelGroup
