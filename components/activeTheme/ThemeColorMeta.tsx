@@ -54,9 +54,11 @@ export function ThemeColorMeta() {
   useEffect(() => {
     const apply = () => {
       // The app's chrome (top bar, sidebar, the mobile header) is the canvas,
-      // so that is what the browser bar continues. Pages without the app frame
-      // leave --canvas as the same token, and body is the fallback.
-      const canvas = getComputedStyle(document.documentElement).getPropertyValue("--canvas").trim()
+      // so that is what the browser bar continues. The canvas is the theme's
+      // wash, declared on body (where the theme class is), so it is read
+      // there: on <html> it is still the unthemed value. Pages without the app
+      // frame leave --canvas as the same token, and body is the fallback.
+      const canvas = getComputedStyle(document.body).getPropertyValue("--canvas").trim()
       const background = canvas || getComputedStyle(document.body).backgroundColor
       if (!background) return
       const hex = toHexColor(background)

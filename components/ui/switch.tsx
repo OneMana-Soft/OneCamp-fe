@@ -15,12 +15,13 @@ const Switch = React.forwardRef<
       // page, so "off" read as "missing". 3:1 is the floor for a control
       // (WCAG 1.4.11). The ::after brings the press target to 24px tall.
       //
-      // On is ink, not the accent. A settings page is a column of switches,
-      // and in orange it became an orange column: the accent is for the one
-      // action on a view, not for every preference that happens to be on.
-      // Ink is far past 3:1 against the page in both themes, and the thumb
-      // flips to the page colour on it so it never disappears.
-      "peer relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors after:absolute after:-inset-y-1 after:-inset-x-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-foreground data-[state=unchecked]:bg-faint-foreground",
+      // On is the accent (the chosen theme), as a checked box is. Wave 1 made
+      // it ink, so a settings page would not read as an orange column; but it
+      // also left a colour theme nothing to colour, and "on" is state, which
+      // is what the accent marks. The accent is 4.5:1 or more on the page in
+      // every theme (paletteContrast), and the thumb takes the accent's own
+      // label colour on it, so it never disappears.
+      "peer relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors after:absolute after:-inset-y-1 after:-inset-x-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-faint-foreground",
       className
     )}
     {...props}
@@ -28,7 +29,7 @@ const Switch = React.forwardRef<
   >
     <SwitchPrimitives.Thumb
       className={cn(
-        "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=checked]:bg-background data-[state=unchecked]:translate-x-0"
+        "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=checked]:bg-primary-foreground data-[state=unchecked]:translate-x-0"
       )}
     />
   </SwitchPrimitives.Root>

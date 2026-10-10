@@ -96,6 +96,10 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-text: var(--brand-text);
   --color-brand-muted: var(--brand-muted);
+  /* The theme's wash (app/themes.css), as a utility: bg-brand-wash, for a
+     band that should take the chosen theme the way the sidebar does (the Home
+     greeting). Ink and text-2 are AA on it in every theme. */
+  --color-brand-wash: var(--brand-wash);
   /* THE CAMP PALETTE, as utilities: bg-camp-sky-tint, text-camp-sky-ink,
      fill-camp-sky, and so on for sun, moss, lake, sky, dusk and berry. See
      the :root block for what each cut is for. */
@@ -186,6 +190,14 @@
   --default-transition-duration: 120ms;
   --default-transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* THE SPRING (the playful layer, "Motion"): checks and toggles land with a
+     slight overshoot, at 220ms. animate-spring is the check's 1 -> 1.12 -> 1
+     on the house curve, for something that appears because of a click (never
+     on a page load: an already-done task does not bounce); ease-spring is the
+     curve for a thumb or knob that travels (transition-spring). Both stand
+     still under prefers-reduced-motion with everything else. */
+  --ease-spring: cubic-bezier(0.3, 1.35, 0.5, 1);
+  --animate-spring: spring-pop 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
   /* The highlight under a hovered or keyboard-focused row in a menu, a select,
      the command list and a ghost button. It is surface-3, one step past
      --accent (surface-2): --accent IS the canvas, so a ghost button in the top
@@ -251,6 +263,13 @@
   /* A tinted ground for the current selection: active nav, a selected row,
      a callout. Never for text. */
   --brand-muted: oklch(0.9667 0.0194 55.15);
+  /* The theme's wash and progress fill (app/themes.css), at the house values
+     so the frame is right before the theme class lands on body. */
+  --brand-wash: oklch(0.972 0.007 65);
+  --progress-from: #FF8A00;
+  --progress-to: #FF3D00;
+  /* hover-lift's shadow: a card a pixel off the page, not floating. */
+  --shadow-lift: 0 1px 2px rgb(20 22 26 / 0.04), 0 6px 16px -6px rgb(20 22 26 / 0.12);
 
   /* AGENTS HAVE A COLOUR OF THEIR OWN: an indigo, a quarter-turn from the
      brand, used only for agent identity (tag, avatar, anything an agent did),
@@ -383,6 +402,8 @@
   --brand-foreground: oklch(0.1682 0.0045 264.45);
   --brand-text: oklch(0.7514 0.1610 46.76);
   --brand-muted: oklch(0.2356 0.0313 52.65);
+  --brand-wash: oklch(0.232 0.014 55);
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 20px -8px rgb(0 0 0 / 0.6);
   --agent: oklch(0.7629 0.1064 278.81);
   --agent-foreground: oklch(0.1682 0.0045 264.45);
   --agent-muted: oklch(0.2621 0.0577 277.45);
@@ -488,12 +509,14 @@
 }
 
 /* The bar along the top while a request runs: most of the way in eight
-   seconds, never all of it until the request is done. */
+   seconds, never all of it until the request is done. A full-width bar,
+   scaled from its left edge: the compositor draws that on its own, where
+   animating width laid the page out again on every frame of every request. */
 @keyframes load-progress {
-  0% { width: 0%; }
-  20% { width: 30%; }
-  50% { width: 60%; }
-  80%, 100% { width: 90%; }
+  0% { transform: scaleX(0); }
+  20% { transform: scaleX(0.3); }
+  50% { transform: scaleX(0.6); }
+  80%, 100% { transform: scaleX(0.9); }
 }
 
 @keyframes shimmer {
@@ -505,6 +528,20 @@
 @keyframes skeleton-breathe {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
+}
+
+/* The springy check: up past full size and back. `scale`, not transform, so
+   it composes with whatever transform the element already has. */
+@keyframes spring-pop {
+  0%, 100% { scale: 1; }
+  45% { scale: 1.12; }
+}
+
+/* A knob or thumb that travels (a switch) lands with a slight overshoot. */
+@utility transition-spring {
+  transition-property: transform, translate, scale, rotate;
+  transition-duration: 220ms;
+  transition-timing-function: var(--ease-spring);
 }
 
 @utility glass {
@@ -546,6 +583,14 @@
   --hue-ink: var(--camp-berry-ink);
 }
 
+/* What progress fills with: the logo's gradient in the house theme, the
+   chosen accent in every other (--progress-from and --progress-to, per theme
+   in app/themes.css). The deep stop leads, so the moving edge of a bar is the
+   part that holds 3:1 against its track. */
+@utility bg-progress {
+  background-image: linear-gradient(90deg, var(--progress-from), var(--progress-to));
+}
+
 
 /* Everything the accent drives, declared on BODY and not on :root.
  *
@@ -562,6 +607,12 @@
  * Declared here, they resolve against body's --brand, which IS the themed one,
  * and every descendant inherits the right value. Verified in a real browser
  * rather than reasoned about, because the two look identical in the source.
+ *
+ * The frame is here for the same reason: the canvas (the sidebar, the top bar
+ * and the gutter round the sheet) and the phone's navigation take the theme's
+ * wash, so choosing a theme visibly re-themes the app the way Slack's themes
+ * recolour its sidebar. The sheet itself stays --background. Native controls
+ * take the accent here too: accent-color on :root never saw the theme.
  */
 body {
   --primary: var(--brand-text);
@@ -570,8 +621,16 @@ body {
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-ring: var(--brand);
-  --selection: var(--brand);
-  --selection-foreground: var(--brand-foreground);
+  /* Selected text is a tint of the accent under the text's own ink, not a
+     solid slab of it: a selected paragraph stays readable at 9:1 or more in
+     every theme (paletteContrast.test.ts). Mixed into the page rather than
+     into transparent: Chromium paints nothing for a translucent ::selection
+     background, so a see-through tint simply vanished. */
+  --selection: color-mix(in oklab, var(--brand) 26%, var(--background));
+  --selection-foreground: var(--foreground);
+  --canvas: var(--brand-wash);
+  --sidebar: var(--brand-wash);
+  accent-color: var(--brand);
 }
 
 @layer base {
@@ -750,10 +809,13 @@ body {
    any information at all. Card/Input/Textarea/Button were flattened for exactly
    this reason.
 
-   The hover-lift utility that used to live here is gone. It applied
-   -translate-y-0.5 + shadow on hover; a surface that rises under the cursor is the
-   clearest tell of a 2021-era UI, and it had zero usages. Hover belongs in a
-   background or border change — see hover-surface below. */
+   One exception, and only on purpose: hover-lift (the playful layer, "Motion")
+   lifts a card a single pixel under the cursor, with the shadow growing a
+   little, for a card that IS a thing to open (a Home card, a template). The
+   old lift rose 2px on everything and read as a 2021 template; this one is
+   opt-in, 1px, and stands still for prefers-reduced-motion (the shadow alone
+   says it). Rows, inputs and buttons never take it: their hover is a
+   background step (hover-surface below). */
 @utility shadow-overlay {
   @apply shadow-lg ring-1 ring-black/[0.06] dark:ring-white/10;
 }
@@ -765,6 +827,56 @@ body {
 
 @utility hover-surface {
   @apply transition-hover hover:bg-highlight hover:text-accent-foreground;
+}
+
+/* The lift is a translate, and the bigger shadow is drawn once on a layer of
+   its own (::after) that fades in, so the whole hover runs on the compositor.
+   Transitioning box-shadow repainted the card on every frame of the hover
+   (motionCost.test.ts). A card that takes it needs its ::after free. */
+@utility hover-lift {
+  position: relative;
+  isolation: isolate;
+  transition-property: translate;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-standard);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    box-shadow: var(--shadow-lift);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms var(--ease-standard);
+  }
+  @media (hover: hover) {
+    &:hover {
+      translate: 0 -1px;
+    }
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &:hover {
+      translate: none;
+    }
+  }
+}
+
+/* A lifted card that clips its content (a doc card, overflow-hidden) clips
+   the ::after shadow too, so it never showed.
+   These take the shadow on themselves, switched on as the pointer arrives
+   rather than transitioned: one paint, none per frame, and the lift itself
+   still runs on the compositor. (The board card lets its clip go instead:
+   Item.module.scss.) */
+@layer components {
+  @media (hover: hover) {
+    .hover-lift.overflow-hidden:hover {
+      box-shadow: var(--shadow-lift);
+    }
+  }
 }
 
 @layer components {
@@ -937,71 +1049,8 @@ body {
     animation: gradientMove 0.5s ease-out forwards;
   }
 
-  @keyframes waveCompletion {
-    0% {
-      transform: translate3d(-100%, 0, 0);
-      opacity: 0.8;
-    }
-
-    50% {
-      opacity: 1;
-    }
-
-    100% {
-      transform: translate3d(100%, 0, 0);
-      opacity: 0.6;
-    }
-  }
-
-  .animate-gradient-completion {
-    position: relative;
-    overflow: hidden;
-    will-change: transform;
-  }
-
-  .animate-gradient-completion::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg,
-        rgba(34, 197, 94, 0.1) 0%,
-        rgba(34, 197, 94, 0.3) 25%,
-        rgba(34, 197, 94, 0.5) 50%,
-        rgba(34, 197, 94, 0.3) 75%,
-        rgba(34, 197, 94, 0.1) 100%);
-    transform: translate3d(-100%, 0, 0);
-    animation: waveCompletion 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-    z-index: 1;
-    will-change: transform, opacity;
-  }
-
-  .animate-gradient-completion>* {
-    position: relative;
-    z-index: 2;
-  }
-
-  /* Respect user's motion preferences */
-  @media (prefers-reduced-motion: reduce) {
-    .animate-gradient-completion::before {
-      animation-duration: 0.3s;
-      animation-timing-function: ease-out;
-    }
-  }
-
-  /* High contrast mode support */
-  @media (prefers-contrast: high) {
-    .animate-gradient-completion::before {
-      background: linear-gradient(90deg,
-          rgba(34, 197, 94, 0.2) 0%,
-          rgba(34, 197, 94, 0.5) 25%,
-          rgba(34, 197, 94, 0.7) 50%,
-          rgba(34, 197, 94, 0.5) 75%,
-          rgba(34, 197, 94, 0.2) 100%);
-    }
-  }
+  /* The old green completion sweep is retired:
+     the camp-hued sparks (lib/celebrate) mark a task done. */
 
   .top-shadow {
     box-shadow: 0 -2px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -1052,16 +1101,6 @@ body {
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: color-mix(in oklab, var(--scroll-bar-color) 80%, white);
-  }
-}
-
-/* Respect user's motion preferences. The universal rule is in the
-   interaction-defaults block below; this one only retires the completion wave. */
-@media (prefers-reduced-motion: reduce) {
-  .animate-gradient-completion::before {
-    animation: none !important;
-    transform: none !important;
-    opacity: 0.3 !important;
   }
 }
 
@@ -1147,27 +1186,36 @@ html[data-media-collapsed="true"] [data-message-media] {
     border-radius: calc(var(--radius) + 4px);
   }
 
-  /* Navigation on the canvas. The current place is the one spot of accent in
-     the sidebar: the soft accent ground under ink text, no border and no
-     shadow. Hover is a neutral step (surface-3), so only the selection is
-     warm. */
+  /* Navigation on the canvas, which is the theme's wash. The current place is
+     the one spot of accent in the sidebar: the soft accent ground under ink
+     text, and a 2px bar of the accent at the start edge. The ground is
+     brand-muted taken one step deeper with the accent itself, because the
+     wash is a tint of the same hue and brand-muted alone all but vanished on
+     it; the step holds in every theme and both modes (paletteContrast). Hover
+     is a step of ink over the wash, so it keeps the wash's hue rather than
+     laying a grey patch on it, and only the current place carries accent. */
   .nav-active {
-    background: var(--brand-muted);
+    position: relative;
+    background: color-mix(in oklab, var(--brand) 12%, var(--brand-muted));
     color: var(--foreground);
+  }
+  .nav-active::before {
+    content: "";
+    position: absolute;
+    inset-block: 6px;
+    inset-inline-start: 0;
+    width: 2px;
+    border-start-end-radius: 2px;
+    border-end-end-radius: 2px;
+    background: var(--brand);
   }
   .nav-idle {
     color: var(--muted-foreground);
   }
   .nav-idle:hover {
-    background: var(--sidebar-accent);
+    background: color-mix(in oklab, var(--foreground) 6%, var(--canvas));
     color: var(--foreground);
   }
-}
-
-/* Native checkboxes, radios and ranges take the accent, not the browser's
-   blue. --brand is the user's chosen accent theme. */
-:root {
-  accent-color: var(--brand);
 }
 
 /* An invoice is paper: light in any theme, on screen and when printed. The
@@ -1184,4 +1232,49 @@ html[data-media-collapsed="true"] [data-message-media] {
 }
 @media print {
   @page { margin: 16mm; }
+}
+
+/* THE ON-SCREEN KEYBOARD (lib/ui/visualViewport.ts). While it is up, the
+   app's frame (data-app-viewport, on both shells) is fitted to the part of
+   the screen left visible: its height is the visual viewport's, and it moves
+   with iOS's pan, so the top bar stays on screen and a composer on the bottom
+   edge sits on the keyboard instead of behind it. The transform also makes
+   the frame the box its fixed children (the phone composer) are placed in.
+   Unlayered, so it outranks the frame's own h-dvh. With the keyboard down
+   none of this applies and the frame is the plain 100dvh it always was. */
+html[data-keyboard="open"] [data-app-viewport] {
+  height: var(--app-vvh);
+  transform: translateY(var(--app-vv-top));
+}
+/* The tab bar goes under the keyboard, as it does in a native app: above it,
+   it took 57px of the half screen that is left. */
+html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
+  visibility: hidden;
+}
+
+/* NO ZOOM ON FOCUS. iOS zooms the page in on any text field under 16px when
+   it takes focus, and leaves it zoomed. Pinch-zoom stays on (layout.tsx), so
+   on a touch screen a field set smaller than 16px is raised to it: a list's
+   search box, a filter, an inline estimate. Only the small sizes are raised,
+   so a field with a larger size of its own (a title) keeps it, and the
+   responsive ones too: the shared Input is 16px on a phone and md:text-sm
+   from 768, an iPad's width, so on an iPad the task filter zoomed the page.
+   Unlayered, to outrank the field's own utilities. The editors are in
+   components/minimal-tiptap/styles/index.css. */
+@media (pointer: coarse) {
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="button"], [type="submit"], [type="reset"], [type="image"]), textarea, select):is(.text-sm, .text-xs, .text-2xs, .text-3xs, .sm\:text-sm, .md\:text-sm, .lg\:text-sm, .sm\:text-xs, .md\:text-xs, .lg\:text-xs) {
+    font-size: 1rem;
+  }
+}
+
+/* SPOTS ON A PHONE. A spot illustration (components/ui/graphics/spots) is
+   96px by default; below sm it is at most 72px, so an empty state's sentence
+   and its one action stay above the fold and clear of the tab bar. A max,
+   never a size: a spot drawn smaller keeps its size. Unlayered, so it holds
+   over a size class as well as the width and height attributes. */
+@media (max-width: 639.98px) {
+  svg[data-spot] {
+    max-width: 72px;
+    max-height: 72px;
+  }
 }

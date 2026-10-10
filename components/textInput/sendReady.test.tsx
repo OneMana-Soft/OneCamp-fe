@@ -56,6 +56,8 @@ describe("the Send button", () => {
   it("reads as ready with words", async () => {
     composer("<p>Ship it</p>")
     await waitFor(() => expect(send().className).not.toContain(MUTED))
+    // Ready is the accent (the chosen theme): the one action on the composer.
+    expect(send().className).toContain("bg-primary")
   })
 })
 
