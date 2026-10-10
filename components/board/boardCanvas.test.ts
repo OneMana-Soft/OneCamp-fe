@@ -22,4 +22,18 @@ describe("the board canvas", () => {
     expect(change.indexOf("yDoc.transact(() => {\n        for (const el of allEls)")).toBeGreaterThan(skip)
     expect(change.indexOf("scheduleThumbnail()")).toBeGreaterThan(skip)
   })
+
+  it("takes what others drew as seen, so opening a board sends nothing back and uploads no thumbnail", () => {
+    // Both places that put the shared drawing on the canvas remember its
+    // fingerprint right after, inside the remote-change guard.
+    const applies = [...src.matchAll(/api\.updateScene\(\{ elements: Array\.from\(merged\.values\(\)\) as never\[\] \}\)/g)]
+    expect(applies).toHaveLength(2)
+    for (const a of applies) {
+      const after = src.slice(a.index!, a.index! + 600)
+      const remember = after.indexOf("lastSignatureRef.current = sceneSignature(api.getSceneElementsIncludingDeleted()")
+      expect(remember).toBeGreaterThan(0)
+      expect(remember).toBeLessThan(after.indexOf("applyingRemoteRef.current = false"))
+    }
+  })
 })
+

@@ -219,6 +219,10 @@ function BoardCanvas({
 
   // Guards to prevent feedback loops when applying remote changes locally.
   const applyingRemoteRef = React.useRef(false)
+  // The fingerprint of the scene as last sent or received (sceneSignature). A
+  // change that leaves it alone (a pan, a zoom, or the echo of a remote change
+  // just applied) sends nothing and schedules no thumbnail.
+  const lastSignatureRef = React.useRef("")
   // fileIds we have already uploaded (local) or resolved (remote), so we never
   // re-upload or re-fetch the same image.
   const seenFilesRef = React.useRef<Set<string>>(new Set())
@@ -433,6 +437,10 @@ function BoardCanvas({
         if (merged.size > 0) {
           api.updateScene({ elements: Array.from(merged.values()) as never[] })
         }
+        // What others drew is not a change of ours: Excalidraw's onChange for
+        // it comes after this block, and would otherwise send it back and
+        // upload a fresh thumbnail of a board the viewer only opened.
+        lastSignatureRef.current = sceneSignature(api.getSceneElementsIncludingDeleted() as never)
       } finally {
         applyingRemoteRef.current = false
       }
@@ -485,6 +493,7 @@ function BoardCanvas({
       if (merged.size > 0) {
         api.updateScene({ elements: Array.from(merged.values()) as never[] })
       }
+      lastSignatureRef.current = sceneSignature(api.getSceneElementsIncludingDeleted() as never)
     } finally {
       applyingRemoteRef.current = false
     }
@@ -540,7 +549,6 @@ function BoardCanvas({
   // shared. Skipped while applying a remote change, and for viewers.
   // -------------------------------------------------------------------------
   // The scene's fingerprint when it was last synced to the shared document.
-  const lastSignatureRef = React.useRef("")
   const handleChange = React.useCallback(
     (elements: readonly { id: string; version?: number }[], appState: unknown, files: Record<string, unknown>) => {
       // Persist the camera (scroll + zoom) for everyone, including viewers and
