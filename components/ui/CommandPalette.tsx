@@ -85,6 +85,7 @@ interface PaletteCommand {
 /* ------------------------------------------------------------------ */
 
 const COMMAND_GROUPS = ["Navigate", "Create", "View", "GitHub", "AI", "Admin", "Settings"] as const
+const NO_RECENT: RecentItem[] = []
 
 function makeSearchRecentItem(result: SearchResult): Omit<RecentItem, "timestamp"> | null {
   switch (result.type) {
@@ -152,7 +153,7 @@ export function CommandPalette() {
   const router = useRouter()
   const pathname = usePathname()
   const dispatch = useDispatch()
-  const recentItems = useSelector((state: RootState) => state.recentItems?.items || [])
+  const recentItems = useSelector((state: RootState) => state.recentItems?.items || NO_RECENT)
 
   const { data: selfProfile } = useFetch<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const isAdmin = selfProfile?.data?.user_is_admin || false
