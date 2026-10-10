@@ -84,6 +84,12 @@ export function SwitchRow(props: {
 /**
  * Unsaved changes, in view until they are saved or put back. Also asks
  * before the tab is closed or reloaded with them unsaved.
+ *
+ * On a phone the page's scroll area keeps the bottom navigation's room free
+ * (4rem plus the home indicator's inset, mobileNavigationBar), and a sticky
+ * offset counts from inside that room: bottom-2 puts the bar 4.5rem plus the
+ * inset from the screen's edge, a rem above the 3.5rem navigation. From md up
+ * it sits 1rem from the bottom.
  */
 export function SaveBar({
   dirty,
@@ -103,6 +109,8 @@ export function SaveBar({
     if (!dirty) return
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault()
+      // Chrome before 119 and Safari ask only when returnValue is set.
+      e.returnValue = ""
     }
     window.addEventListener("beforeunload", warn)
     return () => window.removeEventListener("beforeunload", warn)
@@ -113,7 +121,7 @@ export function SaveBar({
     <div
       role="region"
       aria-label="Unsaved changes"
-      className="sticky bottom-4 z-10 flex items-center justify-between gap-3 rounded-lg border border-border bg-popover px-4 py-2.5 shadow-overlay"
+      className="sticky bottom-2 md:bottom-4 z-10 flex items-center justify-between gap-3 rounded-lg border border-border bg-popover px-4 py-2.5 shadow-overlay"
     >
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {saving ? "Saving…" : `You have unsaved ${what}.`}
