@@ -2,7 +2,7 @@ import { displayNameOf } from "@/lib/personName"
 import React, { useMemo } from "react";
 import Link from "next/link";
 import { UnifiedActivityItem } from "@/types/activity";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { MessageSquare, AtSign } from "@/lib/icons";
 import { UserProfileDataInterface, UserProfileInterface } from "@/types/user";
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
@@ -12,7 +12,6 @@ import { removeHtmlTags } from "@/lib/utils/removeHtmlTags";
 import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction";
 import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData";
 import { cn } from "@/lib/utils/helpers/cn";
-import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { activityHref } from "@/lib/activity/activityHref";
 import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment";
 import { ListRow } from "@/components/ui/listRow";
@@ -126,16 +125,15 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
 
     const leading = (
         <div className="relative shrink-0">
-            <Avatar className="w-9 h-9">
-                <AvatarImage
-                    src={imageSrc}
-                    alt={displayNameOf(meta.user)}
-                    className="object-cover"
-                />
-                <AvatarFallback className="text-2xs font-medium bg-muted text-muted-foreground">
-                    {getNameInitials(displayNameOf(meta.user) || "?")}
-                </AvatarFallback>
-            </Avatar>
+            {/* Their photo, or their initials in their own colour: a grey
+                fallback here overrode the coloured one everyone else shows. */}
+            <IdentityMark
+                variant="avatar"
+                size={36}
+                id={meta.user?.user_uuid}
+                label={displayNameOf(meta.user) || "?"}
+                src={imageSrc}
+            />
             <div
                 aria-hidden
                 className={cn(
