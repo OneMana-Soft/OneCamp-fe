@@ -5,7 +5,7 @@ import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group"
 import { type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils/helpers/cn"
-import { toggleVariants } from "@/components/ui/toggle"
+import { toggleVariants, underlineToggle } from "@/components/ui/toggle"
 
 const ToggleGroupContext = React.createContext<
   VariantProps<typeof toggleVariants>
@@ -21,7 +21,13 @@ const ToggleGroup = React.forwardRef<
 >(({ className, variant, size, children, ...props }, ref) => (
   <ToggleGroupPrimitive.Root
     ref={ref}
-    className={cn("flex items-center justify-center gap-1", className)}
+    className={cn(
+      "flex items-center justify-center gap-1",
+      // variant="underline": a segmented view switch without its bordered
+      // box, a row of labels on one hairline, like the project tabs.
+      variant === "underline" && "justify-start gap-5 border-b overflow-x-auto no-scrollbar",
+      className
+    )}
     {...props}
   >
     <ToggleGroupContext.Provider value={{ variant, size }}>
@@ -47,6 +53,7 @@ const ToggleGroupItem = React.forwardRef<
           variant: context.variant || variant,
           size: context.size || size,
         }),
+        (context.variant || variant) === "underline" && underlineToggle,
         className
       )}
       {...props}

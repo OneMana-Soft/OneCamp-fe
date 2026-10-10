@@ -17,6 +17,10 @@ const toggleVariants = cva(
         default: "bg-transparent",
         outline:
           "border border-input bg-transparent hover:bg-highlight hover:text-accent-foreground",
+        // A view switch as a plain underline row (List / Board / Timeline),
+        // matching underlineTab in tabs.tsx. Its shape is applied after the
+        // size classes (see underlineToggle below), so it is empty here.
+        underline: "",
       },
       size: {
         default: "h-9 px-2 min-w-9",
@@ -38,11 +42,19 @@ const Toggle = React.forwardRef<
 >(({ className, variant, size, ...props }, ref) => (
   <TogglePrimitive.Root
     ref={ref}
-    className={cn(toggleVariants({ variant, size, className }))}
+    className={cn(toggleVariants({ variant, size }), variant === "underline" && underlineToggle, className)}
     {...props}
   />
 ))
 
 Toggle.displayName = TogglePrimitive.Root.displayName
 
-export { Toggle, toggleVariants }
+/**
+ * The underline item's shape. Applied after toggleVariants so it wins over the
+ * size's height and padding: ink and a 2px rule when on, muted otherwise, no
+ * fill and no box. The row's hairline comes from ToggleGroup.
+ */
+const underlineToggle =
+  "-mb-px h-auto min-w-0 rounded-none border-b-2 border-transparent bg-transparent px-0.5 pb-2.5 pt-1 hover:bg-transparent hover:text-foreground data-[state=on]:border-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground"
+
+export { Toggle, toggleVariants, underlineToggle }
