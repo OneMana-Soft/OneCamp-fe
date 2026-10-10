@@ -35,7 +35,7 @@ import { Content } from "@tiptap/react";
 import { X } from "@/lib/icons";
 import { Calendar as CalenderIcon } from "lucide-react";
 import { FileTypeIcon } from "@/components/fileIcon/fileTypeIcon";
-import { format } from "date-fns";
+import { shortDate } from "@/lib/utils/date/shortDate";
 import { Calendar } from "@/components/ui/calendar";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer";
@@ -93,7 +93,7 @@ const DateField: React.FC<DateFieldProps> = ({ field, placeholder, drawerTitle }
         !field.value && "text-muted-foreground",
       )}
     >
-      {field.value ? format(field.value, "PP") : <span>{placeholder}</span>}
+      {field.value ? shortDate(field.value) : <span>{placeholder}</span>}
       <CalenderIcon className="ml-2 h-4 w-4" />
     </Button>
   );

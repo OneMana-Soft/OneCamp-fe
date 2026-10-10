@@ -57,6 +57,17 @@ describe("the admin's invitation list", () => {
   })
 })
 
+describe("when an invitation was sent", () => {
+  it("is the app's short date, with the full date in its tooltip, not the browser's locale", () => {
+    list()
+    // Day before month in any time zone the test runs in ("9 Oct", never "Oct 9").
+    const sent = screen.getAllByText(/^\d{1,2} Oct( 2026)?$/)[0]
+    expect(sent.tagName).toBe("TIME")
+    expect(sent.getAttribute("dateTime")).toBe("2026-10-09T10:00:00Z")
+    expect(sent.getAttribute("title")).toMatch(/^\w+day \d{1,2} October 2026, \d{1,2}:\d{2} (AM|PM)$/)
+  })
+})
+
 describe("expiryText", () => {
   it("is empty once an invitation can't be used", () => {
     expect(expiryText({ status: "expired", expires_in_days: 3 })).toBe("")

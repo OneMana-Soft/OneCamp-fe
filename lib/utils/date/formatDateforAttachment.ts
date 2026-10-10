@@ -1,4 +1,5 @@
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
+import { shortDate } from "@/lib/utils/date/shortDate";
 
 export function formatDateForAttachment(dateString: string): string {
 
@@ -17,9 +18,6 @@ export function formatDateForAttachment(dateString: string): string {
     // Validate the date
     if (isNaN(date.getTime())) return "Invalid Date";
 
-    return new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-    }).format(date);
+    // The app's one date format: "9 Oct", "9 Oct 2025".
+    return shortDate(date);
 }

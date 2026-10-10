@@ -11,7 +11,7 @@ describe("check-ins", () => {
     expect(describeSchedule([2, 4], "10:00")).toBe("Tue and Thu at 10:00")
   })
   it("reads the next time in the reader's calendar", () => {
-    expect(nextLabel("2026-10-08T11:30:00Z", "en-GB")).toMatch(/Thu.*8.*Oct/)
+    expect(nextLabel("2026-10-08T11:30:00Z")).toMatch(/^Thu 8 Oct, \d{1,2}:\d{2} (AM|PM)$/)
     expect(nextLabel(undefined)).toBeUndefined()
     expect(nextLabel("nonsense")).toBeUndefined()
   })

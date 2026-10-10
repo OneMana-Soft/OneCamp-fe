@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import React, { useState, useRef } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
+import { shortDateTime, shortTime } from "@/lib/utils/date/shortDate";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch";
 import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
@@ -298,7 +299,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             <div className="space-y-1.5 mt-4">
                                 <div className="flex items-center gap-3 text-muted-foreground">
                                     <Calendar className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm font-medium">{format(start, "EEEE, MMMM d, yyyy")}</span>
+                                    <span className="text-sm font-medium">{format(start, "EEEE d MMMM yyyy")}</span>
                                 </div>
                                 
                                 <div className="flex items-center gap-3 text-muted-foreground">
@@ -306,12 +307,12 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     <span className="text-sm">
                                         {isSameDay(start, end) ? (
                                             <>
-                                                {format(start, "h:mm a")} - {format(end, "h:mm a")}
+                                                {shortTime(start)} - {shortTime(end)}
                                             </>
                                         ) : (
                                             <div className="flex flex-col gap-0.5">
-                                                <span>{format(start, "MMM d, h:mm a")}</span>
-                                                <span className="text-2xs opacity-70">to {format(end, "MMM d, h:mm a")}</span>
+                                                <span>{shortDateTime(start)}</span>
+                                                <span className="text-2xs opacity-70">to {shortDateTime(end)}</span>
                                             </div>
                                         )}
                                     </span>

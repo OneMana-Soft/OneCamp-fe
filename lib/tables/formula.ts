@@ -4,6 +4,7 @@
 // the same as its own.
 
 import { computedOf, isComputed, isMoreRef, type FormulaResult, type TableField } from "@/services/tableService"
+import { shortDate, shortDateTime } from "@/lib/utils/date/shortDate"
 
 export interface FormulaFunction {
   name: string
@@ -107,11 +108,11 @@ export function showFormulaValue(value: unknown, result: FormulaResult): Formula
     const day = DAY.exec(s)
     if (day) {
       const d = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]))
-      return { kind: "date", text: d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) }
+      return { kind: "date", text: shortDate(d) }
     }
     const t = new Date(s)
     if (!Number.isNaN(t.getTime())) {
-      return { kind: "date", text: t.toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) }
+      return { kind: "date", text: shortDateTime(t) }
     }
   }
   return { kind: "text", text: s }

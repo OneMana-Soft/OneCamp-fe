@@ -6,6 +6,9 @@
  * "next week" cover almost every real case, and a picker handles the rest.
  */
 
+import { format } from "date-fns"
+import { shortDate, shortTime } from "@/lib/utils/date/shortDate"
+
 export type LaterItemType = "post" | "comment" | "chat" | "task" | "doc" | "project" | "board"
 
 interface ReminderChoice {
@@ -31,11 +34,11 @@ function addDays(d: Date, n: number): Date {
 }
 
 function time(d: Date): string {
-  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+  return shortTime(d)
 }
 
 function weekday(d: Date): string {
-  return d.toLocaleDateString(undefined, { weekday: "short" })
+  return format(d, "EEE")
 }
 
 /** The quick reminder choices, as of now. */
@@ -72,11 +75,7 @@ export function reminderLabel(at: Date, now: Date): { text: string; due: boolean
   if (sameDay(at, addDays(now, 1))) return { text: `Tomorrow, ${time(at)}`, due: false }
   const days = (atHour(at, 0).getTime() - atHour(now, 0).getTime()) / 86_400_000
   if (days < 7) return { text: `${weekday(at)}, ${time(at)}`, due: false }
-  const sameYear = at.getFullYear() === now.getFullYear()
-  return {
-    text: at.toLocaleDateString(undefined, { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) }),
-    due: false,
-  }
+  return { text: shortDate(at, now), due: false }
 }
 
 /** A value for <input type="datetime-local"> in the person's own time. */

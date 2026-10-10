@@ -5,7 +5,7 @@ import {RecordingInfoInterface} from "@/types/recording";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {GetEndpointUrl} from "@/services/endPoints";
-import {format} from "date-fns";
+import { shortDateTime } from "@/lib/utils/date/shortDate";
 
 
 export const RecordingListRecording = ({
@@ -48,7 +48,7 @@ export const RecordingListRecording = ({
                             try {
                                 const d = new Date(recordingInfo.recording_stared_at);
                                 if (!isNaN(d.getTime())) {
-                                    return format(d, "MMM d, h:mm a");
+                                    return shortDateTime(d);
                                 }
                             } catch (e) {}
                             return "";

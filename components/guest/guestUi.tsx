@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import type { GuestChannelMessage } from "@/services/guestService"
+import { format } from "date-fns"
+import { shortTime } from "@/lib/utils/date/shortDate"
 import { publicTrouble, retryDelayMs, retryingText, type PublicResult, type PublicTrouble } from "@/services/publicApi"
 
 export const GUEST_POLL_MS = 5000
@@ -92,8 +94,8 @@ export function useGuestPoll(key: string, everyMs: number, tick: (first: boolean
   }, [key, everyMs])
 }
 
-export const guestWhen = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })
+/** "Fri 3:10 PM", in the app's one format. */
+export const guestWhen = (iso: string) => `${format(new Date(iso), "EEE")} ${shortTime(new Date(iso))}`
 
 const nameKey = (token: string) => `oc_guest_name_${token.slice(0, 12)}`
 

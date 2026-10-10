@@ -7,6 +7,7 @@ import { UpdateText } from "@/components/projectUpdates/UpdateText"
 import { Eye, Pencil, Trash2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { daysAgo } from "@/lib/utils/relativeTime"
+import { fullDateTime } from "@/lib/utils/date/shortDate"
 
 /** What a card shows: a project's update or a goal's check-in. */
 export interface CardUpdate {
@@ -52,7 +53,7 @@ export function UpdateCard({
         <p className="min-w-0 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{update.author_name}</span>
           {" · "}
-          <time dateTime={update.created_at} title={new Date(update.created_at).toLocaleString()}>
+          <time dateTime={update.created_at} title={fullDateTime(new Date(update.created_at))}>
             {daysAgo(update.created_at, now)}
           </time>
           {edited && " · edited"}

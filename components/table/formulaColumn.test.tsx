@@ -44,7 +44,8 @@ describe("a formula column", () => {
     // Price's input, and no input for the formulas.
     expect(screen.getAllByRole("spinbutton")).toHaveLength(1)
     expect(screen.getByText("50").className).toContain("tabular-nums")
-    expect(screen.getByText(new Date(2026, 9, 16).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }))).toBeTruthy()
+    // A date in the app's one format, whatever the browser's locale.
+    expect(screen.getByText(/^16 Oct( 2026)?$/)).toBeTruthy()
     // The cell and the header both say why it can't be worked out.
     expect(screen.getByText("A field this formula reads has been deleted")).toBeTruthy()
     expect(screen.getByLabelText("A field this formula reads has been deleted")).toBeTruthy()

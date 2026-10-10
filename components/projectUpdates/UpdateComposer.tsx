@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { Loader2, Sparkles, Undo2 } from "@/lib/icons"
 import { ENDINGS, HEALTHS, type Ending, type Health, type UpdateDraft } from "@/lib/projectUpdates"
 import type { UpdateInput } from "@/hooks/useProjectUpdates"
+import { format } from "date-fns"
 
 const NO_CHANNEL = "none"
 const MAX_BODY = 8000
@@ -205,7 +206,8 @@ export function UpdateComposer({
     }
   }
 
-  const sinceLabel = since ? new Date(since).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : null
+  // "Wed 30 Sep": day before month, as everywhere.
+  const sinceLabel = since ? format(new Date(since), "EEE d MMM") : null
   const pill = (h: Choice) => {
     const on = health === h.value
     return (

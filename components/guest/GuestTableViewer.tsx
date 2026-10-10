@@ -20,6 +20,7 @@ import {
 } from "@/services/tableService"
 import { Check } from "@/lib/icons"
 import { formulaText, showFormulaValue } from "@/lib/tables/formula"
+import { shortDate } from "@/lib/utils/date/shortDate"
 
 interface GuestTableViewerProps {
   fields: TableField[]
@@ -107,7 +108,7 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
 
     case "date": {
       const d = new Date(String(value))
-      return <span>{isNaN(d.getTime()) ? String(value) : d.toLocaleDateString()}</span>
+      return <span>{isNaN(d.getTime()) ? String(value) : shortDate(d)}</span>
     }
 
     case "url":

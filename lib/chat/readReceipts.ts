@@ -6,6 +6,8 @@
 import type { ChatTarget } from "@/lib/chat/conversation"
 import { nameList } from "@/lib/utils/format/nameList"
 import { GetEndpointUrl } from "@/services/endPoints"
+import { format } from "date-fns"
+import { shortTime } from "@/lib/utils/date/shortDate"
 
 export interface SeenBy {
   user_uuid: string
@@ -38,7 +40,8 @@ export function withSeen(r: Receipts, userUUID: string, at: string): Receipts {
   return { ...r, seen: [...r.seen.filter((s) => s.user_uuid !== userUUID), { user_uuid: userUUID, seen_at: at }] }
 }
 
-const time = (iso: string) => new Date(iso).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })
+// "Fri 3:10 PM", in the app's one format.
+const time = (iso: string) => `${format(new Date(iso), "EEE")} ${shortTime(new Date(iso))}`
 
 /**
  * The line under your latest message, or null when there's none to show:

@@ -2,6 +2,8 @@
  * The server keeps the values beside the task (business/TaskField) and lays
  * them over every task it lists, as task_fields, by field id. Pure. */
 
+import { shortDate } from "@/lib/utils/date/shortDate"
+
 export type FieldType = "text" | "number" | "money" | "date" | "select" | "multi_select" | "person" | "checkbox" | "url"
 
 export interface FieldOption {
@@ -68,11 +70,11 @@ export function formatMoney(cents: number, currency = "USD"): string {
   }
 }
 
-/** A day ("2026-10-31") written for the reader, in no time zone. */
-export function formatDay(day: string): string {
+/** A day ("2026-10-31") written for the reader, in no time zone: "31 Oct", or "31 Oct 2025" in another year. */
+export function formatDay(day: string, now: Date = new Date()): string {
   const [y, m, d] = day.split("-").map(Number)
   if (!y || !m || !d) return day
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+  return shortDate(new Date(y, m - 1, d), now)
 }
 
 /** A value as text, as a list cell or a card shows it; "" when there's none.

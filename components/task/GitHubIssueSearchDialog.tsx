@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useDebounce } from "@/hooks/useDebounce"
 import { usePost } from "@/hooks/usePost"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
+import { shortDate } from "@/lib/utils/date/shortDate"
 
 type SearchType = "issues" | "prs" | "all"
 
@@ -215,7 +216,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
 
   const formatDate = (iso: string) => {
     try {
-      return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+      return shortDate(new Date(iso))
     } catch {
       return iso
     }

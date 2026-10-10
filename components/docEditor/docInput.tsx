@@ -38,6 +38,7 @@ import { HocuspocusProvider } from '@hocuspocus/provider'
 import { SafeHtml } from '@/components/safeHtml/SafeHtml'
 import { sanitizeRichHtml } from '@/lib/sanitizeHtml'
 import type { SaveStatus } from '@/hooks/useDocAutoSave'
+import { shortTime } from '@/lib/utils/date/shortDate'
 
 interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
     value?: Content
@@ -124,8 +125,7 @@ const Toolbar = ({ editor }: { editor: Editor }) => (
 const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; lastSavedAt?: Date | null }) => {
     if (!status || status === 'idle') return null
 
-    const formatTime = (d: Date) =>
-        d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const formatTime = (d: Date) => shortTime(d)
 
     switch (status) {
         case 'saving':

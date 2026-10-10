@@ -1,3 +1,5 @@
+import { shortTime } from "@/lib/utils/date/shortDate";
+
 export function formatTimeForReplyCount(dateString: string | number): string {
     if (typeof dateString === "number") {
         dateString = dateString * 1000; // Convert seconds to milliseconds
@@ -12,11 +14,11 @@ export function formatTimeForReplyCount(dateString: string | number): string {
 
     // Today
     if (dateObject.toDateString() === currentDate.toDateString()) {
-        return `Today at ${dateObject.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+        return `Today at ${shortTime(dateObject)}`;
     }
     // Yesterday
     else if (daysDiff <= 1) {
-        return `Yesterday at ${dateObject.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+        return `Yesterday at ${shortTime(dateObject)}`;
     }
     // Less than a month
     else if (daysDiff < 30) {

@@ -5,9 +5,9 @@
 
 import { AlertCircle, CheckCircle2 } from "@/lib/icons"
 import type { GuestReview } from "@/services/guestService"
+import { shortDate } from "@/lib/utils/date/shortDate"
 
-const ago = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+const ago = (iso: string) => shortDate(new Date(iso))
 
 export function ReviewBadge({ review, withNote = false }: { review: GuestReview; withNote?: boolean }) {
   const approved = review.decision === "approved"

@@ -4,6 +4,7 @@
 "use client"
 
 import * as React from 'react'
+import { shortDate } from '@/lib/utils/date/shortDate'
 
 export function useRelativeTime(date: Date | string | null) {
   const [relative, setRelative] = React.useState<string>('')
@@ -27,11 +28,7 @@ export function useRelativeTime(date: Date | string | null) {
     if (diffDay < 2) return 'Yesterday'
     if (diffDay < 7) return `${diffDay} days ago`
 
-    return then.toLocaleDateString([], {
-      month: 'short',
-      day: 'numeric',
-      year: then.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
-    })
+    return shortDate(then, now)
   }, [])
 
   React.useEffect(() => {

@@ -1,7 +1,9 @@
+import { shortDate } from "@/lib/utils/date/shortDate"
+
 /**
  * A compact "how long ago" for dense admin rows: "just now", "5m ago",
- * "3h ago", "2d ago", then a short date. Empty for an unreadable time, so a
- * row shows nothing rather than "NaN".
+ * "3h ago", "2d ago", then a short date ("9 Oct"). Empty for an unreadable
+ * time, so a row shows nothing rather than "NaN".
  */
 export function relativeTime(iso: string, now: number = Date.now()): string {
   const t = new Date(iso).getTime()
@@ -13,7 +15,7 @@ export function relativeTime(iso: string, now: number = Date.now()): string {
   if (h < 24) return `${h}h ago`
   const d = Math.round(h / 24)
   if (d < 7) return `${d}d ago`
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+  return shortDate(new Date(iso), new Date(now))
 }
 
 /** Whole days between a time and now, never negative. */
@@ -28,5 +30,5 @@ export function daysAgo(iso: string, now: number = Date.now()): string {
   if (d === 1) return "yesterday"
   if (d < 14) return `${d} days ago`
   if (d < 60) return `${Math.floor(d / 7)} weeks ago`
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+  return shortDate(new Date(iso), new Date(now))
 }
