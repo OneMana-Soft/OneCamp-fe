@@ -1328,3 +1328,16 @@ html[data-keyboard="open"] [data-app-viewport] {
 html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
   visibility: hidden;
 }
+
+/* NO ZOOM ON FOCUS. iOS zooms the page in on any text field under 16px when
+   it takes focus, and leaves it zoomed. Pinch-zoom stays on (layout.tsx), so
+   on a touch screen a field set smaller than 16px is raised to it: a list's
+   search box, a filter, an inline estimate. Only the small sizes are raised,
+   so a field with a larger size of its own (a title) keeps it. Unlayered, to
+   outrank the field's own text-sm utility. The editors are in
+   components/minimal-tiptap/styles/index.css. */
+@media (pointer: coarse) {
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="button"], [type="submit"], [type="reset"], [type="image"]), textarea, select):is(.text-sm, .text-xs, .text-2xs, .text-3xs) {
+    font-size: 1rem;
+  }
+}

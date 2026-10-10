@@ -113,6 +113,15 @@
 .minimal-tiptap-editor.doc-editor .ProseMirror {
   line-height: 1.5rem;
 }
+/* An editor you type into is 16px on a touch screen. iOS zooms the page in on
+   any field under 16px when it takes focus, and leaves it zoomed: at 15px
+   that was every composer and every doc. Pinch-zoom stays on (app/layout.tsx),
+   so the size is the fix. Messages you only read keep 15/22. */
+@media (pointer: coarse) {
+  .minimal-tiptap-editor .ProseMirror[contenteditable="true"] {
+    font-size: 1rem;
+  }
+}
 
 .minimal-tiptap-editor .ProseMirror>div.editor {
   @apply block flex-1 whitespace-pre-wrap;
