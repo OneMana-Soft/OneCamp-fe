@@ -1,7 +1,5 @@
-import { Plus } from "@/lib/icons";
-
 import * as React from "react";
-import {useEffect, useState} from "react";
+import {useEffect} from "react";
 import {useDispatch, useSelector} from "react-redux";
 
 import {
@@ -10,7 +8,6 @@ import {
     removeProjectAttachmentUploadedFiles,
 } from "@/store/slice/projectAttachmentSlice";
 import {useUploadFile} from "@/hooks/useUploadFile";
-import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {RootState} from "@/store/store";
 import {useFetch} from "@/hooks/useFetch";
@@ -25,8 +22,8 @@ import UploadingAttachmentIcon from "@/components/attachmentIcon/uploadingAttach
 import {AttachmentMediaReq} from "@/types/attachment";
 import {openUI} from "@/store/slice/uiSlice";
 import ProjectAttachment from "@/components/project/projectAttachment";
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
 import { ErrorState } from "@/components/ui/error-state";
+import { AddFilesTile, ProjectFilesEmpty, ProjectFilesNoMatch, ProjectFilesSkeleton } from "@/components/project/projectFiles";
 
 
 interface ProjectAttachmentsProps {
@@ -47,27 +44,16 @@ export function ProjectAttachmentList({projectId, searchQuery}: ProjectAttachmen
         (state: RootState) => state.projectAttachment.projectAttachmentInputState
     );
 
-    const [searchProjectAttachmentList, setSearchProjectAttachmentList] = useState<AttachmentMediaReq[]>([])
-
-    const [sortedProjectAttachmentList, setSortedProjectAttachmentList] = useState<AttachmentMediaReq[]>([])
-
-    useEffect(()=>{
-
-        if(searchQuery.trim().length == 0) return
-
-        const filteredProject =
-            searchQuery === ''
-                ? projectAttachmentList.data?.data.project_attachments || [] as AttachmentMediaReq[]
-                : projectAttachmentList.data?.data.project_attachments?.filter((project) =>
-                project.attachment_file_name
-                    .toLowerCase()
-                    .replace(/\s+/g, '')
-                    .includes(searchQuery.toLowerCase().replace(/\s+/g, ''))
-            ) || [] as AttachmentMediaReq[]
-
-        setSearchProjectAttachmentList(filteredProject);
-
-    }, [searchQuery])
+    // The files a search shows, worked out as the list renders: it was copied
+    // into state by an effect, so for a frame after each keystroke the list
+    // showed the last search's files, and a file added during a search never
+    // showed in it.
+    const allFiles = projectAttachmentList.data?.data.project_attachments
+    const shownFiles = React.useMemo(() => {
+        const q = searchQuery.toLowerCase().replace(/\s+/g, '')
+        if (!q) return allFiles || []
+        return (allFiles || []).filter((f) => f.attachment_file_name.toLowerCase().replace(/\s+/g, '').includes(q))
+    }, [allFiles, searchQuery])
 
     useEffect(() => {
 
@@ -77,18 +63,6 @@ export function ProjectAttachmentList({projectId, searchQuery}: ProjectAttachmen
         }
 
     }, [projectInputState]);
-
-    const renderProjectAttachmentList =  searchQuery && searchProjectAttachmentList ? searchProjectAttachmentList: projectAttachmentList.data?.data.project_attachments
-
-
-    useEffect(() => {
-
-        if(renderProjectAttachmentList) {
-            setSortedProjectAttachmentList(renderProjectAttachmentList)
-        }
-
-
-    }, [renderProjectAttachmentList]);
 
 
     const addAttachmentsToProject = async () => {
@@ -177,86 +151,62 @@ export function ProjectAttachmentList({projectId, searchQuery}: ProjectAttachmen
 
 
 
+    const isAdmin = projectAttachmentList.data?.data.project_is_admin || false
+    const uploading = projectInputState[projectId]?.filesPreview || []
+    const pickFiles = () => fileInputRef.current?.click()
+    const query = searchQuery.trim()
+    const noMatch = !!query && shownFiles.length === 0
+    const empty = !query && shownFiles.length === 0 && uploading.length === 0
+
     return (
         <div className="px-4 py-3">
-            <div className="flex flex-wrap gap-3 items-start">
-                {sortedProjectAttachmentList?.map((file) => (
-                    <div key={file.attachment_uuid}>
+            {projectAttachmentList.isLoading ? (
+                <ProjectFilesSkeleton />
+            ) : projectAttachmentList.isError ? (
+                <ErrorState subject="the attachments" onRetry={() => void projectAttachmentList.mutate()} className="py-10" />
+            ) : noMatch ? (
+                <ProjectFilesNoMatch query={query} className="min-h-[40vh]" />
+            ) : empty ? (
+                <ProjectFilesEmpty onAdd={isAdmin ? pickFiles : undefined} className="min-h-[40vh]" />
+            ) : (
+                <div className="flex flex-wrap items-stretch gap-3">
+                    {shownFiles.map((file) => (
                         <ProjectAttachment
+                            key={file.attachment_uuid}
                             attachmentInfo={file}
-                            isAdmin={projectAttachmentList.data?.data.project_is_admin || false}
+                            isAdmin={isAdmin}
                             handleRemoveAttachment={handleDelete}
                             projectUUID={projectId}
                             handleAttachmentIconCLick={() => { handleAttachmentIconCLick(file) }}
                         />
-                    </div>
-                ))}
-
-                {projectInputState[projectId]?.filesPreview?.map((pfile) => (
-                    <UploadingAttachmentIcon
-                        fileName={pfile.fileName}
-                        progress={pfile.progress}
-                        fileKey={pfile.key}
-                        removeFile={() => { removeProjectPreviewFile(pfile.key) }}
-                        key={pfile.key}
-                        getUrl={pfile.uuid ? (GetEndpointUrl.GetProjectMedia + '/' + projectId + '/' + pfile.uuid) : undefined}
-                        attachmentOnCLick={() => {}}
-                        attachmentType={pfile.attachmentType}
-                    />
-                ))}
-
-                {projectAttachmentList.data?.data.project_is_admin && (
-                    <div>
-                        <Label htmlFor="project-file-upload" className="cursor-pointer">
-                            <div className="h-14 w-14 border-dashed border-2 border-border bg-muted/20 rounded-2xl text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 flex justify-center items-center transition-colors">
-                                <Plus className="h-6 w-6" />
-                            </div>
-                        </Label>
-                        <Input
-                            ref={fileInputRef}
-                            type="file"
-                            key={
-                                (projectInputState[projectId] &&
-                                    projectInputState[projectId].filesPreview.length) || 0
-                            }
-                            id="project-file-upload"
-                            multiple
-                            onChange={handleProjectFileUpload}
-                            style={{ display: "none" }}
+                    ))}
+                    {uploading.map((pfile) => (
+                        <UploadingAttachmentIcon
+                            fileName={pfile.fileName}
+                            progress={pfile.progress}
+                            fileKey={pfile.key}
+                            removeFile={() => { removeProjectPreviewFile(pfile.key) }}
+                            key={pfile.key}
+                            getUrl={pfile.uuid ? (GetEndpointUrl.GetProjectMedia + '/' + projectId + '/' + pfile.uuid) : undefined}
+                            attachmentOnCLick={() => {}}
+                            attachmentType={pfile.attachmentType}
                         />
-                    </div>
-                )}
-            </div>
-
-            {projectAttachmentList.isError && (
-                <div className="flex flex-col items-center justify-center py-10 px-4 w-full">
-                    <ErrorState
-                        subject="the attachments"
-                        onRetry={() => void projectAttachmentList.mutate()}
-                    />
+                    ))}
+                    {isAdmin && !query && <AddFilesTile onClick={pickFiles} />}
                 </div>
             )}
-
-            {/* Sequential blocks, so the empty condition must exclude the error too;
-                ordering alone would render both. */}
-            {!projectAttachmentList.isError && sortedProjectAttachmentList?.length === 0 && !searchQuery && (
-                <div className="flex flex-col items-center justify-center py-10 px-4 w-full min-h-[40vh]">
-                    <StatePlaceholder
-                        type="empty"
-                        title="No attachments yet"
-                        description="Drop files here or tap the + tile to upload your first attachment."
-                    />
-                </div>
-            )}
-
-            {searchQuery && searchProjectAttachmentList && searchProjectAttachmentList.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-10 px-4 w-full min-h-[40vh]">
-                    <StatePlaceholder
-                        type="search"
-                        title="No attachments found"
-                        description="We couldn't find any attachments matching your search."
-                    />
-                </div>
+            {isAdmin && (
+                <Input
+                    ref={fileInputRef}
+                    type="file"
+                    key={uploading.length}
+                    id="project-file-upload"
+                    multiple
+                    onChange={handleProjectFileUpload}
+                    className="hidden"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                />
             )}
         </div>
     )

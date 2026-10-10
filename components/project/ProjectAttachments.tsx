@@ -1,5 +1,3 @@
-import { Plus } from "@/lib/icons";
-
 import * as React from "react";
 import {useEffect} from "react";
 import {useDispatch, useSelector} from "react-redux";
@@ -10,7 +8,6 @@ import {
     removeProjectAttachmentUploadedFiles,
 } from "@/store/slice/projectAttachmentSlice";
 import {useUploadFile} from "@/hooks/useUploadFile";
-import {Label} from "@/components/ui/label";
 import {Input} from "@/components/ui/input";
 import {RootState} from "@/store/store";
 import {useFetch} from "@/hooks/useFetch";
@@ -25,6 +22,8 @@ import UploadingAttachmentIcon from "@/components/attachmentIcon/uploadingAttach
 import {AttachmentMediaReq} from "@/types/attachment";
 import {openUI} from "@/store/slice/uiSlice";
 import ProjectAttachment from "@/components/project/projectAttachment";
+import { ErrorState } from "@/components/ui/error-state";
+import { AddFilesTile, ProjectFilesEmpty, ProjectFilesSkeleton } from "@/components/project/projectFiles";
 
 
 interface ProjectAttachmentsProps {
@@ -135,72 +134,60 @@ export function ProjectAttachments({projectId}: ProjectAttachmentsProps) {
 
 
 
+    const files = projectAttachmentList.data?.data.project_attachments || []
+    const uploading = projectInputState[projectId]?.filesPreview || []
+    const isAdmin = projectAttachmentList.data?.data.project_is_admin || false
+    const pickFiles = () => fileInputRef.current?.click()
+
     return (
-        <div>
-            <div className="flex flex-wrap mb-4 items-center">
-                {projectAttachmentList.data?.data.project_attachments &&
-                    projectAttachmentList.data?.data.project_attachments.map(
-                        (file) => {
-                            return (
-                                <div key={file.attachment_uuid}>
-
-                                    <ProjectAttachment
-                                        attachmentInfo={file}
-                                        isAdmin={projectAttachmentList.data?.data.project_is_admin || false}
-                                        handleRemoveAttachment={handleDelete}
-                                        projectUUID={projectId}
-                                        handleAttachmentIconCLick={()=>{handleAttachmentIconCLick(file)}}
-                                    />
-                                </div>
-                            );
-                        }
-                    )}
-                {projectInputState[projectId]?.filesPreview &&
-                    projectInputState[projectId].filesPreview.map(
-                        (pfile) => {
-
-                            return <UploadingAttachmentIcon
-                                fileName={pfile.fileName}
-                                progress={pfile.progress}
-                                fileKey={pfile.key}
-                                removeFile={()=>{removeProjectPreviewFile(pfile.key)}}
-                                key={pfile.key}
-                                getUrl={pfile.uuid?(GetEndpointUrl.GetProjectMedia + '/' + projectId + '/' + pfile.uuid):undefined}
-                                attachmentOnCLick={()=>{}}
-                                attachmentType={pfile.attachmentType}/>
-
-                        }
-                    )}
-
-                {projectAttachmentList.data?.data.project_is_admin && <div>
-                    <Label htmlFor="project-file-upload" className="cursor-pointer">
-                        <div
-                            className="h-12 w-12 border-dashed bg-background rounded-2xl border-2 text-muted-foreground flex justify-center items-center">
-                            <div>
-                                <Plus size='30'/>
-
-                            </div>
-                        </div>
-                    </Label>
-
-                    <Input
-                        ref={fileInputRef}
-                        type="file"
-                        key={
-                            (projectInputState[projectId] &&
-                                projectInputState[projectId].filesPreview
-                                    .length) ||
-                            0
-                        }
-                        id="project-file-upload"
-                        multiple
-                        onChange={handleProjectFileUpload}
-                        style={{display: "none"}}
-                    />
-                </div>}
-            </div>
-
-
+        // px-4: in line with the linked docs and boards above it.
+        <div className="px-4 pb-4">
+            {projectAttachmentList.isLoading ? (
+                <ProjectFilesSkeleton />
+            ) : projectAttachmentList.isError ? (
+                <ErrorState subject="the attachments" onRetry={() => void projectAttachmentList.mutate()} />
+            ) : files.length === 0 && uploading.length === 0 ? (
+                <ProjectFilesEmpty onAdd={isAdmin ? pickFiles : undefined} className="py-10" />
+            ) : (
+                <div className="flex flex-wrap items-stretch gap-3">
+                    {files.map((file) => (
+                        <ProjectAttachment
+                            key={file.attachment_uuid}
+                            attachmentInfo={file}
+                            isAdmin={isAdmin}
+                            handleRemoveAttachment={handleDelete}
+                            projectUUID={projectId}
+                            handleAttachmentIconCLick={() => { handleAttachmentIconCLick(file) }}
+                        />
+                    ))}
+                    {uploading.map((pfile) => (
+                        <UploadingAttachmentIcon
+                            fileName={pfile.fileName}
+                            progress={pfile.progress}
+                            fileKey={pfile.key}
+                            removeFile={() => { removeProjectPreviewFile(pfile.key) }}
+                            key={pfile.key}
+                            getUrl={pfile.uuid ? (GetEndpointUrl.GetProjectMedia + '/' + projectId + '/' + pfile.uuid) : undefined}
+                            attachmentOnCLick={() => {}}
+                            attachmentType={pfile.attachmentType}
+                        />
+                    ))}
+                    {isAdmin && <AddFilesTile onClick={pickFiles} />}
+                </div>
+            )}
+            {isAdmin && (
+                <Input
+                    ref={fileInputRef}
+                    type="file"
+                    key={uploading.length}
+                    id="project-file-upload"
+                    multiple
+                    onChange={handleProjectFileUpload}
+                    className="hidden"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                />
+            )}
         </div>
     )
 }
