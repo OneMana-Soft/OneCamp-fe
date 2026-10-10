@@ -12,12 +12,15 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
+import { Tile } from "@/components/ui/graphics/Tile"
 import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban } from "@/lib/icons"
-import { getWorkspaceSettings } from "@/services/settingsService"
+import { Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban, Link2 } from "@/lib/icons"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { useWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 import { setGuestAccess, listGuestGrants, revokeGuestGrant, type GuestGrant } from "@/services/guestService"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { formatDistanceToNow } from "date-fns"
@@ -50,16 +53,21 @@ const CAPABILITY: Record<string, string> = {
 }
 const capabilityLabel = (c: string) => CAPABILITY[c] ?? `Can ${c}`
 
+/** The links' list: hairline rows, the admin page's one list. */
+const LIST = "divide-y divide-border rounded-lg border border-border"
+
+// The rows' own shape: a 32px tile, two lines, and the two buttons.
 function GrantsSkeleton() {
     return (
-        <ul aria-busy="true" aria-label="Loading the guest links" className="divide-y divide-border rounded-lg border border-border">
+        <ul aria-busy="true" aria-label="Loading the guest links" className={LIST}>
             {Array.from({ length: 2 }).map((_, i) => (
-                <li key={i} className="flex items-center gap-2.5 px-3 py-2.5" aria-hidden="true">
-                    <Skeleton className="h-7 w-7 shrink-0" />
-                    <div className="flex-1 space-y-1.5">
+                <li key={i} className="flex items-center gap-3 px-4 py-3" aria-hidden="true">
+                    <Skeleton className="size-8 shrink-0 rounded-lg" />
+                    <div className="flex-1 space-y-2">
                         <Skeleton className="h-3.5 w-36" />
                         <Skeleton className="h-3 w-28" />
                     </div>
+                    <Skeleton className="h-8 w-36 shrink-0" />
                 </li>
             ))}
         </ul>
@@ -70,10 +78,16 @@ export default function GuestAccessCard() {
     const { toast } = useToast()
     const confirm = useConfirm()
 
-    // null until the server has said: the switch is never drawn from a guess.
-    const [enabled, setEnabled] = useState<boolean | null>(null)
-    const [failed, setFailed] = useState(false)
+    // The workspace's settings, read once for every card that shows a part of
+    // them. The switch is never drawn from a guess: a failed read used to leave
+    // it at off, its default, beside a toast that soon left, and an admin would
+    // "turn on" something already on.
+    const { settings, isLoading, isError, mutate } = useWorkspaceSettings()
+    // The value being saved, shown at once; null once the server has answered.
+    const [pending, setPending] = useState<boolean | null>(null)
     const [saving, setSaving] = useState(false)
+    const enabled = pending ?? (settings ? !!settings.guest_access_enabled : null)
+    const failed = isError || (!isLoading && !settings)
     const [grants, setGrants] = useState<GuestGrant[]>([])
     const [grantsLoading, setGrantsLoading] = useState(false)
     const [grantsFailed, setGrantsFailed] = useState(false)
@@ -90,40 +104,26 @@ export default function GuestAccessCard() {
             .finally(() => setGrantsLoading(false))
     }
 
-    // A failed read used to leave the switch at off, its default, beside a
-    // toast that soon left: an admin would "turn on" something already on.
-    const loadSetting = () => {
-        setFailed(false)
-        setEnabled(null)
-        getWorkspaceSettings()
-            .then((s) => {
-                if (!s) {
-                    setFailed(true)
-                    return
-                }
-                setEnabled(!!(s as { guest_access_enabled?: boolean }).guest_access_enabled)
-            })
-            .catch(() => setFailed(true))
-    }
-
     useEffect(() => {
-        loadSetting()
         loadGrants()
     }, [])
 
     const apply = async (next: boolean) => {
         setSaving(true)
-        // optimistic
-        setEnabled(next)
+        setPending(next)
         try {
             const applied = await setGuestAccess(next)
-            setEnabled(applied)
+            await mutate(
+                (d) => (d?.data ? { ...d, data: { ...d.data, guest_access_enabled: applied } as WorkspaceSettings } : d),
+                { revalidate: false },
+            )
             toast({ title: applied ? "Guest access on" : "Guest access off" })
             if (applied) loadGrants()
         } catch (e) {
-            setEnabled(!next)
             toast({ title: "Couldn't change guest access", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
+            // Back to what the server holds: the saved value, or the old one.
+            setPending(null)
             setSaving(false)
         }
     }
@@ -179,7 +179,7 @@ export default function GuestAccessCard() {
             }
         >
             {failed ? (
-                <ErrorState subject="the guest access setting" onRetry={loadSetting} />
+                <ErrorState compact subject="the guest access setting" onRetry={() => void mutate()} />
             ) : enabled === null ? (
                 <SettingsList>
                     <div aria-busy="true" aria-label="Loading the guest access setting" className="flex items-start justify-between gap-4 px-4 py-3">
@@ -202,39 +202,40 @@ export default function GuestAccessCard() {
                         />
                     </SettingsList>
 
-                    <div className="space-y-2 pt-2">
-                        {/* A quiet sentence-case heading, not a shouted eyebrow. */}
-                        <h3 className="text-sm font-medium text-foreground">
-                            {enabled ? "Active guest links" : "Guest links, paused while guest access is off"}
-                        </h3>
+                    {/* A section of its own under the switch, in sentence case. */}
+                    <SettingsSection level={3} title={enabled ? "Active guest links" : "Guest links, paused while guest access is off"} className="pt-3">
                         {grantsLoading && grants.length === 0 ? (
                             <GrantsSkeleton />
                         ) : grantsFailed ? (
-                            <ErrorState subject="the guest links" onRetry={loadGrants} className="py-6" />
+                            <ErrorState compact subject="the guest links" onRetry={loadGrants} />
                         ) : grants.length === 0 ? (
-                            <p className="rounded-lg border border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                                {enabled ? "No active guest links." : "No guest links."}
-                            </p>
+                            <EmptyState
+                                icon={Link2}
+                                hue={ADMIN_GROUP_HUE.workspace}
+                                title={enabled ? "No active guest links" : "No guest links"}
+                                description="A link a member shares shows here, with what it allows and when it ends, so you can revoke it."
+                            />
                         ) : (
-                            <ul className="divide-y divide-border rounded-lg border border-border">
+                            <ul className={LIST}>
                                 {grants.map((g) => {
                                     const meta = resourceMeta(g.resource_type)
                                     const Icon = meta.Icon
                                     const href = meta.href?.(g.resource_id)
                                     return (
-                                        <li key={g.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                                            <div className="flex min-w-0 items-center gap-2.5">
-                                                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                                                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                                                </span>
-                                                <div className="min-w-0">
+                                        <li key={g.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                                            <div className="flex min-w-0 items-center gap-3">
+                                                {/* The workspace group's hue, as the admin menu draws Security. */}
+                                                <Tile hue={ADMIN_GROUP_HUE.workspace} size="md">
+                                                    <Icon />
+                                                </Tile>
+                                                <div className="min-w-0 space-y-0.5">
                                                     <div className="flex items-center gap-2 text-sm">
                                                         <span className="font-medium">{meta.label}</span>
                                                         <Badge variant="secondary" size="sm" className="rounded-sm">
                                                             {capabilityLabel(g.capability)}
                                                         </Badge>
                                                     </div>
-                                                    <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                                         <Clock className="h-3 w-3" aria-hidden="true" />
                                                         {g.expires_at
                                                             ? `Expires ${formatDistanceToNow(new Date(g.expires_at), { addSuffix: true })}`
@@ -242,21 +243,23 @@ export default function GuestAccessCard() {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex shrink-0 items-center gap-1.5">
+                                            <div className="flex shrink-0 items-center gap-2">
                                                 {href && (
-                                                    <a
-                                                        href={href}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                                                        title={`Open this ${meta.label.toLowerCase()}`}
-                                                    >
-                                                        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /> Open
-                                                    </a>
+                                                    <Button asChild variant="outline" size="sm" className="h-8 gap-1.5">
+                                                        <a
+                                                            href={href}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            title={`Open this ${meta.label.toLowerCase()}`}
+                                                        >
+                                                            <ExternalLink aria-hidden="true" /> Open
+                                                        </a>
+                                                    </Button>
                                                 )}
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
+                                                    className="h-8"
                                                     disabled={revoking === g.id}
                                                     onClick={() => revoke(g.id)}
                                                 >
@@ -268,7 +271,7 @@ export default function GuestAccessCard() {
                                 })}
                             </ul>
                         )}
-                    </div>
+                    </SettingsSection>
                 </>
             )}
         </SettingsSection>

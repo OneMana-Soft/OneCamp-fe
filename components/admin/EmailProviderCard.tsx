@@ -9,50 +9,33 @@
 //
 // Write-only: only whether a key is set, and where from, is ever shown.
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
+import { StatusWord } from "@/components/ui/statusWord"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
-import { cn } from "@/lib/utils/helpers/cn"
-import { getWorkspaceSettings, updateWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
+import { updateWorkspaceSettings, useWorkspaceSettings } from "@/services/settingsService"
 
 export default function EmailProviderCard() {
     const { toast } = useToast()
-    const [settings, setSettings] = useState<WorkspaceSettings | null>(null)
-    const [state, setState] = useState<"loading" | "failed" | "ready">("loading")
+    // The workspace's settings, read once for every card that shows a part of
+    // them. A failed read used to show "Email is off", and an admin acts on that
+    // by pasting a key that is already there.
+    const { settings, isLoading, isError, mutate } = useWorkspaceSettings()
     const [key, setKey] = useState("")
     const [saving, setSaving] = useState(false)
-
-    // A failed read used to show "Email is off", and an admin acts on that by
-    // pasting a key that is already there.
-    const load = () => {
-        setState("loading")
-        getWorkspaceSettings()
-            .then((s) => {
-                if (!s) {
-                    setState("failed")
-                    return
-                }
-                setSettings(s)
-                setState("ready")
-            })
-            .catch(() => setState("failed"))
-    }
-
-    useEffect(() => {
-        load()
-    }, [])
 
     const save = async () => {
         setSaving(true)
         try {
             const s = await updateWorkspaceSettings({ resend_api_key: key })
-            if (s) setSettings(s)
+            // The answer goes into the shared read, so every card shows it.
+            if (s) await mutate({ data: s }, { revalidate: false })
             setKey("")
             toast({ title: "Email key saved" })
         } catch (e) {
@@ -66,32 +49,35 @@ export default function EmailProviderCard() {
     const fromEnv = settings?.resend_source === "env"
 
     let body: React.ReactNode
-    if (state === "loading") {
+    if (isError || (!isLoading && !settings)) {
+        body = <ErrorState compact subject="the email settings" onRetry={() => void mutate()} />
+    } else if (!settings) {
         body = (
             <SettingsList>
                 <div aria-busy="true" aria-label="Loading the email settings" className="space-y-2 px-4 py-3">
                     <Skeleton className="h-4 w-32" />
                     <Skeleton className="h-3 w-64 max-w-full" />
                 </div>
-                <div aria-hidden="true" className="flex items-center justify-between gap-4 px-4 py-3">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-8 w-72 max-w-[50%]" />
+                <div aria-hidden="true" className="flex items-center justify-between gap-6 px-4 py-3">
+                    <div className="min-w-0 flex-1 space-y-2">
+                        <Skeleton className="h-4 w-36" />
+                        <Skeleton className="h-3 w-72 max-w-full" />
+                    </div>
+                    <Skeleton className="h-9 w-80 max-w-[50%] shrink-0" />
                 </div>
             </SettingsList>
         )
-    } else if (state === "failed") {
-        body = <ErrorState subject="the email settings" onRetry={load} />
     } else {
         body = (
             <SettingsList>
-                {/* A quiet label beside an ink value, as the task panel reads: it
-                    was a pill with an icon. */}
+                {/* A quiet label beside a dot and a word, as the task panel says a
+                    status: it was a pill with an icon, then a green word alone. */}
                 <div className="space-y-1 px-4 py-3">
                     <div className={fieldRow("center", "")}>
                         <span className={fieldLabel}>Status</span>
-                        <span className={cn("text-sm font-medium", configured ? "text-success-ink" : "text-foreground")}>
+                        <StatusWord tone={configured ? "success" : "neutral"} className="text-sm font-medium">
                             {configured ? "On" : "Off"}
-                        </span>
+                        </StatusWord>
                     </div>
                     <p className="text-xs text-muted-foreground text-pretty">
                         {configured
@@ -118,9 +104,10 @@ export default function EmailProviderCard() {
                         onChange={(e) => setKey(e.target.value)}
                         placeholder={configured ? "••••••••" : "re_…"}
                         aria-describedby="resend-key-desc"
-                        className="h-8 w-56"
+                        className="w-56"
                     />
-                    <Button size="sm" variant="outline" onClick={save} disabled={saving || !key}>
+                    {/* The field's height, so the row keeps one control height. */}
+                    <Button variant="outline" onClick={save} disabled={saving || !key}>
                         {saving ? "Saving…" : "Save key"}
                     </Button>
                 </SettingRow>

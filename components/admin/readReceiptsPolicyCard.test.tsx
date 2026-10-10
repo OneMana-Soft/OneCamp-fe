@@ -9,12 +9,24 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 const toast = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
 const api = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }))
-vi.mock("@/services/settingsService", () => ({
-  getWorkspaceSettings: api.get,
+// The card reads the workspace's settings through the one shared SWR key
+// (useWorkspaceSettings); the request it makes answers from api.get.
+vi.mock("@/lib/axiosInstance", () => ({
+  default: { get: async () => ({ data: { data: await api.get() } }), post: vi.fn() },
+  OWN_ERRORS: {},
+}))
+vi.mock("@/services/settingsService", async (orig) => ({
+  ...(await orig<typeof import("@/services/settingsService")>()),
   setReadReceiptsPolicy: api.set,
 }))
 
-const { default: ReadReceiptsPolicyCard } = await import("./ReadReceiptsPolicyCard")
+const { SWRConfig } = await import("swr")
+const { default: Card } = await import("./ReadReceiptsPolicyCard")
+const ReadReceiptsPolicyCard = () => (
+  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
+    <Card />
+  </SWRConfig>
+)
 
 afterEach(() => {
   cleanup()

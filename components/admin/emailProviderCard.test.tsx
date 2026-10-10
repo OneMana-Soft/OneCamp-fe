@@ -10,12 +10,23 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 const toast = vi.hoisted(() => vi.fn())
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }), toast }))
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }))
-vi.mock("@/services/settingsService", () => ({
-  getWorkspaceSettings: api.get,
+// Read through the one shared SWR key (useWorkspaceSettings), answering from api.get.
+vi.mock("@/lib/axiosInstance", () => ({
+  default: { get: async () => ({ data: { data: await api.get() } }), post: vi.fn() },
+  OWN_ERRORS: {},
+}))
+vi.mock("@/services/settingsService", async (orig) => ({
+  ...(await orig<typeof import("@/services/settingsService")>()),
   updateWorkspaceSettings: api.update,
 }))
 
-const { default: EmailProviderCard } = await import("./EmailProviderCard")
+const { SWRConfig } = await import("swr")
+const { default: Card } = await import("./EmailProviderCard")
+const EmailProviderCard = () => (
+  <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
+    <Card />
+  </SWRConfig>
+)
 
 afterEach(() => {
   cleanup()
@@ -34,13 +45,22 @@ describe("the email key", () => {
     expect(await screen.findByText("On")).toBeTruthy()
   })
 
-  it("reads the status as a quiet label beside its value", async () => {
+  // A state is a dot and a word (StatusWord), as the task panel's status
+  // reads: it was a green word alone.
+  it("reads the status as a quiet label beside a dot and a word", async () => {
     api.get.mockResolvedValue({ has_resend_api_key: true, resend_source: "db" })
     render(<EmailProviderCard />)
     const on = await screen.findByText("On")
-    expect(on.className).toMatch(/text-success-ink/)
+    expect(on.closest("[data-status-word]")?.getAttribute("data-status-word")).toBe("success")
     expect(on.querySelector("svg")).toBeNull()
     expect(screen.getByText("Status").className).toMatch(/text-muted-foreground/)
+  })
+
+  it("leaves the key field at the list's one height", async () => {
+    api.get.mockResolvedValue({ has_resend_api_key: true, resend_source: "db" })
+    render(<EmailProviderCard />)
+    const key = await screen.findByLabelText("Resend API key")
+    expect(key.className).not.toMatch(/(^|\s)h-8(\s|$)/)
   })
 
   it("keeps a browser from filling the admin's password into the key", async () => {
