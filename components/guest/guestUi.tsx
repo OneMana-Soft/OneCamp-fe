@@ -216,7 +216,7 @@ export function GuestComposer({ placeholder, onSend, name, onRename, quiet = fal
 }
 
 export function GuestCentered({ children }: { children: React.ReactNode }) {
-  return <main className="flex min-h-screen w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">{children}</main>
+  return <main className="flex min-h-dvh w-full flex-col items-center justify-center gap-3 bg-background px-4 text-center">{children}</main>
 }
 
 export function GuestLoading() {
