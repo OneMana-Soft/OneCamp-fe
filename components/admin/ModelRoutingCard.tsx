@@ -18,8 +18,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SettingRow, SettingsList, SettingsSection, SaveBar } from "@/components/ui/settingsSection"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { ErrorState } from "@/components/ui/error-state"
+import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
 import {
@@ -42,6 +42,7 @@ export default function ModelRoutingCard() {
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [failure, setFailure] = useState("")
   const [retrying, setRetrying] = useState(false)
 
   const load = useCallback(async () => {
@@ -51,7 +52,8 @@ export default function ModelRoutingCard() {
       setModels(ms)
       setValues(Object.fromEntries(r.purposes.map((p) => [p.key, routeValue(r.routes[p.key])])))
       setFailed(false)
-    } catch {
+    } catch (e) {
+      setFailure(apiErrorMessage(e, "Try again in a moment."))
       setFailed(true)
     }
   }, [])
@@ -87,7 +89,9 @@ export default function ModelRoutingCard() {
     >
       {failed && !routing ? (
         <ErrorState
+          compact
           subject="the model choices"
+          detail={failure}
           retrying={retrying}
           onRetry={() => {
             setRetrying(true)
@@ -95,9 +99,7 @@ export default function ModelRoutingCard() {
           }}
         />
       ) : !routing ? (
-        <div role="status" aria-label="Loading the model choices">
-          <SkeletonRows rows={3} avatar={false} />
-        </div>
+        <SectionListSkeleton label="Loading the model choices" rows={4} trailing="control" />
       ) : (
         <>
           <SettingsList>
@@ -107,7 +109,7 @@ export default function ModelRoutingCard() {
                   value={values[p.key] || DEFAULT}
                   onValueChange={(v) => setValues((cur) => ({ ...cur, [p.key]: v === DEFAULT ? "" : v }))}
                 >
-                  <SelectTrigger id={`route-${p.key}`} aria-describedby={`route-${p.key}-desc`} className="h-8 w-full sm:w-64">
+                  <SelectTrigger id={`route-${p.key}`} aria-describedby={`route-${p.key}-desc`} className="w-full @xl:w-64">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
