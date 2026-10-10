@@ -44,18 +44,12 @@ const KEYFRAME_EXCEPTIONS: Record<string, string> = {
 }
 
 // Layout motion that predates this guard, by file: progress bars that grow
-// their width, players that resize, the doc's collapsible block, a mobile
-// drawer. Each is the owning screen's to replace with transform: scaleX for a
-// bar, or no transition; the counts may only go down.
+// their width, players that resize, the doc's collapsible block. Each is the
+// owning screen's to replace with transform: scaleX for a bar, or no
+// transition; the counts may only go down.
 const LAYOUT_MOTION_BASELINE: Record<string, number> = {
-  "app/guest/p/[token]/page.tsx": 1,
-  "components/admin/AIModelsCard.tsx": 1,
-  "components/admin/ai/ModelCatalog.tsx": 1,
-  "components/admin/ai/ModelInstaller.tsx": 1,
   "components/ai/DocAiAssistantPanel.tsx": 2,
   "components/attachments/videoPlayer.tsx": 1,
-  "components/dialog/RecordingPlayerDialog.tsx": 1,
-  "components/drawers/dragableDrawer.tsx": 1,
   "components/fileUpload/AudioPlayer.tsx": 1,
   "components/minimal-tiptap/extensions/collapsible/components/collapsible-view.tsx": 1,
   "components/minimal-tiptap/extensions/poll/poll-view.tsx": 1,
