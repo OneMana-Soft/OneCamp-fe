@@ -29,7 +29,6 @@ const ALLOWED: Array<[file: string, snippet: string, why: string]> = [
   ["components/ai/RescheduleDialog.tsx", "shrink-0 opacity-0 pointer-events-none transition-opacity", "a check glyph on a slot row, which is the button"],
   ["components/message/messageReplyCount.tsx", "md:inline opacity-0", "a chevron on the reply count, which is the link"],
   ["components/message/continuedGutter.tsx", "-mr-1.5 block whitespace-nowrap", "the time of a continued message, also in the row's title"],
-  ["components/task/taskAssigneePicker.tsx", "invisible group-hover:visible", "the picker's chevron; the whole field opens it"],
   ["components/navigationBar/desktop/desktopSideNavigationBar.tsx", "rotate-90 opacity-0", "the section's chevron; the label folds it"],
   ["components/ai/DocAiAssistantPanel.tsx", "bg-[radial-gradient", "a hover glow"],
   ["components/dialog/editProfileDailog.tsx", "bg-black/40 opacity-0", "a pointer's shortcut to the Upload button beside it"],
@@ -37,7 +36,6 @@ const ALLOWED: Array<[file: string, snippet: string, why: string]> = [
   ["components/fileUpload/AudioPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; a phone's volume is its buttons"],
   ["components/project/timeline/TimelineBar.tsx", "cursor-crosshair", "the drag handle for a dependency, a pointer gesture"],
   // These two message toolbars appear on the message a touch taps (hooks/useTouchReveal).
-  ["components/message/baseMessageCard.tsx", "opacity-0 pointer-events-none group-hover:opacity-100", "shown on tap by useTouchReveal"],
   ["components/rightPanel/messageContent.tsx", "opacity-0 pointer-events-none group-hover:opacity-100", "shown on tap by useTouchReveal"],
 ]
 

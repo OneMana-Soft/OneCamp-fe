@@ -124,7 +124,10 @@ describe("the checklist while it loads", () => {
   it("is told so by both Homes, which read the flag through adminFromSidenav", () => {
     for (const file of ["desktop/desktopDashboard.tsx", "mobile/mobileHome.tsx"]) {
       const src = readFileSync(resolve(__dirname, file), "utf8")
-      expect(src, file).toMatch(/isAdmin = adminFromSidenav\(useSidenav\(\)\)/)
+      // Either straight from the hook, or from the side-nav answer the Home
+      // also reads for its glance line (the hub's Homes keep it in `sidenav`).
+      expect(src, file).toMatch(/isAdmin = adminFromSidenav\((?:useSidenav\(\)|sidenav)\)/)
+      if (/adminFromSidenav\(sidenav\)/.test(src)) expect(src, file).toMatch(/const sidenav = useSidenav\(\)/)
       expect(src, file).not.toMatch(/\.user_is_admin/)
     }
   })

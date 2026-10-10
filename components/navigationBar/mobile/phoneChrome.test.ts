@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest"
 describe("phone chrome", () => {
   it("says a channel is archived in words, in the moderators-only notice's form", () => {
     const src = readFileSync("components/channel/channelIdMobile.tsx", "utf8")
-    expect(src).toContain("This channel is archived. You can still read it.")
+    // The desktop's words (chat's de653845), so both say the same thing.
+    expect(src).toContain("This channel is archived. You can read it, but not post in it.")
     expect(src, "DESIGN.md: no emoji as decoration").not.toMatch(/\p{Extended_Pictographic}/u)
   })
 

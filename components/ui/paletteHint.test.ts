@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest"
 
 // The palette's shortcut chip sat under the dialog's close button: the chip
 // ends the input row, and the button is drawn over the dialog's top-right
-// corner, so "Ctrl K" and the X overlapped. The chip keeps a margin that
-// clears the button, read from both files so a change to either is caught.
+// corner, so "Ctrl K" and the X overlapped. The row's end (its padding, which
+// CommandDialog widens on the right for the whole row, chip or no chip) and
+// any margin on the chip clear the button, read from the files that set them
+// so a change to any is caught.
 
 const px = (cls: string, prefix: string) => {
   const m = new RegExp(`\\b${prefix}-(\\d+(?:\\.5)?)\\b`).exec(cls)
@@ -21,7 +23,10 @@ describe("the command palette's shortcut chip", () => {
     const chip = /<kbd className="([^"]+)" aria-label=\{mac/.exec(palette)?.[1] ?? ""
     const command = readFileSync(join(process.cwd(), "components/ui/command.tsx"), "utf8")
     const row = /cmdk-input-wrapper=""/.test(command) ? /<div className="([^"]+)" cmdk-input-wrapper/.exec(command)?.[1] ?? "" : ""
-    const chipEnds = px(row, "px") + px(chip, "mr") // the chip's right edge, from the same edge
+    // CommandDialog's own right padding for the row, when it sets one.
+    const dialogRowEnd = /\[&_\[cmdk-input-wrapper\]\]:pr-(\d+(?:\.5)?)\b/.exec(command)
+    const rowEnd = dialogRowEnd ? Number(dialogRowEnd[1]) * 4 : px(row, "pr") || px(row, "px")
+    const chipEnds = rowEnd + px(chip, "mr") // the chip's right edge, from the same edge
     expect(buttonReach).toBeGreaterThan(0)
     expect(chipEnds).toBeGreaterThanOrEqual(buttonReach + 4)
   })

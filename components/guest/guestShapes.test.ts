@@ -15,12 +15,11 @@ function files(dir: string, out: string[] = []): string[] {
   return out
 }
 
-// The round things that are meant to be round: a guest's initial (an avatar),
-// and the meeting's icon in a circle, which the playful layer's illustrations
-// replace.
+// The round things that are meant to be round: a guest's initial (an avatar).
+// The meeting's icon in a circle is gone: it sits on the playful layer's
+// hued tile.
 const ROUND = {
   "components/guest/GuestDocComments.tsx": 1,
-  "app/guest/m/[token]/page.tsx": 1,
 } as Record<string, number>
 
 describe("guest pages", () => {

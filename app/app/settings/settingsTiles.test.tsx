@@ -4,8 +4,9 @@ import { cleanup, render, screen } from "@testing-library/react"
 // The settings list sets each section on a tile in its place's hue (the
 // playful layer's tiles), the same hue the phone's More menu gives it.
 
-vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => true }) }))
-vi.mock("@/hooks/useClientConfig", () => ({ useAIAvailable: () => true }))
+// Everything allowed and AI on, every answer in: every section shows.
+vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => true, isLoading: false }) }))
+vi.mock("@/hooks/useClientConfig", () => ({ FEATURE_AI: "ai", useAIAvailable: () => true, useFeatureState: () => "available" }))
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>

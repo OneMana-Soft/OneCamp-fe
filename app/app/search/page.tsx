@@ -5,14 +5,14 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Search, ArrowLeft, X, Eye } from "@/lib/icons";
 import { useRouter } from "next/navigation"
-import { useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { useSearch } from "@/hooks/useSearch"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
-import { getIcon, getHighlightedTitle, getHighlightedContext, isResultPreviewable } from "@/lib/utils/helpers/search"
+import { getIcon, getHighlightedTitle, getHighlightedContext, isResultPreviewable, searchResultKeys } from "@/lib/utils/helpers/search"
 import { cn } from "@/lib/utils/helpers/cn"
 import { moveListFocus } from "@/lib/search/listFocus"
 import { SpotSearch } from "@/components/ui/graphics"
@@ -40,6 +40,8 @@ export default function SearchPage() {
         handleSearchSubmit
     } = useSearch({ initialQuery: query, debounceMs: 150 })
 
+    // Keyed by the hit, not its place: a refined query reorders the list.
+    const keys = useMemo(() => searchResultKeys(results), [results])
     const inputRef = useRef<HTMLInputElement>(null)
     const listRef = useRef<HTMLUListElement>(null)
     // The address follows what is typed, so the heading, a reload and a shared
@@ -171,7 +173,7 @@ export default function SearchPage() {
                         >
                             {results.map((result, idx) => (
                                 <li
-                                    key={idx}
+                                    key={keys[idx]}
                                     className="group relative flex items-start gap-3 rounded-md px-2 py-3 transition-colors duration-150 hover:bg-highlight focus-within:bg-highlight"
                                 >
                                     <div className="-mt-0.5 shrink-0" aria-hidden="true">

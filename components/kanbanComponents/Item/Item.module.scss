@@ -74,6 +74,14 @@ $shadow-pickup-lift: 0 12px 24px -6px rgba(0, 0, 0, 0.25),
     touch-action: manipulation;
   }
 
+  // The playful lift (hover-lift in app/globals.css) draws its deeper shadow
+  // on the card's ::after, outside the card's box, so this card's clip hid
+  // it. A card at rest takes the lift and lets its shadow out; the dragged
+  // card and the lifted copy never take it, and keep the clip.
+  &:global(.hover-lift) {
+    overflow: visible;
+  }
+
   &.dragging:not(.dragOverlay) {
     opacity: var(--dragging-opacity, 0.5);
     z-index: 0;

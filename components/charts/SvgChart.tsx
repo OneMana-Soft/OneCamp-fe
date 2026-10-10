@@ -18,23 +18,23 @@ import { niceTicks, type NormalizedChart } from "@/lib/utils/chartSpec";
  * presentational: all validation/bounding happens upstream in normalizeChartSpec.
  */
 
-// The camp hues, in the playful layer's fixed order: sky, moss, sun, dusk,
-// berry, lake, the same six every person and project is drawn in. Never
-// cycled by rank: a series keeps its slot. Measured with the dataviz validator
-// (app/chartPalette.test.ts): every adjacent pair clears the normal-vision
-// floor (16.7 at worst) and 3:1 on the card; two pairs sit in the 6-8 band
-// for colour blindness (moss and sun 6.3, protan; berry and lake 6.5, deutan
-// in dark), which the validator allows with secondary encoding, and this
-// chart always has it: a legend for two series or more, 2px gaps between
-// fills, end dots on lines.
-export const SERIES_HUES = ["sky", "moss", "sun", "dusk", "berry", "lake"] as const
+// The camp hues, the same six every person and project is drawn in, in the
+// app's one chart order: sky, berry, sun, lake, dusk, moss. Every chart takes
+// it, a report's and a table's alike, so a series is the same colour on both.
+// The order is the colour-blind-safe one: neighbours stay 8 or more apart
+// (OKLab x100) under protanopia and deuteranopia, in both themes (8.4 at
+// worst, lake and dusk for a deuteranope in dark), 15 or more in normal vision
+// (17.9 at worst), and the first three are apart as a set, for a pie. The
+// playful layer's first order (sky, moss, sun, dusk, berry, lake) put moss
+// beside sun at 6.3 for a protanope. Never cycled by rank: a series keeps its
+// slot. app/chartPalette.test.ts measures it, with 3:1 on the card.
+export const SERIES_HUES = ["sky", "berry", "sun", "lake", "dusk", "moss"] as const
 const SERIES_COLORS = SERIES_HUES.map((h) => `var(--camp-${h})`);
 
 const colorAt = (i: number, palette: readonly string[] = SERIES_COLORS) => palette[i % palette.length];
 
-// A chart can be drawn in a palette of its own (a table's chart takes the
-// camp hues). Every series and slice reads it from here; a chart not given
-// one keeps the calm default above.
+// A chart can still be drawn in a palette of its own, passed in. Every series
+// and slice reads it from here; a chart given none draws the series above.
 const PaletteContext = React.createContext<readonly string[]>(SERIES_COLORS);
 
 // A guide (a dashed ideal pace) is context, not data: it reads in the neutral
@@ -127,7 +127,7 @@ function valueBounds(chart: NormalizedChart): { min: number; max: number } {
 interface SvgChartProps {
     chart: NormalizedChart;
     className?: string;
-    /** Series colours in order, as CSS colours; the calm default when left out. */
+    /** Series colours in order, as CSS colours; the app's chart order (SERIES_HUES) when left out. */
     palette?: readonly string[];
 }
 

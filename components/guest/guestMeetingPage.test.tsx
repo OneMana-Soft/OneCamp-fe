@@ -58,7 +58,7 @@ describe("a guest in a meeting", () => {
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join call" })))
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Leave" })))
     expect(screen.getByRole("heading", { level: 1, name: "You left the meeting" })).toBeInTheDocument()
-    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Rejoin" })))
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Join again" })))
     expect(screen.getByLabelText("Your name")).toHaveValue("Jordan")
   })
 })

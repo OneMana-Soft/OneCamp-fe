@@ -149,3 +149,12 @@ describe("EmptyState", () => {
     expect(container.querySelector("[class*='hue-']")).toBeNull()
   })
 })
+
+describe("EmptyState as a whole page", () => {
+  // The app's route error page and the last-resort crash page are the whole
+  // page, so their title is the page's h1, not an h2 under nothing.
+  it("can be the page's h1", () => {
+    render(<EmptyState title="This page hit a problem" headingLevel={1} />)
+    expect(screen.getByRole("heading", { name: "This page hit a problem", level: 1 })).toBeTruthy()
+  })
+})

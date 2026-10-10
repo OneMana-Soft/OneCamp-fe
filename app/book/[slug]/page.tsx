@@ -316,7 +316,7 @@ function Confirmation({ booked, tz }: { booked: Booked; tz: string }) {
  */
 function BookingSkeleton() {
   return (
-    <main className="min-h-screen bg-muted/30 px-4 py-8 sm:py-14" role="status" aria-label="Loading booking page">
+    <main className="min-h-dvh bg-muted/30 px-4 py-8 sm:py-14" role="status" aria-label="Loading booking page">
       <div aria-hidden="true" className="mx-auto grid max-w-4xl overflow-hidden rounded-xl border bg-background grid-cols-[minmax(0,1fr)] md:grid-cols-[17rem_minmax(0,1fr)]">
         <div className="grid content-start gap-3 border-b p-6 md:border-b-0 md:border-r">
           <div className="flex items-center gap-2.5">

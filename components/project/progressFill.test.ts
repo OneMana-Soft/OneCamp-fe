@@ -18,8 +18,17 @@ describe("progress bars in tasks and projects", () => {
   for (const f of FILES) {
     it(`${f} fills with the theme's progress`, () => {
       const src = readFileSync(join(root, f), "utf8")
-      expect(src).toMatch(/\bbg-progress\b/)
+      // A file may draw the bar itself, or use the app's shared one (the
+      // client view's header does), which fills with bg-progress below.
+      const shared = /from "@\/components\/ui\/progress"/.test(src) && /<Progress\b/.test(src)
+      if (!shared) expect(src).toMatch(/\bbg-progress\b/)
       expect(src).not.toMatch(/bg-foreground\/70/)
     })
   }
+
+  it("the app's shared progress bar fills with the theme's progress", () => {
+    const src = readFileSync(join(root, "components/ui/progress.tsx"), "utf8")
+    expect(src).toMatch(/\bbg-progress\b/)
+    expect(src).not.toMatch(/bg-foreground\/70/)
+  })
 })

@@ -865,6 +865,21 @@ body {
   }
 }
 
+/* A lifted card that clips its content (Home's AI cards, .ai-panel; a doc
+   card, overflow-hidden) clips the ::after shadow too, so it never showed.
+   These take the shadow on themselves, switched on as the pointer arrives
+   rather than transitioned: one paint, none per frame, and the lift itself
+   still runs on the compositor. (The board card lets its clip go instead:
+   Item.module.scss.) */
+@layer components {
+  @media (hover: hover) {
+    .hover-lift.ai-panel:hover,
+    .hover-lift.overflow-hidden:hover {
+      box-shadow: var(--shadow-lift);
+    }
+  }
+}
+
 @layer components {
   .steps {
     &:first-child {
