@@ -103,7 +103,7 @@ export function InlineDocCreator({ className, isOpen: controlledIsOpen, onOpenCh
     <div className={cn("px-2 py-1", className)}>
       <div className="flex items-center gap-1">
         <FileIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <Input
+        <Input dense
           ref={inputRef}
           value={title}
           onChange={handleChange}

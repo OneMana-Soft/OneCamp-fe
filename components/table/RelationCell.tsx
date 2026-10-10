@@ -161,7 +161,7 @@ export function RelationCell({
         <PopoverContent align="start" className="w-72 overflow-hidden p-0">
           <div className="flex items-center gap-2 border-b px-3 py-2">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <Input
+            <Input dense
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}

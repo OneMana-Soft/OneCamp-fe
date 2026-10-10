@@ -101,7 +101,7 @@ export function DocTopBarBreadcrumb({ doc, canEdit = false }: DocTopBarBreadcrum
                                  >
                                     {title || "Untitled Document"}
                                  </span>
-                                 <Input
+                                 <Input dense
                                     ref={inputRef}
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}

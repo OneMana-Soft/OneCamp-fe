@@ -145,7 +145,7 @@ function FieldRow({
   return (
     <div className="rounded-md border border-border/60">
       <div className="flex flex-wrap items-center gap-1 p-1">
-        <Input
+        <Input dense
           value={name}
           maxLength={40}
           aria-label="Field name"
@@ -160,7 +160,7 @@ function FieldRow({
         />
         <span className="shrink-0 px-1 text-xs text-muted-foreground">{typeLabel(field.type)}</span>
         {field.type === "money" && (
-          <Input
+          <Input dense
             value={currency}
             maxLength={3}
             aria-label={`${field.name} currency`}
@@ -327,7 +327,7 @@ function OptionRow({ option, busy, onChange, onRemove }: { option: DraftOption; 
   return (
     <li className="flex items-center gap-1">
       <ColorPicker value={option.color} disabled={busy} onChange={(color) => onChange({ ...option, color })} />
-      <Input
+      <Input dense
         value={label}
         maxLength={40}
         aria-label="Option name"
@@ -398,7 +398,7 @@ function AddField({ busy, onAdd }: { busy: boolean; onAdd: (input: FieldInput) =
           </SelectContent>
         </Select>
         {type === "money" && (
-          <Input
+          <Input dense
             value={currency}
             maxLength={3}
             placeholder="INR"

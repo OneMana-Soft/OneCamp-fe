@@ -87,7 +87,7 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
                 <div className='text-xs'>
                     {label}
                 </div>
-                <Input
+                <Input dense
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onBlur={(e) => commitInput(e.target.value)}

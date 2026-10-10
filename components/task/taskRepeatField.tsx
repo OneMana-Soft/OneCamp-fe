@@ -111,7 +111,7 @@ export function TaskRepeatField({
               <Label htmlFor="repeat-interval" className="text-sm">
                 Every
               </Label>
-              <Input
+              <Input dense
                 id="repeat-interval"
                 type="number"
                 inputMode="numeric"

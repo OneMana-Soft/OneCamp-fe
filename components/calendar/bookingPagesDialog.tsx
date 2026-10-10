@@ -258,9 +258,9 @@ function PageEditor({ page, onCancel, onSaved }: { page: BookingPage; onCancel: 
           })}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Input type="time" aria-label="From" value={p.hours.start} onChange={(e) => setHours({ start: e.target.value })} className="h-8 w-28" />
+          <Input dense type="time" aria-label="From" value={p.hours.start} onChange={(e) => setHours({ start: e.target.value })} className="h-8 w-28" />
           <span>to</span>
-          <Input type="time" aria-label="Until" value={p.hours.end} onChange={(e) => setHours({ end: e.target.value })} className="h-8 w-28" />
+          <Input dense type="time" aria-label="Until" value={p.hours.end} onChange={(e) => setHours({ end: e.target.value })} className="h-8 w-28" />
           <Select value={p.hours.tz} onValueChange={(tz) => setHours({ tz })}>
             <SelectTrigger className="h-8 min-w-0 flex-1" aria-label="Time zone">
               <SelectValue />
