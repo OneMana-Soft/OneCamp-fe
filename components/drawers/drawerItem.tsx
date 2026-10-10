@@ -58,13 +58,18 @@ export function DrawerItem({
                     <Icon strokeWidth={1.75} />
                 </Tile>
             ) : Icon ? (
-                <Icon
-                    className={cn(
-                        "h-5 w-5 shrink-0",
-                        destructive ? "text-danger-ink" : "text-muted-foreground",
-                    )}
-                    strokeWidth={1.75}
-                />
+                // The tile's 32px slot, with or without the tile, so every
+                // drawer's labels start on one line: the More menu's tiled
+                // places and its plain account rows began 12px apart.
+                <span data-drawer-icon="" className="flex size-8 shrink-0 items-center justify-center">
+                    <Icon
+                        className={cn(
+                            "h-5 w-5",
+                            destructive ? "text-danger-ink" : "text-muted-foreground",
+                        )}
+                        strokeWidth={1.75}
+                    />
+                </span>
             ) : null}
             <span className="flex-1 min-w-0">
                 <span
