@@ -19,14 +19,16 @@
  *   without touching unrelated state.
  *
  * Each row reads like the task panel (quiet labels, values in ink at one x)
- * and says where it stands in the status tokens, the words the other
- * importers' rows use. A row's next step is an outline button: the tab keeps
- * one filled action, New import.
+ * and says where it stands as a dot and a word, as the other importers' rows
+ * do. A row's next step is an outline button: the tab keeps one filled
+ * action, New import, on the section's title row. One flat section like every
+ * other admin tab, where it was a bordered Card with each import a box in it
+ * and its digest a third box inside that.
  */
 
 import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/ui/field"
 import { Progress } from "@/components/ui/progress"
@@ -48,11 +50,11 @@ import { useMqtt } from "@/components/mqtt/mqttProvider"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Upload, RefreshCw, RotateCcw, Users, AlertTriangle } from "@/lib/icons"
 import { PlayCircle, Sparkles } from "lucide-react"
-import { Eyebrow } from "@/components/ui/eyebrow"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { SpotImported } from "@/components/ui/graphics"
 import { cn } from "@/lib/utils/helpers/cn"
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import {
@@ -63,7 +65,7 @@ import {
   type SlackImportJob,
 } from "@/services/slackImportService"
 import { importProblemOf } from "@/services/importService"
-import { ImportStatusChip, count, partsLine } from "@/components/admin/ImportJobRow"
+import { IMPORT_LIST, ImportRowsSkeleton, ImportStatusChip, ROW_ACTION, count, partsLine } from "@/components/admin/ImportJobRow"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 // Lazy-load the heavy dialogs (multi-GB upload widget, plan dialog
 // with mappings, error pagination). Same rationale as ImportCard:
@@ -283,76 +285,65 @@ const SlackImportCard: React.FC = () => {
 
   return (
     <>
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div className="min-w-0">
-              <CardTitle className="text-base font-semibold">
-                Import from Slack
-              </CardTitle>
-              <CardDescription className="mt-1">
-                Upload a Slack workspace export to bring channels, messages, threads, files and reactions into OneCamp.
-              </CardDescription>
-            </div>
-            <div className="flex gap-2 shrink-0 self-start">
-              <Button variant="outline" size="sm" className="h-8" onClick={() => refetch()}>
-                <RefreshCw className="h-4 w-4 mr-1.5" /> Refresh
-              </Button>
-              <Button onClick={() => setUploadOpen(true)} size="sm" className="h-8">
-                <Upload className="h-4 w-4 mr-1.5" /> New import
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-3">
-          {isLoading && (
-            <div role="status" aria-label="Loading imports">
-              <SkeletonRows rows={3} />
-            </div>
-          )}
-          {isError && (
-            <ErrorState subject="the import history" onRetry={() => void refetch()} />
-          )}
-          {!isError && !isLoading && jobs.length === 0 && (
-            <EmptyState
-              tone="accent"
-              icon={Upload}
-              hue={ADMIN_GROUP_HUE.workspace}
-              title="No imports yet"
-              description={
-                <>
-                  Click <strong className="font-medium text-foreground">New import</strong> to upload a
-                  Slack export. Get yours from{" "}
-                  <em>Slack → Settings → Workspace settings → Import/Export Data</em>.
-                </>
-              }
-            />
-          )}
-
-          {jobs.length > 0 && (
-            <ul aria-label="Slack imports" className="divide-y divide-border rounded-lg border border-border">
-              {jobs.map((job) => (
-                <li key={job.id}>
-                  <JobRow
-                    job={job}
-                    busy={busyJobId === job.id}
-                    highlighted={highlightId === job.id}
-                    onPlan={() => setPlanJobId(job.id)}
-                    onRun={() => handleRun(job)}
-                    onCancel={() => handleCancel(job)}
-                    onRollback={() => setRollbackJob(job)}
-                    onDeleteZip={() => handleDeleteStagedZip(job)}
-                    onShowErrors={() => setErrorsJobId(job.id)}
-                    onInvite={() => setInviteJob(job)}
-                    onDiscard={() => handleDiscard(job)}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <SettingsSection
+        title="Import from Slack"
+        description="Upload a Slack workspace export to bring channels, messages, threads, files and reactions into OneCamp."
+        action={
+          <>
+            <Button variant="outline" size="sm" className={cn(sectionActionClass, "gap-1.5")} onClick={() => refetch()}>
+              <RefreshCw /> Refresh
+            </Button>
+            <Button size="sm" className={cn(sectionActionClass, "gap-1.5")} onClick={() => setUploadOpen(true)}>
+              <Upload /> New import
+            </Button>
+          </>
+        }
+      >
+        {isLoading ? (
+          <ImportRowsSkeleton label="Loading imports" />
+        ) : isError ? (
+          <ErrorState
+            compact
+            subject="the import history"
+            detail={apiErrorStatus(isError) ? apiErrorMessage(isError) : undefined}
+            onRetry={() => void refetch()}
+          />
+        ) : jobs.length === 0 ? (
+          // A first run: nothing imported yet, so the imported spot, at the
+          // empty state's quiet size (it was the large accent one, the only
+          // one on the tab, above a boxed line from the next section).
+          <EmptyState
+            illustration={<SpotImported hue={ADMIN_GROUP_HUE.workspace} />}
+            title="No imports from Slack yet"
+            description={
+              <>
+                Choose <strong className="font-medium text-foreground">New import</strong> to upload a Slack export. Get
+                yours from <em>Slack → Settings → Workspace settings → Import/Export Data</em>.
+              </>
+            }
+          />
+        ) : (
+          <ul aria-label="Slack imports" className={IMPORT_LIST}>
+            {jobs.map((job) => (
+              <li key={job.id}>
+                <JobRow
+                  job={job}
+                  busy={busyJobId === job.id}
+                  highlighted={highlightId === job.id}
+                  onPlan={() => setPlanJobId(job.id)}
+                  onRun={() => handleRun(job)}
+                  onCancel={() => handleCancel(job)}
+                  onRollback={() => setRollbackJob(job)}
+                  onDeleteZip={() => handleDeleteStagedZip(job)}
+                  onShowErrors={() => setErrorsJobId(job.id)}
+                  onInvite={() => setInviteJob(job)}
+                  onDiscard={() => handleDiscard(job)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsSection>
 
       {rollbackJob && (
         <RollbackDialog
@@ -488,7 +479,9 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
       data-job-id={job.id}
       data-highlighted={highlighted ? "true" : undefined}
       tabIndex={highlighted ? -1 : undefined}
-      className={cn("space-y-2 rounded-lg p-3 outline-none transition-shadow", highlighted && "ring-2 ring-ring/70")}
+      // The list's own row padding; the import a repeated upload pointed to is
+      // ringed inside the row, as a list row is marked.
+      className={cn("space-y-2 px-4 py-3 outline-none transition-shadow", highlighted && "ring-2 ring-inset ring-ring/70")}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -500,40 +493,40 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           {job.status === "validating" && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onPlan} disabled={busy}>
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
               Plan
             </Button>
           )}
           {(job.status === "planned" || (job.status === "failed" && job.plan)) && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onRun} disabled={busy}>
-              <PlayCircle className="h-4 w-4 mr-1.5" />
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRun} disabled={busy}>
+              <PlayCircle />
               {job.status === "failed" ? "Run again" : "Run"}
             </Button>
           )}
           {job.status === "failed" && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onPlan} disabled={busy}>
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
               Plan again
             </Button>
           )}
           {(job.status === "pending" || job.status === "validating" || job.status === "planned") && onDiscard && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onDiscard} disabled={busy}>
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onDiscard} disabled={busy}>
               Discard
             </Button>
           )}
           {(job.status === "running" || job.status === "paused") && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onCancel} disabled={busy}>
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onCancel} disabled={busy}>
               Cancel
             </Button>
           )}
           {job.status === "completed" && onInvite && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onInvite} disabled={busy}>
-              <Users className="h-4 w-4 mr-1.5" />
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onInvite} disabled={busy}>
+              <Users />
               Invite people
             </Button>
           )}
           {(job.status === "completed" || job.status === "failed" || job.status === "cancelled") && (
-            <Button size="sm" variant="outline" className="h-8" onClick={onRollback} disabled={busy}>
-              <RotateCcw className="h-4 w-4 mr-1.5" />
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRollback} disabled={busy}>
+              <RotateCcw />
               Roll back
             </Button>
           )}
@@ -541,14 +534,14 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
             job.status === "failed" ||
             job.status === "cancelled" ||
             job.status === "rolled_back") && (
-            <Button size="sm" variant="ghost" className="h-8" onClick={onDeleteZip} disabled={busy}>
+            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onDeleteZip} disabled={busy}>
               Free storage
             </Button>
           )}
           {/* Only when something was logged: "Errors" showed on every row. */}
           {job.errors_total > 0 && (
-            <Button size="sm" variant="ghost" className="h-8" onClick={onShowErrors}>
-              <AlertTriangle className="h-4 w-4 mr-1.5 text-warning-ink" />
+            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onShowErrors}>
+              <AlertTriangle className="text-warning-ink" />
               {count(job.errors_total, "error", "errors")}
             </Button>
           )}
@@ -584,13 +577,16 @@ export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, 
       </dl>
       {job.error_message && <p className="max-w-full break-words text-xs text-danger-ink">{job.error_message}</p>}
 
+      {/* What came across, said under the import at the row's own level: it
+          was a third box (a tinted box in the import's box in the card), titled
+          by an uppercase eyebrow. Sentence case, as every label here is. */}
       {job.digest && (
-        <div className="rounded-md border border-border/40 bg-muted/30 p-3">
-          <Eyebrow as="div" size="sm" className="flex items-center gap-1.5">
-            <Sparkles className="h-3 w-3" />
+        <div data-import-digest="" className="space-y-1 pt-1">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Sparkles className="size-3.5" aria-hidden="true" />
             What came across
-          </Eyebrow>
-          <p className="mt-1.5 text-xs leading-relaxed whitespace-pre-line">{job.digest}</p>
+          </p>
+          <p className="max-w-[65ch] text-sm leading-relaxed whitespace-pre-line">{job.digest}</p>
         </div>
       )}
     </div>

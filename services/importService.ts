@@ -12,9 +12,11 @@ import { PostEndpointUrl } from "@/services/endPoints"
 // Provider names mirror models/postgres/Import.ProviderXxx on the BE.
 export type ImportProvider = "trello" | "asana" | "jira" | "notion" | "todoist" | "linear" | "clickup" | "monday"
 
-// Display names for providers whose brand isn't the capitalised id.
+// Display names for providers whose brand isn't the capitalised id. ClickUp
+// read "Clickup" in the import picker, beside a description that spelt it right.
 const PROVIDER_LABELS: Partial<Record<ImportProvider, string>> = {
   monday: "monday.com",
+  clickup: "ClickUp",
 }
 
 export function importProviderLabel(provider: string): string {

@@ -21,22 +21,35 @@
  * said "No imports yet." while it loaded and when it had failed, and a failed
  * read of the connections offered "Connect Jira" for a connection that may
  * already exist. What a form is missing is said under the field it is about.
+ *
+ * THE HISTORY FIRST, AND IT STAYS PUT. It listed one tool's imports once a
+ * tool was picked, under the tool's Connection and New import, which were
+ * inserted above it: picking Jira pushed the history down by the height of a
+ * form, and "All" pulled it back up. The history is every tool's now (each row
+ * names its tool), above "Start an import", so picking a tool changes only the
+ * panel under the picker. One flat section like every other admin tab, where
+ * it was a bordered Card.
  */
 
 import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/ui/field"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SettingsSection } from "@/components/ui/settingsSection"
+import { SegmentedControl, segmentedWell } from "@/components/ui/segmentedControl"
+import { StatusWord } from "@/components/ui/statusWord"
+import { SpotImported } from "@/components/ui/graphics"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
-import { CheckCircle2, Loader2, Plug, Plus } from "lucide-react"
+import { Loader2, Plug, Plus } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import {
@@ -56,7 +69,7 @@ import {
   needsReconnect,
   type ImportProblem,
 } from "@/services/importService"
-import { ImportJobRow, count } from "@/components/admin/ImportJobRow"
+import { IMPORT_LIST, ImportJobRow, ImportRowsSkeleton, ROW_ACTION, count } from "@/components/admin/ImportJobRow"
 import { ALL_OF_THEM, allOfThemLabel, optionsForPick, pickLabel } from "@/lib/importPick"
 
 // Lazy-load the provider-specific dialogs. They're heavy (form
@@ -107,14 +120,15 @@ const ImportCard: React.FC = () => {
   )
   const connections = useMemo(() => conResp?.connections ?? [], [conResp])
 
-  // Every provider's jobs until one is picked (Slack's have their own card),
-  // so an admin coming back sees how their imports are doing first.
+  // Every tool's jobs, whichever tool is picked below (Slack's have their own
+  // section), so an admin coming back sees how their imports are doing first
+  // and picking a tool never moves or empties the list.
   const {
     data: jobsResp,
     isLoading: jobsLoading,
     isError: jobsError,
     mutate: refetchJobs,
-  } = useFetch<{ jobs: ImportJob[] }>(`/admin/import/jobs${selectedProvider ? `?provider=${selectedProvider}` : ""}`)
+  } = useFetch<{ jobs: ImportJob[] }>("/admin/import/jobs")
   const jobs = useMemo(() => (jobsResp?.jobs ?? []).filter((j) => j.provider !== "slack"), [jobsResp])
   const runningJobs = useMemo(() => jobs.filter((j) => isLive(j.status)), [jobs])
 
@@ -341,231 +355,49 @@ const ImportCard: React.FC = () => {
     })
   }
 
-  const choices: { name: ImportProvider | null; label: string }[] = [
-    { name: null, label: "All" },
-    ...providers.filter((p) => (p.name as string) !== "slack").map((p) => ({ name: p.name, label: importProviderLabel(p.name) })),
-  ]
+  // The tools to import from, as a choice of one. Slack has its own section.
+  const choices = providers
+    .filter((p) => (p.name as string) !== "slack")
+    .map((p) => ({ value: p.name as ImportProvider | "", label: importProviderLabel(p.name) }))
+  const providerName = selectedProvider ? importProviderLabel(selectedProvider) : ""
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold">Import from other tools</CardTitle>
-        <CardDescription>
+    <SettingsSection
+      title="Import from other tools"
+      description={
+        <>
           Asana, ClickUp, Jira, Linear, monday.com, Notion, Todoist and Trello. Projects, tasks, subtasks, comments,
           files, people and custom fields come across, into the source&apos;s own teams or a team named after it.
           Importing the same workspace again brings only what is new, without copies.
           {!isMqttHealthy && <span className="ml-1 text-warning-ink">Live updates are off, so the list refreshes every few seconds.</span>}
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        {/* Provider picker: a choice of one, "All" included, where the chosen
-            provider was a filled orange button and there was no way back to
-            every provider's imports once one was picked. */}
-        {providersLoading && !providersResp ? (
-          <div role="status" aria-label="Loading the providers" className="flex flex-wrap gap-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-20" />
-            ))}
-          </div>
-        ) : providersError && !providersResp ? (
-          <ErrorState subject="the import providers" onRetry={() => void refetchProviders()} />
-        ) : (
-          <div role="radiogroup" aria-label="Provider" className="inline-flex flex-wrap gap-1 rounded-md bg-muted p-1">
-            {choices.map((c) => {
-              const on = selectedProvider === c.name
-              return (
-                <button
-                  key={c.name ?? "all"}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => chooseProvider(c.name)}
-                  className={cn(
-                    "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                    on ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {c.label}
-                </button>
-              )
-            })}
-          </div>
-        )}
-
-        {!selectedProvider && !providersError && (
-          <p className="text-sm text-muted-foreground">Pick a tool to connect it or start an import from it.</p>
-        )}
-
-        {selectedProvider && (
-          <section aria-labelledby="import-connection" className="space-y-2">
-            <h3 id="import-connection" className="text-sm font-medium">
-              Connection
-            </h3>
-            {connError && !conResp ? (
-              <div role="alert" className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <span className="text-muted-foreground">
-                  Couldn&apos;t check the connection to {importProviderLabel(selectedProvider)}.
-                </span>
-                <Button size="sm" variant="outline" className="h-8 shrink-0 self-start sm:self-auto" onClick={() => void refetchConn()}>
-                  Try again
-                </Button>
-              </div>
-            ) : connection ? (
-              <div className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-success-ink" />
-                  <span className="truncate">Connected{connection.source_account_name ? ` as ${connection.source_account_name}` : ""}</span>
-                  {connection.expires_at && (
-                    <span className="text-xs text-muted-foreground">Until {shortDateTime(new Date(connection.expires_at))}</span>
-                  )}
-                </div>
-                <Button size="sm" variant="ghost" onClick={onDisconnect} className="h-8 shrink-0 self-start sm:self-auto">
-                  Disconnect
-                </Button>
-              </div>
-            ) : (
-              <Button size="sm" variant="outline" className="h-8" onClick={() => setConnectOpen(true)}>
-                <Plug className="mr-2 h-4 w-4" /> Connect {importProviderLabel(selectedProvider)}
-              </Button>
-            )}
-          </section>
-        )}
-
-        {/* New import form */}
-        {selectedProvider && connection && (
-          <section aria-labelledby="import-new" className="space-y-3">
-            <h3 id="import-new" className="text-sm font-medium">
-              Start a new import
-            </h3>
-
-            {/* Discover dropdown — populated after connect. The
-                label depends on the active provider so a token
-                that returns mixed-kind discovery items (e.g.
-                OAuth across multiple Asana orgs) doesn't show
-                a stale label. */}
-            {discoverItems.length > 0 && (
-              <Field label={pickLabel(selectedProvider)} error={pickError}>
-                <select
-                  ref={pickRef}
-                  value={pickedDiscoverId}
-                  onChange={(e) => {
-                    setPickedDiscoverId(e.target.value)
-                    setPickError("")
-                    const picked = discoverItems.find((d) => d.id === e.target.value)
-                    if (picked && !workspaceName) setWorkspaceName(picked.name)
-                  }}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                >
-                  <option value="">Choose one</option>
-                  {allOfThemLabel(selectedProvider, discoverItems.length) && (
-                    <option value={ALL_OF_THEM}>{allOfThemLabel(selectedProvider, discoverItems.length)}</option>
-                  )}
-                  {discoverItems.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                      {d.meta?.task_shaped === false ? "  (not a task list)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
-            {discoverLoading && (
-              <p role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-                Loading the list…
-              </p>
-            )}
-            {discoverProblem && !discoverLoading && (
-              <div role="alert" className="flex flex-col gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm sm:flex-row sm:items-center">
-                <p className="min-w-0 flex-1 break-words text-danger-ink">{discoverProblem.message}</p>
-                <div className="flex shrink-0 gap-2">
-                  {needsReconnect(discoverProblem) && (
-                    <Button size="sm" variant="outline" className="h-8" onClick={() => setConnectOpen(true)}>
-                      <Plug className="mr-1.5 h-4 w-4" /> Reconnect
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" className="h-8" onClick={() => setDiscoverAttempt((n) => n + 1)}>
-                    Try again
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Field label="Workspace name" help="Shown in the import history. Importing the same workspace again brings only what is new." error={nameError}>
-                <Input
-                  ref={nameRef}
-                  value={workspaceName}
-                  onChange={(e) => {
-                    setWorkspaceName(e.target.value)
-                    if (nameError) setNameError("")
-                  }}
-                  placeholder="Acme Inc.…"
-                  autoComplete="off"
-                />
-              </Field>
-              {selectedProvider === "trello" && discoverItems.length === 0 && (
-                <Field label="Trello board ID" help="The part after trello.com/b/ in the board's address." error={pickError}>
-                  <Input
-                    ref={boardRef}
-                    value={boardId}
-                    onChange={(e) => {
-                      setBoardId(e.target.value)
-                      if (pickError) setPickError("")
-                    }}
-                    placeholder="Paste the board ID…"
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </Field>
-              )}
-            </div>
-            <div className="space-y-2">
-              {/* Outline, as every section's own action is on admin pages: the
-                  tab keeps one filled button, the Slack card's New import. */}
-              <Button variant="outline" className="h-8" onClick={startNewJob} disabled={creating}>
-                {creating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Starting…
-                  </>
-                ) : (
-                  <>
-                    <Plus className="mr-2 h-4 w-4" /> Start import
-                  </>
-                )}
-              </Button>
-              {createProblem && (
-                <p role="alert" className="text-sm text-danger-ink">
-                  {createProblem}
-                </p>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Jobs list: every provider's until one is picked. */}
-        <section aria-labelledby="import-history" className="space-y-2">
-          <h3 id="import-history" className="text-sm font-medium">
-            Recent imports
-          </h3>
+        </>
+      }
+    >
+      <div className="space-y-8">
+        <SettingsSection level={3} title="Recent imports">
           {jobsLoading && !jobsResp ? (
-            <div role="status" aria-label="Loading the import history" className="rounded-lg border border-border px-3 py-1">
-              <SkeletonRows rows={3} avatar={false} />
-            </div>
+            <ImportRowsSkeleton label="Loading the import history" />
           ) : jobsError && !jobsResp ? (
-            <ErrorState subject="the import history" onRetry={() => void refetchJobs()} />
+            <ErrorState
+              compact
+              subject="the import history"
+              detail={apiErrorStatus(jobsError) ? apiErrorMessage(jobsError) : undefined}
+              onRetry={() => void refetchJobs()}
+            />
           ) : jobs.length === 0 ? (
-            <p className="rounded-lg border border-border px-3 py-6 text-center text-sm text-muted-foreground">
-              {selectedProvider ? `No imports from ${importProviderLabel(selectedProvider)} yet.` : "No imports yet."}
-            </p>
+            // A first run: the imported spot, at the empty state's quiet size.
+            <EmptyState
+              illustration={<SpotImported hue={ADMIN_GROUP_HUE.workspace} />}
+              title="No imports from other tools yet"
+              description="Pick a tool under Start an import, connect it, and bring a workspace across. Each import is listed here with how far it got."
+            />
           ) : (
-            <ul aria-label="Recent imports" className="divide-y divide-border rounded-lg border border-border">
+            <ul aria-label="Recent imports" className={IMPORT_LIST}>
               {jobs.map((j) => (
-                <li key={j.id} className="px-3 py-3">
+                <li key={j.id} className="px-4 py-3">
                   <ImportJobRow
                     job={j}
-                    showProvider={!selectedProvider}
+                    showProvider
                     onPlan={() => setPlanJob(j)}
                     onDiscard={() => onDiscard(j)}
                     onCancel={() => onCancel(j)}
@@ -578,7 +410,197 @@ const ImportCard: React.FC = () => {
               ))}
             </ul>
           )}
-        </section>
+        </SettingsSection>
+
+        <SettingsSection level={3} title="Start an import">
+          {/* The tool, as a choice of one: the app's segmented control. Its
+              loading state is drawn inside the same well, at the options'
+              height (it was six bare bars, 32px against the real 40px). */}
+          {providersLoading && !providersResp ? (
+            <div role="status" aria-label="Loading the tools" className={segmentedWell}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-9 w-20 md:h-7" />
+              ))}
+            </div>
+          ) : providersError && !providersResp ? (
+            <ErrorState
+              compact
+              subject="the tools you can import from"
+              detail={apiErrorStatus(providersError) ? apiErrorMessage(providersError) : undefined}
+              onRetry={() => void refetchProviders()}
+            />
+          ) : (
+            <SegmentedControl
+              aria-label="Tool to import from"
+              value={selectedProvider ?? ""}
+              onValueChange={(v) => chooseProvider(v || null)}
+              options={choices}
+            />
+          )}
+
+          {!selectedProvider && !providersError && (
+            <p className="text-sm text-muted-foreground">Pick a tool to connect it or start an import from it.</p>
+          )}
+
+          {/* The picked tool's panel: its account, then a new import from it,
+              one list of two rows. */}
+          {selectedProvider && (
+            <div data-provider-panel="" className={IMPORT_LIST}>
+              <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                {connError && !conResp ? (
+                  <>
+                    <p role="alert" className="text-sm text-muted-foreground">
+                      Couldn&apos;t check the connection to {providerName}.
+                    </p>
+                    <Button size="sm" variant="outline" className={cn(ROW_ACTION, "shrink-0 self-start sm:self-auto")} onClick={() => void refetchConn()}>
+                      Try again
+                    </Button>
+                  </>
+                ) : connection ? (
+                  <>
+                    <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+                      <StatusWord tone="success" className="min-w-0">
+                        <span className="truncate">
+                          Connected{connection.source_account_name ? ` as ${connection.source_account_name}` : ""}
+                        </span>
+                      </StatusWord>
+                      {connection.expires_at && (
+                        <span className="text-xs text-muted-foreground">Until {shortDateTime(new Date(connection.expires_at))}</span>
+                      )}
+                    </p>
+                    <Button size="sm" variant="ghost" onClick={onDisconnect} className={cn(ROW_ACTION, "shrink-0 self-start sm:self-auto")}>
+                      Disconnect
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      <StatusWord className="mr-1.5">Not connected</StatusWord>
+                      Connect your {providerName} account to import from it.
+                    </p>
+                    <Button size="sm" variant="outline" className={cn(ROW_ACTION, "shrink-0 gap-1.5 self-start sm:self-auto")} onClick={() => setConnectOpen(true)}>
+                      <Plug /> Connect {providerName}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {connection && (
+                <section aria-labelledby="import-new" className="space-y-3 px-4 py-4">
+                  <h4 id="import-new" className="text-sm font-medium">
+                    New import from {providerName}
+                  </h4>
+
+                  {/* Discover dropdown — populated after connect. The
+                      label depends on the active provider so a token
+                      that returns mixed-kind discovery items (e.g.
+                      OAuth across multiple Asana orgs) doesn't show
+                      a stale label. */}
+                  {discoverItems.length > 0 && (
+                    <Field label={pickLabel(selectedProvider)} error={pickError}>
+                      <select
+                        ref={pickRef}
+                        value={pickedDiscoverId}
+                        onChange={(e) => {
+                          setPickedDiscoverId(e.target.value)
+                          setPickError("")
+                          const picked = discoverItems.find((d) => d.id === e.target.value)
+                          if (picked && !workspaceName) setWorkspaceName(picked.name)
+                        }}
+                        // The fields' own height: 44px on a phone, 36px from md up.
+                        className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-1 text-sm md:h-9"
+                      >
+                        <option value="">Choose one</option>
+                        {allOfThemLabel(selectedProvider, discoverItems.length) && (
+                          <option value={ALL_OF_THEM}>{allOfThemLabel(selectedProvider, discoverItems.length)}</option>
+                        )}
+                        {discoverItems.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                            {d.meta?.task_shaped === false ? "  (not a task list)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+                  {discoverLoading && (
+                    <p role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                      Loading the list…
+                    </p>
+                  )}
+                  {discoverProblem && !discoverLoading && (
+                    <div role="alert" className="flex flex-col gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm sm:flex-row sm:items-center">
+                      <p className="min-w-0 flex-1 break-words text-danger-ink">{discoverProblem.message}</p>
+                      <div className="flex shrink-0 gap-2">
+                        {needsReconnect(discoverProblem) && (
+                          <Button size="sm" variant="outline" className={cn(ROW_ACTION, "gap-1.5")} onClick={() => setConnectOpen(true)}>
+                            <Plug /> Reconnect
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" className={ROW_ACTION} onClick={() => setDiscoverAttempt((n) => n + 1)}>
+                          Try again
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <Field label="Workspace name" help="Shown in the import history. Importing the same workspace again brings only what is new." error={nameError}>
+                      <Input
+                        ref={nameRef}
+                        value={workspaceName}
+                        onChange={(e) => {
+                          setWorkspaceName(e.target.value)
+                          if (nameError) setNameError("")
+                        }}
+                        placeholder="Acme Inc.…"
+                        autoComplete="off"
+                      />
+                    </Field>
+                    {selectedProvider === "trello" && discoverItems.length === 0 && (
+                      <Field label="Trello board ID" help="The part after trello.com/b/ in the board's address." error={pickError}>
+                        <Input
+                          ref={boardRef}
+                          value={boardId}
+                          onChange={(e) => {
+                            setBoardId(e.target.value)
+                            if (pickError) setPickError("")
+                          }}
+                          placeholder="Paste the board ID…"
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </Field>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {/* Outline, as every section's own action is on admin pages: the
+                        tab keeps one filled button, the Slack section's New import.
+                        The fields' height, beside them in the form. */}
+                    <Button variant="outline" className="h-11 gap-1.5 md:h-9" onClick={startNewJob} disabled={creating}>
+                      {creating ? (
+                        <>
+                          <Loader2 className="animate-spin" /> Starting…
+                        </>
+                      ) : (
+                        <>
+                          <Plus /> Start import
+                        </>
+                      )}
+                    </Button>
+                    {createProblem && (
+                      <p role="alert" className="text-sm text-danger-ink">
+                        {createProblem}
+                      </p>
+                    )}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+        </SettingsSection>
+      </div>
 
         {/* Dialogs are lazy-loaded; the Suspense boundary renders
              nothing while the chunk fetches because the dialogs
@@ -633,8 +655,7 @@ const ImportCard: React.FC = () => {
             />
           )}
         </Suspense>
-      </CardContent>
-    </Card>
+    </SettingsSection>
   )
 }
 
