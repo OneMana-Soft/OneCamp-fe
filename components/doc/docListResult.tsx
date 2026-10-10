@@ -3,13 +3,15 @@ import {DocInfoInterface} from "@/types/doc";
 import {DocCard} from "@/components/doc/docCard";
 import * as React from "react";
 import {app_doc_path} from "@/types/paths";
-import { Plus, FileText } from "@/lib/icons";
+import { Plus } from "@/lib/icons";
+import { SpotDocs, SpotSearch } from "@/components/ui/graphics";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/helpers/cn";
 import { VirtuosoGrid } from 'react-virtuoso';
 import { EmptyState } from "@/components/ui/empty-state";
 import { ListSkeleton } from "@/components/ui/ListSkeleton";
 
-export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate}: {docList: DocInfoInterface[], onLoadMore?: ()=>void, hasMore?: boolean, isLoading?: boolean, onCreate?: ()=>void}) => {
+export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate, searchQuery}: {docList: DocInfoInterface[], onLoadMore?: ()=>void, hasMore?: boolean, isLoading?: boolean, onCreate?: ()=>void, /** What the list was searched for, if it was. */ searchQuery?: string}) => {
 
     // Merge potential "Create Doc" card into the data list
     // We use a discriminated union type approach or just a mixed array
@@ -26,13 +28,32 @@ export const DocListResult = ({docList, onLoadMore, hasMore, isLoading, onCreate
         return <ListSkeleton rows={6} showAvatar={false} className="pt-6" />;
     }
 
-    if(docList.length == 0 && !isLoading && !onCreate) {
+    // Nothing to show. A search that found nothing says so: this used to be
+    // the only time "No documents yet" showed, told to someone who has docs,
+    // while a list with truly none showed one dashed card and nothing else.
+    if (docList.length === 0 && !isLoading) {
+        const query = searchQuery?.trim()
+        if (query) {
+            return (
+                <EmptyState
+                    illustration={<SpotSearch />}
+                    title={`No documents match \u201c${query}\u201d.`}
+                    className="h-full"
+                />
+            )
+        }
         return (
             <EmptyState
-                icon={FileText}
+                illustration={<SpotDocs />}
+                tone="accent"
                 title="No documents yet"
                 description="Create your first document to get started."
                 className="h-full"
+                action={onCreate && (
+                    <Button variant="outline" size="sm" onClick={onCreate} className="gap-1.5">
+                        <Plus className="h-4 w-4" aria-hidden="true" /> New document
+                    </Button>
+                )}
             />
         )
     }

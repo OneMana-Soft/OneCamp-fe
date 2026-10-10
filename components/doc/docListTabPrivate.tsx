@@ -20,6 +20,8 @@ export const DocListTabPrivate = ({searchQuery, onCreate}: {searchQuery: string,
     const [searchAllDocs, setSearchAllDocs] = useState<DocInfoInterface[]>([])
     const [searchHasMore, setSearchHasMore] = useState(true)
     const [isSearchLoading, setIsSearchLoading] = useState(false)
+    // The search whose first page is in searchAllDocs.
+    const [searchedFor, setSearchedFor] = useState("")
 
     // Fetch data for the main list
     const endpoint = `${GetEndpointUrl.GetUserPrivateDocList}?pageIndex=${pageIndex}&pageSize=${pageSize}`;
@@ -37,6 +39,7 @@ export const DocListTabPrivate = ({searchQuery, onCreate}: {searchQuery: string,
             }
         })
         setIsSearchLoading(false)
+        if (page === 0) setSearchedFor(query)
         if (resp && resp.docs) {
             // Note: usePost unwraps .data, so resp is DocInfoListInterface
             const docs = resp.docs || []
@@ -99,8 +102,14 @@ export const DocListTabPrivate = ({searchQuery, onCreate}: {searchQuery: string,
         }
     }
 
-    const renderDocList = (searchQuery.trim().length > 0) ? searchAllDocs : allDocs
-    const currentIsLoading = (searchQuery.trim().length > 0) ? isSearchLoading : isLoading
+    // Between a new search and its first answer, and between the first page
+    // arriving and the effect above copying it into the list, the list is
+    // loading, not empty: otherwise "No documents" flashes for a frame.
+    const searching = searchQuery.trim().length > 0
+    const searchPending = searching && searchedFor !== searchQuery
+    const firstPagePending = !searching && allDocs.length === 0 && (pageData?.data?.docs?.length ?? 0) > 0
+    const renderDocList = searching ? (searchPending ? [] : searchAllDocs) : allDocs
+    const currentIsLoading = searching ? isSearchLoading || searchPending : isLoading || firstPagePending
     const currentHasMore = (searchQuery.trim().length > 0) ? searchHasMore : hasMore
 
     return (
@@ -110,6 +119,7 @@ export const DocListTabPrivate = ({searchQuery, onCreate}: {searchQuery: string,
             hasMore={currentHasMore}
             isLoading={currentIsLoading}
             onCreate={searchQuery.trim().length > 0 ? undefined : onCreate}
+            searchQuery={searchQuery}
         />
     )
 }
