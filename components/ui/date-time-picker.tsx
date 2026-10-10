@@ -1,6 +1,6 @@
 import * as React from "react"
-import { format } from "date-fns"
 import { Calendar as CalendarIcon, Clock } from "@/lib/icons";
+import { shortDateTime } from "@/lib/utils/date/shortDate"
 
 import { cn } from "@/lib/utils/helpers/cn"
 import { Button } from "@/components/ui/button"
@@ -16,9 +16,20 @@ interface DateTimePickerProps {
   value?: Date
   onChange?: (date: Date) => void
   disabled?: boolean
+  /** The trigger's id, so a label's htmlFor (a FormControl's) names it. */
+  id?: string
+  "aria-label"?: string
+  "aria-describedby"?: string
+  "aria-invalid"?: boolean
 }
 
-export function DateTimePicker({ value, onChange, disabled }: DateTimePickerProps) {
+/**
+ * A date and a time in one control. The trigger writes the moment the way the
+ * whole app does ("10 Oct, 8:00 PM", lib/utils/date/shortDate): it said
+ * "October 10th, 2026 - 8:00 PM" here and "Oct 10, 2026 · 8:00 PM" in the new
+ * event dialog beside it, two formats for one job and neither the app's.
+ */
+export function DateTimePicker({ value, onChange, disabled, id, ...aria }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false)
 
   const timeString = value
@@ -49,15 +60,17 @@ export function DateTimePicker({ value, onChange, disabled }: DateTimePickerProp
         <Button
           type="button"
           variant={"outline"}
+          id={id}
+          {...aria}
           className={cn(
-            "w-full justify-start text-left font-normal h-9 px-3 text-xs",
+            "h-9 w-full justify-start gap-2 px-3 text-left text-sm font-normal tabular-nums",
             !value && "text-muted-foreground",
             disabled && "opacity-50 cursor-not-allowed"
           )}
           disabled={disabled}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? format(value, "PPP - p") : <span>Pick a date & time</span>}
+          <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="truncate">{value ? shortDateTime(value) : "Pick a date and time"}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0 z-[var(--z-popover)]" align="start">
