@@ -6,8 +6,6 @@ import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints"
 import {ProjectInfoRawInterface, ProjectNotificationInterface} from "@/types/project"
 import { List, Megaphone, Paperclip } from "@/lib/icons";
 import { ProjectUpdates } from "@/components/projectUpdates/ProjectUpdates";
-import { ProjectHealthChip } from "@/components/projectUpdates/ProjectHealthChip";
-import { ProjectGoalChip } from "@/components/goals/ProjectGoalChip";
 import { ProjectActionsMenu } from "@/components/project/ProjectToolButtons";
 import { Kanban } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger, underlineTab, underlineTabsList } from "@/components/ui/tabs"
@@ -18,7 +16,7 @@ import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { ProjectTaskKanban } from "@/components/project/projectTaskKanban"
-import { ProjectGlanceLine } from "@/components/project/ProjectGlanceLine"
+import { ProjectHeaderLine } from "@/components/project/ProjectHeaderLine"
 import { ProjectTimeline } from "@/components/project/timeline/ProjectTimeline"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { ChartGantt } from "@/lib/icons"
@@ -104,11 +102,7 @@ export const ProjectTaskDesktop = ({ projectId }: { projectId: string }) => {
                     </div>
                 )}
             >
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <ProjectGlanceLine projectId={projectId} />
-                    <ProjectHealthChip projectId={projectId} onOpen={() => handleTabChange("updates")} />
-                    <ProjectGoalChip projectId={projectId} />
-                </div>
+                <ProjectHeaderLine projectId={projectId} onOpenUpdates={() => handleTabChange("updates")} />
             </PageHeader>
 
             {/* Content */}
