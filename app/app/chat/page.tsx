@@ -20,7 +20,8 @@ export default function ChatPage() {
                 <EmptyState
                     illustration={<SpotInbox />}
                     title="No conversation open"
-                    description="Pick one from the list, or start a new one with New message."
+                    description="Pick one from the list, or start one with New message."
+                    descriptionClassName="max-w-[60ch]"
                 />
             </div>
         )
