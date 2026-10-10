@@ -38,6 +38,7 @@ import {
 import { withAI } from "@/components/common/withFeature"
 import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig"
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils/helpers/cn"
 import { Tile } from "@/components/ui/graphics/Tile"
 import type { CampHue } from "@/lib/campHue"
 import { dueLabel } from "@/lib/utils/dueLabel"
@@ -207,11 +208,12 @@ function AttentionCard() {
           const isApproval = it.source === "approval" && !!it.ref_id
           const rowBusy = it.ref_id ? !!busy[it.ref_id] : false
           const Row = (
-            <span className="w-full text-left flex items-start gap-2.5 px-4 py-2.5 hover:bg-accent/40 transition-colors">
-              <Tile hue={hue} size="sm" className="-mt-0.5"><Icon /></Tile>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm leading-snug truncate">{it.title}</span>
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+            <AttentionRowFrame
+              className="hover:bg-accent/40 transition-colors"
+              tile={<Tile hue={hue} size="sm" className="-mt-0.5"><Icon /></Tile>}
+              title={it.title}
+              meta={
+                <>
                   <span
                     className={`inline-flex items-center gap-1 text-2xs ${
                       overdue ? "text-danger-ink font-medium" : "text-muted-foreground"
@@ -225,10 +227,10 @@ function AttentionCard() {
                       {due ? it.context : it.subtitle}
                     </span>
                   )}
-                </span>
-              </span>
-              {clickable && <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 mt-0.5" />}
-            </span>
+                </>
+              }
+              trailing={clickable && <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 mt-0.5" />}
+            />
           )
           // Approval rows are acted on inline (Approve/Dismiss) — runs as the
           // user with their permissions, reusing the durable approval service.
@@ -309,13 +311,42 @@ function AttentionCardSkeleton() {
         <Tile hue="sun" size="sm"><Sparkles strokeWidth={1.75} /></Tile>
         <h2 className="text-sm font-medium text-foreground">What needs me now</h2>
       </div>
-      <div className="flex items-start gap-2.5 px-4 py-2.5">
-        <Skeleton className="-mt-0.5 size-6 rounded-md" />
-        <span className="flex-1 space-y-1.5">
-          <Skeleton className="h-4 w-2/3" />
-          <Skeleton className="h-3 w-1/3" />
-        </span>
-      </div>
+      {/* One row in the real row's frame and line boxes, so the card that
+          replaces it is exactly as tall: the grid under it used to move 3 px. */}
+      <AttentionRowFrame
+        tile={<Skeleton className="-mt-0.5 size-6 shrink-0 rounded-md" />}
+        title={<Skeleton className="inline-block h-3 w-2/3 align-middle" />}
+        meta={
+          <span className="inline-flex items-center text-2xs">
+            <Skeleton className="h-2.5 w-24" />
+            {"\u200b"}
+          </span>
+        }
+      />
     </div>
+  )
+}
+
+/**
+ * One row of the card: its tile, a title line and a line of details. The
+ * skeleton draws its row in this same frame, so loading never changes the
+ * card's height.
+ */
+function AttentionRowFrame({ tile, title, meta, trailing, className }: {
+  tile: React.ReactNode
+  title: React.ReactNode
+  meta: React.ReactNode
+  trailing?: React.ReactNode
+  className?: string
+}) {
+  return (
+    <span data-attention-row className={cn("w-full text-left flex items-start gap-2.5 px-4 py-2.5", className)}>
+      {tile}
+      <span className="min-w-0 flex-1">
+        <span data-attention-title className="block text-sm leading-snug truncate">{title}</span>
+        <span data-attention-meta className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">{meta}</span>
+      </span>
+      {trailing}
+    </span>
   )
 }
