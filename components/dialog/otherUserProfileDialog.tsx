@@ -32,6 +32,11 @@ import { cn } from "@/lib/utils/helpers/cn";
 import { isExternalUser } from "@/lib/utils/isExternalUser";
 import { botProfileCopy } from "@/lib/botCopy";
 import { InvitePlaceholder } from "@/components/admin/InvitePlaceholder";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow";
+import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData";
+import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction";
+import { useStatusIsExpired } from "@/hooks/useStatusIsExpired";
 
 
 interface editProfileDialogProps {
@@ -82,6 +87,17 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
 
     const isOnline = currentStatus === USER_STATUS_ONLINE && currentDeviceCount > 0;
 
+    // Their status, as set now: the live copy in the store (MQTT keeps it
+    // current), else the one the profile came with; an expired one is none.
+    const emojiData = useEmojiMartData();
+    const status = userStatusState?.emojiStatus?.status_user_emoji_id
+        ? userStatusState.emojiStatus
+        : profileInfo.data?.data?.user_emoji_statuses?.[0] ?? null;
+    const statusExpired = useStatusIsExpired(status?.status_user_emoji_id ? status : null);
+    const statusEmoji = status && !statusExpired ? findEmojiMartEmojiByEmojiID(emojiData.data, status.status_user_emoji_id ?? "")?.skins[0].native : undefined;
+    const statusText = status && !statusExpired ? status.status_user_emoji_desc : undefined;
+    const loading = !profileInfo.data?.data;
+
     const isExternal = isExternalUser(profileInfo.data?.data);
     const isBot = profileInfo.data?.data?.is_bot === true;
     // What KIND of bot. Every bot used to be described as the workspace
@@ -113,8 +129,11 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                 <div className="flex flex-col gap-8 md:flex-row md:gap-12 py-4">
                     {/* Left: Avatar Section */}
                     <div className="flex flex-col items-center gap-4 flex-shrink-0">
-                        <div
-                            className={`relative ${profileInfo.data?.data?.user_profile_object_key ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+                        <button
+                            type="button"
+                            disabled={!profileInfo.data?.data?.user_profile_object_key}
+                            aria-label={`See ${userSeed}'s photo`}
+                            className="relative rounded-full transition-opacity enabled:cursor-pointer enabled:hover:opacity-90 disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2"
                             onClick={() => {
                                 if (profileInfo.data?.data?.user_profile_object_key) {
                                     const media: AttachmentMediaReq = {
@@ -147,7 +166,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                 </AvatarFallback>
                             </Avatar>
                             {isOnline && (
-                                <div
+                                <span
                                     aria-hidden
                                     className={cn(
                                         "h-6 w-6 ring-[4px] ring-background rounded-full absolute bottom-1 right-2",
@@ -155,11 +174,18 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                     )}
                                 />
                             )}
-                        </div>
+                        </button>
                         <div className="text-center space-y-1">
+                            {loading && (
+                                <div className="flex flex-col items-center gap-2" role="status" aria-label="Loading their profile">
+                                    <Skeleton className="h-6 w-40" />
+                                    <Skeleton className="h-4 w-28" />
+                                </div>
+                            )}
+                            {!loading && (
                             <div className="flex items-center justify-center gap-2">
                                 <h2 className="text-lg font-semibold text-foreground truncate max-w-[220px]">
-                                    {shownName || "—"}
+                                    {shownName || "Unnamed"}
                                 </h2>
                                 {isBot ? (
                                     <Badge variant="secondary" className="text-2xs h-5 shrink-0">{botCopy.badge}</Badge>
@@ -167,6 +193,9 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                     <Badge variant="secondary" className="text-2xs h-5 shrink-0">External</Badge>
                                 ) : null}
                             </div>
+                            )}
+                            {/* The green dot says it in colour; this says it in words. */}
+                            {isOnline && <p className="text-xs font-medium text-success-ink">Online</p>}
                             {(fullName || handle) && (
                                 <p className="text-sm text-muted-foreground truncate max-w-[260px]">
                                     {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
@@ -239,34 +268,47 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                 ? <AgentCardDetails botUserId={userUUID} fallback={about} />
                                 : about
                         })() : (
-                            <>
-                                <div className="space-y-1">
-                                    <p className="text-xs font-medium text-muted-foreground">Full name</p>
-                                    <p className="text-sm text-foreground">{profileInfo.data?.data?.user_full_name || "—"}</p>
+                            loading ? (
+                                <div className="space-y-3" aria-hidden="true">
+                                    {[0, 1, 2].map((i) => (
+                                        <div key={i} className={fieldRow()}>
+                                            <Skeleton className="h-3.5 w-16" />
+                                            <Skeleton className="h-4 w-40" />
+                                        </div>
+                                    ))}
                                 </div>
-
-                                <div className="space-y-1">
-                                    <p className="text-xs font-medium text-muted-foreground">Display name</p>
-                                    <p className="text-sm text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
-                                </div>
-
-                                {handle && (
-                                    <div className="space-y-1">
-                                        <p className="text-xs font-medium text-muted-foreground">Handle</p>
-                                        <p className="text-sm text-foreground">@{handle}</p>
-                                    </div>
-                                )}
-
-                                <div className="space-y-1">
-                                    <p className="text-xs font-medium text-muted-foreground">Job title</p>
-                                    <p className="text-sm text-foreground">{profileInfo.data?.data?.user_job_title || "—"}</p>
-                                </div>
-
-                                <div className="space-y-1">
-                                    <p className="text-xs font-medium text-muted-foreground">Hobbies</p>
-                                    <p className="text-sm text-foreground">{profileInfo.data?.data?.user_hobbies || "—"}</p>
-                                </div>
-                            </>
+                            ) : (
+                                // The name, display name and handle are in the header
+                                // already; this lists what else they have set, a quiet
+                                // label beside each value, as in the task panel. A row
+                                // of "—" for every field nobody filled in said nothing.
+                                <dl className="space-y-1">
+                                    {statusText && (
+                                        <div className={fieldRow()}>
+                                            <dt className={fieldLabel}>Status</dt>
+                                            <dd className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
+                                                {statusEmoji && <span aria-hidden="true">{statusEmoji}</span>}
+                                                <span className="truncate">{statusText}</span>
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {profileInfo.data?.data?.user_job_title && (
+                                        <div className={fieldRow()}>
+                                            <dt className={fieldLabel}>Job title</dt>
+                                            <dd className="truncate text-sm text-foreground">{profileInfo.data.data.user_job_title}</dd>
+                                        </div>
+                                    )}
+                                    {profileInfo.data?.data?.user_hobbies && (
+                                        <div className={fieldRow("start")}>
+                                            <dt className={fieldLabel}>Hobbies</dt>
+                                            <dd className="text-sm text-foreground">{profileInfo.data.data.user_hobbies}</dd>
+                                        </div>
+                                    )}
+                                    {!statusText && !profileInfo.data?.data?.user_job_title && !profileInfo.data?.data?.user_hobbies && (
+                                        <p className="text-sm text-muted-foreground">Nothing else on their profile yet.</p>
+                                    )}
+                                </dl>
+                            )
                         )}
                     </div>
                 </div>

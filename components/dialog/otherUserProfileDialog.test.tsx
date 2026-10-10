@@ -5,10 +5,11 @@ import { cleanup, render, screen } from "@testing-library/react"
 // gets every other member with a blank address; the line that printed it
 // showed as an empty grey gap (a non-breaking space held it open).
 
-const { profile } = vi.hoisted(() => ({ profile: { data: { data: {} as Record<string, unknown> } } }))
+const { profile } = vi.hoisted(() => ({ profile: { data: { data: {} as Record<string, unknown> | undefined } as { data: Record<string, unknown> | undefined } | undefined } }))
 vi.mock("@/hooks/useFetch", () => ({ useFetch: () => profile }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: "" }) }))
 vi.mock("@/hooks/useUserInfoState", () => ({ useUserInfoState: () => undefined }))
+vi.mock("@/hooks/reactions/useEmojiMartData", () => ({ useEmojiMartData: () => ({ data: undefined }) }))
 vi.mock("react-redux", () => ({ useDispatch: () => vi.fn() }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock("@/components/ai/AgentCardDetails", () => ({ AgentCardDetails: () => null }))
@@ -29,20 +30,44 @@ function linesUnderName(name: string): string[] {
 
 describe("a member's profile", () => {
   it("shows the address under the names", () => {
-    profile.data.data = { ...maya, user_email_id: "maya@example.com" }
+    profile.data = { data: { ...maya, user_email_id: "maya@example.com" } }
     render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
     expect(linesUnderName("maya")).toEqual(["Maya Chen · @maya", "maya@example.com"])
   })
 
   it("shows no empty line when the address is blank, and the handle once", () => {
-    profile.data.data = { ...maya, user_email_id: "" }
+    profile.data = { data: { ...maya, user_email_id: "" } }
     render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
     expect(linesUnderName("maya")).toEqual(["Maya Chen · @maya"])
   })
 
   it("shows nothing under the name with no address, handle or other name", () => {
-    profile.data.data = { user_uuid: "u-sam", user_name: "Sam", user_email_id: "" }
+    profile.data = { data: { user_uuid: "u-sam", user_name: "Sam", user_email_id: "" } }
     render(<OtherProfileDialog userUUID="u-sam" dialogOpenState setOpenState={() => {}} />)
     expect(linesUnderName("Sam")).toEqual([])
+  })
+
+  // It opened on a column of "—" (every field, the name too) until the
+  // profile arrived, and then listed the name twice more under the header.
+  it("holds its shape while it loads, without a dash for every field", () => {
+    profile.data = undefined
+    render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
+    expect(screen.getByRole("status", { name: "Loading their profile" })).toBeTruthy()
+    expect(document.body.textContent).not.toContain("—")
+  })
+
+  it("lists what they have set, with their status, and not their name again", () => {
+    profile.data = { data: { ...maya, user_job_title: "Designer", user_hobbies: "", user_emoji_statuses: [{ status_user_emoji_id: "brain", status_user_emoji_desc: "Deep work" }] } }
+    render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
+    const terms = Array.from(document.querySelectorAll("dt")).map((d) => d.textContent)
+    expect(terms).toEqual(["Status", "Job title"])
+    expect(screen.getByText("Deep work")).toBeTruthy()
+    expect(screen.queryByText("Full name")).toBeNull()
+  })
+
+  it("opens a photo from a button, and has nothing to open without one", () => {
+    profile.data = { data: { ...maya } }
+    render(<OtherProfileDialog userUUID="u-maya" dialogOpenState setOpenState={() => {}} />)
+    expect((screen.getByRole("button", { name: "See maya's photo" }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

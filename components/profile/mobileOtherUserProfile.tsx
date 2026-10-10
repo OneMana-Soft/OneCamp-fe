@@ -23,6 +23,11 @@ import { isExternalUser } from "@/lib/utils/isExternalUser";
 import { botProfileCopy } from "@/lib/botCopy";
 import { AgentCardDetails } from "@/components/ai/AgentCardDetails";
 import { InvitePlaceholder } from "@/components/admin/InvitePlaceholder";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fieldLabel } from "@/lib/ui/fieldRow";
+import { useEmojiMartData } from "@/hooks/reactions/useEmojiMartData";
+import { findEmojiMartEmojiByEmojiID } from "@/lib/utils/reaction/findReaction";
+import { useStatusIsExpired } from "@/hooks/useStatusIsExpired";
 
 export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const router = useRouter();
@@ -55,6 +60,16 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
     const contactLine = isBot ? botCopy.subtitle : addressOrHandleOf(profileInfo.data?.data);
     const showContactLine = !!contactLine && contactLine !== `@${handle}`;
 
+    // Their status as set now (see the desktop dialog), and whether it has come.
+    const emojiData = useEmojiMartData();
+    const status = userStatusState?.emojiStatus?.status_user_emoji_id
+        ? userStatusState.emojiStatus
+        : profileInfo.data?.data?.user_emoji_statuses?.[0] ?? null;
+    const statusExpired = useStatusIsExpired(status?.status_user_emoji_id ? status : null);
+    const statusEmoji = status && !statusExpired ? findEmojiMartEmojiByEmojiID(emojiData.data, status.status_user_emoji_id ?? "")?.skins[0].native : undefined;
+    const statusText = status && !statusExpired ? status.status_user_emoji_desc : undefined;
+    const loading = !profileInfo.data?.data;
+
     return (
         <div className="flex flex-col h-full bg-background w-full">
 
@@ -64,8 +79,11 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                     
                     {/* Avatar Section */}
                     <div className="flex flex-col justify-center items-center mt-4">
-                        <div 
-                            className={`relative ${profileInfo.data?.data?.user_profile_object_key ? 'cursor-pointer active:opacity-80 transition-opacity' : ''}`}
+                        <button
+                            type="button"
+                            disabled={!profileInfo.data?.data?.user_profile_object_key}
+                            aria-label={`See ${userSeed}'s photo`}
+                            className="relative rounded-full transition-opacity enabled:active:opacity-80 disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:ring-offset-2"
                             onClick={() => {
                                 if (profileInfo.data?.data?.user_profile_object_key) {
                                     const media: AttachmentMediaReq = {
@@ -93,7 +111,7 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 </AvatarFallback>
                             </Avatar>
                             {isOnline && (
-                                <div
+                                <span
                                     aria-hidden
                                     className={cn(
                                         "h-6 w-6 rounded-full ring-4 ring-background absolute bottom-4 right-1",
@@ -101,10 +119,16 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                     )}
                                 />
                             )}
-                        </div>
+                        </button>
+                        {loading ? (
+                            <div className="flex flex-col items-center gap-2" role="status" aria-label="Loading their profile">
+                                <Skeleton className="h-7 w-44" />
+                                <Skeleton className="h-4 w-32" />
+                            </div>
+                        ) : (
                         <div className="flex items-center gap-2">
                             <h2 className="text-xl font-semibold text-foreground text-center truncate max-w-[60vw]">
-                                {shownName || "Loading…"}
+                                {shownName || "Unnamed"}
                             </h2>
                             {isBot ? (
                                 <Badge variant="secondary" className="text-2xs h-5 shrink-0">{botCopy.badge}</Badge>
@@ -112,6 +136,9 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                                 <Badge variant="secondary" className="text-2xs h-5 shrink-0">External</Badge>
                             ) : null}
                         </div>
+                        )}
+                        {/* The green dot says it in colour; this says it in words. */}
+                        {isOnline && <p className="mt-1 text-xs font-medium text-success-ink">Online</p>}
                         {(fullName || handle) && (
                             <p className="text-sm text-muted-foreground mt-1 text-center truncate max-w-[80vw]">
                                 {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
@@ -174,33 +201,43 @@ export function MobileOtherUserProfile({ userUUID }: { userUUID: string }) {
                             })()}
                         </div>
                     ) : (
-                    <div className="rounded-2xl border p-5 space-y-5">
-                        <div className="space-y-1">
-                            <p className="text-xs font-medium text-muted-foreground">Full name</p>
-                            <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_full_name || "—"}</p>
-                        </div>
-                        
-                        <div className="space-y-1">
-                            <p className="text-xs font-medium text-muted-foreground">Display name</p>
-                            <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
-                        </div>
-
-                        {handle && (
-                            <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground">Handle</p>
-                                <p className="text-base font-medium text-foreground">@{handle}</p>
+                    // What else they have set, a quiet label beside each value; the
+                    // names are in the header already. Fields nobody filled in are
+                    // left out rather than shown as "—".
+                    <div className="rounded-xl border p-4">
+                        {loading ? (
+                            <div className="space-y-3" aria-hidden="true">
+                                <Skeleton className="h-4 w-2/3" />
+                                <Skeleton className="h-4 w-1/2" />
                             </div>
+                        ) : (
+                        <dl className="divide-y divide-border/60">
+                            {statusText && (
+                                <div className="flex min-h-11 items-center justify-between gap-4 py-2">
+                                    <dt className={fieldLabel}>Status</dt>
+                                    <dd className="flex min-w-0 items-center gap-1.5 text-sm text-foreground">
+                                        {statusEmoji && <span aria-hidden="true">{statusEmoji}</span>}
+                                        <span className="truncate">{statusText}</span>
+                                    </dd>
+                                </div>
+                            )}
+                            {profileInfo.data?.data?.user_job_title && (
+                                <div className="flex min-h-11 items-center justify-between gap-4 py-2">
+                                    <dt className={fieldLabel}>Job title</dt>
+                                    <dd className="truncate text-sm text-foreground">{profileInfo.data.data.user_job_title}</dd>
+                                </div>
+                            )}
+                            {profileInfo.data?.data?.user_hobbies && (
+                                <div className="flex min-h-11 items-start justify-between gap-4 py-2">
+                                    <dt className={fieldLabel}>Hobbies</dt>
+                                    <dd className="text-right text-sm text-foreground">{profileInfo.data.data.user_hobbies}</dd>
+                                </div>
+                            )}
+                            {!statusText && !profileInfo.data?.data?.user_job_title && !profileInfo.data?.data?.user_hobbies && (
+                                <p className="py-1 text-sm text-muted-foreground">Nothing else on their profile yet.</p>
+                            )}
+                        </dl>
                         )}
-                        
-                        <div className="space-y-1">
-                            <p className="text-xs font-medium text-muted-foreground">Job title</p>
-                            <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_job_title || "—"}</p>
-                        </div>
-                        
-                        <div className="space-y-1">
-                            <p className="text-xs font-medium text-muted-foreground">Hobbies</p>
-                            <p className="text-base font-medium text-foreground">{profileInfo.data?.data?.user_hobbies || "—"}</p>
-                        </div>
                     </div>
                     )}
 
