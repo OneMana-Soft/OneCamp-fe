@@ -2,6 +2,7 @@
 
 import { LoaderCircle, AlertCircle, AlertTriangle, Info, Mail, Fingerprint } from "@/lib/icons";
 import { signInRefusal, type RefusalTone } from "@/lib/auth/signInRefusal";
+import { SIGN_IN_LABELS, otherWayInHint } from "@/lib/auth/signInHints";
 import { signInWithPasskey } from "@/services/passkeyService";
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn";
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,8 @@ import {app_home_path} from "@/types/paths";
 import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils/helpers/cn"
-import { AuthDivider, AuthField, AuthHeading, AuthShell, PasswordField, authControl } from "@/components/auth/AuthShell"
+import { AuthDivider, AuthField, AuthHeading, AuthPlaceholder, AuthShell, PasswordField, authControl } from "@/components/auth/AuthShell"
+import { SignInSide } from "@/components/auth/SignInSide"
 import { landingPath } from "@/lib/landing"
 
 // Build-time defaults. These are fallbacks ONLY — the runtime
@@ -30,25 +32,6 @@ const buildTimeDefaults = {
   saml:   process.env.NEXT_PUBLIC_AUTH_SAML   === "true",
   ldap:   process.env.NEXT_PUBLIC_AUTH_LDAP   === "true",
 };
-
-// ssoMethodHint maps an auth_method value the backend returns ("google",
-// "github", "oidc", "saml", "ldap") to a friendly nudge. Empty for unknown.
-function ssoMethodHint(method: string): string {
-  switch (method) {
-    case "google":
-      return "This email signs in with Google. Use the Google button above.";
-    case "github":
-      return "This email signs in with GitHub. Use the GitHub button above.";
-    case "oidc":
-      return "This email signs in via your single sign-on provider (OIDC). Use the OIDC SSO button.";
-    case "saml":
-      return "This email signs in via your single sign-on provider (SAML). Use the SAML 2.0 button.";
-    case "ldap":
-      return "This email signs in via your directory. Use the Directory Login tab.";
-    default:
-      return "";
-  }
-}
 
 // How loud each kind of refusal reads: red only for a sign-in that broke;
 // the theme's warning tint for one with something to do first; neutral for
@@ -85,6 +68,20 @@ function AuthErrorMessage() {
   );
 }
 
+/**
+ * The page while it asks whether somebody is signed in: its own frame, and a
+ * placeholder in the shape of the heading and buttons that may follow. It was
+ * a blank page for as long as the API took. Nothing in it says "Sign in",
+ * because the visitor may be signed in and on their way through to the app.
+ */
+function SignInChecking() {
+  return (
+    <AuthShell side={<SignInSide />}>
+      <AuthPlaceholder label="Checking whether you're signed in" buttons={2} />
+    </AuthShell>
+  );
+}
+
 type SignInTab = "standard" | "directory"
 
 /**
@@ -98,8 +95,8 @@ function SignInTabs({ tabbed, value, onValueChange, children }: { tabbed: boolea
   return (
     <Tabs value={value} onValueChange={(v) => onValueChange(v === "directory" ? "directory" : "standard")} className="space-y-6">
       <TabsList aria-label="Sign in with" className="grid h-auto w-full grid-cols-2 gap-1 rounded-md">
-        <TabsTrigger value="standard" className="h-9 rounded-sm">OneCamp account</TabsTrigger>
-        <TabsTrigger value="directory" className="h-9 rounded-sm">Company directory</TabsTrigger>
+        <TabsTrigger value="standard" className="h-9 rounded-sm">{SIGN_IN_LABELS.accountTab}</TabsTrigger>
+        <TabsTrigger value="directory" className="h-9 rounded-sm">{SIGN_IN_LABELS.directoryTab}</TabsTrigger>
       </TabsList>
       {children}
     </Tabs>
@@ -111,7 +108,7 @@ function SignInPanel({ tabbed, value, children }: { tabbed: boolean; value: Sign
   return tabbed ? <TabsContent value={value} asChild className="mt-0">{children}</TabsContent> : children
 }
 
-export default function SignUp() {
+export default function SignInPage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
@@ -352,15 +349,16 @@ export default function SignUp() {
     try {
       const result = await authService.loginWithEmail(email, password);
       followLoginOutcome(result, (failure) => {
-        // When the backend reports the account uses a different auth method
-        // (Google, GitHub, OIDC, SAML, LDAP), surface a method-specific hint
-        // so the user knows where to click instead of just "invalid".
-        const methodHint = failure.auth_method ? ssoMethodHint(failure.auth_method) : "";
+        // When the server says the account signs in another way (Google,
+        // GitHub, single sign-on, the directory), say which, by the words on
+        // the control to press, so the person knows where to go instead of
+        // reading "invalid".
+        const methodHint = failure.auth_method ? otherWayInHint(failure.auth_method, providers) : "";
         setEmailError(methodHint || failure.msg);
       });
     } catch (error) {
       console.error('Email login error:', error);
-      setEmailError("Something went wrong. Please try again.");
+      setEmailError("Signing in didn't finish. Try again.");
     } finally {
       setIsLoading(false);
     }
@@ -375,7 +373,7 @@ export default function SignUp() {
       followLoginOutcome(result, (failure) => setLdapError(failure.msg));
     } catch (error) {
       console.error('LDAP login error:', error);
-      setLdapError("Failed to reach directory server. Please try again.");
+      setLdapError("Signing in didn't finish. Try again.");
     } finally {
       setIsLoading(false);
     }
@@ -389,23 +387,23 @@ export default function SignUp() {
       if (result.ok) {
         router.push(app_home_path);
       } else {
-        setDemoError(result.msg || "Demo login is currently unavailable. Please try again later.");
+        setDemoError(result.msg || "The demo isn't available right now. Try again in a few minutes.");
       }
     } catch (error) {
       console.error('Demo login error:', error);
-      setDemoError("Something went wrong. Please try again.");
+      setDemoError("The demo didn't start. Try again.");
     } finally {
       setIsDemoLoading(false);
     }
   };
 
   if (isChecking) {
-    return null;
+    return <SignInChecking />;
   }
 
   if (!hasAnyAuthMethod && !isDemoEnabled) {
     return (
-      <AuthShell>
+      <AuthShell side={<SignInSide />}>
         <AuthHeading title="There's no way to sign in yet">
           Every sign-in method is turned off on this server. Ask whoever runs it to turn one on.
         </AuthHeading>
@@ -419,7 +417,7 @@ export default function SignUp() {
   const hasProviderButtons = hasOAuthProviders || hasEnterpriseSSO || canUsePasskey;
 
   return (
-      <AuthShell>
+      <AuthShell side={<SignInSide />}>
           {totpChallenge ? (
             /*
               Replaces the credential form entirely rather than appearing beneath it. A screen showing
@@ -608,7 +606,7 @@ export default function SignUp() {
                 onClick={handleDemoLogin}
               >
                 {isDemoLoading && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-                Try the demo, no sign up needed
+                Try the demo, no sign-up needed
               </Button>
 
               {demoError && (
