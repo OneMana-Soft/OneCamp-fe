@@ -9,13 +9,16 @@ import {ChannelInfoListSchema} from "@/lib/validations/schemas";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotSearch, SpotWelcome } from "@/components/ui/graphics/spots";
 import {LocalizedErrorBoundary} from "@/components/error/LocalizedErrorBoundary";
-import {ListSkeleton} from "@/components/ui/ListSkeleton";
+import { ChannelListSkeleton, ChannelListState } from "@/components/channel/channelListFrame";
+import { ErrorState } from "@/components/ui/error-state";
 
 export const ChannelListTabAllActive = ({searchQuery}:{searchQuery: string}) => {
     // GetAllActiveChannelList returns an object with channels_list array
     const {
         data: allChannelsResponse,
-        isLoading: isAllLoading
+        isLoading: isAllLoading,
+        isError,
+        mutate,
     } = useApi<any>(
         GetEndpointUrl.GetAllActiveChannelList, 
         { schema: ChannelInfoListSchema }
@@ -33,30 +36,35 @@ export const ChannelListTabAllActive = ({searchQuery}:{searchQuery: string}) => 
     }, [searchQuery, allChannels]);
 
 
+    // The frame the other tabs draw in (channelListFrame). A failed load said
+    // "All caught up!", the empty state, and the loading rows were the generic
+    // ListSkeleton: round 40px avatars on a 56px pitch, outside the 880px column.
     return (
         <div className="flex flex-col h-full">
 
             <div className="flex-1 overflow-hidden flex flex-col">
-                <LocalizedErrorBoundary fallbackTitle="Channel List Error" fallbackDescription="We couldn't load the global channel list.">
-                    {filteredChannels.length > 0 ?
-                        <ChannelListResult 
+                <LocalizedErrorBoundary fallbackTitle="Couldn't show the channels" fallbackDescription="We couldn't load the list of channels you could join.">
+                    {filteredChannels.length > 0 ? (
+                        <ChannelListResult
                             channelList={filteredChannels}
                             isLoading={isAllLoading}
-                        />:
-                        (!isAllLoading && (
-                            <div className="p-4">
-                                <EmptyState
-                                    illustration={searchQuery.trim().length > 0 ? <SpotSearch /> : <SpotWelcome />}
-                                    title={searchQuery.trim().length > 0 ? "No channels match" : "All caught up!"}
-                                    description={searchQuery.trim().length > 0 
-                                        ? `No channel you could join has “${searchQuery.trim()}” in its name.`
-                                        : "Looks like you have joined all available public channels. New channels will appear here once created."}
-                                />
-                            </div>
-                        ))
-                    }
-                    {isAllLoading && filteredChannels.length === 0 && (
-                         <ListSkeleton rows={8} />
+                        />
+                    ) : isAllLoading ? (
+                        <ChannelListSkeleton />
+                    ) : isError ? (
+                        <ChannelListState>
+                            <ErrorState subject="the channels you could join" onRetry={() => void mutate()} />
+                        </ChannelListState>
+                    ) : (
+                        <ChannelListState>
+                            <EmptyState
+                                illustration={searchQuery.trim().length > 0 ? <SpotSearch /> : <SpotWelcome />}
+                                title={searchQuery.trim().length > 0 ? "No channels match" : "All caught up!"}
+                                description={searchQuery.trim().length > 0
+                                    ? `No channel you could join has “${searchQuery.trim()}” in its name.`
+                                    : "Looks like you have joined all available public channels. New channels will appear here once created."}
+                            />
+                        </ChannelListState>
                     )}
                 </LocalizedErrorBoundary>
             </div>
