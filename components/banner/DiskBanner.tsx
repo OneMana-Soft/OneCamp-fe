@@ -13,8 +13,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, X } from "@/lib/icons"
-import { cn } from "@/lib/utils/helpers/cn"
+import { NoticeBar } from "@/components/banner/NoticeBar"
 import { useFetch } from "@/hooks/useFetch"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -65,28 +64,19 @@ export function DiskBanner({ isAdmin }: { isAdmin?: boolean }) {
   }
 
   return (
-    <div
+    <NoticeBar
+      tone={critical ? "danger" : "warning"}
       role={critical ? "alert" : "status"}
-      className={cn(
-        "flex items-start gap-2 border-b px-4 py-2 text-xs",
-        critical ? "border-destructive/30 bg-destructive/10 text-danger-ink" : "border-warning/30 bg-warning/10 text-warning-ink",
-      )}
+      onDismiss={critical ? undefined : dismiss}
+      dismissLabel="Dismiss for a day"
     >
-      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      <p className="flex-1">
-        The server&apos;s disk is {disk.used_pct}% full ({formatBytesShort(disk.free_bytes ?? 0)} free).{" "}
-        {critical ? "Near full, the database stops saving anything. Free room now: " : "Free some room before it fills: "}
-        remove old files with &ldquo;Remove for good&rdquo; in{" "}
-        <Link href="/app/admin?tab=archive" className="font-medium underline underline-offset-2">
-          Admin, Archive
-        </Link>
-        , and if you host OneCamp yourself, run <code className="font-mono">make housekeeping</code> on the server.
-      </p>
-      {!critical && (
-        <button onClick={dismiss} aria-label="Dismiss for a day" className="shrink-0 rounded p-0.5 hover:bg-warning/20">
-          <X className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-      )}
-    </div>
+      The server&apos;s disk is {disk.used_pct}% full ({formatBytesShort(disk.free_bytes ?? 0)} free).{" "}
+      {critical ? "Near full, the database stops saving anything. Free room now: " : "Free some room before it fills: "}
+      remove old files with &ldquo;Remove for good&rdquo; in{" "}
+      <Link href="/app/admin?tab=archive" className="font-medium underline underline-offset-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70">
+        Admin, Archive
+      </Link>
+      , and if you host OneCamp yourself, run <code className="font-mono">make housekeeping</code> on the server.
+    </NoticeBar>
   )
 }
