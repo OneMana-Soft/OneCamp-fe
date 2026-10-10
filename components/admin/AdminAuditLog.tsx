@@ -12,7 +12,7 @@ import { usePlan } from "@/hooks/usePlan"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { FileText, RefreshCw, ShieldCheck, Download, FileArchive } from "@/lib/icons"
+import { RefreshCw, ShieldCheck, Download, FileArchive } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 import { parseAuditMetadata, auditReason } from "@/lib/utils/auditMetadata"
 import {
@@ -255,8 +255,7 @@ export default function AdminAuditLog() {
                 {/* Wraps: on a phone the title and its actions do not fit one row. */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg font-semibold">Audit log</CardTitle>
+                        <CardTitle className="text-base font-semibold">Audit log</CardTitle>
                         {verifyResult && (
                             <Badge
                                 variant="outline"

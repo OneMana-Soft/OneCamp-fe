@@ -3,7 +3,7 @@
 import React from "react"
 import { Invitation } from "@/types/user"
 import { Button } from "@/components/ui/button"
-import { Trash2, Mail, RefreshCw, CheckCircle, Clock, AlertCircle, XCircle, Copy } from "@/lib/icons"
+import { Trash2, Mail, RefreshCw, Copy } from "@/lib/icons"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface AdminInvitationListProps {
@@ -29,38 +29,23 @@ export function expiryText(inv: Pick<Invitation, "status" | "expires_in_days">):
   return `Expires in ${inv.expires_in_days} days`
 }
 
+/** A dot and a word: the status of an invitation is information, not a coloured pill. */
+const STATUS: Record<string, { label: string; dot: string }> = {
+  sent: { label: "Sent", dot: "bg-info" },
+  joined: { label: "Joined", dot: "bg-success" },
+  // Ran out: nothing is wrong, it needs sending again.
+  expired: { label: "Expired", dot: "bg-muted-foreground/60" },
+  pending: { label: "Pending", dot: "bg-warning" },
+}
+
 function getStatusBadge(status: string) {
-  switch (status) {
-    case "sent":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-blue-500/10 text-info">
-          <Clock className="h-3 w-3" />
-          Sent
-        </span>
-      )
-    case "joined":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-success/10 text-success">
-          <CheckCircle className="h-3 w-3" />
-          Joined
-        </span>
-      )
-    case "expired":
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-destructive/10 text-destructive">
-          <XCircle className="h-3 w-3" />
-          Expired
-        </span>
-      )
-    case "pending":
-    default:
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium bg-warning/10 text-warning">
-          <AlertCircle className="h-3 w-3" />
-          Pending
-        </span>
-      )
-  }
+  const { label, dot } = STATUS[status] ?? STATUS.pending
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+      {label}
+    </span>
+  )
 }
 
 export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
@@ -113,22 +98,19 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
   return (
     <TooltipProvider>
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border rounded-lg border border-border">
           {invitations.map((inv) => (
             <li
               key={inv.id}
-              className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-card transition-colors hover:bg-accent/40"
+              className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/60"
             >
-              <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
-                <Mail className="h-5 w-5 text-primary" />
-              </div>
               <div className="flex flex-col min-w-0 flex-1">
                 <span className="text-sm font-medium leading-tight truncate">
                   {inv.email}
                 </span>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-2xs text-muted-foreground">
-                    {new Date(inv.created_at).toLocaleDateString()}
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {new Date(inv.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
                   </span>
                   {getStatusBadge(inv.status)}
                   {expiryText(inv) && (

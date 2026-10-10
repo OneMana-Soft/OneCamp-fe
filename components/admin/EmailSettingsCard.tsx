@@ -1,5 +1,6 @@
 "use client"
 
+import { useConfirm } from "@/hooks/useConfirm"
 import { displayNameOf } from "@/lib/personName"
 import React, { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
-import { Settings, Trash2, Mail, Save, RefreshCw } from "@/lib/icons";
+import { Trash2, Mail, Save, RefreshCw } from "@/lib/icons";
 import { ImagePlus } from "lucide-react";
 import { useFetch, useFetchOnlyOnce } from "@/hooks/useFetch"
 import type { UserProfileInterface } from "@/types/user"
@@ -59,6 +60,7 @@ const EmailSettingsCard = () => {
   // The preview names whoever is looking as the one inviting.
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
   const post = usePost()
+  const confirm = useConfirm()
   const { toast } = useToast()
   
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -211,11 +213,8 @@ const EmailSettingsCard = () => {
     <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
       <CardHeader className="px-0 pt-0 pb-6 flex-shrink-0">
         <div className="flex items-center gap-2 mb-1">
-          <div className="bg-primary/10 p-1.5 rounded-md">
-            <Settings className="h-4 w-4 text-primary" />
-          </div>
-          <CardTitle className="text-lg sm:text-xl font-semibold">
-            Email Settings
+          <CardTitle className="text-base font-semibold">
+            Invitation email
           </CardTitle>
         </div>
         <CardDescription className="text-sm text-muted-foreground">
@@ -244,13 +243,26 @@ const EmailSettingsCard = () => {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img 
                           src={getPublicLogoUrl()} 
-                          alt="Email Logo" 
+                          alt="The logo invitation emails carry" 
                           className="max-h-[80px] max-w-[200px] object-contain"
                         />
                       </div>
-                      <Button variant="destructive" size="sm" onClick={handleRemoveLogo} disabled={post.isSubmitting}>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Remove Logo
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={post.isSubmitting}
+                        onClick={() =>
+                          confirm({
+                            title: "Remove the email logo?",
+                            description: "Invitation emails go out without a logo until you upload one again.",
+                            confirmText: "Remove logo",
+                            destructive: true,
+                            onConfirm: () => void handleRemoveLogo(),
+                          })
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        Remove logo
                       </Button>
                     </div>
                   ) : (
@@ -264,7 +276,7 @@ const EmailSettingsCard = () => {
                         className="mt-2"
                         onClick={() => fileInputRef.current?.click()}
                       >
-                        Select Image
+                        Choose an image
                       </Button>
                     </div>
                   )}
@@ -342,8 +354,8 @@ const EmailSettingsCard = () => {
                     disabled={!isDirty || post.isSubmitting}
                     className="gap-2"
                   >
-                    <Save className="h-4 w-4" />
-                    Save Changes
+                    <Save className="h-4 w-4" aria-hidden="true" />
+                    Save invitation email
                   </Button>
                 </div>
               </div>

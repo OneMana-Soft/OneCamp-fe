@@ -167,7 +167,7 @@ const SlackBridgeCard: React.FC = () => {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Slack bridge</CardTitle>
+                <CardTitle className="text-base font-semibold">Slack bridge</CardTitle>
                 <CardDescription>
                     Keep a Slack channel and a OneCamp channel in one conversation while your team moves over. Messages,
                     thread replies, edits and deletions go both ways, each under the name of the person who wrote it.

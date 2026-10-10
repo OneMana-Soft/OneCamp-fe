@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { UserPlus, Loader2, Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban } from "@/lib/icons"
+import { Loader2, Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban } from "@/lib/icons"
 import { getWorkspaceSettings } from "@/services/settingsService"
 import { setGuestAccess, listGuestGrants, revokeGuestGrant, type GuestGrant } from "@/services/guestService"
 import { formatDistanceToNow } from "date-fns"
@@ -128,8 +128,7 @@ export default function GuestAccessCard() {
         <Card className="border-border/60">
             <CardHeader>
                 <div className="flex items-center gap-2">
-                    <UserPlus className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg font-semibold">Guest access</CardTitle>
+                    <CardTitle className="text-base font-semibold">Guest access</CardTitle>
                 </div>
                 <CardDescription>
                     Let members share one doc, board, table, channel, project or meeting with people outside the

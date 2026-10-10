@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, AlertTriangle, Key } from "@/lib/icons"
+import { CheckCircle2, AlertTriangle } from "@/lib/icons"
 import axiosInstance from "@/lib/axiosInstance"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 
@@ -116,8 +116,7 @@ export default function OAuthConfigCard() {
         <Card className="border-border/60">
             <CardHeader>
                 <div className="flex items-center gap-2">
-                    <Key className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg font-semibold">Sign-in providers</CardTitle>
+                    <CardTitle className="text-base font-semibold">Sign-in providers</CardTitle>
                 </div>
                 <CardDescription>
                     Configure Google and GitHub social sign-in. Credentials are encrypted at rest and applied without a restart.
@@ -141,7 +140,7 @@ export default function OAuthConfigCard() {
                         </div>
                     </div>
                     <p className="text-2xs text-muted-foreground">Also used for Google Calendar integration.</p>
-                    <Button size="sm" onClick={saveGoogle} disabled={savingGoogle || loading}>{savingGoogle ? "Saving…" : "Save Google"}</Button>
+                    <Button size="sm" variant="outline" onClick={saveGoogle} disabled={savingGoogle || loading}>{savingGoogle ? "Saving…" : "Save Google"}</Button>
                 </div>
 
                 <Separator />
@@ -163,7 +162,7 @@ export default function OAuthConfigCard() {
                         </div>
                     </div>
                     <p className="text-2xs text-muted-foreground">This is for GitHub <strong>login</strong>, separate from the GitHub repo integration above.</p>
-                    <Button size="sm" onClick={saveGithub} disabled={savingGithub || loading}>{savingGithub ? "Saving…" : "Save GitHub"}</Button>
+                    <Button size="sm" variant="outline" onClick={saveGithub} disabled={savingGithub || loading}>{savingGithub ? "Saving…" : "Save GitHub"}</Button>
                 </div>
             </CardContent>
         </Card>

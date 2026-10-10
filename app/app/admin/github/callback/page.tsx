@@ -79,7 +79,7 @@ const GitHubCallbackPage = () => {
               onClick={() => router.push("/app/admin")}
               className="text-sm text-primary hover:underline"
             >
-              Return to Admin Dashboard
+              Back to Admin
             </button>
           </>
         )}

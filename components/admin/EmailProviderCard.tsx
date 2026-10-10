@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
-import { Mail, CheckCircle2, AlertTriangle } from "@/lib/icons"
+import { CheckCircle2, AlertTriangle } from "@/lib/icons"
 import { getWorkspaceSettings, updateWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 
 export default function EmailProviderCard() {
@@ -56,8 +56,7 @@ export default function EmailProviderCard() {
             <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                        <Mail className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg font-semibold">Sending</CardTitle>
+                        <CardTitle className="text-base font-semibold">Sending</CardTitle>
                     </div>
                     {configured ? (
                         <Badge className="gap-1 bg-success/10 text-success border-success/20">
@@ -89,7 +88,7 @@ export default function EmailProviderCard() {
                         disabled={loading}
                         className="min-w-0 flex-1"
                     />
-                    <Button size="sm" onClick={save} disabled={saving || loading || !key}>
+                    <Button size="sm" variant="outline" onClick={save} disabled={saving || loading || !key}>
                         {saving ? "Saving…" : "Save key"}
                     </Button>
                 </div>

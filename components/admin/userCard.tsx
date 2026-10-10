@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast"
 import TwoFactorService from "@/services/twoFactorService"
 import { AdminUserList } from "./AdminUserList"
 import { Search } from "@/lib/icons"
-import { Users2 } from "lucide-react"
+
 import { seatSummary } from "@/lib/utils/seatSummary"
 import { UPGRADE_STEPS } from "@/lib/plan/upgradeSteps"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -71,6 +71,7 @@ const UserCard = () => {
       description:
         "They lose access to this workspace immediately. Their messages and work stay, and you can reactivate them from this list.",
       confirmText: "Deactivate",
+      destructive: true,
       onConfirm: () => deactivateUser(email, userId),
     })
   }
@@ -135,7 +136,8 @@ const UserCard = () => {
         "They will sign in with just their password until they set up a new device, and their old " +
         "recovery codes stop working. Only do this once you are satisfied you are talking to them. " +
         "This is recorded in the audit log.",
-      confirmText: "Reset",
+      confirmText: "Reset two-step",
+      destructive: true,
       onConfirm: () => void resetTwoFactor(userId, label),
     })
   }
@@ -173,19 +175,16 @@ const UserCard = () => {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <div className="bg-primary/10 p-1.5 rounded-md">
-                <Users2 className="h-4 w-4 text-primary" />
-              </div>
-              <CardTitle className="text-lg sm:text-xl font-semibold">
-                User Management
+              <CardTitle className="text-base font-semibold">
+                Members
               </CardTitle>
-              <span className="text-xs font-medium text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
+              <span className="text-sm tabular-nums text-muted-foreground">
                 {allUsers.length}
                 {hasMore ? "+" : ""}
               </span>
             </div>
             <CardDescription className="text-sm text-muted-foreground">
-              Manage user accounts, including activation and deactivation.
+              Everyone with an account here.
             </CardDescription>
             {seats && (
               <p
@@ -210,11 +209,11 @@ const UserCard = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               type="search"
-              placeholder="Search users…"
+              placeholder="Search by name or email…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 bg-background/50"
-              aria-label="Search users"
+              aria-label="Search members"
             />
           </div>
         </div>

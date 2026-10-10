@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { Settings } from "@/lib/icons"
 import { getWorkspaceSettings, updateWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 import { appMutate as globalMutate } from "@/lib/swrMutate";
 import { serverMessage } from "@/lib/http/serverMessage"
@@ -98,8 +97,7 @@ export default function WorkspaceSettingsCard() {
         <Card className="border-border/60">
             <CardHeader>
                 <div className="flex items-center gap-2">
-                    <Settings className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg font-semibold">Workspace settings</CardTitle>
+                    <CardTitle className="text-base font-semibold">Workspace settings</CardTitle>
                 </div>
                 <CardDescription>
                     Settings that apply at once, with no redeploy.
@@ -124,7 +122,7 @@ export default function WorkspaceSettingsCard() {
                                 disabled={loading}
                             />
                         </div>
-                        <Button size="sm" onClick={saveUpload} disabled={savingUpload || loading}>
+                        <Button size="sm" variant="outline" onClick={saveUpload} disabled={savingUpload || loading}>
                             {savingUpload ? "Saving…" : "Save"}
                         </Button>
                     </div>
@@ -165,7 +163,7 @@ export default function WorkspaceSettingsCard() {
                         account that example.com manages: not GitHub, and not a personal Google account with an address
                         there. Public email domains like @gmail.com can&apos;t be added.
                     </p>
-                    <Button size="sm" onClick={saveAccess} disabled={savingAccess || loading}>
+                    <Button size="sm" variant="outline" onClick={saveAccess} disabled={savingAccess || loading}>
                         {savingAccess ? "Saving…" : "Save allow-list"}
                     </Button>
                 </div>

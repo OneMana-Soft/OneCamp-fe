@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { FileArchive, Loader2 } from "@/lib/icons"
+import { Loader2 } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
 
 const RetentionCard: React.FC = () => {
@@ -78,8 +78,7 @@ const RetentionCard: React.FC = () => {
     return (
         <Card className="border-border/60">
             <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-                    <FileArchive className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base font-semibold">
                     Retention
                 </CardTitle>
             </CardHeader>
@@ -102,7 +101,7 @@ const RetentionCard: React.FC = () => {
                             placeholder="Empty means keep everything"
                             className="max-w-56"
                         />
-                        <Button size="sm" onClick={save} disabled={saving}>
+                        <Button size="sm" variant="outline" onClick={save} disabled={saving}>
                             {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                             Save
                         </Button>

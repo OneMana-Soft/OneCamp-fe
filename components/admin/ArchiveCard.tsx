@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, FileText, MessageSquare, ListTodo, Video, Paperclip, FileCode, RotateCcw, Undo2 } from "@/lib/icons";
-import { Archive, PlayCircle, Database } from "lucide-react";
+import { PlayCircle, Database } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useToast } from "@/hooks/use-toast"
@@ -129,14 +129,13 @@ const ArchiveCard = () => {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <div className="bg-primary/10 p-1.5 rounded-md"><Archive className="h-4 w-4 text-primary" /></div>
-              <CardTitle className="text-lg sm:text-xl font-semibold">Data Archiving</CardTitle>
+              <CardTitle className="text-base font-semibold">Archive</CardTitle>
             </div>
             <CardDescription className="text-sm text-muted-foreground">Configure retention policies and manage data archiving across all OneCamp data stores.</CardDescription>
           </div>
           <Button variant="outline" size="sm" className="h-9 gap-1.5 shrink-0 self-start" onClick={() => dispatch(openUI({ key: "archiveRestore" }))}>
             <RotateCcw className="h-3.5 w-3.5" />
-            <span>Restore Items</span>
+            <span>Restore items</span>
           </Button>
         </div>
       </CardHeader>

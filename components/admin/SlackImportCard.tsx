@@ -43,7 +43,7 @@ import {
   RotateCcw,
   Users,
 } from "@/lib/icons"
-import { PlayCircle, Database } from "lucide-react"
+import { PlayCircle } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
@@ -255,8 +255,7 @@ const SlackImportCard: React.FC = () => {
         <CardHeader className="pb-4 border-b border-border/50">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="min-w-0">
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold">
-                <Database className="h-5 w-5 text-primary" />
+              <CardTitle className="text-base font-semibold">
                 Import from Slack
               </CardTitle>
               <CardDescription className="mt-1">

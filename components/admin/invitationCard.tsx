@@ -8,7 +8,7 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { InvitationListResponseInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Mail, Plus, Search } from "@/lib/icons"
+import { Plus, Search } from "@/lib/icons"
 import { AdminInvitationList } from "./AdminInvitationList"
 import { useFetch } from "@/hooks/useFetch"
 import { useDispatch } from "react-redux"
@@ -42,6 +42,7 @@ const InvitationCard = () => {
       description:
         "Their invite link stops working. You can invite them again, which sends a new email.",
       confirmText: "Revoke invitation",
+      destructive: true,
       onConfirm: () => {
         void revokeInvitation(email)
       },
@@ -128,13 +129,10 @@ const InvitationCard = () => {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <div className="bg-primary/10 p-1.5 rounded-md">
-                <Mail className="h-4 w-4 text-primary" />
-              </div>
-              <CardTitle className="text-lg sm:text-xl font-semibold">
+              <CardTitle className="text-base font-semibold">
                 Invitations
               </CardTitle>
-              <span className="text-xs font-medium text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
+              <span className="text-sm tabular-nums text-muted-foreground">
                 {invitations.length}
               </span>
             </div>

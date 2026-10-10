@@ -32,9 +32,10 @@ import RetentionCard from "@/components/admin/RetentionCard"
 import PushNotificationsCard from "@/components/admin/PushNotificationsCard"
 import SystemCheckCard from "@/components/admin/SystemCheckCard"
 import UpdatesCard from "@/components/admin/UpdatesCard"
-import { Shield, Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
+import { Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
 import { Users2, Webhook, Archive, UserX, Database, Plug, SlidersHorizontal, Zap, KeyRound, Lock, ScrollText } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
+import { PageHeader } from "@/components/ui/pageHeader"
 import { useMedia } from "@/context/MediaQueryContext"
 import { FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
 
@@ -66,7 +67,7 @@ const TAB_GROUPS: TabGroup[] = [
   {
     label: "People",
     tabs: [
-      { value: "users", label: "Users", icon: Users2 },
+      { value: "users", label: "Members", icon: Users2 },
       { value: "admins", label: "Admins", icon: ShieldAlert },
       { value: "teams", label: "Teams", icon: Users },
       { value: "invitations", label: "Invitations", icon: Mail },
@@ -178,7 +179,7 @@ const AdminPage = () => {
     const error = searchParams.get("error")
     if (success === "1") {
       processed.current = true
-      toast({ title: "GitHub Connected", description: "Your GitHub account has been linked successfully." })
+      toast({ title: "GitHub connected", description: "Your GitHub account is linked." })
     } else if (error) {
       processed.current = true
       const messages: Record<string, string> = {
@@ -186,7 +187,7 @@ const AdminPage = () => {
         unauthorized: "You must be logged in as an admin to connect GitHub.",
         exchange_failed: "Failed to exchange authorization code. Please try again.",
       }
-      toast({ title: "Connection Failed", description: messages[error] || "An unexpected error occurred.", variant: "destructive" })
+      toast({ title: "Couldn't connect GitHub", description: messages[error] || "An unexpected error occurred.", variant: "destructive" })
     }
     if (processed.current && typeof window !== "undefined") {
       const cleanUrl = window.location.pathname + window.location.hash
@@ -202,21 +203,9 @@ const AdminPage = () => {
       {/* Header: desktop only. A phone's top bar already says Admin, and the
           section picker below is the first thing that is needed there. */}
       {isDesktop && (
-      <header className="shrink-0 border-b border-border/60 bg-card/30">
-        <div className="px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="bg-primary/10 p-1.5 rounded-md">
-              <Shield className="h-4 w-4 text-primary" />
-            </div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-              Admin Dashboard
-            </h1>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            People, workspace settings, AI and connections, in one place.
-          </p>
-        </div>
-      </header>
+      <div className="shrink-0 border-b border-border px-4 py-5 sm:px-6 lg:px-8">
+        <PageHeader eyebrow="Workspace" title="Admin" className="mx-auto w-full max-w-6xl" />
+      </div>
       )}
 
       {/* Content */}
@@ -262,7 +251,8 @@ const AdminPage = () => {
                       <p
                         role="presentation"
                         className={cn(
-                          "px-3 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground/80",
+                          // Sentence case, quiet: the sidebar's group labels, not shouted eyebrows.
+                          "px-3 pb-1 text-xs font-medium text-muted-foreground",
                           gi === 0 ? "pt-0" : "pt-5",
                         )}
                       >
@@ -275,7 +265,8 @@ const AdminPage = () => {
                           className={cn(
                             "justify-start gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium",
                             "text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors",
-                            "data-[state=active]:bg-accent data-[state=active]:text-foreground data-[state=active]:shadow-none",
+                            // The current section in the soft accent, as the app's own sidebar marks it.
+                          "data-[state=active]:bg-brand-muted data-[state=active]:text-foreground data-[state=active]:shadow-none",
                           )}
                         >
                           <Icon className="h-4 w-4 shrink-0" />
