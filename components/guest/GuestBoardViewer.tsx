@@ -19,17 +19,27 @@ import * as React from "react"
 import dynamic from "next/dynamic"
 import * as Y from "yjs"
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider"
-import { Loader2 } from "@/lib/icons"
+import { Skeleton } from "@/components/ui/skeleton"
 import "@excalidraw/excalidraw/index.css"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 
+/**
+ * The canvas's place while it loads (the live connection, then the drawing
+ * library): a canvas-sized block and what is happening, in words. Each step
+ * showed a spinner in the middle of an empty page.
+ */
+function CanvasPending() {
+  return (
+    <div aria-busy="true" className="relative h-full w-full p-4">
+      <p role="status" className="sr-only">Opening the board…</p>
+      <Skeleton aria-hidden="true" className="h-full w-full rounded-lg" />
+    </div>
+  )
+}
+
 const Excalidraw = dynamic(async () => (await import("@excalidraw/excalidraw")).Excalidraw, {
   ssr: false,
-  loading: () => (
-    <div className="flex h-full w-full items-center justify-center">
-      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-    </div>
-  ),
+  loading: () => <CanvasPending />,
 })
 
 function cloneElement<T>(el: T): T {
@@ -150,13 +160,7 @@ export function GuestBoardViewer({ documentName, boardId, token, tokenFetcher }:
     }
   }, [api, synced])
 
-  if (!provider) {
-    return (
-      <div className="flex h-full w-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  if (!provider) return <CanvasPending />
 
   return (
     <div className="h-full w-full">
