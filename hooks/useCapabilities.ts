@@ -1,5 +1,8 @@
+import { useCallback } from "react";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
+
+const NO_CAPS: Record<string, boolean> = {};
 
 interface CapabilitiesResponse {
     data: Record<string, boolean>;
@@ -23,8 +26,11 @@ export function useCapabilities() {
         { dedupingInterval: 15_000 },
     );
 
-    const caps = data?.data || {};
-    const can = (capability: string): boolean => caps[capability] === true;
+    // The same `caps` and `can` until the answer changes. A new `can` on every
+    // render made everything memoised on it rebuild each time: the command
+    // palette rebuilt all of its commands on every keystroke.
+    const caps = data?.data ?? NO_CAPS;
+    const can = useCallback((capability: string): boolean => caps[capability] === true, [caps]);
 
     return { caps, can, isLoading, isError, mutate };
 }

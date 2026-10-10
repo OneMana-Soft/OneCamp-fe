@@ -84,6 +84,8 @@ interface PaletteCommand {
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
+const COMMAND_GROUPS = ["Navigate", "Create", "View", "GitHub", "AI", "Admin", "Settings"] as const
+
 function makeSearchRecentItem(result: SearchResult): Omit<RecentItem, "timestamp"> | null {
   switch (result.type) {
     case "task":
@@ -171,11 +173,13 @@ export function CommandPalette() {
     handleResultClick,
   } = useSearch({ debounceMs: 150 })
 
-  // Sync palette input with search hook
+  // The palette's input is the search's input: set together, in one render.
+  // An effect copying one into the other drew the palette twice a keystroke.
   const [inputValue, setInputValue] = React.useState("")
-  React.useEffect(() => {
-    setSearchValue(inputValue)
-  }, [inputValue, setSearchValue])
+  const handleInput = React.useCallback((value: string) => {
+    setInputValue(value)
+    setSearchValue(value)
+  }, [setSearchValue])
 
   // Unified AI search: fold Memory facts + connected-app (Gmail/GitHub) results
   // into the same palette so Cmd+K spans everything. The keyword "Search
@@ -721,6 +725,36 @@ export function CommandPalette() {
     })
   }, [router, dispatch, isAdmin, can, features, pathname, splitRun])
 
+  // The commands, drawn once per set of commands rather than on every
+  // keystroke: cmdk filters them itself, and each item re-renders only when
+  // it is shown, hidden or selected. Built in render, all eighty were new
+  // elements on every key, and every one re-rendered.
+  const commandGroups = React.useMemo(
+    () =>
+      COMMAND_GROUPS.map((group) => {
+        const groupCommands = commands.filter((c) => c.group === group)
+        if (groupCommands.length === 0) return null
+        return (
+          <React.Fragment key={group}>
+            <CommandGroup heading={group}>
+              {groupCommands.map((cmd) => (
+                <CommandItem
+                  key={cmd.id}
+                  onSelect={() => runCommand(cmd.action)}
+                  value={`${cmd.label} ${cmd.keywords.join(" ")}`}
+                >
+                  {cmd.icon}
+                  <span>{cmd.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </React.Fragment>
+        )
+      }),
+    [commands, runCommand],
+  )
+
   const hasSearchQuery = inputValue.trim().length > 0
   const hasSearchResults = searchResults.length > 0
   const showRecent = !hasSearchQuery && recentItems.length > 0
@@ -732,7 +766,7 @@ export function CommandPalette() {
         placeholder="Search or jump to…"
         hint={<ShortcutHint />}
         value={inputValue}
-        onValueChange={setInputValue}
+        onValueChange={handleInput}
       />
       <CommandList className="max-h-[60vh]">
         <CommandEmpty>
@@ -815,31 +849,7 @@ export function CommandPalette() {
         {showRecent && <CommandSeparator />}
 
         {/* Commands — grouped by category */}
-        {showCommands && (
-          <>
-            {["Navigate", "Create", "View", "GitHub", "AI", "Admin", "Settings"].map((group) => {
-              const groupCommands = commands.filter((c) => c.group === group)
-              if (groupCommands.length === 0) return null
-              return (
-                <React.Fragment key={group}>
-                  <CommandGroup heading={group}>
-                    {groupCommands.map((cmd) => (
-                      <CommandItem
-                        key={cmd.id}
-                        onSelect={() => runCommand(cmd.action)}
-                        value={`${cmd.label} ${cmd.keywords.join(" ")}`}
-                      >
-                        {cmd.icon}
-                        <span>{cmd.label}</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                  <CommandSeparator />
-                </React.Fragment>
-              )
-            })}
-          </>
-        )}
+        {showCommands && commandGroups}
 
         {/* Footer hint */}
         {!hasSearchQuery && (
