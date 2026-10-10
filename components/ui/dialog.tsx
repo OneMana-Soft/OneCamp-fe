@@ -32,10 +32,36 @@ const DialogOverlay = React.forwardRef<
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+/**
+ * Where focus lands when a dialog opens: the first field a person can type
+ * in, if there is one. Radix's own default is the first tabbable element,
+ * which in a dialog whose header carries an action, or whose only fields come
+ * after a button row, was a button, often the filled primary one. That reads
+ * as "about to submit", and Enter would do it. A field says "type here".
+ * Without a field, or on a touch screen, Radix's default stands. A caller's onOpenAutoFocus runs
+ * first and wins by calling preventDefault (to focus something else).
+ */
+const FIRST_FIELD =
+  'input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled]), [contenteditable="true"]'
+
+function focusFirstField(event: Event) {
+  // Desktop only (web-design-guidelines: autoFocus sparingly, avoid on
+  // mobile): on a touch screen, focusing a field throws up the keyboard over
+  // the dialog before the person has read it.
+  if (typeof window === "undefined" || !window.matchMedia?.("(pointer: fine)").matches) return
+  // Radix dispatches this event on the content element itself.
+  const content = event.target instanceof HTMLElement ? event.target : null
+  const field = content?.querySelector<HTMLElement>(FIRST_FIELD)
+  if (field) {
+    event.preventDefault()
+    field.focus({ preventScroll: true })
+  }
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onOpenAutoFocus, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -50,6 +76,10 @@ const DialogContent = React.forwardRef<
         "fixed left-[50%] top-[50%] z-[var(--z-modal)] grid w-[calc(100%-2rem)] max-w-lg max-h-[85dvh] overflow-y-auto overscroll-contain translate-x-[-50%] translate-y-[-50%] gap-4 rounded-2xl border border-border bg-background p-6 shadow-dialog duration-200 ease-standard data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className
       )}
+      onOpenAutoFocus={(event) => {
+        onOpenAutoFocus?.(event)
+        if (!event.defaultPrevented) focusFirstField(event)
+      }}
       {...props}
     >
       {children}
