@@ -43,6 +43,11 @@ interface ProjectTaskTableProps {
     projectId: string
 }
 
+// No list in the store yet: one empty list, made once, so the table doesn't
+// render again on every change to the store (a new `[]` is never equal to
+// the last).
+const NO_TASKS: TaskInfoInterface[] = []
+
 const safeJsonParse = <T,>(value: string | null, fallback: T): T => {
     if (!value) return fallback
     try {
@@ -61,7 +66,7 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
     const {t} = useTranslation()
 
     const taskListState = useSelector(
-        (state: RootState) => state.TaskInfo.taskListVisibleInfo || ([] as TaskInfoInterface[]),
+        (state: RootState) => state.TaskInfo.taskListVisibleInfo || NO_TASKS,
     )
 
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() =>

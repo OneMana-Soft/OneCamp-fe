@@ -8,7 +8,11 @@ import UploadingAttachmentIcon from "@/components/attachmentIcon/uploadingAttach
 import {openUI} from "@/store/slice/uiSlice";
 import {GetEndpointUrl} from "@/services/endPoints";
 import {AttachmentMediaReq} from "@/types/attachment";
-import {deleteTaskCommentPreviewFiles, removeTaskCommentUploadedFiles} from "@/store/slice/createTaskCommentSlice";
+import {deleteTaskCommentPreviewFiles, removeTaskCommentUploadedFiles, type TaskCommentInputState} from "@/store/slice/createTaskCommentSlice";
+
+// A task with no comment draft yet: one value, made once, so this doesn't
+// render again on every change to the store (a new `{}` never equals the last).
+const NO_DRAFT = {} as TaskCommentInputState
 
 interface ProjectFileUploadProps {
     projectUUID: string;
@@ -18,7 +22,7 @@ interface ProjectFileUploadProps {
 export const TaskCommentFileUpload = ({projectUUID, taskUUID}:ProjectFileUploadProps) => {
     const taskCommentFileUploadOpen = useSelector((state: RootState) => state.ui.taskCommentFileUpload);
 
-    const taskCommentFiles = useSelector((state: RootState) => state.createTaskComment.taskCommentInputState[taskUUID] || {});
+    const taskCommentFiles = useSelector((state: RootState) => state.createTaskComment.taskCommentInputState[taskUUID] || NO_DRAFT);
 
     const dispatch = useDispatch();
     const uploadFile = useUploadFile()
