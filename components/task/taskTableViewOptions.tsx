@@ -51,7 +51,7 @@ export function TaskTableViewOptions<TData>({
                         const own = (column.columnDef.meta as { label?: string } | undefined)?.label
 
                         // Sentence case, as the column's own header says it ("Start
-                        // date"): CSS capitalize made these "Start Date".
+                        // date"): a CSS text transform made these "Start Date".
                         const name = colName[column.id as ColumnId] || column.id
                         return (
                             <DropdownMenuCheckboxItem
