@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import React from "react"
 import { PostsRes } from "@/types/post"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -29,7 +30,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onClick }) => {
     const { pressed, bind } = useTouchFlash()
 
     const author =
-        post.post_by?.user_full_name || post.post_by?.user_name || "Unknown user"
+        displayNameOf(post.post_by) || "Unknown user"
 
     const subtitle = post.post_channel
         ? `posted in #${post.post_channel.ch_name}`

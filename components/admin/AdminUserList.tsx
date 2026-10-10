@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf, secondaryNameOf } from "@/lib/personName"
 import React, { useRef, useEffect } from "react"
 import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -176,7 +177,8 @@ function AdminUserRow({
   onResetTwoFactor,
 }: AdminUserRowProps) {
   const { src: imageSrc } = useUserAvatar(user.user_profile_object_key)
-  const seed = user.user_full_name || user.user_name || user.user_email_id || ""
+  const seed = displayNameOf(user)
+  const fullName = secondaryNameOf(user)
   const isDeactivated = !isZeroEpoch(user.user_deleted_at || "")
 
   return (
@@ -197,10 +199,10 @@ function AdminUserRow({
         </Avatar>
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-medium leading-tight truncate">
-            {user.user_full_name || user.user_name || user.user_email_id}
+            {seed}
           </span>
           <span className="text-xs text-muted-foreground mt-0.5 truncate">
-            {user.user_email_id}
+            {fullName ? `${fullName} · ${user.user_email_id ?? ""}` : user.user_email_id}
           </span>
         </div>
       </button>

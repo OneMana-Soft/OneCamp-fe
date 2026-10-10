@@ -4,6 +4,7 @@
 // everyone, and a rate of their own for anyone who differs. Its admins set it;
 // the time report and invoices then say what the billable time comes to.
 
+import { displayNameOf } from "@/lib/personName"
 import { useEffect, useMemo, useRef, useState } from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { Button } from "@/components/ui/button"
@@ -60,7 +61,7 @@ export function ProjectRatesDialog({
     const seen = new Set<string>()
     const now = (members.data?.data?.project_members ?? [])
       .filter((u) => u.user_uuid && !u.is_bot && !seen.has(u.user_uuid) && seen.add(u.user_uuid))
-      .map((u) => ({ id: u.user_uuid, name: u.user_full_name || u.user_name || "A member", left: false }))
+      .map((u) => ({ id: u.user_uuid, name: displayNameOf(u) || "A member", left: false }))
     const gone = (saved?.people ?? [])
       .filter((p) => !seen.has(p.user_uuid))
       .map((p) => ({ id: p.user_uuid, name: "Someone no longer on the project", left: true }))

@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import {usePathname, useRouter} from "next/navigation";
 import {UserStatusNav} from "@/components/navigationBar/userStatusNav";
 import {UserAvatarNav} from "@/components/navigationBar/userAvatarNav";
@@ -44,7 +45,7 @@ export function MobileTopNavigationBarThird() {
                     <NudgeBell />
                     <UserStatusNav userUUID={selfProfile.data?.data.user_uuid || ''}/>
                     <div onClick={()=>{dispatch(openUI({ key: 'userProfileDrawer' }))}}>
-                        <UserAvatarNav userUUID={selfProfile.data?.data.user_uuid} userName={selfProfile.data?.data.user_name} userProfileObjKey={selfProfile.data?.data.user_profile_object_key}/>
+                        <UserAvatarNav userUUID={selfProfile.data?.data.user_uuid} userName={displayNameOf(selfProfile.data?.data)} userProfileObjKey={selfProfile.data?.data.user_profile_object_key}/>
                     </div>
                 </div>;
 

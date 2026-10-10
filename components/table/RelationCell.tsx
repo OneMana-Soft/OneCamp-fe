@@ -6,6 +6,7 @@
 // as [{id,label,type}] so the grid renders without re-resolving each entity; a
 // link to a table's row is stored by id, and comes back with the row's name.
 
+import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
@@ -28,7 +29,7 @@ function refFromResult(r: SearchResult, target: RelationTarget): RelationRef | n
   if (r.type === "project" && r.project?.project_uuid && accept("project"))
     return { id: r.project.project_uuid, label: r.project.project_name || "Untitled project", type: "project" }
   if (r.type === "user" && r.user?.user_uuid && accept("user"))
-    return { id: r.user.user_uuid, label: r.user.user_name || r.user.user_full_name || "User", type: "user" }
+    return { id: r.user.user_uuid, label: displayNameOf(r.user) || "User", type: "user" }
   return null
 }
 

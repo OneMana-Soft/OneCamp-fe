@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import {useDispatch, useSelector} from "react-redux"
 import type { RootState } from "@/store/store"
 
@@ -460,7 +461,7 @@ export const ChannelComments = () => {
                                 [
                                     `${mainMessageData.userName || "Someone"}: ${mainMessageData.content}`,
                                     ...postCommentState.map(
-                                        (c) => `${c.comment_by?.user_name || "Someone"}: ${c.comment_text}`,
+                                        (c) => `${displayNameOf(c.comment_by) || "Someone"}: ${c.comment_text}`,
                                     ),
                                 ].join("\n")
                             }

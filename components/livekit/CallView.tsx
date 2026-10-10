@@ -5,6 +5,7 @@
 // does a side pane (split view), which is how a call sits beside the
 // conversation, a doc or a board while it runs.
 
+import { displayNameOf } from "@/lib/personName"
 import { useCallback, useState } from "react"
 import { PreJoin } from "@/components/livekit/PreJoin"
 import { VideoConference } from "@/components/livekit/VideoConference"
@@ -48,8 +49,11 @@ function usePlace(kind: CallKind, id: string, selfId?: string): { place?: string
     const info = channel.data?.channel_info
     return { place: info?.ch_name ? `in #${info.ch_name}` : undefined, isAdmin: !!info?.ch_is_admin }
   }
-  if (kind === "chat") return { place: other.data?.data.user_name ? `with ${other.data.data.user_name}` : undefined, isAdmin: true }
-  const names = (group.data?.data?.dm_participants || []).filter((u) => u.user_uuid !== selfId).map((u) => u.user_name)
+  if (kind === "chat") {
+    const name = displayNameOf(other.data?.data)
+    return { place: name ? `with ${name}` : undefined, isAdmin: true }
+  }
+  const names = (group.data?.data?.dm_participants || []).filter((u) => u.user_uuid !== selfId).map((u) => displayNameOf(u))
   return { place: names.length ? `with ${names.join(", ")}` : undefined, isAdmin: true }
 }
 
@@ -85,7 +89,7 @@ export function CallView({ kind, id, onLeave, embedded = false }: { kind: CallKi
   )
 
   if (!joined) {
-    return <PreJoin onJoin={join} username={self.data?.data.user_name || ""} place={place} onCancel={onLeave} embedded={embedded} />
+    return <PreJoin onJoin={join} username={displayNameOf(self.data?.data) || ""} place={place} onCancel={onLeave} embedded={embedded} />
   }
   return (
     <VideoConference

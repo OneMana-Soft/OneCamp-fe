@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react"
 import { useDispatch } from "react-redux"
@@ -353,11 +354,11 @@ function RowName({
   // On a phone the capacity goes under the name, which needs the width.
   return (
     <span className={cn("flex min-w-0 gap-x-2", compact ? "flex-col items-start" : "items-center justify-between")}>
-      <span className="min-w-0 max-w-full" title={p.user_job_title ? `${p.user_name}, ${p.user_job_title}` : p.user_name}>
+      <span className="min-w-0 max-w-full" title={p.user_job_title ? `${displayNameOf(p)}, ${p.user_job_title}` : displayNameOf(p)}>
         <TaskAssigneeCell
           userInfo={{
             user_uuid: p.user_uuid,
-            user_name: p.user_name,
+            user_name: displayNameOf(p),
             user_profile_object_key: p.user_profile_object_key ?? "",
           }}
         />
@@ -390,7 +391,7 @@ function Capacity({
   const [value, setValue] = useState(String(current))
   const id = useId()
   const label = hours ? `${current}h/wk` : `${current}/wk`
-  const sentence = hours ? `${person.user_name} works ${current} hours a week` : `${person.user_name} takes on ${current} tasks a week`
+  const sentence = hours ? `${displayNameOf(person)} works ${current} hours a week` : `${displayNameOf(person)} takes on ${current} tasks a week`
   if (!person.can_edit_capacity) {
     return (
       <span className="shrink-0 text-xs tabular-nums text-muted-foreground" title={`${sentence}. They or a workspace admin can change it.`}>
@@ -428,8 +429,8 @@ function Capacity({
           <Label htmlFor={id}>{hours ? "Hours a week" : "Tasks a week"}</Label>
           <p className="text-xs text-muted-foreground">
             {hours
-              ? `How many hours ${person.user_name} works in a week. Weeks with more estimated show as over.`
-              : `How many tasks ${person.user_name} takes on in a week. Weeks with more show as over.`}
+              ? `How many hours ${displayNameOf(person)} works in a week. Weeks with more estimated show as over.`
+              : `How many tasks ${displayNameOf(person)} takes on in a week. Weeks with more show as over.`}
           </p>
           <div className="flex gap-2">
             <Input
@@ -490,7 +491,7 @@ function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: Work
   if (tasks.length === 0) {
     // A week off says so; otherwise there's nothing to show.
     return away >= 5 ? (
-      <span className="text-2xs text-muted-foreground" title={`${row.person?.user_name ?? "They"} are away all week`}>
+      <span className="text-2xs text-muted-foreground" title={`${displayNameOf(row.person) || "They"} are away all week`}>
         Away
       </span>
     ) : (
@@ -703,7 +704,7 @@ function GiveTo({ t, week, people, measure, onGive }: { t: WorkloadTask; week: n
     .sort(
       (a, b) =>
         a.n / Math.max(0.5, a.r.capacities[week] ?? 1) - b.n / Math.max(0.5, b.r.capacities[week] ?? 1) ||
-        a.r.person!.user_name.localeCompare(b.r.person!.user_name),
+        displayNameOf(a.r.person!).localeCompare(displayNameOf(b.r.person!)),
     )
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -724,13 +725,13 @@ function GiveTo({ t, week, people, measure, onGive }: { t: WorkloadTask; week: n
                 return (
                   <CommandItem
                     key={r.key}
-                    value={`${r.person!.user_name} ${r.key}`}
+                    value={`${displayNameOf(r.person!)} ${r.key}`}
                     onSelect={() => {
                       setOpen(false)
                       onGive(t, r.person)
                     }}
                   >
-                    <span className="truncate">{r.person!.user_name}</span>
+                    <span className="truncate">{displayNameOf(r.person!)}</span>
                     <span
                       className={cn(
                         "ml-auto pl-2 text-xs tabular-nums",

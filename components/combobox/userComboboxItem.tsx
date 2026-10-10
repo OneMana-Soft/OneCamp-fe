@@ -9,10 +9,14 @@ import { getNameInitials } from "@/lib/utils/format/getNameIntials"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { useBotKind } from "@/hooks/useBotKinds"
 import { botSubtitle } from "@/lib/botCopy"
+import { personSearchValue } from "@/lib/personName"
 
 interface UserComboboxItemProps {
     userUuid: string
     userName: string
+    /** Matched by the list's search, as is the handle. */
+    userFullName?: string
+    userHandle?: string
     userEmail?: string
     userProfileObjectKey?: string
     isSelected: boolean
@@ -23,6 +27,8 @@ interface UserComboboxItemProps {
 export function UserComboboxItem({
     userUuid,
     userName,
+    userFullName,
+    userHandle,
     userEmail,
     userProfileObjectKey,
     isSelected,
@@ -34,7 +40,7 @@ export function UserComboboxItem({
 
     return (
         <CommandItem
-            value={`${userName} ${userEmail} ${userUuid}`}
+            value={personSearchValue(userName, { fullName: userFullName, handle: userHandle, email: userEmail, id: userUuid })}
             onSelect={() => onSelect(userUuid)}
             className="cursor-pointer p-2 rounded-lg m-1 gap-3 aria-selected:bg-primary/5 transition-colors duration-200"
         >

@@ -255,7 +255,7 @@ export const ChatIdDesktop = ({chatId, handleSend, unreadCount}: {chatId: string
                             </button>
                         </div>
                     )}
-                    <HeldNotificationsBar userUUID={chatId} name={otherUserInfo.data?.data?.user_full_name || otherUserInfo.data?.data?.user_name} isBot={isBotPeer} />
+                    <HeldNotificationsBar userUUID={chatId} name={userDisplayName(otherUserInfo.data?.data)} isBot={isBotPeer} />
                     {scheduleSend && <ScheduledMessagesBar target={scheduleSend.target} />}
                     <MinimalTiptapTextInput
                         throttleDelay={300}

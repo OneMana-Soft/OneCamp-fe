@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import {GroupChatMessageList} from "@/components/groupChat/groupChatMessageList";
 import {MobileGroupChatTextInput} from "@/components/textInput/mobileGroupChatTextInput";
 import CatchMeUpBanner from "@/components/ai/CatchMeUpBanner";
@@ -23,7 +24,7 @@ export const GrpChatIdMobile = ({grpId, handleSend, unreadCount}: {grpId: string
             <CatchMeUpBanner
                 channelUUID={grpId}
                 unreadCount={unreadCount || 0}
-                channelName={participants.slice(0, 3).map(u => u.user_name).join(', ') + (participants.length > 3 ? '...' : '')}
+                channelName={participants.slice(0, 3).map(u => displayNameOf(u)).join(', ') + (participants.length > 3 ? '...' : '')}
                 isChannel={false}
                 type="group"
             />

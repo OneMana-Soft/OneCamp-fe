@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import {useUserAvatar} from "@/hooks/useUserAvatar";
 import {getNameInitials} from "@/lib/utils/getNameInitials";
@@ -16,7 +17,7 @@ interface  TaskActivityProps {
 export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskActivityProps) {
 
     const {src: imageSrc} = useUserAvatar(taskActivity.activity_by.user_profile_object_key);
-    const nameInitial = getNameInitials(taskActivity.activity_by.user_name||'');
+    const nameInitial = getNameInitials(displayNameOf(taskActivity.activity_by)||'');
 
 
     const {t} = useTranslation()
@@ -33,12 +34,12 @@ export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskA
             <div className="relative">
                 <Avatar className="h-8 w-8 mr-2">
                     <AvatarImage src={imageSrc} alt="@shadcn" />
-                    <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(taskActivity.activity_by.user_name))}>{nameInitial}</AvatarFallback>
+                    <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(displayNameOf(taskActivity.activity_by)))}>{nameInitial}</AvatarFallback>
                 </Avatar>{" "}
             </div>
             <div className="flex-1 pt-2">
                 <p className="text-sm ">
-                    <span className="font-medium hover:underline cursor-pointer" onClick={()=>{openOtherUserProfile(taskActivity.activity_by.user_uuid)}}>{taskActivity.activity_by.user_name}</span>{" "}
+                    <span className="font-medium hover:underline cursor-pointer" onClick={()=>{openOtherUserProfile(taskActivity.activity_by.user_uuid)}}>{displayNameOf(taskActivity.activity_by)}</span>{" "}
                     {t(phrase, { field: taskActivity.activity_next_state })}.{" "}
                     <span className="text-muted-foreground">{formatTimeForPostOrComment(taskActivity.activity_time)}</span>
                 </p>

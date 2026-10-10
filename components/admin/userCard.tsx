@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -66,7 +67,7 @@ const UserCard = () => {
     if (!email || post.isSubmitting) return
     const user = allUsers.find((u) => u.user_email_id === email)
     confirm({
-      title: `Deactivate ${user?.user_full_name || user?.user_name || email}?`,
+      title: `Deactivate ${displayNameOf(user) || email}?`,
       description:
         "They lose access to this workspace immediately. Their messages and work stay, and you can reactivate them from this list.",
       confirmText: "Deactivate",
@@ -127,7 +128,7 @@ const UserCard = () => {
   const handleResetTwoFactor = (email: string, userId: string) => {
     if (!email || post.isSubmitting) return
     const user = allUsers.find((u) => u.user_email_id === email)
-    const label = user?.user_full_name || user?.user_name || email
+    const label = displayNameOf(user) || email
     confirm({
       title: `Reset two-factor authentication for ${label}?`,
       description:
@@ -160,20 +161,10 @@ const UserCard = () => {
     )
   }
 
-  const normalisedSearch = search.trim().toLowerCase()
+  const normalisedSearch = normalizePersonQuery(search)
   const filteredUsers = useMemo(() => {
     if (!normalisedSearch) return allUsers
-    return allUsers.filter((u) => {
-      const haystack = [
-        u.user_full_name,
-        u.user_name,
-        u.user_email_id,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-      return haystack.includes(normalisedSearch)
-    })
+    return allUsers.filter((u) => matchesPerson(u, normalisedSearch, [u.user_email_id]))
   }, [allUsers, normalisedSearch])
 
   return (

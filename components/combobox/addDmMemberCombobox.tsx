@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import {useState} from "react";
 import { ChevronsUpDown } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
@@ -44,7 +45,7 @@ const AddDmMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({hand
                     >
                         <span className="truncate text-sm font-medium">
                             {value
-                                ? usersList.data?.users?.find((framework) => framework.user_uuid === value)?.user_name
+                                ? displayNameOf(usersList.data?.users?.find((framework) => framework.user_uuid === value))
                                 : "Search members…"
                             }
                         </span>
@@ -61,7 +62,9 @@ const AddDmMemberCombobox: React.FC<AddTeamMemberComboboxPropInterface> = ({hand
                                     <UserComboboxItem
                                         key={user.user_uuid}
                                         userUuid={user.user_uuid}
-                                        userName={user.user_name}
+                                        userName={displayNameOf(user)}
+                                        userFullName={user.user_full_name}
+                                        userHandle={user.user_handle}
                                         userEmail={user.user_email_id}
                                         userProfileObjectKey={user.user_profile_object_key}
                                         isSelected={value === user.user_uuid}

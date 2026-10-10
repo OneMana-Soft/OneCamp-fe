@@ -11,6 +11,7 @@
 // never produces a phantom mention.
 // ---------------------------------------------------------------------------
 
+import { displayNameOf, handleOf } from "@/lib/personName"
 import * as React from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -35,8 +36,7 @@ interface BoardMentionInputProps {
   autoFocus?: boolean
 }
 
-const displayName = (u: UserProfileDataInterface) =>
-  (u.user_full_name || u.user_name || "user").trim()
+const displayName = (u: UserProfileDataInterface) => displayNameOf(u) || "user"
 
 export function BoardMentionInput({
   value,
@@ -208,8 +208,8 @@ export function BoardMentionInput({
                 </AvatarFallback>
               </Avatar>
               <span className="truncate">{displayName(u)}</span>
-              {u.user_name && (
-                <span className="truncate text-2xs text-muted-foreground">@{u.user_name}</span>
+              {handleOf(u) && (
+                <span className="truncate text-2xs text-muted-foreground">@{handleOf(u)}</span>
               )}
             </button>
           ))}

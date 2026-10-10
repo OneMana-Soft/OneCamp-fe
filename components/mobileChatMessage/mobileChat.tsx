@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
@@ -329,7 +330,7 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
                                 [
                                     `${mainMessageData.userName || "Someone"}: ${mainMessageData.content}`,
                                     ...chatCommentState.map(
-                                        (c) => `${c.comment_by?.user_name || "Someone"}: ${c.comment_text}`,
+                                        (c) => `${displayNameOf(c.comment_by) || "Someone"}: ${c.comment_text}`,
                                     ),
                                 ].join("\n")
                             }

@@ -4,6 +4,7 @@
 // change it, reorder, delete. Errors carry the server's message, written for
 // the person. See lib/tasks/fields.
 
+import { displayNameOf } from "@/lib/personName"
 import { useCallback, useMemo } from "react"
 import { useSWRConfig } from "swr"
 import axiosInstance from "@/lib/axiosInstance"
@@ -86,7 +87,7 @@ export function usePeople(projectId: string | undefined, fields: TaskField[]) {
   return useMemo(() => {
     // Named as the task panel's picker names them; bots are named but not
     // offered as a filter.
-    const all = (members ?? []).filter((m) => m.user_uuid).map((m) => ({ id: m.user_uuid, name: m.user_name || m.user_full_name || "A member", bot: !!m.is_bot }))
+    const all = (members ?? []).filter((m) => m.user_uuid).map((m) => ({ id: m.user_uuid, name: displayNameOf(m) || "A member", bot: !!m.is_bot }))
     const byId = new Map(all.map((p) => [p.id, p.name]))
     return { people: all.filter((p) => !p.bot).map(({ id, name }) => ({ id, name })), nameOf: (id: string) => byId.get(id) }
   }, [members])

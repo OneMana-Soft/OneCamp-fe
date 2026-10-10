@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import React, { useEffect, useRef, useState } from "react";
 import { ProjectInfoListRawInterface } from "@/types/project";
 import { UserProfileDataInterface } from "@/types/user";
@@ -414,7 +415,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                         <Popover open={popOpenUserName} onOpenChange={setPopOpenUserName}>
                         <PopoverTrigger asChild>
                             <Button variant="outline" className="justify-start">
-                            {selectedUser ? <>{selectedUser.user_name}</> : <>Pick someone</>}
+                            {selectedUser ? <>{displayNameOf(selectedUser)}</> : <>Pick someone</>}
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="p-0" side="bottom" align="start" portalled={false}>
@@ -432,7 +433,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                                         setPopOpenUserName(false);
                                     }}
                                     >
-                                    <span>{member.user_name}</span>
+                                    <span>{displayNameOf(member)}</span>
                                     </CommandItem>
                                 ))}
                                 </CommandGroup>

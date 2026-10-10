@@ -1,6 +1,7 @@
 "use client"
 
 // src/components/channel/ChannelMessages.tsx
+import { displayNameOf } from "@/lib/personName"
 import {useCallback, useEffect, useMemo, useRef} from "react"
 import { groupByDate } from "@/lib/utils/date/groupByDate"
 import { getGroupDateHeading } from "@/lib/utils/date/getMessageGroupDate"
@@ -85,7 +86,7 @@ export const ChannelMessages = ({
                     updateUserInfoStatus({
                         userUUID: userPost.post_by.user_uuid || "",
                         profileKey: userPost.post_by.user_profile_object_key || "",
-                        userName: userPost.post_by.user_name || "",
+                        userName: displayNameOf(userPost.post_by) || "",
                         status: userPost.post_by.user_status || "",
                     }),
                 )

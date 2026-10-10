@@ -1,4 +1,5 @@
 
+import { displayNameOf } from "@/lib/personName"
 import {useLongPress} from "@/hooks/useLongPress";
 import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
@@ -66,7 +67,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
     // A channel guest's or Slack person's message or reply is drawn as theirs (see lib/relayedAuthor).
     const relayed = useRelayedAuthor(userInfo, content)
-    const authorName = relayed ? relayed.name : userInfo.user_name
+    const authorName = relayed ? relayed.name : displayNameOf(userInfo)
     const body = relayed ? relayed.body : content
 
     const [updatedText, setUpdatedText] = useState<string>(content);
@@ -91,7 +92,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                 }
                 setReactions(prevReactions => ({
                     ...prevReactions,
-                    [reaction.reaction_emoji_id]: [...(prevReactions[reaction.reaction_emoji_id] || []), reaction.reaction_added_by.user_name]
+                    [reaction.reaction_emoji_id]: [...(prevReactions[reaction.reaction_emoji_id] || []), displayNameOf(reaction.reaction_added_by)]
                 }));
 
             })
@@ -192,7 +193,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                     chatUUID: chatUUID,
                     chatMessageUUID: chatMessageUUID,
                     makeTask: () => {
-                        const action = makeTaskAction({ html: content, authorName: userInfo?.user_name, chatUUID, chatMessageID: chatMessageUUID }, window.location.origin)
+                        const action = makeTaskAction({ html: content, authorName: displayNameOf(userInfo), chatUUID, chatMessageID: chatMessageUUID }, window.location.origin)
                         if (action) dispatch(action)
                     },
                     onAddReaction: () => addEmojiReaction('dmChatMessageLongPress'),
@@ -237,7 +238,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                     grpId: grpId,
                     chatMessageUUID: chatMessageUUID,
                     makeTask: () => {
-                        const action = makeTaskAction({ html: content, authorName: userInfo?.user_name, groupUUID: grpId, chatMessageID: chatMessageUUID }, window.location.origin)
+                        const action = makeTaskAction({ html: content, authorName: displayNameOf(userInfo), groupUUID: grpId, chatMessageID: chatMessageUUID }, window.location.origin)
                         if (action) dispatch(action)
                     },
                     onAddReaction: () => addEmojiReaction('dmGroupChatMessageLongPress'),

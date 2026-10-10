@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { memo } from "react"
 import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, User, FolderKanban, Hash, LayoutDashboard } from "lucide-react"
 import { SearchResult } from "@/services/searchService"
@@ -35,7 +36,7 @@ const getTitle = (result: SearchResult): string => {
         case "task": return result.task?.task_name || ""
         case "comment": return result.comment?.comment_body || ""
         case "attachment": return result.attachment?.attachment_file_name || ""
-        case "user": return result.user?.user_name || ""
+        case "user": return displayNameOf(result.user) || ""
         case "project": return result.project?.project_name || ""
         case "channel": return result.channel?.ch_name || ""
         case "team": return result.team?.team_name || ""
@@ -69,7 +70,7 @@ export const getIcon = (result: SearchResult, iconClassName = "h-4 w-4") => {
         return (
             <ChatUserAvatar
                 userProfileObjKey={result.user?.user_profile_object_key}
-                userName={result.user?.user_name}
+                userName={displayNameOf(result.user)}
             />
         )
     }

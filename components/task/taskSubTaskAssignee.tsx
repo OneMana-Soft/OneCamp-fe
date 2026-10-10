@@ -1,3 +1,5 @@
+import { displayNameOf, personKeywords } from "@/lib/personName"
+import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { useTranslation } from "react-i18next"
 import { useState } from "react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -24,7 +26,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
 
     const {src: imageSrc} = useUserAvatar(userProfile?.user_profile_object_key);
 
-    const nameInitialArray = userProfile?.user_name.split(' ') || ["Unknown"]
+    const nameInitials = getNameInitials(displayNameOf(userProfile) || "Unknown")
 
     return (
         <Popover open={assigneePopoverOpen} onOpenChange={setAssigneePopoverOpen}>
@@ -45,8 +47,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                                         alt="Profile icon"
                                     />
                                     <AvatarFallback>
-                                        {nameInitialArray[0][0].toUpperCase() +
-                                            (nameInitialArray.length > 1 ? nameInitialArray[1][0].toUpperCase() : '')}
+                                        {nameInitials}
                                     </AvatarFallback>
                                 </Avatar>
                             ) : (
@@ -70,7 +71,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                                 <CommandItem
                                     key={member.user_uuid}
                                     value={member.user_uuid}
-                                    keywords={member.user_name ? [member.user_name] : undefined}
+                                    keywords={personKeywords(member)}
                                     onSelect={(currentValue) => {
                                         const m = taskProjectMembers.find((m) => m.user_uuid === currentValue);
 
@@ -79,7 +80,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                                         setAssigneePopoverOpen(false)
                                     }}
                                 >
-                                    <span>{member.user_name}</span>
+                                    <span>{displayNameOf(member)}</span>
                                     <Check
                                         className={cn(
                                             "ml-auto",

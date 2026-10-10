@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -266,8 +267,8 @@ export const BaseMessageCard = React.memo(({
         if (!r[reaction.reaction_emoji_id]) {
           r[reaction.reaction_emoji_id] = []
         }
-        if (reaction.reaction_added_by?.user_name) {
-          r[reaction.reaction_emoji_id].push(reaction.reaction_added_by.user_name)
+        if (displayNameOf(reaction.reaction_added_by)) {
+          r[reaction.reaction_emoji_id].push(displayNameOf(reaction.reaction_added_by))
         }
       })
     }

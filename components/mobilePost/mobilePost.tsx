@@ -1,6 +1,7 @@
 "use client"
 
 
+import { displayNameOf } from "@/lib/personName"
 import {useFetch, useFetchOnlyOnce} from "@/hooks/useFetch";
 import {type CreateOrUpdatePostsReq, CreatePostsRes, PostsResRaw} from "@/types/post";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
@@ -326,7 +327,7 @@ export const MobilePost = ({ channelId, postUUID }: { channelId: string, postUUI
                                 [
                                     `${mainMessageData.userName || "Someone"}: ${mainMessageData.content}`,
                                     ...postCommentState.map(
-                                        (c) => `${c.comment_by?.user_name || "Someone"}: ${c.comment_text}`,
+                                        (c) => `${displayNameOf(c.comment_by) || "Someone"}: ${c.comment_text}`,
                                     ),
                                 ].join("\n")
                             }

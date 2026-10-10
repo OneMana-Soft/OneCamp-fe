@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { useMemo, useState } from "react"
 import { UserComboboxItem } from "@/components/combobox/userComboboxItem"
 import { GoalOwner } from "@/components/goals/GoalOwner"
@@ -168,7 +169,9 @@ export function GoalDialog({
                           <UserComboboxItem
                             key={u.user_uuid}
                             userUuid={u.user_uuid}
-                            userName={u.user_full_name || u.user_name}
+                            userName={displayNameOf(u)}
+                            userFullName={u.user_full_name}
+                            userHandle={u.user_handle}
                             userEmail={u.user_email_id}
                             userProfileObjectKey={u.user_profile_object_key}
                             isSelected={ownerId === u.user_uuid}

@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { useCallback } from "react"
 import { useDispatch } from "react-redux"
 import { BaseMessageCard, mapChatInfoToBaseMessage } from "@/components/message/baseMessageCard"
@@ -28,11 +29,11 @@ export const GroupChatMessage = ({ updatePost, grpId, chatInfo, addReaction, rem
       setGroupChatReplyTarget({
         grpId,
         uuid: chatInfo.chat_uuid,
-        authorName: chatInfo.chat_from?.user_name || "",
+        authorName: displayNameOf(chatInfo.chat_from) || "",
         text: htmlToPreviewText(chatInfo.chat_body_text),
       }),
     )
-  }, [dispatch, grpId, chatInfo.chat_uuid, chatInfo.chat_from?.user_name, chatInfo.chat_body_text])
+  }, [dispatch, grpId, chatInfo.chat_uuid, chatInfo.chat_from, chatInfo.chat_body_text])
 
   return (
     <BaseMessageCard

@@ -9,6 +9,7 @@ import store from "@/store/store";
 import { updateMentionOpenedRecently } from "@/store/slice/mentionSlice";
 import axiosInstance from "@/lib/axiosInstance";
 import { GetEndpointUrl } from "@/services/endPoints";
+import { displayNameOf, pickPeople } from "@/lib/personName";
 
 type MentionSuggestion = {
   id: string;
@@ -86,9 +87,8 @@ export const mentionSuggestionOptions: MentionOptions["suggestion"] = {
             merged.push(u)
         }
 
-        return merged.filter((user) =>
-            user.user_name.toLowerCase().startsWith(query.toLowerCase())
-        ).slice(0, 5);
+        // Display name, full name or @handle, any case, a leading @ allowed.
+        return pickPeople(merged, query, 5);
     } catch (e) {
         console.error("Failed to fetch users for mention", e);
         return [];
@@ -172,8 +172,8 @@ const MentionList = forwardRef<MentionRef, MentionProps>((props, ref) => {
         const suggestion = props.items[index];
         const mentionItem: MentionSuggestion = {
             id: `${suggestion.user_uuid}@${suggestion.uid}`,
-            mentionLabel: suggestion.user_name,
-            label: suggestion.user_name
+            mentionLabel: displayNameOf(suggestion),
+            label: displayNameOf(suggestion)
         };
         props.command(mentionItem);
     };

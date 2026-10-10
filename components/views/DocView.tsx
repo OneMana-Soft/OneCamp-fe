@@ -1,5 +1,6 @@
 "use client";
 
+import { displayNameOf } from "@/lib/personName"
 import {useMedia} from "@/context/MediaQueryContext";
 import {DocTopBarBreadcrumb} from "@/components/doc/docTopBarBreadcrumb";
 import MinimalTiptapDocInput from "@/components/docEditor/docInput";
@@ -162,7 +163,7 @@ export function DocView({ docId }: { docId: string }) {
         return {
             enabled: true,
             documentId: docId,
-            username: userProfile.data.data.user_full_name || userProfile.data.data.user_name || 'Anonymous',
+            username: displayNameOf(userProfile.data.data) || 'Anonymous',
             userId: userProfile.data.data.user_uuid,
             color: generateColorFromUUID(userProfile.data?.data?.user_uuid || "default"),
             profileKey: userProfile.data.data.user_profile_object_key,

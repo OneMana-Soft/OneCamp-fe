@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
 import { Check, Search, User, X } from "@/lib/icons";
 import {GetEndpointUrl} from "@/services/endPoints"
 import {
@@ -61,7 +62,7 @@ export function SelectUserToMessageDropdown({
 
     // Memoize search query processing
     const normalizedSearchQuery = useMemo(() => {
-        return searchQuery.trim().toLowerCase()
+        return normalizePersonQuery(searchQuery)
     }, [searchQuery])
 
     const filteredUsers = useMemo(() => {
@@ -69,9 +70,7 @@ export function SelectUserToMessageDropdown({
 
         return baseUsers.filter(
             (user) =>
-                user.user_name.toLowerCase().includes(normalizedSearchQuery) ||
-                user.user_email_id?.toLowerCase().includes(normalizedSearchQuery) ||
-                user.user_job_title?.toLowerCase().includes(normalizedSearchQuery)
+                matchesPerson(user, normalizedSearchQuery, [user.user_email_id, user.user_job_title])
         )
     }, [normalizedSearchQuery, baseUsers])
 
@@ -124,12 +123,12 @@ export function SelectUserToMessageDropdown({
                             <div className="h-5 w-5 rounded-full overflow-hidden flex-shrink-0 [&_*]:h-5 [&_*]:w-5">
                                 <ChatUserListUserAvatar 
                                     userProfileObjKey={user.user_profile_object_key} 
-                                    userName={user.user_name}
+                                    userName={displayNameOf(user)}
                                 />
                             </div>
-                            <span className="text-xs">{user.user_name}</span>
+                            <span className="text-xs">{displayNameOf(user)}</span>
                             <button
-                                aria-label={`Remove ${user.user_name}`}
+                                aria-label={`Remove ${displayNameOf(user)}`}
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     handleRemoveUser(user.user_uuid)
@@ -163,12 +162,12 @@ export function SelectUserToMessageDropdown({
                                         : "bg-card hover:bg-accent border-border"
                                 )}
                             >
-                                <ChatUserListUserAvatar userProfileObjKey={user.user_profile_object_key} userName={user.user_name} />
+                                <ChatUserListUserAvatar userProfileObjKey={user.user_profile_object_key} userName={displayNameOf(user)} />
 
 
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <p className="font-medium text-sm text-foreground truncate">{user.user_name}</p>
+                                        <p className="font-medium text-sm text-foreground truncate">{displayNameOf(user)}</p>
                                         {user.is_bot && <BotTag userUUID={user.user_uuid} />}
                                         {isSelected &&
                                             <Check className="h-4 w-4 text-primary flex-shrink-0"/>}

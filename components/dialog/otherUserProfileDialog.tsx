@@ -1,5 +1,7 @@
 "use client"
 
+import { userDisplayName } from "@/lib/utils/userDisplayName";
+import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
 import {
     Dialog,
     DialogContent,
@@ -91,7 +93,10 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
         setOpenState(false);
     }
 
-    const userSeed = profileInfo.data?.data?.user_full_name || profileInfo.data?.data?.user_name || "User";
+    const shownName = userDisplayName(profileInfo.data?.data);
+    const fullName = isBot ? "" : secondaryNameOf(profileInfo.data?.data);
+    const handle = isBot ? "" : handleOf(profileInfo.data?.data);
+    const userSeed = shownName || "User";
     const nameIntial = getNameInitials(userSeed);
 
     return (
@@ -131,7 +136,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                             <Avatar className="h-32 w-32 ring-2 ring-border/50 shadow-sm">
                                 <AvatarImage
                                     src={imageSrc}
-                                    alt={`${profileInfo.data?.data?.user_name || 'User'}'s profile`}
+                                    alt={`${userSeed}'s profile`}
                                 />
                                 <AvatarFallback className={cn("text-2xl font-semibold", getAvatarFallbackClass(userSeed))}>
                                     {nameIntial}
@@ -150,7 +155,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                         <div className="text-center space-y-1">
                             <div className="flex items-center justify-center gap-2">
                                 <h2 className="text-lg font-semibold text-foreground truncate max-w-[220px]">
-                                    {profileInfo.data?.data?.user_name || "—"}
+                                    {shownName || "—"}
                                 </h2>
                                 {isBot ? (
                                     <Badge variant="secondary" className="text-2xs h-5 shrink-0">{botCopy.badge}</Badge>
@@ -158,6 +163,11 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                     <Badge variant="secondary" className="text-2xs h-5 shrink-0">External</Badge>
                                 ) : null}
                             </div>
+                            {(fullName || handle) && (
+                                <p className="text-sm text-muted-foreground truncate max-w-[260px]">
+                                    {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
+                                </p>
+                            )}
                             <p className="text-sm text-muted-foreground truncate max-w-[260px]">
                                 {isBot ? botCopy.subtitle : (profileInfo.data?.data?.user_email_id || "\u00A0")}
                             </p>
@@ -201,7 +211,7 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                 <InvitePlaceholder
                                     userUUID={userUUID}
                                     email={profileInfo.data.data.user_email_id}
-                                    name={profileInfo.data.data.user_full_name || profileInfo.data.data.user_name}
+                                    name={displayNameOf(profileInfo.data.data)}
                                 />
                             </>
                         )}
@@ -235,6 +245,13 @@ const OtherProfileDialog: React.FC<editProfileDialogProps> = ({
                                     <p className="text-xs font-medium text-muted-foreground">Display name</p>
                                     <p className="text-sm text-foreground">{profileInfo.data?.data?.user_name || "—"}</p>
                                 </div>
+
+                                {handle && (
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-medium text-muted-foreground">Handle</p>
+                                        <p className="text-sm text-foreground">@{handle}</p>
+                                    </div>
+                                )}
 
                                 <div className="space-y-1">
                                     <p className="text-xs font-medium text-muted-foreground">Job title</p>

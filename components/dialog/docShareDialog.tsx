@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import { eyebrowClass } from "@/components/ui/eyebrow"
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -104,7 +105,7 @@ export function DocShareDialog({ dialogOpenState, setOpenState, docId: propDocId
                     };
                 });
 
-                toast({ title: "Success", description: `Added ${user.user_name} as ${role}` });
+                toast({ title: "Success", description: `Added ${displayNameOf(user)} as ${role}` });
             },
             showToast: true
         });
@@ -290,10 +291,10 @@ function UserRow({ user, role, onRemove, isOwner }: { user: UserProfileDataInter
             <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">
                     <AvatarImage src={imageSrc} />
-                    <AvatarFallback>{user.user_name?.charAt(0) || <UserIcon className="w-4 h-4"/>}</AvatarFallback>
+                    <AvatarFallback>{displayNameOf(user)?.charAt(0) || <UserIcon className="w-4 h-4"/>}</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col">
-                    <span className="text-sm font-medium leading-none">{user.user_name}</span>
+                    <span className="text-sm font-medium leading-none">{displayNameOf(user)}</span>
                     <span className="text-xs text-muted-foreground">{user.user_email_id}</span> 
                 </div>
             </div>

@@ -4,6 +4,7 @@
 // they take on. The server reads the tasks (business/Project/workload.go);
 // this places them in the reader's own weeks.
 
+import { displayNameOf } from "@/lib/personName"
 import { addDays, differenceInCalendarDays, format, isSameYear, isWeekend, startOfWeek } from "date-fns"
 import { isClosedStatus } from "@/lib/taskStatus"
 import { spanOf, taskDate } from "@/lib/timeline"
@@ -238,7 +239,7 @@ export function workloadRows(
   }
   unassigned.loads = unassigned.loads.map((l) => Math.round(l * 100) / 100)
   const busy = (r: WorkloadRow) => r.loads.reduce((n, l) => n + l, 0) + r.overdueLoad
-  people.sort((a, b) => b.peak - a.peak || busy(b) - busy(a) || a.person!.user_name.localeCompare(b.person!.user_name))
+  people.sort((a, b) => b.peak - a.peak || busy(b) - busy(a) || displayNameOf(a.person!).localeCompare(displayNameOf(b.person!)))
   return { people, unassigned }
 }
 

@@ -1,4 +1,5 @@
 // src/components/channel/ChannelMessages.tsx
+import { displayNameOf } from "@/lib/personName"
 import { useCallback, useEffect, useMemo, useRef} from "react";
 import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
 import type {ChatTarget} from "@/lib/chat/conversation";
@@ -91,7 +92,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                     updateUserInfoStatus({
                         userUUID: userChat?.chat_from.user_uuid || "",
                         profileKey: userChat?.chat_from.user_profile_object_key || "",
-                        userName: userChat?.chat_from.user_name || "",
+                        userName: displayNameOf(userChat?.chat_from) || "",
                         status: userChat?.chat_from.user_status || "",
                     }),
                 )

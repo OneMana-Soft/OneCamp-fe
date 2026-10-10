@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import { UserProfileDataInterface } from "@/types/user"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
@@ -11,7 +12,7 @@ interface MessagePreviewAvatarProps {
 
 export const MessagePreviewAvatar = ({ userInfo }: MessagePreviewAvatarProps) => {
     const { src: imageSrc } = useUserAvatar(userInfo?.user_profile_object_key)
-    const nameInitial = getNameInitials(userInfo && userInfo.user_name)
+    const nameInitial = getNameInitials(userInfo && displayNameOf(userInfo))
 
     return (
         <Avatar className="h-9 w-9">
@@ -19,7 +20,7 @@ export const MessagePreviewAvatar = ({ userInfo }: MessagePreviewAvatarProps) =>
             <AvatarFallback
                 className={cn(
                     "text-2xs font-semibold",
-                    getAvatarFallbackClass(userInfo?.user_name),
+                    getAvatarFallbackClass(displayNameOf(userInfo)),
                 )}
             >
                 {nameInitial}

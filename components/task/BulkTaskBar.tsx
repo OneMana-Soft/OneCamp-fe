@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf, personKeywords } from "@/lib/personName"
 import * as React from "react"
 import { Check, Minus, Plus } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
@@ -149,7 +150,7 @@ export function BulkTaskBar({
                     <AssigneeList
                       projectId={project}
                       onPick={(user) =>
-                        run({ field: "assignee", user }, user ? `Assigned ${tasksCount(editable.length)} to ${user.user_name}` : `Unassigned ${tasksCount(editable.length)}`)
+                        run({ field: "assignee", user }, user ? `Assigned ${tasksCount(editable.length)} to ${displayNameOf(user)}` : `Unassigned ${tasksCount(editable.length)}`)
                       }
                     />
                   )}
@@ -223,9 +224,9 @@ function AssigneeList({ projectId, onPick }: { projectId: string; onPick: (user:
             No one
           </CommandItem>
           {members.map((m) => (
-            <CommandItem key={m.user_uuid} value={m.user_uuid} keywords={m.user_name ? [m.user_name] : undefined} onSelect={() => onPick(m)} className="gap-2">
+            <CommandItem key={m.user_uuid} value={m.user_uuid} keywords={personKeywords(m)} onSelect={() => onPick(m)} className="gap-2">
               <DesktopNavigationChatAvatar userInfo={m} />
-              <span className="truncate">{m.user_name}</span>
+              <span className="truncate">{displayNameOf(m)}</span>
             </CommandItem>
           ))}
         </CommandGroup>

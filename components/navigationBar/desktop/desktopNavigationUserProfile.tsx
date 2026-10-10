@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import {UserAvatarNav} from "@/components/navigationBar/userAvatarNav";
 
 import {
@@ -42,7 +43,7 @@ export default function DesktopNavigationUserProfile() {
             <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                     <UserAvatarNav
-                        userName={selfProfile.data?.data.user_name}
+                        userName={displayNameOf(selfProfile.data?.data)}
                         userProfileObjKey={selfProfile.data?.data.user_profile_object_key}
                         toolTipString={"Profile and settings"}
                         userUUID={selfProfile.data?.data.user_uuid}
@@ -61,7 +62,7 @@ export default function DesktopNavigationUserProfile() {
             <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{selfProfile.data?.data.user_full_name}</p>
+                        <p className="text-sm font-medium leading-none">{displayNameOf(selfProfile.data?.data)}</p>
                         <p className="text-xs leading-none text-muted-foreground">
                             {selfProfile.data?.data.user_email_id}
                         </p>

@@ -7,6 +7,7 @@
 // the board is next opened with no collaborators connected; that caveat is
 // surfaced to the user.
 
+import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import { useFetch } from "@/hooks/useFetch"
 import { usePost } from "@/hooks/usePost"
@@ -132,7 +133,7 @@ function SnapshotRow({
   const meta = REASON_META[snapshot.reason] ?? REASON_META.interval
   const contributors = snapshot.contributors ?? []
   const contributorName = (c: BoardSnapshotContributor) =>
-    (c.user_full_name || c.user_name || "Someone").trim()
+    displayNameOf(c) || "Someone"
   const namesSummary =
     contributors.length === 0
       ? ""

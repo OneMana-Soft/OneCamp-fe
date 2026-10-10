@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import React, { useMemo } from "react";
 import { UnifiedActivityItem } from "@/types/activity";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -125,11 +126,11 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
             <Avatar className="w-9 h-9">
                 <AvatarImage
                     src={imageSrc}
-                    alt={meta.user?.user_full_name}
+                    alt={displayNameOf(meta.user)}
                     className="object-cover"
                 />
                 <AvatarFallback className="text-2xs font-medium bg-muted text-muted-foreground">
-                    {getNameInitials(meta.user?.user_full_name || "?")}
+                    {getNameInitials(displayNameOf(meta.user) || "?")}
                 </AvatarFallback>
             </Avatar>
             <div
@@ -152,7 +153,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({ activity, onClick })
         <span className="flex w-full min-w-0 items-center gap-1.5">
             <span className="min-w-0 truncate">
                 <span className="font-semibold text-foreground">
-                    {meta.user?.user_full_name || "Unknown user"}
+                    {displayNameOf(meta.user) || "Unknown user"}
                 </span>{" "}
                 <span className="font-normal text-muted-foreground">{meta.title}</span>
             </span>

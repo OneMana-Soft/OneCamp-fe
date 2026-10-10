@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import { useState, useEffect } from "react";
 import { ChevronsUpDown } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
@@ -70,7 +71,7 @@ const AddBoardMemberCombobox: React.FC<AddBoardMemberComboboxProps> = ({ boardId
                             size="sm"
                         >
                             <span className="truncate text-sm font-medium">
-                                {selectedUser ? selectedUser.user_name : "Search members…"}
+                                {selectedUser ? displayNameOf(selectedUser) : "Search members…"}
                             </span>
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
                         </Button>
@@ -93,7 +94,9 @@ const AddBoardMemberCombobox: React.FC<AddBoardMemberComboboxProps> = ({ boardId
                                         <UserComboboxItem
                                             key={user.user_uuid}
                                             userUuid={user.user_uuid}
-                                            userName={user.user_name}
+                                            userName={displayNameOf(user)}
+                                            userFullName={user.user_full_name}
+                                            userHandle={user.user_handle}
                                             userEmail={user.user_email_id}
                                             userProfileObjectKey={user.user_profile_object_key}
                                             isSelected={selectedUser?.user_uuid === user.user_uuid}

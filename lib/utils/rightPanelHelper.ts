@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import {PostsRes} from "@/types/post";
 import {ChatInfo} from "@/types/chat";
 import {ForwardedMessageData, MainMessageData} from "@/types/rightPanel";
@@ -81,7 +82,7 @@ export const getMainMessageData = (data: PostsRes | ChatInfo | undefined): MainM
     if (isPostData(data)) {
         return {
             userInfo: data.post_by,
-            userName: data.post_by?.user_name || "Unknown User",
+            userName: displayNameOf(data.post_by) || "Unknown User",
             createdAt: data.post_created_at || "",
             content: data.post_text || "",
             comments: data.post_comments || [],
@@ -94,7 +95,7 @@ export const getMainMessageData = (data: PostsRes | ChatInfo | undefined): MainM
     } else if (isChatData(data)) {
         return {
             userInfo: data.chat_from,
-            userName: data.chat_from?.user_name || "Unknown User",
+            userName: displayNameOf(data.chat_from) || "Unknown User",
             createdAt: data.chat_created_at || "",
             content: data.chat_body_text || "",
             comments: data.chat_comments || [],

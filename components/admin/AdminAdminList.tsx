@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf, secondaryNameOf } from "@/lib/personName"
 import React, { useRef, useEffect } from "react"
 import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -148,7 +149,8 @@ function AdminAdminRow({
   onRemoveAdmin,
 }: AdminAdminRowProps) {
   const { src: imageSrc } = useUserAvatar(admin.user_profile_object_key)
-  const seed = admin.user_full_name || admin.user_name || admin.user_email_id || ""
+  const seed = displayNameOf(admin)
+  const fullName = secondaryNameOf(admin)
   const isSelf = admin.user_uuid === currentUserUUID
 
   return (
@@ -174,7 +176,7 @@ function AdminAdminRow({
         </div>
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-medium leading-tight truncate flex items-center gap-1.5">
-            {admin.user_full_name || admin.user_name || admin.user_email_id}
+            {seed}
             {isSelf && (
               <span className="text-2xs font-medium text-muted-foreground bg-muted/60 rounded px-1.5 py-0.5">
                 You
@@ -182,7 +184,7 @@ function AdminAdminRow({
             )}
           </span>
           <span className="text-xs text-muted-foreground mt-0.5 truncate">
-            {admin.user_email_id}
+            {fullName ? `${fullName} · ${admin.user_email_id ?? ""}` : admin.user_email_id}
           </span>
         </div>
       </button>

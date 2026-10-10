@@ -1,5 +1,6 @@
 "use client"
 
+import { matchesPerson, normalizePersonQuery } from "@/lib/personName"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -73,16 +74,10 @@ const AdminCard = () => {
     adminList.mutate()
   }
 
-  const normalisedSearch = search.trim().toLowerCase()
+  const normalisedSearch = normalizePersonQuery(search)
   const filteredAdmins = useMemo(() => {
     if (!normalisedSearch) return allAdmins
-    return allAdmins.filter((a) => {
-      const haystack = [a.user_full_name, a.user_name, a.user_email_id]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-      return haystack.includes(normalisedSearch)
-    })
+    return allAdmins.filter((a) => matchesPerson(a, normalisedSearch, [a.user_email_id]))
   }, [allAdmins, normalisedSearch])
 
   return (

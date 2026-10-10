@@ -6,6 +6,7 @@
 // large workspaces. Restricted to owner/editors server-side; the affordance is
 // only shown to them. Board/doc dialogs are thin wrappers around this.
 
+import { displayNameOf } from "@/lib/personName"
 import * as React from "react"
 import axiosInstance from "@/lib/axiosInstance"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
@@ -140,7 +141,7 @@ function ResourceViewersDialog({
 function ViewerRow({ viewer, isSelf }: { viewer: ResourceViewer; isSelf: boolean }) {
   const relative = useRelativeTime(viewer.last_viewed_at)
   const { src } = useUserAvatar(viewer.user_profile_object_key)
-  const name = (viewer.user_full_name || viewer.user_name || "Someone").trim()
+  const name = displayNameOf(viewer) || "Someone"
 
   return (
     <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-accent/40">

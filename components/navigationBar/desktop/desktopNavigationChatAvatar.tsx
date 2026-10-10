@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import {USER_STATUS_ONLINE,  UserProfileDataInterface} from "@/types/user";
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import {useUserAvatar} from "@/hooks/useUserAvatar";
@@ -14,7 +15,7 @@ export const DesktopNavigationChatAvatar = ({userInfo}: {userInfo?: UserProfileD
     const profileKey = userStatusState?.userName ? userStatusState.profileKey : userInfo?.user_profile_object_key
     const {src: imageSrc} = useUserAvatar(profileKey);
 
-    const nameInitial = getNameInitials(userInfo?.user_name);
+    const nameInitial = getNameInitials(displayNameOf(userInfo));
 
 
     const isReduxLoaded = userStatusState && userStatusState.deviceConnected !== -1;
@@ -28,7 +29,7 @@ export const DesktopNavigationChatAvatar = ({userInfo}: {userInfo?: UserProfileD
         <div className='relative'>
             <Avatar className='h-7 w-7 md:h-5 md:w-5 hover:cursor-pointer' >
                 <AvatarImage src={imageSrc}/>
-                <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(userInfo?.user_name))}>{nameInitial[0]}</AvatarFallback>
+                <AvatarFallback className={cn("text-3xs font-semibold", getAvatarFallbackClass(displayNameOf(userInfo)))}>{nameInitial[0]}</AvatarFallback>
             </Avatar>
             {isOnline && <div className={`h-2.5 w-2.5 md:h-2 md:w-2 ring-[1px] ring-background rounded-full ${statusColors.online.solid} absolute bottom-0 right-0`}></div>}
 

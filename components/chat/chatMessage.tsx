@@ -1,5 +1,6 @@
 "use client"
 
+import { displayNameOf } from "@/lib/personName"
 import React, { useCallback } from "react"
 import { usePathname } from "next/navigation"
 import { useDispatch } from "react-redux"
@@ -37,11 +38,11 @@ export const ChatMessage = React.memo(({ updatePost, chatInfo, addReaction, remo
       setChatReplyTarget({
         chatUUID: otherUserUUID,
         uuid: chatInfo.chat_uuid,
-        authorName: chatInfo.chat_from?.user_name || "",
+        authorName: displayNameOf(chatInfo.chat_from) || "",
         text: htmlToPreviewText(chatInfo.chat_body_text),
       }),
     )
-  }, [dispatch, otherUserUUID, chatInfo.chat_uuid, chatInfo.chat_from?.user_name, chatInfo.chat_body_text])
+  }, [dispatch, otherUserUUID, chatInfo.chat_uuid, chatInfo.chat_from, chatInfo.chat_body_text])
 
   return (
     <BaseMessageCard

@@ -1,3 +1,4 @@
+import { displayNameOf } from "@/lib/personName"
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 
@@ -146,7 +147,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
             ),
             cell: ({ row }) => (
 
-                <>{row.original?.task_assignee?.user_name ? <div className="flex space-x-2 group cursor-pointer" onClick={()=>{
+                <>{row.original?.task_assignee && displayNameOf(row.original.task_assignee) ? <div className="flex space-x-2 group cursor-pointer" onClick={()=>{
                     // store.dispatch(openOtherUserProfilePopup({userId:row.original?.task_assignee?.user_uuid || ''}))
                 }}>
         <TaskAssigneeCell userInfo={row.original?.task_assignee}/>
