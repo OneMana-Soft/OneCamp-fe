@@ -79,6 +79,8 @@ export function TaskEstimateField({ taskUUID, projectUUID, minutes, canEdit }: {
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur()
             if (e.key === "Escape") {
+              // Handled: the panel this field sits in stays open.
+              e.preventDefault()
               cancelled.current = true
               e.currentTarget.blur()
             }

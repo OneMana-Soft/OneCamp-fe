@@ -239,6 +239,8 @@ export function UpdateComposer({
           e.preventDefault()
           void submit()
         } else if (e.key === "Escape" && !busy) {
+          // Handled here: a panel open beside the project stays open.
+          e.preventDefault()
           onDone()
         }
       }}

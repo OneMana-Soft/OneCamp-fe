@@ -9,6 +9,7 @@ vi.mock("react-redux", () => ({
 }))
 
 const { UpdateComposer } = await import("@/components/projectUpdates/UpdateComposer")
+const { useEscapeClosesPanel } = await import("@/hooks/useEscapeClosesPanel")
 
 afterEach(() => {
   cleanup()
@@ -59,6 +60,23 @@ describe("writing an update", () => {
     expect(p.post).toHaveBeenCalledWith({ health: "off_track", body: DRAFT.text, shared_with_client: true, channel_uuid: undefined })
     expect(p.onDone).toHaveBeenCalled()
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Update posted" }))
+  })
+
+  it("closes on Escape, and only the composer: a panel open beside it stays", async () => {
+    const closePanel = vi.fn()
+    function PanelBeside() {
+      useEscapeClosesPanel(true, closePanel)
+      return null
+    }
+    render(<PanelBeside />)
+    const p = setup()
+    await waitFor(() => expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe(DRAFT.text))
+    // From a health choice, a button: nothing to leave, so it is the composer's Escape.
+    const pill = screen.getByRole("radio", { name: /On track/ })
+    pill.focus()
+    fireEvent.keyDown(pill, { key: "Escape" })
+    expect(p.onDone).toHaveBeenCalled()
+    expect(closePanel).not.toHaveBeenCalled()
   })
 
   it("edits an update without drafting over it", async () => {

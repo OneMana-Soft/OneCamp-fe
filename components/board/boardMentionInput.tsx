@@ -171,8 +171,9 @@ export function BoardMentionInput({
       onSubmit?.()
       return
     }
-    if (e.key === "Escape") {
-      onCancel?.()
+    if (e.key === "Escape" && onCancel) {
+      e.preventDefault()
+      onCancel()
     }
   }
 

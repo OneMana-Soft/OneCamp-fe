@@ -78,6 +78,8 @@ export function InlineBoardCreator({ className, isOpen: controlledIsOpen, onOpen
       handleCreate()
     }
     if (e.key === "Escape") {
+      // Handled here: a panel open beside the list stays open.
+      e.preventDefault()
       setIsOpen(false)
       setTitle("")
       setError(null)
