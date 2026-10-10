@@ -39,10 +39,38 @@ import {
   type DrillStatus,
 } from "@/services/governanceDrillService"
 import { withAI } from "@/components/common/withFeature"
+import { ActivityFeedFrame } from "@/components/activity/activityFeedFrame"
+import { VirtualInfiniteScroll } from "@/components/list/virtualInfiniteScroll"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { SpotWelcome } from "@/components/ui/graphics"
+import { AIActivityFeedRow } from "@/components/ai/aiActivityFeedRow"
 
-function MyAIActivityCard() {
-  const { data, isLoading, mutate } = useFetch<{ data: AIActivityItem[] }>(
-    `${GetEndpointUrl.MyAIActivity}?limit=25`,
+/** The feed asks for this many entries at a time, up to the server's cap. */
+const FEED_STEP = 25
+const FEED_MAX = 100
+
+interface MyAIActivityCardProps {
+  /**
+   * "card", the default, is the settings page's card. "feed" is the Activity
+   * tab: the same record, its drill and its download, drawn in the frame every
+   * Activity tab shares (components/activity/activityFeedFrame) and as rows
+   * shaped like the other tabs' rows. The card was the tab until 10 Oct, a
+   * bordered box with a second title under the tab's own.
+   */
+  variant?: "card" | "feed"
+}
+
+function MyAIActivityCard({ variant = "card" }: MyAIActivityCardProps) {
+  const feed = variant === "feed"
+  // The server answers up to FEED_MAX entries and has no cursor, so the feed
+  // asks for a longer list as the reader scrolls.
+  const [limit, setLimit] = React.useState(FEED_STEP)
+  const { data, isLoading, isError, mutate } = useFetch<{ data: AIActivityItem[] }>(
+    `${GetEndpointUrl.MyAIActivity}?limit=${limit}`,
+    undefined,
+    // The rows already shown stay while the longer list loads.
+    feed ? { keepPreviousData: true } : undefined,
   )
   const items = data?.data ?? []
 
@@ -147,6 +175,131 @@ function MyAIActivityCard() {
   }, [status?.seeded, running, run])
 
 
+  /* What this record says after the reader acted: the drill they asked for,
+     a failure, the drill's proof. The same words in both variants; the feed
+     drops the card's boxes. */
+  const notice = (
+    <>
+      {asked ? (
+        <p
+          className={feed ? "rounded-md bg-muted/40 px-3 py-2 text-sm" : "rounded-lg border border-border bg-muted/30 p-3 text-sm"}
+          role="status"
+          aria-live="polite"
+        >
+          {running ? (
+            "Running the governance drill you asked for. An agent acting as you is about to try something you are not allowed to do."
+          ) : result?.passed ? (
+            <>
+              That is the drill you asked for, and the refusal is on the record below with its position in
+              the chain. Download it and anyone can check it without this workspace.
+            </>
+          ) : (
+            "The governance drill you asked for is below."
+          )}
+        </p>
+      ) : null}
+
+      {error ? (
+        <p className="text-sm text-danger-ink" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {result ? (
+        <div className={feed ? "space-y-3 rounded-md bg-muted/30 p-3" : "space-y-3 rounded-lg border border-border bg-muted/20 p-3"}>
+          <p className="text-sm font-medium">
+            {result.passed
+              ? `An agent acting as you tried to post in #${status?.forbidden_channel} and was refused.`
+              : "The drill did not pass. The steps below say which part."}
+          </p>
+          {result.refusal_reason ? (
+            /* The permission layer's own sentence, quoted rather than
+               paraphrased: a demo that rewords the refusal invites the
+               question of whether the refusal was real. */
+            <p className="text-sm text-muted-foreground">“{result.refusal_reason}”</p>
+          ) : null}
+          <ol className="space-y-1.5">
+            {result.steps.map((step, i) => (
+              <StepRow key={step.name} step={step} index={i} />
+            ))}
+          </ol>
+          {result.rows?.length ? (
+            <div className={feed ? "divide-y divide-border/60" : "rounded-md border border-border bg-card"}>
+              {result.rows.map((row) => (
+                <AuditRowLine key={row.id} row={row} />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  )
+
+  if (feed) {
+    const more = items.length >= limit && limit < FEED_MAX
+    return (
+      <ActivityFeedFrame
+        // Whose record this is, where there is room to say it. An admin
+        // reading it would otherwise take it for the workspace's.
+        filter={
+          <p className="hidden min-w-0 truncate text-xs text-muted-foreground sm:block">
+            Your own record: what agents did as you, and what they were refused.
+          </p>
+        }
+        actions={
+          <>
+            {items.length > 0 ? (
+              <Button size="xs" variant="outline" className="extend-touch-target" onClick={saveRecord} disabled={saving}>
+                {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                Download the record
+              </Button>
+            ) : null}
+            {status?.seeded ? (
+              <Button size="xs" variant="outline" className="extend-touch-target" onClick={run} disabled={running}>
+                {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1 h-3.5 w-3.5" />}
+                {running ? "Running" : "Prove it"}
+              </Button>
+            ) : null}
+          </>
+        }
+        notice={asked || error || result ? <div className="space-y-2">{notice}</div> : undefined}
+        loading={isLoading && items.length === 0}
+        loadingLabel="Loading your AI activity"
+        // Failure before emptiness: on a governance record, "nothing has acted
+        // as you" is the one claim a failed request must not make.
+        state={
+          isError && items.length === 0 ? (
+            <ErrorState subject="your AI activity" onRetry={() => void mutate()} />
+          ) : items.length === 0 ? (
+            <EmptyState
+              icon={ShieldCheck}
+              illustration={<SpotWelcome hue="dusk" />}
+              title="Nothing has acted as you yet"
+              description={
+                status?.seeded
+                  ? "Press Prove it and an agent acting as you will try to post in a channel you are not in."
+                  : "When an agent acts as you, or is stopped from acting, it appears here with the reason."
+              }
+            />
+          ) : null
+        }
+      >
+        <VirtualInfiniteScroll
+          items={items}
+          renderItem={(it: AIActivityItem) => <AIActivityFeedRow item={it} />}
+          onLoadMore={() => {
+            if (more && !isLoading) setLimit((l) => Math.min(l + FEED_STEP, FEED_MAX))
+          }}
+          hasMore={more}
+          isLoading={isLoading && items.length > 0}
+          keyExtractor={(it: AIActivityItem, i: number) =>
+            it.entry_hash ? `audit-${it.entry_hash}` : it.run_id ? `run-${it.run_id}` : `${it.kind}-${it.at}-${i}`
+          }
+        />
+      </ActivityFeedFrame>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -198,59 +351,16 @@ function MyAIActivityCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {asked ? (
-          <p className="rounded-lg border border-border bg-muted/30 p-3 text-sm" role="status" aria-live="polite">
-            {running ? (
-              "Running the governance drill you asked for. An agent acting as you is about to try something you are not allowed to do."
-            ) : result?.passed ? (
-              <>
-                That is the drill you asked for, and the refusal is on the record below with its position in
-                the chain. Download it and anyone can check it without this workspace.
-              </>
-            ) : (
-              "The governance drill you asked for is below."
-            )}
-          </p>
-        ) : null}
-
-        {error ? (
-          <p className="text-sm text-danger-ink" role="alert">
-            {error}
-          </p>
-        ) : null}
-
-        {result ? (
-          <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
-            <p className="text-sm font-medium">
-              {result.passed
-                ? `An agent acting as you tried to post in #${status?.forbidden_channel} and was refused.`
-                : "The drill did not pass. The steps below say which part."}
-            </p>
-            {result.refusal_reason ? (
-              /* The permission layer's own sentence, quoted rather than
-                 paraphrased: a demo that rewords the refusal invites the
-                 question of whether the refusal was real. */
-              <p className="text-sm text-muted-foreground">“{result.refusal_reason}”</p>
-            ) : null}
-            <ol className="space-y-1.5">
-              {result.steps.map((step, i) => (
-                <StepRow key={step.name} step={step} index={i} />
-              ))}
-            </ol>
-            {result.rows?.length ? (
-              <div className="rounded-md border border-border bg-card">
-                {result.rows.map((row) => (
-                  <AuditRowLine key={row.id} row={row} />
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        {notice}
 
         {isLoading ? (
           <div role="status" aria-label="Loading your AI activity" className="py-1">
             <SkeletonRows rows={3} />
           </div>
+        ) : isError && items.length === 0 ? (
+          // Before the empty case: "Nothing yet" on a record that failed to
+          // load tells the reader no agent has acted as them.
+          <ErrorState subject="your AI activity" onRetry={() => void mutate()} />
         ) : items.length === 0 ? (
           /* An empty feed is a fact, not a failure: nothing has acted as you yet.
              Saying what WOULD appear is what stops it reading as broken, and
