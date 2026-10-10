@@ -51,6 +51,10 @@ export interface NormalizedChart {
      * before it (the first at the bottom), as a cumulative flow is drawn. An
      * agent's spec can't set it. */
     stacked?: boolean;
+    /** What the value axis counts ("Tasks", "Hours"), written above it when
+     * the title alone doesn't say. Charts the app builds set it; an agent's
+     * spec can't. */
+    unit?: string;
 }
 
 // Hard caps. Charts are meant to summarize, not to dump a whole dataset into
