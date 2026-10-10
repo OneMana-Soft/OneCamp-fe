@@ -9,6 +9,10 @@ export interface DesktopChildrenNavType {
     variant?: "default" | "ghost" | "sidebarActive"
     unread_count?:number
     project_uuid?: string
+    /** What the item is (a channel's, doc's or team's uuid), for its identity
+     *  hue (lib/campHue): the sidebar draws its glyph in that hue. A
+     *  destination (All docs, Home) has none and stays neutral. */
+    hue_id?: string
     userParticipants?: UserProfileDataInterface[]
     userProfile?: UserProfileDataInterface
     isCallActive?: boolean

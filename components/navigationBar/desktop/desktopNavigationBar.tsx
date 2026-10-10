@@ -189,6 +189,7 @@ export function DesktopNavigationBar({
             title: t.team_name,
             path: `${app_project_team}/${t.team_uuid}`,
             variant: (path.length > 3 && path[3] == t.team_uuid) ? "sidebarActive" : "ghost",
+            hue_id: t.team_uuid,
         })
     }
 
@@ -206,6 +207,7 @@ export function DesktopNavigationBar({
             variant: (path.length > 3 && path[3] == c.ch_uuid) ? "sidebarActive" : "ghost",
             isCallActive: channelCallStatus[c.ch_uuid]?.active || false,
             isFavorite: true,
+            hue_id: c.ch_uuid,
         })
     }
 
@@ -219,6 +221,7 @@ export function DesktopNavigationBar({
             variant: (path.length > 3 && path[3] == c.ch_uuid) ? "sidebarActive" : "ghost",
             isCallActive: channelCallStatus[c.ch_uuid]?.active || false,
             isFavorite: false,
+            hue_id: c.ch_uuid,
         })
     }
 
@@ -344,6 +347,7 @@ export function DesktopNavigationBar({
                     path: `${app_doc_path}/${d.doc_uuid}`,
                     variant: (path.length > 3 && path[3] == d.doc_uuid) ? "sidebarActive" : "ghost",
                     icon: FileIcon,
+                    hue_id: d.doc_uuid,
                 })),
             ],
             inlineCreator: <InlineDocCreator isOpen={isDocCreatorOpen} onOpenChange={setIsDocCreatorOpen} />,
