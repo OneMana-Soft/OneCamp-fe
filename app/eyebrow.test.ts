@@ -78,7 +78,9 @@ describe("uppercase section labels come from one place", () => {
       "app/signup", "app/reset-password", "app/forgot-password", "app/unsubscribe", "app/connect",
       "app/logout", "app/error",
     ]
-    const ANY_TRACKING = /className="[^"]*(?:uppercase[^"]*tracking-wide\b|tracking-wide\b[^"]*uppercase)[^"]*"/g
+    // The Eyebrow itself counts too: its uppercase lives in components/ui, so
+    // "WHAT CAME ACROSS" under a Slack import passed a scan of class strings.
+    const ANY_TRACKING = /className="[^"]*(?:uppercase[^"]*tracking-wide\b|tracking-wide\b[^"]*uppercase)[^"]*"|<Eyebrow\b|\beyebrowClass\b/g
     const holders: string[] = []
     for (const dir of AREA) {
       let inDir: string[] = []
