@@ -1,6 +1,41 @@
 import { withCsrfHeader } from "@/lib/utils/csrf";
 
 /**
+ * How long a signed-out page waits for the server to answer a question it asks
+ * before it can draw (is somebody signed in, which ways in are on, does this
+ * server need an admin) before it goes on as if the answer were "no".
+ *
+ * Those questions had no limit, so an API that accepted the connection and then
+ * hung left the sign-in page blank for good. Eight seconds is far past a slow
+ * answer and short enough that the person is still there when the page shows.
+ */
+export const PROBE_TIMEOUT_MS = 8_000;
+
+/**
+ * Runs `work` with a signal, and stops waiting for it after `ms`.
+ *
+ * The request is aborted, so a browser lets go of the connection, AND raced, so
+ * work that ignores its signal (a body that never finishes, a stub in a test)
+ * still stops being waited for. Rejects when the time is up; callers catch that
+ * as they catch a failed request.
+ */
+async function within<T>(work: (signal: AbortSignal) => Promise<T>, ms = PROBE_TIMEOUT_MS): Promise<T> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeUp = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+            controller.abort();
+            reject(new Error(`no answer within ${ms}ms`));
+        }, ms);
+    });
+    try {
+        return await Promise.race([work(controller.signal), timeUp]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
  * The three outcomes of a password submission.
  *
  * `totp_required` is the one worth naming: the password was CORRECT and the user is still not signed in.
@@ -256,12 +291,14 @@ class AuthService {
      */
     static async getAdminSetupStatus(): Promise<{ required: boolean; pinned: boolean }> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/admin-setup-required`,
-                { credentials: 'include' }
-            );
-            const data = await res.json();
-            return { required: data.required === true, pinned: data.pinned === true };
+            return await within(async (signal) => {
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/admin-setup-required`,
+                    { credentials: 'include', signal }
+                );
+                const data = await res.json();
+                return { required: data.required === true, pinned: data.pinned === true };
+            });
         } catch {
             return { required: false, pinned: false };
         }
@@ -368,38 +405,47 @@ class AuthService {
      */
     static async hasActiveSession(): Promise<boolean> {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL;
-        const probe = async (): Promise<number> => {
-            try {
-                const res = await fetch(`${base}user/profile`, {
-                    method: 'GET',
-                    credentials: 'include',
-                    // Don't let a never-resolving network hang the loading
-                    // screen; treat a slow/failed probe as "not logged in".
-                    cache: 'no-store',
-                });
-                return res.status;
-            } catch {
-                return 0; // network error → treat as not logged in
-            }
-        };
-
-        let status = await probe();
-        if (status === 401) {
-            // Access token likely expired; try one refresh, then re-probe.
-            try {
-                const refresh = await fetch(`${base}refreshToken`, {
-                    method: 'GET',
-                    credentials: 'include',
-                    cache: 'no-store',
-                });
-                if (refresh.ok) {
-                    status = await probe();
+        // The whole check, refresh included, within PROBE_TIMEOUT_MS: a probe that
+        // never answers is "not signed in", so the sign-in page can draw.
+        const check = async (signal: AbortSignal): Promise<boolean> => {
+            const probe = async (): Promise<number> => {
+                try {
+                    const res = await fetch(`${base}user/profile`, {
+                        method: 'GET',
+                        credentials: 'include',
+                        cache: 'no-store',
+                        signal,
+                    });
+                    return res.status;
+                } catch {
+                    return 0; // network error → treat as not logged in
                 }
-            } catch {
-                /* refresh unreachable → fall through as not logged in */
+            };
+
+            let status = await probe();
+            if (status === 401) {
+                // Access token likely expired; try one refresh, then re-probe.
+                try {
+                    const refresh = await fetch(`${base}refreshToken`, {
+                        method: 'GET',
+                        credentials: 'include',
+                        cache: 'no-store',
+                        signal,
+                    });
+                    if (refresh.ok) {
+                        status = await probe();
+                    }
+                } catch {
+                    /* refresh unreachable → fall through as not logged in */
+                }
             }
+            return status >= 200 && status < 300;
+        };
+        try {
+            return await within(check);
+        } catch {
+            return false; // no answer in time → treat as not logged in
         }
-        return status >= 200 && status < 300;
     }
 
     static async loginWithOIDC() {
@@ -452,23 +498,26 @@ class AuthService {
         demo: boolean;
     } | null> {
         try {
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/providers`,
-                { credentials: 'include' }
-            );
-            if (!res.ok) return null;
-            const data = await res.json();
-            const p = data?.providers || {};
-            return {
-                email: !!p.email,
-                google: !!p.google,
-                github: !!p.github,
-                oidc: !!p.oidc,
-                saml: !!p.saml,
-                ldap: !!p.ldap,
-                demo: !!p.demo,
-            };
+            return await within(async (signal) => {
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_BACKEND_URL}auth/providers`,
+                    { credentials: 'include', signal }
+                );
+                if (!res.ok) return null;
+                const data = await res.json();
+                const p = data?.providers || {};
+                return {
+                    email: !!p.email,
+                    google: !!p.google,
+                    github: !!p.github,
+                    oidc: !!p.oidc,
+                    saml: !!p.saml,
+                    ldap: !!p.ldap,
+                    demo: !!p.demo,
+                };
+            });
         } catch {
+            // No answer, or none in time: the page uses the build's own list.
             return null;
         }
     }
