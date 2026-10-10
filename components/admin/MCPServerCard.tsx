@@ -28,11 +28,11 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { SettingsList, SettingsSection, SwitchRow, SaveBar } from "@/components/ui/settingsSection"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { ErrorState } from "@/components/ui/error-state"
+import { StatusWord } from "@/components/ui/statusWord"
+import { SectionListSkeleton } from "@/components/admin/SectionListSkeleton"
 import { useToast } from "@/hooks/use-toast"
 import { apiErrorMessage } from "@/lib/utils/apiError"
-import { cn } from "@/lib/utils/helpers/cn"
 import { ShieldAlert } from "@/lib/icons"
 import { CopyableCode } from "@/components/ui/copyable-code"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -47,6 +47,9 @@ import { getAIMCPServer, setAIMCPServer, type MCPServerSettings } from "@/servic
 
 /** The stored value meaning "every group, including ones added later". */
 const ALL = "*"
+
+/** A connection recipe's steps, on every tab alike. */
+const STEPS = "list-decimal space-y-1.5 pl-4 text-xs text-muted-foreground marker:text-muted-foreground"
 
 /**
  * Human labels for the groups the server reports.
@@ -110,6 +113,7 @@ function MCPServerCard() {
     const [allGroups, setAllGroups] = useState(false)
     const [saving, setSaving] = useState(false)
     const [failed, setFailed] = useState(false)
+    const [failure, setFailure] = useState("")
     const [retrying, setRetrying] = useState(false)
 
     // Derived from the same base URL axios uses, so these cannot drift from the instance being
@@ -126,9 +130,10 @@ function MCPServerCard() {
         try {
             setStored(await getAIMCPServer())
             setFailed(false)
-        } catch {
+        } catch (e) {
             // No form on defaults: a switch shown as off is read as "the surface is
             // closed", and that must only ever be said by the server.
+            setFailure(apiErrorMessage(e, "Try again in a moment."))
             setFailed(true)
         }
     }, [])
@@ -206,13 +211,9 @@ function MCPServerCard() {
                     External agent access (MCP)
                     {stored ? (
                         // A state, so a dot and a word rather than a tinted badge.
-                        <span className="inline-flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
-                            <span
-                                aria-hidden="true"
-                                className={cn("h-1.5 w-1.5 rounded-full", stored.enabled ? "bg-success" : "bg-faint-foreground")}
-                            />
+                        <StatusWord tone={stored.enabled ? "success" : "neutral"} className="text-sm font-normal">
                             {stored.enabled ? "On" : "Off"}
-                        </span>
+                        </StatusWord>
                     ) : null}
                 </span>
             }
@@ -220,7 +221,9 @@ function MCPServerCard() {
         >
             {!stored && failed ? (
                 <ErrorState
+                    compact
                     subject="the external agent access setting"
+                    detail={failure}
                     retrying={retrying}
                     onRetry={() => {
                         setRetrying(true)
@@ -228,9 +231,7 @@ function MCPServerCard() {
                     }}
                 />
             ) : !stored ? (
-                <div role="status" aria-label="Loading the external agent access setting">
-                    <SkeletonRows rows={3} avatar={false} />
-                </div>
+                <SectionListSkeleton label="Loading the external agent access setting" rows={1} trailing="switch" />
             ) : (
             <div className="space-y-5">
                 <SettingsList>
@@ -252,7 +253,7 @@ function MCPServerCard() {
                         scope to change anything, so a read-only token stays read-only.
                     </p>
 
-                    <div className="flex items-start gap-2.5 rounded-md border border-border/60 p-3">
+                    <div className="flex items-start gap-2.5">
                         <Checkbox
                             id="mcp-all"
                             checked={allGroups}
@@ -337,18 +338,15 @@ function MCPServerCard() {
                     points at the one screen where a real token exists for one moment.
                 */}
                 {stored?.enabled && (
-                    <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium">Connecting an agent</p>
-                            <p className="text-xs text-muted-foreground">
-                                Paste the address into the agent and sign in. Whoever approves it
-                                picks the agent it acts as, so it arrives with a sponsor, shows up
-                                in the agent inventory, and stops when that agent is paused.
-                            </p>
-                        </div>
-
+                    // A section of its own, not a box holding more boxes: the
+                    // address and each tab's code blocks are the only boxes.
+                    <SettingsSection
+                        level={3}
+                        title="Connecting an agent"
+                        description="Paste the address into the agent and sign in. Whoever approves it picks the agent it acts as, so it arrives with a sponsor, shows up in the agent inventory, and stops when that agent is paused."
+                    >
                         {endpoint ? (
-                            <>
+                            <div className="space-y-3">
                                 <div className="space-y-1.5">
                                     <p className="text-xs text-muted-foreground">Address</p>
                                     <CopyableCode value={endpoint} label="MCP address" />
@@ -367,7 +365,7 @@ function MCPServerCard() {
                                     </TabsList>
                                     {recipes.map((r) => (
                                         <TabsContent key={r.id} value={r.id} className="mt-0 space-y-2">
-                                            <ol className="list-decimal space-y-1 pl-4 text-xs text-muted-foreground">
+                                            <ol className={STEPS}>
                                                 {r.steps.map((step) => (
                                                     <li key={step}>{step}</li>
                                                 ))}
@@ -377,30 +375,33 @@ function MCPServerCard() {
                                             )}
                                         </TabsContent>
                                     ))}
-                                    <TabsContent value="token" className="mt-0 space-y-3">
-                                        <div className="space-y-1.5">
-                                            <CopyableCode value={clientConfig} label="client config" />
-                                            <p className="text-xs text-muted-foreground">
-                                                For a client that cannot sign in: replace{" "}
-                                                <code className="rounded bg-muted px-1">
-                                                    {MCP_TOKEN_PLACEHOLDER}
-                                                </code>{" "}
-                                                with a token from{" "}
-                                                <span className="font-medium">Settings, API tokens</span>,
-                                                ideally bound to an agent. Tokens are shown once.
-                                            </p>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <p className="text-xs text-muted-foreground">Check it works</p>
-                                            <CopyableCode value={curlExample} label="test command" />
-                                            <p className="text-xs text-muted-foreground">
-                                                An empty tool list means the token holds no scopes, or no
-                                                group above is enabled, not that the connection failed.
-                                            </p>
-                                        </div>
+                                    {/* The same numbered steps as every client's tab, each
+                                        with its block inside it; it opened with a code
+                                        block, then prose, then a second block. */}
+                                    <TabsContent value="token" className="mt-0 space-y-2">
+                                        <ol className={STEPS}>
+                                            <li className="space-y-1.5">
+                                                <p>Give the client this configuration.</p>
+                                                <CopyableCode value={clientConfig} label="client config" />
+                                            </li>
+                                            <li>
+                                                It can&apos;t sign in, so replace{" "}
+                                                <code className="rounded bg-muted px-1">{MCP_TOKEN_PLACEHOLDER}</code> with a
+                                                token from <span className="font-medium">Settings, API tokens</span>, ideally
+                                                bound to an agent. Tokens are shown once.
+                                            </li>
+                                            <li className="space-y-1.5">
+                                                <p>Check it works.</p>
+                                                <CopyableCode value={curlExample} label="test command" />
+                                                <p>
+                                                    An empty tool list means the token holds no scopes, or no group above
+                                                    is enabled, not that the connection failed.
+                                                </p>
+                                            </li>
+                                        </ol>
                                     </TabsContent>
                                 </Tabs>
-                            </>
+                            </div>
                         ) : (
                             /*
                                 Deliberately does not guess a hostname. A plausible-looking wrong URL
@@ -413,7 +414,7 @@ function MCPServerCard() {
                                 host.
                             </p>
                         )}
-                    </div>
+                    </SettingsSection>
                 )}
 
                 {/* Saving waits for this bar while nothing is selected: the
