@@ -18,6 +18,7 @@ import { MessageCircle, Loader2, Download, Keyboard, Maximize, Minimize, Ellipsi
 import { WifiOff } from "lucide-react";
 import {Button} from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SpotError } from "@/components/ui/graphics";
 import Link from "next/link";
 import {
   DropdownMenu,
@@ -101,7 +102,15 @@ export function DocView({ docId }: { docId: string }) {
     const { handleDocCommentMessage, handleDocCommentReactionMessage } = useDocMessageHandlers({ userUuid: userProfile.data?.data?.user_uuid });
 
     // Fetch document info
-    const { data: docInfoHelper, isLoading: isDocLoading, mutate: refreshDocInfo } = useFetch<DocInfoResponse>(docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '');
+    // A doc that's gone answers with an error: the page says so itself below,
+    // so the server's words ("Failed to dgraph doc info from dgraph") don't
+    // also pop up as a toast.
+    const { data: docInfoHelper, isLoading: isDocLoading, mutate: refreshDocInfo } = useFetch<DocInfoResponse>(
+        docId ? `${GetEndpointUrl.GetDocInfo}/${docId}` : '',
+        undefined,
+        undefined,
+        { suppressErrorToast: true } as never,
+    );
     const docInfo = docInfoHelper?.data;
 
     const lastEditedRelative = useRelativeTime(docInfo?.doc_updated_at || null);
@@ -378,10 +387,12 @@ export function DocView({ docId }: { docId: string }) {
         // floating in the middle of an empty page.
         return (
             <EmptyState
+                illustration={<SpotError />}
                 title="This doc isn't available"
                 description="It may have been deleted, or it hasn't been shared with you. Ask whoever sent the link to share it."
                 headingLevel={2}
-                className="h-full"
+                // As a table that isn't there reads: near the top, with its drawing.
+                className="py-20"
                 action={
                     <Button variant="outline" size="sm" asChild>
                         <Link href="/app/doc">Back to docs</Link>

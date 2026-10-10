@@ -9,6 +9,7 @@ import type { UserProfileInterface } from "@/types/user"
 import type { RootState } from "@/store/store"
 import type { CreateCommentResInterface } from "@/types/comment"
 import { EmptyState } from "@/components/ui/empty-state"
+import { MessageSquare } from "@/lib/icons"
 import { ErrorState } from "@/components/ui/error-state"
 
 import {
@@ -233,13 +234,16 @@ export const DocMobileCommentList = ({ docId }: { docId: string }) => {
                     <ErrorState
                         subject="the comments"
                         onRetry={() => void docCommentList.mutate()}
-                        className="h-full"
+                        className="py-8"
                     />
                 ) : docCommentState.length === 0 ? (
                     <EmptyState
+                        icon={MessageSquare}
                         title="No comments yet"
                         description="Be the first to add a comment to this document."
-                        className="h-full"
+                        // As a task's comments say it: an icon, then the words,
+                        // near the top. It was words alone in the panel's middle.
+                        className="py-8"
                     />
                 ) : (
                     <MobileMessageCommentList

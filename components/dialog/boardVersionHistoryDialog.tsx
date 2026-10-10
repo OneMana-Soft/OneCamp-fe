@@ -21,9 +21,9 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { History, Clock, RotateCcw, Loader2 } from "@/lib/icons"
+import { History, RotateCcw, Loader2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Faces, RESOURCE_ROW, ResourceListEmpty, ResourceListSkeleton, VersionReason } from "@/components/dialog/resourceListParts"
 import { useRelativeTime } from "@/hooks/useRelativeTime"
 
 interface BoardVersionHistoryDialogProps {
@@ -32,18 +32,18 @@ interface BoardVersionHistoryDialogProps {
   boardId: string
 }
 
-const REASON_META: Record<BoardSnapshot["reason"], { label: string; className: string }> = {
+const REASON_META: Record<BoardSnapshot["reason"], { label: string; warning: boolean }> = {
   mass_delete: {
     label: "Before large deletion",
-    className: "bg-warning/10 text-warning-ink border border-warning/20",
+    warning: true,
   },
   manual: {
     label: "Before a restore",
-    className: "bg-primary/10 text-primary border border-primary/20",
+    warning: false,
   },
   interval: {
     label: "Auto-saved",
-    className: "bg-muted text-muted-foreground border border-border",
+    warning: false,
   },
 }
 
@@ -89,18 +89,11 @@ export function BoardVersionHistoryDialog({ open, onOpenChange, boardId }: Board
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-1.5 overflow-y-auto">
+        <div className="max-h-[60vh] overflow-y-auto">
           {isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading history…
-            </div>
+            <ResourceListSkeleton label="Loading versions" />
           ) : snapshots.length === 0 ? (
-            <div className="flex flex-col items-center gap-1 py-8 text-center text-sm text-muted-foreground">
-              <Clock className="h-5 w-5" />
-              <span>No snapshots yet.</span>
-              <span className="text-xs">Snapshots are saved automatically as the board is edited.</span>
-            </div>
+            <ResourceListEmpty icon={History} title="No versions yet" description="A version is kept as it is edited, every so often and before a large deletion." />
           ) : (
             snapshots.map((snap) => (
               <SnapshotRow
@@ -142,26 +135,14 @@ function SnapshotRow({
         : `${contributors.slice(0, 2).map(contributorName).join(", ")} +${contributors.length - 2}`
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border bg-card/50 px-3 py-2">
+    <div className={cn(RESOURCE_ROW, "justify-between gap-3")}>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium">{relative || "Just now"}</span>
-          <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-2xs font-medium", meta.className)}>
-            {meta.label}
-          </span>
+          <VersionReason label={meta.label} warning={meta.warning} />
         </div>
         <div className="mt-0.5 flex items-center gap-1.5">
-          {contributors.length > 0 && (
-            <div className="flex -space-x-1.5">
-              {contributors.slice(0, 3).map((c) => (
-                <Avatar key={c.user_uuid} className="h-4 w-4 ring-2 ring-background" title={contributorName(c)}>
-                  <AvatarFallback className="text-3xs">
-                    {contributorName(c).charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-            </div>
-          )}
+          <Faces people={contributors.map((c) => ({ user_uuid: c.user_uuid, name: contributorName(c) }))} size={16} />
           <span className="truncate text-xs text-muted-foreground">
             {namesSummary ? `Edited by ${namesSummary}` : `${snapshot.element_count} element${snapshot.element_count === 1 ? "" : "s"}`}
           </span>
