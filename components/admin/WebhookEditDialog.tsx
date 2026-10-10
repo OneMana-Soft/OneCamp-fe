@@ -1,16 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import { Field } from "@/components/ui/field"
 import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
 import {
@@ -24,16 +25,8 @@ import { RefreshCw } from "@/lib/icons";
 import { usePost } from "@/hooks/usePost"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
-import { useToast } from "@/hooks/use-toast"
 import { ChannelInfoInterface, ChannelInfoListInterfaceResp } from "@/types/channel"
-
-const FALLBACK_EVENT_TYPES = [
-  "post.created", "post.updated", "post.deleted",
-  "chat.created", "chat.updated", "chat.deleted",
-  "task.created", "task.deleted", "task.status_changed", "task.restored",
-  "channel.created", "channel.archived",
-  "user.joined", "user.left",
-]
+import { FALLBACK_EVENT_TYPES, WebhookEventChoice } from "@/components/admin/WebhookCreateDialog"
 
 interface WebhookData {
   id: string
@@ -68,8 +61,10 @@ const NO_CHANNEL_VALUE = "__none__"
 
 export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webhook }: Props) {
   const post = usePost()
-  const { toast } = useToast()
   const [form, setForm] = useState({ ...blankForm })
+  const [errors, setErrors] = useState<{ name?: string; target_url?: string }>({})
+  const nameRef = useRef<HTMLInputElement>(null)
+  const urlRef = useRef<HTMLInputElement>(null)
 
   const { data: eventTypesData } = useFetch<{ event_types: string[] }>(GetEndpointUrl.GetWebhookEventTypes)
   const EVENT_TYPES = eventTypesData?.event_types || FALLBACK_EVENT_TYPES
@@ -92,21 +87,29 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
         events,
         is_active: webhook.is_active,
       })
+      setErrors({})
     }
   }, [open, webhook])
 
   const handleClose = () => {
     setForm({ ...blankForm })
+    setErrors({})
     onOpenChange(false)
   }
 
   const handleSubmit = async () => {
-    if (!form.name.trim()) {
-      toast({ title: "Validation Error", description: "Name is required", variant: "destructive" })
+    const next: typeof errors = {}
+    if (!form.name.trim()) next.name = "Give the webhook a name."
+    if (webhook?.type === "outgoing" && form.target_url.trim() && !form.target_url.trim().startsWith("https://")) {
+      next.target_url = "Use an address that starts with https://, so events travel encrypted."
+    }
+    setErrors(next)
+    if (next.name) {
+      nameRef.current?.focus()
       return
     }
-    if (webhook?.type === "outgoing" && form.target_url.trim() && !form.target_url.startsWith("https://")) {
-      toast({ title: "Validation Error", description: "Target URL must use HTTPS", variant: "destructive" })
+    if (next.target_url) {
+      urlRef.current?.focus()
       return
     }
     try {
@@ -128,7 +131,7 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
       onSuccess()
       handleClose()
     } catch {
-      // handled by usePost
+      // usePost says why, with the server's reason.
     }
   }
 
@@ -136,38 +139,56 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit Webhook</DialogTitle>
+          <DialogTitle>Edit webhook</DialogTitle>
+          <DialogDescription>
+            {webhook?.type === "outgoing"
+              ? "OneCamp tells another service when something happens here."
+              : "A script or another service posts messages into a channel here."}
+          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="edit-name">Name *</Label>
-            <Input id="edit-name" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} maxLength={100} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="edit-desc">Description</Label>
-            <Input id="edit-desc" value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} maxLength={255} />
-          </div>
+        <div className="space-y-4 py-2">
+          <Field label="Name" required error={errors.name}>
+            <Input
+              ref={nameRef}
+              id="edit-name"
+              value={form.name}
+              onChange={(e) => {
+                setForm(f => ({ ...f, name: e.target.value }))
+                if (errors.name) setErrors((er) => ({ ...er, name: undefined }))
+              }}
+              maxLength={100}
+              autoComplete="off"
+            />
+          </Field>
+          <Field label="What it is for" help="Optional. Shown under its name in the list.">
+            <Input id="edit-desc" value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} maxLength={255} autoComplete="off" />
+          </Field>
           {webhook?.type === "outgoing" && (
             <>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-url">Target URL</Label>
-                <Input id="edit-url" type="url" value={form.target_url} onChange={(e) => setForm(f => ({ ...f, target_url: e.target.value }))} placeholder="https://api.example.com/webhook" />
-              </div>
-              <div className="grid gap-2">
-                <Label>Events</Label>
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border rounded-md">
-                  {EVENT_TYPES.map(ev => (
-                    <Badge key={ev} variant={form.events.includes(ev) ? "default" : "outline"} className="cursor-pointer text-xs transition-colors"
-                      onClick={() => setForm(f => ({ ...f, events: f.events.includes(ev) ? f.events.filter(e => e !== ev) : [...f.events, ev] }))}
-                    >{ev}</Badge>
-                  ))}
-                </div>
-              </div>
+              <Field label="Address to send to" error={errors.target_url} help="Must start with https://.">
+                <Input
+                  ref={urlRef}
+                  id="edit-url"
+                  type="url"
+                  inputMode="url"
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={form.target_url}
+                  onChange={(e) => {
+                    setForm(f => ({ ...f, target_url: e.target.value }))
+                    if (errors.target_url) setErrors((er) => ({ ...er, target_url: undefined }))
+                  }}
+                  placeholder="https://api.example.com/webhook…"
+                />
+              </Field>
+              <WebhookEventChoice events={EVENT_TYPES} chosen={form.events} onChange={(events) => setForm(f => ({ ...f, events }))} idPrefix="edit-ev" />
             </>
           )}
           {webhook?.type === "incoming" && (
-            <div className="grid gap-2">
-              <Label htmlFor="edit-channel">Default Destination Channel (optional)</Label>
+            <Field
+              label="Channel to post in"
+              help={<>Optional. Used when a message doesn&apos;t name its own: a message can name <code>channel_id</code>, <code>dm_id</code> or <code>group_chat_id</code> instead.</>}
+            >
               <Select
                 value={form.channel_id || NO_CHANNEL_VALUE}
                 onValueChange={(v) => setForm(f => ({ ...f, channel_id: v === NO_CHANNEL_VALUE ? "" : v }))}
@@ -175,18 +196,18 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
               >
                 <SelectTrigger id="edit-channel">
                   {channelsLoading ? (
-                    <span className="text-muted-foreground animate-pulse">Loading channels…</span>
+                    <span className="text-muted-foreground">Loading channels…</span>
                   ) : (
-                    <SelectValue placeholder="Select a channel (optional)" />
+                    <SelectValue placeholder="Choose a channel" />
                   )}
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_CHANNEL_VALUE}>No channel</SelectItem>
                   {channelsError && (
-                    <div className="text-sm text-danger-ink px-2 py-2 text-center">Failed to load channels</div>
+                    <div className="px-2 py-2 text-center text-sm text-danger-ink">Couldn&apos;t load the channels. Close this and try again.</div>
                   )}
                   {!channelsError && channels.length === 0 && !channelsLoading && (
-                    <div className="text-sm text-muted-foreground px-2 py-4 text-center">No channels available</div>
+                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">No channels yet</div>
                   )}
                   {channels.map(ch => (
                     <SelectItem key={ch.ch_uuid} value={ch.ch_uuid}>
@@ -195,29 +216,30 @@ export default function WebhookEditDialog({ open, onOpenChange, onSuccess, webho
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                If set, messages are posted here when no destination is specified in the payload.
-                The payload can override this with <code>channel_id</code>, <code>dm_id</code>, or <code>group_chat_id</code>.
-              </p>
-            </div>
+            </Field>
           )}
-          <div className="grid gap-2">
-            <Label htmlFor="edit-bot">Bot Display Name</Label>
-            <Input id="edit-bot" value={form.bot_name} onChange={(e) => setForm(f => ({ ...f, bot_name: e.target.value }))} maxLength={50} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Active</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">Enable or disable this webhook</p>
+          <Field label="Sender name" help="Who its posts appear to come from.">
+            <Input id="edit-bot" value={form.bot_name} onChange={(e) => setForm(f => ({ ...f, bot_name: e.target.value }))} maxLength={50} autoComplete="off" />
+          </Field>
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="edit-active">Active</Label>
+              <p id="edit-active-desc" className="text-xs text-muted-foreground">While it is off, it neither sends nor accepts anything.</p>
             </div>
-            <Switch checked={form.is_active} onCheckedChange={(v) => setForm(f => ({ ...f, is_active: v }))} />
+            <Switch
+              id="edit-active"
+              aria-describedby="edit-active-desc"
+              className="mt-0.5"
+              checked={form.is_active}
+              onCheckedChange={(v) => setForm(f => ({ ...f, is_active: v }))}
+            />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={post.isSubmitting}>
-            {post.isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}
-            Save Changes
+            {post.isSubmitting ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {post.isSubmitting ? "Saving…" : "Save changes"}
           </Button>
         </DialogFooter>
       </DialogContent>
