@@ -109,7 +109,10 @@ function gatesItself(name: string): boolean {
         /withAI\s*\(/.test(content) ||
         /withFeature\s*\(\s*FEATURE_AI/.test(content) ||
         /useAIAvailable\s*\(/.test(content) ||
-        /useFeature\s*\(\s*FEATURE_AI/.test(content)
+        /useFeature\s*\(\s*FEATURE_AI/.test(content) ||
+        // The three-way reading (unknown, available, unavailable), for a card
+        // that holds its place while the config loads instead of arriving late.
+        /useFeatureState\s*\(\s*FEATURE_AI/.test(content)
     )
 }
 
