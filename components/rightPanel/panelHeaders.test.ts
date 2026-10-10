@@ -13,7 +13,6 @@ describe("the right panel's views share one header", () => {
     "components/rightPanel/chatComments.tsx",
     "components/rightPanel/groupChatComments.tsx",
     "components/rightPanel/docCommentList.tsx",
-    "components/ai/DocAiAssistantPanel.tsx",
   ])("%s", (f) => {
     expect(readFileSync(join(root, f), "utf8")).toMatch(/<RightPanelHeader\b/)
   })

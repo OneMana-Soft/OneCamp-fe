@@ -8,11 +8,10 @@ describe("the doc's formatting row", () => {
     expect(src).toMatch(/SECTION_2_ACTIONS[^=]*= \['bold', 'italic', 'underline', 'strikethrough', 'code'/)
   })
 
-  it("drops its two buttons' words where it has no room, keeping their names", () => {
+  it("drops its button's word where it has no room, keeping its name", () => {
     expect(src).toMatch(/@container\/toolbar/)
     expect(src).toMatch(/TOOLBAR_LABEL = "hidden @\[\d+rem\]\/toolbar:inline"/)
     expect(src).toMatch(/aria-label="Insert image"/)
-    expect(src).toMatch(/aria-label=\{hasSelection \? "Rewrite with AI" : "Write with AI"\}/)
   })
 })
 

@@ -12,10 +12,6 @@ const read = (p: string) => readFileSync(resolve(__dirname, "..", "..", p), "utf
 
 describe("Home's cards and lists", () => {
   it.each([
-    "components/ai/AttentionCard.tsx",
-    "components/ai/WhileYouWereAwayCard.tsx",
-    "components/ai/AgentWorkCard.tsx",
-    "components/ai/BriefingCard.tsx",
     "components/home/NoChannelsYet.tsx",
   ])("%s heads its card with a hued tile, not an accent or grey icon", (file) => {
     const src = read(file)

@@ -4,8 +4,7 @@ import { destinationHue } from "@/lib/destinationHue"
 
 // The phone's Home in the playful layer: quick actions on tiles in their
 // place's hue, recent things and channels marked in their own identity hue
-// (the colour they have everywhere), and the AI row in the AI hue rather
-// than the accent, which is kept for the one action a view asks for.
+// (the colour they have everywhere).
 
 const src = readFileSync("components/home/mobile/mobileHome.tsx", "utf8")
 
@@ -22,10 +21,5 @@ describe("phone Home tiles", () => {
     // mark as their icon.
     expect(src).toMatch(/<IdentityMark variant="tile" size=\{24\} id=\{item\.id\}/)
     expect(src).toMatch(/<IdentityMark variant="tile" size=\{24\} id=\{channel\.ch_uuid\}/)
-  })
-
-  it("keeps the accent off the AI row's icon", () => {
-    expect(src).not.toMatch(/<Sparkles[^>]*text-primary/)
-    expect(src).toContain('<Tile hue={destinationHue("/app/ai")} size="sm">')
   })
 })

@@ -125,16 +125,6 @@ describe("the Slack import section's frame", () => {
     expect(inner.className).not.toMatch(/rounded-lg|p-3(\s|$)/)
   })
 
-  it("says what came across under the import, in sentence case and in no box of its own", () => {
-    jobs = [job("j1", "completed", { digest: "23 channels and 48,211 messages came across." })]
-    render(<SlackImportCard />)
-    const label = screen.getByText("What came across")
-    expect(label.className).not.toMatch(/uppercase|tracking-/)
-    const digest = document.querySelector("[data-import-digest]") as HTMLElement
-    expect(digest.className).not.toMatch(/border|bg-muted/)
-    expect(within(digest).getByText("23 channels and 48,211 messages came across.")).toBeTruthy()
-  })
-
   it("greets a first run with the imported spot, at the quiet size", () => {
     render(<SlackImportCard />)
     expect(screen.getByText("No imports from Slack yet")).toBeTruthy()

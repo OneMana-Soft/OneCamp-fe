@@ -92,7 +92,7 @@ describe("the More menu's look", () => {
     // playful layer), the same hue wherever that place is listed.
     it("labels its groups in sentence case", () => {
         open()
-        for (const label of ["Work", "AI", "Workspace"]) {
+        for (const label of ["Work", "Workspace"]) {
             const el = screen.getByText(label)
             expect(el.className, label).not.toMatch(/uppercase|tracking/)
         }
@@ -107,7 +107,6 @@ describe("the More menu's look", () => {
         }
         expect(tileOf("My tasks")?.className).toContain("hue-moss")
         expect(tileOf("Calendar")?.className).toContain("hue-berry")
-        expect(tileOf("AI activity")?.className).toContain("hue-dusk")
         expect(tileOf("Sign out")).toBeNull()
         expect(screen.getByRole("button", { name: /^Your profile/ })).toBeTruthy()
     })

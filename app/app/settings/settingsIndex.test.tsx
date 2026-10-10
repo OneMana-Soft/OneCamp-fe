@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 
 // The list of a person's settings sections. Each row's icon sits on a tile in
-// its section's hue. Rows a permission or the server's AI decides hold their
-// place while those answers load, so the rows under them don't jump down when
-// they arrive (Workflows and Agents used to insert themselves above API tokens).
+// its section's hue. Rows a permission decides hold their place while it
+// loads, so the rows under them don't jump down when it arrives (Workflows
+// used to insert itself above API tokens).
 
 const { caps, ai } = vi.hoisted(() => ({ caps: { isLoading: false, granted: true }, ai: { state: "available" as string } }))
 vi.mock("@/hooks/useCapabilities", () => ({ useCapabilities: () => ({ can: () => caps.granted, isLoading: caps.isLoading }) }))
@@ -30,15 +30,15 @@ describe("the settings index", () => {
     expect(tileOf("Connectors")?.className).toMatch(/\bhue-lake\b/)
   })
 
-  it("holds the place of rows that wait on permissions or AI", () => {
+  it("holds the place of rows that wait on permissions", () => {
     caps.isLoading = true
     ai.state = "unknown"
     render(<SettingsPage />)
-    // All six places, three of them waiting.
-    expect(rows()).toHaveLength(6)
+    // All four places, one of them waiting.
+    expect(rows()).toHaveLength(4)
     expect(screen.getAllByRole("link")).toHaveLength(3)
     // API tokens sits where it will stay.
-    expect(rows()[5]).toHaveTextContent("API tokens")
+    expect(rows()[3]).toHaveTextContent("API tokens")
   })
 
   it("leaves out what this person can't use once the answers are in", () => {

@@ -34,8 +34,6 @@ vi.mock("@/hooks/useFetch", () => ({
 vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: vi.fn() }) }))
 vi.mock("react-redux", () => ({ useSelector: () => undefined, useDispatch: () => vi.fn() }))
 vi.mock("swr", async (importOriginal) => ({ ...(await importOriginal<typeof import("swr")>()), useSWRConfig: () => ({ mutate: vi.fn() }) }))
-vi.mock("@/components/ai/RescheduleDialog", () => ({ default: () => null }))
-vi.mock("@/components/ai/MeetingPrepDialog", () => ({ default: () => null }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isDesktop: true, isMobile: false }) }))
 
 import EventInfoPanel from "./eventInfoPanel"
@@ -95,7 +93,7 @@ describe("an event in the side panel", () => {
     const del = screen.getByRole("button", { name: "Delete event" })
     expect(del.className).toMatch(/text-muted-foreground/)
     expect(del.className).toMatch(/hover:text-danger-ink/)
-    for (const name of ["Prep brief", "Find a better time", "Edit event"]) {
+    for (const name of ["Edit event"]) {
       const b = screen.getByRole("button", { name })
       expect(b.innerHTML).not.toMatch(/hover:text-primary/)
     }
@@ -115,7 +113,7 @@ describe("an event in the side panel", () => {
     const closes = screen.getAllByRole("button", { name: "Close panel" })
     expect(closes).toHaveLength(1)
     const group = closes[0].closest("[data-panel-actions]") as HTMLElement
-    for (const name of ["Prep brief", "Find a better time", "Delete event", "Edit event"]) {
+    for (const name of ["Delete event", "Edit event"]) {
       const b = screen.getByRole("button", { name })
       expect(group.contains(b)).toBe(true)
       // One size for the row, as the close button beside them.

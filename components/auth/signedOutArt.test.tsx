@@ -45,12 +45,6 @@ describe("pictures on the signed-out pages", () => {
     expect(art(container)?.querySelector("svg")).not.toBeNull()
   })
 
-  it("gives the agent sign-in's error state the error spot, not a red icon", () => {
-    const src = readFileSync(join(__dirname, "..", "connect", "ConnectAuthorize.tsx"), "utf8")
-    expect(src).toMatch(/art=\{<SpotError/)
-    expect(src).not.toMatch(/art=\{<AlertCircle/)
-  })
-
   // The stateful pages (each with its own harness elsewhere): every heading
   // that is a dead end, a welcome or a done thing carries its picture.
   it.each([

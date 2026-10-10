@@ -7,13 +7,12 @@ import { cleanup, render, screen } from "@testing-library/react"
 // it has the subsystem behind it.
 
 const media = vi.hoisted(() => ({ value: { isMobile: false, isTablet: false, isDesktop: true } }))
-const features = vi.hoisted(() => ({ value: { ai: "available", calls: "available" } as Record<string, string> }))
+const features = vi.hoisted(() => ({ value: { calls: "available" } as Record<string, string> }))
 const params = vi.hoisted(() => ({ value: new URLSearchParams() }))
 
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => media.value }))
 vi.mock("next/navigation", () => ({ useSearchParams: () => params.value }))
 vi.mock("@/hooks/useClientConfig", () => ({
-  FEATURE_AI: "ai",
   FEATURE_CALLS: "calls",
   useFeatureState: (name: string) => features.value[name],
 }))
@@ -28,7 +27,7 @@ const { default: AdminPage } = await import("./page")
 afterEach(() => {
   cleanup()
   media.value = { isMobile: false, isTablet: false, isDesktop: true }
-  features.value = { ai: "available", calls: "available" }
+  features.value = { calls: "available" }
   params.value = new URLSearchParams()
 })
 
@@ -56,19 +55,19 @@ describe("the admin page's frame", () => {
     expect(screen.queryByRole("heading", { level: 1, name: "Admin" })).toBeNull()
   })
 
-  // The two gated sections joined the menu only when the config answered,
-  // pushing Connections and System 72px down; a deep link drew no menu at all.
+  // The gated section joined the menu only when the config answered,
+  // pushing Connections and System down; a deep link drew no menu at all.
   it("holds a gated section's place in the menu until the server answers", () => {
-    features.value = { ai: "unknown", calls: "unknown" }
+    features.value = { calls: "unknown" }
     const { container } = render(<AdminPage />)
-    expect(container.querySelectorAll("[data-menu-placeholder]")).toHaveLength(2)
-    expect(screen.queryByRole("tab", { name: /AI & agents/ })).toBeNull()
+    expect(container.querySelectorAll("[data-menu-placeholder]")).toHaveLength(1)
+    expect(screen.queryByRole("tab", { name: /Transcription/ })).toBeNull()
     expect(screen.getByRole("tab", { name: /Webhooks/ })).toBeTruthy()
   })
 
   it("draws the menu for a deep link to a gated section while it waits, with the section's skeleton and nothing marked", () => {
-    features.value = { ai: "unknown", calls: "available" }
-    params.value = new URLSearchParams("tab=ai-models")
+    features.value = { calls: "unknown" }
+    params.value = new URLSearchParams("tab=transcription")
     render(<AdminPage />)
     expect(screen.getByRole("tablist", { name: "Admin sections" })).toBeTruthy()
     expect(screen.getByRole("status", { name: "Loading this section" })).toBeTruthy()
@@ -78,29 +77,17 @@ describe("the admin page's frame", () => {
 
   it("lists a gated section in the select, unchosen, until the server answers", () => {
     media.value = { isMobile: true, isTablet: false, isDesktop: false }
-    features.value = { ai: "unknown", calls: "available" }
+    features.value = { calls: "unknown" }
     render(<AdminPage />)
-    const option = screen.getByRole("option", { name: "AI & agents" }) as HTMLOptionElement
+    const option = screen.getByRole("option", { name: "Transcription" }) as HTMLOptionElement
     expect(option.disabled).toBe(true)
   })
 
   it("drops a section the server doesn't have", () => {
-    features.value = { ai: "unavailable", calls: "available" }
+    features.value = { calls: "unavailable" }
     const { container } = render(<AdminPage />)
     expect(container.querySelectorAll("[data-menu-placeholder]")).toHaveLength(0)
-    expect(screen.queryByRole("tab", { name: /AI & agents/ })).toBeNull()
-  })
-
-  // The jumps were a row at the top of AI & agents, so its first title sat 52px
-  // lower than every other tab's.
-  it("offers a long section's jumps in the header, not in the content", () => {
-    params.value = new URLSearchParams("tab=ai-models")
-    render(<AdminPage />)
-    expect(screen.getByRole("button", { name: /on this page/i })).toBeTruthy()
-    cleanup()
-    params.value = new URLSearchParams("tab=users")
-    render(<AdminPage />)
-    expect(screen.queryByRole("button", { name: /on this page/i })).toBeNull()
+    expect(screen.queryByRole("tab", { name: /Transcription/ })).toBeNull()
   })
 })
 

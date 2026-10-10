@@ -42,10 +42,6 @@ describe("Home's two lines", () => {
     "components/home/mobile/mobileHome.tsx",
     "components/home/SetupChecklist.tsx",
     "components/home/NoChannelsYet.tsx",
-    "components/ai/AttentionCard.tsx",
-    "components/ai/WhileYouWereAwayCard.tsx",
-    "components/ai/AgentWorkCard.tsx",
-    "components/ai/BriefingCard.tsx",
   ])("%s takes its inset from homeLines", (file) => {
     expect(read(file)).toMatch(/from "@\/components\/home\/homeLines"/)
   })
@@ -58,21 +54,8 @@ describe("Home's two lines", () => {
     ["components/home/mobile/mobileHome.tsx", /-mx-1/],
     // a 32px header tile beside steps with 16px circles: title 16px off the steps
     ["components/home/SetupChecklist.tsx", /className="p-5"/],
-    // rows at 16px with a 10px gap, approvals with a 6px gap
-    ["components/ai/AttentionCard.tsx", /gap-2\.5 px-4|gap-1\.5 px-4/],
-    ["components/ai/AgentWorkCard.tsx", /className="px-4 py-2\.5"/],
-    ["components/ai/WhileYouWereAwayCard.tsx", /"px-4 py-3\.5"|gap-3 px-4 py-3\.5/],
-    // a 14px icon 8px before the words
-    ["components/ai/BriefingCard.tsx", /className="p-4"|items-start gap-2 rounded-md/],
     ["components/home/NoChannelsYet.tsx", /border-border\/60 p-4"/],
   ])("%s keeps none of the paddings that broke the lines (%s)", (file, old) => {
     expect(read(file)).not.toMatch(old)
-  })
-
-  it("the AI cards' heads sit on the same lines: a 12px gap, 16px in, 20px from md", () => {
-    const css = read("app/globals.css")
-    const head = css.slice(css.indexOf(".ai-panel-head {"))
-    expect(head).toMatch(/^\.ai-panel-head \{[^}]*gap: 0\.75rem;[^}]*padding: 0\.875rem 1rem 0\.375rem;/)
-    expect(head).toMatch(/@media \(width >= 48rem\) \{\s*\.ai-panel-head \{\s*padding-inline: 1\.25rem;/)
   })
 })

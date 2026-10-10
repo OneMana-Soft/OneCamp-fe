@@ -33,11 +33,7 @@ describe("the phone's top bar", () => {
     ["/app/posts", "Your posts"],
     ["/app/create/task", "New task"],
     ["/app/myTask", "My tasks"],
-    // Its name everywhere else, not "Assistant".
-    ["/app/ai", "OneCamp AI"],
     // Settings sections by the names their pages give them.
-    ["/app/settings/agents", "Agents and skills"],
-    ["/app/settings/assistants", "Your AI assistants"],
     ["/app/settings/api-tokens", "API tokens"],
     ["/app/settings", "Settings"],
     ["/app/doc/d1/comments", "Comments"],

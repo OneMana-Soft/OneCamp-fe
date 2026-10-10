@@ -111,14 +111,4 @@ describe("making a token", () => {
     expect(title.querySelector("[class*='hue-berry']")).not.toBeNull()
     expect(title.querySelector(".text-primary")).toBeNull()
   })
-
-  it("names the admin tab where external agent access is turned on as it is called", async () => {
-    create.mockResolvedValue({ token: token(), plaintext: "oc_secret" })
-    openDialog()
-    fireEvent.change(within(dialog()).getByLabelText("Name"), { target: { value: "CI" } })
-    fireEvent.click(within(dialog()).getByRole("button", { name: /Read tasks/ }))
-    await act(async () => void fireEvent.click(within(dialog()).getByRole("button", { name: "Create token" })))
-    expect(within(dialog()).getByText(/Admin, AI & agents/)).toBeInTheDocument()
-    expect(within(dialog()).queryByText(/AI Models/)).toBeNull()
-  })
 })
