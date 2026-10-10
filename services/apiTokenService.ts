@@ -44,19 +44,19 @@ export function parseScopes(t: ApiToken): string[] {
 // Human labels for scope strings (kept in sync with the backend AllScopes).
 const SCOPE_LABELS: Record<string, string> = {
   "tasks:read": "Read tasks",
-  "tasks:write": "Create / update tasks",
+  "tasks:write": "Create and update tasks",
   "projects:read": "Read projects",
   "projects:write": "Create projects",
   "docs:read": "Read documents",
   "docs:write": "Create documents",
-  "messages:read": "Read / summarize messages",
+  "messages:read": "Read and summarize messages",
   "messages:write": "Post messages",
   "calendar:write": "Create calendar events",
   "tables:read": "Read tables",
   "tables:write": "Write table rows",
   "data_sources:read": "Read connected data sources",
   "attention:read": "See what is waiting for you (unread, approvals)",
-  "search:read": "Search workspace & apps",
+  "search:read": "Search the workspace and apps",
 }
 
 export function scopeLabel(scope: string): string {
