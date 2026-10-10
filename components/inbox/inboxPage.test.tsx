@@ -62,3 +62,49 @@ describe("an empty inbox", () => {
     expect(pop.mock.calls[0][0]).toBe(spot)
   })
 })
+
+// QA_BACKLOG "Tab consistency", Inbox: one frame for its states, a skeleton in
+// the rows' line boxes, and one toolbar height for the list and a conversation.
+describe("the inbox's states and frame", () => {
+  it("says a failed load in the centred frame, with a way to try again", async () => {
+    list = Promise.reject(new Error("boom"))
+    render(<InboxPage />)
+    await act(async () => {})
+    const state = document.querySelector("[data-inbox-state]")!
+    expect(state.textContent).toMatch(/Try again/)
+    expect(document.querySelector("p.text-danger-ink")).toBeNull()
+  })
+
+  it("says a search found nothing with the magnifier, the query and Clear search", async () => {
+    list = Promise.resolve({ threads: [] })
+    render(<InboxPage />)
+    await act(async () => {})
+    fireEvent.change(screen.getByRole("textbox", { name: "Search mail" }), { target: { value: "invoice" } })
+    fireEvent.submit(screen.getByRole("textbox", { name: "Search mail" }).closest("form")!)
+    await act(async () => {})
+    const state = document.querySelector("[data-inbox-state]")!
+    expect(state.querySelector("svg")).toBeTruthy()
+    expect(state.textContent).toContain("Nothing matches “invoice”")
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+    await act(async () => {})
+    expect(screen.getByText("Your inbox is empty")).toBeTruthy()
+  })
+
+  it("loads in a row's line boxes: 20, 20 and 18px, 2px apart", () => {
+    render(<InboxPage />)
+    const row = document.querySelector("[data-inbox-skeleton-row]")!
+    const bars = [...row.querySelectorAll("span > *")].map((b) => b.className)
+    expect(row.querySelector("span")!.className).toContain("gap-0.5")
+    expect([bars[0], bars[1], bars[2]].map((c) => c.match(/h-(5|\[18px\])/)?.[0])).toEqual(["h-5", "h-5", "h-[18px]"])
+  })
+
+  it("gives a conversation's bar the list's toolbar height, and a 44px way back on a phone", async () => {
+    list = Promise.resolve({ threads: [{ id: "t1", subject: "Contract", from: "a@b.test", snippet: "s", date: today.toISOString(), unread: false, messages: 1 }] })
+    render(<InboxPage />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole("button", { name: /a@b\.test/ }))
+    const bar = document.querySelector("[data-inbox-thread-bar]")!
+    expect(bar.className.split(" ")).toEqual(expect.arrayContaining(["min-h-[69px]", "md:min-h-[61px]"]))
+    expect(screen.getByRole("button", { name: "Back to the inbox" }).className).toContain("size-11")
+  })
+})
