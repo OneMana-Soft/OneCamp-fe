@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from 'react'
-import type { Editor } from '@tiptap/react'
+import { useEditorState, type Editor } from '@tiptap/react'
 import type { toggleVariants } from '@/components/ui/toggle'
 import type { VariantProps } from 'class-variance-authority'
 import { CaretDownIcon, CheckIcon } from '@radix-ui/react-icons'
@@ -133,7 +133,13 @@ interface SectionThreeProps extends VariantProps<typeof toggleVariants> {
 }
 
 export const SectionThree: React.FC<SectionThreeProps> = ({ editor, size, variant }) => {
-  const color = editor.getAttributes('textStyle')?.color || 'var(--foreground)'
+  // The colour at the caret, followed by this section itself rather than read
+  // when the toolbar last rendered (the editor's frame no longer renders on
+  // every keystroke).
+  const color = useEditorState({
+    editor,
+    selector: ({ editor: e }) => (e.getAttributes('textStyle')?.color as string | undefined) || 'var(--foreground)'
+  }) ?? 'var(--foreground)'
   const [selectedColor, setSelectedColor] = React.useState(color)
 
   const handleColorChange = React.useCallback(
