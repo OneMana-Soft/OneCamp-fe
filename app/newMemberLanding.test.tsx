@@ -42,7 +42,8 @@ afterEach(() => {
 
 async function signInThroughTheDirectory() {
   render(<SignInPage />)
-  fireEvent.click(await screen.findByRole("tab", { name: "Company directory" }))
+  // A tab switches on the press, as a click starts (Radix tabs).
+  fireEvent.mouseDown(await screen.findByRole("tab", { name: "Company directory" }))
   fireEvent.change(screen.getByLabelText("Directory username or email"), { target: { value: "cleo" } })
   fireEvent.change(screen.getByLabelText("Directory password"), { target: { value: "directory-password" } })
   await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign in with directory" })))

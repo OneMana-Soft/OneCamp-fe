@@ -5,6 +5,7 @@ import { signInRefusal, type RefusalTone } from "@/lib/auth/signInRefusal";
 import { signInWithPasskey } from "@/services/passkeyService";
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn";
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {useEffect, useState, useCallback, Suspense} from "react";
 import authService, { type LoginOutcome } from "@/services/auth/AuthService";
 import { assertUnreachable } from "@/lib/utils/assertUnreachable";
@@ -84,6 +85,32 @@ function AuthErrorMessage() {
   );
 }
 
+type SignInTab = "standard" | "directory"
+
+/**
+ * Which kind of account, when the server has a company directory: the
+ * workspace's own, or the directory's. Radix tabs, so the arrow keys move
+ * between them (and Home and End) as WAI-ARIA's tabs pattern has it, and Tab
+ * goes on into the form. Without a directory there is one form and no tabs.
+ */
+function SignInTabs({ tabbed, value, onValueChange, children }: { tabbed: boolean; value: SignInTab; onValueChange: (tab: SignInTab) => void; children: React.ReactNode }) {
+  if (!tabbed) return <>{children}</>
+  return (
+    <Tabs value={value} onValueChange={(v) => onValueChange(v === "directory" ? "directory" : "standard")} className="space-y-6">
+      <TabsList aria-label="Sign in with" className="grid h-auto w-full grid-cols-2 gap-1 rounded-md">
+        <TabsTrigger value="standard" className="h-9 rounded-sm">OneCamp account</TabsTrigger>
+        <TabsTrigger value="directory" className="h-9 rounded-sm">Company directory</TabsTrigger>
+      </TabsList>
+      {children}
+    </Tabs>
+  )
+}
+
+/** A sign-in form: its tab's panel when there are tabs, the form alone when not. */
+function SignInPanel({ tabbed, value, children }: { tabbed: boolean; value: SignInTab; children: React.ReactElement }) {
+  return tabbed ? <TabsContent value={value} asChild className="mt-0">{children}</TabsContent> : children
+}
+
 export default function SignUp() {
 
   const [isLoading, setIsLoading] = useState(false);
@@ -109,7 +136,7 @@ export default function SignUp() {
   const [totpPrompt, setTotpPrompt] = useState("");
 
   // Enterprise LDAP States
-  const [activeTab, setActiveTab] = useState<"standard" | "directory">("standard");
+  const [activeTab, setActiveTab] = useState<SignInTab>("standard");
   const [ldapUser, setLdapUser] = useState("");
   const [ldapPass, setLdapPass] = useState("");
   const [showLdapPassword, setShowLdapPassword] = useState(false);
@@ -424,33 +451,10 @@ export default function SignUp() {
               password step is done, and another way to sign in beside the
               code would say the sign-in can start over in place. Keep the
               tabs inside it (directorySignInTwoStep.test.tsx checks). */}
-          {isLdapEnabled && (
-            <div role="tablist" aria-label="Sign in with" className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
-              {([["standard", "OneCamp account"], ["directory", "Company directory"]] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="tab"
-                  id={`signin-tab-${value}`}
-                  aria-selected={activeTab === value}
-                  aria-controls={`signin-panel-${value}`}
-                  onClick={() => setActiveTab(value)}
-                  className={cn(
-                    "h-9 rounded-sm text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                    activeTab === value ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-
+          <SignInTabs tabbed={isLdapEnabled} value={activeTab} onValueChange={setActiveTab}>
           {activeTab === "standard" ? (
-            <div
-              className="space-y-6"
-              {...(isLdapEnabled ? { role: "tabpanel", id: "signin-panel-standard", "aria-labelledby": "signin-tab-standard" } : {})}
-            >
+            <SignInPanel tabbed={isLdapEnabled} value="standard">
+            <div className="space-y-6">
               {/* The ways in that are one click: the accounts the workspace
                   trusts, its single sign-on, and this device's passkey. */}
               {hasProviderButtons && (
@@ -551,15 +555,11 @@ export default function SignUp() {
                 </>
               )}
             </div>
+            </SignInPanel>
           ) : (
             /* Directory Login (LDAP) */
-            <form
-              onSubmit={handleLdapLogin}
-              className="space-y-4"
-              role="tabpanel"
-              id="signin-panel-directory"
-              aria-labelledby="signin-tab-directory"
-            >
+            <SignInPanel tabbed={isLdapEnabled} value="directory">
+            <form onSubmit={handleLdapLogin} className="space-y-4">
               <AuthField
                 id="ldap-user"
                 name="username"
@@ -591,7 +591,9 @@ export default function SignUp() {
                 {isLoading ? "Signing in…" : "Sign in with directory"}
               </Button>
             </form>
+            </SignInPanel>
           )}
+          </SignInTabs>
 
           {/* Demo Login Section */}
           {isDemoEnabled && (

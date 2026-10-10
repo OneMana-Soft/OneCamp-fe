@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react"
 import { useTheme } from "next-themes"
+import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
 import { Button } from "@/components/ui/button"
 import { Monitor, Moon, Sun } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -26,7 +27,12 @@ const THEMES = [
   ["system", "Match system", Monitor],
 ] as const
 
-/** Light, dark or the device's own, and the accent. A choice of three, not a dark-mode switch. */
+/**
+ * Light, dark or the device's own, and the accent. A choice of three, not a
+ * dark-mode switch. A Radix radio group, so it keys as WAI-ARIA's radio group
+ * does: one Tab stop (the chosen theme), and the arrow keys move to the next
+ * theme and choose it.
+ */
 export function AppearanceSection() {
   const { theme, setTheme } = useTheme()
   const choice = theme === "dark" || theme === "light" ? theme : "system"
@@ -35,24 +41,29 @@ export function AppearanceSection() {
       <div className="space-y-4">
         <div className="space-y-2">
           <p id="theme-label" className="text-sm font-medium">Theme</p>
-          <div role="radiogroup" aria-labelledby="theme-label" className="inline-flex flex-wrap gap-1 rounded-md bg-muted p-1">
+          <RadioGroupPrimitive.Root
+            value={choice}
+            onValueChange={setTheme}
+            orientation="horizontal"
+            aria-labelledby="theme-label"
+            className="inline-flex flex-wrap gap-1 rounded-md bg-muted p-1"
+          >
             {THEMES.map(([value, label, Icon]) => (
-              <button
+              <RadioGroupPrimitive.Item
                 key={value}
-                type="button"
-                role="radio"
-                aria-checked={choice === value}
-                onClick={() => setTheme(value)}
+                value={value}
                 className={cn(
-                  "inline-flex h-8 items-center gap-1.5 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                  choice === value ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
+                  "inline-flex h-8 items-center gap-1.5 rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+                  // The house segmented look (TabsTrigger): the raised card and
+                  // a hairline, which read as chosen in both themes.
+                  "data-[state=checked]:bg-card data-[state=checked]:text-foreground data-[state=checked]:ring-1 data-[state=checked]:ring-border",
                 )}
               >
                 <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                 {label}
-              </button>
+              </RadioGroupPrimitive.Item>
             ))}
-          </div>
+          </RadioGroupPrimitive.Root>
         </div>
         <ColorThemePicker />
       </div>

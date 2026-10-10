@@ -58,7 +58,8 @@ afterEach(() => {
 /** The page, on its directory form, with a name and password entered and sent. */
 async function signInThroughTheDirectory() {
   render(<SignInPage />)
-  fireEvent.click(await screen.findByRole("tab", { name: "Company directory" }))
+  // A tab switches on the press, as a click starts (Radix tabs).
+  fireEvent.mouseDown(await screen.findByRole("tab", { name: "Company directory" }))
   fireEvent.change(screen.getByLabelText("Directory username or email"), { target: { value: "sam" } })
   fireEvent.change(screen.getByLabelText("Directory password"), { target: { value: "directory-password" } })
   await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Sign in with directory" })))
@@ -124,6 +125,30 @@ describe("signing in through the directory", () => {
     expect(await screen.findByText("Invalid directory credentials.")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Sign in with directory" })).toBeTruthy()
     expect(router.push).not.toHaveBeenCalled()
+  })
+})
+
+describe("the sign-in tabs", () => {
+  it("move with the arrow keys, Home and End, opening each form as they go", async () => {
+    render(<SignInPage />)
+    const account = await screen.findByRole("tab", { name: "OneCamp account" })
+    const directory = screen.getByRole("tab", { name: "Company directory" })
+    expect(account.getAttribute("aria-selected")).toBe("true")
+
+    act(() => account.focus())
+    fireEvent.keyDown(account, { key: "ArrowRight" })
+    await waitFor(() => expect(document.activeElement).toBe(directory))
+    expect(directory.getAttribute("aria-selected")).toBe("true")
+    expect(screen.getByRole("button", { name: "Sign in with directory" })).toBeTruthy()
+
+    fireEvent.keyDown(directory, { key: "Home" })
+    await waitFor(() => expect(document.activeElement).toBe(account))
+    expect(screen.getByLabelText("Email address")).toBeTruthy()
+
+    fireEvent.keyDown(account, { key: "End" })
+    await waitFor(() => expect(document.activeElement).toBe(directory))
+    // The tab names its form, and the form its tab.
+    expect(screen.getByRole("tabpanel", { name: "Company directory" })).toBeTruthy()
   })
 })
 
