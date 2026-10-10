@@ -8,10 +8,16 @@ import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { GetEventsResponse, CreateEventPayload } from "@/types/calendar";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
-import { X, Check, Plus, Trash2, CalendarClock, Sparkles } from "@/lib/icons";
-import { Edit2, ArrowRightToLine } from "@/lib/icons";
+import { X, Plus, Trash2, CalendarClock, Sparkles, LogOut } from "@/lib/icons";
+import { Edit2 } from "@/lib/icons";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
+import { SpotError } from "@/components/ui/graphics";
 import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
+import { RightPanelHeader } from "@/components/rightPanel/rightPanelHeader";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fieldLabel, fieldRow, inlineAdd, sectionTitle } from "@/lib/ui/fieldRow";
+import { cn } from "@/lib/utils/helpers/cn";
 import { isAllDay } from "@/components/calendar/calendarLayout";
 import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { wholeDays } from "@/lib/timeOff";
@@ -24,7 +30,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList } from "@/components/ui/command";
 import { UserComboboxItem } from "@/components/combobox/userComboboxItem";
@@ -140,8 +145,35 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [eventId]);
 
-    if (isLoading) return <div className="p-6 text-sm text-muted-foreground animate-pulse">Loading event details…</div>;
-    if (!event) return <div className="p-6 text-sm text-muted-foreground">Event not found.</div>;
+    // In the right panel the shared header carries the view's actions and the
+    // close button; on the phone's own page the app bar has the way back.
+    const inPanel = !onClose;
+    const close = () => (onClose ? onClose() : dispatch(closeRightPanel()));
+
+    if (isLoading) {
+        return (
+            <EventPanelFrame inPanel={inPanel}>
+                <EventPanelSkeleton />
+            </EventPanelFrame>
+        );
+    }
+    if (!event) {
+        return (
+            <EventPanelFrame inPanel={inPanel}>
+                <EmptyState
+                    illustration={<SpotError />}
+                    title="This event isn't available"
+                    description="It may have been deleted, or moved out of the month on screen."
+                    action={
+                        <Button variant="outline" size="sm" onClick={close}>
+                            Close
+                        </Button>
+                    }
+                    className="pt-10"
+                />
+            </EventPanelFrame>
+        );
+    }
 
     const start = parseISO(event.event_start_time);
     const end = parseISO(event.event_end_time);
@@ -175,13 +207,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
             console.error("Failed to update event", e);
         }
     };
-    const handleClose = () => {
-        if (onClose) {
-            onClose();
-        } else {
-            dispatch(closeRightPanel());
-        }
-    }
+    const handleClose = close;
 
     // refreshEvents re-pulls the calendar after a mutation (reschedule, etc.),
     // mirroring handleSave's revalidation of every cached events query.
@@ -256,95 +282,91 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         }));
     };
 
+    // Which calendar it is on, in that calendar's hue, the way the calendar
+    // draws it: dot and word under the title, as a task's status sits under its.
+    const onGoogle = event.event_uuid.startsWith("gcal-");
+    const quietIcon = "h-8 w-8 text-muted-foreground hover:text-foreground";
+
+    const actions = isEditing ? (
+        <>
+            <Button variant="ghost" size="sm" className="h-8" onClick={() => setIsEditing(false)}>
+                Cancel
+            </Button>
+            <Button size="sm" className="h-8" onClick={form.handleSubmit(handleSave)}>
+                Save
+            </Button>
+        </>
+    ) : (
+        <>
+            {(isCreator || isParticipant) && (
+                <Button variant="ghost" size="icon" className={quietIcon} title="Prep brief" aria-label="Prep brief" onClick={() => setPrepOpen(true)}>
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                </Button>
+            )}
+            {isCreator ? (
+                <>
+                    <Button variant="ghost" size="icon" className={quietIcon} title="Find a better time" aria-label="Find a better time" onClick={() => setRescheduleOpen(true)}>
+                        <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    {/* Red only when it is about to act: at rest it is one of
+                        the row's quiet buttons. */}
+                    <Button aria-label="Delete event" title="Delete event" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-danger-ink" onClick={handleDelete}>
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                    <Button aria-label="Edit event" title="Edit event" variant="ghost" size="icon" className={quietIcon} onClick={() => setIsEditing(true)}>
+                        <Edit2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                </>
+            ) : isParticipant ? (
+                <Button aria-label="Leave event" title="Leave event" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-danger-ink" onClick={handleLeave}>
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
+                </Button>
+            ) : null}
+        </>
+    );
+
     return (
-        <ScrollArea className="h-full">
-            <div className="p-6 space-y-6 flex flex-col h-full bg-background relative">
-                <div className="flex items-center justify-between mb-2">
-                    {/* Which calendar it is on, in that calendar's hue, the way the
-                        calendar draws it: a quiet label, not an orange badge. */}
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <IdentityMark variant="dot" hue={CALENDAR_HUE.onecamp} />
-                        Personal event
-                    </span>
-                    {!isEditing ? (
-                        <div className="flex items-center gap-2">
-                            {(isCreator || isParticipant) && (
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground" title="Prep brief" aria-label="Prep brief" onClick={() => setPrepOpen(true)}>
-                                    <Sparkles className="h-4 w-4" aria-hidden="true" />
-                                </Button>
-                            )}
-                            {isCreator ? (
-                                <>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground" title="Find a better time" aria-label="Find a better time" onClick={() => setRescheduleOpen(true)}>
-                                        <CalendarClock className="h-4 w-4" aria-hidden="true" />
-                                    </Button>
-                                    {/* Red only when it is about to act: at rest it is one of
-                                        the row's quiet buttons. */}
-                                    <Button aria-label="Delete event" title="Delete event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-danger-ink hover:bg-destructive/10" onClick={handleDelete}>
-                                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                                    </Button>
-                                    <Button aria-label="Edit event" title="Edit event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground" onClick={() => setIsEditing(true)}>
-                                        <Edit2 className="h-4 w-4" aria-hidden="true" />
-                                    </Button>
-                                </>
-                            ) : isParticipant ? (
-                                <Button variant="outline" size="sm" className="h-7 text-2xs px-2 border-destructive/30 text-danger-ink hover:bg-destructive/10" onClick={handleLeave}>
-                                    Leave
-                                </Button>
-                            ) : null}
-                            <Button size="icon" variant="ghost" onClick={handleClose} aria-label="Close panel" className="hidden md:flex">
-                                <ArrowRightToLine/>
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-1">
-                            <Button aria-label="Cancel editing" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(false)}>
-                                <X className="h-4 w-4 text-danger-ink" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={form.handleSubmit(handleSave)}>
-                                {/* Was `className="h-4 w-4 statusColors.success.text"` — a member
-                                    expression never wrapped in ${…}, so "statusColors.success.text"
-                                    was emitted as a literal class name and the save tick rendered
-                                    with no colour at all, indistinguishable from the cancel X
-                                    beside it. The token class is what that was reaching for. */}
-                                <Check className="h-4 w-4 text-success-ink" />
-                            </Button>
-                        </div>
-                    )}
-                </div>
-
+        <EventPanelFrame inPanel={inPanel} actions={actions}>
                 {!isEditing ? (
-                    // As the task panel reads: quiet labels in one column, each
-                    // value on one line beside its label, sections with one
-                    // title style and the same rhythm.
-                    <div className="space-y-6">
-                        <h2 className="text-2xl font-medium tracking-tight text-foreground text-balance">{event.event_title}</h2>
+                    // As the task panel reads: the title, what it is under it,
+                    // quiet labels in one column with each value on one line,
+                    // then sections that a heading and space set apart.
+                    <div data-event-view="">
+                        <h2 className="text-xl font-medium tracking-tight text-foreground text-balance sm:text-2xl">{event.event_title}</h2>
+                        <p className="mt-2 flex items-center gap-1.5 text-sm text-foreground">
+                            <IdentityMark variant="dot" hue={onGoogle ? CALENDAR_HUE.google : CALENDAR_HUE.onecamp} />
+                            {onGoogle ? "Google Calendar" : "Personal event"}
+                        </p>
 
-                        <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2.5 text-sm">
-                            <dt className="text-muted-foreground">Date</dt>
-                            <dd className="truncate text-foreground">
-                                {isSameDay(start, lastMoment) ? format(start, "EEEE d MMMM yyyy") : `${format(start, "EEE d MMM")} to ${format(lastMoment, "EEE d MMM yyyy")}`}
-                            </dd>
-                            <dt className="text-muted-foreground">Time</dt>
-                            <dd className="truncate tabular-nums text-foreground">
-                                {allDay ? "All day" : isSameDay(start, end) ? `${shortTime(start)} to ${shortTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
-                            </dd>
+                        <dl className="mt-6">
+                            <div className={fieldRow()}>
+                                <dt className={fieldLabel}>Date</dt>
+                                <dd className="flex min-h-8 min-w-0 items-center truncate text-sm text-foreground">
+                                    {isSameDay(start, lastMoment) ? format(start, "EEEE d MMMM yyyy") : `${format(start, "EEE d MMM")} to ${format(lastMoment, "EEE d MMM yyyy")}`}
+                                </dd>
+                            </div>
+                            <div className={fieldRow()}>
+                                <dt className={fieldLabel}>Time</dt>
+                                <dd className="flex min-h-8 min-w-0 items-center truncate text-sm tabular-nums text-foreground">
+                                    {allDay ? "All day" : isSameDay(start, end) ? `${shortTime(start)} to ${shortTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
+                                </dd>
+                            </div>
                             {event.event_is_focus && (
-                                <>
-                                    <dt className="text-muted-foreground">Focus time</dt>
-                                    <dd className="truncate text-foreground">Pauses {displayNameOf(event.event_created_by) || "its owner"}&apos;s notifications</dd>
-                                </>
+                                <div className={fieldRow()}>
+                                    <dt className={fieldLabel}>Focus time</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center truncate text-sm text-foreground">Pauses {displayNameOf(event.event_created_by) || "its owner"}&apos;s notifications</dd>
+                                </div>
                             )}
                             {event.event_is_away && (
-                                <>
-                                    <dt className="text-muted-foreground">Away</dt>
-                                    <dd className="truncate text-foreground">Out of {displayNameOf(event.event_created_by) || "its owner"}&apos;s workload</dd>
-                                </>
+                                <div className={fieldRow()}>
+                                    <dt className={fieldLabel}>Away</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center truncate text-sm text-foreground">Out of {displayNameOf(event.event_created_by) || "its owner"}&apos;s workload</dd>
+                                </div>
                             )}
                             {event.event_created_by && (
-                                <>
-                                    <dt className="text-muted-foreground">Created by</dt>
-                                    <dd className="flex min-w-0 items-center gap-2 text-foreground">
+                                <div className={fieldRow()}>
+                                    <dt className={fieldLabel}>Created by</dt>
+                                    <dd className="flex min-h-8 min-w-0 items-center gap-2 text-sm text-foreground">
                                         <IdentityMark
                                             variant="avatar"
                                             size={20}
@@ -354,12 +376,12 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                         />
                                         <span className="truncate">{displayNameOf(event.event_created_by) || "Unknown"}</span>
                                     </dd>
-                                </>
+                                </div>
                             )}
                         </dl>
 
-                        <section className="space-y-2 border-t border-border/60 pt-5">
-                            <h3 className="text-sm font-medium text-foreground">Notes</h3>
+                        <section className="mt-6 space-y-2">
+                            <h3 className={sectionTitle}>Notes</h3>
                             {event.event_description ? (
                                 <SafeHtml
                                     as="div"
@@ -372,15 +394,15 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             )}
                         </section>
 
-                        <section className="space-y-2 border-t border-border/60 pt-5">
-                            <h3 className="flex items-baseline gap-1.5 text-sm font-medium text-foreground">
+                        <section className="mt-6 space-y-2">
+                            <h3 className={cn(sectionTitle, "flex items-baseline gap-1.5")}>
                                 Guests
                                 <span className="text-xs font-normal tabular-nums text-muted-foreground">{event.event_participants?.length || 0}</span>
                             </h3>
                             {event.event_participants?.length ? (
-                                <ul className="space-y-1.5">
+                                <ul>
                                     {event.event_participants.map((participant) => (
-                                        <li key={participant.user_uuid} className="flex min-w-0 items-center gap-2.5 text-sm">
+                                        <li key={participant.user_uuid} className="flex h-9 min-w-0 items-center gap-2.5 text-sm">
                                             <IdentityMark
                                                 variant="avatar"
                                                 size={24}
@@ -402,89 +424,109 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                     </div>
                 ) : (
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleSave)} className="space-y-5">
+                        {/* The same label column as the facts above it, so a
+                            field opens for editing where its value was. */}
+                        <form onSubmit={form.handleSubmit(handleSave)} data-event-edit="">
                             <FormField
                                 control={form.control}
                                 name="title"
                                 render={({ field }) => (
-                                    <FormItem className="space-y-1">
-                                        <FormLabel className="text-xs font-medium text-muted-foreground">Title</FormLabel>
-                                        <FormControl>
-                                            <Input {...field} className="h-9 focus-visible:ring-primary/30" />
-                                        </FormControl>
-                                        <FormMessage />
+                                    <FormItem className={cn(fieldRow(), "space-y-0")}>
+                                        <FormLabel className={cn(fieldLabel, "font-normal")}>Title</FormLabel>
+                                        <div className="min-w-0">
+                                            <FormControl>
+                                                <Input {...field} className="h-9" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </div>
                                     </FormItem>
                                 )}
                             />
-                            
-                            <div className="grid grid-cols-2 gap-3">
-                                <FormField
-                                    control={form.control}
-                                    name="startTime"
-                                    render={({ field }) => (
-                                        <FormItem className="space-y-1">
-                                            <FormLabel className="text-xs font-medium text-muted-foreground">Start</FormLabel>
+                            <FormField
+                                control={form.control}
+                                name="startTime"
+                                render={({ field }) => (
+                                    <FormItem className={cn(fieldRow(), "space-y-0")}>
+                                        <FormLabel className={cn(fieldLabel, "font-normal")}>Start</FormLabel>
+                                        <div className="min-w-0">
                                             <FormControl>
-                                                <DateTimePicker 
-                                                    value={field.value ? new Date(field.value) : undefined} 
-                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))} 
+                                                <DateTimePicker
+                                                    value={field.value ? new Date(field.value) : undefined}
+                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))}
                                                 />
                                             </FormControl>
                                             <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="endTime"
-                                    render={({ field }) => (
-                                        <FormItem className="space-y-1">
-                                            <FormLabel className="text-xs font-medium text-muted-foreground">End</FormLabel>
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="endTime"
+                                render={({ field }) => (
+                                    <FormItem className={cn(fieldRow(), "space-y-0")}>
+                                        <FormLabel className={cn(fieldLabel, "font-normal")}>End</FormLabel>
+                                        <div className="min-w-0">
                                             <FormControl>
-                                                <DateTimePicker 
-                                                    value={field.value ? new Date(field.value) : undefined} 
-                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))} 
+                                                <DateTimePicker
+                                                    value={field.value ? new Date(field.value) : undefined}
+                                                    onChange={(date) => field.onChange(format(date, "yyyy-MM-dd'T'HH:mm"))}
                                                 />
                                             </FormControl>
                                             <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
                             <FormField
                                 control={form.control}
                                 name="description"
                                 render={({ field }) => (
-                                    <FormItem className="space-y-1">
-                                        <FormLabel className="text-xs font-medium text-muted-foreground">Notes</FormLabel>
-                                        <FormControl>
-                                            <Textarea {...field} className="min-h-[100px] resize-none text-sm focus-visible:ring-primary/30" />
-                                        </FormControl>
-                                        <FormMessage />
+                                    <FormItem className={cn(fieldRow("start"), "space-y-0")}>
+                                        <FormLabel className={cn(fieldLabel, "font-normal sm:pt-2.5")}>Notes</FormLabel>
+                                        <div className="min-w-0">
+                                            <FormControl>
+                                                <Textarea {...field} className="min-h-[100px] resize-none text-sm" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </div>
                                     </FormItem>
                                 )}
                             />
 
-                            <div className="space-y-2">
-                                <FormLabel className="text-xs font-medium text-muted-foreground flex items-center justify-between">
-                                    Guests
+                            <div className={fieldRow("start")}>
+                                <span className={cn(fieldLabel, "sm:pt-2")}>Guests</span>
+                                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                    {participants.map((p) => (
+                                        <span key={p.user_uuid} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-muted pl-1.5 pr-1 text-sm">
+                                            <IdentityMark variant="avatar" size={20} id={p.user_uuid} label={displayNameOf(p) || "Someone"} />
+                                            <span className="max-w-[10rem] truncate">{displayNameOf(p)}</span>
+                                            <button
+                                                type="button"
+                                                aria-label={`Remove ${displayNameOf(p) || "this guest"}`}
+                                                className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-highlight hover:text-danger-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                                onClick={() => setParticipants(participants.filter((pt) => pt.user_uuid !== p.user_uuid))}
+                                            >
+                                                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                                            </button>
+                                        </span>
+                                    ))}
                                     <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
                                         <PopoverTrigger asChild>
-                                            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-2xs text-primary hover:bg-primary/10">
-                                                <Plus className="h-3 w-3 mr-1" /> Add
+                                            <Button type="button" variant="ghost" size="sm" className={cn(inlineAdd, participants.length > 0 && "ml-0")}>
+                                                <Plus className="h-4 w-4" aria-hidden="true" /> Add a guest
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent portalled={false} className="w-[240px] p-0 shadow-xl border-border/50" align="end">
+                                        <PopoverContent portalled={false} className="w-[240px] p-0" align="start">
                                             <Command shouldFilter={false}>
                                                 <CommandInput
-                                                    placeholder="Search user…"
+                                                    placeholder="Search people…"
                                                     className="h-9"
                                                     value={searchQuery}
                                                     onValueChange={setSearchQuery}
                                                 />
                                                 <CommandList>
-                                                    <CommandEmpty>{searchQuery.length < 2 ? "Type to search…" : "No user found"}</CommandEmpty>
+                                                    <CommandEmpty>{searchQuery.length < 2 ? "Type a name to search" : "Nobody by that name"}</CommandEmpty>
                                                     <CommandGroup>
                                                         {searchResults.map((user) => (
                                                             <UserComboboxItem
@@ -510,43 +552,33 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                             </Command>
                                         </PopoverContent>
                                     </Popover>
-                                </FormLabel>
-                                <div className="flex flex-wrap gap-2">
-                                    {participants.map((p) => (
-                                        <Badge key={p.user_uuid} variant="secondary" className="gap-1 px-2 py-0.5 text-2xs">
-                                            {displayNameOf(p)}
-                                            <X 
-                                                className="h-2 w-2 cursor-pointer hover:text-danger-ink" 
-                                                onClick={() => setParticipants(participants.filter(pt => pt.user_uuid !== p.user_uuid))}
-                                            />
-                                        </Badge>
-                                    ))}
                                 </div>
                             </div>
 
-                            <FocusTimeCheckbox
-                                checked={focus}
-                                onChange={(checked) => {
-                                    setFocus(checked);
-                                    if (checked) setAway(false);
-                                }}
-                            />
-                            <AwayCheckbox
-                                checked={away}
-                                onChange={(checked) => {
-                                    setAway(checked);
-                                    if (!checked) return;
-                                    setFocus(false);
-                                    // Time off is whole days.
-                                    const days = wholeDays(new Date(form.getValues("startTime")), new Date(form.getValues("endTime")));
-                                    form.setValue("startTime", format(days.start, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
-                                    form.setValue("endTime", format(days.end, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
-                                }}
-                            />
+                            <div className="mt-4 space-y-3">
+                                <FocusTimeCheckbox
+                                    checked={focus}
+                                    onChange={(checked) => {
+                                        setFocus(checked);
+                                        if (checked) setAway(false);
+                                    }}
+                                />
+                                <AwayCheckbox
+                                    checked={away}
+                                    onChange={(checked) => {
+                                        setAway(checked);
+                                        if (!checked) return;
+                                        setFocus(false);
+                                        // Time off is whole days.
+                                        const days = wholeDays(new Date(form.getValues("startTime")), new Date(form.getValues("endTime")));
+                                        form.setValue("startTime", format(days.start, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
+                                        form.setValue("endTime", format(days.end, "yyyy-MM-dd'T'HH:mm"), { shouldValidate: true });
+                                    }}
+                                />
+                            </div>
                         </form>
                     </Form>
                 )}
-            </div>
             <RescheduleDialog
                 open={rescheduleOpen}
                 onOpenChange={setRescheduleOpen}
@@ -558,6 +590,46 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                 onOpenChange={setPrepOpen}
                 eventUUID={event.event_uuid}
             />
-        </ScrollArea>
+        </EventPanelFrame>
+    );
+}
+
+/**
+ * The panel's frame in every state (loading, missing, read, edited), so its
+ * header and its body's inset never move between them. In the desktop right
+ * panel the shared 48px header carries "Event", the view's actions and the
+ * close button; on the phone's own page the app bar already says where you
+ * are and has the way back, so the actions take a row of their own.
+ */
+function EventPanelFrame({ inPanel, actions, children }: { inPanel: boolean; actions?: React.ReactNode; children: React.ReactNode }) {
+    return (
+        <div className="flex h-full min-h-0 flex-col bg-background" data-event-panel="">
+            {inPanel ? (
+                <RightPanelHeader titleKey="event" actions={actions} />
+            ) : actions ? (
+                <div className="flex h-12 shrink-0 items-center justify-end gap-1 border-b border-border/60 px-3">{actions}</div>
+            ) : null}
+            <ScrollArea className="min-h-0 flex-1">
+                <div className="px-6 pb-8 pt-5">{children}</div>
+            </ScrollArea>
+        </div>
+    );
+}
+
+/** The panel's shape while the event loads: a title, its calendar, three facts. */
+function EventPanelSkeleton() {
+    return (
+        <div role="status" aria-label="Loading the event">
+            <Skeleton className="h-7 w-3/5" />
+            <Skeleton className="mt-3 h-4 w-28" />
+            <div className="mt-6 space-y-2" aria-hidden="true">
+                {[0, 1, 2].map((i) => (
+                    <div key={i} className={fieldRow()}>
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className={cn("h-4", i === 1 ? "w-28" : "w-40")} />
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }

@@ -1,15 +1,28 @@
 "use client"
 
-/** A choice about what an event is (focus time, time off), wherever an event is made or edited. */
+import { useId } from "react"
+import { Checkbox } from "@/components/ui/checkbox"
+
+/**
+ * A choice about what an event is (focus time, time off), wherever an event is
+ * made or edited. The app's own checkbox, so it follows the colour theme and
+ * springs like every other check; and a plain row, as a setting reads. It was
+ * the browser's checkbox in raw gray-300 (the one control on the form the
+ * theme never reached) inside a bordered box, two boxes stacked in a dialog
+ * that already has a frame.
+ */
 export function EventOptionCheckbox({ label, hint, checked, onChange }: { label: string; hint: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  const id = useId()
   return (
-    <label className="flex items-start gap-3 rounded-md border p-3">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
-      <span className="space-y-1 leading-none">
-        <span className="block text-sm font-medium">{label}</span>
-        <span className="block text-xs text-muted-foreground">{hint}</span>
-      </span>
-    </label>
+    <div className="flex items-start gap-3" data-event-option="">
+      <Checkbox id={id} checked={checked} onCheckedChange={(v) => onChange(v === true)} className="mt-0.5" aria-describedby={`${id}-hint`} />
+      <label htmlFor={id} className="grid gap-1 leading-none">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span id={`${id}-hint`} className="text-xs leading-snug text-muted-foreground">
+          {hint}
+        </span>
+      </label>
+    </div>
   )
 }
 
