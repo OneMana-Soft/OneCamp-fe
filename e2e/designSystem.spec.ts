@@ -321,10 +321,11 @@ test.describe("accent themes reach the components", () => {
 
   test("changing the theme changes the primary button, not just the ring", async ({ page }) => {
     await page.goto(PRIMITIVES_PAGE)
-    // Named, not .first(): the first button on this page is the theme toggle,
-    // which is a ghost variant and computes transparent. Asserting on it proved
-    // only that a transparent thing stayed transparent.
-    const button = page.getByRole("button", { name: /reset password/i })
+    // The form's submit, not .first(): the first button on this page is the
+    // theme toggle, which is a ghost variant and computes transparent. Asserting
+    // on it proved only that a transparent thing stayed transparent. Found by its
+    // job rather than its words, so a copy change can't hide it again.
+    const button = page.locator('form button[type="submit"]')
     await expect(button).toBeVisible({ timeout: 10_000 })
 
     await applyTheme(page, "onecamp")
@@ -354,7 +355,7 @@ test.describe("accent themes reach the components", () => {
 
   test("every offered accent produces a distinct primary", async ({ page }) => {
     await page.goto(PRIMITIVES_PAGE)
-    const button = page.getByRole("button", { name: /reset password/i })
+    const button = page.locator('form button[type="submit"]')
     await expect(button).toBeVisible({ timeout: 10_000 })
 
     // slate, zinc and stone are the three that were in the picker with no CSS at
