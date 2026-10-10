@@ -140,7 +140,7 @@ export default function SearchPage() {
                                                 handlePreview(result)
                                             }}
                                             aria-label="Preview attachment"
-                                            className="relative z-[1] h-8 w-8 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground"
+                                            className="relative z-[1] h-8 w-8 shrink-0 text-muted-foreground opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto hover:text-foreground"
                                         >
                                             <Eye className="h-4 w-4" />
                                         </Button>
