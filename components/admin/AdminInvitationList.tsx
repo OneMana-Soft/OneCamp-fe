@@ -174,7 +174,7 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      className="h-8 w-8 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10"
                       onClick={() => onDelete(inv.email)}
                       disabled={isSubmitting}
                       aria-label={`Remove invitation for ${inv.email}`}

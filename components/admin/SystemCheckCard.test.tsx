@@ -169,8 +169,8 @@ describe("SystemCheckCard", () => {
         expect(
             noteBox.className,
             "a note on a passing check must not be styled as a failure",
-        ).not.toContain("text-destructive")
-        expect(noteBox.className, "a note should read as advisory").toContain("text-warning")
+        ).not.toContain("text-danger-ink")
+        expect(noteBox.className, "a note should read as advisory").toContain("text-warning-ink")
 
         // And a deliberate choice must not paint the install red.
         expect(screen.getByText(/All 1 healthy/)).toBeTruthy()

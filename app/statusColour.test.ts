@@ -118,7 +118,7 @@ describe("status colour tokens", () => {
     }
     expect(
       offenders,
-      `raw status hues. Use bg-success / text-warning / text-destructive / text-info instead:\n${offenders.join("\n")}`,
+      `raw status hues. Use bg-success and the -ink text cuts (text-warning-ink, text-danger-ink, text-info-ink) instead:\n${offenders.join("\n")}`,
     ).toEqual([])
   })
 

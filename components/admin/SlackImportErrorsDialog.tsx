@@ -32,15 +32,15 @@ const PAGE_SIZE = 100
 
 const SEVERITY_BADGE: Record<string, { className: string; icon: React.ReactNode }> = {
   warning: {
-    className: "bg-warning/10 text-warning border-warning/20",
+    className: "bg-warning/10 text-warning-ink border-warning/20",
     icon: <AlertTriangle className="h-3 w-3" />,
   },
   error: {
-    className: "bg-destructive/10 text-destructive border-destructive/20",
+    className: "bg-destructive/10 text-danger-ink border-destructive/20",
     icon: <AlertCircle className="h-3 w-3" />,
   },
   fatal: {
-    className: "bg-destructive/15 text-destructive border-destructive/30",
+    className: "bg-destructive/15 text-danger-ink border-destructive/30",
     icon: <X className="h-3 w-3" />,
   },
 }

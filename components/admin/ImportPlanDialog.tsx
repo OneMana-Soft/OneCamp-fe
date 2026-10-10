@@ -166,7 +166,7 @@ export const ImportPlanDialog: React.FC<Props> = ({
 
         {problem && !loading ? (
           <div role="alert" className="space-y-3 py-4">
-            <p className="break-words text-sm text-destructive">{problem.message}</p>
+            <p className="break-words text-sm text-danger-ink">{problem.message}</p>
             <div className="flex flex-wrap gap-2">
               {needsReconnect(problem) && onReconnect && (
                 <Button size="sm" onClick={onReconnect}>Reconnect</Button>
@@ -195,8 +195,8 @@ export const ImportPlanDialog: React.FC<Props> = ({
             {/* Warnings */}
             {plan.warnings && plan.warnings.length > 0 && (
               <div className="rounded border border-warning/30 bg-warning/5 p-3 text-sm">
-                <div className="mb-1 font-medium text-warning">Warnings</div>
-                <ul className="list-disc space-y-1 pl-5 text-warning">
+                <div className="mb-1 font-medium text-warning-ink">Warnings</div>
+                <ul className="list-disc space-y-1 pl-5 text-warning-ink">
                   {plan.warnings.slice(0, 8).map((w, i) => (
                     <li key={i}>{w}</li>
                   ))}

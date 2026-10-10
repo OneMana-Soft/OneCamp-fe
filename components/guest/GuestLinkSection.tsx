@@ -237,7 +237,7 @@ export function GuestLinkSection({ resourceType, resourceId, canShare, embedded 
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-7 shrink-0 text-destructive hover:text-destructive"
+                  className="h-7 shrink-0 text-danger-ink hover:text-danger-ink"
                   disabled={turningOff === l.id}
                   onClick={async () => {
                     setTurningOff(l.id)

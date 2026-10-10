@@ -35,7 +35,7 @@ export default function ArchiveRunJobDialog({ open, onOpenChange, onConfirm, ent
       <AlertDialogContent className="sm:max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-warning" /> Run Archive Job
+            <AlertTriangle className="h-5 w-5 text-warning-ink" /> Run Archive Job
           </AlertDialogTitle>
           <AlertDialogDescription>
             <p>This will archive all <strong className="text-foreground">{entityLabel}</strong> items that are older than the configured retention period.</p>

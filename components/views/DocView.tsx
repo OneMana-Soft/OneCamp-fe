@@ -464,7 +464,7 @@ export function DocView({ docId }: { docId: string }) {
                 <div className={cn(
                     "shrink-0 px-4 py-1.5 text-xs font-medium flex items-center justify-center gap-2",
                     collabStatus === 'offline'
-                        ? "bg-warning/10 text-warning border-b border-warning/20"
+                        ? "bg-warning/10 text-warning-ink border-b border-warning/20"
                         : "bg-muted/50 text-muted-foreground border-b"
                 )}>
                     {collabStatus === 'offline' ? (

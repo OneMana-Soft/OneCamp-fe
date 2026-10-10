@@ -258,7 +258,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                         <div className="flex items-center gap-2">
                             {isCreator ? (
                                 <>
-                                    <Button aria-label="Delete event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-destructive hover:bg-destructive/10" onClick={handleDelete}>
+                                    <Button aria-label="Delete event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-danger-ink hover:bg-destructive/10" onClick={handleDelete}>
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                     <Button aria-label="Edit event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(true)}>
@@ -266,7 +266,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     </Button>
                                 </>
                             ) : isParticipant ? (
-                                <Button variant="outline" size="sm" className="h-7 text-2xs px-2 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={handleLeave}>
+                                <Button variant="outline" size="sm" className="h-7 text-2xs px-2 border-destructive/30 text-danger-ink hover:bg-destructive/10" onClick={handleLeave}>
                                     Leave
                                 </Button>
                             ) : null}
@@ -277,7 +277,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                     ) : (
                         <div className="flex items-center gap-1">
                             <Button aria-label="Cancel editing" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(false)}>
-                                <X className="h-4 w-4 text-destructive" />
+                                <X className="h-4 w-4 text-danger-ink" />
                             </Button>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={form.handleSubmit(handleSave)}>
                                 {/* Was `className="h-4 w-4 statusColors.success.text"` — a member
@@ -285,7 +285,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     was emitted as a literal class name and the save tick rendered
                                     with no colour at all, indistinguishable from the cancel X
                                     beside it. The token class is what that was reaching for. */}
-                                <Check className="h-4 w-4 text-success" />
+                                <Check className="h-4 w-4 text-success-ink" />
                             </Button>
                         </div>
                     )}
@@ -509,7 +509,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                         <Badge key={p.user_uuid} variant="secondary" className="gap-1 px-2 py-0.5 text-2xs">
                                             {displayNameOf(p)}
                                             <X 
-                                                className="h-2 w-2 cursor-pointer hover:text-destructive" 
+                                                className="h-2 w-2 cursor-pointer hover:text-danger-ink" 
                                                 onClick={() => setParticipants(participants.filter(pt => pt.user_uuid !== p.user_uuid))}
                                             />
                                         </Badge>

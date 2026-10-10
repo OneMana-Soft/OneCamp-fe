@@ -175,7 +175,7 @@ const SlackBridgeCard: React.FC = () => {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-                {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+                {loadError && <p className="text-sm text-danger-ink">{loadError}</p>}
                 {!status && !loadError && (
                     <p className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" /> Loading…
@@ -232,7 +232,7 @@ const SlackBridgeCard: React.FC = () => {
                                     <p className="text-xs text-muted-foreground">In Slack: Basic Information.</p>
                                 </div>
                             </div>
-                            {formError && <p className="text-sm text-destructive">{formError}</p>}
+                            {formError && <p className="text-sm text-danger-ink">{formError}</p>}
                             <Button size="sm" onClick={() => void connect()} disabled={!token.trim() || !secret.trim() || busy === "connect"}>
                                 {busy === "connect" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Connect Slack
@@ -250,7 +250,7 @@ const SlackBridgeCard: React.FC = () => {
                     <>
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <p className="flex items-center gap-2 text-sm">
-                                <CheckCircle2 className="h-4 w-4 text-success" />
+                                <CheckCircle2 className="h-4 w-4 text-success-ink" />
                                 Connected to <span className="font-medium">{status.team_name || "Slack"}</span>
                             </p>
                             {confirmDisconnect ? (
@@ -273,7 +273,7 @@ const SlackBridgeCard: React.FC = () => {
 
                         {status.last_error && (
                             <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5" role="alert">
-                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
                                 <p className="text-sm">{status.last_error}</p>
                             </div>
                         )}
@@ -345,8 +345,8 @@ const SlackBridgeCard: React.FC = () => {
                                     Link
                                 </Button>
                             </div>
-                            {slackChannelsError && <p className="text-sm text-destructive">{slackChannelsError}</p>}
-                            {formError && <p className="text-sm text-destructive">{formError}</p>}
+                            {slackChannelsError && <p className="text-sm text-danger-ink">{slackChannelsError}</p>}
+                            {formError && <p className="text-sm text-danger-ink">{formError}</p>}
                             <p className="text-xs text-muted-foreground">
                                 Everyone in the Slack channel will read what is written in the OneCamp one, so link a
                                 private channel only to a Slack channel with the same people. The app joins a public Slack

@@ -31,7 +31,7 @@ export function ScheduledMessagesBar({ target }: { target: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`mb-1.5 flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-accent ${failed ? "text-destructive" : "text-muted-foreground"}`}
+        className={`mb-1.5 flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-accent ${failed ? "text-danger-ink" : "text-muted-foreground"}`}
       >
         <CalendarClock className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{summary}</span>
@@ -70,7 +70,7 @@ function Row({
   return (
     <li className="rounded-md border p-3">
       <p className="line-clamp-3 text-sm">{m.preview || "(attachment)"}</p>
-      <p className={`mt-1 text-xs ${failed ? "text-destructive" : "text-muted-foreground"}`}>
+      <p className={`mt-1 text-xs ${failed ? "text-danger-ink" : "text-muted-foreground"}`}>
         {failed ? m.last_error || "Couldn't be sent" : m.status === "running" ? "Sending…" : `Sends ${formatSendAt(new Date(m.send_at))}`}
       </p>
       {m.status !== "running" && (
@@ -97,7 +97,7 @@ function Row({
               </PopoverContent>
             </Popover>
           )}
-          <Button size="sm" variant="ghost" className="h-7 gap-1 text-destructive hover:text-destructive" onClick={() => onCancel(m.id)}>
+          <Button size="sm" variant="ghost" className="h-7 gap-1 text-danger-ink hover:text-danger-ink" onClick={() => onCancel(m.id)}>
             <Trash2 className="h-3.5 w-3.5" /> {failed ? "Dismiss" : "Delete"}
           </Button>
         </div>

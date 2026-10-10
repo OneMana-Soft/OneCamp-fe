@@ -53,7 +53,7 @@ export function ProjectUpdates({ projectId }: { projectId: string }) {
             due ? "border-warning/30 bg-warning/5" : "border-border/60 bg-muted/30",
           )}
         >
-          <Megaphone className={cn("h-4 w-4 shrink-0", due ? "text-warning" : "text-muted-foreground")} />
+          <Megaphone className={cn("h-4 w-4 shrink-0", due ? "text-warning-ink" : "text-muted-foreground")} />
           <p className="min-w-0 flex-1 text-sm text-muted-foreground">
             {due
               ? `The last update was ${daysSince(latest.created_at, now)} days ago. The next one is drafted from this week's tasks.`

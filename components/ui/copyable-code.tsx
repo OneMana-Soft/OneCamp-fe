@@ -76,7 +76,7 @@ export function CopyableCode({ value, label, className }: CopyableCodeProps) {
         {state === "failed" ? `Could not copy the ${label}. Select the text and copy it manually.` : ""}
       </span>
       {state === "failed" && (
-        <p className="px-3 pb-2 text-2xs text-destructive">
+        <p className="px-3 pb-2 text-2xs text-danger-ink">
           Couldn&apos;t reach the clipboard. Select the text above and copy it manually.
         </p>
       )}

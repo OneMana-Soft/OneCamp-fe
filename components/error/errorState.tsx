@@ -12,7 +12,7 @@ interface ErrorStateProps {
 export const ErrorState = ({ onRetry, errorMessage, errorTitle }: ErrorStateProps) => {
     return (
         <div className="h-full w-full flex flex-col items-center justify-center space-y-4">
-            <AlertCircle className="h-12 w-12 text-destructive" />
+            <AlertCircle className="h-12 w-12 text-danger-ink" />
             <div className="text-center">
                 <h3 className="text-lg font-semibold">{errorTitle}</h3>
                 <p className="text-sm text-muted-foreground">{errorMessage}</p>

@@ -65,14 +65,14 @@ export function ImportOutcomeBanner({ isAdmin }: { isAdmin?: boolean }) {
           className={cn(
             "flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2 text-xs",
             outcome.status === "failed"
-              ? "border-destructive/30 bg-destructive/10 text-destructive"
+              ? "border-destructive/30 bg-destructive/10 text-danger-ink"
               : "border-success/30 bg-success/10 text-foreground",
           )}
         >
           {outcome.status === "failed" ? (
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           ) : (
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden="true" />
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success-ink" aria-hidden="true" />
           )}
           <p className="min-w-0 flex-1 break-words">
             {outcomeText(outcome)}

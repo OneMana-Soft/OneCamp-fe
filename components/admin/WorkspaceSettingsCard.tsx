@@ -155,7 +155,7 @@ export default function WorkspaceSettingsCard() {
                         aria-describedby={accessRefusal ? "allowed-users-refusal allowed-users-help" : "allowed-users-help"}
                     />
                     {accessRefusal && (
-                        <p id="allowed-users-refusal" role="alert" className="text-sm text-destructive">{accessRefusal}</p>
+                        <p id="allowed-users-refusal" role="alert" className="text-sm text-danger-ink">{accessRefusal}</p>
                     )}
                     <p id="allowed-users-help" className="text-2xs text-muted-foreground">
                         People on this list join by signing in, without an invitation. An address on it gets in through

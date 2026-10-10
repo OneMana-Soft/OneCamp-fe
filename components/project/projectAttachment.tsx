@@ -102,7 +102,7 @@ export default function ProjectAttachment({
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                             onClick={() => handleRemoveAttachment(attachmentInfo.attachment_uuid || "")}
-                            className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                            className="cursor-pointer text-danger-ink focus:text-danger-ink focus:bg-destructive/10"
                         >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete

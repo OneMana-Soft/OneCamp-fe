@@ -203,7 +203,7 @@ export default function TemplatesPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-destructive"
+                  className="text-danger-ink"
                   onClick={() => handleDelete(selected)}
                   disabled={busyId === selected.id}
                   title="Remove (author or admin only)"

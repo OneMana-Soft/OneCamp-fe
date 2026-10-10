@@ -53,7 +53,7 @@ const TONE: Record<Load, string> = {
   free: "",
   room: "bg-muted text-foreground hover:bg-muted/70",
   full: "bg-foreground/10 font-medium text-foreground hover:bg-foreground/15",
-  over: "bg-destructive/15 font-semibold text-destructive hover:bg-destructive/25",
+  over: "bg-destructive/15 font-semibold text-danger-ink hover:bg-destructive/25",
 }
 const METER: Record<Load, string> = {
   free: "",
@@ -198,7 +198,7 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground">
         <p>
           {over > 0 ? (
-            <span className="font-medium text-destructive">
+            <span className="font-medium text-danger-ink">
               {over} {over === 1 ? "person has" : "people have"} more than they take on this week.
             </span>
           ) : (
@@ -526,7 +526,7 @@ function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: Work
             {amount}, against the {measure === "hours" ? `${capacity} hours they work` : `${capacity} they take on`}{" "}
             {away > 0 ? `this week, away ${away >= 5 ? "all week" : `${away} ${away === 1 ? "day" : "days"}`}` : "a week"}
             {load === "over" && (
-              <span className="font-medium text-destructive">: {formatLoad(Math.round((value - capacity) * 10) / 10, measure)} too many</span>
+              <span className="font-medium text-danger-ink">: {formatLoad(Math.round((value - capacity) * 10) / 10, measure)} too many</span>
             )}
           </>
         )
@@ -564,7 +564,7 @@ function OverdueCell({ row, weeks, ...rest }: CellProps & { weeks: Date[] }) {
       label={`${who}: ${count} overdue${hours}`}
       summary={`${count} open, due before this week${hours}`}
       hint="Bring one to next week, or give it to someone with room."
-      className="bg-destructive/10 font-medium text-destructive hover:bg-destructive/20"
+      className="bg-destructive/10 font-medium text-danger-ink hover:bg-destructive/20"
       meter={null}
     >
       {rest.measure === "hours" && row.overdueLoad === 0 ? <span title="No estimates yet">–</span> : formatLoad(row.overdueLoad, rest.measure)}
@@ -745,7 +745,7 @@ function GiveTo({ t, week, people, measure, onGive }: { t: WorkloadTask; week: n
                     <span
                       className={cn(
                         "ml-auto pl-2 text-xs tabular-nums",
-                        load === "over" ? "text-destructive" : load === "full" ? "text-foreground" : "text-muted-foreground",
+                        load === "over" ? "text-danger-ink" : load === "full" ? "text-foreground" : "text-muted-foreground",
                       )}
                     >
                       {(r.awayDays[week] ?? 0) >= 5 ? "away" : `${formatLoad(n, measure)}/${measure === "hours" ? `${cap}h` : cap}`}

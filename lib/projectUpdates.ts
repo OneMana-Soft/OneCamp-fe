@@ -29,19 +29,19 @@ export interface UpdateDraft {
 
 /** Each health, in the order a picker offers them, with its meaning's colour. */
 export const HEALTHS: { value: Health; label: string; dot: string; pill: string }[] = [
-  { value: "on_track", label: "On track", dot: "bg-success", pill: "bg-success/10 text-success" },
-  { value: "at_risk", label: "At risk", dot: "bg-warning", pill: "bg-warning/12 text-warning" },
-  { value: "off_track", label: "Off track", dot: "bg-destructive", pill: "bg-destructive/10 text-destructive" },
+  { value: "on_track", label: "On track", dot: "bg-success", pill: "bg-success/10 text-success-ink" },
+  { value: "at_risk", label: "At risk", dot: "bg-warning", pill: "bg-warning/12 text-warning-ink" },
+  { value: "off_track", label: "Off track", dot: "bg-destructive", pill: "bg-destructive/10 text-danger-ink" },
   { value: "on_hold", label: "On hold", dot: "bg-muted-foreground", pill: "bg-muted text-muted-foreground" },
-  { value: "done", label: "Done", dot: "bg-info", pill: "bg-info/10 text-info" },
+  { value: "done", label: "Done", dot: "bg-info", pill: "bg-info/10 text-info-ink" },
 ]
 
 /** How a goal ended: closing one gives one of these instead of a health. */
 export type Ending = "achieved" | "missed" | "dropped"
 
 export const ENDINGS: { value: Ending; label: string; dot: string; pill: string }[] = [
-  { value: "achieved", label: "Achieved", dot: "bg-success", pill: "bg-success/10 text-success" },
-  { value: "missed", label: "Missed", dot: "bg-destructive", pill: "bg-destructive/10 text-destructive" },
+  { value: "achieved", label: "Achieved", dot: "bg-success", pill: "bg-success/10 text-success-ink" },
+  { value: "missed", label: "Missed", dot: "bg-destructive", pill: "bg-destructive/10 text-danger-ink" },
   { value: "dropped", label: "Dropped", dot: "bg-muted-foreground", pill: "bg-muted text-muted-foreground" },
 ]
 

@@ -252,7 +252,7 @@ function AdminUserRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-auto gap-1 px-2 sm:w-8 sm:px-0 text-success hover:text-success hover:bg-success/10"
+                className="h-8 w-auto gap-1 px-2 sm:w-8 sm:px-0 text-success-ink hover:text-success-ink hover:bg-success/10"
                 onClick={() => onActivate(user.user_email_id!, user.user_uuid)}
                 disabled={isSubmitting}
                 aria-label={`Reactivate ${seed}`}
@@ -269,7 +269,7 @@ function AdminUserRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-auto gap-1 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 sm:w-8 sm:px-0"
+                className="h-8 w-auto gap-1 px-2 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10 sm:w-8 sm:px-0"
                 onClick={() => onDeactivate(user.user_email_id!, user.user_uuid)}
                 disabled={isSubmitting}
                 aria-label={`Deactivate ${seed}`}

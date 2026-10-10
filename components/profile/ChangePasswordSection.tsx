@@ -108,7 +108,7 @@ export function ChangePasswordSection() {
             </div>
 
             {success && !isExpanded && (
-                <p role="status" className="text-sm text-success">{success}</p>
+                <p role="status" className="text-sm text-success-ink">{success}</p>
             )}
 
             {isExpanded && (
@@ -153,8 +153,8 @@ export function ChangePasswordSection() {
                         minLength={8}
                     />
 
-                    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-                    {success && <p role="status" className="text-sm text-success">{success}</p>}
+                    {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
+                    {success && <p role="status" className="text-sm text-success-ink">{success}</p>}
 
                     <div className="flex justify-end">
                         <Button type="submit" disabled={isSubmitting}>

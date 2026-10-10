@@ -176,7 +176,7 @@ export default function GuestProjectPage({ params }: { params: Promise<{ token: 
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         {t.status_label !== col.label && <span className="rounded bg-muted px-1.5 py-0.5">{t.status_label}</span>}
                         {t.due_date && (
-                          <span className={`flex items-center gap-1 ${isOverdue(t) ? "text-destructive" : ""}`}>
+                          <span className={`flex items-center gap-1 ${isOverdue(t) ? "text-danger-ink" : ""}`}>
                             <Calendar className="h-3 w-3" aria-hidden />
                             {isOverdue(t) ? "Overdue · " : ""}{day(t.due_date)}
                           </span>
@@ -255,7 +255,7 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
                 <dd>{task.status_label}</dd>
                 {task.assignee && (<><dt className="text-muted-foreground">Assignee</dt><dd className="truncate">{task.assignee}</dd></>)}
                 {task.start_date && (<><dt className="text-muted-foreground">Starts</dt><dd>{day(task.start_date)}</dd></>)}
-                {task.due_date && (<><dt className="text-muted-foreground">Due</dt><dd className={isOverdue(task) ? "text-destructive" : ""}>{day(task.due_date)}{isOverdue(task) ? " (overdue)" : ""}</dd></>)}
+                {task.due_date && (<><dt className="text-muted-foreground">Due</dt><dd className={isOverdue(task) ? "text-danger-ink" : ""}>{day(task.due_date)}{isOverdue(task) ? " (overdue)" : ""}</dd></>)}
               </dl>
             </div>
             {task.description && <p className="whitespace-pre-wrap break-words text-sm">{task.description}</p>}
@@ -342,7 +342,7 @@ function ReviewControls({ name, onReview }: { name: string; onReview: (decision:
           </div>
         </div>
       )}
-      {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-xs text-danger-ink">{error}</p>}
     </section>
   )
 }

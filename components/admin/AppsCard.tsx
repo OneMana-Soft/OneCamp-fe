@@ -208,11 +208,11 @@ function AppRow({
                     <Badge variant="secondary" className="text-2xs">{KIND_LABELS[app.kind] || app.kind}</Badge>
                     {app.kind === "oauth" && (
                         app.is_connected
-                            ? <Badge className="text-2xs bg-success/10 text-success"><Check className="h-3 w-3 mr-0.5" />Connected</Badge>
+                            ? <Badge className="text-2xs bg-success/10 text-success-ink"><Check className="h-3 w-3 mr-0.5" />Connected</Badge>
                             : <Badge variant="outline" className="text-2xs"><X className="h-3 w-3 mr-0.5" />Not connected</Badge>
                     )}
                     {app.has_api_key && (
-                        <Badge className="text-2xs bg-success/10 text-success"><Check className="h-3 w-3 mr-0.5" />Key set</Badge>
+                        <Badge className="text-2xs bg-success/10 text-success-ink"><Check className="h-3 w-3 mr-0.5" />Key set</Badge>
                     )}
                 </div>
                 {app.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{app.description}</p>}
@@ -236,7 +236,7 @@ function AppRow({
                 <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit} aria-label="Edit app">
                     <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={onDelete} aria-label="Remove app">
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-danger-ink" onClick={onDelete} aria-label="Remove app">
                     <Trash2 className="h-3.5 w-3.5" />
                 </Button>
             </div>
@@ -427,7 +427,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                                             <Input value={c.description} onChange={(e) => updateCommand(i, { description: e.target.value })} placeholder="Description" className="h-8" />
                                             <Input value={c.usage_hint ?? ""} onChange={(e) => updateCommand(i, { usage_hint: e.target.value })} placeholder="Usage hint (optional)" className="h-8" />
                                         </div>
-                                        <Button aria-label="Remove command" type="button" size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeCommand(i)}>
+                                        <Button aria-label="Remove command" type="button" size="icon" variant="ghost" className="h-8 w-8 text-danger-ink" onClick={() => removeCommand(i)}>
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>
@@ -441,8 +441,8 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                     <div
                         className={`mb-2 rounded-lg border p-2.5 text-xs ${
                             testResult.success
-                                ? "border-success/50 bg-success/10 text-success"
-                                : "border-destructive/50 bg-destructive/10 text-destructive"
+                                ? "border-success/50 bg-success/10 text-success-ink"
+                                : "border-destructive/50 bg-destructive/10 text-danger-ink"
                         }`}
                     >
                         {testResult.success ? "✓ " : "✕ "}{testResult.message}

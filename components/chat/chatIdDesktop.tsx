@@ -155,7 +155,7 @@ export const ChatIdDesktop = ({chatId, handleSend}: {chatId: string, handleSend:
                     <FeatureGate feature={FEATURE_CALLS}>
                     <Button size='icon' variant={chatCallStatusActive ? 'secondary' : 'ghost'} className={cn(
                             "relative transition duration-300",
-                            chatCallStatusActive && "bg-success/10 text-success hover:bg-success/20"
+                            chatCallStatusActive && "bg-success/10 text-success-ink hover:bg-success/20"
                         )} asChild><Link href={chatCallHref} onClick={(e) => openBeside({ kind: "call-chat", id: chatId }, e)} aria-label={chatCallStatusActive ? "Join active call" : "Start video call"}>
                         <Video size={18} />
                         {chatCallStatusActive && (

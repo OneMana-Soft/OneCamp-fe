@@ -223,7 +223,7 @@ const WorkflowsCard = () => {
                                             variant="ghost"
                                             size="icon"
                                             aria-label="Delete this workflow"
-                                            className="h-8 w-8 text-destructive hover:text-destructive"
+                                            className="h-8 w-8 text-danger-ink hover:text-danger-ink"
                                             disabled={busyId === wf.id}
                                             onClick={() => handleDelete(wf)}
                                             title="Delete"

@@ -133,7 +133,7 @@ export function VideoControls({
         label={isMicrophoneEnabled ? "Mute" : "Unmute"}
         onClick={toggleMic}
         isActive={!isMicrophoneEnabled} // Red when muted
-        activeClass="bg-destructive/20 text-destructive hover:bg-destructive/30 border-destructive/50"
+        activeClass="bg-destructive/20 text-danger-ink hover:bg-destructive/30 border-destructive/50"
       >
         {isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
       </ControlBtn>
@@ -142,7 +142,7 @@ export function VideoControls({
         label={isCameraEnabled ? "Stop video" : "Start video"}
         onClick={toggleCamera}
         isActive={!isCameraEnabled}
-        activeClass="bg-destructive/20 text-destructive hover:bg-destructive/30 border-destructive/50"
+        activeClass="bg-destructive/20 text-danger-ink hover:bg-destructive/30 border-destructive/50"
       >
         {isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
       </ControlBtn>
@@ -153,7 +153,7 @@ export function VideoControls({
         label={isScreenShareEnabled ? "Stop sharing" : "Share screen"}
         onClick={toggleScreenShare}
         isActive={isScreenShareEnabled}
-        activeClass="bg-info/20 text-info hover:bg-info/30 border-info/50"
+        activeClass="bg-info/20 text-info-ink hover:bg-info/30 border-info/50"
       >
         {isScreenShareEnabled ? <MonitorOff className="h-5 w-5" /> : <MonitorUp className="h-5 w-5" />}
       </ControlBtn>
@@ -167,7 +167,7 @@ export function VideoControls({
             onClick={onToggleRecording}
             isActive={isRecording}
             disabled={isRecordingLoading}
-            activeClass="bg-destructive/20 text-destructive hover:bg-destructive/30 border-destructive/50 motion-safe:animate-pulse"
+            activeClass="bg-destructive/20 text-danger-ink hover:bg-destructive/30 border-destructive/50 motion-safe:animate-pulse"
         >
             {isRecordingLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Disc className="h-5 w-5" />}
         </ControlBtn>
@@ -267,7 +267,7 @@ export function VideoControls({
                 </DropdownMenuItem>
                 
                 {onToggleRecording && (
-                    <DropdownMenuItem onClick={onToggleRecording} className="py-3 text-destructive focus:text-destructive">
+                    <DropdownMenuItem onClick={onToggleRecording} className="py-3 text-danger-ink focus:text-danger-ink">
                          <Disc className="mr-2 h-4 w-4" />
                          {isRecording ? "Stop recording" : "Record call"}
                     </DropdownMenuItem>

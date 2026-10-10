@@ -214,7 +214,7 @@ export const useProjectTaskColumn = (statusOptions?: StatusOption[], fields: Tas
                     }}>
 
                         <span className={`${
-            d < new Date() && !isZeroEpoch(row.getValue("task_due_date")) && !isClosedStatus(row.getValue("task_status") as string) ? 'text-destructive' : ''
+            d < new Date() && !isZeroEpoch(row.getValue("task_due_date")) && !isClosedStatus(row.getValue("task_status") as string) ? 'text-danger-ink' : ''
         } `}>
           {!isZeroEpoch(row.getValue("task_due_date")) ? shortDate(d) : ""}
         </span>

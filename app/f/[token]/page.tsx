@@ -77,7 +77,7 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
           <Question key={f.id} field={f} value={answers[f.id]} onChange={(v) => set(f.id, v)} />
         ))}
         <SpamTrap id="f-website" value={website} onChange={setWebsite} />
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {error && <p role="alert" className="text-sm text-danger-ink">{error}</p>}
         <Button type="submit" disabled={busy} className="justify-self-start">
           {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
           Send
@@ -93,7 +93,7 @@ function Question({ field, value, onChange }: { field: FormField; value: unknown
   const label = (
     <Label htmlFor={id} className="text-sm font-medium">
       {field.label}
-      {field.required && <span className="ml-0.5 text-destructive" aria-hidden>*</span>}
+      {field.required && <span className="ml-0.5 text-danger-ink" aria-hidden>*</span>}
     </Label>
   )
   const str = typeof value === "string" ? value : ""
@@ -114,7 +114,7 @@ function Question({ field, value, onChange }: { field: FormField; value: unknown
       return (
         <label className="flex items-start gap-2 text-sm" htmlFor={id}>
           <input id={id} type="checkbox" className="mt-0.5" checked={value === true} onChange={(e) => onChange(e.target.checked)} required={field.required} />
-          <span>{field.label}{field.required && <span className="ml-0.5 text-destructive" aria-hidden>*</span>}</span>
+          <span>{field.label}{field.required && <span className="ml-0.5 text-danger-ink" aria-hidden>*</span>}</span>
         </label>
       )
     default: {

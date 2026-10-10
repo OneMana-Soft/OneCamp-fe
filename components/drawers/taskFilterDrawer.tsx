@@ -279,7 +279,7 @@ export function TaskFilterDrawer({ drawerOpenState, setOpenState }: DocOptionsDr
                             <div className="p-6 col-span-6 overflow-y-auto h-full">
                                 {renderTabContent()}
                                 {errors[activeTab as keyof FilterFormValues] && (
-                                    <p className="text-destructive text-sm mt-2">
+                                    <p className="text-danger-ink text-sm mt-2">
                                         {errors[activeTab as keyof FilterFormValues]?.message}
                                     </p>
                                 )}

@@ -311,7 +311,7 @@ const ImportCard: React.FC = () => {
               source&apos;s own teams or a team named after it. Importing the same workspace again brings only what
               is new, without copies.
               {!isMqttHealthy && (
-                <span className="ml-1 text-warning">(Real-time off; polling.)</span>
+                <span className="ml-1 text-warning-ink">(Real-time off; polling.)</span>
               )}
             </CardDescription>
           </div>
@@ -351,7 +351,7 @@ const ImportCard: React.FC = () => {
               {connection ? (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded border bg-card px-3 py-2 text-sm">
                   <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                    <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-success-ink shrink-0" />
                     <span className="truncate">Connected{connection.source_account_name ? ` as ${connection.source_account_name}` : ""}</span>
                     {connection.expires_at && (
                       <span className="text-xs text-muted-foreground">
@@ -415,7 +415,7 @@ const ImportCard: React.FC = () => {
                 )}
                 {discoverProblem && !discoverLoading && (
                   <div role="alert" className="flex flex-col gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm sm:flex-row sm:items-center">
-                    <p className="min-w-0 flex-1 break-words text-destructive">{discoverProblem.message}</p>
+                    <p className="min-w-0 flex-1 break-words text-danger-ink">{discoverProblem.message}</p>
                     <div className="flex shrink-0 gap-2">
                       {needsReconnect(discoverProblem) && (
                         <Button size="sm" onClick={() => setConnectOpen(true)}>

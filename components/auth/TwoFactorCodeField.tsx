@@ -128,7 +128,7 @@ export function TwoFactorCodeField({
             {error !== "" && (
                 // role=alert so a screen reader hears the rejection. Without it the only signal is a
                 // colour change, which is no signal at all.
-                <p id={errorId} role="alert" className="text-xs text-destructive">
+                <p id={errorId} role="alert" className="text-xs text-danger-ink">
                     {error}
                 </p>
             )}

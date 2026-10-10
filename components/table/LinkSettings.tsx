@@ -84,7 +84,7 @@ export function RelationSettings({
         </span>
       </label>
       {draft.two_way && t && here && t.id !== here.id && here.visibility === "private" && t.visibility !== "private" && (
-        <p className="text-2xs leading-snug text-warning">
+        <p className="text-2xs leading-snug text-warning-ink">
           {here.name} is private, but everyone who can open {t.name} will see a column there named after it. Its rows and links stay hidden
           from them.
         </p>

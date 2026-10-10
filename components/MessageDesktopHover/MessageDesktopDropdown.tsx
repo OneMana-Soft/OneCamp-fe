@@ -84,7 +84,7 @@ export default function MessageDesktopDropdown({ isOwner, isAdmin, setIsDropdown
                 {(isAdmin || isOwner) && <DropdownMenuSeparator/>}
                 {(isAdmin || isOwner) && <DropdownMenuItem onClick={deleteMessage}>
 
-                    <div className='flex items-center justify-center space-x-1.5 text-destructive'>
+                    <div className='flex items-center justify-center space-x-1.5 text-danger-ink'>
                         <div>
                             <Trash2 className='h-4 w-4'/>
                         </div>

@@ -190,7 +190,7 @@ const UserCard = () => {
               <p
                 className={cn(
                   "mt-2 text-sm",
-                  seats.tone === "full" ? "text-destructive" : seats.tone === "near" ? "text-warning" : "text-muted-foreground",
+                  seats.tone === "full" ? "text-danger-ink" : seats.tone === "near" ? "text-warning-ink" : "text-muted-foreground",
                 )}
               >
                 {seats.text}{" "}

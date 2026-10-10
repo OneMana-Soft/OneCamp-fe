@@ -246,7 +246,7 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
                 )
               ) : kind === "voice" ? (
                 <div className="flex h-full flex-col items-center justify-center gap-2">
-                  <span className={cn("flex h-12 w-12 items-center justify-center rounded-full", phase === "recording" ? "animate-pulse bg-destructive/15 text-destructive" : "bg-background text-muted-foreground")}>
+                  <span className={cn("flex h-12 w-12 items-center justify-center rounded-full", phase === "recording" ? "animate-pulse bg-destructive/15 text-danger-ink" : "bg-background text-muted-foreground")}>
                     <Mic className="h-6 w-6" />
                   </span>
                 </div>
@@ -261,7 +261,7 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
               )}
             </div>
 
-            <p className={cn("text-xs", phase === "error" ? "text-destructive" : "text-muted-foreground")} aria-live="polite">
+            <p className={cn("text-xs", phase === "error" ? "text-danger-ink" : "text-muted-foreground")} aria-live="polite">
               {phase === "error"
                 ? problem
                 : phase === "done"

@@ -137,7 +137,7 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
             )
         case 'saved':
             return (
-                <span className="flex items-center gap-1 text-success">
+                <span className="flex items-center gap-1 text-success-ink">
                     <Check className="size-3" />
                     <span className="text-2xs font-medium">
                         {lastSavedAt ? `Saved at ${formatTime(lastSavedAt)}` : 'Saved'}
@@ -146,14 +146,14 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
             )
         case 'error':
             return (
-                <span className="flex items-center gap-1 text-destructive">
+                <span className="flex items-center gap-1 text-danger-ink">
                     <CloudOff className="size-3" />
                     <span className="text-2xs font-medium">Save failed</span>
                 </span>
             )
         case 'offline':
             return (
-                <span className="flex items-center gap-1 text-warning">
+                <span className="flex items-center gap-1 text-warning-ink">
                     <CloudOff className="size-3" />
                     <span className="text-2xs font-medium">Offline</span>
                 </span>

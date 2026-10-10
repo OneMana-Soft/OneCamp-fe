@@ -141,16 +141,16 @@ const EditTeamNameDialog: React.FC<EditTeamDialogProps> = ({
                                         </div>
                                         <div>
                                             {error && (
-                                                <p className="text-xs md:text-sm text-destructive">{error.message}</p>
+                                                <p className="text-xs md:text-sm text-danger-ink">{error.message}</p>
                                             )}
                                             {teamNameToCheck === field.value && !isChannelNameAvailable?.exists && (
-                                                <div className="flex items-center text-success">
+                                                <div className="flex items-center text-success-ink">
                                                     <CheckCircle className="w-4 h-4 mr-1"/>
                                                     <span className="text-xs md:text-sm">Channel name is available</span>
                                                 </div>
                                             )}
                                             {teamNameToCheck === field.value && isChannelNameAvailable?.exists && (
-                                                <p className="text-xs md:text-sm text-destructive">Channel name is already taken</p>
+                                                <p className="text-xs md:text-sm text-danger-ink">Channel name is already taken</p>
                                             )}
                                         </div>
                                     </>

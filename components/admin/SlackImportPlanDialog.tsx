@@ -167,7 +167,7 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
             {plan.warnings && plan.warnings.length > 0 && (
               <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs">
                 <div className="flex items-center gap-2 font-medium mb-2">
-                  <AlertTriangle className="h-4 w-4 text-warning" />
+                  <AlertTriangle className="h-4 w-4 text-warning-ink" />
                   {plan.warnings.length} warning{plan.warnings.length === 1 ? "" : "s"}
                 </div>
                 <ul className="list-disc pl-5 space-y-1 text-muted-foreground max-h-40 overflow-auto">
@@ -235,7 +235,7 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
 
         {!planning && !plan && (
           changed ? (
-            <p role="alert" className="py-8 text-center text-sm text-destructive">{changed}</p>
+            <p role="alert" className="py-8 text-center text-sm text-danger-ink">{changed}</p>
           ) : (
             <div className="py-8 text-center text-sm text-muted-foreground">
               Could not produce a plan. Check the job&apos;s error message and try again.
@@ -276,14 +276,14 @@ const PlanStat: React.FC<{ label: string; value: React.ReactNode; positive?: boo
     <div className={cn(eyebrowClass, "text-2xs")}>{label}</div>
     <div
       className={`text-lg font-semibold mt-0.5 ${
-        warn ? "text-warning" : positive ? "text-success" : ""
+        warn ? "text-warning-ink" : positive ? "text-success-ink" : ""
       }`}
     >
       {value}
     </div>
     {warn && <Badge variant="outline" className="mt-1 text-2xs">Review warnings</Badge>}
     {positive && (
-      <Badge variant="outline" className="mt-1 text-2xs bg-success/10 text-success border-success/20 gap-1">
+      <Badge variant="outline" className="mt-1 text-2xs bg-success/10 text-success-ink border-success/20 gap-1">
         <CheckCircle2 className="h-3 w-3" />
         match
       </Badge>

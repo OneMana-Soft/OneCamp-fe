@@ -21,13 +21,13 @@ import { PlayCircle } from "lucide-react"
 import { importProviderLabel, type ImportJob } from "@/services/importService"
 
 const STATUS_BADGE: Record<string, { className: string; icon: React.ReactNode; label: string }> = {
-  pending: { className: "bg-warning/10 text-warning border-warning/20", icon: <Clock className="h-3.5 w-3.5" />, label: "Uploading" },
+  pending: { className: "bg-warning/10 text-warning-ink border-warning/20", icon: <Clock className="h-3.5 w-3.5" />, label: "Uploading" },
   validating: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <Clock className="h-3.5 w-3.5" />, label: "To plan" },
   planned: { className: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20", icon: <CheckCircle2 className="h-3.5 w-3.5" />, label: "Planned" },
   running: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" />, label: "Running" },
-  paused: { className: "bg-warning/10 text-warning border-warning/20", icon: <Clock className="h-3.5 w-3.5" />, label: "Paused" },
-  completed: { className: "bg-success/10 text-success border-success/20", icon: <CheckCircle2 className="h-3.5 w-3.5" />, label: "Finished" },
-  failed: { className: "bg-destructive/10 text-destructive border-destructive/20", icon: <XCircle className="h-3.5 w-3.5" />, label: "Failed" },
+  paused: { className: "bg-warning/10 text-warning-ink border-warning/20", icon: <Clock className="h-3.5 w-3.5" />, label: "Paused" },
+  completed: { className: "bg-success/10 text-success-ink border-success/20", icon: <CheckCircle2 className="h-3.5 w-3.5" />, label: "Finished" },
+  failed: { className: "bg-destructive/10 text-danger-ink border-destructive/20", icon: <XCircle className="h-3.5 w-3.5" />, label: "Failed" },
   cancelled: { className: "bg-gray-500/10 text-gray-600 border-gray-500/20", icon: <AlertTriangle className="h-3.5 w-3.5" />, label: "Cancelled" },
   rolled_back: { className: "bg-purple-500/10 text-purple-600 border-purple-500/20", icon: <RotateCcw className="h-3.5 w-3.5" />, label: "Rolled back" },
 }
@@ -125,7 +125,7 @@ export function ImportJobRow({ job: j, showProvider, onPlan, onDiscard, onCancel
           )}
           {j.errors_total > 0 && (
             <Button size="sm" variant="ghost" onClick={onShowErrors}>
-              <AlertTriangle className="mr-1 h-4 w-4 text-warning" />
+              <AlertTriangle className="mr-1 h-4 w-4 text-warning-ink" />
               {j.errors_total} errors
             </Button>
           )}
@@ -142,8 +142,8 @@ export function ImportJobRow({ job: j, showProvider, onPlan, onDiscard, onCancel
           </div>
         </>
       )}
-      {j.status === "running" && pauseLine(j) && <p className="mt-1 break-words text-xs text-warning">{pauseLine(j)}</p>}
-      {j.error_message && <p className="mt-1 break-words text-xs text-destructive">{j.error_message}</p>}
+      {j.status === "running" && pauseLine(j) && <p className="mt-1 break-words text-xs text-warning-ink">{pauseLine(j)}</p>}
+      {j.error_message && <p className="mt-1 break-words text-xs text-danger-ink">{j.error_message}</p>}
     </div>
   )
 }

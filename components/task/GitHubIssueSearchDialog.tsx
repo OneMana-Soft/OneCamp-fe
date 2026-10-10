@@ -289,7 +289,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
             </div>
 
             {searchError && (
-              <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-md flex-shrink-0">
+              <div className="flex items-center gap-2 text-xs text-danger-ink bg-destructive/10 px-3 py-2 rounded-md flex-shrink-0">
                 <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
                 {searchError}
               </div>
@@ -341,7 +341,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
                           ) : isPR ? (
                             <GitPullRequest className="h-4 w-4 text-purple-500" />
                           ) : (
-                            <CircleDot className="h-4 w-4 text-success" />
+                            <CircleDot className="h-4 w-4 text-success-ink" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -382,7 +382,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
 
           <TabsContent value="manual" className="flex-1 min-h-0 flex flex-col mt-3 space-y-4 data-[state=active]:flex data-[state=active]:flex-col">
             <div className="space-y-2 flex-shrink-0">
-              <Label htmlFor="gh-url" className={manualError ? "text-destructive" : ""}>GitHub URL</Label>
+              <Label htmlFor="gh-url" className={manualError ? "text-danger-ink" : ""}>GitHub URL</Label>
               <div className="relative">
                 <Link2 className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -398,7 +398,7 @@ export default function GitHubIssueSearchDialog({ open, onOpenChange, onSuccess,
                 />
               </div>
               {manualError ? (
-                <p className="text-xs font-medium text-destructive">{manualError}</p>
+                <p className="text-xs font-medium text-danger-ink">{manualError}</p>
               ) : (
                 <p className="text-xs text-muted-foreground">
                   Paste the full URL of the issue or PR

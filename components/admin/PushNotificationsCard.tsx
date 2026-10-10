@@ -46,7 +46,7 @@ function describe(config: PushConfig | null): { label: string; tone: string; det
     if (config.configured && config.active) {
         return {
             label: "On",
-            tone: "text-success",
+            tone: "text-success-ink",
             detail:
                 config.source === "file"
                     ? "Loaded from the credential file mounted into the container. Pasting a key here replaces it."
@@ -57,7 +57,7 @@ function describe(config: PushConfig | null): { label: string; tone: string; det
     // is what leaves somebody believing push works.
     return {
         label: "Not working",
-        tone: "text-warning",
+        tone: "text-warning-ink",
         detail: config.configured
             ? "A credential is stored but Firebase did not accept it. Paste the key again."
             : "A credential is stored but cannot be read, which usually means the encryption key changed. Paste the key again.",

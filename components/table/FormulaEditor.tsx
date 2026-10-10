@@ -101,7 +101,7 @@ export function FormulaEditor({
       />
       <p
         aria-live="polite"
-        className={preview?.error ? "text-2xs leading-snug text-destructive" : "text-2xs leading-snug text-muted-foreground"}
+        className={preview?.error ? "text-2xs leading-snug text-danger-ink" : "text-2xs leading-snug text-muted-foreground"}
       >
         {!value.trim()
           ? "Fields go in braces, like {Price}. Use + − * / for numbers, & to join text, and the functions below."

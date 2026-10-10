@@ -107,7 +107,7 @@ function recentItemIcon(type: RecentItem["type"]) {
   switch (type) {
     case "task": return <CheckSquare className="mr-2 h-4 w-4 text-blue-500" />
     case "channel": return <Hash className="mr-2 h-4 w-4 text-orange-500" />
-    case "doc": return <FileText className="mr-2 h-4 w-4 text-success" />
+    case "doc": return <FileText className="mr-2 h-4 w-4 text-success-ink" />
     case "project": return <FolderKanban className="mr-2 h-4 w-4 text-purple-500" />
     case "team": return <Users className="mr-2 h-4 w-4 text-pink-500" />
     case "chat": return <MessageCircle className="mr-2 h-4 w-4 text-cyan-500" />
@@ -119,7 +119,7 @@ function recentItemIcon(type: RecentItem["type"]) {
 function aiSourceIcon(source: UnifiedSource) {
   switch (source) {
     case "memory": return <Brain className="mr-2 h-4 w-4 text-primary" />
-    case "gmail": return <Mail className="mr-2 h-4 w-4 text-destructive" />
+    case "gmail": return <Mail className="mr-2 h-4 w-4 text-danger-ink" />
     case "github": return <Github className="mr-2 h-4 w-4 text-foreground" />
     default: return <Sparkles className="mr-2 h-4 w-4 text-primary" />
   }
@@ -130,7 +130,7 @@ function searchResultIcon(type: string) {
     case "task": return <CheckSquare className="mr-2 h-4 w-4 text-blue-500" />
     case "post": return <Hash className="mr-2 h-4 w-4 text-orange-500" />
     case "chat": return <MessageCircle className="mr-2 h-4 w-4 text-cyan-500" />
-    case "doc": return <FileText className="mr-2 h-4 w-4 text-success" />
+    case "doc": return <FileText className="mr-2 h-4 w-4 text-success-ink" />
     case "project": return <FolderKanban className="mr-2 h-4 w-4 text-purple-500" />
     case "team": return <Users className="mr-2 h-4 w-4 text-pink-500" />
     case "user": return <User className="mr-2 h-4 w-4 text-primary" />

@@ -123,7 +123,7 @@ export function ImportInviteDialog({ jobId, label, open, onOpenChange }: Props) 
         ) : (
           <div className="space-y-3">
             {seatsText && (
-              <p className={seats.left === 0 ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>{seatsText}</p>
+              <p className={seats.left === 0 ? "text-sm text-danger-ink" : "text-sm text-muted-foreground"}>{seatsText}</p>
             )}
             {emailText && <p className="text-sm text-muted-foreground">{emailText}</p>}
             {people.length > MANY_TO_INVITE && count === 0 && (

@@ -68,7 +68,7 @@ export const TeamProjectInfo = ({
                         <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-success hover:text-success hover:bg-success/10"
+                            className="h-8 w-8 text-success-ink hover:text-success-ink hover:bg-success/10"
                             onClick={() => handleUnDelete(projectInfo.project_uuid)}
                             aria-label="Restore project"
                         >
@@ -79,7 +79,7 @@ export const TeamProjectInfo = ({
                             size="icon"
                             variant="ghost"
                             className={cn(
-                                "h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10",
+                                "h-8 w-8 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10",
                             )}
                             onClick={() => handleDelete(projectInfo.project_uuid)}
                             aria-label="Archive project"

@@ -64,7 +64,7 @@ const GitHubCallbackPage = () => {
 
         {status === "success" && (
           <>
-            <CheckCircle2 className="h-8 w-8 text-success mx-auto mb-3" />
+            <CheckCircle2 className="h-8 w-8 text-success-ink mx-auto mb-3" />
             <h2 className="text-lg font-semibold mb-1">GitHub Connected!</h2>
             <p className="text-sm text-muted-foreground">Redirecting you back to the admin dashboard…</p>
           </>
@@ -72,7 +72,7 @@ const GitHubCallbackPage = () => {
 
         {status === "error" && (
           <>
-            <XCircle className="h-8 w-8 text-destructive mx-auto mb-3" />
+            <XCircle className="h-8 w-8 text-danger-ink mx-auto mb-3" />
             <h2 className="text-lg font-semibold mb-1">Connection Failed</h2>
             <p className="text-sm text-muted-foreground mb-4">{errorMsg}</p>
             <button

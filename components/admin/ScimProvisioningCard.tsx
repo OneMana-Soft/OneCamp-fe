@@ -196,7 +196,7 @@ const ScimProvisioningCard = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                      className="h-8 w-8 shrink-0 text-danger-ink hover:text-danger-ink"
                       disabled={busyId === t.id}
                       onClick={() => handleRevoke(t)}
                       title="Revoke"
@@ -266,7 +266,7 @@ const ScimProvisioningCard = () => {
                   somewhere. Losing this means minting another and reconfiguring the IdP — recoverable,
                   but only by doing the work again, and the person who would do it is reading this now. */}
               <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
                 <p className="text-muted-foreground">
                   Paste this into your identity provider before closing. It cannot be retrieved
                   afterwards: you would have to create another and reconfigure the connection.

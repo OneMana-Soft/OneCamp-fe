@@ -220,7 +220,7 @@ export function TwoFactorSection() {
             </div>
 
             {notice !== "" && view.name === "summary" && (
-                <div className="flex items-center space-x-2 text-sm text-success animate-in fade-in">
+                <div className="flex items-center space-x-2 text-sm text-success-ink animate-in fade-in">
                     <CheckCircle2 className="h-4 w-4" />
                     <span>{notice}</span>
                 </div>
@@ -230,7 +230,7 @@ export function TwoFactorSection() {
                 nothing to do here yet, but they should know before the day it matters. */}
             {lowOnCodes && view.name === "summary" && (
                 <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
                     <p className="text-muted-foreground">
                         {status.unusedRecoveryCodes === 0
                             ? "You have no recovery codes left. If you lose your authenticator app you will need an administrator to reset this. Turn two-step verification off and on again to get a new set."
@@ -241,7 +241,7 @@ export function TwoFactorSection() {
 
             {operatorError !== "" && (
                 <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger-ink" />
                     <div className="space-y-1">
                         <p className="font-medium">Two-step verification is not configured on this server</p>
                         <p className="text-muted-foreground">{operatorError}</p>
@@ -250,7 +250,7 @@ export function TwoFactorSection() {
             )}
 
             {view.name === "summary" && error !== "" && (
-                <p className="text-sm text-destructive animate-in fade-in">{error}</p>
+                <p className="text-sm text-danger-ink animate-in fade-in">{error}</p>
             )}
 
             {view.name === "enrolling" && (
@@ -320,7 +320,7 @@ export function TwoFactorSection() {
             {view.name === "codes" && (
                 <div className="space-y-3 ">
                     <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-ink" />
                         <div className="space-y-1">
                             <p className="text-sm font-medium">Save your recovery codes now</p>
                             <p className="text-xs text-muted-foreground">
@@ -338,7 +338,7 @@ export function TwoFactorSection() {
                         ))}
                     </div>
 
-                    {error !== "" && <p className="text-xs text-destructive">{error}</p>}
+                    {error !== "" && <p className="text-xs text-danger-ink">{error}</p>}
 
                     <div className="flex flex-wrap gap-2">
                         <Button

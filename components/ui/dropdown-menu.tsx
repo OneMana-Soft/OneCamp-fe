@@ -80,7 +80,7 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
  * focus return are Radix's. Icons keep whatever colour the caller gives them.
  *
  * variant="destructive" is the one red row in a menu (Delete, Remove), so
- * callers stop hand-writing text-destructive and getting a grey highlight
+ * callers stop hand-writing text-danger-ink and getting a grey highlight
  * under red text. Optional: every existing call is unchanged.
  */
 const DropdownMenuItem = React.forwardRef<
@@ -94,7 +94,7 @@ const DropdownMenuItem = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-highlight focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
-      variant === "destructive" && "text-destructive focus:bg-destructive/10 focus:text-destructive [&>svg]:text-destructive",
+      variant === "destructive" && "text-danger-ink focus:bg-destructive/10 focus:text-danger-ink [&>svg]:text-danger-ink",
       inset && "pl-8",
       className
     )}

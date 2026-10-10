@@ -101,7 +101,7 @@ export const AuthField = React.forwardRef<HTMLInputElement, FieldProps>(function
         {...input}
       />
       {note && (
-        <p id={noteId} role={error ? "alert" : undefined} className={cn("text-xs", error ? "text-destructive" : "text-muted-foreground")}>
+        <p id={noteId} role={error ? "alert" : undefined} className={cn("text-xs", error ? "text-danger-ink" : "text-muted-foreground")}>
           {note}
         </p>
       )}
@@ -137,7 +137,7 @@ export const PasswordField = React.forwardRef<HTMLInputElement, FieldProps & { v
 export function FormProblem({ children, id }: { children: React.ReactNode; id?: string }) {
   if (!children) return null
   return (
-    <p id={id} role="alert" className="text-sm text-destructive">
+    <p id={id} role="alert" className="text-sm text-danger-ink">
       {children}
     </p>
   )

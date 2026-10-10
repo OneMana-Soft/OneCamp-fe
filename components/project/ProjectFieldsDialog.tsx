@@ -190,7 +190,7 @@ function FieldRow({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          className="h-8 w-8 text-muted-foreground hover:text-danger-ink"
           aria-label={`Delete ${field.name}`}
           disabled={busy}
           onClick={() => setDeleting((d) => !d)}

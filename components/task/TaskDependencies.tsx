@@ -184,7 +184,7 @@ function DependencyGroup({
               onClick={() => onRemove(t.task_uuid)}
               disabled={busy}
               aria-label={removeLabel(t.task_name)}
-              className="pointer-events-none shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+              className="pointer-events-none shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-danger-ink focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -290,7 +290,7 @@ function DependencyWayEditor({
               className="h-8 w-24"
             />
           </div>
-          <p id={`${lagId}-says`} aria-live="polite" className={cn("rounded-md bg-muted/60 px-2.5 py-2 text-xs", lag === null ? "text-destructive" : "text-muted-foreground")}>
+          <p id={`${lagId}-says`} aria-live="polite" className={cn("rounded-md bg-muted/60 px-2.5 py-2 text-xs", lag === null ? "text-danger-ink" : "text-muted-foreground")}>
             {lag === null ? `A whole number of days, up to ${MAX_LAG} either way.` : waySentence({ kind, lag }, waiting, on)}
           </p>
           <div className="flex justify-end gap-2">

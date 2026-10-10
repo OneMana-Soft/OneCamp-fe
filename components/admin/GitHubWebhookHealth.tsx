@@ -73,15 +73,15 @@ const GitHubWebhookHealth: React.FC = () => {
   const isDegraded = !!h && h.failed_24h > 0
   const headlineBadge = (() => {
     if (isLoading) return <Badge variant="outline">Loading…</Badge>
-    if (isError) return <Badge variant="outline" className="text-warning border-warning/30">Unavailable</Badge>
+    if (isError) return <Badge variant="outline" className="text-warning-ink border-warning/30">Unavailable</Badge>
     if (isDegraded) return (
-      <Badge className="bg-destructive/10 text-destructive border-destructive/30">
+      <Badge className="bg-destructive/10 text-danger-ink border-destructive/30">
         <AlertTriangle className="mr-1 h-3.5 w-3.5" />
         {h!.failed_24h} failed in 24h
       </Badge>
     )
     if (isHealthy) return (
-      <Badge className="bg-success/10 text-success border-success/30">
+      <Badge className="bg-success/10 text-success-ink border-success/30">
         <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
         Healthy
       </Badge>
@@ -112,7 +112,7 @@ const GitHubWebhookHealth: React.FC = () => {
           <div className="rounded-md border bg-card px-3 py-2">
             <div className="text-2xl font-semibold">
               {h && h.failed_24h > 0 ? (
-                <span className="text-destructive">{h.failed_24h}</span>
+                <span className="text-danger-ink">{h.failed_24h}</span>
               ) : (
                 h?.failed_24h ?? "—"
               )}
@@ -122,7 +122,7 @@ const GitHubWebhookHealth: React.FC = () => {
           <div className="rounded-md border bg-card px-3 py-2">
             <div className="text-2xl font-semibold">
               {h && h.processing_24h > 0 ? (
-                <span className="text-info">
+                <span className="text-info-ink">
                   {h.processing_24h}
                   <RefreshCw className="ml-1 inline h-4 w-4 animate-spin" />
                 </span>
@@ -151,7 +151,7 @@ const GitHubWebhookHealth: React.FC = () => {
           // Single-line clip with full text in the title attr so a
           // long stack trace doesn't bloat the card. Operators can
           // hover or pull from the DB for the full message.
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-danger-ink">
             <div className="font-semibold mb-0.5">Last error</div>
             <div className="truncate" title={h.last_error_message}>
               {h.last_error_message}

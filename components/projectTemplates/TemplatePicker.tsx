@@ -122,7 +122,7 @@ export function TemplatePicker({ value, onChange, onChosen }: TemplatePickerProp
                       Download
                     </DropdownMenuItem>
                     {t.can_delete && (
-                      <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setConfirming(t.id)}>
+                      <DropdownMenuItem className="text-danger-ink focus:text-danger-ink" onSelect={() => setConfirming(t.id)}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete…
                       </DropdownMenuItem>

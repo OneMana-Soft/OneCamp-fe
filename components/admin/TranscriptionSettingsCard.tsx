@@ -79,7 +79,7 @@ const SourceBadge = ({ source }: { source: string }) => (
 
 const ConfiguredBadge = ({ configured }: { configured: boolean }) =>
     configured ? (
-        <Badge className="gap-1 bg-success/10 text-success border-success/20">
+        <Badge className="gap-1 bg-success/10 text-success-ink border-success/20">
             <CheckCircle2 className="h-3 w-3" /> Configured
         </Badge>
     ) : (
@@ -400,8 +400,8 @@ export default function TranscriptionSettingsCard() {
                                     className={cn(
                                         "flex items-start gap-2 rounded-md border px-3 py-2 text-xs",
                                         testResult.ok
-                                            ? "border-success/20 bg-success/10 text-success"
-                                            : "border-destructive/20 bg-destructive/10 text-destructive",
+                                            ? "border-success/20 bg-success/10 text-success-ink"
+                                            : "border-destructive/20 bg-destructive/10 text-danger-ink",
                                     )}
                                     role="status"
                                 >

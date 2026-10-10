@@ -29,7 +29,7 @@ export const RecordingListRecording = ({
             <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity" />
             
             <div className="relative">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success shadow-sm ring-1 ring-success/20 group-hover:scale-105 transition-transform duration-150">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success-ink shadow-sm ring-1 ring-success/20 group-hover:scale-105 transition-transform duration-150">
                     <Video size={24} />
                 </div>
             </div>
@@ -77,7 +77,7 @@ export const RecordingListRecording = ({
                 {onDelete && (
                     <button
                         onClick={handleDelete}
-                        className="h-8 w-8 rounded-full flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity hover:bg-destructive/10 text-destructive"
+                        className="h-8 w-8 rounded-full flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity hover:bg-destructive/10 text-danger-ink"
                         title="Delete recording"
                     >
                         <Trash2 size={16} />

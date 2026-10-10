@@ -135,7 +135,7 @@ export const AddInvitationDialog: React.FC<AddInvitationDialogProps> = ({
                 aria-describedby={refusal ? "invite-refusal" : undefined}
               />
               {refusal && (
-                <p id="invite-refusal" role="alert" className="text-sm text-destructive">{refusal}</p>
+                <p id="invite-refusal" role="alert" className="text-sm text-danger-ink">{refusal}</p>
               )}
             </div>
           </div>

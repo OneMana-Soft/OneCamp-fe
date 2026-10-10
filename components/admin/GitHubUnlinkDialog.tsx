@@ -24,13 +24,13 @@ export default function GitHubUnlinkDialog({ open, onOpenChange, onConfirm, link
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="sm:max-w-md border-destructive/20">
         <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+          <AlertDialogTitle className="flex items-center gap-2 text-danger-ink">
             <AlertTriangle className="h-5 w-5" /> Unlink Repository
           </AlertDialogTitle>
           <AlertDialogDescription className="space-y-3 pt-2 text-sm text-muted-foreground">
             <p>Are you sure you want to unlink <strong className="text-foreground font-semibold">{link?.repo_owner}/{link?.repo_name}</strong>?</p>
-            <div className="bg-destructive/10 text-destructive p-3 rounded-md border border-destructive/20">
-              <p className={cn(eyebrowClass, "text-destructive mb-1")}>This action will:</p>
+            <div className="bg-destructive/10 text-danger-ink p-3 rounded-md border border-destructive/20">
+              <p className={cn(eyebrowClass, "text-danger-ink mb-1")}>This action will:</p>
               <ul className="list-disc list-inside space-y-1 text-sm">
                 <li>Remove the GitHub webhook from this repository</li>
                 <li>Clear GitHub metadata from all linked tasks in this project</li>

@@ -45,7 +45,7 @@ const badgeVariants = cva(
         secondary:
           "border-transparent bg-secondary text-secondary-foreground",
         destructive:
-          "border-transparent bg-destructive/10 text-destructive",
+          "border-transparent bg-destructive/10 text-danger-ink",
         outline: "text-foreground",
         soft: "border-transparent bg-primary/10 text-primary",
         // text-3xs, not text-3xs: the same 10px, but the primitive must not

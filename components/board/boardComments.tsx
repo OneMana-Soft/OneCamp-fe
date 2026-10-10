@@ -377,11 +377,11 @@ function CommentThread({
         <div className="flex items-center gap-1">
           {editable && (
             <Button variant="ghost" size="icon" aria-label="Resolve this comment" className="h-6 w-6" onClick={onResolve} title={comment.resolved ? "Reopen" : "Resolve"}>
-              <Check className={cn("h-3.5 w-3.5", comment.resolved && "text-success")} />
+              <Check className={cn("h-3.5 w-3.5", comment.resolved && "text-success-ink")} />
             </Button>
           )}
           {canManage && (
-            <Button variant="ghost" size="icon" aria-label="Delete this comment" className="h-6 w-6 text-muted-foreground hover:text-destructive" onClick={onDelete} title="Delete">
+            <Button variant="ghost" size="icon" aria-label="Delete this comment" className="h-6 w-6 text-muted-foreground hover:text-danger-ink" onClick={onDelete} title="Delete">
               <Trash className="h-3.5 w-3.5" />
             </Button>
           )}

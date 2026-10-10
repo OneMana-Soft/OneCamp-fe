@@ -51,10 +51,10 @@ const UNSUPPORTED: string[] = []
 const UNSUPPORTED_UNDO: string[] = ["docs", "recordings"]
 
 const STATUS_STYLES: Record<string, { icon: React.ReactNode; color: string }> = {
-  pending: { icon: <Clock className="h-3.5 w-3.5" />, color: "bg-warning/10 text-warning border-warning/20" },
-  running: { icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" />, color: "bg-blue-500/10 text-info border-blue-500/20" },
-  completed: { icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: "bg-success/10 text-success border-success/20" },
-  failed: { icon: <XCircle className="h-3.5 w-3.5" />, color: "bg-destructive/10 text-destructive border-destructive/20" },
+  pending: { icon: <Clock className="h-3.5 w-3.5" />, color: "bg-warning/10 text-warning-ink border-warning/20" },
+  running: { icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" />, color: "bg-blue-500/10 text-info-ink border-blue-500/20" },
+  completed: { icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: "bg-success/10 text-success-ink border-success/20" },
+  failed: { icon: <XCircle className="h-3.5 w-3.5" />, color: "bg-destructive/10 text-danger-ink border-destructive/20" },
   cancelled: { icon: <AlertTriangle className="h-3.5 w-3.5" />, color: "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20" },
 }
 
@@ -177,7 +177,7 @@ const ArchiveCard = () => {
                       </div>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-xs text-muted-foreground">Retain for <span className="font-semibold text-foreground">{policy.retention_days}</span> days</span>
-                        {policy.auto_archive ? <Badge className="text-2xs bg-success/10 text-success border-success/20 gap-1"><CheckCircle2 className="h-2.5 w-2.5" />Auto</Badge> : <Badge variant="outline" className="text-2xs">Manual only</Badge>}
+                        {policy.auto_archive ? <Badge className="text-2xs bg-success/10 text-success-ink border-success/20 gap-1"><CheckCircle2 className="h-2.5 w-2.5" />Auto</Badge> : <Badge variant="outline" className="text-2xs">Manual only</Badge>}
                         {purgeLine(policy) && <span className="text-xs text-muted-foreground">{purgeLine(policy)}</span>}
                       </div>
                     </div>
@@ -215,10 +215,10 @@ const ArchiveCard = () => {
                         <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
                           <span>{new Date(job.created_at).toLocaleString()}</span>
                           {job.items_processed > 0 && <span>{job.items_processed} processed</span>}
-                          {job.items_archived > 0 && <span className="text-success">{job.items_archived} archived</span>}
-                          {job.items_failed > 0 && <span className="text-destructive">{job.items_failed} failed</span>}
+                          {job.items_archived > 0 && <span className="text-success-ink">{job.items_archived} archived</span>}
+                          {job.items_failed > 0 && <span className="text-danger-ink">{job.items_failed} failed</span>}
                         </div>
-                        {job.error_message && <p className="text-xs text-destructive mt-1 break-words">{job.error_message}</p>}
+                        {job.error_message && <p className="text-xs text-danger-ink mt-1 break-words">{job.error_message}</p>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

@@ -80,7 +80,7 @@ export default function CreateBranchDialog({ open, onOpenChange, onSuccess, task
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="branch-name" className={error ? "text-destructive" : ""}>Branch Name</Label>
+            <Label htmlFor="branch-name" className={error ? "text-danger-ink" : ""}>Branch Name</Label>
             <div className="relative">
               <GitBranch className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -96,7 +96,7 @@ export default function CreateBranchDialog({ open, onOpenChange, onSuccess, task
               />
             </div>
             {error ? (
-              <p className="text-xs font-medium text-destructive">{error}</p>
+              <p className="text-xs font-medium text-danger-ink">{error}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
                 We've auto-generated a name based on the task, but you can edit it.

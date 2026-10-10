@@ -229,7 +229,7 @@ const WebhooksCard = () => {
                     <Button variant="ghost" size="icon" aria-label="Show recent deliveries" className="h-7 w-7" onClick={() => handleFetchLogs(webhook.id)} title="View logs">
                       <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showLogs === webhook.id ? "rotate-180" : ""}`} />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="Delete this webhook" className="h-7 w-7 text-destructive hover:text-destructive" title="Delete" onClick={() => dispatch(openUI({ key: "webhookDelete", data: { id: webhook.id, name: webhook.name, type: webhook.type } }))}>
+                    <Button variant="ghost" size="icon" aria-label="Delete this webhook" className="h-7 w-7 text-danger-ink hover:text-danger-ink" title="Delete" onClick={() => dispatch(openUI({ key: "webhookDelete", data: { id: webhook.id, name: webhook.name, type: webhook.type } }))}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -297,11 +297,11 @@ const WebhooksCard = () => {
                             onClick={() => setSelectedLog(log)}
                             className="w-full flex items-center gap-2 text-xs py-1.5 px-1.5 rounded hover:bg-muted/40 text-left transition-colors"
                           >
-                            {log.success ? <CheckCircle2 className="h-3.5 w-3.5 text-success flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />}
+                            {log.success ? <CheckCircle2 className="h-3.5 w-3.5 text-success-ink flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-danger-ink flex-shrink-0" />}
                             <Badge variant="outline" className="text-2xs px-1.5">{log.event_type}</Badge>
-                            {log.response_status && <span className={`font-mono ${log.response_status >= 200 && log.response_status < 300 ? "text-success" : "text-destructive"}`}>{log.response_status}</span>}
+                            {log.response_status && <span className={`font-mono ${log.response_status >= 200 && log.response_status < 300 ? "text-success-ink" : "text-danger-ink"}`}>{log.response_status}</span>}
                             {log.duration_ms !== undefined && <span className="text-muted-foreground">{log.duration_ms}ms</span>}
-                            {log.error_message && <span className="text-destructive truncate flex-1">{log.error_message}</span>}
+                            {log.error_message && <span className="text-danger-ink truncate flex-1">{log.error_message}</span>}
                             <span className="text-muted-foreground ml-auto flex-shrink-0">{new Date(log.created_at).toLocaleTimeString()}</span>
                           </button>
                         ))}
@@ -354,7 +354,7 @@ const WebhooksCard = () => {
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div className="bg-muted/40 p-2.5 rounded-md">
                     <span className="text-muted-foreground block mb-0.5">Status</span>
-                    <span className={`font-mono font-medium ${selectedLog.response_status && selectedLog.response_status >= 200 && selectedLog.response_status < 300 ? "text-success" : "text-destructive"}`}>
+                    <span className={`font-mono font-medium ${selectedLog.response_status && selectedLog.response_status >= 200 && selectedLog.response_status < 300 ? "text-success-ink" : "text-danger-ink"}`}>
                       {selectedLog.response_status ?? "—"}
                     </span>
                   </div>
@@ -372,7 +372,7 @@ const WebhooksCard = () => {
                   </div>
                 </div>
                 {selectedLog.error_message && (
-                  <div className="bg-destructive/10 text-destructive px-3 py-2.5 rounded-md text-xs">
+                  <div className="bg-destructive/10 text-danger-ink px-3 py-2.5 rounded-md text-xs">
                     <span className="font-semibold block mb-0.5">Error</span>
                     {selectedLog.error_message}
                   </div>

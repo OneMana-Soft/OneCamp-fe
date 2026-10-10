@@ -140,7 +140,7 @@ function LaterRow({ item, done }: { item: LaterItem; done: boolean }) {
             <span
               className={cn(
                 "inline-flex items-center rounded-full px-1.5 py-px font-medium tabular-nums",
-                reminder.due ? "bg-warning/15 text-warning" : "bg-muted text-muted-foreground",
+                reminder.due ? "bg-warning/15 text-warning-ink" : "bg-muted text-muted-foreground",
               )}
             >
               {reminder.text}

@@ -25,7 +25,7 @@ const stateConfig: Record<string, { label: string; icon: React.ReactNode; classN
   open: {
     label: "Open",
     icon: <GitPullRequest className="h-3 w-3" />,
-    className: "bg-success/10 text-success border-success/20 dark:bg-success/10",
+    className: "bg-success/10 text-success-ink border-success/20 dark:bg-success/10",
   },
   merged: {
     label: "Merged",
@@ -35,7 +35,7 @@ const stateConfig: Record<string, { label: string; icon: React.ReactNode; classN
   closed: {
     label: "Closed",
     icon: <GitPullRequestClosed className="h-3 w-3" />,
-    className: "bg-destructive/10 text-destructive border-destructive/20",
+    className: "bg-destructive/10 text-danger-ink border-destructive/20",
   },
 }
 

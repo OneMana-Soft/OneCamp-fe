@@ -64,7 +64,7 @@ export function DiskBanner({ isAdmin }: { isAdmin?: boolean }) {
       role={critical ? "alert" : "status"}
       className={cn(
         "flex items-start gap-2 border-b px-4 py-2 text-xs",
-        critical ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-warning/30 bg-warning/10 text-warning",
+        critical ? "border-destructive/30 bg-destructive/10 text-danger-ink" : "border-warning/30 bg-warning/10 text-warning-ink",
       )}
     >
       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />

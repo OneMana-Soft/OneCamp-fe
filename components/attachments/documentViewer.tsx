@@ -84,7 +84,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ type, url, content }) =
     if (error) {
         return (
              <div className="flex flex-col items-center justify-center p-8 text-muted-foreground bg-card/50 rounded-lg border border-border/50 border-dashed h-[60vh]">
-                <p className="font-medium text-destructive">{error}</p>
+                <p className="font-medium text-danger-ink">{error}</p>
                 <a href={url} download className="text-primary hover:underline font-medium mt-2">
                     Download to view
                 </a>

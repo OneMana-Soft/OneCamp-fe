@@ -212,7 +212,7 @@ export function DesktopDashboard() {
                                                     )}
                                                 </div>
                                                 {channel.ch_call_active && (
-                                                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-success">
+                                                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-success-ink">
                                                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
                                                         Live
                                                     </span>

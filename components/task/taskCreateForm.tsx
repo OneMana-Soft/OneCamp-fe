@@ -349,7 +349,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
           <Label htmlFor="task_name">Name</Label>
           <Input id="task_name" {...register("task_name")} placeholder="Enter task name" autoFocus />
           {renderNameHint?.(watch("task_name") ?? "", (name) => setValue("task_name", name, { shouldValidate: true, shouldDirty: true }))}
-          {errors.task_name && <p className="text-destructive text-sm">{errors.task_name.message}</p>}
+          {errors.task_name && <p className="text-danger-ink text-sm">{errors.task_name.message}</p>}
         </div>
         
         <div className="grid gap-2 mb-2">
@@ -402,7 +402,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
               />
             </div>
           )}
-          {errors.task_project_uuid && <p className="text-destructive text-sm">{errors.task_project_uuid.message}</p>}
+          {errors.task_project_uuid && <p className="text-danger-ink text-sm">{errors.task_project_uuid.message}</p>}
           
           {selectedProject && (
             <div className="flex mt-2 flex-wrap gap-x-4 gap-y-4">
@@ -444,7 +444,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                     )}
                 />
               </div>
-              {errors.task_assignee_uuid && <p className="text-destructive text-sm">{errors.task_assignee_uuid.message}</p>}
+              {errors.task_assignee_uuid && <p className="text-danger-ink text-sm">{errors.task_assignee_uuid.message}</p>}
               
               <div className="flex items-center space-x-4">
                 <p className="text-sm">Priority</p>
@@ -505,7 +505,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
               <div className="flex items-center gap-x-4">
                 <Label htmlFor="task_label">Tags</Label>
                 <Input id="task_label" {...register("task_label")} placeholder="Separate with commas, e.g. frontend, needs review" />
-                {errors.task_label && <p className="text-destructive text-sm">{errors.task_label.message}</p>}
+                {errors.task_label && <p className="text-danger-ink text-sm">{errors.task_label.message}</p>}
               </div>
             </div>
           )}
@@ -536,7 +536,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                 />
             )}
           />
-          {errors.task_description && <p className="text-destructive text-sm">{errors.task_description.message}</p>}
+          {errors.task_description && <p className="text-danger-ink text-sm">{errors.task_description.message}</p>}
         </div>
         
         {selectedProject?.project_uuid && (
@@ -589,7 +589,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                     />
                   )}
                 />
-                {errors.task_github_issue_url && <p className="text-destructive text-sm">{errors.task_github_issue_url.message}</p>}
+                {errors.task_github_issue_url && <p className="text-danger-ink text-sm">{errors.task_github_issue_url.message}</p>}
                 <p className="text-xs text-muted-foreground mt-1">Link this task to an existing GitHub issue or pull request.</p>
               </div>
             )}
@@ -613,7 +613,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                   </Button>
                 )}
               </div>
-              {errors.task_start_date && <p className="text-destructive text-sm">{errors.task_start_date.message}</p>}
+              {errors.task_start_date && <p className="text-danger-ink text-sm">{errors.task_start_date.message}</p>}
               
               <div className="relative">
                 <Controller
@@ -633,7 +633,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({ submitLabel = "Create t
                   </Button>
                 )}
               </div>
-              {errors.task_due_date && <p className="text-destructive text-sm">{errors.task_due_date.message}</p>}
+              {errors.task_due_date && <p className="text-danger-ink text-sm">{errors.task_due_date.message}</p>}
             </div>
           </div>
         )}

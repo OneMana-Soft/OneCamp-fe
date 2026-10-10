@@ -19,7 +19,7 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { checkForUpdates, updateSummary, type UpdateStatus, type UpdateTone } from "@/services/updatesService"
 
 const TONE_ICON: Record<UpdateTone, React.ReactNode> = {
-    current: <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />,
+    current: <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-ink" />,
     available: <Download className="mt-0.5 h-4 w-4 shrink-0 text-primary" />,
     unknown: <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />,
 }
@@ -73,7 +73,7 @@ const UpdatesCard: React.FC = () => {
             </CardHeader>
             {(summary || error) && (
                 <CardContent className="space-y-3" aria-live="polite">
-                    {error && <p className="text-sm text-destructive">{error}</p>}
+                    {error && <p className="text-sm text-danger-ink">{error}</p>}
                     {summary && (
                         <div className="rounded-lg border border-border bg-card px-3 py-2.5">
                             <div className="flex items-start gap-2">

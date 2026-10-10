@@ -20,7 +20,7 @@ export function ReviewBadge({ review, withNote = false }: { review: GuestReview;
         className="inline-flex w-fit items-center gap-1 text-xs font-medium text-foreground"
         title={`${approved ? "Approved" : "Changes requested"} by ${review.name}, ${ago(review.created_at)}`}
       >
-        <Icon className={`h-3.5 w-3.5 ${approved ? "text-success" : "text-warning"}`} aria-hidden />
+        <Icon className={`h-3.5 w-3.5 ${approved ? "text-success-ink" : "text-warning-ink"}`} aria-hidden />
         {approved ? "Approved" : "Changes requested"}
         <span className="font-normal text-muted-foreground">· {review.name}</span>
       </span>

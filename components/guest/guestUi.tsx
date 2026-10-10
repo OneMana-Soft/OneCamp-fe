@@ -187,7 +187,7 @@ export function GuestComposer({ placeholder, onSend, name, onRename }: { placeho
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
-      {error && <p role="alert" className="mx-auto mt-1 max-w-3xl text-xs text-destructive">{error}</p>}
+      {error && <p role="alert" className="mx-auto mt-1 max-w-3xl text-xs text-danger-ink">{error}</p>}
       {name && onRename && (
         <p className="mx-auto mt-1 max-w-3xl text-xs text-muted-foreground">
           Posting as {name} (guest).{" "}

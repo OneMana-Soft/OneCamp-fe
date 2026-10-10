@@ -102,7 +102,7 @@ const CreateDocDialog: React.FC<CreateDocDialogProps> = ({
                                         </div>
                                         <div>
                                             {error && (
-                                                <p className="text-xs md:text-sm text-destructive">{error.message}</p>
+                                                <p className="text-xs md:text-sm text-danger-ink">{error.message}</p>
                                             )}
                                         </div>
                                     </>

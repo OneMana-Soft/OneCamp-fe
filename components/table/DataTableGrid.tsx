@@ -333,7 +333,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
                       variant="ghost"
                       size="icon"
                       aria-label="Delete this row"
-                      className="h-7 w-7 text-destructive opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
+                      className="h-7 w-7 text-danger-ink opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
                       disabled={busy}
                       onClick={() => handleDeleteRow(row)}
                       title="Delete row"
@@ -526,7 +526,7 @@ function ColumnHeader({
           <FieldTypeGlyph type={field.type} />
           <span className="truncate">{field.name}</span>
           {savedAiPrompt && <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Filled by AI" />}
-          {problem && <AlertTriangle className="h-3 w-3 shrink-0 text-destructive" aria-label={problem} />}
+          {problem && <AlertTriangle className="h-3 w-3 shrink-0 text-danger-ink" aria-label={problem} />}
         </span>
       </th>
     )
@@ -546,7 +546,7 @@ function ColumnHeader({
             <FieldTypeGlyph type={field.type} />
             <span className="truncate">{field.name}</span>
             {savedAiPrompt && <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Filled by AI" />}
-            {problem && <AlertTriangle className="h-3 w-3 shrink-0 text-destructive" aria-label={problem} />}
+            {problem && <AlertTriangle className="h-3 w-3 shrink-0 text-danger-ink" aria-label={problem} />}
             <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover/col:opacity-60 group-focus-visible/col:opacity-60", isNumeric(field) ? "mr-auto" : "ml-auto")} aria-hidden />
           </button>
         </DropdownMenuTrigger>
@@ -585,7 +585,7 @@ function ColumnHeader({
                     <div key={o.label} className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1 text-sm">
                       <span className="truncate">{o.label}</span>
                       <button
- aria-label="Remove option"                        className="text-destructive opacity-70 hover:opacity-100"
+ aria-label="Remove option"                        className="text-danger-ink opacity-70 hover:opacity-100"
                         onClick={() => setOptions((prev) => prev.filter((_, j) => j !== i))}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -625,7 +625,7 @@ function ColumnHeader({
             {isRollup && <RollupSettings fields={fields.filter((f) => f.id !== field.id)} draft={rollup} onChange={setRollup} />}
 
             {problem && (
-              <p className="flex items-start gap-1 text-2xs leading-snug text-destructive">
+              <p className="flex items-start gap-1 text-2xs leading-snug text-danger-ink">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                 {problem}
               </p>
@@ -679,7 +679,7 @@ function ColumnHeader({
             )}
 
             <div className="flex items-center justify-between pt-1">
-              <Button size="sm" variant="ghost" className="text-destructive" onClick={onDelete}>
+              <Button size="sm" variant="ghost" className="text-danger-ink" onClick={onDelete}>
                 <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
               </Button>
               <Button size="sm" onClick={save} disabled={!name.trim() || !ready}>
@@ -873,7 +873,7 @@ function ComputedCell({ field, value }: { field: TableField; value: unknown }) {
       return <div className="h-8" />
     case "error":
       return (
-        <div className="flex h-8 items-center px-2 text-xs text-destructive" title={shown.message}>
+        <div className="flex h-8 items-center px-2 text-xs text-danger-ink" title={shown.message}>
           <AlertTriangle className="mr-1 h-3 w-3 shrink-0" />
           <span className="truncate">{shown.message}</span>
         </div>

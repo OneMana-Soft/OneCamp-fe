@@ -63,7 +63,7 @@ const SettingRow: React.FC<{
 }> = ({icon, label, description, children, tone = "default"}) => (
     <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 px-3 py-2.5">
         <div className="flex items-start gap-2.5 min-w-0">
-            <span className={tone === "danger" ? "mt-0.5 text-destructive" : "mt-0.5 text-muted-foreground"}>
+            <span className={tone === "danger" ? "mt-0.5 text-danger-ink" : "mt-0.5 text-muted-foreground"}>
                 {icon}
             </span>
             <div className="space-y-0.5 min-w-0">
@@ -220,7 +220,7 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
                         {/* Inline validation / availability status — single line, no layout jump */}
                         <div className="min-h-[18px] text-xs">
                             {errors.channel_name ? (
-                                <span className="flex items-center gap-1 text-destructive">
+                                <span className="flex items-center gap-1 text-danger-ink">
                                     <AlertCircle className="h-3.5 w-3.5" />
                                     {errors.channel_name.message}
                                 </span>
@@ -230,12 +230,12 @@ const EditChannelDialog: React.FC<EditTeamDialogProps> = ({
                                     Checking availability…
                                 </span>
                             ) : nameAvailable ? (
-                                <span className="flex items-center gap-1 text-success">
+                                <span className="flex items-center gap-1 text-success-ink">
                                     <CheckCircle className="h-3.5 w-3.5" />
                                     Name is available
                                 </span>
                             ) : nameTaken ? (
-                                <span className="flex items-center gap-1 text-destructive">
+                                <span className="flex items-center gap-1 text-danger-ink">
                                     <AlertCircle className="h-3.5 w-3.5" />
                                     Name is already taken
                                 </span>
