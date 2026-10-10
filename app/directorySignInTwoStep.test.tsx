@@ -77,6 +77,16 @@ describe("signing in through the directory with two-step on", () => {
     expect(router.push).not.toHaveBeenCalled()
   })
 
+  it("offers no other way to sign in while it asks for the code", async () => {
+    // The password step is done: a choice of sign-in methods beside the code
+    // would say the sign-in could start over in place.
+    await signInThroughTheDirectory()
+    await screen.findByText("Two-step verification")
+    expect(screen.queryByRole("tablist")).toBeNull()
+    expect(screen.queryByRole("tab", { name: "OneCamp account" })).toBeNull()
+    expect(screen.queryByRole("tab", { name: "Company directory" })).toBeNull()
+  })
+
   it("signs in once the code is right, sending the challenge and the code as the email sign-in does", async () => {
     await signInThroughTheDirectory()
     await screen.findByText("Two-step verification")
