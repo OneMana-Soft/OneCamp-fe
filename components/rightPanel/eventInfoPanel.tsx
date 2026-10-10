@@ -1,6 +1,4 @@
 import { addressOrHandleOf, displayNameOf } from "@/lib/personName"
-import { eyebrowClass } from "@/components/ui/eyebrow"
-import { cn } from "@/lib/utils/helpers/cn"
 import React, { useState, useRef } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, parseISO, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
@@ -10,8 +8,10 @@ import { usePost } from "@/hooks/usePost";
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
 import { GetEventsResponse, CreateEventPayload } from "@/types/calendar";
 import { UserProfileInterface, UserProfileDataInterface } from "@/types/user";
-import { Calendar, Clock, AlignLeft, User, X, Check, Users, Plus, Trash2, CalendarClock, Sparkles } from "@/lib/icons";
-import { Edit2, ArrowRightToLine, BellOff } from "@/lib/icons";
+import { X, Check, Plus, Trash2, CalendarClock, Sparkles } from "@/lib/icons";
+import { Edit2, ArrowRightToLine } from "@/lib/icons";
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
+import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
 import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { wholeDays } from "@/lib/timeOff";
 import RescheduleDialog from "@/components/ai/RescheduleDialog";
@@ -23,7 +23,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandList } from "@/components/ui/command";
@@ -257,24 +256,31 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         <ScrollArea className="h-full">
             <div className="p-6 space-y-6 flex flex-col h-full bg-background relative">
                 <div className="flex items-center justify-between mb-2">
-                    <Badge variant="outline" className={cn(eyebrowClass, "text-2xs font-medium text-primary border-primary/20")}>Personal Event</Badge>
+                    {/* Which calendar it is on, in that calendar's hue, the way the
+                        calendar draws it: a quiet label, not an orange badge. */}
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <IdentityMark variant="dot" hue={CALENDAR_HUE.onecamp} />
+                        Personal event
+                    </span>
                     {!isEditing ? (
                         <div className="flex items-center gap-2">
                             {(isCreator || isParticipant) && (
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" title="Prep brief" onClick={() => setPrepOpen(true)}>
-                                    <Sparkles className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground" title="Prep brief" aria-label="Prep brief" onClick={() => setPrepOpen(true)}>
+                                    <Sparkles className="h-4 w-4" aria-hidden="true" />
                                 </Button>
                             )}
                             {isCreator ? (
                                 <>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" title="Find a better time" onClick={() => setRescheduleOpen(true)}>
-                                        <CalendarClock className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground" title="Find a better time" aria-label="Find a better time" onClick={() => setRescheduleOpen(true)}>
+                                        <CalendarClock className="h-4 w-4" aria-hidden="true" />
                                     </Button>
-                                    <Button aria-label="Delete event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-danger-ink hover:bg-destructive/10" onClick={handleDelete}>
-                                        <Trash2 className="h-4 w-4" />
+                                    {/* Red only when it is about to act: at rest it is one of
+                                        the row's quiet buttons. */}
+                                    <Button aria-label="Delete event" title="Delete event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-danger-ink hover:bg-destructive/10" onClick={handleDelete}>
+                                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                                     </Button>
-                                    <Button aria-label="Edit event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full" onClick={() => setIsEditing(true)}>
-                                        <Edit2 className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                                    <Button aria-label="Edit event" title="Edit event" variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground" onClick={() => setIsEditing(true)}>
+                                        <Edit2 className="h-4 w-4" aria-hidden="true" />
                                     </Button>
                                 </>
                             ) : isParticipant ? (
@@ -304,106 +310,91 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                 </div>
 
                 {!isEditing ? (
+                    // As the task panel reads: quiet labels in one column, each
+                    // value on one line beside its label, sections with one
+                    // title style and the same rhythm.
                     <div className="space-y-6">
-                        <div className="space-y-2">
-                            <h2 className="text-2xl font-medium tracking-tight text-foreground">{event.event_title}</h2>
-                            
-                            <div className="space-y-1.5 mt-4">
-                                <div className="flex items-center gap-3 text-muted-foreground">
-                                    <Calendar className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm font-medium">{format(start, "EEEE d MMMM yyyy")}</span>
-                                </div>
-                                
-                                <div className="flex items-center gap-3 text-muted-foreground">
-                                    <Clock className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">
-                                        {isSameDay(start, end) ? (
-                                            <>
-                                                {shortTime(start)} - {shortTime(end)}
-                                            </>
-                                        ) : (
-                                            <div className="flex flex-col gap-0.5">
-                                                <span>{shortDateTime(start)}</span>
-                                                <span className="text-2xs opacity-70">to {shortDateTime(end)}</span>
-                                            </div>
-                                        )}
-                                    </span>
-                                </div>
-                            </div>
+                        <h2 className="text-2xl font-medium tracking-tight text-foreground text-balance">{event.event_title}</h2>
 
-                            {event.event_is_away && (
-                                <div className="flex items-center gap-3 text-muted-foreground mt-2">
-                                    <CalendarClock className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">Away: {displayNameOf(event.event_created_by) || "its owner"}&apos;s working days here count out of their workload</span>
-                                </div>
-                            )}
-
+                        <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2.5 text-sm">
+                            <dt className="text-muted-foreground">Date</dt>
+                            <dd className="truncate text-foreground">
+                                {isSameDay(start, end) ? format(start, "EEEE d MMMM yyyy") : `${format(start, "EEE d MMM")} to ${format(end, "EEE d MMM yyyy")}`}
+                            </dd>
+                            <dt className="text-muted-foreground">Time</dt>
+                            <dd className="truncate tabular-nums text-foreground">
+                                {isSameDay(start, end) ? `${shortTime(start)} to ${shortTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
+                            </dd>
                             {event.event_is_focus && (
-                                <div className="flex items-center gap-3 text-muted-foreground mt-2">
-                                    <BellOff className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">Focus time: {displayNameOf(event.event_created_by) || "its owner"}&apos;s notifications pause while it runs</span>
-                                </div>
+                                <>
+                                    <dt className="text-muted-foreground">Focus time</dt>
+                                    <dd className="truncate text-foreground">Pauses {displayNameOf(event.event_created_by) || "its owner"}&apos;s notifications</dd>
+                                </>
                             )}
-
+                            {event.event_is_away && (
+                                <>
+                                    <dt className="text-muted-foreground">Away</dt>
+                                    <dd className="truncate text-foreground">Out of {displayNameOf(event.event_created_by) || "its owner"}&apos;s workload</dd>
+                                </>
+                            )}
                             {event.event_created_by && (
-                                <div className="flex items-center gap-3 text-muted-foreground mt-2">
-                                    <User className="h-4 w-4 text-primary/70" />
-                                    <span className="text-sm">Created by {displayNameOf(event.event_created_by) || "Unknown"}</span>
-                                </div>
+                                <>
+                                    <dt className="text-muted-foreground">Created by</dt>
+                                    <dd className="flex min-w-0 items-center gap-2 text-foreground">
+                                        <IdentityMark
+                                            variant="avatar"
+                                            size={20}
+                                            id={event.event_created_by.user_uuid}
+                                            label={displayNameOf(event.event_created_by) || "Unknown"}
+                                            src={event.event_created_by.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${event.event_created_by.user_profile_object_key}` : undefined}
+                                        />
+                                        <span className="truncate">{displayNameOf(event.event_created_by) || "Unknown"}</span>
+                                    </dd>
+                                </>
                             )}
-                        </div>
+                        </dl>
 
-                        <div className="space-y-2 pt-4 border-t border-border/50">
-                            <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 lowercase">
-                                <AlignLeft className="h-3.5 w-3.5" />
-                                notes
-                            </div>
+                        <section className="space-y-2 border-t border-border/60 pt-5">
+                            <h3 className="text-sm font-medium text-foreground">Notes</h3>
                             {event.event_description ? (
                                 <SafeHtml
                                     as="div"
                                     sanitizer={sanitizeRichHtml}
                                     html={event.event_description}
-                                    className="text-sm leading-relaxed text-muted-foreground pl-5 transition prose prose-sm dark:prose-invert max-w-none [&_a]:text-primary [&_a]:underline [&_a]:break-all"
+                                    className="text-sm leading-relaxed text-foreground prose prose-sm dark:prose-invert max-w-none [&_a]:text-primary [&_a]:underline [&_a]:break-all"
                                 />
                             ) : (
-                                <p className="text-xs text-muted-foreground italic pl-5">No additional notes.</p>
+                                <p className="text-sm text-muted-foreground">No notes.</p>
                             )}
-                        </div>
+                        </section>
 
-                        <div className="space-y-3 pt-4 border-t border-border/50">
-                            <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 lowercase">
-                                    <Users className="h-3.5 w-3.5" />
-                                    participants
-                                </div>
-                                <span className="text-2xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full font-medium">
-                                    {event.event_participants?.length || 0}
-                                </span>
-                            </div>
-                            
-                            <div className="space-y-2 pl-5">
-                                {event.event_participants?.length ? (
-                                    event.event_participants.map((participant) => (
-                                        <div key={participant.user_uuid} className="flex items-center gap-3 group">
-                                            <Avatar className="h-7 w-7 border border-border/50">
-                                                <AvatarImage src={participant.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${participant.user_profile_object_key}` : ""} />
-                                                <AvatarFallback className="text-3xs">
-                                                    {(displayNameOf(participant) || "U").charAt(0).toUpperCase()}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-medium text-foreground/90 leading-none">{displayNameOf(participant)}</span>
-                                                {addressOrHandleOf(participant) && (
-                                                    <span className="text-2xs text-muted-foreground">{addressOrHandleOf(participant)}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p className="text-xs text-muted-foreground italic">No participants added yet.</p>
-                                )}
-                            </div>
-                        </div>
+                        <section className="space-y-2 border-t border-border/60 pt-5">
+                            <h3 className="flex items-baseline gap-1.5 text-sm font-medium text-foreground">
+                                Guests
+                                <span className="text-xs font-normal tabular-nums text-muted-foreground">{event.event_participants?.length || 0}</span>
+                            </h3>
+                            {event.event_participants?.length ? (
+                                <ul className="space-y-1.5">
+                                    {event.event_participants.map((participant) => (
+                                        <li key={participant.user_uuid} className="flex min-w-0 items-center gap-2.5 text-sm">
+                                            <IdentityMark
+                                                variant="avatar"
+                                                size={24}
+                                                id={participant.user_uuid}
+                                                label={displayNameOf(participant) || "Someone"}
+                                                src={participant.user_profile_object_key ? `${GetEndpointUrl.PublicAttachmentURL}?objKey=${participant.user_profile_object_key}` : undefined}
+                                            />
+                                            <span className="truncate text-foreground">{displayNameOf(participant)}</span>
+                                            {addressOrHandleOf(participant) && (
+                                                <span className="truncate text-xs text-muted-foreground">{addressOrHandleOf(participant)}</span>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">No guests yet.</p>
+                            )}
+                        </section>
                     </div>
                 ) : (
                     <Form {...form}>
@@ -413,7 +404,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 name="title"
                                 render={({ field }) => (
                                     <FormItem className="space-y-1">
-                                        <FormLabel className="text-xs font-medium text-muted-foreground uppercase">Title</FormLabel>
+                                        <FormLabel className="text-xs font-medium text-muted-foreground">Title</FormLabel>
                                         <FormControl>
                                             <Input {...field} className="h-9 focus-visible:ring-primary/30" />
                                         </FormControl>
@@ -428,7 +419,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     name="startTime"
                                     render={({ field }) => (
                                         <FormItem className="space-y-1">
-                                            <FormLabel className="text-xs font-medium text-muted-foreground uppercase">Start</FormLabel>
+                                            <FormLabel className="text-xs font-medium text-muted-foreground">Start</FormLabel>
                                             <FormControl>
                                                 <DateTimePicker 
                                                     value={field.value ? new Date(field.value) : undefined} 
@@ -444,7 +435,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                     name="endTime"
                                     render={({ field }) => (
                                         <FormItem className="space-y-1">
-                                            <FormLabel className="text-xs font-medium text-muted-foreground uppercase">End</FormLabel>
+                                            <FormLabel className="text-xs font-medium text-muted-foreground">End</FormLabel>
                                             <FormControl>
                                                 <DateTimePicker 
                                                     value={field.value ? new Date(field.value) : undefined} 
@@ -462,7 +453,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                                 name="description"
                                 render={({ field }) => (
                                     <FormItem className="space-y-1">
-                                        <FormLabel className="text-xs font-medium text-muted-foreground uppercase">Notes</FormLabel>
+                                        <FormLabel className="text-xs font-medium text-muted-foreground">Notes</FormLabel>
                                         <FormControl>
                                             <Textarea {...field} className="min-h-[100px] resize-none text-sm focus-visible:ring-primary/30" />
                                         </FormControl>
@@ -472,8 +463,8 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                             />
 
                             <div className="space-y-2">
-                                <FormLabel className="text-xs font-medium text-muted-foreground uppercase flex items-center justify-between">
-                                    Participants
+                                <FormLabel className="text-xs font-medium text-muted-foreground flex items-center justify-between">
+                                    Guests
                                     <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
                                         <PopoverTrigger asChild>
                                             <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-2xs text-primary hover:bg-primary/10">
