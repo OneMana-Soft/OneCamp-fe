@@ -95,6 +95,15 @@ describe("webhooks", () => {
     expect(active.className).not.toMatch(/bg-primary|bg-sidebar-accent/)
   })
 
+  // The playful layer: an empty state's icon sits on its admin group's tile
+  // (Connections, lake), never in the accent.
+  it("puts the empty state's icon on the Connections group's lake tile", () => {
+    fetchState.value = { data: { webhooks: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    render(<WebhooksCard />)
+    expect(screen.getByText("No webhooks yet")).toBeTruthy()
+    expect(document.querySelector(".hue-lake")).toBeTruthy()
+  })
+
   it("opens the target in a link, not a button inside a link", () => {
     render(<WebhooksCard />)
     const link = screen.getByRole("link", { name: "Open the target in a new tab" })

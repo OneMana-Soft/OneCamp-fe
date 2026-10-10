@@ -8,6 +8,8 @@
 // commands, and its stored secrets. Optimistic UI + toasts keep it snappy.
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import { hueFor } from "@/lib/campHue"
 import { useCallback, useMemo, useState } from "react"
 import useSWR from "swr"
 import { Button } from "@/components/ui/button"
@@ -137,7 +139,9 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                     />
                 </div>
                 {/* Filters, so a pressed state rather than a selection in the
-                    accent: chips at the 4px radius, the chosen one in ink. */}
+                    accent: chips at the 4px radius. A category is a thing with
+                    a colour of its own, so the chosen one shows its camp hue's
+                    tint and ink ("All" stays neutral); the rest stay quiet. */}
                 <div className="flex flex-wrap gap-1" role="group" aria-label="Category">
                     {categories.map((cat) => (
                         <button
@@ -147,9 +151,11 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                             onClick={() => setActiveCategory(cat)}
                             className={cn(
                                 "h-7 rounded-sm border px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-                                activeCategory === cat
-                                    ? "border-border bg-highlight text-foreground"
-                                    : "border-transparent text-muted-foreground hover:text-foreground",
+                                activeCategory !== cat
+                                    ? "border-transparent text-muted-foreground hover:text-foreground"
+                                    : cat === "All"
+                                      ? "border-border bg-highlight text-foreground"
+                                      : cn(HUE_CLASS[hueFor(cat)], "border-transparent bg-hue-tint text-hue-ink"),
                             )}
                         >
                             {cat}

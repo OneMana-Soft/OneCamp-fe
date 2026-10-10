@@ -23,6 +23,8 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 interface WebhookItem {
   id: string
@@ -244,6 +246,7 @@ const WebhooksCard = () => {
           <EmptyState
             tone="accent"
             icon={Webhook}
+            hue={ADMIN_GROUP_HUE.connections}
             title="No webhooks yet"
             description="Create an incoming webhook to let a bot post messages, or an outgoing one to tell another service when something happens."
           />
@@ -422,8 +425,8 @@ const WebhooksCard = () => {
       <Sheet open={!!selectedLog} onOpenChange={(o) => { if (!o) setSelectedLog(null) }}>
         <SheetContent className="sm:max-w-lg w-full flex flex-col">
           <SheetHeader className="flex-shrink-0">
-            <SheetTitle className="flex items-center gap-2 text-base">
-              <Terminal className="h-4 w-4" />
+            <SheetTitle className="flex items-center gap-2.5 text-base">
+              <Tile hue={ADMIN_GROUP_HUE.connections} size="sm"><Terminal /></Tile>
               Delivery
             </SheetTitle>
             <SheetDescription asChild>

@@ -39,6 +39,18 @@ describe("workflows", () => {
     expect(mutate).toHaveBeenCalled()
   })
 
+  // Its empty state takes the hue of the place it is shown in: dusk in the
+  // admin page's AI and automation group, or the hue a settings page passes.
+  it("puts the empty state's icon on a hued tile, dusk by default", () => {
+    fetchState.value = { data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    const { unmount } = render(<WorkflowsCard />)
+    expect(document.querySelector(".hue-dusk")).toBeTruthy()
+    unmount()
+    render(<WorkflowsCard hue="moss" />)
+    expect(document.querySelector(".hue-moss")).toBeTruthy()
+    expect(document.querySelector(".hue-dusk")).toBeNull()
+  })
+
   it("names each switch for the workflow it runs, and says the switches save at once", () => {
     fetchState.value = { data: { data: [wf] }, isLoading: false, isError: undefined, mutate: vi.fn() }
     render(<WorkflowsCard />)
