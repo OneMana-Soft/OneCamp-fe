@@ -113,7 +113,7 @@ export function GoalsView({ compact }: { compact: boolean }) {
           <li key={goal.id}>
             {/* A goal's card: how far it is as a ring beside its name (the
                 desktop table keeps bars, which carry the pace tick). */}
-            <Link href={href(goal)} className="flex items-center gap-3 px-4 py-3 outline-none active:bg-muted focus-visible:bg-muted" style={{ paddingLeft: 16 + depth * 16 }}>
+            <Link href={href(goal)} className="flex items-center gap-3 py-3 pr-0 outline-none active:bg-muted focus-visible:bg-muted" style={{ paddingLeft: depth * 16 }}>
               {goal.progress !== null ? (
                 <ProgressRing value={Math.round(goal.progress * 100)} size={36} label={`${goal.title}: ${percent(goal.progress)}`} className="text-muted-foreground">
                   <span className="text-3xs font-medium tabular-nums text-foreground">{Math.round(goal.progress * 100)}</span>

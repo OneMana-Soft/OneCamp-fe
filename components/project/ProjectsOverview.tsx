@@ -108,7 +108,8 @@ function MobileRow({ p }: { p: ProjectOverview }) {
   return (
     <li>
       <Link href={href(p)} className="block outline-none active:bg-muted focus-visible:bg-muted">
-        <div className="px-4 py-3" {...longPress}>
+        {/* The page's 16px inset is the row's; it added its own and sat 32px in. */}
+        <div className="py-3" {...longPress}>
           <div className="flex items-center justify-between gap-3">
             <span className="flex min-w-0 items-center gap-2">
               <IdentityMark id={p.project_uuid} variant="square" />
@@ -308,7 +309,7 @@ export function ProjectsOverview() {
   const fills = viewDraws && view !== "reports"
   const table = !ownRow && (
     <>
-      <div data-work-toolbar="" className={cn(workToolbar, !isDesktop && "flex-nowrap")}>
+      <div data-work-toolbar="" className={workToolbar}>
         {viewTools}
       </div>
       <div className={cn(workBody, "min-h-0")}>{body}</div>
