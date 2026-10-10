@@ -20,7 +20,7 @@ import {
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-import { LoaderCircle } from "@/lib/icons";
+import { TableRowsSkeleton } from "@/components/ui/tableRowsSkeleton";
 import { useDebounce } from "@/hooks/useDebounce"
 import { TaskTablePagination } from "@/components/task/taskTablePagination"
 import { TaskTableToolbar } from "@/components/task/taskTableToolbar"
@@ -288,14 +288,13 @@ export const ProjectTaskTable = ({ projectId }: ProjectTaskTableProps) => {
                                     ))}
                                 </TaskTableRow>
                             ))
+                        ) : projectInfo.isLoading ? (
+                            <TableRowsSkeleton columns={table.getVisibleLeafColumns().length + 1} />
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
-                                    {projectInfo.isLoading ? (
-                                        <div className="flex items-center justify-center">
-                                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                                        </div>
-                                    ) : columnFilters.length > 0 || globalFilter
+                                    {/* Say which empty this is: a filter that matched nothing, or a project with no tasks. */}
+                                    {columnFilters.length > 0 || globalFilter
                                         ? t("noTasksMatch", { defaultValue: "No tasks match these filters." })
                                         : t("noTasksYet", { defaultValue: "No tasks yet. Create one and it shows here." })}
                                 </TableCell>

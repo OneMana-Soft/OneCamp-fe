@@ -26,7 +26,6 @@ import {
     TableRow,
 } from "@/components/ui/table";
 
-import { LoaderCircle } from "@/lib/icons";
 import {TaskTableToolbar} from "@/components/task/taskTableToolbar";
 import {TaskTablePagination} from "@/components/task/taskTablePagination";
 import { KeyboardList, SelectAllHead, TaskTableRow } from "@/components/task/KeyboardList";
@@ -40,6 +39,7 @@ import {useDispatch, useSelector} from "react-redux";
 import type {RootState} from "@/store/store";
 import {TaskInfoInterface} from "@/types/task";
 import {useTranslation} from "react-i18next";
+import { TableRowsSkeleton } from "@/components/ui/tableRowsSkeleton";
 import { useFitColumns } from "@/hooks/useFitColumns";
 import { columnAlignClass } from "@/components/task/columnAlign"
 
@@ -283,14 +283,12 @@ export const MyTaskTable = () => {
                                     ))}
                                 </TaskTableRow>
                             ))
+                        ) : userInfo.isLoading ? (
+                            <TableRowsSkeleton columns={table.getVisibleLeafColumns().length + 1} />
                         ) : (
                             <TableRow>
                                 <TableCell colSpan={columns.length + 1} className="h-24 text-center text-sm text-muted-foreground">
-                                    {userInfo.isLoading ? (
-                                        <div className="flex items-center justify-center">
-                                            <LoaderCircle className="h-4 w-4 animate-spin" />
-                                        </div>
-                                    ) : table.getState().columnFilters.length > 0 || table.getState().globalFilter
+                                    {table.getState().columnFilters.length > 0 || table.getState().globalFilter
                                         ? t("noTasksMatch", { defaultValue: "No tasks match these filters." })
                                         : t("noTasksAssigned", { defaultValue: "Nothing is assigned to you." })}
                                 </TableCell>
