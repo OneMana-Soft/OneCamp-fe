@@ -15,8 +15,6 @@ export function UserStatusNav({userUUID, hideWhenEmpty = false}: {userUUID: stri
 
     const dispatch = useDispatch();
 
-    const emojiData = useEmojiMartData()
-
     // Use a memoized selector with custom equality to prevent unnecessary re-renders
     const userStatusState = useSelector(
         (state: RootState) => state.users.usersStatus[userUUID],
@@ -58,6 +56,9 @@ export function UserStatusNav({userUUID, hideWhenEmpty = false}: {userUUID: stri
     const isExpired = useStatusIsExpired(cachedStatus)
     const activeStatus = cachedStatus && !isExpired ? cachedStatus : null
 
+    // The emoji catalogue only for a status to draw: asked for unconditionally,
+    // it loaded on every page, ahead of Home's greeting.
+    const emojiData = useEmojiMartData(!!activeStatus?.status_user_emoji_id)
     const emojiInfo = findEmojiMartEmojiByEmojiID(emojiData.data, activeStatus?.status_user_emoji_id ?? '')
 
     const statusMessage = activeStatus?.status_user_emoji_desc ?? null

@@ -15,8 +15,6 @@ const NO_STATUS: Partial<UserEmojiInterface> = {}
 
 export const DesktopNavigationEmojiStatus = ({userUUID}: {userUUID: string}) => {
 
-    const emojiData = useEmojiMartData()
-
     const { isMobile } = useMedia();
 
 
@@ -34,6 +32,8 @@ export const DesktopNavigationEmojiStatus = ({userUUID}: {userUUID: string}) => 
     const isExpired = useStatusIsExpired(cachedStatus)
     const activeStatus = cachedStatus && !isExpired ? cachedStatus : null
 
+    // The emoji catalogue only for a status to draw (useEmojiMartData).
+    const emojiData = useEmojiMartData(!!activeStatus?.status_user_emoji_id)
     const emojiInfo = findEmojiMartEmojiByEmojiID(emojiData.data, activeStatus?.status_user_emoji_id ?? '')
 
     const statusMessage = activeStatus?.status_user_emoji_desc ?? null
