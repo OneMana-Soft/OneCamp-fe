@@ -152,4 +152,16 @@ describe("the AI tab's models section", () => {
     expect(bar).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/AI_WORKSPACE_DAILY_TOKEN_BUDGET/)
   })
+
+  // The rebuild bar animated its width, a layout property, on every poll; the
+  // shared bar moves by transform.
+  it("shows the search index rebuild on the shared progress bar, with nothing animating a width", async () => {
+    vi.mocked(getAIConfig).mockResolvedValue(config as never)
+    vi.mocked(getReindexStatus).mockResolvedValue({ running: true, total: 200, processed: 49, failed: 1, dimension: 768 } as never)
+    const { container } = render(<AIModelsCard />)
+    const bar = await screen.findByRole("progressbar", { name: /Rebuilding the AI search index: 25%/ })
+    expect(bar).toBeTruthy()
+    expect(container.innerHTML).not.toMatch(/transition-\[width/)
+    expect(container.textContent).toMatch(/1 item couldn't be indexed\./)
+  })
 })

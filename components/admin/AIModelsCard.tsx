@@ -900,14 +900,18 @@ const ReindexBanner: React.FC<{ status: ReindexStatus }> = ({ status }) => {
           {status.processed + status.failed} / {status.total} (dim {status.dimension})
         </span>
       </div>
-      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-        <div className="h-full bg-warning transition-[width,height]" style={{ width: `${pct}%` }} />
-      </div>
+      {/* The shared bar, which moves by transform: this one animated its
+          width, a layout property, on every poll. */}
+      <Progress
+        value={pct}
+        aria-label={`${status.running ? "Rebuilding" : "Rebuilt"} the AI search index: ${pct}%`}
+        className="h-1.5"
+      />
       <p className="text-xs text-muted-foreground">
         {status.running
           ? "Semantic search returns partial results until this completes. You can keep using the workspace."
           : status.message || "Done."}
-        {status.failed > 0 ? ` ${status.failed} item(s) failed.` : ""}
+        {status.failed > 0 ? ` ${status.failed} ${status.failed === 1 ? "item" : "items"} couldn't be indexed.` : ""}
       </p>
     </section>
   )
