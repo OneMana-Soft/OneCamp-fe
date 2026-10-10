@@ -9,6 +9,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check } from "@/lib/icons";
 import { UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils/helpers/cn"
+import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
 import {UserProfileDataInterface} from "@/types/user";
 import {useUserAvatar} from "@/hooks/useUserAvatar";
@@ -46,7 +47,7 @@ export default function TaskSubTaskAssignee({ userProfile, assigneeUpdate, taskP
                                         src={imageSrc}
                                         alt="Profile icon"
                                     />
-                                    <AvatarFallback>
+                                    <AvatarFallback className={getAvatarFallbackClass(displayNameOf(userProfile))}>
                                         {nameInitials}
                                     </AvatarFallback>
                                 </Avatar>
