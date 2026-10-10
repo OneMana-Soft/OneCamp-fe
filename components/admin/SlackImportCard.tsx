@@ -223,7 +223,8 @@ const SlackImportCard: React.FC = () => {
       toast({ title: "Rollback complete" })
       swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
     } catch (err) {
-      toast({ title: "Rollback failed", description: errorMessage(err), variant: "destructive" })
+      // The request shows no toast of its own: this is the one.
+      toast({ title: "Rollback failed", description: importProblemOf(err).message, variant: "destructive" })
     } finally {
       setBusyJobId(null)
     }
@@ -242,9 +243,10 @@ const SlackImportCard: React.FC = () => {
           toast({ title: "Staged file deleted" })
           swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
         } catch (err) {
+          // The request shows no toast of its own: this is the one.
           toast({
             title: "Could not delete staged file",
-            description: errorMessage(err),
+            description: importProblemOf(err).message,
             variant: "destructive",
           })
         } finally {
