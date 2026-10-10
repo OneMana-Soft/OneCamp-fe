@@ -123,12 +123,10 @@ const ImportCard: React.FC = () => {
   // Every tool's jobs, whichever tool is picked below (Slack's have their own
   // section), so an admin coming back sees how their imports are doing first
   // and picking a tool never moves or empties the list.
-  const {
-    data: jobsResp,
-    isLoading: jobsLoading,
-    isError: jobsError,
-    mutate: refetchJobs,
-  } = useFetch<{ jobs: ImportJob[] }>("/admin/import/jobs")
+  // Read as jobsFetch.isError (not an alias), the shape app/errorState.test.ts
+  // recognises when it checks that a failed read never shows as empty.
+  const jobsFetch = useFetch<{ jobs: ImportJob[] }>("/admin/import/jobs")
+  const { data: jobsResp, isLoading: jobsLoading, mutate: refetchJobs } = jobsFetch
   const jobs = useMemo(() => (jobsResp?.jobs ?? []).filter((j) => j.provider !== "slack"), [jobsResp])
   const runningJobs = useMemo(() => jobs.filter((j) => isLive(j.status)), [jobs])
 
@@ -377,11 +375,11 @@ const ImportCard: React.FC = () => {
         <SettingsSection level={3} title="Recent imports">
           {jobsLoading && !jobsResp ? (
             <ImportRowsSkeleton label="Loading the import history" />
-          ) : jobsError && !jobsResp ? (
+          ) : jobsFetch.isError && !jobsResp ? (
             <ErrorState
               compact
               subject="the import history"
-              detail={apiErrorStatus(jobsError) ? apiErrorMessage(jobsError) : undefined}
+              detail={apiErrorStatus(jobsFetch.isError) ? apiErrorMessage(jobsFetch.isError) : undefined}
               onRetry={() => void refetchJobs()}
             />
           ) : jobs.length === 0 ? (
