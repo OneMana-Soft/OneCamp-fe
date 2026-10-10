@@ -12,6 +12,7 @@ import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { PageContainer } from "@/components/ui/pageContainer"
 import { Button } from "@/components/ui/button"
 import { Bell, CheckCircle2 } from "@/lib/icons"
+import { SpotTasks, SpotWelcome } from "@/components/ui/graphics"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useAIAvailable } from "@/hooks/useClientConfig"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -190,6 +191,7 @@ export const ActivityAllListResult = ({
             <PageContainer align="center" className="flex items-center justify-center">
                 <EmptyState
                     icon={priorityOnly ? CheckCircle2 : Bell}
+                    illustration={priorityOnly ? <SpotTasks /> : <SpotWelcome />}
                     title={priorityOnly ? "You're all caught up" : "No activity yet"}
                     description={
                         priorityOnly

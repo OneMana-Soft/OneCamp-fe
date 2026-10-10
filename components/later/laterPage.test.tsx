@@ -76,3 +76,12 @@ describe("Later", () => {
     expect(remove).toHaveBeenCalledWith("a")
   })
 })
+
+describe("Later, empty", () => {
+  it("shows a small spot above its words", () => {
+    items = []
+    const { container } = mount("open")
+    expect(screen.getByText("Nothing saved for later")).toBeTruthy()
+    expect(container.querySelector("svg")).toBeTruthy()
+  })
+})
