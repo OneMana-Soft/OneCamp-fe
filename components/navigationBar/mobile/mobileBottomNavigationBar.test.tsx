@@ -40,6 +40,10 @@ describe("the phone's tab bar", () => {
     expect(channels.getAttribute("aria-current")).toBe("page")
     expect(screen.getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBeNull()
     expect(prefetched).toEqual(expect.arrayContaining(["/app/home", "/app/channel", "/app/chat", "/app/activity"]))
+    // The current place wears the theme's accent, as the desktop sidebar's bar
+    // does, so a colour theme re-colours it; the rest stay muted.
+    expect(channels.className.split(/\s+/)).toContain("text-primary")
+    expect(screen.getByRole("link", { name: "Home" }).className.split(/\s+/)).not.toContain("text-primary")
     // More opens a menu, so it stays a button.
     expect(screen.getByRole("button", { name: "Open menu" })).toBeTruthy()
   })
