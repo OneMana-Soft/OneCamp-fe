@@ -2,7 +2,6 @@
 
 import { memo, useCallback, type ReactNode } from "react";
 import { useDispatch } from "react-redux";
-import { motion } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -165,15 +164,14 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
         : null;
 
     return (
-        <motion.div
+        // Mounted when the message is hovered or focused (BaseMessageCard), so
+        // it rises in once: opacity and 4px, no scale, nothing with reduced motion.
+        <div
             role="toolbar"
             aria-label="Message actions"
-            initial={{ opacity: 0, y: -2, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.12, ease: "easeOut" }}
             className={cn(
                 "flex items-center gap-0.5 rounded-lg border border-border/60 p-1",
-                "bg-background shadow-overlay",
+                "bg-background shadow-overlay motion-safe:animate-msg-fade-in",
             )}
         >
             {QUICK_REACTIONS.map(({ id, emoji, label }) => (
@@ -187,7 +185,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                             onClick={() => onReactionSelect(id)}
                             className={cn(
                                 "h-8 w-8 rounded-md text-base leading-none",
-                                "transition-transform duration-150 hover:scale-110 hover:bg-accent",
+                                "hover:bg-accent motion-safe:transition-transform motion-safe:hover:scale-110",
                             )}
                         >
                             <span aria-hidden="true">{emoji}</span>
@@ -261,7 +259,7 @@ const MessageDesktopHoverOptionsForMainChatAndChannelComponent = ({
                     onMakeTask={onMakeTask}
                 />
             )}
-        </motion.div>
+        </div>
     );
 };
 

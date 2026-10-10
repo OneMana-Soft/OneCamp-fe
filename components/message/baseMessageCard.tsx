@@ -219,6 +219,8 @@ export const BaseMessageCard = React.memo(({
 }: BaseMessageCardProps) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
+  // The pointer is over this message, or focus is inside it.
+  const [actionsWanted, setActionsWanted] = useState(false)
   const [isMessageEditEnabled, setIsMessageEditEnabled] = useState(false)
   const [updatedText, setUpdatedText] = useState<string>(message.bodyText || "")
   // Mirror updatedText into a ref so the synchronous flush triggered when
@@ -367,9 +369,21 @@ export const BaseMessageCard = React.memo(({
     />
   )
 
+  // The actions exist only for the message under the pointer or holding focus
+  // (or whose menu is open). Every row used to mount its own toolbar, hidden:
+  // a dozen tooltips, a reaction picker, a reminder dialog and a menu each,
+  // about 600 components a message, and two dozen invisible tab stops.
+  const showActions = !isMessageEditEnabled && (actionsWanted || isDropdownOpen || isEmojiPickerOpen)
+
   return (
     <div
       id={messageDomId(message.uuid)}
+      onPointerEnter={() => setActionsWanted(true)}
+      onPointerLeave={() => setActionsWanted(false)}
+      onFocus={() => setActionsWanted(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActionsWanted(false)
+      }}
       className={cn(
         // py-1.5, not 2.5: a message is a line of a conversation, and the
         // extra 8px on every row (plus a margin under every body) made a
@@ -383,35 +397,6 @@ export const BaseMessageCard = React.memo(({
         (isDropdownOpen || isEmojiPickerOpen) && "bg-accent/40",
       )}
     >
-        {!isMessageEditEnabled && (
-          <div
-            className={cn(
-              "absolute right-3 top-1.5 z-10 transition-opacity duration-150",
-              // Opacity hides the toolbar from the eye and not from the mouse.
-              // Invisible, it still covered the top-right of every message in
-              // the list, so clicking a word there hit a react button nobody
-              // could see. It takes clicks only when it is actually shown.
-              isDropdownOpen || isEmojiPickerOpen
-                ? "opacity-100 pointer-events-auto"
-                : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
-            )}
-          >
-            <MessageDesktopHoverOptionsForMainChatAndChannel
-              editMessage={() => setIsMessageEditEnabled(true)}
-              deleteMessage={removePost}
-              isOwner={message.from.user_uuid === selfProfile.data?.data.user_uuid}
-              isAdmin={isAdmin}
-              setEmojiPopupState={setIsEmojiPickerOpen}
-              onReactionSelect={handleEmojiClick}
-              setIsDropdownOpen={setIsDropdownOpen}
-              messageText={bodyText}
-              authorName={authorName}
-              onReply={onReply}
-              onTranslate={bodyText ? handleTranslate : undefined}
-              {...hoverOptionsConfig}
-            />
-          </div>
-        )}
         {continued && !isMessageEditEnabled ? (
           <ContinuedGutter createdAt={message.createdAt} authorName={authorName} />
         ) : (
@@ -579,6 +564,26 @@ export const BaseMessageCard = React.memo(({
             />
           )}
         </div>
+        {/* After the message in the DOM, so Tab from the author's name reaches
+            the message's own links first, then its actions. */}
+        {showActions && (
+          <div className="absolute right-3 top-1.5 z-10">
+            <MessageDesktopHoverOptionsForMainChatAndChannel
+              editMessage={() => setIsMessageEditEnabled(true)}
+              deleteMessage={removePost}
+              isOwner={message.from.user_uuid === selfProfile.data?.data.user_uuid}
+              isAdmin={isAdmin}
+              setEmojiPopupState={setIsEmojiPickerOpen}
+              onReactionSelect={handleEmojiClick}
+              setIsDropdownOpen={setIsDropdownOpen}
+              messageText={bodyText}
+              authorName={authorName}
+              onReply={onReply}
+              onTranslate={bodyText ? handleTranslate : undefined}
+              {...hoverOptionsConfig}
+            />
+          </div>
+        )}
     </div>
   )
 })
