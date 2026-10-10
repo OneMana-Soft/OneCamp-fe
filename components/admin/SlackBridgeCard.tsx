@@ -325,9 +325,10 @@ const SlackBridgeCard: React.FC = () => {
         body = (
             <>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="flex items-center gap-2 text-sm">
-                        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
-                        Connected to <span className="font-medium">{status.team_name || "Slack"}</span>
+                    {/* Words, like the sign-in providers beside it: connected, and to what. */}
+                    <p className="text-sm">
+                        <span className="font-medium text-success-ink">Connected</span> to{" "}
+                        <span className="font-medium">{status.team_name || "Slack"}</span>
                     </p>
                     <Button
                         variant="outline"
