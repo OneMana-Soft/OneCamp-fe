@@ -1,6 +1,6 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import amLang from "./locales/am/am.json"
+import arLang from "./locales/ar/ar.json"
 import beLang from "./locales/be/be.json"
 import bgLang from "./locales/bg/bg.json"
 import caLang from "./locales/ca/ca.json"
@@ -29,8 +29,8 @@ import frLang from "./locales/fr/fr.json"
 // (tip move them in a JSON file and import them,
 // or even better, manage them separated from your code: https://react.i18next.com/guides/multiple-translation-files)
 const resources = {
-    am: {
-        translation: amLang
+    ar: {
+        translation: arLang
     },
     be: {
         translation: beLang

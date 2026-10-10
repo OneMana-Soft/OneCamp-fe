@@ -14,7 +14,7 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover"
 import {useState} from "react";
-import {appLangList} from "@/types/user";
+import {appLangList, appLanguage} from "@/types/user";
 
 interface AppLanguageComboboxProps {
     userLang?: string;
@@ -32,7 +32,7 @@ interface AppLanguageComboboxProps {
  */
 export function AppLanguageCombobox({ userLang, onLangChange, ...control }: AppLanguageComboboxProps) {
     const [open, setOpen] = useState(false)
-    const current = userLang ? appLangList[userLang] : undefined
+    const current = appLanguage(userLang)
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -73,7 +73,7 @@ export function AppLanguageCombobox({ userLang, onLangChange, ...control }: AppL
                                         aria-hidden="true"
                                         className={cn(
                                             "ml-auto h-4 w-4 text-primary",
-                                            userLang === e.code ? "opacity-100" : "opacity-0"
+                                            current?.code === e.code ? "opacity-100" : "opacity-0"
                                         )}
                                     />
                                 </CommandItem>
