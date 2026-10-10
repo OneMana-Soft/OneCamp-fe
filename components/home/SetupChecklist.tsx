@@ -95,6 +95,19 @@ function writeMemo(v: "open" | "closed") {
     }
 }
 
+/**
+ * Whether the signed-in person is an admin, from the side-nav answer: unknown
+ * (undefined) until it arrives, then yes or no. The server leaves
+ * user_is_admin out when it is false (omitempty), so reading the field alone
+ * kept a member "unknown" for good, and a browser that had shown the card
+ * held its place as a skeleton on Home forever. A failed answer is a no: the
+ * card is a hint, never worth a skeleton. Pure.
+ */
+export function adminFromSidenav(res: { data?: { data?: { user_is_admin?: boolean } }; error?: unknown }): boolean | undefined {
+    if (res.data) return res.data.data?.user_is_admin === true
+    return res.error ? false : undefined
+}
+
 /** Whether to hold the card's place while its state loads. Pure. */
 export function holdChecklistPlace(isAdmin: boolean | undefined, loaded: boolean, memo: Memo): boolean {
     if (loaded || isAdmin === false || memo === "closed") return false
