@@ -41,7 +41,7 @@ export default function DesktopNavigationUserProfile() {
         <>
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full" aria-label="Profile and settings">
                     <UserAvatarNav
                         userName={displayNameOf(selfProfile.data?.data)}
                         userProfileObjKey={selfProfile.data?.data.user_profile_object_key}
