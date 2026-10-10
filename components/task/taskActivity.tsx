@@ -40,7 +40,9 @@ export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskA
             <div className="flex-1 pt-2">
                 <p className="text-sm ">
                     <span className="font-medium hover:underline cursor-pointer" onClick={()=>{openOtherUserProfile(taskActivity.activity_by.user_uuid)}}>{displayNameOf(taskActivity.activity_by)}</span>{" "}
-                    {t(phrase, { field: taskActivity.activity_next_state })}.{" "}
+                    {/* After the name, mid-sentence: "Sam Rivera updated the
+                        description", not "Sam Rivera Updated...". */}
+                    {lowerFirst(t(phrase, { field: taskActivity.activity_next_state }))}.{" "}
                     <span className="text-muted-foreground">{formatTimeForPostOrComment(taskActivity.activity_time)}</span>
                 </p>
             </div>
@@ -50,3 +52,7 @@ export default function TaskActivity({taskActivity, openOtherUserProfile}: TaskA
     )
 }
 
+/** The phrase's first letter in lower case, where it follows a name; a field's own name keeps its case. */
+function lowerFirst(s: string) {
+    return s ? s.charAt(0).toLowerCase() + s.slice(1) : s
+}

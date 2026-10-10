@@ -70,7 +70,8 @@ export const taskActivityConst: Record<string, TaskActivityKey> = {
     "taskUnDelete": {
         "key": "unrelatedTask",
     },
+    // Its own words: "createTask" is the button's ("Create task").
     "taskCreate": {
-        "key": "createTask",
+        "key": "activityCreatedTask",
     }
 };
