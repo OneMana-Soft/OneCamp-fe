@@ -6,12 +6,11 @@
 
 import { useEffect, useState } from "react"
 import { appMutate as mutate } from "@/lib/swrMutate";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
+import { ErrorState } from "@/components/ui/error-state"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 
-import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { GetEndpointUrl } from "@/services/endPoints"
 import {
     listCapabilityPolicies,
@@ -24,19 +23,22 @@ export default function PermissionsCard() {
     const { toast } = useToast()
     const [policies, setPolicies] = useState<CapabilityPolicy[]>([])
     const [loading, setLoading] = useState(true)
+    // A failed load is said as such: it left the section blank under its
+    // heading, beside a toast that soon left, with nothing to do about it.
+    const [failed, setFailed] = useState(false)
     const [busy, setBusy] = useState<string | null>(null)
 
     const load = () => {
         setLoading(true)
+        setFailed(false)
         listCapabilityPolicies()
             .then(setPolicies)
-            .catch(() => toast({ title: "Couldn't load permissions", variant: "destructive" }))
+            .catch(() => setFailed(true))
             .finally(() => setLoading(false))
     }
 
     useEffect(() => {
         load()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const handleToggle = async (capability: string, allMembers: boolean) => {
@@ -48,7 +50,8 @@ export default function PermissionsCard() {
         )
         try {
             await setCapabilityPolicy(capability, next)
-            toast({ title: "Permission updated" })
+            const label = CAPABILITY_META[capability]?.label ?? capability
+            toast({ title: allMembers ? `${label}: every member can now` : `${label}: admins only now` })
             // Refresh the current user's resolved capability set so any gated UI
             // (e.g. the Agents page) reflects the change immediately, not after a
             // focus/reload.
@@ -67,56 +70,68 @@ export default function PermissionsCard() {
         }
     }
 
-    return (
-        <Card className="border-border/60">
-            <CardHeader className="space-y-1">
-                <CardTitle className="text-base font-semibold">
-                    Member permissions
-                </CardTitle>
-                <CardDescription className="max-w-xl">
-                    Choose which capabilities members can use on their own. Off means
-                    admins only. Members always act within their own access: opening a
-                    capability never lets anyone exceed what they could already do.
-                </CardDescription>
-            </CardHeader>
-
-            <CardContent>
-                {loading ? (
-                    <div role="status" aria-label="Loading permissions" className="py-1">
-                        <SkeletonRows rows={5} avatar={false} lines={1} />
+    let body: React.ReactNode
+    if (loading) {
+        body = (
+            <SettingsList>
+                {Array.from({ length: 4 }).map((_, i) => (
+                    <div
+                        key={i}
+                        aria-busy={i === 0 ? "true" : undefined}
+                        aria-label={i === 0 ? "Loading the member permissions" : undefined}
+                        aria-hidden={i === 0 ? undefined : "true"}
+                        className="flex items-start justify-between gap-4 px-4 py-3"
+                    >
+                        <div className="space-y-1.5">
+                            <Skeleton className={i % 2 === 0 ? "h-4 w-36" : "h-4 w-44"} />
+                            <Skeleton className="h-3 w-72 max-w-full" />
+                        </div>
+                        <Skeleton className="mt-0.5 h-5 w-9" />
                     </div>
-                ) : (
-                    <div className="divide-y divide-border/60">
-                        {policies.map((p) => {
-                            const meta = CAPABILITY_META[p.capability] || {
-                                label: p.capability,
-                                description: "",
+                ))}
+            </SettingsList>
+        )
+    } else if (failed) {
+        body = <ErrorState subject="the member permissions" onRetry={load} />
+    } else {
+        body = (
+            // One rhythm: each permission is a switch row named by its label,
+            // so clicking the words toggles it, as Settings does.
+            <SettingsList>
+                {policies.map((p) => {
+                    const meta = CAPABILITY_META[p.capability] || {
+                        label: p.capability,
+                        description: "",
+                    }
+                    const allMembers = p.policy === "all_members"
+                    return (
+                        <SwitchRow
+                            key={p.capability}
+                            label={meta.label}
+                            description={
+                                <>
+                                    {meta.description}
+                                    <span className="mt-1 block font-medium text-foreground/80">
+                                        {allMembers ? "All members can" : "Admins only"}
+                                    </span>
+                                </>
                             }
-                            const allMembers = p.policy === "all_members"
-                            return (
-                                <div
-                                    key={p.capability}
-                                    className="flex items-start justify-between gap-4 py-4 first:pt-0 last:pb-0"
-                                >
-                                    <div className="min-w-0 space-y-0.5">
-                                        <Label className="text-sm font-medium">{meta.label}</Label>
-                                        <p className="text-xs text-muted-foreground">{meta.description}</p>
-                                        <p className="text-2xs font-medium text-muted-foreground/80">
-                                            {allMembers ? "All members" : "Admins only"}
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        checked={allMembers}
-                                        disabled={busy === p.capability}
-                                        onCheckedChange={(v) => handleToggle(p.capability, v)}
-                                        aria-label={`Allow all members: ${meta.label}`}
-                                    />
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-            </CardContent>
-        </Card>
+                            checked={allMembers}
+                            disabled={busy === p.capability}
+                            onChange={(v) => void handleToggle(p.capability, v)}
+                        />
+                    )
+                })}
+            </SettingsList>
+        )
+    }
+
+    return (
+        <SettingsSection
+            title="Member permissions"
+            description="Choose which capabilities members can use on their own. Off means admins only. Members always act within their own access: opening a capability never lets anyone exceed what they could already do. Changes save as you make them."
+        >
+            {body}
+        </SettingsSection>
     )
 }
