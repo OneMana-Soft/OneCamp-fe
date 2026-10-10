@@ -122,7 +122,7 @@ export function TaskRepeatField({
                 className="h-8 w-16"
               />
               <Select value={spec.freq} onValueChange={(v) => setSpec((s) => ({ ...s, freq: v as Freq }))}>
-                <SelectTrigger className="h-8 flex-1" aria-label="Unit">
+                <SelectTrigger dense className="h-8 flex-1" aria-label="Unit">
                   <SelectValue>{spec.interval === 1 ? unit.one : unit.many}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>

@@ -115,7 +115,7 @@ const AddBoardMemberCombobox: React.FC<AddBoardMemberComboboxProps> = ({ boardId
                 </Popover>
 
                 <Select value={selectedRole} onValueChange={(v: Role) => setSelectedRole(v)}>
-                    <SelectTrigger className="w-[110px] bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150 h-10">
+                    <SelectTrigger dense className="w-[110px] bg-muted/20 border-border/40 hover:bg-muted/40 hover:border-border/60 transition-colors duration-150 h-10">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

@@ -407,3 +407,42 @@ test.describe("Input heights, as rendered", () => {
     expect(await heightOf(page, "h-8")).toBe(32)
   })
 })
+
+/**
+ * A select's trigger, as rendered. components/ui/select.tsx builds its height
+ * with the same inputSizing as a field (select.test.tsx holds the class lists),
+ * so on a phone a select is the 44px of the field beside it: it was h-9 at
+ * every width, 36px beside a 44px field and under the touch target. A dense
+ * select (a table cell, a toolbar's filter, an inline value) keeps its own
+ * height at every width.
+ */
+test.describe("Select heights, as rendered", () => {
+  // The trigger's own box classes (padding and border included), then the
+  // sizing inputSizing gives it.
+  const TRIGGER = "flex w-full items-center justify-between rounded-md border border-input px-3 py-2 text-sm"
+  const heightOf = (page: Page, sizing: string) =>
+    page.evaluate((cls) => {
+      const el = document.createElement("button")
+      el.className = cls
+      el.textContent = "Daily"
+      document.body.appendChild(el)
+      const h = el.getBoundingClientRect().height
+      el.remove()
+      return h
+    }, `${TRIGGER} ${sizing}`)
+
+  test("from md up, a select with no height of its own is 36px and a caller's h-8 32px", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto(PRIMITIVES_PAGE)
+    expect(await heightOf(page, "h-11 md:h-9")).toBe(36)
+    expect(await heightOf(page, "max-md:h-11 h-8")).toBe(32)
+  })
+
+  test("on a phone a select is 44px, and a dense h-8 select keeps its 32px", async ({ page }) => {
+    await page.setViewportSize(MOBILE)
+    await page.goto(PRIMITIVES_PAGE)
+    expect(await heightOf(page, "h-11 md:h-9")).toBe(44)
+    expect(await heightOf(page, "max-md:h-11 h-8")).toBe(44)
+    expect(await heightOf(page, "h-8")).toBe(32)
+  })
+})

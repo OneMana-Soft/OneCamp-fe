@@ -5,6 +5,7 @@ import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check, ChevronDown, ChevronUp } from "@/lib/icons";
 
 import { cn } from "@/lib/utils/helpers/cn"
+import { inputSizing } from "@/components/ui/input"
 
 const Select = SelectPrimitive.Root
 
@@ -12,14 +13,31 @@ const SelectGroup = SelectPrimitive.Group
 
 const SelectValue = SelectPrimitive.Value
 
-const SelectTrigger = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
+export interface SelectTriggerProps extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> {
+  /**
+   * In a table cell, a toolbar's filter, an inline value or a compound control
+   * (beside a dense field): the caller's height at every width, or 36px when it
+   * gives none, with no 44px floor on a phone.
+   */
+  dense?: boolean
+}
+
+/**
+ * The trigger's height comes from the same rule as a text field's
+ * (inputSizing in components/ui/input), so a field and a select beside it can
+ * never drift apart again: with no height of its own it is 44px on a phone and
+ * 36px from md up; a height the caller writes holds from md up, with the 44px
+ * touch target below md; `dense` keeps the caller's height everywhere. It was
+ * h-9 at every width, so on a phone a select stood 36px beside a 44px field
+ * and under the touch target.
+ */
+const SelectTrigger = React.forwardRef<React.ElementRef<typeof SelectPrimitive.Trigger>, SelectTriggerProps>(
+  ({ className, children, dense, ...props }, ref) => (
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm transition-[border-color,box-shadow] data-[placeholder]:text-muted-foreground hover:border-faint-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 data-[state=open]:border-ring aria-invalid:border-destructive disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 [&>span]:line-clamp-1",
+      "flex w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm transition-[border-color,box-shadow] data-[placeholder]:text-muted-foreground hover:border-faint-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 data-[state=open]:border-ring aria-invalid:border-destructive disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 [&>span]:line-clamp-1",
+      inputSizing(className, dense),
       className
     )}
     {...props}

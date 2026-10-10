@@ -171,7 +171,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
             <div className="mb-4 flex flex-wrap items-end gap-3">
                 <Control label="Chart">
                     <Select value={chartType} onValueChange={(v) => setChartType(v as ChartType)}>
-                        <SelectTrigger className="h-8 w-32 capitalize">
+                        <SelectTrigger dense className="h-8 w-32 capitalize">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -186,7 +186,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
 
                 <Control label="Group by">
                     <Select value={groupBy} onValueChange={setGroupBy}>
-                        <SelectTrigger className="h-8 w-40">
+                        <SelectTrigger dense className="h-8 w-40">
                             <SelectValue placeholder="Column" />
                         </SelectTrigger>
                         <SelectContent>
@@ -201,7 +201,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
 
                 <Control label="Measure">
                     <Select value={op} onValueChange={(v) => setOp(v as AggregateOp)}>
-                        <SelectTrigger className="h-8 w-32 capitalize">
+                        <SelectTrigger dense className="h-8 w-32 capitalize">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -217,7 +217,7 @@ export function DataTableChart({ tableId, fields, dataVersion }: DataTableChartP
                 {needsValue && (
                     <Control label="Of column">
                         <Select value={valueField} onValueChange={setValueField}>
-                            <SelectTrigger className="h-8 w-40">
+                            <SelectTrigger dense className="h-8 w-40">
                                 <SelectValue placeholder="Number column" />
                             </SelectTrigger>
                             <SelectContent>

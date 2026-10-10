@@ -272,7 +272,7 @@ function SelectEditor({ id, field, value, onSave }: EditorProps) {
   const chosen = typeof value === "string" ? field.options.find((o) => o.id === value) : undefined
   return (
     <Select value={typeof value === "string" ? value : NONE} onValueChange={(v) => void onSave(v === NONE ? null : v)}>
-      <SelectTrigger id={id} className={inlineSelect} aria-label={field.name}>
+      <SelectTrigger dense id={id} className={inlineSelect} aria-label={field.name}>
         <SelectValue>
           {chosen ? (
             <span className="flex items-center gap-2">

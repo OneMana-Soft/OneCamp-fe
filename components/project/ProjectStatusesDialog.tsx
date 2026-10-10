@@ -114,7 +114,7 @@ export function ProjectStatusesDialog({
 function CategorySelect({ value, onChange, disabled }: { value: StatusCategory; onChange: (c: StatusCategory) => void; disabled?: boolean }) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as StatusCategory)} disabled={disabled}>
-      <SelectTrigger className="h-8 w-[160px] shrink-0 text-xs" aria-label="Counts as">
+      <SelectTrigger dense className="h-8 w-[160px] shrink-0 text-xs" aria-label="Counts as">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -200,7 +200,7 @@ function StatusRow({
         <div className="flex flex-wrap items-center gap-2 border-t border-border/60 bg-muted/40 px-3 py-2 text-sm">
           <span className="text-muted-foreground">Its tasks move to</span>
           <Select value={moveTo} onValueChange={setMoveTo}>
-            <SelectTrigger className="h-8 w-[160px] text-xs" aria-label="Move its tasks to">
+            <SelectTrigger dense className="h-8 w-[160px] text-xs" aria-label="Move its tasks to">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
