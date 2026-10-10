@@ -9,153 +9,182 @@
  * an outside guest. Members see these guest comments merged into their own
  * comment panel, badged "Guest".
  *
- * Identity: the guest enters a display name once (kept in localStorage for
- * convenience). It is attribution only and never resolves to a member account.
+ * Identity: the guest enters a display name once, remembered in this browser
+ * for this link (as every guest page does). It is attribution only and never
+ * resolves to a member account.
+ *
+ * Problems are said HERE, under the field they are about. Nothing under /guest
+ * mounts a toaster, so the toasts this used to raise never showed: a guest who
+ * forgot their name, or whose comment the server refused, saw the button come
+ * back and nothing else.
  */
 
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { PrincipalTag } from "@/components/ui/principalTag"
 import { Input } from "@/components/ui/input"
-import { useToast } from "@/hooks/use-toast"
-import { Loader2, MessageSquare, Eye } from "@/lib/icons"
+import { Textarea } from "@/components/ui/textarea"
+import { Field } from "@/components/ui/field"
+import { Skeleton } from "@/components/ui/skeleton"
+import { MessageSquare, Eye } from "@/lib/icons"
 import {
   listGuestDocComments,
   createGuestDocComment,
   type GuestDocComment,
 } from "@/services/guestService"
 import { retryingText, sendFailedText } from "@/services/publicApi"
-import { GUEST_NAME_MAX, useGuestAnswer } from "@/components/guest/guestUi"
-import { formatDistanceToNow } from "date-fns"
-
-const NAME_KEY = "oc_guest_name"
+import { GUEST_NAME_MAX, guestWhen, useGuestAnswer, useGuestName } from "@/components/guest/guestUi"
 
 interface GuestDocCommentsProps {
   token: string
 }
 
+const NO_NAME = "Add your name first, so the team knows who wrote this."
+
 export function GuestDocComments({ token }: GuestDocCommentsProps) {
-  const { toast } = useToast()
   // Asked for again while the server is busy or out of reach.
   const { data, trouble } = useGuestAnswer(`doc-comments:${token}`, () => listGuestDocComments(token))
   const [posted, setPosted] = React.useState<GuestDocComment[]>([])
   const canComment = data?.capability === "comment"
   const comments = [...(data?.comments ?? []), ...posted]
-  const [name, setName] = React.useState("")
+  // The name this browser remembers for this link, until the guest edits it.
+  const [savedName, saveName] = useGuestName(token)
+  const [nameDraft, setNameDraft] = React.useState<string | null>(null)
+  const name = nameDraft ?? savedName
   const [draft, setDraft] = React.useState("")
   const [posting, setPosting] = React.useState(false)
-
-  React.useEffect(() => {
-    try {
-      const saved = localStorage.getItem(NAME_KEY)
-      if (saved) setName(saved)
-    } catch {
-      /* localStorage may be blocked; name stays empty */
-    }
-  }, [token])
+  const [nameError, setNameError] = React.useState("")
+  const [sendError, setSendError] = React.useState("")
+  const nameRef = React.useRef<HTMLInputElement>(null)
 
   const post = async () => {
     const body = draft.trim()
-    if (!body) return
+    if (!body || posting) return
     if (!name.trim()) {
-      toast({ title: "Please add your name first", variant: "destructive" })
+      setNameError(NO_NAME)
+      nameRef.current?.focus()
       return
     }
     setPosting(true)
-    try {
-      localStorage.setItem(NAME_KEY, name.trim())
-    } catch {
-      /* ignore */
-    }
+    setSendError("")
     const res = await createGuestDocComment(token, name, body)
     setPosting(false)
     if (res.ok) {
+      saveName(name.trim())
       setPosted((prev) => [...prev, res.data])
       setDraft("")
       return
     }
     // The server's words for a view-only link or an empty comment; why to
-    // wait for a busy or unreachable server.
-    toast({ title: sendFailedText(res), variant: "destructive" })
+    // wait for a busy or unreachable server. The draft stays.
+    setSendError(sendFailedText(res))
   }
 
   if (!data) {
     // A dead link is said by the page around this.
     if (trouble === "gone") return null
     return (
-      <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        {trouble && <span role="status">{retryingText[trouble]}</span>}
-      </div>
+      <section aria-busy="true" className="mt-8 border-t border-border/60 pt-6">
+        {trouble ? (
+          <p role="status" className="text-sm text-muted-foreground">{retryingText[trouble]}</p>
+        ) : (
+          <p role="status" className="sr-only">Loading comments…</p>
+        )}
+        <div aria-hidden="true" className="mt-3 grid gap-3">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-3/4" />
+          <Skeleton className="h-3 w-2/3" />
+        </div>
+      </section>
     )
   }
 
   return (
-    <section className="mt-8 border-t border-border/60 pt-6">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
-        <MessageSquare className="h-4 w-4 text-muted-foreground" />
+    <section aria-labelledby="guest-comments-title" className="mt-8 border-t border-border/60 pt-6">
+      <h2 id="guest-comments-title" className="mb-2 flex items-baseline gap-2 text-sm font-semibold text-foreground">
+        <MessageSquare className="h-4 w-4 self-center text-muted-foreground" aria-hidden="true" />
         Comments
         {comments.length > 0 && (
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">
-            {comments.length}
-          </span>
+          <span className="text-xs font-normal tabular-nums text-muted-foreground">{comments.length}</span>
         )}
-      </div>
+      </h2>
 
       {comments.length === 0 ? (
-        <p className="rounded-lg border border-border/50 bg-card/30 px-3 py-4 text-center text-xs text-muted-foreground">
-          {canComment ? "No comments yet. Be the first to leave feedback." : "No comments yet."}
+        <p className="py-2 text-sm text-muted-foreground">
+          {canComment ? "No comments yet. Leave the first one below." : "No comments yet."}
         </p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-border/60">
           {comments.map((c) => (
-            <li key={c.id} className="rounded-lg border border-border/50 bg-card/30 px-3 py-2.5">
+            <li key={c.id} className="py-3">
               <div className="mb-1 flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sidebar-accent text-2xs font-medium uppercase text-muted-foreground">
+                <span aria-hidden="true" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-2xs font-medium uppercase text-muted-foreground">
                   {(c.guest_name || "G").charAt(0)}
                 </span>
-                <span className="text-xs font-medium text-foreground">{c.guest_name}</span>
+                <span className="text-sm font-medium text-foreground">{c.guest_name}</span>
                 <PrincipalTag kind="guest" />
-                <span className="text-2xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
-                </span>
+                <time className="text-xs text-muted-foreground" dateTime={c.created_at}>
+                  {guestWhen(c.created_at)}
+                </time>
               </div>
               {/* Bodies are plain text from the server; render as text (never HTML). */}
-              <p className="whitespace-pre-wrap break-words pl-8 text-sm text-foreground/90">{c.body}</p>
+              <p className="max-w-prose whitespace-pre-wrap break-words pl-8 text-sm text-foreground">{c.body}</p>
             </li>
           ))}
         </ul>
       )}
 
       {canComment ? (
-        <div className="mt-4 space-y-2">
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
-            maxLength={GUEST_NAME_MAX}
-            className="h-9 text-sm"
-          />
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Add a comment…"
-            rows={3}
-            maxLength={4000}
-            className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          />
+        <form
+          className="mt-4 grid gap-3"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void post()
+          }}
+        >
+          <Field label="Your name" error={nameError} className="max-w-xs">
+            <Input
+              ref={nameRef}
+              name="name"
+              value={name}
+              onChange={(e) => {
+                setNameDraft(e.target.value)
+                setNameError("")
+              }}
+              autoComplete="name"
+              maxLength={GUEST_NAME_MAX}
+            />
+          </Field>
+          <Field label="Comment">
+            <Textarea
+              name="comment"
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value)
+                setSendError("")
+              }}
+              placeholder="What would you change, or what works?"
+              rows={3}
+              maxLength={4000}
+              className="resize-y"
+            />
+          </Field>
+          {sendError && (
+            <p role="alert" className="text-xs font-medium text-danger-ink">
+              {sendError}
+            </p>
+          )}
           <div className="flex justify-end">
-            <Button size="sm" onClick={post} disabled={posting || !draft.trim()}>
+            <Button type="submit" size="sm" disabled={posting || !draft.trim()}>
               {posting ? "Posting…" : "Comment"}
             </Button>
           </div>
-        </div>
+        </form>
       ) : (
-        <p className="mt-4 inline-flex items-center gap-1 text-2xs text-muted-foreground">
-          <Eye className="h-3 w-3" /> This link is view only.
+        <p className="mt-4 inline-flex items-center gap-1 text-xs text-muted-foreground">
+          <Eye className="h-3 w-3" aria-hidden="true" /> This link is view only.
         </p>
       )}
     </section>
   )
 }
-
