@@ -110,6 +110,7 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
                         editable={true}
                         buttonOnclick={handleSend}
                         ButtonIcon={SendHorizontal}
+                        hasAttachments={(channelPostState.filesUploaded?.length ?? 0) > 0}
                         editorClassName="focus:outline-none px-5"
                         onChange={(content ) => {
 

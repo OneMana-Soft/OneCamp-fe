@@ -87,6 +87,11 @@ interface MinimalTiptapProps
    * arriving in their first channel (hooks/useComposeOnArrival).
    */
   autoFocus?: boolean
+  /**
+   * Files are attached and uploaded, so Send has something to send with no
+   * text typed: it reads as ready, as it does with text.
+   */
+  hasAttachments?: boolean
 }
 
 const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "code" | "clearFormatting")[] = ["italic", "bold", "code", "strikethrough"];
@@ -182,6 +187,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
             onActionFiles,
             output,
             autoFocus,
+            hasAttachments = false,
           ...props
         },
         ref
@@ -338,9 +344,11 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
       const divRef = useRef<HTMLDivElement>(null);
 
         const [toggledTextEditor, setToggledTextEditor] = useState(false)
-        // Send reads as ready only when there is something to send. Style only:
-        // the button still answers a click, as it always did.
+        // Send reads as ready only when there is something to send: words, or
+        // files attached and uploaded. Style only: the button still answers a
+        // click, as it always did.
         const isEmpty = useEditorState({ editor, selector: ({ editor: e }) => e?.isEmpty ?? true }) ?? true
+        const nothingToSend = isEmpty && !hasAttachments
 
 
 
@@ -495,7 +503,7 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
                                   <Button
                                       aria-label={buttonLabel}
                                       size={"icon"}
-                                      className={cn("h-8 w-8 transition-colors", isEmpty && "bg-muted text-muted-foreground hover:bg-muted")}
+                                      className={cn("h-8 w-8 transition-colors", nothingToSend && "bg-muted text-muted-foreground hover:bg-muted")}
                                       onClick={wrappedButtonOnclick}
                                   >
                                       <ButtonIcon className="h-4 w-4" />

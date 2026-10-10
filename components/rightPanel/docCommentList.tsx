@@ -274,6 +274,7 @@ export const DocCommentList = ({ docId }: { docId: string }) => {
                             await uploadFile.makeRequestToUploadToDocComment(files as unknown as FileList, docId);
                         }}
                         ButtonIcon={SendHorizontal}
+                        hasAttachments={(commentState?.filesUploaded?.length ?? 0) > 0}
                         buttonOnclick={createComment}
                         className={cn("max-w-full rounded-xl h-auto border p-2 bg-muted/30")}
                         editorContentClassName="overflow-auto"

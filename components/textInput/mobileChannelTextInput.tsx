@@ -107,6 +107,7 @@ export const MobileChannelTextInput = ({ channelId, handleSend, autoFocus }: { c
                         buttonOnclick={handleSend}
                         onSchedule={scheduleSend?.schedule}
                         ButtonIcon={SendHorizontal}
+                        hasAttachments={(channelInputState.filesUploaded?.length ?? 0) > 0}
                         editorClassName="focus:outline-none px-5"
                         onChange={(content ) => {
                             publishTyping(content as string)

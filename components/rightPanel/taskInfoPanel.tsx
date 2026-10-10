@@ -1333,6 +1333,7 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                 taskUUID={taskUUID}
                 projectUUID={taskInfo.data?.data.task_project.project_uuid || ""}
                 commentBody={commentState?.commentBody}
+                hasAttachments={(commentState?.filesUploaded?.length ?? 0) > 0}
                 onChange={handleCommentBodyChange}
                 onSend={createComment}
                 onAttachmentClick={() => dispatch(openUI({ key: 'taskCommentFileUpload' }))}

@@ -492,6 +492,7 @@ export const ChatComments = () => {
                         await uploadFile.makeRequestToUploadToChatComment(files as unknown as FileList, rightPanelState.data.chatMessageUUID, grpId);
                     }}
                     ButtonIcon={SendHorizontal}
+                    hasAttachments={(chatCommentInputState.filesUploaded?.length ?? 0) > 0}
                     buttonOnclick={handleSend}
                     className={cn("max-w-full rounded-xl h-auto border p-2 bg-muted/30")}
                     editorContentClassName="overflow-auto"
