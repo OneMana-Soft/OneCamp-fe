@@ -28,6 +28,21 @@ const UNKNOWN: ErrorCopy = { title: "Something went wrong", description: "Try ag
 // status's own words say it better ("You don't have permission to do that").
 const BARE = /^(not authori[sz]ed|unauthori[sz]ed|forbidden|not allowed)\.?$/i
 
+/**
+ * What a status means in the person's words, for a failure the server sent no
+ * words for; undefined for a status with none of its own. Pure.
+ */
+export function statusWords(status: number): string | undefined {
+  if (BY_STATUS[status]) return BY_STATUS[status].description
+  if (status >= 500) return SERVER_TROUBLE.description
+  return undefined
+}
+
+/** Whether a server message only says "no", which its status says better. Pure. */
+export function isBareNo(msg: string): boolean {
+  return BARE.test(msg.trim())
+}
+
 /** The copy for a failed request. serverMsg is the backend's own msg field. Pure. */
 export function errorToastCopy(status: number | undefined, serverMsg: unknown): ErrorCopy {
   const base = (status && BY_STATUS[status]) || (status && status >= 500 ? SERVER_TROUBLE : UNKNOWN)
