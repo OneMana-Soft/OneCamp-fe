@@ -1,7 +1,6 @@
 "use client"
 
-import addEmojiIconSrc from "@/assets/addEmoji.svg";
-import Image from 'next/image';
+import { SmilePlus } from "@/lib/icons";
 import {useDispatch, useSelector} from "react-redux";
 import {openUI} from "@/store/slice/uiSlice";
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip";
@@ -81,7 +80,7 @@ export function UserStatusNav({userUUID, hideWhenEmpty = false}: {userUUID: stri
                     { emojiInfo
                         ?
                         emojiInfo.skins[0].native
-                        :<Image src={addEmojiIconSrc || "/placeholder.svg?height=24&width=24"} alt="Add Emoji" width={18} className='hover:cursor-pointer' height={18} />
+                        :<SmilePlus aria-hidden="true" className="h-[18px] w-[18px] text-muted-foreground hover:cursor-pointer" strokeWidth={1.75} />
                     }
                     </Button>
                 </TooltipTrigger>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Pencil, Trash2, Type } from "@/lib/icons";
+import { Pencil, Trash2, Type, SmilePlus } from "@/lib/icons";
 
 import {
     Drawer,
@@ -10,8 +10,6 @@ import {
     DrawerTitle,
 } from "@/components/ui/drawer"
 import { Button } from "@/components/ui/button"
-import Image from "next/image"
-import addEmojiIconSrc from "@/assets/addEmoji.svg"
 import {Separator} from "@/components/ui/separator";
 import {preSelectedEmojis} from "@/components/drawers/consts/preSelectedEmojiConst";
 import {DrawerActionLink} from "@/components/drawerActionLink/drawerActionLink";
@@ -95,13 +93,7 @@ export function DmChatCommentMessageLongPressDrawer({ drawerOpenState, deleteMes
                                 aria-label="Pick another reaction"
                                 onClick={() => onAddEmoji()}
                             >
-                                <Image
-                                    src={addEmojiIconSrc || "/placeholder.svg?height=24&width=24"}
-                                    alt=""
-                                    width={18}
-                                    height={18}
-                                    className="opacity-70 transition-opacity"
-                                />
+                                <SmilePlus aria-hidden="true" className="h-[22px] w-[22px] text-muted-foreground" strokeWidth={1.75} />
                             </Button>
                         </div>
 
