@@ -1333,11 +1333,13 @@ html[data-keyboard="open"] [data-app-viewport] nav[aria-label="Primary"] {
    it takes focus, and leaves it zoomed. Pinch-zoom stays on (layout.tsx), so
    on a touch screen a field set smaller than 16px is raised to it: a list's
    search box, a filter, an inline estimate. Only the small sizes are raised,
-   so a field with a larger size of its own (a title) keeps it. Unlayered, to
-   outrank the field's own text-sm utility. The editors are in
+   so a field with a larger size of its own (a title) keeps it, and the
+   responsive ones too: the shared Input is 16px on a phone and md:text-sm
+   from 768, an iPad's width, so on an iPad the task filter zoomed the page.
+   Unlayered, to outrank the field's own utilities. The editors are in
    components/minimal-tiptap/styles/index.css. */
 @media (pointer: coarse) {
-  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="button"], [type="submit"], [type="reset"], [type="image"]), textarea, select):is(.text-sm, .text-xs, .text-2xs, .text-3xs) {
+  :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="button"], [type="submit"], [type="reset"], [type="image"]), textarea, select):is(.text-sm, .text-xs, .text-2xs, .text-3xs, .sm\:text-sm, .md\:text-sm, .lg\:text-sm, .sm\:text-xs, .md\:text-xs, .lg\:text-xs) {
     font-size: 1rem;
   }
 }
