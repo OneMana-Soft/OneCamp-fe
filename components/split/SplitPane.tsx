@@ -5,6 +5,7 @@ import { ArrowLeftRight, CheckSquare, FileText, FolderKanban, Hash, Maximize2, M
 import { useSplitActions } from "@/hooks/useSplitView"
 import { cn } from "@/lib/utils/helpers/cn"
 import { isCallPane, type Pane, type PaneKind } from "@/lib/split"
+import { PanelErrorBoundary } from "@/components/error/PanelErrorBoundary"
 
 // Each view loads only when it is first split, so the split costs nothing until used.
 const Loading = () => <div className="h-full w-full animate-pulse bg-muted/30" />
@@ -98,7 +99,9 @@ export function SplitPane({ pane, index, active, focused }: { pane: Pane; index:
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
-        <PaneBody pane={pane} onClose={() => run({ type: "close" }, index)} />
+        <PanelErrorBoundary resetKey={`${pane.kind}:${pane.id}`} onClose={() => run({ type: "close" }, index)} closeLabel={`Close this ${what}`}>
+          <PaneBody pane={pane} onClose={() => run({ type: "close" }, index)} />
+        </PanelErrorBoundary>
       </div>
     </section>
   )
