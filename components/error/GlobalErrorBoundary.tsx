@@ -3,7 +3,7 @@
 import { Component, ErrorInfo, ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
-import { AlertCircle } from "@/lib/icons";
+import { SpotError } from "@/components/ui/graphics/spots"
 
 interface Props {
   children: ReactNode
@@ -45,7 +45,7 @@ export class GlobalErrorBoundary extends Component<Props, State> {
           <EmptyState
             tone="accent"
             headingLevel={1}
-            icon={AlertCircle}
+            illustration={<SpotError />}
             title="OneCamp hit a problem it couldn't recover from"
             description="Nothing you saved is lost. Reload the page to carry on."
             action={<Button onClick={() => window.location.reload()}>Reload page</Button>}

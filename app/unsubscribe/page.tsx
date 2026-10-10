@@ -38,6 +38,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { AuthHeading, AuthShell, authControl } from "@/components/auth/AuthShell"
 import { apiUrl } from "@/lib/utils/apiUrl"
+import { SpotError, SpotInbox } from "@/components/ui/graphics/spots"
 
 type Status = "unsubscribed" | "resubscribed" | "missing" | "unknown"
 
@@ -79,7 +80,7 @@ function UnsubscribeContent() {
   if (status === "missing") {
     return (
       <>
-        <AuthHeading title="This link is incomplete">
+        <AuthHeading title="This link is incomplete" art={<SpotError />}>
           Open the unsubscribe link from the email again, or choose which emails you get in your notification settings.
         </AuthHeading>
         <SettingsButton />
@@ -90,7 +91,7 @@ function UnsubscribeContent() {
   if (status === "unsubscribed") {
     return (
       <>
-        <AuthHeading title="You're unsubscribed">
+        <AuthHeading title="You're unsubscribed" art={<SpotInbox />}>
           OneCamp won&apos;t email you notifications any more. You&apos;ll still see them in the app and on your devices.
         </AuthHeading>
         <div className="space-y-6">
@@ -111,7 +112,7 @@ function UnsubscribeContent() {
   if (status === "resubscribed") {
     return (
       <>
-        <AuthHeading title="Emails are back on">
+        <AuthHeading title="Emails are back on" art={<SpotInbox />}>
           OneCamp will email you notifications again. Choose which ones in your notification settings.
         </AuthHeading>
         {isSuppressed && (
