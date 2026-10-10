@@ -11,12 +11,13 @@
 // its members never opened to them.
 
 import { serverMessage } from "@/lib/http/serverMessage"
-import { useEffect, useMemo, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState } from "@/components/ui/error-state"
+import { SaveBar, SettingsSection } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
-import { Hash, Loader2 } from "@/lib/icons"
+import { Hash } from "@/lib/icons"
 import { getDefaultChannels, setDefaultChannels, type DefaultChannels } from "@/services/settingsService"
 
 /** The same choice, whatever order it was made in. Pure. */
@@ -29,6 +30,17 @@ export function sameChoice(a: string[], b: string[]): boolean {
 /** The server's refusal, in its own words, or a plain fallback. */
 const refusal = (err: unknown) => serverMessage(err, "Try again in a moment.")
 
+/**
+ * An unsaved choice, kept while the admin looks at another section: the admin
+ * page shows one section at a time, so leaving General unmounted this card and
+ * the ticks were gone when they came back. They come back now, with the bar.
+ */
+let keptChoice: string[] | null = null
+/** For tests: start each one with nothing kept. */
+export function forgetKeptChoice() {
+    keptChoice = null
+}
+
 export default function DefaultChannelsCard() {
     const { toast } = useToast()
     const [view, setView] = useState<DefaultChannels | null>(null)
@@ -37,16 +49,19 @@ export default function DefaultChannelsCard() {
     const [picked, setPicked] = useState<string[]>([])
     const [saving, setSaving] = useState(false)
 
-    const show = (next: DefaultChannels | null) => {
+    const show = (next: DefaultChannels | null, choice?: string[] | null) => {
         setView(next)
-        setPicked(next?.channels.map((c) => c.ch_uuid) ?? [])
+        setPicked(choice ?? next?.channels.map((c) => c.ch_uuid) ?? [])
     }
 
     const load = () => {
         setLoading(true)
         setFailed(false)
         getDefaultChannels()
-            .then(show)
+            .then((next) => {
+                show(next, keptChoice)
+                keptChoice = null
+            })
             .catch(() => setFailed(true))
             .finally(() => setLoading(false))
     }
@@ -57,7 +72,14 @@ export default function DefaultChannelsCard() {
     }, [])
 
     const saved = useMemo(() => view?.channels.map((c) => c.ch_uuid) ?? [], [view])
-    const changed = !sameChoice(saved, picked)
+    const changed = !!view && !sameChoice(saved, picked)
+
+    // The choice as it is at unmount, kept only while it differs from what's saved.
+    const latest = useRef({ picked, changed })
+    latest.current = { picked, changed }
+    useEffect(() => () => {
+        keptChoice = latest.current.changed ? latest.current.picked : null
+    }, [])
 
     const toggle = (id: string, on: boolean) =>
         setPicked((cur) => (on ? (cur.includes(id) ? cur : [...cur, id]) : cur.filter((x) => x !== id)))
@@ -80,68 +102,83 @@ export default function DefaultChannelsCard() {
         }
     }
 
+    let body: React.ReactNode
+    if (loading) {
+        // The list it is about to show, not a spinner.
+        body = (
+            <ul aria-busy="true" aria-label="Loading the channels new members join" className="space-y-1 rounded-lg border border-border p-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                    <li key={i} className="flex items-center gap-2 px-2 py-1.5" aria-hidden="true">
+                        <Skeleton className="h-4 w-4 shrink-0" />
+                        <Skeleton className={i % 2 === 0 ? "h-3.5 w-24" : "h-3.5 w-32"} />
+                    </li>
+                ))}
+            </ul>
+        )
+    } else if (failed) {
+        body = <ErrorState subject="the channels new members join" onRetry={load} />
+    } else if ((view?.available.length ?? 0) === 0) {
+        body = (
+            <p className="text-sm text-muted-foreground">
+                There are no public channels yet. Create one, and you can choose it here.
+            </p>
+        )
+    } else {
+        body = (
+            <>
+                {!view?.chosen && (
+                    <p className="text-xs text-muted-foreground">
+                        Nobody has chosen yet, so new members join #general.
+                    </p>
+                )}
+                <ul className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                    {view?.available.map((ch) => {
+                        const id = `default-channel-${ch.ch_uuid}`
+                        return (
+                            <li key={ch.ch_uuid} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-highlight">
+                                <Checkbox
+                                    id={id}
+                                    checked={picked.includes(ch.ch_uuid)}
+                                    onCheckedChange={(v) => toggle(ch.ch_uuid, v === true)}
+                                    disabled={saving}
+                                />
+                                <label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 text-sm">
+                                    <Hash className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                                    <span className="truncate">{ch.ch_name}</span>
+                                </label>
+                            </li>
+                        )
+                    })}
+                </ul>
+                {picked.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                        With none chosen, new members start on Home and find channels themselves.
+                    </p>
+                )}
+                {/* The choice waits here until it is saved or put back, and stays
+                    in view while the page scrolls. */}
+                <SaveBar
+                    dirty={changed}
+                    saving={saving}
+                    onSave={() => void save()}
+                    onDiscard={() => setPicked(saved)}
+                    what="channels for new members"
+                />
+            </>
+        )
+    }
+
     return (
-        <Card className="border-border/60">
-            <CardHeader>
-                <div className="flex items-center gap-2">
-                    <CardTitle className="text-base font-semibold">Where new members start</CardTitle>
-                </div>
-                <CardDescription>
+        <SettingsSection
+            title="Where new members start"
+            description={
+                <>
                     Everyone who joins is added to these channels, and opens on #general when it&apos;s one of them,
                     otherwise on the first, ready to say hello. Only public channels that aren&apos;t archived can be chosen.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-                {loading ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Loading channels…
-                    </div>
-                ) : failed ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
-                        <span>Couldn&apos;t load the channels new members join.</span>
-                        <Button size="sm" variant="outline" onClick={load}>Try again</Button>
-                    </div>
-                ) : (view?.available.length ?? 0) === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                        There are no public channels yet. Create one, and you can choose it here.
-                    </p>
-                ) : (
-                    <>
-                        {!view?.chosen && (
-                            <p className="text-xs text-muted-foreground">
-                                Nobody has chosen yet, so new members join #general.
-                            </p>
-                        )}
-                        <ul className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-border/60 p-2">
-                            {view?.available.map((ch) => {
-                                const id = `default-channel-${ch.ch_uuid}`
-                                return (
-                                    <li key={ch.ch_uuid} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent/40">
-                                        <Checkbox
-                                            id={id}
-                                            checked={picked.includes(ch.ch_uuid)}
-                                            onCheckedChange={(v) => toggle(ch.ch_uuid, v === true)}
-                                            disabled={saving}
-                                        />
-                                        <label htmlFor={id} className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 text-sm">
-                                            <Hash className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                            <span className="truncate">{ch.ch_name}</span>
-                                        </label>
-                                    </li>
-                                )
-                            })}
-                        </ul>
-                        {picked.length === 0 && (
-                            <p className="text-xs text-muted-foreground">
-                                With none chosen, new members start on Home and find channels themselves.
-                            </p>
-                        )}
-                        <Button size="sm" variant="outline" onClick={save} disabled={!changed || saving}>
-                            {saving ? "Saving…" : "Save"}
-                        </Button>
-                    </>
-                )}
-            </CardContent>
-        </Card>
+                </>
+            }
+        >
+            {body}
+        </SettingsSection>
     )
 }
