@@ -235,7 +235,11 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
               )}
             </ToggleGroup>
 
-            <div className={cn("relative overflow-hidden rounded-lg border bg-muted/40", kind === "voice" ? "h-28" : "aspect-video")}>
+            {/* One stage for Voice, Video and Screen. Voice's was 112px and the
+                others' a 16:9 frame, so every switch resized the dialog, which
+                is centred, and moved its title and this switch itself by about
+                56px; the mic now sits in the middle of the same frame. */}
+            <div data-clip-stage="" className="relative aspect-video overflow-hidden rounded-lg border bg-muted/40">
               {phase === "done" && clip ? (
                 kind === "voice" ? (
                   <div className="flex h-full items-center justify-center px-4">
@@ -261,7 +265,8 @@ export function ClipRecorder({ open, onOpenChange, onAttach }: { open: boolean; 
               )}
             </div>
 
-            <p className={cn("text-xs", phase === "error" ? "text-danger-ink" : "text-muted-foreground")} aria-live="polite">
+            {/* Two lines' room: Screen's hint wraps where the others don't. */}
+            <p data-clip-hint="" className={cn("min-h-8 text-xs leading-4", phase === "error" ? "text-danger-ink" : "text-muted-foreground")} aria-live="polite">
               {phase === "error"
                 ? problem
                 : phase === "done"
