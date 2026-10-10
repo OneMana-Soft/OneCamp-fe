@@ -44,7 +44,7 @@ const REFUSALS: Record<string, SignInRefusal> = {
   },
   unauthorized: {
     title: "Not invited yet",
-    message: "Your account is not authorized to access this workspace. Please contact your administrator for an invitation.",
+    message: "This account isn't invited to this workspace. Ask your administrator for an invitation.",
     tone: "warning",
   },
   // Any provider: an address written with characters outside ASCII, which is
@@ -58,27 +58,67 @@ const REFUSALS: Record<string, SignInRefusal> = {
   signin_cancelled: { title: "Sign-in cancelled", message: "Sign-in was cancelled. Try again when you're ready.", tone: "neutral" },
   signin_expired: { title: "Sign-in expired", message: "That sign-in took too long or was already used. Start again.", tone: "neutral" },
   // OIDC
-  oidc_disabled: { title: "Single sign-on is off", message: "OIDC sign-in is currently disabled.", tone: "warning" },
-  oidc_misconfigured: { title: "Single sign-on isn't set up", message: "OIDC is not fully configured. Contact your administrator.", tone: "error" },
-  oidc_invalid_request: { title: COULDNT, message: "The OIDC sign-in request was incomplete. Please try again.", tone: "error" },
+  oidc_disabled: {
+    title: "Single sign-on is off",
+    message: "Single sign-on is turned off on this workspace. Sign in another way, or ask your administrator to turn it on.",
+    tone: "warning",
+  },
+  oidc_misconfigured: {
+    title: "Single sign-on isn't set up",
+    message: "Single sign-on isn't fully set up on this workspace yet. Sign in another way, or ask your administrator to finish setting it up.",
+    tone: "error",
+  },
+  oidc_invalid_request: { title: COULDNT, message: "Your identity provider sent an incomplete sign-in. Try again.", tone: "error" },
   oidc_invalid_state: { title: "Sign-in expired", message: "That sign-in took too long or was already used. Start again.", tone: "neutral" },
-  oidc_state_mint_failed: { title: COULDNT, message: "Could not start OIDC sign-in. Please try again later.", tone: "error" },
-  oidc_invalid_code: { title: COULDNT, message: "OIDC authorization failed. Please try again.", tone: "error" },
-  oidc_no_token: { title: COULDNT, message: "Your identity provider did not return an ID token.", tone: "error" },
-  oidc_verification_failed: { title: COULDNT, message: "Could not verify the response from your identity provider.", tone: "error" },
-  oidc_invalid_claims: { title: COULDNT, message: "Could not read your identity provider's response.", tone: "error" },
-  oidc_no_email: { title: "No email address", message: "Your identity provider did not provide a valid email.", tone: "error" },
+  oidc_state_mint_failed: { title: COULDNT, message: "Single sign-on couldn't start. Try again in a minute.", tone: "error" },
+  oidc_invalid_code: { title: COULDNT, message: "Your identity provider didn't confirm the sign-in. Try again.", tone: "error" },
+  oidc_no_token: {
+    title: COULDNT,
+    message: "Your identity provider didn't send what this workspace needs to sign you in. Try again, and if it keeps happening, ask your administrator to check single sign-on.",
+    tone: "error",
+  },
+  oidc_verification_failed: {
+    title: COULDNT,
+    message: "This workspace couldn't check your identity provider's answer. Try again, and if it keeps happening, ask your administrator to check single sign-on.",
+    tone: "error",
+  },
+  oidc_invalid_claims: {
+    title: COULDNT,
+    message: "This workspace couldn't read your identity provider's answer. Try again, and if it keeps happening, ask your administrator to check single sign-on.",
+    tone: "error",
+  },
+  oidc_no_email: {
+    title: "No email address",
+    message: "Your identity provider didn't share your email address, which this workspace knows you by. Ask your administrator to have it send email addresses.",
+    tone: "error",
+  },
   oidc_email_unverified: {
     title: "Email not verified",
     message: "Your identity provider reports this email as unverified. Verify it and try again.",
     tone: "warning",
   },
   // SAML
-  saml_disabled: { title: "Single sign-on is off", message: "SAML sign-in is currently disabled.", tone: "warning" },
-  saml_invalid: { title: COULDNT, message: "Invalid SAML response from your identity provider.", tone: "error" },
-  saml_no_email: { title: "No email address", message: "Your SAML response did not include a usable email.", tone: "error" },
+  saml_disabled: {
+    title: "Single sign-on is off",
+    message: "Single sign-on is turned off on this workspace. Sign in another way, or ask your administrator to turn it on.",
+    tone: "warning",
+  },
+  saml_invalid: {
+    title: COULDNT,
+    message: "This workspace couldn't use your identity provider's answer. Try again, and if it keeps happening, ask your administrator to check single sign-on.",
+    tone: "error",
+  },
+  saml_no_email: {
+    title: "No email address",
+    message: "Your identity provider didn't share an email address this workspace can use. Ask your administrator to have it send email addresses.",
+    tone: "error",
+  },
   // Shared
-  provision_failed: { title: "Couldn't set up your account", message: "Could not provision your account. Please contact your administrator.", tone: "error" },
+  provision_failed: {
+    title: "Couldn't set up your account",
+    message: "Your account couldn't be set up. Try again, and if it keeps happening, ask your administrator.",
+    tone: "error",
+  },
   seat_limit: {
     title: "No free seat",
     message: "This workspace is on OneCamp's free plan and has no room for another person. Ask your administrator to free a place or remove the limit.",
@@ -89,9 +129,13 @@ const REFUSALS: Record<string, SignInRefusal> = {
     message: "Single sign-on needs a OneCamp licence, and this workspace is on the free plan. Sign in with your email, or ask your administrator.",
     tone: "warning",
   },
-  session_failed: { title: COULDNT, message: "Could not start your session. Please try again.", tone: "error" },
-  db_error: { title: COULDNT, message: "A temporary database issue occurred. Please try again.", tone: "error" },
-  resolution_failed: { title: COULDNT, message: "Could not resolve your account. Please try again.", tone: "error" },
+  session_failed: { title: COULDNT, message: "Your session couldn't start. Try again.", tone: "error" },
+  db_error: { title: COULDNT, message: "This workspace couldn't finish the sign-in. Try again in a minute.", tone: "error" },
+  resolution_failed: {
+    title: COULDNT,
+    message: "This workspace couldn't match the sign-in to an account. Try again, and if it keeps happening, ask your administrator.",
+    tone: "error",
+  },
 }
 
 const UNKNOWN: SignInRefusal = {

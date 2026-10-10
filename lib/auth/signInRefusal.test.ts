@@ -39,6 +39,24 @@ describe("signInRefusal", () => {
     }
   })
 
+  // A refusal that says only what the server saw ("OIDC sign-in is currently
+  // disabled", "did not return an ID token") leaves the person at a dead end.
+  // Each one that isn't nobody's fault says what to do next.
+  it("says what to do next for every refusal that isn't nobody's fault", () => {
+    const NEXT = /\b(try|ask|sign in|use|verify|start again)\b/i
+    for (const code of CODES) {
+      const r = signInRefusal(code)
+      if (r.tone === "neutral") continue
+      expect(r.message, code).toMatch(NEXT)
+    }
+  })
+
+  it("speaks from the person's side, in words they know", () => {
+    for (const code of CODES) {
+      expect(signInRefusal(code).message, code).not.toMatch(/\b(OIDC|SAML|ID token|provision|resolve|database|authorized|claims)\b/)
+    }
+  })
+
   it("answers a code it doesn't know, or one that names something on Object, generally", () => {
     for (const code of ["something_new", "constructor", "__proto__", "toString"]) {
       expect(signInRefusal(code)).toEqual({
