@@ -1,16 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useId, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { RefreshCw } from "@/lib/icons";
-import { usePost } from "@/hooks/usePost"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { SettingRow, SettingsList, SwitchRow } from "@/components/ui/settingsSection"
+import { RefreshCw } from "@/lib/icons"
 import { useToast } from "@/hooks/use-toast"
+import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
 import { PostEndpointUrl } from "@/services/endPoints"
 import { PURGEABLE } from "@/lib/purgeLine"
+import { archiveEntity } from "@/components/admin/archiveEntities"
+import { archiveProblem } from "@/components/admin/archiveProblem"
 
 interface PolicyData {
   id: string
@@ -31,116 +32,192 @@ interface Props {
   policy: PolicyData | null
 }
 
-const ENTITY_LABELS: Record<string, string> = {
-  posts: "Channel Posts", chats: "Direct Messages", tasks: "Tasks",
-  recordings: "Recordings", attachments: "Attachments", docs: "Documents",
+const DAYS_MIN = 7
+const DAYS_MAX = 3650
+const RANGE = `${DAYS_MIN} to ${DAYS_MAX.toLocaleString("en")}`
+
+/** Whole days within the server's range, or null. */
+function days(raw: string): number | null {
+  const v = Number(raw.trim())
+  return raw.trim() !== "" && Number.isInteger(v) && v >= DAYS_MIN && v <= DAYS_MAX ? v : null
 }
 
+/**
+ * One kind's archive rule. It offers only what does something for that kind:
+ * when to archive, whether to do it on the schedule, finished tasks only (for
+ * tasks), and deleting archived files for good (for files and recordings).
+ * Every rule used to offer "Inactive channel days" and "Compress attachments"
+ * as well, which the server stores and never reads; they are left as they
+ * were. What a number is missing is said under it, where it was a toast.
+ */
 export default function ArchiveEditPolicyDialog({ open, onOpenChange, onSuccess, policy }: Props) {
-  const post = usePost()
   const { toast } = useToast()
+  const ids = useId()
 
-  const [retentionDays, setRetentionDays] = useState(365)
+  const [retentionDays, setRetentionDays] = useState("365")
   const [autoArchive, setAutoArchive] = useState(false)
   const [completedTasks, setCompletedTasks] = useState(true)
-  const [inactiveDays, setInactiveDays] = useState(90)
-  const [compressAttachments, setCompressAttachments] = useState(false)
-  const [purgeAfterDays, setPurgeAfterDays] = useState(0)
-  const canPurge = !!policy && PURGEABLE.includes(policy.entity_type)
+  const [purgeAfterDays, setPurgeAfterDays] = useState("0")
+  const [errors, setErrors] = useState<{ retention?: string; purge?: string }>({})
+  const [saving, setSaving] = useState(false)
+  const [problem, setProblem] = useState("")
+  const retentionRef = useRef<HTMLInputElement>(null)
+  const purgeRef = useRef<HTMLInputElement>(null)
+
+  const kind = policy?.entity_type ?? ""
+  const name = archiveEntity(kind).label.toLowerCase()
+  const canPurge = !!policy && PURGEABLE.includes(kind)
+  const isTasks = kind === "tasks"
 
   useEffect(() => {
     if (open && policy) {
-      setRetentionDays(policy.retention_days)
+      setRetentionDays(String(policy.retention_days))
       setAutoArchive(policy.auto_archive)
       setCompletedTasks(policy.archive_completed_tasks)
-      setInactiveDays(policy.archive_inactive_channels_days)
-      setCompressAttachments(policy.compress_attachments)
-      setPurgeAfterDays(policy.purge_after_days ?? 0)
+      setPurgeAfterDays(String(policy.purge_after_days ?? 0))
+      setErrors({})
+      setProblem("")
     }
   }, [open, policy])
 
   const handleSubmit = async () => {
     if (!policy) return
-    if (retentionDays < 7 || retentionDays > 3650) {
-      toast({ title: "Validation Error", description: "Retention days must be between 7 and 3650", variant: "destructive" })
-      return
-    }
-    if (canPurge && purgeAfterDays !== 0 && (purgeAfterDays < 7 || purgeAfterDays > 3650)) {
-      toast({ title: "Validation Error", description: "Remove for good after 0 (keep) or 7 to 3650 days", variant: "destructive" })
-      return
-    }
+    const retention = days(retentionDays)
+    const purgeRaw = purgeAfterDays.trim()
+    const purge = purgeRaw === "0" ? 0 : days(purgeAfterDays)
+    const found: { retention?: string; purge?: string } = {}
+    if (retention === null) found.retention = `Enter a number of days from ${RANGE}.`
+    if (canPurge && purge === null) found.purge = `Enter 0, or a number of days from ${RANGE}.`
+    setErrors(found)
+    if (found.retention) return retentionRef.current?.focus()
+    if (found.purge) return purgeRef.current?.focus()
+
+    setSaving(true)
+    setProblem("")
     try {
-      await post.makeRequest({
-        apiEndpoint: PostEndpointUrl.UpdateArchivePolicy,
-        appendToUrl: `/${policy.entity_type}`,
-        method: "PUT",
-        payload: {
-          retention_days: retentionDays,
+      // Only what the dialog shows. The server keeps any field a request
+      // leaves out, so the two it stores and never reads stay as they were.
+      await axiosInstance.put(
+        `${PostEndpointUrl.UpdateArchivePolicy}/${kind}`,
+        {
+          retention_days: retention,
           auto_archive: autoArchive,
-          archive_completed_tasks: completedTasks,
-          archive_inactive_channels_days: inactiveDays,
-          compress_attachments: compressAttachments,
-          ...(canPurge ? { purge_after_days: purgeAfterDays } : {}),
+          ...(isTasks ? { archive_completed_tasks: completedTasks } : {}),
+          ...(canPurge ? { purge_after_days: purge } : {}),
         },
-        showToast: true,
-      })
+        OWN_ERRORS,
+      )
+      toast({ title: "Archive rules saved", description: `For ${name}.` })
       onSuccess()
       onOpenChange(false)
-    } catch {
-      // handled by usePost
+    } catch (err: unknown) {
+      setProblem(archiveProblem(err, "Couldn't save the rules. Check the numbers and try again."))
+    } finally {
+      setSaving(false)
     }
   }
 
+  const purgeNow = purgeAfterDays.trim() === "0"
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            Edit Policy: {policy ? ENTITY_LABELS[policy.entity_type] || policy.entity_type : ""}
-          </DialogTitle>
+          <DialogTitle>Archive rules for {name}</DialogTitle>
+          <DialogDescription>Archived items are hidden, not deleted, and can be restored.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="ret-days">Retention Days</Label>
-            <Input id="ret-days" type="number" min={7} max={3650} value={retentionDays}
-              onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setRetentionDays(v) }} />
-            <p className="text-xs text-muted-foreground">Range: 7 – 3,650 days</p>
-          </div>
-          <div className="flex items-center justify-between">
-            <div><Label>Auto Archive</Label><p className="text-xs text-muted-foreground mt-0.5">Archive on a scheduled basis</p></div>
-            <Switch checked={autoArchive} onCheckedChange={setAutoArchive} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div><Label>Archive Completed Tasks</Label><p className="text-xs text-muted-foreground mt-0.5">Only archive tasks marked as done</p></div>
-            <Switch checked={completedTasks} onCheckedChange={setCompletedTasks} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="inactive-days">Inactive Channel Days</Label>
-            <Input id="inactive-days" type="number" min={7} max={3650} value={inactiveDays}
-              onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setInactiveDays(v) }} />
-            <p className="text-xs text-muted-foreground">Days of inactivity before a channel is eligible for archival</p>
-          </div>
-          <div className="flex items-center justify-between">
-            <div><Label>Compress Attachments</Label><p className="text-xs text-muted-foreground mt-0.5">Compress files before archiving</p></div>
-            <Switch checked={compressAttachments} onCheckedChange={setCompressAttachments} />
-          </div>
-          {canPurge && (
-            <div className="grid gap-2 border-t border-border/50 pt-4">
-              <Label htmlFor="purge-days">Remove for good after</Label>
-              <Input id="purge-days" type="number" min={0} max={3650} value={purgeAfterDays}
-                onChange={(e) => { const v = parseInt(e.target.value); if (!isNaN(v)) setPurgeAfterDays(v) }} />
-              <p className="text-xs text-muted-foreground">
-                {purgeAfterDays === 0
-                  ? "0: archived items are kept and can be restored. Set 7 to 3,650 days to delete them from storage that long after archiving. This frees disk and cannot be undone."
-                  : `Archived ${ENTITY_LABELS[policy?.entity_type ?? ""]?.toLowerCase() ?? "items"} are deleted from storage ${purgeAfterDays} days after archiving. Frees disk; cannot be undone.`}
-              </p>
+        <SettingsList className="my-2">
+          <SettingRow
+            label="Archive items older than (days)"
+            description={`From ${RANGE} days.`}
+            controlId={`${ids}-retention`}
+          >
+            <div className="flex flex-col items-start gap-1 sm:items-end">
+              <Input
+                ref={retentionRef}
+                id={`${ids}-retention`}
+                type="number"
+                inputMode="numeric"
+                min={DAYS_MIN}
+                max={DAYS_MAX}
+                value={retentionDays}
+                onChange={(e) => {
+                  setRetentionDays(e.target.value)
+                  if (errors.retention) setErrors((x) => ({ ...x, retention: undefined }))
+                }}
+                aria-invalid={errors.retention ? true : undefined}
+                aria-describedby={`${ids}-retention-desc${errors.retention ? ` ${ids}-retention-error` : ""}`}
+                className="h-8 w-28"
+              />
+              {errors.retention && (
+                <p id={`${ids}-retention-error`} className="text-xs font-medium text-danger-ink">
+                  {errors.retention}
+                </p>
+              )}
             </div>
+          </SettingRow>
+          <SwitchRow
+            label="Archive automatically"
+            description="Once an hour, OneCamp archives what is older than this. Off: only when you press Archive now."
+            checked={autoArchive}
+            onChange={setAutoArchive}
+          />
+          {isTasks && (
+            <SwitchRow
+              label="Only archive finished tasks"
+              description="Open tasks stay, however old they are."
+              checked={completedTasks}
+              onChange={setCompletedTasks}
+            />
           )}
-        </div>
+          {canPurge && (
+            <SettingRow
+              label="Delete from storage after (days)"
+              description={
+                purgeNow
+                  ? `0 keeps archived ${name}, so they can be restored. From ${RANGE}: deleted for good that long after archiving, which frees disk and can't be undone.`
+                  : `Archived ${name} are deleted for good ${purgeAfterDays.trim()} days after archiving. This frees disk and can't be undone.`
+              }
+              controlId={`${ids}-purge`}
+            >
+              <div className="flex flex-col items-start gap-1 sm:items-end">
+                <Input
+                  ref={purgeRef}
+                  id={`${ids}-purge`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={DAYS_MAX}
+                  value={purgeAfterDays}
+                  onChange={(e) => {
+                    setPurgeAfterDays(e.target.value)
+                    if (errors.purge) setErrors((x) => ({ ...x, purge: undefined }))
+                  }}
+                  aria-invalid={errors.purge ? true : undefined}
+                  aria-describedby={`${ids}-purge-desc${errors.purge ? ` ${ids}-purge-error` : ""}`}
+                  className="h-8 w-28"
+                />
+                {errors.purge && (
+                  <p id={`${ids}-purge-error`} className="text-xs font-medium text-danger-ink">
+                    {errors.purge}
+                  </p>
+                )}
+              </div>
+            </SettingRow>
+          )}
+        </SettingsList>
+        {problem && (
+          <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-danger-ink">
+            {problem}
+          </p>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={post.isSubmitting}>
-            {post.isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : null}Save
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={saving}>
+            {saving && <RefreshCw className="h-4 w-4 animate-spin mr-2" />}
+            {saving ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>
