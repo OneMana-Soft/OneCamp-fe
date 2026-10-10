@@ -63,6 +63,7 @@ export const ChannelListResult = ({
                     lastUserMessage={relayed ? relayed.body : last?.post_text || ""}
                     lastMessageTime={channel.ch_posts?.[0]?.post_created_at || ""}
                     channelName={channel.ch_name}
+                    hueId={channel.ch_uuid}
                     unseenMessageCount={channel.unread_post_count || 0}
                     userSelected={false}
                     attachmentCount={channel.ch_posts?.[0]?.post_attachments?.length || 0}
