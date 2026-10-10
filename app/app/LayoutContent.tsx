@@ -2,6 +2,13 @@
 
 import { useMedia } from "@/context/MediaQueryContext";
 import { AdminBanners } from "@/components/banner/AdminBanners";
+import { OfflineNotice } from "@/components/error/OfflineNotice";
+import { PanelErrorBoundary } from "@/components/error/PanelErrorBoundary";
+import { closeRightPanel } from "@/store/slice/desktopRightPanelSlice";
+import { useDispatch } from "react-redux";
+import { useFetch } from "@/hooks/useFetch";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { UserProfileInterface } from "@/types/user";
 import { MobileNavigationBar } from "@/components/navigationBar/mobile/mobileNavigationBar";
 import { DesktopNavigationBar } from "@/components/navigationBar/desktop/desktopNavigationBar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -14,9 +21,6 @@ import { ImperativePanelHandle, getPanelGroupElement } from "react-resizable-pan
 import { rightPanelMinSize } from "@/lib/ui/rightPanelSize";
 import {usePathname} from "next/navigation";
 import { PageTransition } from "@/components/ui/PageTransition";
-import { useFetch } from "@/hooks/useFetch";
-import { GetEndpointUrl } from "@/services/endPoints";
-import { UserProfileInterface } from "@/types/user";
 import { AgentNoteOnOpen } from "@/components/ai/AgentNoteOnOpen";
 import { RunningTimerChip } from "@/components/time/RunningTimerChip";
 import { useOpenFromUrl } from "@/hooks/useOpenFromUrl";
@@ -27,6 +31,8 @@ import { ShortcutsDialog } from "@/components/shortcuts/ShortcutsDialog";
 import { KeyboardTip } from "@/components/onboarding/KeyboardTip";
 import { Fragment } from "react";
 import { useBotKinds } from "@/hooks/useBotKinds";
+import { followKeyboard } from "@/lib/ui/visualViewport";
+import { followHistory, noteRouteChange } from "@/lib/navigation/back";
 
 /** The panel group beside the sidebar: the page, any split panes, the right panel. */
 const PANEL_GROUP_ID = "app-panels";
@@ -52,6 +58,9 @@ function usePanelGroupWidth(id: string, enabled: boolean): number {
 
 export function LayoutContent({ children }: { children: React.ReactNode }) {
   useOpenFromUrl();
+  // While the on-screen keyboard is up, the app fits what is left of the
+  // screen (lib/ui/visualViewport.ts). Outside React: nothing re-renders.
+  useEffect(() => followKeyboard(), []);
   const { isMobile } = useMedia();
   // Split view is for a screen with room for it.
   const { panes, active, focused } = useSplitView(!isMobile);
@@ -63,11 +72,21 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
   const shows = (view: number) => focused === null || focused === view
   const split = panes.length > 0
   const rightPanelState = useSelector((state: RootState) => state.rightPanel.rightPanelState);
+  const dispatch = useDispatch();
+  // What the right panel shows, so a crash in one task's panel doesn't follow
+  // you to the next thing you open there.
+  const panelKey = JSON.stringify(rightPanelState.data ?? {});
   const rightPanelRef = useRef<ImperativePanelHandle>(null);
   const [isDragging, setIsDragging] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const path = usePathname().split('/')
+  const pathname = usePathname()
+  const path = pathname.split('/')
+  // How far back the app's own history goes, so a back arrow on a page opened
+  // from a notification or a link goes up a level instead of out of the app
+  // (lib/navigation/back.ts). The router has written history by now.
+  useEffect(() => followHistory(), []);
+  useEffect(() => noteRouteChange(), [pathname]);
   const inMeeting = path.length > 2 && path[2] == "meet"
 
   // The right panel's minimum: 32% of the group, or 320px where that is
@@ -104,8 +123,15 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
 
   if (isMobile) {
     return (
-      <MobileNavigationBar disableBottomPadding={isTaskPage}>
-        <AdminBanners isAdmin={isAdmin} />
+      <MobileNavigationBar
+        disableBottomPadding={isTaskPage}
+        banners={
+          <>
+            <OfflineNotice inline />
+            <AdminBanners isAdmin={isAdmin} />
+          </>
+        }
+      >
         {children}
         <AgentNoteOnOpen />
         <RunningTimerChip className="bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2" />
@@ -119,6 +145,7 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <DesktopNavigationBar>
+      <OfflineNotice inline />
       <AdminBanners isAdmin={isAdmin} />
         <AgentNoteOnOpen />
       <RunningTimerChip className="bottom-4 left-1/2 -translate-x-1/2" />
@@ -195,7 +222,9 @@ export function LayoutContent({ children }: { children: React.ReactNode }) {
             data-right-panel=""
             className="absolute right-0 top-0 h-full w-full min-w-[320px] overflow-y-auto motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-3 motion-safe:duration-200 motion-safe:ease-out"
           >
-            <RightPanel />
+            <PanelErrorBoundary resetKey={panelKey} onClose={() => dispatch(closeRightPanel())}>
+              <RightPanel />
+            </PanelErrorBoundary>
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
