@@ -14,6 +14,8 @@ import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState } from "@/components/ui/error-state"
 
 interface AdminAdminListProps {
   admins: UserProfileDataInterface[]
@@ -22,6 +24,9 @@ interface AdminAdminListProps {
   onLoadMore: () => void
   hasMore: boolean
   isLoading: boolean
+  /** The list could not be read: said as such, never as "no admins". */
+  isError?: boolean
+  onRetry?: () => void
   currentUserUUID?: string
   isFiltered?: boolean
   totalLoaded?: number
@@ -34,6 +39,8 @@ export const AdminAdminList: React.FC<AdminAdminListProps> = ({
   onLoadMore,
   hasMore,
   isLoading,
+  isError,
+  onRetry,
   currentUserUUID,
   isFiltered,
   totalLoaded,
@@ -62,36 +69,40 @@ export const AdminAdminList: React.FC<AdminAdminListProps> = ({
     }
   }, [hasMore, isLoading, onLoadMore])
 
+  // Loading draws the rows it is about to show, in the same bordered list, so
+  // nothing moves when they arrive. It used to draw spaced cards and then jump
+  // to a hairline list.
   if (admins.length === 0 && isLoading && !totalLoaded) {
     return (
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
-        <ul className="space-y-2" aria-busy="true">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <li
-              key={i}
-              className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-card/50 animate-pulse"
-            >
-              <div className="h-9 w-9 rounded-full bg-muted" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3 w-32 bg-muted rounded" />
-                <div className="h-2.5 w-48 bg-muted rounded" />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <ul aria-busy="true" aria-label="Loading admins" className="divide-y divide-border rounded-lg border border-border">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <li key={i} className="flex items-center gap-3 px-3 py-2.5" aria-hidden="true">
+            <Skeleton variant="circle" className="h-9 w-9 shrink-0" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Skeleton className={cn("h-3.5", i % 2 === 0 ? "w-32" : "w-40")} />
+              <Skeleton className={cn("h-3", i % 2 === 0 ? "w-56" : "w-48")} />
+            </div>
+          </li>
+        ))}
+      </ul>
     )
+  }
+
+  // Before the empty branch: a failed request leaves the list empty too, and
+  // "No administrators found" is not something an admin should ever be told.
+  if (admins.length === 0 && isError) {
+    return <ErrorState subject="the admins" onRetry={onRetry} />
   }
 
   if (admins.length === 0 && !isLoading) {
     return (
-      <div className="flex-1 min-h-0 flex items-center justify-center">
+      <div className="flex items-center justify-center">
         <div className="text-center py-10">
           <div className="mx-auto h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mb-3">
             <ShieldAlert className="h-5 w-5 text-muted-foreground" />
           </div>
           <p className="text-sm font-medium">
-            {isFiltered ? "No admins match your search." : "No administrators found."}
+            {isFiltered ? "No admin matches your search." : "No admins yet."}
           </p>
         </div>
       </div>
@@ -100,7 +111,9 @@ export const AdminAdminList: React.FC<AdminAdminListProps> = ({
 
   return (
     <TooltipProvider>
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-2">
+      {/* No scroller of its own: the admin page's tab region is the one that
+          scrolls, so this list sizes to its rows. */}
+      <div>
         <ul className="divide-y divide-border rounded-lg border border-border">
           {admins.map((admin) => (
             <AdminAdminRow
@@ -154,7 +167,7 @@ function AdminAdminRow({
   const isSelf = admin.user_uuid === currentUserUUID
 
   return (
-    <li className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/60">
+    <li className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-highlight">
       <button
         type="button"
         className="flex items-center gap-3 cursor-pointer min-w-0 flex-1 text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -191,19 +204,28 @@ function AdminAdminRow({
 
       <Tooltip>
         <TooltipTrigger asChild>
+          {/* Your own row: aria-disabled rather than disabled, because a
+              disabled button takes no pointer, so the tooltip saying why it
+              can't be pressed never appeared. The click is refused here. */}
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-danger-ink hover:bg-destructive/10"
-            onClick={() => onRemoveAdmin(admin.user_email_id!, admin.user_uuid)}
-            disabled={isSubmitting || isSelf}
-            aria-label={`Remove admin ${seed}`}
+            className={cn(
+              "h-8 w-8 shrink-0 text-muted-foreground",
+              isSelf ? "cursor-not-allowed opacity-50" : "hover:text-danger-ink hover:bg-destructive/10",
+            )}
+            onClick={() => {
+              if (!isSelf) onRemoveAdmin(admin.user_email_id!, admin.user_uuid)
+            }}
+            disabled={isSubmitting && !isSelf}
+            aria-disabled={isSelf || undefined}
+            aria-label={isSelf ? "You can't remove yourself as an admin. Another admin can." : `Remove ${seed} as an admin`}
           >
             <UserMinus className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          {isSelf ? "You cannot remove yourself as admin" : "Remove admin privileges"}
+          {isSelf ? "You can't remove yourself. Another admin can." : "Remove as admin"}
         </TooltipContent>
       </Tooltip>
     </li>

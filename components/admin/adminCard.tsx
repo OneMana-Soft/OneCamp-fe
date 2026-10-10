@@ -1,6 +1,6 @@
 "use client"
 
-import { matchesPerson, normalizePersonQuery } from "@/lib/personName"
+import { displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
 import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import {
   UserProfileInterface,
 } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
+import { useConfirm } from "@/hooks/useConfirm"
 import { AdminAdminList } from "./AdminAdminList"
 import { Plus, Search } from "@/lib/icons"
 import { AddAdminDialog } from "./AddAdminDialog"
@@ -34,6 +35,7 @@ const AdminCard = () => {
     UserProfileResponseSchema as any
   )
   const post = usePost()
+  const confirm = useConfirm()
 
   useEffect(() => {
     if (adminList.data?.data) {
@@ -57,8 +59,24 @@ const AdminCard = () => {
     }
   }
 
+  // Confirmed: removing an admin takes the whole of this page away from them
+  // on one click of a small icon, and the row disappears at once, so a misclick
+  // looked exactly like a decision. The prompt names the person and what they
+  // keep, which is the question an admin is actually answering.
   const handleRemoveAdmin = (email: string, userID: string) => {
     if (!email || post.isSubmitting) return
+    const admin = allAdmins.find((a) => a.user_uuid === userID)
+    const name = displayNameOf(admin) || email
+    confirm({
+      title: `Remove ${name} as an admin?`,
+      description: "They keep their account and their work, but can no longer open Admin or change its settings.",
+      confirmText: "Remove admin",
+      destructive: true,
+      onConfirm: () => removeAdmin(email, userID),
+    })
+  }
+
+  const removeAdmin = (email: string, userID: string) => {
     const previous = allAdmins
     setAllAdmins((prev) => prev.filter((a) => a.user_email_id !== email))
     post
@@ -87,7 +105,7 @@ const AdminCard = () => {
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <CardTitle className="text-base font-semibold">
-                Administrators
+                Admins
               </CardTitle>
               <span className="text-sm tabular-nums text-muted-foreground">
                 {allAdmins.length}
@@ -95,7 +113,7 @@ const AdminCard = () => {
               </span>
             </div>
             <CardDescription className="text-sm text-muted-foreground">
-              View and manage account administrators and their permissions.
+              Admins can open Admin and change any of its settings.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
@@ -115,8 +133,10 @@ const AdminCard = () => {
               className="h-9 gap-1.5 shrink-0"
               onClick={() => setIsAddDialogOpen(true)}
             >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden xs:inline sm:inline">Add admin</span>
+              {/* Words at every width: the label hid below an xs: breakpoint
+                  that does not exist, so a phone showed a bare "+". */}
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Add admin
             </Button>
           </div>
         </div>
@@ -131,6 +151,8 @@ const AdminCard = () => {
           onLoadMore={handleLoadMore}
           hasMore={hasMore && !normalisedSearch}
           isLoading={adminList.isLoading}
+          isError={!!adminList.isError && allAdmins.length === 0}
+          onRetry={() => void adminList.mutate()}
           isFiltered={!!normalisedSearch}
           totalLoaded={allAdmins.length}
         />
