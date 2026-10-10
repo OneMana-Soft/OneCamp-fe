@@ -337,9 +337,13 @@ const createExtensions = (
     ChartEmbed,
     DiffEmbed,
     Placeholder.configure({
-      placeholder: ({ node }) => {
+      placeholder: ({ editor, node }) => {
         const placeholder = placeholderOf()
         if (placeholder?.trim()) {
+          // A message box's placeholder ("Message #design") speaks for the
+          // whole box: it showed again on every empty line of a draft, so a
+          // line break under what was typed read "Message #design" again.
+          if (!editor.isEmpty) return ''
           if (node.type.name === 'paragraph') return placeholder
           if (node.type.name === 'heading') return `Heading ${node.attrs.level}`
           if (node.type.name === 'blockquote') return 'Empty quote'
