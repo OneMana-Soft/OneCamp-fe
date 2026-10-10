@@ -158,7 +158,7 @@ export function ProjectRatesDialog({
                 <p className="text-xs text-muted-foreground">Leave a rate empty and they bill at the rate for everyone.</p>
                 <ul className="grid gap-2">
                   {people.map((p) => (
-                    <li key={p.id} className="grid grid-cols-[1fr_8rem] items-center gap-3">
+                    <li key={p.id} className="grid grid-cols-[1fr_10rem] items-center gap-3">
                       <Label htmlFor={`rate-${p.id}`} className={p.left ? "truncate font-normal italic text-muted-foreground" : "truncate font-normal"}>
                         {p.name}
                       </Label>

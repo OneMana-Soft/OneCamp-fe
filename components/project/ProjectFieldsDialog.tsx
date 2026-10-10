@@ -386,7 +386,8 @@ function AddField({ busy, onAdd }: { busy: boolean; onAdd: (input: FieldInput) =
         />
         <Select value={type} onValueChange={(v) => setType(v as FieldType)} disabled={busy}>
           <SelectTrigger className="h-8 w-[150px] shrink-0 text-xs" aria-label="Kind of field">
-            <SelectValue />
+            {/* The kind's name only: with its hint the trigger read "Select · One of a". */}
+            <SelectValue>{FIELD_TYPES.find((t) => t.value === type)?.label}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {FIELD_TYPES.map((t) => (
