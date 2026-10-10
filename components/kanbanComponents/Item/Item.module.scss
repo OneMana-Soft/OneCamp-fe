@@ -4,8 +4,7 @@
  * classes on Item.tsx so dark mode and theme tokens apply correctly.
  *
  * What stays here:
- *  - Wrapper translate/scale 3D transforms driven by --translate-x/y
- *    and --scale-x/y dnd-kit CSS variables.
+ *  - the wrapper's box (no transform: see .Wrapper);
  *  - dragOverlay pop animation + drop-shadow that scales with --scale-x.
  *  - dragging opacity + fadeIn keyframe for newly-mounted items.
  */
@@ -34,10 +33,13 @@ $shadow-pickup-lift: 0 12px 24px -6px rgba(0, 0, 0, 0.25),
   }
 }
 
+// No transform here: a 3D transform on every card's wrapper (left from the
+// sortable recipe the board no longer uses) made each card its own compositing
+// layer, 129 layers for 120 cards, and a drag on a big board stalled frames for
+// 350 ms. A wrapper given a transform (Item's transform prop) gets it inline.
 .Wrapper {
   display: flex;
   box-sizing: border-box;
-  transform: translate3d(var(--translate-x, 0), var(--translate-y, 0), 0) scaleX(var(--scale-x, 1)) scaleY(var(--scale-y, 1));
   transform-origin: 0 0;
   height: auto;
   min-height: fit-content;
@@ -67,7 +69,6 @@ $shadow-pickup-lift: 0 12px 24px -6px rgba(0, 0, 0, 0.25),
   word-break: break-word;
   overflow-wrap: anywhere;
   -webkit-tap-highlight-color: transparent;
-  transform: scale(var(--scale, 1));
 
   &:not(.withHandle) {
     touch-action: manipulation;
