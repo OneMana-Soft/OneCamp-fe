@@ -33,7 +33,8 @@ import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Circle, ArrowRight, X } from "@/lib/icons"
+import { Circle, ArrowRight, X, CheckCircle2 } from "@/lib/icons"
+import { Tile } from "@/components/ui/graphics/Tile"
 import {
     getOnboardingStatus,
     dismissOnboarding,
@@ -235,14 +236,20 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
 
     return (
         <Card role="region" aria-labelledby="setup-checklist-title" className="p-5">
-            {/* The header leaves its leading edge free: the playful layer's
-                progress ring goes in front of the title. */}
+            {/* The heading sits beside a moss tile, as Home's other cards sit
+                beside theirs; the playful layer's progress ring takes the
+                tile's place. */}
             <div className="flex items-start gap-3">
-                <div className="min-w-0 flex-1">
-                    <h2 id="setup-checklist-title" className="text-sm font-semibold">Finish setting up your workspace</h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                        {state.done} of {state.total} done. This disappears on its own.
-                    </p>
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <Tile hue="moss" size="md">
+                        <CheckCircle2 strokeWidth={1.75} />
+                    </Tile>
+                    <div className="min-w-0">
+                        <h2 id="setup-checklist-title" className="text-sm font-semibold">Finish setting up your workspace</h2>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                            {state.done} of {state.total} done. This disappears on its own.
+                        </p>
+                    </div>
                 </div>
                 <Button
                     variant="ghost"
@@ -348,8 +355,13 @@ function ChecklistPlaceholder() {
     return (
         <Card role="status" aria-label="Loading the setup checklist" aria-busy="true" className="p-5">
             <div aria-hidden="true">
-                <Skeleton className="h-4 w-56" />
-                <Skeleton className="mt-1.5 h-3 w-44" />
+                <div className="flex items-start gap-3">
+                    <Skeleton className="size-8 shrink-0 rounded-lg" />
+                    <div className="grid gap-1.5 pt-0.5">
+                        <Skeleton className="h-4 w-56" />
+                        <Skeleton className="h-3 w-44" />
+                    </div>
+                </div>
                 <div className="mt-3 divide-y divide-border/60">
                     {[0, 1, 2].map((i) => (
                         <div key={i} className="flex min-h-12 items-center gap-3 py-1.5">
