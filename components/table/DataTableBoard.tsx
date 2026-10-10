@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Plus } from "@/lib/icons"
 import { TableField, TableRow, SelectOption, parseFieldConfig, parseRowValues, createRow, updateRow, isComputed, computedOf, nextRowPosition, writableValues } from "@/services/tableService"
 import { formulaText, cardTitle } from "@/lib/tables/formula"
+import { shortDate } from "@/lib/utils/date/shortDate"
 import { hueFor } from "@/lib/campHue"
 import { OptionChip } from "@/components/table/optionChip"
 import { TableViewState, TABLE_VIEW_BODY, TABLE_VIEW_INSET } from "@/components/table/TableViewFrame"
@@ -30,8 +31,17 @@ const NO_VALUE = "__none__"
 // formatCardValue renders a row value for a compact board card: arrays (multi
 // select / relation) become a short, comma-joined label list; objects fall back
 // to their label; scalars are stringified. Empty values return "".
-function formatCardValue(v: unknown): string {
+export function formatCardValue(v: unknown, type?: string): string {
   if (v === undefined || v === null || v === "") return ""
+  // As the grid shows them: "7 Oct", not "2026-10-07"; "1,580", not "1580".
+  if (type === "date" && typeof v === "string") {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v)
+    const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(v)
+    if (!Number.isNaN(d.getTime())) return shortDate(d)
+  }
+  if (type === "number" && (typeof v === "number" || (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))))) {
+    return Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 })
+  }
   if (Array.isArray(v)) {
     return v
       .map((item) =>
@@ -177,7 +187,7 @@ export function DataTableBoard({
                       .map((f) => {
                         const cellVal = values[f.id]
                         const text =
-                          isComputed(f) ? formulaText(cellVal, computedOf(f).result) : formatCardValue(cellVal)
+                          isComputed(f) ? formulaText(cellVal, computedOf(f).result) : formatCardValue(cellVal, f.type)
                         if (!text) return null
                         return (
                           <p key={f.id} className="truncate text-xs text-muted-foreground">

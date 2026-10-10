@@ -6,9 +6,10 @@ import { TableGlyph } from "./TableGlyph"
 afterEach(cleanup)
 
 describe("a table's icon", () => {
-  it("is the emoji its owner chose", () => {
+  it("is the emoji its owner chose, on the same hue tile as every other table", () => {
     const { container } = render(<TableGlyph icon="💰" id="t1" />)
     expect(container.textContent).toBe("💰")
+    expect(container.querySelector("[data-hue]")?.getAttribute("data-hue")).toBe(hueFor("t1"))
   })
   it("is otherwise a tile in the table's own hue, the same on every screen", () => {
     const { container } = render(<TableGlyph id="8d78abe2-ad66-493c-9fe0-85a27b66a8bc" />)
