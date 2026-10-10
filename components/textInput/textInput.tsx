@@ -32,6 +32,7 @@ import {EmojiReactionPicker} from "@/components/minimal-tiptap/components/emoji-
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEditorState } from "@tiptap/react";
 import { CHAT_COMMANDS, maybeDispatchSlashCommand, extractSlashCommandFromEditor } from "@/components/minimal-tiptap/extensions/slash-command/slashCommand";
+import { useStableCallback } from "@/hooks/useStableCallback";
 
 interface MinimalTiptapProps
     extends Omit<UseMinimalTiptapEditorProps, "onUpdate"> {
@@ -158,6 +159,95 @@ const Toolbar = React.memo(function Toolbar({ editor, toggledTextEditor, setTogg
 
 });
 
+// Memoised: its only prop is the editor, which outlives every keystroke. It
+// re-rendered with the composer on each one, link popover and all.
+const MemoLinkBubbleMenu = React.memo(LinkBubbleMenu);
+
+interface ComposerActionsProps {
+  aiSlot?: React.ReactNode
+  attachmentOnclick?: () => void
+  attachmentLabel: string
+  onActionFiles?: (files: File[]) => void
+  SecondaryButtonIcon?: LucideIcon
+  onSecondary?: () => void
+  secondaryButtonLabel: string
+  PrimaryButtonIcon?: LucideIcon
+  onPrimary?: () => void
+  primaryButtonLabel: string
+  ButtonIcon?: LucideIcon
+  onSend?: () => void
+  onSchedule?: (at: Date) => void
+  buttonLabel: string
+  nothingToSend: boolean
+}
+
+// The row of buttons beside the formatting: attach, record a clip, send later,
+// send. Memoised, with stable handlers: the editor re-renders the composer on
+// every keystroke, and this row (half a dozen buttons with tooltips and two
+// popovers) re-rendered with it, about 200 components a key. It changes only
+// when Send changes between ready and not.
+const ComposerActions = React.memo(function ComposerActions({
+  aiSlot,
+  attachmentOnclick,
+  attachmentLabel,
+  onActionFiles,
+  SecondaryButtonIcon,
+  onSecondary,
+  secondaryButtonLabel,
+  PrimaryButtonIcon,
+  onPrimary,
+  primaryButtonLabel,
+  ButtonIcon,
+  onSend,
+  onSchedule,
+  buttonLabel,
+  nothingToSend,
+}: ComposerActionsProps) {
+  return (
+    <div className="flex items-center gap-1.5 pr-1">
+        {aiSlot}
+        {attachmentOnclick && (
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button size={"icon"} variant={'ghost'} aria-label={attachmentLabel} className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4" strokeWidth={1.75}/></Button>
+                </TooltipTrigger>
+                <TooltipContent>{attachmentLabel}</TooltipContent>
+            </Tooltip>
+        )}
+        {/* A clip goes where files go: the same upload as one dropped or pasted. */}
+        {onActionFiles && attachmentOnclick && (
+            <ClipButton onRecorded={(file) => onActionFiles([file])} />
+        )}
+      {SecondaryButtonIcon && onSecondary && (
+          <Button aria-label={secondaryButtonLabel} onClick={onSecondary} variant="ghost" size={"icon"} className="h-8 w-8 text-muted-foreground hover:text-foreground">
+            <SecondaryButtonIcon className="h-4 w-4" />
+          </Button>
+      )}
+      {PrimaryButtonIcon && onPrimary && (
+          <Button aria-label={primaryButtonLabel} onClick={onPrimary} size={"icon"} className="h-8 w-8"><PrimaryButtonIcon className="h-4 w-4"/></Button>
+      )}
+      {ButtonIcon && onSend && onSchedule && (
+          <ScheduleSendButton onPick={onSchedule} />
+      )}
+      {ButtonIcon && onSend && (
+          <Tooltip>
+              <TooltipTrigger asChild>
+                  <Button
+                      aria-label={buttonLabel}
+                      size={"icon"}
+                      className={cn("h-8 w-8 transition-colors", nothingToSend && "bg-muted text-muted-foreground hover:bg-muted")}
+                      onClick={onSend}
+                  >
+                      <ButtonIcon className="h-4 w-4" />
+                  </Button>
+              </TooltipTrigger>
+              <TooltipContent>{buttonLabel} <span className="text-muted-foreground">Enter</span></TooltipContent>
+          </Tooltip>
+      )}
+    </div>
+  )
+});
+
 const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
     (
         {
@@ -282,34 +372,31 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
         return false;
       }, [buttonOnclick, isMobile, flushPendingChange, trySlashCommand]);
 
-      const wrappedButtonOnclick = React.useMemo(() => {
-        if (!buttonOnclick) return undefined;
-        return async () => {
-            // Intercept slash commands before the normal send (Send button).
-            if (trySlashCommand()) return;
-            const latestHtml = flushPendingChange();
-            await buttonOnclick(latestHtml);
-            throttleRef.current?.cancel();
-        };
-      }, [buttonOnclick, flushPendingChange, trySlashCommand]);
-
-      const wrappedOnSchedule = React.useMemo(() => {
-        if (!onSchedule) return undefined;
-        return async (at: Date) => {
-            const latestHtml = flushPendingChange();
-            await onSchedule(latestHtml, at);
-            throttleRef.current?.cancel();
-        };
-      }, [onSchedule, flushPendingChange]);
-
-      const wrappedSecondaryButtonOnclick = React.useMemo(() => {
-        if (!secondaryButtonOnclick) return undefined;
-        return async () => {
-            const latestHtml = flushPendingChange();
-            await secondaryButtonOnclick(latestHtml);
-            throttleRef.current?.cancel();
-        };
-      }, [secondaryButtonOnclick, flushPendingChange]);
+      // The buttons' handlers keep one identity for the composer's life (they
+      // call whatever the parent passed last), so the memoised action row
+      // below is not rebuilt when a parent re-renders with a new closure.
+      const sendNow = useStableCallback(async () => {
+          // Intercept slash commands before the normal send (Send button).
+          if (trySlashCommand()) return;
+          const latestHtml = flushPendingChange();
+          await buttonOnclick?.(latestHtml);
+          throttleRef.current?.cancel();
+      });
+      const scheduleNow = useStableCallback(async (at: Date) => {
+          const latestHtml = flushPendingChange();
+          await onSchedule?.(latestHtml, at);
+          throttleRef.current?.cancel();
+      });
+      const secondaryNow = useStableCallback(async () => {
+          const latestHtml = flushPendingChange();
+          await secondaryButtonOnclick?.(latestHtml);
+          throttleRef.current?.cancel();
+      });
+      const attachNow = useStableCallback(() => attachmentOnclick?.());
+      const filesNow = useStableCallback((files: File[]) => onActionFiles?.(files));
+      const wrappedButtonOnclick = buttonOnclick ? sendNow : undefined;
+      const wrappedOnSchedule = onSchedule ? scheduleNow : undefined;
+      const wrappedSecondaryButtonOnclick = secondaryButtonOnclick ? secondaryNow : undefined;
 
       const slashCommands = React.useMemo(() => CHAT_COMMANDS, []);
 
@@ -481,51 +568,25 @@ const LiveTextInput = React.forwardRef<HTMLDivElement, MinimalTiptapProps>(
                     {children}
                   <div className="flex items-center justify-between gap-2 mt-1">
                     <Toolbar editor={editor} toggledTextEditor={toggledTextEditor}  setToggledTextEditor={setToggledTextEditor} collapsible={toggleToolbar || isMobile || !!ButtonIcon}/>
-                    <div className="flex items-center gap-1.5 pr-1">
-                        {aiSlot}
-                        {
-                            attachmentOnclick && !(isMobile && toggledTextEditor) &&
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button size={"icon"} variant={'ghost'} aria-label={attachmentLabel} className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={attachmentOnclick}><Paperclip className="h-4 w-4" strokeWidth={1.75}/></Button>
-                                </TooltipTrigger>
-                                <TooltipContent>{attachmentLabel}</TooltipContent>
-                            </Tooltip>
-
-                        }
-                        {/* A clip goes where files go: the same upload as one dropped or pasted. */}
-                        {onActionFiles && attachmentOnclick && !(isMobile && toggledTextEditor) && (
-                            <ClipButton onRecorded={(file) => onActionFiles([file])} />
-                        )}
-                      {SecondaryButtonIcon && wrappedSecondaryButtonOnclick && (
-                          <Button aria-label={secondaryButtonLabel} onClick={wrappedSecondaryButtonOnclick} variant="ghost" size={"icon"} className="h-8 w-8 text-muted-foreground hover:text-foreground">
-                            <SecondaryButtonIcon className="h-4 w-4" />
-                          </Button>
-                      )}
-                      {PrimaryButtonIcon && wrappedButtonOnclick && (
-                          <Button aria-label={primaryButtonLabel} onClick={wrappedButtonOnclick} size={"icon"} className="h-8 w-8"><PrimaryButtonIcon className="h-4 w-4"/></Button>
-                      )}
-                      {ButtonIcon && wrappedButtonOnclick && wrappedOnSchedule && (
-                          <ScheduleSendButton onPick={wrappedOnSchedule} />
-                      )}
-                      {ButtonIcon && wrappedButtonOnclick && (
-                          <Tooltip>
-                              <TooltipTrigger asChild>
-                                  <Button
-                                      aria-label={buttonLabel}
-                                      size={"icon"}
-                                      className={cn("h-8 w-8 transition-colors", nothingToSend && "bg-muted text-muted-foreground hover:bg-muted")}
-                                      onClick={wrappedButtonOnclick}
-                                  >
-                                      <ButtonIcon className="h-4 w-4" />
-                                  </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>{buttonLabel} <span className="text-muted-foreground">Enter</span></TooltipContent>
-                          </Tooltip>
-                      )}
-                    </div>
+                    <ComposerActions
+                        aiSlot={aiSlot}
+                        attachmentOnclick={attachmentOnclick && !(isMobile && toggledTextEditor) ? attachNow : undefined}
+                        attachmentLabel={attachmentLabel}
+                        onActionFiles={onActionFiles ? filesNow : undefined}
+                        SecondaryButtonIcon={SecondaryButtonIcon}
+                        onSecondary={wrappedSecondaryButtonOnclick}
+                        secondaryButtonLabel={secondaryButtonLabel}
+                        PrimaryButtonIcon={PrimaryButtonIcon}
+                        onPrimary={wrappedButtonOnclick}
+                        primaryButtonLabel={primaryButtonLabel}
+                        ButtonIcon={ButtonIcon}
+                        onSend={wrappedButtonOnclick}
+                        onSchedule={wrappedOnSchedule}
+                        buttonLabel={buttonLabel}
+                        nothingToSend={nothingToSend}
+                    />
                   </div>
-                  <LinkBubbleMenu editor={editor} />
+                  <MemoLinkBubbleMenu editor={editor} />
                 </div>
             )}
           </div>
