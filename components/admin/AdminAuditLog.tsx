@@ -20,6 +20,8 @@ import { fullDateTime, shortDateTime } from "@/lib/utils/date/shortDate"
 import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils/helpers/cn"
+import { HUE_CLASS } from "@/components/ui/graphics/hues"
+import type { CampHue } from "@/lib/campHue"
 import {
     getAdminAuditLog,
     verifyAuditLog,
@@ -32,19 +34,31 @@ import {
     type InitiatorKind,
 } from "@/services/settingsService"
 
-// The categories name things, so their colours are categorical, not states.
-// They move to the camp hues with the playful layer; agent is already in the
-// agent's own colour, the one the app gives anything an agent did.
-const CATEGORY_STYLES: Record<string, string> = {
-    settings: "bg-blue-500/10 text-info-ink border-blue-500/20",
-    integration: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20",
-    auth: "bg-warning/10 text-warning-ink border-warning/20",
-    app: "bg-success/10 text-success-ink border-success/20",
-    security: "bg-destructive/10 text-danger-ink border-destructive/20",
+// The categories name things, so their colours are identity, not states: one
+// fixed camp hue per category, tint behind ink (AA on every pair), never the
+// accent and never a raw Tailwind hue. Agent is dusk, as agents are wherever
+// the admin page groups them. Status words (Refused, nobody watching) keep
+// their status tokens.
+const CATEGORY_HUE: Record<string, CampHue> = {
+    settings: "sun",
+    integration: "lake",
+    auth: "sky",
+    app: "moss",
+    security: "berry",
     // Agent activity: an agent acting for a person, including calls arriving over
-    // MCP from outside the workspace. Visually distinct because "was this a human
-    // or an agent on their behalf" is the first thing an auditor scans for.
-    agent: "bg-agent-muted text-agent border-agent/20",
+    // MCP from outside the workspace. Its own hue because "was this a human or
+    // an agent on their behalf" is the first thing an auditor scans for.
+    agent: "dusk",
+}
+
+const CHIP = "inline-flex shrink-0 items-center rounded-sm px-1.5 py-0.5 text-2xs font-medium capitalize"
+
+// Unknown categories still render, in a neutral style. A category the server starts
+// recording is more useful shown plainly than omitted, and omitting it is precisely
+// how `agent` entries became invisible in this view.
+function categoryChipClass(category: string): string {
+    const hue = CATEGORY_HUE[category]
+    return hue ? cn(CHIP, HUE_CLASS[hue], "bg-hue-tint text-hue-ink") : cn(CHIP, "bg-muted text-muted-foreground")
 }
 
 // The filter in use is marked in ink on the highlight step, not in the accent:
@@ -52,11 +66,6 @@ const CATEGORY_STYLES: Record<string, string> = {
 // filled orange chip beside it made two.
 const FILTER_ON = "bg-highlight text-foreground border-foreground/25 hover:bg-highlight"
 const FILTER_OFF = "text-muted-foreground"
-
-// Unknown categories still render, in a neutral style. A category the server starts
-// recording is more useful shown plainly than omitted, and omitting it is precisely
-// how `agent` entries became invisible in this view.
-const FALLBACK_CATEGORY_STYLE = "bg-muted text-muted-foreground border-border"
 
 // The filter list the component starts with, replaced by whatever the server
 // reports. Kept as a seed so the buttons render on the very first paint instead of
@@ -86,12 +95,7 @@ function AuditRow({ entry, unattendedKinds }: { entry: AuditEntry; unattendedKin
 
     return (
         <div className="flex items-start gap-3 px-2 py-2.5">
-            <Badge
-                variant="outline"
-                className={`text-2xs capitalize shrink-0 ${CATEGORY_STYLES[entry.category] ?? FALLBACK_CATEGORY_STYLE}`}
-            >
-                {entry.category}
-            </Badge>
+            <span className={categoryChipClass(entry.category)}>{entry.category}</span>
             <div className="min-w-0 flex-1">
                 <p className="text-sm text-foreground">{entry.summary}</p>
 
