@@ -31,7 +31,6 @@ const ALLOWED: Array<[file: string, snippet: string, why: string]> = [
   ["components/message/continuedGutter.tsx", "-mr-1.5 block whitespace-nowrap", "the time of a continued message, also in the row's title"],
   ["components/task/taskAssigneePicker.tsx", "invisible group-hover:visible", "the picker's chevron; the whole field opens it"],
   ["components/navigationBar/desktop/desktopSideNavigationBar.tsx", "rotate-90 opacity-0", "the section's chevron; the label folds it"],
-  ["components/recording/recordingListRecording.tsx", "w-1 bg-primary opacity-0", "the hover accent of a row"],
   ["components/ai/DocAiAssistantPanel.tsx", "bg-[radial-gradient", "a hover glow"],
   ["components/dialog/editProfileDailog.tsx", "bg-black/40 opacity-0", "a pointer's shortcut to the Upload button beside it"],
   ["components/attachments/videoPlayer.tsx", "w-20 hidden group-hover:block", "the volume slider; a phone's volume is its buttons"],

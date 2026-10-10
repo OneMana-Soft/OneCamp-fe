@@ -29,7 +29,8 @@ const SURFACES = [
   "app/app/templates/page.tsx",
   "app/app/board/page.tsx",
   "app/app/posts/page.tsx",
-  "app/app/recordings/page.tsx",
+  // The recordings page and a channel's, a DM's and a group's tab draw RecordingsView.
+  "components/recording/RecordingsView.tsx",
   // The user's own primary work. The empty copy on these asserts the work does
   // not exist, which is the most alarming reading of a failed request.
   "components/myTask/myTaskList.tsx",
@@ -52,9 +53,6 @@ const SURFACES = [
   "components/channel/channelListTabArchive.tsx",
   "components/team/TeamListTabProject.tsx",
   "components/project/projectAttachmentList.tsx",
-  "components/channel/channelRecording.tsx",
-  "components/chat/ChatRecording.tsx",
-  "components/chat/GroupChatRecording.tsx",
   "components/task/GitHubActivityTab.tsx",
   // Admin. Lower stakes than a member's own work, but the claim is still false —
   // and GitHubIntegrationCard's was actively misleading: isConnected is
