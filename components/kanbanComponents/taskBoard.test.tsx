@@ -147,3 +147,98 @@ describe("a board in swimlanes", () => {
     expect(screen.getByRole("button", { name: "Show more" })).toBeTruthy()
   })
 })
+
+describe("moving a card from the keyboard", () => {
+  const inProgress: StatusOption = { value: "inProgress", label: "In progress", category: "inProgress", custom: false, color: "" }
+  // requestAnimationFrame runs the save at once, so a test sees onMove.
+  const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+    cb(0)
+    return 0
+  })
+  afterEach(() => raf.mockClear())
+
+  function threeColumns(onMove = vi.fn()) {
+    const utils = board({
+      columns: { todo: many(3), inProgress: many(2, "inProgress"), done: [] },
+      visible: [todo, inProgress, done],
+      onMove,
+    })
+    const card = (id: string) => utils.container.querySelector<HTMLElement>(`[data-task-id="${id}"]`)!
+    const key = (key: string) => act(() => void fireEvent.keyDown(document.activeElement ?? document.body, { key }))
+    return { ...utils, card, key, onMove }
+  }
+
+  it("picks up with Space, moves with the arrows and drops with Space where the line is", () => {
+    const { card, key, onMove, container } = threeColumns()
+    act(() => card("t-todo-0").focus())
+    key(" ")
+    expect(container.querySelector("[data-drop-line]")).toBeTruthy()
+    key("ArrowRight")
+    key("ArrowDown")
+    // The line is in In progress, below its first card.
+    const lineCol = container.querySelector("[data-drop-line]")!.closest("[data-column]")!
+    expect(lineCol.getAttribute("data-column")).toBe("inProgress")
+    key(" ")
+    expect(onMove).toHaveBeenCalledTimes(1)
+    const [task, drop] = onMove.mock.calls[0]
+    expect(task.task_uuid).toBe("t-todo-0")
+    expect(drop).toMatchObject({ column: "inProgress", index: 1, before: "t-inProgress-0", after: "t-inProgress-1" })
+    // The board shows it there at once, and focus went with it.
+    expect(card("t-todo-0").closest("[data-column]")!.getAttribute("data-column")).toBe("inProgress")
+    expect(document.activeElement).toBe(card("t-todo-0"))
+    expect(container.querySelector("[data-drop-line]")).toBeNull()
+  })
+
+  it("reorders within a column, and Enter drops as Space does", () => {
+    const { card, key, onMove } = threeColumns()
+    act(() => card("t-todo-0").focus())
+    key(" ")
+    key("ArrowDown")
+    key("ArrowDown")
+    key("Enter")
+    expect(onMove.mock.calls[0][1]).toMatchObject({ column: "todo", index: 2, before: "t-todo-2", after: "" })
+  })
+
+  it("puts it back with Escape, saving nothing", () => {
+    const { card, key, onMove, container } = threeColumns()
+    act(() => card("t-todo-1").focus())
+    key(" ")
+    key("ArrowRight")
+    key("Escape")
+    expect(onMove).not.toHaveBeenCalled()
+    expect(container.querySelector("[data-drop-line]")).toBeNull()
+    expect(card("t-todo-1").closest("[data-column]")!.getAttribute("data-column")).toBe("todo")
+  })
+
+  it("says each step aloud", () => {
+    const { card, key } = threeColumns()
+    act(() => card("t-todo-0").focus())
+    key(" ")
+    expect(screen.getByText(/Picked up Task 0\. To do, 1 of 3\./)).toBeTruthy()
+    key("ArrowRight")
+    expect(screen.getByText("In progress, 1 of 3")).toBeTruthy()
+  })
+
+  it("keeps the list's keys and Enter to open out of a move", () => {
+    const listKeys = vi.fn()
+    document.addEventListener("keydown", listKeys)
+    const { card, key } = threeColumns()
+    act(() => card("t-todo-0").focus())
+    key(" ")
+    key("ArrowDown")
+    key("Enter")
+    document.removeEventListener("keydown", listKeys)
+    expect(listKeys).not.toHaveBeenCalled()
+  })
+
+  it("leaves a card that can't be moved where it is", () => {
+    const onMove = vi.fn()
+    const { container } = board({ columns: { todo: many(2), done: [] }, canDrag: () => false, onMove })
+    const c = container.querySelector<HTMLElement>('[data-task-id="t-todo-0"]')!
+    act(() => c.focus())
+    act(() => void fireEvent.keyDown(c, { key: " " }))
+    act(() => void fireEvent.keyDown(c, { key: "ArrowDown" }))
+    expect(container.querySelector("[data-drop-line]")).toBeNull()
+    expect(onMove).not.toHaveBeenCalled()
+  })
+})

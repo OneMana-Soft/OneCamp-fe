@@ -25,9 +25,15 @@
  * Now a move only works out which column is under the pointer and where in it
  * the card would go (a few rectangle reads, no writes), and re-renders only
  * when that answer changes: the column the line left and the one it entered.
+ *
+ * The keyboard moves a card the same way (lib/board/keyMove): Space picks up
+ * the focused card, the arrows move the line, Space or Enter drops it there and
+ * Escape puts it back, each step said aloud. dnd-kit's keyboard sensor never
+ * fired here (the card's own Enter and Space opened the task first), and its
+ * step function skipped every column that already held a card.
  */
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { createPortal } from "react-dom"
 import {
     DndContext,
@@ -35,7 +41,6 @@ import {
     type DragMoveEvent,
     type DragStartEvent,
     DragOverlay,
-    KeyboardSensor,
     MouseSensor,
     TouchSensor,
     useDraggable,
@@ -47,7 +52,7 @@ import {
     type CollisionDetection,
 } from "@dnd-kit/core"
 import { Container, Item } from "@/components/kanbanComponents"
-import { coordinateGetter } from "@/components/task/multipleContainersKeyboardCoordinates"
+import { moveKeyOf, spotLabel, stepSpot } from "@/lib/board/keyMove"
 import type { TaskInfoInterface } from "@/types/task"
 import { dropMovedCard, insertionIndex, placeCard, type SettledDrop } from "@/lib/utils/kanbanDrop"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -137,6 +142,12 @@ export function TaskBoard({
     lanesRef.current = lanes
     const [items, setItems] = useState<Columns>(board)
     const [activeTask, setActiveTask] = useState<TaskInfoInterface | null>(null)
+    // Held from the keyboard rather than by the pointer: no card follows a
+    // pointer, the held one stays in place, ringed, while the line moves.
+    const [byKeys, setByKeys] = useState(false)
+    const [said, say] = useState("")
+    const instructions = useId()
+    const refocus = useRef<string | null>(null)
     const [target, setTarget] = useState<Target | null>(null)
     const itemsRef = useRef(items)
     itemsRef.current = items
@@ -167,7 +178,6 @@ export function TaskBoard({
         useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
         // A short hold on touch, so a tap opens and a swipe scrolls.
         useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
-        useSensor(KeyboardSensor, { coordinateGetter }),
     )
 
     const aim = (next: Target | null) => {
@@ -181,6 +191,7 @@ export function TaskBoard({
         const task = active.data.current?.task as TaskInfoInterface | undefined
         if (!task || !canDragTask(task)) return
         origin.current = pointerOf(activatorEvent)
+        setByKeys(false)
         setActiveTask(task)
         // Until the pointer moves, it lands where it is.
         const cols = itemsRef.current
@@ -229,28 +240,123 @@ export function TaskBoard({
         targetRef.current = null
         setTarget(null)
         setActiveTask(null)
+        setByKeys(false)
+    }
+
+    // Puts the held card where the line is, and saves it. Returns where it went.
+    const settle = (task: TaskInfoInterface): Target | null => {
+        const t = targetRef.current
+        if (!t) return null
+        const drop = placeCard(itemsRef.current, task.task_uuid, t.column, t.index)
+        if (!drop || !dropMovedCard(itemsRef.current, drop, task.task_uuid)) return null
+        heldFrom.current = columnsRef.current
+        setItems(drop.items)
+        // Save on the next frame, so the drop animation starts first: the
+        // optimistic update copies every cached task list it touches.
+        const ls = lanesRef.current
+        requestAnimationFrame(() => {
+            if (!ls) return onMove(task, drop)
+            const to = splitCell(drop.column)
+            onMove(task, { ...drop, column: to.column }, { from: ls.laneOf(task), to: to.lane })
+        })
+        return { column: drop.column, index: drop.index }
     }
 
     const onDragEnd = ({ active }: DragEndEvent) => {
-        const task = activeTask
-        const t = targetRef.current
-        if (task && t) {
-            const drop = placeCard(itemsRef.current, String(active.id), t.column, t.index)
-            if (drop && dropMovedCard(itemsRef.current, drop, task.task_uuid)) {
-                heldFrom.current = columnsRef.current
-                setItems(drop.items)
-                // Save on the next frame, so the drop animation starts first: the
-                // optimistic update copies every cached task list it touches.
-                const ls = lanesRef.current
-                requestAnimationFrame(() => {
-                    if (!ls) return onMove(task, drop)
-                    const to = splitCell(drop.column)
-                    onMove(task, { ...drop, column: to.column }, { from: ls.laneOf(task), to: to.lane })
-                })
-            }
-        }
+        if (activeTask && String(active.id) === activeTask.task_uuid) settle(activeTask)
         finish()
     }
+
+    // The board's lists as a grid (one row, or a row per open lane), and how
+    // many cards a list shows besides the held one, as the line counts them.
+    const grid = (): string[][] => {
+        const cols = visible.map((v) => v.value)
+        const ls = lanesRef.current
+        return ls ? ls.list.filter((l) => !foldedLanes.has(l.id)).map((l) => cols.map((c) => cellKey(l.id, c))) : [cols]
+    }
+    const shownIn = (list: string, held: string) => {
+        const el = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-column]") ?? []).find((c) => c.dataset.column === list)
+        return el ? Array.from(el.querySelectorAll<HTMLElement>("[data-task-id]")).filter((c) => c.dataset.taskId !== held).length : 0
+    }
+    const nameOf = (list: string) => {
+        const { lane, column } = splitCell(list)
+        const status = visible.find((v) => v.value === column)?.label ?? column
+        const row = lane ? lanesRef.current?.list.find((l) => l.id === lane)?.label : undefined
+        return row ? `${row}, ${status}` : status
+    }
+
+    // Space picks up the focused card; while one is held, the arrows move the
+    // line, Space or Enter drops and Escape or Tab puts it back. Caught on the
+    // way down, so the card's own Enter (open) and the list's keys never see
+    // a key that belongs to the move.
+    const onKeyDownCapture = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+        if (e.ctrlKey || e.metaKey || e.altKey) return
+        const el = e.target instanceof HTMLElement ? e.target : null
+        if (!activeTask) {
+            if (e.key !== " " || !el?.dataset.taskId || activeTask) return
+            const id = el.dataset.taskId
+            const column = Object.keys(itemsRef.current).find((k) => itemsRef.current[k].some((t) => t.task_uuid === id))
+            const task = column ? itemsRef.current[column].find((t) => t.task_uuid === id) : undefined
+            if (!task || !column || !canDragTask(task)) return
+            e.preventDefault()
+            e.stopPropagation()
+            const index = itemsRef.current[column].findIndex((t) => t.task_uuid === id)
+            setByKeys(true)
+            setActiveTask(task)
+            aim({ column, index })
+            say(`Picked up ${task.task_name}. ${spotLabel(nameOf(column), index, shownIn(column, id))}. Arrow keys move it, Space drops it, Escape puts it back.`)
+            return
+        }
+        if (!byKeys) return
+        const held = activeTask
+        const step = moveKeyOf(e.key)
+        if (step) {
+            e.preventDefault()
+            e.stopPropagation()
+            const at = targetRef.current
+            if (!at) return
+            const next = stepSpot(grid(), (list) => shownIn(list, held.task_uuid), at, step)
+            aim(next)
+            say(spotLabel(nameOf(next.column), next.index, shownIn(next.column, held.task_uuid)))
+            return
+        }
+        if (e.key === " " || e.key === "Enter") {
+            e.preventDefault()
+            e.stopPropagation()
+            const at = settle(held)
+            refocus.current = held.task_uuid
+            say(at ? `Dropped. ${spotLabel(nameOf(at.column), at.index, shownIn(at.column, held.task_uuid))}.` : `Put back where it was.`)
+            finish()
+            return
+        }
+        if (e.key === "Escape" || e.key === "Tab") {
+            if (e.key === "Escape") {
+                e.preventDefault()
+                e.stopPropagation()
+            }
+            refocus.current = e.key === "Escape" ? held.task_uuid : null
+            say(`Put back where it was.`)
+            finish()
+        }
+    }
+
+    // After a drop from the keyboard the card may sit in another column (a new
+    // element): focus follows it there, so the next move starts from it.
+    useEffect(() => {
+        const id = refocus.current
+        if (!id || activeTask) return
+        refocus.current = null
+        const card = Array.from(boardRef.current?.querySelectorAll<HTMLElement>("[data-task-id]") ?? []).find((c) => c.dataset.taskId === id)
+        card?.focus()
+    })
+
+    const liftedId = byKeys ? (activeTask?.task_uuid ?? null) : null
+
+    // The line stays in view as the keys move it down a long column.
+    useEffect(() => {
+        if (!byKeys || !target) return
+        boardRef.current?.querySelector<HTMLElement>("[data-drop-line]")?.scrollIntoView?.({ block: "nearest", inline: "nearest" })
+    }, [byKeys, target])
 
     return (
         <DndContext
@@ -270,6 +376,8 @@ export function TaskBoard({
             onDragEnd={onDragEnd}
             onDragCancel={finish}
         >
+            {/* Display contents: only here to catch the keys of the cards inside. */}
+            <div className="contents" onKeyDownCapture={onKeyDownCapture}>
             {lanes ? (
                 <LaneGrid
                     boardRef={boardRef}
@@ -278,6 +386,8 @@ export function TaskBoard({
                     items={items}
                     canDrag={canDragTask}
                     activeId={activeTask?.task_uuid ?? null}
+                    liftedId={liftedId}
+                    describedBy={instructions}
                     target={target}
                     folded={foldedLanes}
                     onToggleLane={toggleLane}
@@ -295,6 +405,8 @@ export function TaskBoard({
                         tasks={items[status.value] ?? NO_TASKS}
                         canDrag={canDragTask}
                         activeId={activeTask?.task_uuid ?? null}
+                        liftedId={liftedId}
+                        describedBy={instructions}
                         lineAt={target?.column === status.value ? target.index : null}
                         collapsed={collapsed.has(status.value)}
                         onToggleCollapse={toggleCollapsed}
@@ -306,10 +418,17 @@ export function TaskBoard({
                 ))}
             </div>
             )}
+            </div>
+            <p id={instructions} className="sr-only">
+                Press Space to pick the task up, the arrow keys to move it, and Space again to put it down. Escape puts it back.
+            </p>
+            <p aria-live="assertive" aria-atomic="true" className="sr-only">
+                {said}
+            </p>
             {typeof document !== "undefined" &&
                 createPortal(
                     <DragOverlay dropAnimation={dropAnimation}>
-                        {activeTask ? <Item task={activeTask} value={activeTask.task_uuid} dragOverlay /> : null}
+                        {activeTask && !byKeys ? <Item task={activeTask} value={activeTask.task_uuid} dragOverlay /> : null}
                     </DragOverlay>,
                     document.body,
                 )}
@@ -328,6 +447,8 @@ const BoardColumn = memo(function BoardColumn({
     tasks,
     canDrag,
     activeId,
+    liftedId,
+    describedBy,
     lineAt,
     collapsed,
     onToggleCollapse,
@@ -340,6 +461,10 @@ const BoardColumn = memo(function BoardColumn({
     tasks: TaskInfoInterface[]
     canDrag: (task: TaskInfoInterface) => boolean
     activeId: string | null
+    /** The card held from the keyboard, if any. */
+    liftedId: string | null
+    /** The board's instructions for moving a card from the keyboard. */
+    describedBy: string
     /** Where the drop line is, counted among the cards other than the one lifted. */
     lineAt: number | null
     collapsed: boolean
@@ -375,6 +500,8 @@ const BoardColumn = memo(function BoardColumn({
                 tasks={tasks}
                 canDrag={canDrag}
                 activeId={activeId}
+                liftedId={liftedId}
+                describedBy={describedBy}
                 lineAt={lineAt}
                 total={total}
                 badgeFor={badgeFor}
@@ -396,6 +523,8 @@ function CardStack({
     tasks,
     canDrag,
     activeId,
+    liftedId,
+    describedBy,
     lineAt,
     total,
     badgeFor,
@@ -409,6 +538,8 @@ function CardStack({
     tasks: TaskInfoInterface[]
     canDrag: (task: TaskInfoInterface) => boolean
     activeId: string | null
+    liftedId: string | null
+    describedBy: string
     lineAt: number | null
     total?: number
     badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
@@ -438,6 +569,8 @@ function CardStack({
                             task={task}
                             column={id}
                             disabled={!canDrag(task)}
+                            lifted={task.task_uuid === liftedId}
+                            describedBy={describedBy}
                             // Its own status, where the column does not already say it
                             // (My Tasks has only the built-in columns).
                             statusBadge={badgeFor ? badgeFor(task, column) : task.task_custom_status && task.task_custom_status !== column ? task.task_custom_status_name : undefined}
@@ -491,6 +624,8 @@ function LaneGrid({
     items,
     canDrag,
     activeId,
+    liftedId,
+    describedBy,
     target,
     folded,
     onToggleLane,
@@ -505,6 +640,8 @@ function LaneGrid({
     items: Columns
     canDrag: (task: TaskInfoInterface) => boolean
     activeId: string | null
+    liftedId: string | null
+    describedBy: string
     target: Target | null
     folded: Set<string>
     onToggleLane: (lane: string) => void
@@ -578,6 +715,8 @@ function LaneGrid({
                                                     tasks={items[id] ?? NO_TASKS}
                                                     canDrag={canDrag}
                                                     activeId={activeId}
+                                                    liftedId={liftedId}
+                                                    describedBy={describedBy}
                                                     lineAt={target?.column === id ? target.index : null}
                                                     onQuickAdd={onQuickAdd}
                                                     badgeFor={badgeFor}
@@ -603,6 +742,8 @@ const LaneCell = memo(function LaneCell({
     tasks,
     canDrag,
     activeId,
+    liftedId,
+    describedBy,
     lineAt,
     onQuickAdd,
     badgeFor,
@@ -613,6 +754,8 @@ const LaneCell = memo(function LaneCell({
     tasks: TaskInfoInterface[]
     canDrag: (task: TaskInfoInterface) => boolean
     activeId: string | null
+    liftedId: string | null
+    describedBy: string
     lineAt: number | null
     onQuickAdd?: (column: string, name: string, lane?: string) => Promise<boolean>
     badgeFor?: (task: TaskInfoInterface, column: string) => string | undefined
@@ -628,7 +771,7 @@ const LaneCell = memo(function LaneCell({
                 lineAt !== null ? "border-primary/30 bg-accent/50" : "border-transparent bg-muted/30",
             )}
         >
-            <CardStack id={id} column={column} tasks={tasks} canDrag={canDrag} activeId={activeId} lineAt={lineAt} badgeFor={badgeFor} />
+            <CardStack id={id} column={column} tasks={tasks} canDrag={canDrag} activeId={activeId} liftedId={liftedId} describedBy={describedBy} lineAt={lineAt} badgeFor={badgeFor} />
             {onQuickAdd && <QuickAdd compact onAdd={(name) => onQuickAdd(column, name, lane)} />}
         </div>
     )
@@ -636,13 +779,15 @@ const LaneCell = memo(function LaneCell({
 
 /** The line where a dragged card will land. It takes no space, so nothing shifts. */
 function DropLine({ className }: { className: string }) {
-    return <span aria-hidden="true" className={cn("pointer-events-none absolute inset-x-1 z-10 block h-0.5 rounded-full bg-primary", className)} />
+    return <span aria-hidden="true" data-drop-line="" className={cn("pointer-events-none absolute inset-x-1 z-10 block h-0.5 rounded-full bg-primary", className)} />
 }
 
 const BoardCard = memo(function BoardCard({
     task,
     column,
     disabled,
+    lifted,
+    describedBy,
     lineAbove,
     lineBelow,
     statusBadge,
@@ -650,6 +795,9 @@ const BoardCard = memo(function BoardCard({
     task: TaskInfoInterface
     column: string
     disabled: boolean
+    /** Held from the keyboard: it stays in place, ringed, while the line moves. */
+    lifted: boolean
+    describedBy: string
     statusBadge?: string
     lineAbove: boolean
     lineBelow: boolean
@@ -669,10 +817,12 @@ const BoardCard = memo(function BoardCard({
                 task={task}
                 statusBadge={statusBadge}
                 dragging={isDragging}
+                lifted={lifted}
                 highlighted={highlighted}
                 selected={selected}
                 listeners={disabled ? undefined : listeners}
                 data-task-id={task.task_uuid}
+                aria-describedby={disabled ? undefined : describedBy}
             />
             {lineBelow && <DropLine className="-bottom-[5px]" />}
         </div>
