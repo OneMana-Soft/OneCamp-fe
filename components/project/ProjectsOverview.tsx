@@ -36,6 +36,8 @@ import {
 } from "@/lib/projectsOverview"
 import { cn } from "@/lib/utils/helpers/cn"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotWelcome } from "@/components/ui/graphics/spots"
 import { projectGlanceParts } from "@/lib/utils/projectGlance"
 import { daysAgo } from "@/lib/utils/relativeTime"
 import { openUI } from "@/store/slice/uiSlice"
@@ -182,8 +184,8 @@ export function ProjectsOverview() {
   } else if (all.length === 0) {
     body = (
       <div className="flex min-h-[40vh] flex-col items-center justify-center px-4 py-10">
-        <StatePlaceholder
-          type="empty"
+        <EmptyState
+          illustration={<SpotWelcome hue="sky" />}
           title="No projects yet"
           description="Start one from a template (a client project, a launch, a new hire's first weeks) or from a blank page."
           action={

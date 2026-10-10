@@ -19,10 +19,12 @@ import {usePost} from "@/hooks/usePost";
 import {useAnimationState} from "@/hooks/useAnimationState";
 import {UserInfoRawInterface} from "@/types/user";
 import {useTaskUpdate} from "@/hooks/useTaskUpdate";
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
 import { ErrorState } from "@/components/ui/error-state"
 import { Button } from "@/components/ui/button"
 import { openUI } from "@/store/slice/uiSlice"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotTasks } from "@/components/ui/graphics/spots"
+import { Search } from "@/lib/icons"
 
 interface getURLPramInput {
     sortQuery?: sortInterface[]
@@ -237,8 +239,9 @@ export const MyTaskList = ({ searchQuery }: { searchQuery: string }) => {
             taskFiltersAndSorts.filters.length > 0
         return (
             <div className="flex flex-col items-center justify-center py-20 px-4 w-full h-full min-h-[50vh]">
-                <StatePlaceholder
-                    type={isFiltered ? "search" : "empty"}
+                <EmptyState
+                    icon={isFiltered ? Search : undefined}
+                    illustration={isFiltered ? undefined : <SpotTasks />}
                     title={isFiltered ? "No tasks found" : "No tasks yet"}
                     description={
                         isFiltered

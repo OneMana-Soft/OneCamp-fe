@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { serverMessage } from "@/lib/http/serverMessage"
 import { cycleDates, cycleLabel, nextStart, percentDone, type Cycle } from "@/lib/tasks/cycles"
+import { SpotCalendar } from "@/components/ui/graphics/spots"
 
 const STATE_LABEL: Record<string, string> = { current: "Current", upcoming: "Upcoming", ended: "Ended", completed: "Completed" }
 
@@ -60,9 +61,12 @@ export function CyclesButton({
               {isLoading ? (
                 <p className="p-2 text-sm text-muted-foreground">Loading…</p>
               ) : cycles.length === 0 ? (
-                <p className="p-2 text-sm text-muted-foreground">
-                  Cycles are short, fixed stretches of work, a week or two each. Unfinished tasks move to the next one.
-                </p>
+                <div className="grid justify-items-center gap-2 px-2 pt-2 text-center" data-cycles-empty="">
+                  <SpotCalendar size={64} hue="lake" />
+                  <p className="text-sm text-muted-foreground">
+                    Cycles are short, fixed stretches of work, a week or two each. Unfinished tasks move to the next one.
+                  </p>
+                </div>
               ) : (
                 <ul className="grid max-h-80 divide-y overflow-y-auto" aria-label="Cycles">
                   {shown.map((c) => (

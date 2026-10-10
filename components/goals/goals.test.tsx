@@ -105,11 +105,19 @@ describe("the goals list", () => {
     expect(screen.queryByText("Reach 500 teams")).toBeNull()
   })
 
+  it("on a phone, shows each goal's card with how far it is as a ring", () => {
+    list = [summary("g1", { title: "Reach 500 teams", progress: 0.4 })]
+    render(<GoalsView compact />)
+    expect(screen.getByRole("progressbar", { name: "Reach 500 teams: 40%" })).toBeTruthy()
+  })
+
   it("explains goals when there are none", () => {
     list = []
-    render(<GoalsView compact={false} />)
+    const { container } = render(<GoalsView compact={false} />)
     expect(screen.getByText("No goals yet")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Set the first goal" })).toBeTruthy()
+    // The empty state's spot, in the goals' hue (the playful layer).
+    expect(container.querySelector("[data-empty-illustration] svg.hue-sun")).toBeTruthy()
   })
 })
 
