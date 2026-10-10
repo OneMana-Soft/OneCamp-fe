@@ -57,4 +57,28 @@ describe("model per job", () => {
     fireEvent.click(bar.querySelector("button:last-child") as HTMLElement)
     await waitFor(() => expect(setModelRouting).toHaveBeenCalled())
   })
+
+  // It loaded as generic 40px rows that the list of taller rows then replaced,
+  // and a failure took the full height of a page.
+  it("loads in its list's own shape and fails compactly with the server's reason", async () => {
+    vi.mocked(getModelRouting).mockReturnValue(new Promise(() => {}))
+    vi.mocked(getAuthorizedModels).mockResolvedValue([])
+    const { unmount } = render(<ModelRoutingCard />)
+    expect(screen.getByRole("status", { name: /Loading the model choices/ }).hasAttribute("data-section-list-skeleton")).toBe(true)
+    unmount()
+    vi.mocked(getModelRouting).mockRejectedValue({ response: { status: 503, data: { msg: "Routing is unavailable." } } })
+    const { container } = render(<ModelRoutingCard />)
+    expect(await screen.findByText("Routing is unavailable.")).toBeTruthy()
+    expect(container.querySelector("[data-empty-illustration]")).toBeTruthy()
+  })
+
+  // Its pickers were 32px beside the 36px controls of the sections around it.
+  it("draws its pickers at a field's height, one width, by the row's width", async () => {
+    vi.mocked(getModelRouting).mockResolvedValue(routing as never)
+    vi.mocked(getAuthorizedModels).mockResolvedValue([])
+    render(<ModelRoutingCard />)
+    const trigger = await screen.findByLabelText("Summaries and briefings")
+    expect(trigger.className).not.toMatch(/(^|\s)h-8(\s|$)/)
+    expect(trigger.className).toContain("@xl:w-64")
+  })
 })
