@@ -10,11 +10,14 @@ import { changedAtStart } from "@/components/message/listShift";
 
 // Memoized item component to prevent unnecessary re-renders
 const MemoizedMessageItem = React.memo(({ item, index, total, renderItem }: { item: any, index: number, total: number, renderItem: any }) => {
-    return renderItem(item.data!, index, total)
+    return renderItem(item.data!, index, total, !!item.continued)
 }, (prevProps, nextProps) => {
     // Check if data reference is stable (Redux usually keeps it stable)
     // Check if renderItem is stable (we wrapped it in useCallback)
-    return prevProps.item.data === nextProps.item.data && 
+    // continued too: a message whose neighbour above changed (deleted, or
+    // older ones loaded) can join or leave a group with its own data unchanged.
+    return prevProps.item.data === nextProps.item.data &&
+           !!prevProps.item.continued === !!nextProps.item.continued && 
            prevProps.index === nextProps.index && 
            prevProps.total === nextProps.total &&
            prevProps.renderItem === nextProps.renderItem

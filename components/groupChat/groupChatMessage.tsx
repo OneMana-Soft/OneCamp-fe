@@ -18,9 +18,11 @@ interface ChatMessageProps {
   updatePost: (body: string) => void
   grpId: string
   priority?: boolean
+  /** Continues the message above it (lib/messageGrouping). */
+  continued?: boolean
 }
 
-export const GroupChatMessage = ({ updatePost, grpId, chatInfo, addReaction, removeReaction, isAdmin, removePost, priority }: ChatMessageProps) => {
+export const GroupChatMessage = ({ updatePost, grpId, chatInfo, addReaction, removeReaction, isAdmin, removePost, priority, continued }: ChatMessageProps) => {
   const dispatch = useDispatch()
 
   const handleReply = useCallback(() => {
@@ -48,6 +50,7 @@ export const GroupChatMessage = ({ updatePost, grpId, chatInfo, addReaction, rem
       removePost={removePost}
       updatePost={updatePost}
       priority={priority}
+      continued={continued}
       onReply={handleReply}
     />
   )

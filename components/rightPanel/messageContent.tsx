@@ -2,6 +2,7 @@
 
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
 import { formatFullTimestamp, formatTimeForPostOrComment, isoTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment"
+import { ContinuedGutter } from "@/components/message/continuedGutter"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -47,6 +48,8 @@ interface MessageContentProps {
     updateMessage: (id: string, body: string) => void;
     deleteMessage: (id: string) => void;
     getMediaUrl: string
+    /** Continues the reply above it (lib/messageGrouping): no avatar or name. */
+    continued?: boolean
 }
 
 export const MessageContent = ({
@@ -66,7 +69,8 @@ export const MessageContent = ({
     rawReactions,
     channelUUID,
     postUUID,
-    chatUUID
+    chatUUID,
+    continued = false,
                                }: MessageContentProps) => {
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -157,7 +161,7 @@ export const MessageContent = ({
         // time, and a neutral hover. The thread drew a 48px avatar, a lighter
         // name and an orange hover, so a reply looked like a different kind of
         // thing from the message it answered.
-        <div className={cn("group relative flex gap-3 px-2 py-1.5 transition-colors duration-100 hover:bg-accent/40", (isDropdownOpen || isEmojiPickerOpen) && "bg-accent/40")}>
+        <div className={cn("group relative flex gap-3 px-2 transition-colors duration-100 hover:bg-accent/40", continued && !isMessageEditEnabled ? "py-0.5" : "py-1.5", (isDropdownOpen || isEmojiPickerOpen) && "bg-accent/40")}>
 
             {!isMessageEditEnabled && !isGuest && <div
                 className={cn(
@@ -177,6 +181,9 @@ export const MessageContent = ({
                     deleteMessage={()=>{deleteMessage(chatUUID || postUUID || commentUUID || '')}}
                 />
             </div>}
+            {continued && !isMessageEditEnabled ? (
+                <ContinuedGutter createdAt={createdAt || ""} authorName={(asGuest ? guestDisplayName : userInfo?.user_name) || ""} />
+            ) : (
             <div className={cn("h-9 w-9 shrink-0 mt-0.5", !asGuest && "cursor-pointer")} onClick={asGuest ? undefined : handleUserClick}>
                 {asGuest ? (
                     <RelayedAvatar name={guestDisplayName} />
@@ -189,7 +196,9 @@ export const MessageContent = ({
                     />
                 )}
             </div>
+            )}
             <div className="flex-1 min-w-0">
+                {!(continued && !isMessageEditEnabled) && (
                 <div className="flex items-baseline gap-2">
                     {asGuest ? (
                         <span className="text-sm font-semibold text-foreground truncate">{guestDisplayName}</span>
@@ -216,6 +225,7 @@ export const MessageContent = ({
                         {formatTimeForPostOrComment(createdAt || '')}
                     </time>
                 </div>
+                )}
 
                 {replyMessage && !isMessageEditEnabled && (
                     <div className="mb-1 border-l-2 border-primary/40 pl-2">

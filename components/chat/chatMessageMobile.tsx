@@ -1,6 +1,7 @@
 import { displayNameOf } from "@/lib/personName"
 import {ChannelMessageAvatar} from "@/components/channel/channelMessageAvatar";
 import { BotTag } from "@/components/ui/botTag";
+import { ContinuedGutter } from "@/components/message/continuedGutter";
 import {formatTimeForPostOrComment} from "@/lib/utils/date/formatTimeForPostOrComment";
 import {cn} from "@/lib/utils/helpers/cn";
 import { Check, X } from "@/lib/icons";
@@ -42,10 +43,12 @@ interface ChatMessageProps {
     removeChat: () => void
     updateChat: (body: string) => void
     priority?: boolean
+    /** Continues the message above it (lib/messageGrouping). */
+    continued?: boolean
 }
 
 
-export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReaction, removeChat, updateChat, priority}: ChatMessageProps) => {
+export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReaction, removeChat, updateChat, priority, continued = false}: ChatMessageProps) => {
 
     const dispatch = useDispatch();
 
@@ -202,9 +205,12 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
             wrap={(c) => (
                 <div onClick={handleOnCLick}>{c}</div>
             )}>
-        <div id={messageDomId(chatInfo.chat_uuid)} className='flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100' {...longPressEvent} >
+        <div id={messageDomId(chatInfo.chat_uuid)} className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? 'py-0.5' : 'py-2.5'} select-none active:bg-accent/50 transition-colors duration-100`} {...longPressEvent} >
 
-            <div className='h-9 w-9 mt-0.5 flex-shrink-0' onClick={handleUserClick}>
+            {continued && !isMessageEditEnabled ? (
+                <ContinuedGutter createdAt={chatInfo.chat_created_at} authorName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)} />
+            ) : (
+                <div className='h-9 w-9 mt-0.5 flex-shrink-0' onClick={handleUserClick}>
                 <ChannelMessageAvatar
                     userName={messageAuthorName(chatInfo.chat_from, userInfoState?.userName)}
                     userProfileKey={userInfoState?.profileKey ?? chatInfo.chat_from.user_profile_object_key}
@@ -213,7 +219,9 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
                 />
 
             </div>
+            )}
             <div className='flex-1 min-w-0'>
+                {!(continued && !isMessageEditEnabled) && (
                 <div className='flex items-baseline gap-2'>
                     <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
                         {messageAuthorName(chatInfo.chat_from, userInfoState.userName)}
@@ -224,6 +232,7 @@ export const ChatMessageMobile = ({chatInfo, isAdmin, addReaction, removeReactio
 
                     </div>
                 </div>
+            )}
                     {chatInfo.chat_reply_to && !isMessageEditEnabled && (
                         <div
                             className="interactive mb-1 border-l-2 border-primary/40 pl-2"

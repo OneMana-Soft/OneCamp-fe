@@ -21,9 +21,11 @@ interface ChatMessageProps {
   removePost: () => void
   updatePost: (body: string) => void
   priority?: boolean
+  /** Continues the message above it (lib/messageGrouping). */
+  continued?: boolean
 }
 
-export const ChatMessage = React.memo(({ updatePost, chatInfo, addReaction, removeReaction, isAdmin, removePost, priority }: ChatMessageProps) => {
+export const ChatMessage = React.memo(({ updatePost, chatInfo, addReaction, removeReaction, isAdmin, removePost, priority, continued }: ChatMessageProps) => {
   const otherUserUUID = usePathname().split("/")[3]
   const dispatch = useDispatch()
   const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
@@ -57,6 +59,7 @@ export const ChatMessage = React.memo(({ updatePost, chatInfo, addReaction, remo
       removePost={removePost}
       updatePost={updatePost}
       priority={priority}
+      continued={continued}
       showErrorBoundary={true}
       onReply={handleReply}
     />

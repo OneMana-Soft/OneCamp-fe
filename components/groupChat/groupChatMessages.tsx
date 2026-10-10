@@ -1,4 +1,5 @@
 // src/components/channel/ChannelMessages.tsx
+import { withContinuation } from "@/lib/messageGrouping"
 import { useEffect, useMemo, useRef, useCallback} from "react";
 import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
 import type {ChatTarget} from "@/lib/chat/conversation";
@@ -260,13 +261,14 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
             items.push({ type: "separator", date, key:  "separator"+date});
             groupedChats[date].forEach((chat) => items.push({ type: "item", data: chat, key: chat.chat_uuid}));
         });
-        return items;
+        // Same author within five minutes: drawn as one turn (lib/messageGrouping).
+        return withContinuation(items, (c) => ({ author: c.chat_from?.user_uuid, at: c.chat_created_at, isBot: !!c.chat_from?.is_bot, standalone: !!(c.chat_reply_to || c.chat_fwd_msg_post || c.chat_fwd_msg_chat) }))
     }, [groupedChats]);
 
     // Read receipts: whose they are (a DM by the other person, a group by its id).
     const receiptTarget = useMemo<ChatTarget>(() => ({ kind: "group", grpId }), [grpId]);
 
-    const renderItem = (chat: ChatInfo, index: number, total: number) => {
+    const renderItem = (chat: ChatInfo, index: number, total: number, continued?: boolean) => {
         const isPriority = index >= total - 5;
         return (
         <div >
@@ -283,6 +285,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                         removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
                         updateChat={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
                         priority={isPriority}
+                    continued={continued}
                         grpId={grpId}
 
 
@@ -297,6 +300,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                     updatePost={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
                     grpId={grpId}
                     priority={isPriority}
+                    continued={continued}
                 />
             }
             {index === total - 1 && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}

@@ -6,6 +6,7 @@ import { PrincipalTag } from "@/components/ui/principalTag"
 import { useRelayedAuthor } from "@/hooks/useRelayedAuthor"
 import { RelayedAvatar } from "@/components/message/relayedAvatar"
 import { ChannelMessageAvatar } from "@/components/channel/channelMessageAvatar"
+import { ContinuedGutter } from "@/components/message/continuedGutter"
 import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment"
 import type { PostsRes } from "@/types/post"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -49,6 +50,8 @@ interface ChannelMessageProps {
     removePost: () => void
     updatePost: (body: string) => void
     priority?: boolean
+    /** Continues the message above it (lib/messageGrouping). */
+    continued?: boolean
 }
 
 const ChannelMessageMobileComponent = ({
@@ -60,6 +63,7 @@ const ChannelMessageMobileComponent = ({
                                            removePost,
                                            updatePost,
                                            priority,
+                                           continued = false,
                                        }: ChannelMessageProps) => {
     const dispatch = useDispatch()
 
@@ -233,8 +237,11 @@ const ChannelMessageMobileComponent = ({
 
     return (
         <ConditionalWrap condition={!isMessageEditEnabled} wrap={(c) => <div onClick={handleOnClick} className="block cursor-pointer">{c}</div>}>
-            <div id={messageDomId(postInfo.post_uuid)} className="flex gap-3 px-4 py-2.5 select-none active:bg-accent/50 transition-colors duration-100" {...longPressEvent}>
-                <div className="h-9 w-9 mt-0.5 flex-shrink-0" onClick={handleUserClick}>
+            <div id={messageDomId(postInfo.post_uuid)} className={`flex gap-3 px-4 ${continued && !isMessageEditEnabled ? "py-0.5" : "py-2.5"} select-none active:bg-accent/50 transition-colors duration-100`} {...longPressEvent}>
+                {continued && !isMessageEditEnabled ? (
+                    <ContinuedGutter createdAt={postInfo.post_created_at} authorName={authorName} />
+                ) : (
+                    <div className="h-9 w-9 mt-0.5 flex-shrink-0" onClick={handleUserClick}>
                     {relayed ? (
                         <RelayedAvatar name={relayed.name} />
                     ) : (
@@ -246,7 +253,9 @@ const ChannelMessageMobileComponent = ({
                         />
                     )}
                 </div>
+                )}
                 <div className="flex-1 min-w-0">
+                    {!(continued && !isMessageEditEnabled) && (
                     <div className="flex items-baseline gap-2">
                         <div className="text-sm font-semibold text-foreground truncate" onClick={handleUserClick}>{authorName}</div>
                         {relayed ? <PrincipalTag kind={relayed.kind} /> : postInfo.post_by.is_bot && <BotTag userUUID={postInfo.post_by.user_uuid} />}
@@ -254,6 +263,7 @@ const ChannelMessageMobileComponent = ({
                             {formatTimeForPostOrComment(postInfo.post_created_at, true)}
                         </div>
                     </div>
+                )}
                     {postInfo.post_reply_to && !isMessageEditEnabled && (
                         <div
                             className="interactive mb-1 border-l-2 border-primary/40 pl-2"

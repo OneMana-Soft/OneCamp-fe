@@ -64,3 +64,14 @@ export function formatListTimestamp(dateString: string | number): string {
     const sameYear = dateObject.getFullYear() === now.getFullYear()
     return dateObject.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) })
 }
+
+/**
+ * "3:10", for the time beside a message that continues the one above it: the
+ * gutter is an avatar wide, and the hour and minute are what tell two
+ * messages apart there. The full time is in its tooltip.
+ */
+export function formatGutterClock(dateString: string | number): string {
+    const dateObject = toDate(dateString)
+    if (isNaN(dateObject.getTime())) return ""
+    return dateObject.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s?[AP]M$/i, "")
+}
