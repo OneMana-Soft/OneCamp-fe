@@ -21,6 +21,7 @@ import React, { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
 import { Download, X, CheckCircle2 } from "lucide-react"
 import { OllamaUpdateSteps } from "@/components/admin/ai/OllamaUpdateSteps"
 import { PullProgress, pullModel, formatBytes } from "@/services/aiModelService"
@@ -167,12 +168,10 @@ export const ModelInstaller: React.FC<{
               </span>
             ) : null}
           </div>
-          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full bg-primary transition-[width,height]"
-              style={{ width: pct != null ? `${pct}%` : "33%" }}
-            />
-          </div>
+          {/* The shared bar: it moves by transform, where this one grew its
+              width (a layout on every tick of a pull), and fills with the
+              theme's progress colour. */}
+          <Progress value={pct ?? 33} className="h-1.5" aria-label={`Installing ${tag.trim() || "the model"}`} />
         </div>
       )}
 

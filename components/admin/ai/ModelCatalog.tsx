@@ -18,6 +18,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { SegmentedControl } from "@/components/ui/segmentedControl"
+import { EmptyState } from "@/components/ui/empty-state"
+import { ErrorState } from "@/components/ui/error-state"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import {
   Search,
   Download,
@@ -84,6 +89,11 @@ export const ModelCatalog: React.FC<{
   const [refreshing, setRefreshing] = useState(false)
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<Filter>("all")
+  // A failed first load is said where the list would be, with Try again. It
+  // used to toast, then fall through to "No models match your search.", a
+  // false empty with nothing to press. A failed refresh keeps the list it has
+  // and says so in a toast.
+  const [failure, setFailure] = useState("")
 
   const load = useCallback(
     async (refresh = false) => {
@@ -92,12 +102,11 @@ export const ModelCatalog: React.FC<{
       try {
         const cat = await getOllamaCatalog(providerId, refresh)
         setModels(cat.models ?? [])
+        setFailure("")
       } catch (e) {
-        toast({
-          title: "Couldn't load the model catalog",
-          description: apiErrorMessage(e, "The model provider couldn't be reached. Check that it is running."),
-          variant: "destructive",
-        })
+        const why = apiErrorMessage(e, "The model provider couldn't be reached. Check that it is running.")
+        if (refresh) toast({ title: "Couldn't refresh the model catalog", description: why, variant: "destructive" })
+        else setFailure(why)
       } finally {
         setLoading(false)
         setRefreshing(false)
@@ -153,12 +162,15 @@ export const ModelCatalog: React.FC<{
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search models (e.g. llama, embeddings, code)…"
+            aria-label="Search models"
             className="h-9 pl-8"
           />
         </div>
+        {/* The search's height beside it: it was a 32px button by a 36px field. */}
         <Button
           variant="outline"
           size="sm"
+          className="h-11 md:h-9"
           onClick={() => load(true)}
           disabled={refreshing || loading}
           title="Re-fetch the latest catalog"
@@ -168,29 +180,17 @@ export const ModelCatalog: React.FC<{
         </Button>
       </div>
 
-      {/* Filter chips */}
-      <div className="flex flex-wrap gap-1.5">
-        {FILTERS.map((f) => {
-          const active = filter === f.key
-          const count = f.key === "installed" ? installedCount : undefined
-          if (f.key === "installed" && installedCount === 0) return null
-          return (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setFilter(f.key)}
-              className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f.label}
-              {count != null ? ` · ${count}` : ""}
-            </button>
-          )
-        })}
-      </div>
+      {/* One of a few, so the house segmented control: they were pills with
+          the chosen one filled in the accent. */}
+      <SegmentedControl
+        aria-label="Show models"
+        value={filter}
+        onValueChange={setFilter}
+        options={FILTERS.filter((f) => f.key !== "installed" || installedCount > 0).map((f) => ({
+          value: f.key,
+          label: f.key === "installed" ? `${f.label} · ${installedCount}` : f.label,
+        }))}
+      />
 
       {/* Grid */}
       {loading ? (
@@ -199,16 +199,40 @@ export const ModelCatalog: React.FC<{
             <div key={i} className="h-28 rounded-lg border border-border bg-card/50 animate-pulse" />
           ))}
         </div>
+      ) : failure && !models ? (
+        <ErrorState compact subject="the model catalog" detail={failure} onRetry={() => void load(false)} />
       ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-6 text-center">
-          <p className="text-sm text-muted-foreground">No models match your search.</p>
-          <p className="text-2xs text-muted-foreground mt-1">
-            You can still install any tag from{" "}
-            <a href="https://ollama.com/library" target="_blank" rel="noreferrer" className="underline">
-              ollama.com/library
-            </a>{" "}
-            using the manual installer below.
-          </p>
+        <div className="rounded-lg border border-border">
+          <EmptyState
+            icon={Search}
+            hue={ADMIN_GROUP_HUE.ai}
+            title="No models match"
+            headingLevel={4}
+            className="py-6"
+            description={
+              <>
+                Any tag from{" "}
+                <a href="https://ollama.com/library" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                  ollama.com/library
+                </a>{" "}
+                can still be installed with the installer below.
+              </>
+            }
+            action={
+              query || filter !== "all" ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setQuery("")
+                    setFilter("all")
+                  }}
+                >
+                  {query ? "Clear search" : "Show all"}
+                </Button>
+              ) : undefined
+            }
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -360,9 +384,8 @@ const CatalogCard: React.FC<{
               <X className="h-3 w-3" /> cancel
             </button>
           </div>
-          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <div className="h-full bg-primary transition-[width,height]" style={{ width: pct != null ? `${pct}%` : "33%" }} />
-          </div>
+          {/* The shared bar, moving by transform rather than growing its width. */}
+          <Progress value={pct ?? 33} className="h-1.5" aria-label={`Installing ${model.display_name || model.tag}`} />
         </div>
       ) : model.installed ? (
         <Button variant="ghost" size="sm" disabled className="h-7 justify-start px-0 text-success-ink">
