@@ -12,6 +12,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import type { DocInfoListInterfaceResp } from "@/types/doc";
 import { defaultDocTab, isDocTab, type DocTab } from "@/lib/utils/docTab";
+import { DocGridSkeleton } from "@/components/doc/docListResult";
 
 type TabValue = DocTab
 
@@ -69,17 +70,34 @@ export function DocListTabs() {
             icon={FileText}
             title="Docs"
             actions={
+                // Not on a phone: its app bar has the one "+", and a second
+                // beside the tabs offered the same thing twice.
                 <Button
                     variant="ghost"
                     size="icon"
                     aria-label="New doc"
+                    className="max-sm:hidden"
                     onClick={() => dispatch(openUI({ key: "createDoc" }))}
                 >
                     <Plus className="h-4 w-4" />
                 </Button>
             }
         >
-            <DocListTabContent selectedTab={selectedTab} />
+            {/* Until the tab to open is known, only the cards' shape: a new
+                member saw the skeleton, Private's "No documents yet", the
+                skeleton again and then Public, with the underline moving on
+                its own. */}
+            {chosen ? <DocListTabContent selectedTab={selectedTab} /> : <DocListSettling />}
         </SectionTabs>
+    )
+}
+
+/** The list's frame (its search row, then the cards' shape) while the tab to open is worked out. */
+function DocListSettling() {
+    return (
+        <div className="flex flex-col flex-1 min-h-0">
+            <div className="h-[53px] border-b border-border/60" aria-hidden="true" />
+            <DocGridSkeleton withCreateCard />
+        </div>
     )
 }
