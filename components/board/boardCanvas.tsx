@@ -27,7 +27,7 @@ import { GetEndpointUrl, PostFileUploadURL, PostEndpointUrl } from "@/services/e
 import { useToast } from "@/hooks/use-toast"
 import { useClientConfig } from "@/hooks/useClientConfig"
 import { approxDataUrlBytes, exceedsUploadLimit, uploadLimitMessage } from "@/lib/utils/uploadLimit"
-import { whenSceneReady } from "@/lib/board/scene"
+import { sceneSignature, whenSceneReady } from "@/lib/board/scene"
 import "@excalidraw/excalidraw/index.css"
 
 // Types are erased at runtime; importing them as types keeps SSR safe.
@@ -532,6 +532,8 @@ function BoardCanvas({
   // shared map. New images are uploaded to MinIO and only their metadata is
   // shared. Skipped while applying a remote change, and for viewers.
   // -------------------------------------------------------------------------
+  // The scene's fingerprint when it was last synced to the shared document.
+  const lastSignatureRef = React.useRef("")
   const handleChange = React.useCallback(
     (elements: readonly { id: string; version?: number }[], appState: unknown, files: Record<string, unknown>) => {
       // Persist the camera (scroll + zoom) for everyone, including viewers and
@@ -543,18 +545,70 @@ function BoardCanvas({
       }
 
       if (!editable || applyingRemoteRef.current) return
+      // Offload any new images to object storage (async, outside the transact).
+      // First, and on every call: an image's bytes can arrive in a change of
+      // their own, after its element.
+      if (files) {
+        for (const [fileId, file] of Object.entries(files)) {
+          if (yFiles.has(fileId) || seenFilesRef.current.has(fileId)) continue
+          const f = file as { dataURL?: string; mimeType?: string }
+          if (!f.dataURL || !f.dataURL.startsWith("data:")) continue
+          seenFilesRef.current.add(fileId)
+
+          // Guard the workspace upload limit before sending bytes (the backend
+          // enforces the real cap too). The estimate and the wording come from the
+          // shared helper so the board, the doc editor and the upload hook all
+          // refuse the same things and say the same thing.
+          const approxBytes = approxDataUrlBytes(f.dataURL)
+          if (exceedsUploadLimit(approxBytes, clientConfig.upload_limit_bytes)) {
+            toast({
+              title: "Image too large",
+              description: uploadLimitMessage(approxBytes, clientConfig.upload_limit_mb),
+              variant: "destructive",
+            })
+            // Keep it marked seen so we don't retry on every change.
+            continue
+          }
+
+          uploadBoardImage(boardId, f.dataURL, f.mimeType || "image/png")
+            .then((objectUuid) => {
+              if (!objectUuid) return
+              yDoc.transact(() => {
+                yFiles.set(fileId, { id: fileId, objectUuid, mimeType: f.mimeType || "image/png" })
+              }, LOCAL_ORIGIN)
+            })
+            .catch(() => {
+              // Keep it marked seen (no retry loop on every change) and tell
+              // the user once; they can remove and re-add to try again.
+              toast({
+                title: "Image upload failed",
+                description: "The image could not be saved to the board. Please try again.",
+                variant: "destructive",
+              })
+            })
+        }
+      }
+
+      // A pan or a zoom changes nothing to share. Excalidraw calls this once a
+      // frame while someone pans, and walking the shared document for every
+      // element each time (and scheduling a thumbnail, a PNG upload ten
+      // seconds later) was work for nothing: the scene's fingerprint says
+      // whether any element changed.
+      const sceneNow = apiRef.current?.getSceneElementsIncludingDeleted() ?? elements
+      const signature = sceneSignature(sceneNow as readonly { version?: number; versionNonce?: number }[])
+      if (signature === lastSignatureRef.current) return
+      lastSignatureRef.current = signature
       // Sync from the full scene INCLUDING deleted elements so erases persist
       // (an eraser stroke flips isDeleted + bumps version; if we only synced the
       // visible elements the deletion would never reach Yjs and the element
       // would reappear on reload). Fall back to the onChange list if the API
       // is not ready yet.
-      const allEls =
-        (apiRef.current?.getSceneElementsIncludingDeleted() as readonly {
-          id: string
-          version?: number
-          versionNonce?: number
-          isDeleted?: boolean
-        }[]) ?? elements
+      const allEls = sceneNow as readonly {
+        id: string
+        version?: number
+        versionNonce?: number
+        isDeleted?: boolean
+      }[]
       yDoc.transact(() => {
         for (const el of allEls) {
           const existing = yElements.get(el.id) as
@@ -607,47 +661,6 @@ function BoardCanvas({
       // Refresh the board thumbnail a while after edits settle.
       scheduleThumbnail()
 
-      // Offload any new images to object storage (async, outside the transact).
-      if (files) {
-        for (const [fileId, file] of Object.entries(files)) {
-          if (yFiles.has(fileId) || seenFilesRef.current.has(fileId)) continue
-          const f = file as { dataURL?: string; mimeType?: string }
-          if (!f.dataURL || !f.dataURL.startsWith("data:")) continue
-          seenFilesRef.current.add(fileId)
-
-          // Guard the workspace upload limit before sending bytes (the backend
-          // enforces the real cap too). The estimate and the wording come from the
-          // shared helper so the board, the doc editor and the upload hook all
-          // refuse the same things and say the same thing.
-          const approxBytes = approxDataUrlBytes(f.dataURL)
-          if (exceedsUploadLimit(approxBytes, clientConfig.upload_limit_bytes)) {
-            toast({
-              title: "Image too large",
-              description: uploadLimitMessage(approxBytes, clientConfig.upload_limit_mb),
-              variant: "destructive",
-            })
-            // Keep it marked seen so we don't retry on every change.
-            continue
-          }
-
-          uploadBoardImage(boardId, f.dataURL, f.mimeType || "image/png")
-            .then((objectUuid) => {
-              if (!objectUuid) return
-              yDoc.transact(() => {
-                yFiles.set(fileId, { id: fileId, objectUuid, mimeType: f.mimeType || "image/png" })
-              }, LOCAL_ORIGIN)
-            })
-            .catch(() => {
-              // Keep it marked seen (no retry loop on every change) and tell
-              // the user once; they can remove and re-add to try again.
-              toast({
-                title: "Image upload failed",
-                description: "The image could not be saved to the board. Please try again.",
-                variant: "destructive",
-              })
-            })
-        }
-      }
     },
     [editable, yDoc, yElements, yFiles, boardId, toast, clientConfig.upload_limit_bytes, clientConfig.upload_limit_mb, scheduleThumbnail, persistViewport],
   )

@@ -85,7 +85,6 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
   const yFac = React.useMemo(() => yDoc.getMap<unknown>("facilitation"), [yDoc])
   const yVotes = React.useMemo(() => yDoc.getMap<unknown>("votes"), [yDoc])
   const awareness = provider.awareness
-  const view = useBoardView(api)
   const { isMobile } = useMedia()
   const { toast } = useToast()
 
@@ -202,6 +201,9 @@ export default function BoardFacilitation({ provider, api, user, editable }: Pro
   const [presenters, setPresenters] = React.useState<Presenter[]>([])
   const [presenting, setPresenting] = React.useState(false)
   const [following, setFollowing] = React.useState<number | null>(null)
+  // Where the board is looking: for vote dots, and for presenting and
+  // following. Off the rest of the time, so a pan costs this panel nothing.
+  const view = useBoardView(api, !!voting || presenting || following !== null)
   const declined = React.useRef<Set<number>>(new Set())
 
   React.useEffect(() => {
