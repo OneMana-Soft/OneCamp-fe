@@ -215,12 +215,15 @@ export async function cancelImportJob(jobId: string): Promise<void> {
   await axiosInstance.post(`/admin/import/jobs/${encodeURIComponent(jobId)}/cancel`)
 }
 
+// Rolling back, and deleting the staged file, are refused (409 run_alive)
+// while the import's last run is still stopping, in `error`, which the
+// global toast does not read: the caller says it (importProblemOf).
 export async function rollbackImportJob(jobId: string): Promise<void> {
-  await axiosInstance.post(`/admin/import/jobs/${encodeURIComponent(jobId)}/rollback`)
+  await axiosInstance.post(`/admin/import/jobs/${encodeURIComponent(jobId)}/rollback`, undefined, OWN_ERRORS)
 }
 
 export async function deleteImportStagedZip(jobId: string): Promise<void> {
-  await axiosInstance.delete(`/admin/import/jobs/${encodeURIComponent(jobId)}/staged-zip`)
+  await axiosInstance.delete(`/admin/import/jobs/${encodeURIComponent(jobId)}/staged-zip`, OWN_ERRORS)
 }
 
 export async function getImportJob(jobId: string): Promise<ImportJob> {

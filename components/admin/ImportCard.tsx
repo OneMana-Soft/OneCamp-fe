@@ -256,8 +256,9 @@ const ImportCard: React.FC = () => {
           await rollbackImportJob(jobId)
           toast({ title: "Rolled back" })
           refetchJobs()
-        } catch (err: any) {
-          toast({ title: "Rollback failed", description: err?.response?.data?.error, variant: "destructive" })
+        } catch (err) {
+          // The request shows no toast of its own: this is the one.
+          toast({ title: "Rollback failed", description: importProblemOf(err).message, variant: "destructive" })
         }
       },
     })

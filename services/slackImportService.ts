@@ -109,7 +109,10 @@ export async function uploadSlackExport(
 
 /**
  * Run the planning pass. Reads the staged ZIP, computes counts, persists
- * the plan and chunk queue. Returns the plan for display.
+ * the plan and chunk queue. Returns the plan for display. The plan dialog
+ * says what went wrong itself (importProblemOf), in the dialog: a refusal
+ * such as "the last run is still stopping" (409 run_alive) comes in
+ * `error`, which the global toast does not read.
  */
 export async function planSlackImport(
   jobId: string,
@@ -118,6 +121,7 @@ export async function planSlackImport(
   const res = await axiosInstance.post(
     `${PostEndpointUrl.SlackImportPlan}/${encodeURIComponent(jobId)}`,
     { options },
+    OWN_ERRORS,
   )
   return res.data
 }
@@ -151,11 +155,14 @@ export async function cancelSlackImport(jobId: string): Promise<void> {
 
 /**
  * Roll back a completed/failed/cancelled import. Soft-deletes every
- * imported entity. Idempotent — running twice is a no-op.
+ * imported entity. Idempotent — running twice is a no-op. The caller says
+ * what went wrong (importProblemOf).
  */
 export async function rollbackSlackImport(jobId: string): Promise<void> {
   await axiosInstance.post(
     `${PostEndpointUrl.SlackImportRollback}/${encodeURIComponent(jobId)}`,
+    undefined,
+    OWN_ERRORS,
   )
 }
 
@@ -287,7 +294,9 @@ export async function uploadSlackExportPresigned(
  * call cancelSlackImport first if you need to.
  */
 export async function deleteStagedZip(jobId: string): Promise<void> {
+  // The caller says what went wrong (importProblemOf).
   await axiosInstance.delete(
     `/admin/import/slack/jobs/${encodeURIComponent(jobId)}/staged-zip`,
+    OWN_ERRORS,
   )
 }

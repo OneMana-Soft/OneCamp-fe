@@ -37,7 +37,7 @@ import {
   type SlackImportOptions,
   type SlackImportPlan,
 } from "@/services/slackImportService"
-import { importProblemOf, jobChanged } from "@/services/importService"
+import { importProblemOf, jobChanged, type ImportProblem } from "@/services/importService"
 
 interface Props {
   jobId: string
@@ -54,8 +54,12 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
   const [planning, setPlanning] = useState(true)
   const [running, setRunning] = useState(false)
   const [plan, setPlan] = useState<SlackImportPlan | null>(null)
-  // Said in place of a plan when the import moved on while it was planned.
-  const [changed, setChanged] = useState<string | null>(null)
+  // Why planning failed, said in the dialog in place of a plan, as the other
+  // importers' plan dialog does: the import moved on meanwhile, or the last
+  // run is still stopping (409 run_alive), or anything else. It was a
+  // "Planning failed" toast over a dialog with no plan and no way to try again.
+  const [problem, setProblem] = useState<ImportProblem | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   // Operator-tunable knobs. Defaults match backend defaults.
   const [skipSubtypes, setSkipSubtypes] = useState(true)
@@ -68,27 +72,18 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
     let cancelled = false
     ;(async () => {
       setPlanning(true)
-      setChanged(null)
+      setProblem(null)
       try {
         const opts = currentOptions()
         const p = await planSlackImport(jobId, opts)
         if (!cancelled) setPlan(p)
       } catch (err) {
-        const problem = importProblemOf(err)
-        if (!cancelled && jobChanged(problem)) {
-          // Run started it from another tab, say: said here, and the import
-          // loaded again behind the dialog to show what it is now.
-          setChanged(problem.message)
-          onChanged?.()
-        } else if (!cancelled) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const e = err as any
-          toast({
-            title: "Planning failed",
-            description: e?.response?.data?.error || e?.message || "Unable to plan import.",
-            variant: "destructive",
-          })
-        }
+        if (cancelled) return
+        const p = importProblemOf(err, "Couldn't plan this import. Try again.")
+        setProblem(p)
+        // Run started it from another tab, say: the import is loaded again
+        // behind the dialog, to show what it is now.
+        if (jobChanged(p)) onChanged?.()
       } finally {
         if (!cancelled) setPlanning(false)
       }
@@ -97,7 +92,7 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, jobId])
+  }, [open, jobId, attempt])
 
   const currentOptions = (): SlackImportOptions => ({
     skip_subtypes: skipSubtypes,
@@ -234,8 +229,14 @@ export const SlackImportPlanDialog: React.FC<Props> = ({ jobId, open, onOpenChan
         )}
 
         {!planning && !plan && (
-          changed ? (
-            <p role="alert" className="py-8 text-center text-sm text-danger-ink">{changed}</p>
+          problem ? (
+            <div role="alert" className="space-y-3 py-4">
+              <p className="break-words text-sm text-danger-ink">{problem.message}</p>
+              {/* An import that moved on has nothing to plan again here. */}
+              {!jobChanged(problem) && (
+                <Button size="sm" variant="outline" onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+              )}
+            </div>
           ) : (
             <div className="py-8 text-center text-sm text-muted-foreground">
               Could not produce a plan. Check the job&apos;s error message and try again.

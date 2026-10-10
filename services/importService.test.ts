@@ -154,10 +154,11 @@ describe("importService — jobs", () => {
     expect(ax.post).toHaveBeenCalledWith("/admin/import/jobs/job-1/cancel")
   })
 
-  it("rollbackImportJob hits rollback endpoint", async () => {
+  it("rollbackImportJob hits rollback endpoint, leaving the screen to say what went wrong", async () => {
     ax.post.mockResolvedValueOnce({ data: {} })
     await rollbackImportJob("job-1")
-    expect(ax.post).toHaveBeenCalledWith("/admin/import/jobs/job-1/rollback")
+    // Refused with 409 run_alive while the last run is still stopping, in `error`.
+    expect(ax.post).toHaveBeenCalledWith("/admin/import/jobs/job-1/rollback", undefined, { suppressErrorToast: true })
   })
 
   it("retryFailedImportChunks returns the reset+rerun shape, leaving the screen to say what went wrong", async () => {
@@ -284,10 +285,10 @@ describe("importService — presign + finalize", () => {
     expect(ax.post).toHaveBeenCalledWith("/admin/import/trello/finalize/job-1")
   })
 
-  it("deleteImportStagedZip uses DELETE", async () => {
+  it("deleteImportStagedZip uses DELETE, leaving the screen to say what went wrong", async () => {
     ax.delete.mockResolvedValueOnce({ data: {} })
     await deleteImportStagedZip("job-1")
-    expect(ax.delete).toHaveBeenCalledWith("/admin/import/jobs/job-1/staged-zip")
+    expect(ax.delete).toHaveBeenCalledWith("/admin/import/jobs/job-1/staged-zip", { suppressErrorToast: true })
   })
 })
 
