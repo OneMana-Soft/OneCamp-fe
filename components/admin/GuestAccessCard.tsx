@@ -9,15 +9,17 @@
 // rosters, search, or memory.
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState } from "@/components/ui/error-state"
+import { SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Loader2, Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban } from "@/lib/icons"
+import { Clock, FileText, Table as TableIcon, Video, Kanban, ExternalLink, Hash, FolderKanban } from "@/lib/icons"
 import { getWorkspaceSettings } from "@/services/settingsService"
 import { setGuestAccess, listGuestGrants, revokeGuestGrant, type GuestGrant } from "@/services/guestService"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { formatDistanceToNow } from "date-fns"
 
 // Per-resource-type display: a friendly label, an icon, and (for resources that
@@ -38,12 +40,39 @@ function resourceMeta(type: string) {
     return RESOURCE_META[type] || { label: type, Icon: FileText }
 }
 
+/** What a link lets its holder do, from their side: "Can comment", not "comment". */
+const CAPABILITY: Record<string, string> = {
+    view: "Can read",
+    read: "Can read",
+    comment: "Can comment",
+    post: "Can post",
+    approve: "Can approve",
+}
+const capabilityLabel = (c: string) => CAPABILITY[c] ?? `Can ${c}`
+
+function GrantsSkeleton() {
+    return (
+        <ul aria-busy="true" aria-label="Loading the guest links" className="divide-y divide-border rounded-lg border border-border">
+            {Array.from({ length: 2 }).map((_, i) => (
+                <li key={i} className="flex items-center gap-2.5 px-3 py-2.5" aria-hidden="true">
+                    <Skeleton className="h-7 w-7 shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                        <Skeleton className="h-3.5 w-36" />
+                        <Skeleton className="h-3 w-28" />
+                    </div>
+                </li>
+            ))}
+        </ul>
+    )
+}
+
 export default function GuestAccessCard() {
     const { toast } = useToast()
     const confirm = useConfirm()
 
-    const [enabled, setEnabled] = useState(false)
-    const [loading, setLoading] = useState(true)
+    // null until the server has said: the switch is never drawn from a guess.
+    const [enabled, setEnabled] = useState<boolean | null>(null)
+    const [failed, setFailed] = useState(false)
     const [saving, setSaving] = useState(false)
     const [grants, setGrants] = useState<GuestGrant[]>([])
     const [grantsLoading, setGrantsLoading] = useState(false)
@@ -61,13 +90,25 @@ export default function GuestAccessCard() {
             .finally(() => setGrantsLoading(false))
     }
 
-    useEffect(() => {
+    // A failed read used to leave the switch at off, its default, beside a
+    // toast that soon left: an admin would "turn on" something already on.
+    const loadSetting = () => {
+        setFailed(false)
+        setEnabled(null)
         getWorkspaceSettings()
-            .then((s) => setEnabled(!!s?.guest_access_enabled))
-            .catch(() => toast({ title: "Couldn't load guest settings", variant: "destructive" }))
-            .finally(() => setLoading(false))
+            .then((s) => {
+                if (!s) {
+                    setFailed(true)
+                    return
+                }
+                setEnabled(!!(s as { guest_access_enabled?: boolean }).guest_access_enabled)
+            })
+            .catch(() => setFailed(true))
+    }
+
+    useEffect(() => {
+        loadSetting()
         loadGrants()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const apply = async (next: boolean) => {
@@ -77,11 +118,11 @@ export default function GuestAccessCard() {
         try {
             const applied = await setGuestAccess(next)
             setEnabled(applied)
-            toast({ title: applied ? "Guest access enabled" : "Guest access disabled" })
+            toast({ title: applied ? "Guest access on" : "Guest access off" })
             if (applied) loadGrants()
-        } catch {
+        } catch (e) {
             setEnabled(!next)
-            toast({ title: "Failed to update guest access", variant: "destructive" })
+            toast({ title: "Couldn't change guest access", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setSaving(false)
         }
@@ -116,8 +157,8 @@ export default function GuestAccessCard() {
                     await revokeGuestGrant(id)
                     setGrants((prev) => prev.filter((g) => g.id !== id))
                     toast({ title: "Guest link revoked" })
-                } catch {
-                    toast({ title: "Failed to revoke", variant: "destructive" })
+                } catch (e) {
+                    toast({ title: "Couldn't revoke the link", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
                 } finally {
                     setRevoking(null)
                 }
@@ -126,108 +167,110 @@ export default function GuestAccessCard() {
     }
 
     return (
-        <Card className="border-border/60">
-            <CardHeader>
-                <div className="flex items-center gap-2">
-                    <CardTitle className="text-base font-semibold">Guest access</CardTitle>
-                </div>
-                <CardDescription>
-                    Let members share one doc, board, table, channel, project or meeting with people outside the
-                    workspace (clients, contractors) through a link. Whoever shares it chooses what the link allows
-                    (reading, commenting, posting in a channel, approving tasks) and when it ends, if ever. Guests
-                    get no account and never appear in your workspace. Off by default.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-                <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 p-4">
-                    <div className="pr-4">
-                        <h3 className="text-sm font-semibold">Allow guest links</h3>
-                        <p className="text-xs text-muted-foreground">
-                            When off, no guest link can be created or used. Links already made are kept, and work
-                            again when it&apos;s turned back on.
-                        </p>
+        <SettingsSection
+            title="Guest access"
+            description={
+                <>
+                    Let members share one doc, board, table, channel, project or meeting with people outside the workspace
+                    (clients, contractors) through a link. Whoever shares it chooses what the link allows (reading,
+                    commenting, posting in a channel, approving tasks) and when it ends, if ever. Guests get no account and
+                    never appear in your workspace. Off by default. Changes save as you make them.
+                </>
+            }
+        >
+            {failed ? (
+                <ErrorState subject="the guest access setting" onRetry={loadSetting} />
+            ) : enabled === null ? (
+                <SettingsList>
+                    <div aria-busy="true" aria-label="Loading the guest access setting" className="flex items-start justify-between gap-4 px-4 py-3">
+                        <div className="space-y-1.5">
+                            <Skeleton className="h-4 w-36" />
+                            <Skeleton className="h-3 w-72 max-w-full" />
+                        </div>
+                        <Skeleton className="mt-0.5 h-5 w-9" />
                     </div>
-                    {loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : (
-                        <Switch checked={enabled} disabled={saving} onCheckedChange={toggle} />
-                    )}
-                </div>
+                </SettingsList>
+            ) : (
+                <>
+                    <SettingsList>
+                        <SwitchRow
+                            label="Allow guest links"
+                            description="When off, no guest link can be created or used. Links already made are kept, and work again when it's turned back on."
+                            checked={enabled}
+                            disabled={saving}
+                            onChange={toggle}
+                        />
+                    </SettingsList>
 
-                {!loading && (
-                    <div>
-                        <h3 className="mb-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <div className="space-y-2 pt-2">
+                        {/* A quiet sentence-case heading, not a shouted eyebrow. */}
+                        <h3 className="text-sm font-medium text-foreground">
                             {enabled ? "Active guest links" : "Guest links, paused while guest access is off"}
                         </h3>
-                        {grantsLoading ? (
-                            <div className="flex items-center justify-center py-6 text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            </div>
+                        {grantsLoading && grants.length === 0 ? (
+                            <GrantsSkeleton />
                         ) : grantsFailed ? (
-                            <p role="alert" className="rounded-lg border border-border/50 bg-card/30 px-3 py-4 text-center text-xs text-muted-foreground">
-                                Couldn&apos;t load the guest links.{" "}
-                                <button type="button" className="underline" onClick={loadGrants}>Try again</button>
-                            </p>
+                            <ErrorState subject="the guest links" onRetry={loadGrants} className="py-6" />
                         ) : grants.length === 0 ? (
-                            <p className="rounded-lg border border-border/50 bg-card/30 px-3 py-4 text-center text-xs text-muted-foreground">
+                            <p className="rounded-lg border border-border px-3 py-4 text-center text-xs text-muted-foreground">
                                 {enabled ? "No active guest links." : "No guest links."}
                             </p>
                         ) : (
-                            <ul className="divide-y divide-border/50 rounded-lg border border-border/50 bg-card/30">
+                            <ul className="divide-y divide-border rounded-lg border border-border">
                                 {grants.map((g) => {
                                     const meta = resourceMeta(g.resource_type)
                                     const Icon = meta.Icon
                                     const href = meta.href?.(g.resource_id)
                                     return (
-                                    <li key={g.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                                        <div className="flex min-w-0 items-center gap-2.5">
-                                            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                                                <Icon className="h-3.5 w-3.5" />
-                                            </span>
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2 text-sm">
-                                                    <span className="font-medium">{meta.label}</span>
-                                                    <Badge variant="secondary" size="sm" caps className="rounded">
-                                                        {g.capability}
-                                                    </Badge>
-                                                </div>
-                                                <div className="mt-0.5 flex items-center gap-1 text-2xs text-muted-foreground">
-                                                    <Clock className="h-3 w-3" />
-                                                    {g.expires_at
-                                                        ? `expires ${formatDistanceToNow(new Date(g.expires_at), { addSuffix: true })}`
-                                                        : "does not expire"}
+                                        <li key={g.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                                            <div className="flex min-w-0 items-center gap-2.5">
+                                                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                                                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                                                </span>
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <span className="font-medium">{meta.label}</span>
+                                                        <Badge variant="secondary" size="sm" className="rounded-sm">
+                                                            {capabilityLabel(g.capability)}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <Clock className="h-3 w-3" aria-hidden="true" />
+                                                        {g.expires_at
+                                                            ? `Expires ${formatDistanceToNow(new Date(g.expires_at), { addSuffix: true })}`
+                                                            : "Doesn't expire"}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="flex shrink-0 items-center gap-1.5">
-                                            {href && (
-                                                <a
-                                                    href={href}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                                                    title={`Open this ${meta.label.toLowerCase()}`}
+                                            <div className="flex shrink-0 items-center gap-1.5">
+                                                {href && (
+                                                    <a
+                                                        href={href}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex h-8 items-center gap-1 rounded-md border border-border px-2.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                                                        title={`Open this ${meta.label.toLowerCase()}`}
+                                                    >
+                                                        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /> Open
+                                                    </a>
+                                                )}
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={revoking === g.id}
+                                                    onClick={() => revoke(g.id)}
                                                 >
-                                                    <ExternalLink className="h-3.5 w-3.5" /> Open
-                                                </a>
-                                            )}
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                disabled={revoking === g.id}
-                                                onClick={() => revoke(g.id)}
-                                            >
-                                                {revoking === g.id ? "Revoking…" : "Revoke"}
-                                            </Button>
-                                        </div>
-                                    </li>
+                                                    {revoking === g.id ? "Revoking…" : "Revoke"}
+                                                </Button>
+                                            </div>
+                                        </li>
                                     )
                                 })}
                             </ul>
                         )}
                     </div>
-                )}
-            </CardContent>
-        </Card>
+                </>
+            )}
+        </SettingsSection>
     )
 }
