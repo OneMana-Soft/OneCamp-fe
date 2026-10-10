@@ -4,40 +4,57 @@ import React, { useEffect, useRef, useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useSearchParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
-import TeamsCard from "@/components/admin/teamCard"
 import UserCard from "@/components/admin/userCard"
-import AdminCard from "@/components/admin/adminCard"
-import InvitationCard from "@/components/admin/invitationCard"
-import EmailSettingsCard from "@/components/admin/EmailSettingsCard"
-import EmailProviderCard from "@/components/admin/EmailProviderCard"
-import WebhooksCard from "@/components/admin/WebhooksCard"
-import GitHubIntegrationCard from "@/components/admin/GitHubIntegrationCard"
-import OAuthConfigCard from "@/components/admin/OAuthConfigCard"
-import ArchiveCard from "@/components/admin/ArchiveCard"
-import ExternalUsersCard from "@/components/admin/ExternalUsersCard"
-import SlackImportCard from "@/components/admin/SlackImportCard"
-import SlackBridgeCard from "@/components/admin/SlackBridgeCard"
-import ImportCard from "@/components/admin/ImportCard"
-import AppsCard from "@/components/admin/AppsCard"
-import WorkspaceSettingsCard from "@/components/admin/WorkspaceSettingsCard"
-import GuestAccessCard from "@/components/admin/GuestAccessCard"
-import ReadReceiptsPolicyCard from "@/components/admin/ReadReceiptsPolicyCard"
-import DefaultChannelsCard from "@/components/admin/DefaultChannelsCard"
-import ScimProvisioningCard from "@/components/admin/ScimProvisioningCard"
-import PermissionsCard from "@/components/admin/PermissionsCard"
-import TranscriptionSettingsCard from "@/components/admin/TranscriptionSettingsCard"
-import WorkflowsCard from "@/components/admin/WorkflowsCard"
-import AdminAuditLog from "@/components/admin/AdminAuditLog"
-import RetentionCard from "@/components/admin/RetentionCard"
-import PushNotificationsCard from "@/components/admin/PushNotificationsCard"
-import SystemCheckCard from "@/components/admin/SystemCheckCard"
-import UpdatesCard from "@/components/admin/UpdatesCard"
+import { AdminCardSkeleton } from "@/components/admin/AdminCardSkeleton"
+import { PeopleTabSkeleton } from "@/components/admin/PeopleFrame"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ADMIN_GROUP_HUE, type AdminGroup } from "@/components/admin/adminHues"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { AdminScrollContext } from "@/components/admin/adminScroll"
+import { unsavedWhat } from "@/lib/unsavedChanges"
+import { useConfirm } from "@/hooks/useConfirm"
+import dynamic from "next/dynamic"
 import { Users, ShieldAlert, Mail, Settings, GitBranch, Mic, Activity } from "@/lib/icons"
 import { Users2, Webhook, Archive, UserX, Database, Plug, SlidersHorizontal, Zap, KeyRound, Lock, ScrollText } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { useMedia } from "@/context/MediaQueryContext"
 import { FEATURE_CALLS, useFeatureState } from "@/hooks/useClientConfig"
+
+// The people tabs wait in their own frame's shape (header, toolbar, six rows),
+// so nothing moves when the card's code arrives and again when its data does;
+// they waited as a generic card of four rows and a button bar.
+// Every section but Members (where the page opens) loads its cards when it is
+// first opened, or ahead of that when the pointer or focus reaches it in the
+// menu (PRELOAD below). All thirty-six cards used to come with the page, so
+// opening Members fetched 1.1 MB of script for one list (app/adminFirstLoad.test.ts).
+const TeamsCard = dynamic(() => import("@/components/admin/teamCard"), { loading: () => <PeopleTabSkeleton leading="tile" /> })
+const AdminCard = dynamic(() => import("@/components/admin/adminCard"), { loading: () => <PeopleTabSkeleton /> })
+const InvitationCard = dynamic(() => import("@/components/admin/invitationCard"), { loading: () => <PeopleTabSkeleton leading="tile" /> })
+const EmailSettingsCard = dynamic(() => import("@/components/admin/EmailSettingsCard"), { loading: AdminCardSkeleton })
+const EmailProviderCard = dynamic(() => import("@/components/admin/EmailProviderCard"), { loading: AdminCardSkeleton })
+const WebhooksCard = dynamic(() => import("@/components/admin/WebhooksCard"), { loading: AdminCardSkeleton })
+const GitHubIntegrationCard = dynamic(() => import("@/components/admin/GitHubIntegrationCard"), { loading: AdminCardSkeleton })
+const OAuthConfigCard = dynamic(() => import("@/components/admin/OAuthConfigCard"), { loading: AdminCardSkeleton })
+const ArchiveCard = dynamic(() => import("@/components/admin/ArchiveCard"), { loading: AdminCardSkeleton })
+const ExternalUsersCard = dynamic(() => import("@/components/admin/ExternalUsersCard"), { loading: () => <PeopleTabSkeleton hasAction={false} /> })
+const SlackImportCard = dynamic(() => import("@/components/admin/SlackImportCard"), { loading: AdminCardSkeleton })
+const SlackBridgeCard = dynamic(() => import("@/components/admin/SlackBridgeCard"), { loading: AdminCardSkeleton })
+const ImportCard = dynamic(() => import("@/components/admin/ImportCard"), { loading: AdminCardSkeleton })
+const AppsCard = dynamic(() => import("@/components/admin/AppsCard"), { loading: AdminCardSkeleton })
+const WorkspaceSettingsCard = dynamic(() => import("@/components/admin/WorkspaceSettingsCard"), { loading: AdminCardSkeleton })
+const GuestAccessCard = dynamic(() => import("@/components/admin/GuestAccessCard"), { loading: AdminCardSkeleton })
+const ReadReceiptsPolicyCard = dynamic(() => import("@/components/admin/ReadReceiptsPolicyCard"), { loading: AdminCardSkeleton })
+const DefaultChannelsCard = dynamic(() => import("@/components/admin/DefaultChannelsCard"), { loading: AdminCardSkeleton })
+const ScimProvisioningCard = dynamic(() => import("@/components/admin/ScimProvisioningCard"), { loading: AdminCardSkeleton })
+const PermissionsCard = dynamic(() => import("@/components/admin/PermissionsCard"), { loading: AdminCardSkeleton })
+const TranscriptionSettingsCard = dynamic(() => import("@/components/admin/TranscriptionSettingsCard"), { loading: AdminCardSkeleton })
+const WorkflowsCard = dynamic(() => import("@/components/admin/WorkflowsCard"), { loading: AdminCardSkeleton })
+const AdminAuditLog = dynamic(() => import("@/components/admin/AdminAuditLog"), { loading: AdminCardSkeleton })
+const RetentionCard = dynamic(() => import("@/components/admin/RetentionCard"), { loading: AdminCardSkeleton })
+const PushNotificationsCard = dynamic(() => import("@/components/admin/PushNotificationsCard"), { loading: AdminCardSkeleton })
+const SystemCheckCard = dynamic(() => import("@/components/admin/SystemCheckCard"), { loading: AdminCardSkeleton })
+const UpdatesCard = dynamic(() => import("@/components/admin/UpdatesCard"), { loading: AdminCardSkeleton })
 
 /**
  * Vertical rhythm between top-level cards on a tab that holds more than one.
@@ -61,10 +78,11 @@ type TabDef = {
 // tabs apart). Admin consoles people already know (Slack, Linear, GitHub) group
 // settings under a few headings in a column, so an admin scans a short list for
 // the right heading instead of scrolling a strip for the right word.
-type TabGroup = { label: string; tabs: TabDef[] }
+type TabGroup = { key: AdminGroup; label: string; tabs: TabDef[] }
 
 const TAB_GROUPS: TabGroup[] = [
   {
+    key: "people",
     label: "People",
     tabs: [
       { value: "users", label: "Members", icon: Users2 },
@@ -75,6 +93,7 @@ const TAB_GROUPS: TabGroup[] = [
     ],
   },
   {
+    key: "workspace",
     label: "Workspace",
     tabs: [
       { value: "settings", label: "General", icon: SlidersHorizontal },
@@ -91,6 +110,7 @@ const TAB_GROUPS: TabGroup[] = [
     ],
   },
   {
+    key: "ai",
     label: "AI and automation",
     tabs: [
       { value: "workflows", label: "Workflows", icon: Zap },
@@ -98,6 +118,7 @@ const TAB_GROUPS: TabGroup[] = [
     ],
   },
   {
+    key: "connections",
     label: "Connections",
     tabs: [
       { value: "integrations", label: "Integrations", icon: GitBranch },
@@ -106,6 +127,7 @@ const TAB_GROUPS: TabGroup[] = [
     ],
   },
   {
+    key: "system",
     label: "System",
     tabs: [{ value: "health", label: "Health and updates", icon: Activity }],
   },
@@ -113,9 +135,55 @@ const TAB_GROUPS: TabGroup[] = [
 
 const TABS: TabDef[] = TAB_GROUPS.flatMap((g) => g.tabs)
 
+// A section's code, fetched ahead: when the pointer or focus reaches it in the
+// menu, so by the time it is opened its cards are usually here. The same
+// modules as the dynamic() calls above, which the bundler loads once.
+const PRELOAD: Record<string, () => Promise<unknown>[]> = {
+  admins: () => [import("@/components/admin/adminCard")],
+  teams: () => [import("@/components/admin/teamCard")],
+  invitations: () => [import("@/components/admin/invitationCard")],
+  "external-users": () => [import("@/components/admin/ExternalUsersCard")],
+  settings: () => [
+    import("@/components/admin/WorkspaceSettingsCard"),
+    import("@/components/admin/DefaultChannelsCard"),
+    import("@/components/admin/ReadReceiptsPolicyCard"),
+    import("@/components/admin/PushNotificationsCard"),
+  ],
+  security: () => [import("@/components/admin/GuestAccessCard"), import("@/components/admin/ScimProvisioningCard")],
+  permissions: () => [import("@/components/admin/PermissionsCard")],
+  "email-settings": () => [import("@/components/admin/EmailProviderCard"), import("@/components/admin/EmailSettingsCard")],
+  audit: () => [import("@/components/admin/AdminAuditLog"), import("@/components/admin/RetentionCard")],
+  archive: () => [import("@/components/admin/ArchiveCard")],
+  import: () => [import("@/components/admin/SlackImportCard"), import("@/components/admin/ImportCard")],
+  workflows: () => [import("@/components/admin/WorkflowsCard")],
+  transcription: () => [import("@/components/admin/TranscriptionSettingsCard")],
+  integrations: () => [
+    import("@/components/admin/SlackBridgeCard"),
+    import("@/components/admin/GitHubIntegrationCard"),
+    import("@/components/admin/OAuthConfigCard"),
+  ],
+  apps: () => [import("@/components/admin/AppsCard")],
+  webhooks: () => [import("@/components/admin/WebhooksCard")],
+  health: () => [import("@/components/admin/UpdatesCard"), import("@/components/admin/SystemCheckCard")],
+}
+
+const preloaded = new Set<string>()
+function preloadSection(value: string) {
+  if (preloaded.has(value)) return
+  preloaded.add(value)
+  for (const p of PRELOAD[value]?.() ?? []) p.catch(() => preloaded.delete(value))
+}
+
 const AdminPage = () => {
   const searchParams = useSearchParams()
-  const {isDesktop } = useMedia();
+  const { isDesktop, isTablet } = useMedia()
+  // The side menu needs room beside the content, so it starts at lg. It used to
+  // start at sm, but the menu and the content only sat side by side from lg: on
+  // a tablet or a half-width window (640 to 1023px) the 19-item menu, 920px
+  // tall, stacked above every tab, so the first member was at y 1090, and being
+  // sticky it stayed pinned over the content as it scrolled. Below lg the
+  // section picker is the platform's own select, as on a phone.
+  const sideMenu = isDesktop && !isTablet
   const { toast } = useToast()
   // Two tabs exist only when the server has the subsystem behind them, and the
   // page cannot know that until the config request answers. It used to read the
@@ -155,15 +223,45 @@ const AdminPage = () => {
     if (requestedTabVisible) setActiveTab(requestedTab)
   }, [requestedTab, requestedTabVisible])
   const processed = useRef(false)
-  // Groups with at least one tab this server offers, in menu order.
-  const visibleGroups = TAB_GROUPS.map((g) => ({
+  // The page's one scroller, for lists that draw only the rows in view.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // What the server has said about a section's subsystem: AI & agents and
+  // Transcription exist only on servers that have AI and calls.
+  const gateOf = (value: string) => (value === "transcription" ? callsState : "available")
+  // Groups in menu order, with every section this server offers, and a held
+  // place for one it hasn't answered about yet. The two gated sections used to
+  // join the menu only when the config answered, pushing Connections and System
+  // 72px down under the pointer.
+  const menuGroups = TAB_GROUPS.map((g) => ({
     ...g,
-    tabs: g.tabs.filter((t) => visibleTabs.some((v) => v.value === t.value)),
+    tabs: g.tabs.filter((t) => gateOf(t.value) !== "unavailable"),
   })).filter((g) => g.tabs.length > 0)
+  // While a deep link waits on that answer, nothing is chosen yet: the menu is
+  // drawn, no section is marked, and the content holds a section's skeleton.
+  const shownTab = waitingOnRequestedTab ? requestedTab : activeTab
 
   // Choosing a section updates the address, so a refresh or Back returns here.
   // replaceState rather than the router: the page is already showing the tab.
+  const confirm = useConfirm()
+  // Switching section unmounts the card, so its unsaved edits would go
+  // without a word: ask first, naming them.
   const chooseTab = (value: string) => {
+    const what = unsavedWhat()
+    if (what && value !== activeTab) {
+      confirm({
+        title: "Leave without saving?",
+        description: `Your unsaved ${what} will be lost.`,
+        confirmText: "Leave without saving",
+        cancelText: "Stay",
+        destructive: true,
+        onConfirm: () => selectTab(value),
+      })
+      return
+    }
+    selectTab(value)
+  }
+
+  const selectTab = (value: string) => {
     setActiveTab(value)
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href)
@@ -200,22 +298,25 @@ const AdminPage = () => {
       id="main-content"
       className="flex flex-col h-full min-h-0 bg-background"
     >
-      {/* Header: desktop only. A phone's top bar already says Admin, and the
+      {/* Header: from sm up. A phone's top bar already says Admin, and the
           section picker below is the first thing that is needed there. */}
       {isDesktop && (
       <div className="shrink-0 border-b border-border px-4 py-5 sm:px-6 lg:px-8">
-        <PageHeader eyebrow="Workspace" title="Admin" className="mx-auto w-full max-w-6xl" />
+        <PageHeader
+          eyebrow="Workspace"
+          title="Admin"
+          className="mx-auto w-full max-w-6xl"
+        />
       </div>
       )}
 
-      {/* Content */}
-      {waitingOnRequestedTab ? (
-        <div role="status" aria-label="Loading admin settings" className="flex-1 min-h-0" />
-      ) : (
+      {/* Content. The menu is always drawn; while a deep link to a gated
+          section waits on the server, the content holds a section's skeleton
+          and no section is marked, rather than opening on Members and moving. */}
       <Tabs
-        value={activeTab}
+        value={shownTab}
         onValueChange={chooseTab}
-        orientation={isDesktop ? "vertical" : "horizontal"}
+        orientation={sideMenu ? "vertical" : "horizontal"}
         className="flex-1 min-h-0 flex flex-col"
       >
         {/* Per-tab content. THIS IS THE ONLY SCROLL CONTAINER ON THE PAGE.
@@ -236,17 +337,18 @@ const AdminPage = () => {
             the header and tab strip now stay put — which is what "Sticky tab strip" above always
             claimed. Cards must therefore NOT set h-full or their own overflow-y-auto; they size to
             their content and this box scrolls. adminLayout.test.ts holds that line. */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar">
+          <AdminScrollContext.Provider value={scrollRef}>
           <div className="px-4 sm:px-6 lg:px-8 py-6">
             <div className="mx-auto w-full max-w-6xl lg:flex lg:items-start lg:gap-8">
-              {isDesktop ? (
+              {sideMenu ? (
                 // Sticky within the one scroller rather than a second scroller of
                 // its own: the whole menu fits, and one scrollbar keeps one meaning.
                 <TabsList
                   aria-label="Admin sections"
                   className="sticky top-0 flex h-auto w-52 shrink-0 flex-col items-stretch gap-0.5 rounded-none bg-transparent p-0"
                 >
-                  {visibleGroups.map((group, gi) => (
+                  {menuGroups.map((group, gi) => (
                     <React.Fragment key={group.label}>
                       <p
                         role="presentation"
@@ -258,10 +360,24 @@ const AdminPage = () => {
                       >
                         {group.label}
                       </p>
-                      {group.tabs.map(({ value, label, icon: Icon }) => (
+                      {group.tabs.map(({ value, label, icon: Icon }) =>
+                        gateOf(value) === "unknown" ? (
+                          // Its place, held at a row's height until the server says.
+                          <div
+                            key={value}
+                            aria-hidden="true"
+                            data-menu-placeholder=""
+                            className="flex items-center gap-2.5 rounded-md px-3 py-1.5"
+                          >
+                            <Skeleton className="size-6 shrink-0 rounded-md" />
+                            <Skeleton className="h-3.5 w-24" />
+                          </div>
+                        ) : (
                         <TabsTrigger
                           key={value}
                           value={value}
+                          onPointerEnter={() => preloadSection(value)}
+                          onFocus={() => preloadSection(value)}
                           className={cn(
                             "justify-start gap-2.5 rounded-md px-3 py-1.5 text-sm font-medium",
                             "text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors",
@@ -269,37 +385,48 @@ const AdminPage = () => {
                           "data-[state=active]:bg-brand-muted data-[state=active]:text-foreground data-[state=active]:shadow-none",
                           )}
                         >
-                          <Icon className="h-4 w-4 shrink-0" />
+                          {/* The group's hue on every section in it: five places in
+                              five colours, not nineteen (components/admin/adminHues). */}
+                          <Tile hue={ADMIN_GROUP_HUE[group.key]} size="sm">
+                            <Icon />
+                          </Tile>
                           {label}
                         </TabsTrigger>
-                      ))}
+                        ),
+                      )}
                     </React.Fragment>
                   ))}
                 </TabsList>
               ) : (
-                // A phone gets the platform's own picker, grouped the same way:
-                // seventeen tabs do not fit a strip at this width, and a native
-                // select is the control every phone already knows.
-                <label className="mb-5 block">
-                  <span className="sr-only">Admin section</span>
-                  <select
-                    value={activeTab}
-                    onChange={(e) => chooseTab(e.target.value)}
-                    className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-medium"
-                  >
-                    {visibleGroups.map((group) => (
-                      <optgroup key={group.label} label={group.label}>
-                        {group.tabs.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </label>
+                // Below lg the platform's own picker, grouped the same way: the
+                // menu does not fit beside the content there, and a native select
+                // is the control every phone already knows.
+                <div className="mb-5 flex items-center gap-2">
+                  <label className="min-w-0 flex-1">
+                    <span className="sr-only">Admin section</span>
+                    <select
+                      value={shownTab}
+                      onChange={(e) => chooseTab(e.target.value)}
+                      className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm font-medium"
+                    >
+                      {menuGroups.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.tabs.map((t) => (
+                            <option key={t.value} value={t.value} disabled={gateOf(t.value) === "unknown"}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </label>
+                </div>
               )}
               <div className="min-w-0 flex-1">
+              {waitingOnRequestedTab ? (
+                <AdminCardSkeleton />
+              ) : (
+              <>
               <TabsContent value="teams" className="mt-0 outline-none">
                 <TeamsCard />
               </TabsContent>
@@ -399,12 +526,14 @@ const AdminPage = () => {
                   <ImportCard />
                 </div>
               </TabsContent>
+              </>
+              )}
               </div>
             </div>
           </div>
+          </AdminScrollContext.Provider>
         </div>
       </Tabs>
-      )}
     </main>
   )
 }

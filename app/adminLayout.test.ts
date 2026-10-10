@@ -234,3 +234,24 @@ describe("admin sections are grouped", () => {
         expect(pageSource).not.toMatch(/scrollTabs|tabsScrollRef/)
     })
 })
+
+/**
+ * A section's code comes when the pointer or focus reaches it in the menu, so
+ * opening it rarely waits (the cards themselves load on first open:
+ * app/adminFirstLoad.test.ts).
+ */
+describe("admin sections load ahead of the click", () => {
+    it("preloads a section when the pointer or focus reaches its menu item", () => {
+        const trigger = rawSource.slice(rawSource.indexOf("<TabsTrigger"), rawSource.indexOf("</TabsTrigger>"))
+        expect(trigger).toMatch(/onPointerEnter=\{\(\) => preloadSection\(value\)\}/)
+        expect(trigger).toMatch(/onFocus=\{\(\) => preloadSection\(value\)\}/)
+    })
+
+    it("has a preload for every section the page loads lazily", () => {
+        const groupsBlock = rawSource.slice(rawSource.indexOf("const TAB_GROUPS"), rawSource.indexOf("const TABS"))
+        const values = [...groupsBlock.matchAll(/value: "([^"]+)"/g)].map((m) => m[1]).filter((v) => v !== "users")
+        const preloadBlock = rawSource.slice(rawSource.indexOf("const PRELOAD"), rawSource.indexOf("const preloaded"))
+        const missing = values.filter((v) => !new RegExp(`(^|\\s)"?${v}"?: \\(\\) =>`, "m").test(preloadBlock))
+        expect(missing).toEqual([])
+    })
+})
