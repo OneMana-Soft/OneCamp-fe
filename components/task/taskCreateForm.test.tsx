@@ -223,3 +223,20 @@ describe("clearing a date", () => {
     expect(screen.queryByRole("button", { name: `Clear ${which.toLowerCase()}` })).toBeNull()
   })
 })
+
+describe("the form's shape", () => {
+  it("has every row from the start, so picking a project doesn't grow the dialog", () => {
+    projects = { data: [project("p1", "Launch"), project("p2", "Roadmap")] }
+    render(form())
+    expect(screen.getByRole("button", { name: "Pick a project" })).toBeTruthy()
+    const someone = screen.getByRole("button", { name: "Pick someone" })
+    // Who can have it depends on the project: it waits, and says why.
+    expect((someone as HTMLButtonElement).disabled).toBe(true)
+    expect(someone.getAttribute("title")).toBe("Pick a project first")
+    expect(screen.getByRole("button", { name: /Start date/ })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Due date/ })).toBeTruthy()
+    expect(screen.getByLabelText("Tags")).toBeTruthy()
+    expect(screen.getByLabelText("GitHub issue or pull request (optional)")).toBeTruthy()
+    expect((screen.getByRole("button", { name: "Attach a file" }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
