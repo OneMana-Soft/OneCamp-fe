@@ -6,30 +6,34 @@ import McpServersCard from "@/components/admin/McpServersCard"
 import DataSourcesCard from "@/components/admin/DataSourcesCard"
 import { useCapabilities } from "@/hooks/useCapabilities"
 import { CAP_AGENT_MANAGE } from "@/services/capabilityService"
-import { Loader2 } from "@/lib/icons"
-import { PageHeader } from "@/components/ui/pageHeader"
-import { useAIAvailable } from "@/hooks/useClientConfig"
+import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig"
+import { SectionHeader } from "../SectionHeader"
+import { SectionLoading } from "../SectionLoading"
+
+const HREF = "/app/settings/agents"
 
 export default function AgentsSettingsPage() {
   const { can, isLoading } = useCapabilities()
-  const aiAvailable = useAIAvailable()
+  // Three answers, not two: "not yet known" is not "no AI here". Read as a
+  // yes or no, the page said "This server runs without AI" on servers that
+  // have it, until their config arrived.
+  const ai = useFeatureState(FEATURE_AI)
 
-  if (isLoading) {
+  if (ai === "unknown" || (ai === "available" && isLoading)) {
     return (
-      <div className="container mx-auto flex items-center justify-center px-4 py-16 text-muted-foreground">
-        <Loader2 className="h-5 w-5 animate-spin" />
+      <div className="space-y-10">
+        <SectionHeader href={HREF} />
+        <SectionLoading label="Loading agents and skills" />
       </div>
     )
   }
 
-  if (!aiAvailable) {
+  if (ai === "unavailable") {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-4">
-        <PageHeader title="Agents and skills">
-          <p className="text-sm text-muted-foreground">
-            This server runs without AI, so there are no agents to build or watch here.
-          </p>
-        </PageHeader>
+      <div className="space-y-10">
+        <SectionHeader href={HREF}>
+          This server runs without AI, so there are no agents to build or watch here.
+        </SectionHeader>
       </div>
     )
   }
@@ -40,24 +44,21 @@ export default function AgentsSettingsPage() {
   // to is none of their business.
   if (!can(CAP_AGENT_MANAGE)) {
     return (
-      <div className="mx-auto w-full max-w-3xl space-y-8 px-4 pb-16 pt-4">
-        <PageHeader title="Agents and skills">
-          <p className="text-sm text-muted-foreground text-pretty">
-            Building agents is turned off for you. An admin can turn it on under Admin, Permissions. Everything an
-            agent did in your name is below.
-          </p>
-        </PageHeader>
+      <div className="space-y-10">
+        <SectionHeader href={HREF}>
+          Building agents is turned off for you. An admin can turn it on under Admin, Permissions. Everything an
+          agent did in your name is below.
+        </SectionHeader>
         <MyAIActivityCard />
       </div>
     )
   }
 
-
   return (
     // The agents first: the page is named for them. The record of what was
     // done in your name follows the things that do it.
-    <div className="mx-auto w-full max-w-3xl space-y-8 px-4 pb-16 pt-4">
-      <PageHeader title="Agents and skills" />
+    <div className="space-y-10">
+      <SectionHeader href={HREF} />
       <AgentsCard />
       <McpServersCard />
       <DataSourcesCard />

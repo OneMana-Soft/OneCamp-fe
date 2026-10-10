@@ -1,20 +1,23 @@
 "use client"
 
 import MyAssistantsCard from "@/components/ai/MyAssistantsCard"
-import { useAIAvailable } from "@/hooks/useClientConfig"
+import { FEATURE_AI, useFeatureState } from "@/hooks/useClientConfig"
+import { SectionHeader } from "../SectionHeader"
+import { SectionLoading } from "../SectionLoading"
+
+const HREF = "/app/settings/assistants"
 
 export default function AssistantsSettingsPage() {
-  const aiAvailable = useAIAvailable()
+  // "Not yet known" is not "no AI here": read as a yes or no, this page said
+  // the workspace runs without AI until its config arrived.
+  const ai = useFeatureState(FEATURE_AI)
 
   return (
-    <div className="container mx-auto max-w-3xl space-y-6 px-4 py-8">
-      {aiAvailable ? (
-        <MyAssistantsCard />
-      ) : (
-        <p className="rounded-2xl border border-border/60 px-6 py-12 text-center text-sm text-muted-foreground">
-          This workspace runs without AI, so there are no assistants to connect.
-        </p>
-      )}
+    <div className="space-y-10">
+      <SectionHeader href={HREF}>
+        {ai === "unavailable" ? "This workspace runs without AI, so there are no assistants to connect." : null}
+      </SectionHeader>
+      {ai === "unknown" ? <SectionLoading label="Loading your AI assistants" /> : ai === "available" ? <MyAssistantsCard /> : null}
     </div>
   )
 }
