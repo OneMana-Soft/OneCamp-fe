@@ -6,7 +6,7 @@ import '@/components/minimal-tiptap/styles/index.css'
 import type { Content, Editor } from '@tiptap/react'
 import type { Level } from '@tiptap/extension-heading'
 import type { UseMinimalTiptapEditorProps } from '@/components/minimal-tiptap/hooks/use-minimal-tiptap'
-import { EditorContent, useEditorState } from '@tiptap/react'
+import { EditorContent } from '@tiptap/react'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils/helpers/cn'
 import { useClientConfig } from '@/hooks/useClientConfig'
@@ -45,7 +45,7 @@ import { SafeHtml } from '@/components/safeHtml/SafeHtml'
 import { sanitizeRichHtml } from '@/lib/sanitizeHtml'
 import type { SaveStatus } from '@/hooks/useDocAutoSave'
 import { shortTime } from '@/lib/utils/date/shortDate'
-import { blockLabel, useDocCounts } from '@/components/docEditor/docCounts'
+import { useDocCounts } from '@/components/docEditor/docCounts'
 
 interface MinimalTiptapProps extends Omit<UseMinimalTiptapEditorProps, 'onUpdate'> {
     value?: Content
@@ -228,8 +228,7 @@ function useSlowSave(provider: HocuspocusProvider | undefined, afterMs = 1500): 
 }
 
 /**
- * The doc's footer: its counts, the caret's block, whether it is saved, and
- * the width toggle. A component of its own that follows the editor itself,
+ * The doc's footer: its length, whether it is saved, and the width toggle. A component of its own that follows the editor itself,
  * so the rest of the editor's frame does not render again per keystroke.
  */
 const DocFooter = React.memo(function DocFooter({
@@ -252,8 +251,7 @@ const DocFooter = React.memo(function DocFooter({
     provider?: HocuspocusProvider
     collabStatus: CollabStatus
 }) {
-    const { words, chars, minutes } = useDocCounts(editor)
-    const block = useEditorState({ editor, selector: ({ editor: e }) => blockLabel(e) })
+    const { words, minutes } = useDocCounts(editor)
     const slowSave = useSlowSave(provider)
     // A collaborative doc saves as it is written, so the footer says so
     // quietly, and only speaks up when that stops being true. Who else is
@@ -267,18 +265,20 @@ const DocFooter = React.memo(function DocFooter({
             ? <span>{slowSave ? 'Saving…' : 'Saved'}</span>
             : null
         : null
+    // One line, never wrapped: the length of the doc on the left, whether it
+    // is saved on the right. It had six items in the reading column's width
+    // (words, characters, minutes, the caret's block, when it was edited, the
+    // connection), so each wrapped onto two lines; the characters and the
+    // block (which the toolbar already shows) went.
     return (
         <div className="shrink-0 z-10 bg-background border-t border-border w-full">
-            <div className={cn("mx-auto flex items-center justify-between gap-3 px-4 py-1.5 text-2xs tabular-nums text-muted-foreground select-none md:px-8", isFullWidth ? "max-w-none" : "doc-measure")}>
-                <div className="hidden sm:flex items-center gap-3">
-                    <span>{words} word{words !== 1 ? 's' : ''}</span>
-                    <span>{chars} character{chars !== 1 ? 's' : ''}</span>
-                    <span>{minutes} min read</span>
-                </div>
-                {block && <span className="hidden sm:inline">{block}</span>}
+            <div className={cn("mx-auto flex items-center justify-between gap-3 whitespace-nowrap px-4 py-1.5 text-2xs tabular-nums text-muted-foreground select-none md:px-8", isFullWidth ? "max-w-none" : "doc-measure")}>
+                <span className="hidden sm:inline">
+                    {words} word{words !== 1 ? 's' : ''}, {minutes} min read
+                </span>
                 <div className="flex items-center gap-3 ml-auto sm:ml-0">
                     {lastEditedRelative && (
-                        <span className="hidden sm:inline">Edited {lastEditedRelative}</span>
+                        <span className="hidden md:inline">Edited {lastEditedRelative}</span>
                     )}
                     <SaveStatusIndicator status={saveStatus} lastSavedAt={lastSavedAt} />
                     {live}

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { act, cleanup, render, screen } from "@testing-library/react"
 import { Editor } from "@tiptap/core"
 import { StarterKit } from "@tiptap/starter-kit"
-import { blockLabel, countDoc, useDocCounts } from "./docCounts"
+import { countDoc, useDocCounts } from "./docCounts"
 
 const editors: Editor[] = []
 afterEach(() => {
@@ -26,16 +26,6 @@ describe("countDoc", () => {
     expect(countDoc("")).toEqual({ words: 0, chars: 0, minutes: 1 })
     expect(countDoc("  two words  ")).toEqual({ words: 2, chars: 13, minutes: 1 })
     expect(countDoc(Array.from({ length: 401 }, () => "w").join(" ")).minutes).toBe(3)
-  })
-})
-
-describe("blockLabel", () => {
-  it("names the block the caret is in", () => {
-    const editor = editorWith("<h2>Goals</h2><p>Body</p>")
-    editor.commands.setTextSelection(2)
-    expect(blockLabel(editor)).toBe("Heading 2")
-    editor.commands.setTextSelection(9)
-    expect(blockLabel(editor)).toBe("Paragraph")
   })
 })
 
@@ -75,5 +65,12 @@ describe("the doc editor's frame", () => {
 
   it("shows the formatting toolbar only to someone who can edit", () => {
     expect(src).toMatch(/!focusMode && canEdit && \(/)
+  })
+
+  it("keeps its footer to one line: no characters, no caret block, nothing wrapping", () => {
+    const footer = src.slice(src.indexOf("const DocFooter"), src.indexOf("const MinimalTiptapDocInput"))
+    expect(footer).toMatch(/whitespace-nowrap/)
+    expect(footer).not.toMatch(/\{chars\}|character\{/)
+    expect(footer).not.toMatch(/blockLabel\(/)
   })
 })
