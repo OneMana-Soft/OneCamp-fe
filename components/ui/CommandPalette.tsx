@@ -633,7 +633,7 @@ export function CommandPalette() {
       // Admin
       {
         id: "admin-dashboard",
-        label: "Admin dashboard",
+        label: "Admin",
         keywords: ["admin", "dashboard", "manage"],
         icon: <Shield className="mr-2 h-4 w-4" />,
         group: "Admin",
@@ -642,7 +642,7 @@ export function CommandPalette() {
       },
       {
         id: "admin-users",
-        label: "Manage users",
+        label: "Members",
         keywords: ["users", "members", "people"],
         icon: <Users className="mr-2 h-4 w-4" />,
         group: "Admin",
