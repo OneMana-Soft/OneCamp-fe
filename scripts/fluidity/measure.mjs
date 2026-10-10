@@ -149,13 +149,16 @@ async function runOnce(browser, run, storage) {
   const errors = []
   page.on("pageerror", (e) => errors.push(e.message.slice(0, 160)))
 
-  async function step(n, name, act, ready, { settle = 700, typed = 0, prep } = {}) {
+  // `on` measures in another page (the phone-sized one for the celebration).
+  async function step(n, name, act, ready, { settle = 700, typed = 0, prep, on } = {}) {
     if (!want(n)) return
+    const pg = on?.page ?? page
+    const gd = on?.guard ?? guard
     // Set-up that isn't part of what's measured.
     if (prep) await prep().catch((e) => console.log(`  [run ${run}] prep for ${name} failed: ${String(e?.message || e).split("\n")[0]}`))
-    const before = await mark(page).catch(() => null)
-    const js0 = guard.scriptGzip
-    const blocked0 = guard.blocked.length
+    const before = await mark(pg).catch(() => null)
+    const js0 = gd.scriptGzip
+    const blocked0 = gd.blocked.length
     const wall = Date.now()
     let ok = true
     let readyMs = null
@@ -168,8 +171,8 @@ async function runOnce(browser, run, storage) {
       error = String(e?.message || e).split("\n")[0].slice(0, 200)
     }
     const wallMs = Date.now() - wall
-    await page.waitForTimeout(settle)
-    const m = before ? await since(page, before).catch(() => null) : null
+    await pg.waitForTimeout(settle)
+    const m = before ? await since(pg, before).catch(() => null) : null
     const row = {
       n,
       step: name,
@@ -185,7 +188,7 @@ async function runOnce(browser, run, storage) {
       longMs: m?.longMs ?? null,
       tbt: m?.tbt ?? null,
       cls: m?.cls ?? null,
-      jsKB: Math.round((guard.scriptGzip - js0) / 1024),
+      jsKB: Math.round((gd.scriptGzip - js0) / 1024),
       commits: m?.commits ?? null,
       renders: m?.renders ?? null,
       maxCommitRenders: m?.maxCommitRenders ?? null,
@@ -196,7 +199,7 @@ async function runOnce(browser, run, storage) {
       motion: m?.motion,
       loafTop: m?.loafTop,
       shifts: m?.shifts?.filter((s) => s.v > 0.001).slice(0, 4),
-      blocked: guard.blocked.slice(blocked0),
+      blocked: gd.blocked.slice(blocked0),
     }
     if (typed && m) {
       row.keys = keyStats(m, typed)
@@ -206,7 +209,7 @@ async function runOnce(browser, run, storage) {
     steps.push(row)
     const tag = ok ? "ok " : "ERR"
     console.log(`  [run ${run}] ${tag} ${String(n).padStart(2)} ${name}: ready ${readyMs ?? "-"} ms, inp ${row.inp}, long ${row.longMs} ms, cls ${row.cls}, js ${row.jsKB} KB, renders ${row.renders}${row.keys ? `, keys p50 ${row.keys.p50} p95 ${row.keys.p95} max ${row.keys.max}` : ""}${row.motion?.layout?.length ? `, LAYOUT MOTION ${row.motion.layout.slice(0, 3).join("; ")}` : ""}${error ? `: ${error}` : ""}`)
-    if (SHOTS) await page.screenshot({ path: join(OUT, `${LABEL}-r${run}-${String(n).padStart(2, "0")}-${name.replace(/\W+/g, "-")}.png`) }).catch(() => {})
+    if (SHOTS) await pg.screenshot({ path: join(OUT, `${LABEL}-r${run}-${String(n).padStart(2, "0")}-${name.replace(/\W+/g, "-")}.png`) }).catch(() => {})
   }
 
   const clickLink = (name) => page.getByRole("link", { name }).first().click()
@@ -508,6 +511,57 @@ async function runOnce(browser, run, storage) {
     scrollRow.worstFrame = Math.round(Math.max(...peopleFrames))
   }
   await page.keyboard.press("Escape")
+
+  // 17. Completing a task: the playful layer's celebration (sparks from the
+  // check, the check springing in). Wired in the task list rows a phone shows,
+  // so on a phone-sized page. It must cost no long task and move nothing but
+  // transform and opacity.
+  if (want(17)) {
+    const phone = await demoContext(browser, { base: BASE, viewport: { width: 390, height: 844 }, storageState: storage.state })
+    fakeWrite(phone, "POST", /\/task\/(updateTaskStatus|moveTask)/, () => ({ msg: "ok" }))
+    const phonePage = await phone.newPage()
+    const phoneCdp = await phone.newCDPSession(phonePage)
+    if (CPU > 1) await phoneCdp.send("Emulation.setCPUThrottlingRate", { rate: CPU })
+    await phonePage.addInitScript(() => {
+      const at = () => (window.__fluInputAt = performance.now())
+      addEventListener("pointerdown", at, true)
+      addEventListener("keydown", at, true)
+    })
+    await phonePage.goto(FE + "/app/myTask").catch(() => {})
+    await phonePage.getByRole("button", { name: "Mark as complete" }).first().waitFor({ timeout: 30000 }).catch(() => {})
+    await phonePage.waitForTimeout(1200)
+    const sample = () =>
+      phonePage.evaluate(() => {
+        const f = (window.__fluFrames = [])
+        let last = performance.now()
+        const tick = (t) => {
+          f.push(t - last)
+          last = t
+          if (f.length < 600 && window.__fluFrames === f) requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      })
+    await step(
+      17,
+      "complete a task (celebrate)",
+      async () => {
+        await sample()
+        await phonePage.getByRole("button", { name: "Mark as complete" }).first().click()
+      },
+      () => readyWhen(phonePage, exists, { sel: "[data-celebrate]" }, 5000),
+      { settle: 900, on: { page: phonePage, guard: phone.__guard } },
+    )
+    const burst = await phonePage
+      .evaluate(() => {
+        const f = window.__fluFrames || []
+        window.__fluFrames = null
+        return { frames: f.length, slow: f.filter((d) => d > 34).length, worst: Math.round(Math.max(0, ...f)), left: document.querySelectorAll("[data-celebrate]").length }
+      })
+      .catch(() => null)
+    const row = steps.find((s) => s.n === 17)
+    if (row && burst) Object.assign(row, { frames: burst.frames, slowFrames: burst.slow, worstFrame: burst.worst, layersLeft: burst.left })
+    await phone.close()
+  }
 
   const blocked = [...new Set(guard.blocked)]
   await ctx.close()
