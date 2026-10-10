@@ -201,6 +201,7 @@ const InvitationCard = () => {
           onRetry={() => void mutate()}
           isFiltered={!!normalisedSearch}
           totalLoaded={invitations.length}
+          onInvite={() => dispatch(openUI({ key: "addInvitation" }))}
         />
       </CardContent>
     </Card>

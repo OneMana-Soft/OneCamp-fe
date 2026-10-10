@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, render } from "@testing-library/react"
+import { act, cleanup, render, screen } from "@testing-library/react"
 
 // The people group's colour: the admin menu draws Members, Admins, Teams,
 // Invitations and External users in sky, and their cards follow it. An empty
@@ -49,8 +49,17 @@ describe("the people group's hue", () => {
     expect(document.querySelector("li .bg-primary")).toBeNull()
   })
 
-  it("puts an empty invitation list's icon on a sky tile", () => {
-    render(<AdminInvitationList invitations={[]} onDelete={vi.fn()} onResend={vi.fn()} onCopyLink={vi.fn()} isSubmitting={false} resendingEmail={null} />)
+  it("welcomes the first invitations with a sky illustration, and an action", () => {
+    const onInvite = vi.fn()
+    render(<AdminInvitationList invitations={[]} onDelete={vi.fn()} onResend={vi.fn()} onCopyLink={vi.fn()} onInvite={onInvite} isSubmitting={false} resendingEmail={null} />)
+    expect(document.querySelector("[data-empty-illustration] svg.hue-sky")).toBeTruthy()
+    screen.getByRole("button", { name: "Invite people" }).click()
+    expect(onInvite).toHaveBeenCalled()
+  })
+
+  it("keeps the sky icon tile when a search matches no invitation", () => {
+    render(<AdminInvitationList invitations={[]} onDelete={vi.fn()} onResend={vi.fn()} onCopyLink={vi.fn()} isSubmitting={false} resendingEmail={null} isFiltered />)
+    expect(document.querySelector("[data-empty-illustration]")).toBeNull()
     expect(document.querySelector(".hue-sky [data-empty-icon]")).toBeTruthy()
   })
 

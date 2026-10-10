@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { SpotWelcome } from "@/components/ui/graphics"
 import { cn } from "@/lib/utils/helpers/cn"
 
 interface AdminTeamListProps {
@@ -92,6 +93,9 @@ export const AdminTeamList: React.FC<AdminTeamListProps> = ({
       <EmptyState
         icon={Users}
         hue={ADMIN_GROUP_HUE.people}
+        // No teams at all is a first run, so it is welcomed; a search that
+        // matched nothing keeps the icon tile.
+        illustration={isFiltered ? undefined : <SpotWelcome hue={ADMIN_GROUP_HUE.people} />}
         title={isFiltered ? "No team matches your search." : "No teams yet"}
         description={isFiltered ? undefined : "Teams group the people who work together, with their own channels and projects."}
         action={
