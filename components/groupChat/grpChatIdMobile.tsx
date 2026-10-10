@@ -20,7 +20,7 @@ export const GrpChatIdMobile = ({grpId, handleSend, unreadCount}: {grpId: string
     return (
         <div className='flex flex-col h-full'>
             <div className="flex-1 min-h-0">
-                <GroupChatMessageList grpId={grpId} />
+                <GroupChatMessageList grpId={grpId} unreadOnOpen={unreadCount} />
             </div>
             <div>
                 {replyState?.replyToUuid && (

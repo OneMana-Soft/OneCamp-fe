@@ -34,6 +34,7 @@ import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { useStableCallback } from "@/hooks/useStableCallback";
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen";
 import { ConversationEmpty } from "@/components/message/conversationEmpty";
+import { useUnreadAnchor } from "@/components/message/useUnreadAnchor";
 import { hueFor } from "@/lib/campHue";
 import { userDisplayName } from "@/lib/utils/userDisplayName";
 
@@ -51,10 +52,12 @@ interface ChannelMessagesProps {
     isNewMsgLoading: boolean
     isOLdMsgLoading: boolean
     clickedScrollToBottom: () => void;
+    /** Unread when the conversation was opened: the "New" line goes above the first of them. */
+    unreadOnOpen?: number;
 
 }
 
-export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNewMsg, getNewMessages, hasMoreOldMsg, getOldMessages, isNewMsgLoading, isOLdMsgLoading }: ChannelMessagesProps) => {
+export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNewMsg, getNewMessages, hasMoreOldMsg, getOldMessages, isNewMsgLoading, isOLdMsgLoading, unreadOnOpen }: ChannelMessagesProps) => {
     const { isMobile } = useMedia();
 
 
@@ -329,15 +332,23 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         }
     }, [chats]);
 
+    // The message the "New" line sits above, fixed on opening.
+    const selfUUID = selfProfile.data?.data.user_uuid;
+    const unreadAnchor = useUnreadAnchor(chats, unreadOnOpen, (c) => c.chat_from?.user_uuid === selfUUID, (c) => rowKey(c.chat_local_id, c.chat_uuid));
+
     const flatItems = useMemo(() => {
         const items: Array<FlatItem<ChatInfo>> = [];
         Object.keys(groupedChats).forEach((date) => {
             items.push({ type: "separator", date, key:  "separator"+date});
-            groupedChats[date].forEach((chat) => items.push({ type: "item", data: chat, key: rowKey(chat.chat_local_id, chat.chat_uuid)}));
+            groupedChats[date].forEach((chat) => {
+                const key = rowKey(chat.chat_local_id, chat.chat_uuid);
+                if (key === unreadAnchor) items.push({ type: "unread", key: "unread" });
+                items.push({ type: "item", data: chat, key });
+            });
         });
         // Same author within five minutes: drawn as one turn (lib/messageGrouping).
         return withContinuation(items, (c) => ({ author: c.chat_from?.user_uuid, at: c.chat_created_at, isBot: !!c.chat_from?.is_bot, standalone: !!(c.chat_reply_to || c.chat_fwd_msg_post || c.chat_fwd_msg_chat) }))
-    }, [groupedChats]);
+    }, [groupedChats, unreadAnchor]);
 
     // Read receipts: whose they are (a DM by the other person, a group by its id).
     const receiptTarget = useMemo<ChatTarget>(() => ({ kind: "dm", otherUUID: chatId }), [chatId]);

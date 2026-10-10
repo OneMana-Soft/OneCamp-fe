@@ -25,6 +25,8 @@ import {useMedia} from "@/context/MediaQueryContext";
 interface ChatMessageListProps {
     grpId: string;
     messageId?: string;
+    /** Unread when the group was opened: where the "New" line goes. */
+    unreadOnOpen?: number;
 }
 
 const EMPTY_CHATS: PostsRes[] = []
@@ -32,7 +34,7 @@ const EMPTY_CHATS: PostsRes[] = []
 // Memoised: its props are ids, so a parent re-rendering for another reason
 // (the composer's draft changes on every keystroke) never re-renders every
 // message. On a phone that re-render cost up to 300 ms a key.
-export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, messageId: propMessageId}: ChatMessageListProps) {
+export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, messageId: propMessageId, unreadOnOpen}: ChatMessageListProps) {
 
     const { isMobile } = useMedia();
     const searchParams = useSearchParams();
@@ -209,6 +211,7 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
                 isOLdMsgLoading={oldMsg.isLoading}
                 clickedScrollToBottom={handleClickedScrollToBottom}
                 grpId={grpId}
+                unreadOnOpen={unreadOnOpen}
             />
             <GroupChatTypingBar grpId={grpId} />
         </div>

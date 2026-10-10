@@ -18,6 +18,8 @@ interface ChannelMessageListProps {
     channelId: string;
     postId?: string;
     isAdmin?: boolean;
+    /** Unread when the channel was opened: where the "New" line goes. */
+    unreadOnOpen?: number;
 }
 
 const EMPTY_POSTS: PostsRes[] = []
@@ -25,7 +27,7 @@ const EMPTY_POSTS: PostsRes[] = []
 // Memoised: its props are ids, so a parent re-rendering for another reason
 // (the composer's draft changes on every keystroke) never re-renders every
 // message. On a phone that re-render cost up to 300 ms a key.
-export const ChannelMessageList = memo(function ChannelMessageList({channelId, postId: propPostId, isAdmin}: ChannelMessageListProps) {
+export const ChannelMessageList = memo(function ChannelMessageList({channelId, postId: propPostId, isAdmin, unreadOnOpen}: ChannelMessageListProps) {
 
     const { isMobile } = useMedia();
     const searchParams = useSearchParams();
@@ -193,6 +195,7 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
                 clickedScrollToBottom={handleClickedScrollToBottom}
                 channelId={channelId}
                 isAdmin={isAdmin}
+                unreadOnOpen={unreadOnOpen}
             />
 
             <ChannelTypingBar channelId={channelId} />

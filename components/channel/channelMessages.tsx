@@ -37,6 +37,7 @@ import type { RootState } from "@/store/store"
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { useAuthorsSeen } from "@/components/message/useAuthorsSeen"
+import { useUnreadAnchor } from "@/components/message/useUnreadAnchor"
 import { ConversationEmpty } from "@/components/message/conversationEmpty"
 import { hueFor } from "@/lib/campHue"
 
@@ -51,6 +52,8 @@ interface ChannelMessagesProps {
     isNewMsgLoading: boolean
     isOLdMsgLoading: boolean
     clickedScrollToBottom: () => void;
+    /** Unread when the conversation was opened: the "New" line goes above the first of them. */
+    unreadOnOpen?: number;
 
 }
 
@@ -67,6 +70,7 @@ export const ChannelMessages = ({
                                     clickedScrollToBottom,
                                     isNewMsgLoading,
                                     isOLdMsgLoading,
+                                    unreadOnOpen,
                                 }: ChannelMessagesProps) => {
     const { isMobile } = useMedia()
 
@@ -311,17 +315,25 @@ export const ChannelMessages = ({
         }
     }, [posts])
 
+    // The message the "New" line sits above, fixed on opening.
+    const selfUUID = selfProfile.data?.data.user_uuid
+    const unreadAnchor = useUnreadAnchor(posts, unreadOnOpen, (p) => p.post_by?.user_uuid === selfUUID, (p) => rowKey(p.post_local_id, p.post_uuid))
+
     const flatItems = useMemo(() => {
         const items: Array<FlatItem<PostsRes>> = []
         Object.keys(groupedPosts).forEach((date) => {
             items.push({ type: "separator", date, key: "separator" + date })
-            groupedPosts[date].forEach((post) => items.push({ type: "item", data: post, key: rowKey(post.post_local_id, post.post_uuid) }))
+            groupedPosts[date].forEach((post) => {
+                const key = rowKey(post.post_local_id, post.post_uuid)
+                if (key === unreadAnchor) items.push({ type: "unread", key: "unread" })
+                items.push({ type: "item", data: post, key })
+            })
         })
 
         // Same author within five minutes: drawn as one turn (lib/messageGrouping).
 
         return withContinuation(items, (p) => ({ author: p.post_by?.user_uuid, at: p.post_created_at, isBot: !!p.post_by?.is_bot, standalone: !!(p.post_reply_to || p.post_fwd_msg_post || p.post_fwd_msg_chat) }))
-    }, [groupedPosts])
+    }, [groupedPosts, unreadAnchor])
 
     const renderItem = useCallback(
         (post: PostsRes, { priority, continued }: RowMeta) => (

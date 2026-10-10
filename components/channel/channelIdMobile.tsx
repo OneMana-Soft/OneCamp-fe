@@ -92,7 +92,7 @@ export const ChannelIdMobile = ({channelId, handleSend, unreadCount, focusCompos
     return (
         <div className='flex flex-col h-full'>
             <div className="flex-1 min-h-0">
-                <ChannelMessageList channelId={channelId}/>
+                <ChannelMessageList channelId={channelId} unreadOnOpen={unreadCount}/>
             </div>
 
             <div>
