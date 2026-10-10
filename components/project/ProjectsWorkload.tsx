@@ -23,6 +23,9 @@ import { formatDuration } from "@/lib/tasks/time"
 import { statusOptions } from "@/lib/taskStatus"
 import { dotColor, spanLabel, spanOf } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
+import { WorkState, workToolbar } from "@/components/task/workFrame"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotWelcome } from "@/components/ui/graphics/spots"
 import {
   UNASSIGNED,
   cellLabel,
@@ -91,7 +94,7 @@ type Actions = {
  * later or give it to someone with room. Asana keeps this for its Advanced
  * plan, monday for Pro.
  */
-export function ProjectsWorkload({ projects, compact = false }: { projects: ProjectOverview[]; compact?: boolean }) {
+export function ProjectsWorkload({ projects, compact = false, tools }: { projects: ProjectOverview[]; compact?: boolean; tools?: ReactNode }) {
   const { data, isLoading, isError, mutate, moveLater, giveTo, setCapacity } = useWorkload()
   const { isDesktop } = useMedia()
   const router = useRouter()
@@ -177,13 +180,32 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
     }
   }
 
-  if (isError && !data) return <ErrorState subject="the workload" onRetry={() => void mutate()} />
+  // The overview's frame (components/task/workFrame): the tools row stays
+  // through loading and failing, and the state sits where every view's does.
+  const toolsRow = (extra?: ReactNode) => (
+    <div data-work-toolbar="" className={workToolbar}>
+      {tools}
+      {extra}
+    </div>
+  )
+  if (isError && !data)
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {toolsRow()}
+        <WorkState>
+          <ErrorState subject="the workload" onRetry={() => void mutate()} />
+        </WorkState>
+      </div>
+    )
   if (!grid) {
     return (
-      <div className="grid gap-2 py-2" aria-busy={isLoading}>
-        {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-10" />
-        ))}
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {toolsRow()}
+        <div className="grid gap-2" aria-busy={isLoading}>
+          {Array.from({ length: 6 }, (_, i) => (
+            <Skeleton key={i} className="h-10" />
+          ))}
+        </div>
       </div>
     )
   }
@@ -199,13 +221,23 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
   const tabStop = active && filled.includes(active) ? active : (filled[0] ?? null)
 
   if (rows.length === 0) {
-    return <p className="py-10 text-center text-sm text-muted-foreground">No one is in these projects yet.</p>
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {toolsRow()}
+        <WorkState>
+          <EmptyState illustration={<SpotWelcome hue="sky" />} title="No one is in these projects yet" description="Add people to a project and their weeks show here." />
+        </WorkState>
+      </div>
+    )
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground">
-        <p>
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {/* One row, where Table's and Timeline's are: the overview's tools, what
+          the weeks say, the count and the key. */}
+      {toolsRow(
+        <>
+          <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
           {over > 0 ? (
             <span className="font-medium text-danger-ink">
               {over} {over === 1 ? "person has" : "people have"} more than they take on this week.
@@ -219,23 +251,23 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
           {data?.truncated && " Only the latest-due 5,000 tasks are counted."}
           {unestimated > 0 &&
             ` ${unestimated} ${unestimated === 1 ? "task has" : "tasks have"} no estimate yet, so ${unestimated === 1 ? "it isn't" : "they aren't"} counted.`}
-        </p>
+          </p>
         <ToggleGroup
           type="single"
           size="sm"
           value={measure}
           onValueChange={(v) => isMeasure(v) && setMeasure(v)}
           aria-label="Count"
-          className="rounded-md border p-0.5"
+          className="h-8 rounded-md border p-0.5"
         >
-          <ToggleGroupItem value="tasks" className="h-7 px-2.5 text-xs">
+          <ToggleGroupItem value="tasks" className="h-full px-2.5 text-xs">
             Tasks
           </ToggleGroupItem>
-          <ToggleGroupItem value="hours" className="h-7 px-2.5 text-xs">
+          <ToggleGroupItem value="hours" className="h-full px-2.5 text-xs">
             Hours
           </ToggleGroupItem>
         </ToggleGroup>
-        <div className="flex items-center gap-3" aria-hidden>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
           {(["room", "full", "over"] as const).map((l) => (
             <span key={l} className="flex items-center gap-1.5">
               <span className={cn("h-2.5 w-2.5 rounded-sm", METER[l])} />
@@ -243,7 +275,8 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
             </span>
           ))}
         </div>
-      </div>
+        </>,
+      )}
       {!anything && (
         <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
           Nothing here has dates in the next {weeks.length} weeks. Give a task a start or due date and it shows in the weeks it runs.

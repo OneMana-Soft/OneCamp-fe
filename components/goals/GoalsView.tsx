@@ -7,14 +7,13 @@ import { GoalDialog } from "@/components/goals/GoalDialog"
 import { GoalOwner } from "@/components/goals/GoalOwner"
 import { GoalProgress } from "@/components/goals/GoalProgress"
 import { EmptyState } from "@/components/ui/empty-state"
-import { SpotTasks } from "@/components/ui/graphics/spots"
+import { SpotSearch, SpotTasks } from "@/components/ui/graphics/spots"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { HealthPill } from "@/components/projectUpdates/HealthPill"
-import { SearchField } from "@/components/search/searchField"
+import { ToolbarSearch, WorkState, workToolbar } from "@/components/task/workFrame"
 import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useGoals } from "@/hooks/useGoals"
@@ -78,7 +77,11 @@ export function GoalsView({ compact }: { compact: boolean }) {
 
   let body: ReactNode
   if (isError && !goals) {
-    body = <ErrorState subject="the goals" onRetry={() => void refresh()} />
+    body = (
+      <WorkState>
+        <ErrorState subject="the goals" onRetry={() => void refresh()} />
+      </WorkState>
+    )
   } else if (isLoading && !goals) {
     body = (
       <div className="grid gap-3 py-2" aria-busy>
@@ -89,34 +92,19 @@ export function GoalsView({ compact }: { compact: boolean }) {
     )
   } else if (all.length === 0) {
     body = (
-      <div className="flex min-h-[40vh] flex-col items-center justify-center px-4 py-10">
+      <WorkState>
         <EmptyState
           illustration={<SpotTasks hue="sun" />}
           title="No goals yet"
           description="A goal is an outcome you're after by a date: a launch, a number of customers, a reply time. Its progress fills in by itself from the projects serving it, from its sub-goals, or from a number you update."
-          action={
-            <Button onClick={() => setCreating(true)} variant="outline" size="sm">
-              Set the first goal
-            </Button>
-          }
         />
-      </div>
+      </WorkState>
     )
   } else if (shown.length === 0) {
     body = (
-      <div className="flex min-h-[30vh] flex-col items-center justify-center px-4 py-10">
-        <StatePlaceholder
-          type="search"
-          title={query ? "No goals found" : status === "closed" ? "No closed goals" : mine ? "You own no open goals" : "No open goals"}
-          description={
-            query
-              ? "No goal's title or owner has those words."
-              : status === "closed"
-                ? "Goals closed as achieved, missed or dropped show here, with how far they got."
-                : "Every goal is closed. Set the next one."
-          }
-        />
-      </div>
+      <WorkState>
+        <EmptyState illustration={<SpotSearch />} title={query ? "No goals found" : status === "closed" ? "No closed goals" : mine ? "You own no open goals" : "No open goals"} />
+      </WorkState>
     )
   } else if (compact) {
     body = (
@@ -205,20 +193,22 @@ export function GoalsView({ compact }: { compact: boolean }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {all.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 pb-2">
+      {/* The overview's frame (components/task/workFrame): this row is
+          there from the first paint, where Table's row is, with New goal as
+          its one filled button; the goals sit 16px under it. */}
+      <div data-work-toolbar="" className={workToolbar}>
           <ToggleGroup
             type="single"
             size="sm"
             value={status}
             onValueChange={(v) => isStatus(v) && setStatus(v)}
             aria-label="Show"
-            className="rounded-md border p-0.5"
+            className="h-8 rounded-md border p-0.5"
           >
-            <ToggleGroupItem value="open" className="h-7 gap-1.5 px-2.5 text-xs">
+            <ToggleGroupItem value="open" className="h-full gap-1.5 px-2.5 text-xs">
               Open <span className="tabular-nums text-muted-foreground">{counts.open}</span>
             </ToggleGroupItem>
-            <ToggleGroupItem value="closed" className="h-7 gap-1.5 px-2.5 text-xs">
+            <ToggleGroupItem value="closed" className="h-full gap-1.5 px-2.5 text-xs">
               Closed <span className="tabular-nums text-muted-foreground">{counts.closed}</span>
             </ToggleGroupItem>
           </ToggleGroup>
@@ -228,24 +218,23 @@ export function GoalsView({ compact }: { compact: boolean }) {
             value={mine ? "mine" : "all"}
             onValueChange={(v) => v && setMine(v === "mine")}
             aria-label="Whose"
-            className="rounded-md border p-0.5"
+            className="h-8 rounded-md border p-0.5"
           >
-            <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
+            <ToggleGroupItem value="all" className="h-full px-2.5 text-xs">
               Everyone&apos;s
             </ToggleGroupItem>
-            <ToggleGroupItem value="mine" className="h-7 px-2.5 text-xs">
+            <ToggleGroupItem value="mine" className="h-full px-2.5 text-xs">
               Mine
             </ToggleGroupItem>
           </ToggleGroup>
-          <SearchField value={query} onChange={setQuery} placeholder="Search goals or owners…" className={compact ? "-mx-3 w-[calc(100%+1.5rem)] md:-mx-4 md:w-[calc(100%+2rem)]" : "w-72"} />
+          <ToolbarSearch value={query} onChange={setQuery} placeholder="Search goals or owners…" label="Search goals" className={compact ? "w-full" : "w-64"} />
           {due > 0 && !compact && <span className="text-xs text-warning-ink">{due === 1 ? "1 goal needs a check-in" : `${due} goals need a check-in`}</span>}
-          <Button size="sm" variant="outline" className="ml-auto gap-1.5" onClick={() => setCreating(true)}>
-            <Target className="h-4 w-4" />
+          <Button size="sm" className="ml-auto h-8 gap-1.5" onClick={() => setCreating(true)}>
+            <Target className="h-3.5 w-3.5" />
             New goal
           </Button>
-        </div>
-      )}
-      <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
+      </div>
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto">{body}</div>
       {creating && (
         <GoalDialog
           goals={all}

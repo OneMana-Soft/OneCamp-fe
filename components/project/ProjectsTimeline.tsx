@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { hueFor } from "@/lib/campHue"
 import { HUE_CLASS } from "@/components/ui/graphics/hues"
 import { app_project_path } from "@/types/paths"
+import { workToolbar } from "@/components/task/workFrame"
+import type { ReactNode } from "react"
 
 const ROW_HEIGHT = 40
 const isZoom = (v: unknown): v is Zoom => ZOOMS.some((z) => z.value === v)
@@ -27,7 +29,7 @@ const timelineOf = (p: ProjectOverview) => `${app_project_path}/${p.project_uuid
  * project's own timeline. The projects come sorted and filtered as the
  * overview's table has them.
  */
-export function ProjectsTimeline({ projects, compact = false }: { projects: ProjectOverview[]; compact?: boolean }) {
+export function ProjectsTimeline({ projects, compact = false, tools }: { projects: ProjectOverview[]; compact?: boolean; tools?: ReactNode }) {
   const [zoom, setZoom, zoomReady] = useStoredState<Zoom>("oc_projects_timeline_zoom", "week", isZoom)
   const [today] = useState(() => startOfDay(new Date()))
   const nameWidth = compact ? 136 : 240
@@ -41,20 +43,24 @@ export function ProjectsTimeline({ projects, compact = false }: { projects: Proj
   const todayLeft = offsetOf(today, range, dayWidth)
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" className="h-8" onClick={goToday}>
+    // The overview's frame (components/task/workFrame): its search, filter and
+    // sort start this row, where Table's row is, and the chart sits 16px
+    // under it with List's radius.
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div data-work-toolbar="" className={workToolbar}>
+        {tools}
+        <Button variant="ghost" size="sm" className="h-8" onClick={goToday}>
           Today
         </Button>
-        <ToggleGroup type="single" size="sm" value={zoom} onValueChange={(v) => isZoom(v) && setZoom(v)} aria-label="Zoom" className="rounded-md border p-0.5">
+        <ToggleGroup type="single" size="sm" value={zoom} onValueChange={(v) => isZoom(v) && setZoom(v)} aria-label="Zoom" className="h-8 rounded-md border p-0.5">
           {ZOOMS.map((z) => (
-            <ToggleGroupItem key={z.value} value={z.value} className="h-7 px-2.5 text-xs">
+            <ToggleGroupItem key={z.value} value={z.value} className="h-full px-2.5 text-xs">
               {z.label}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
       </div>
-      <div className="relative min-h-[16rem] flex-1 overflow-hidden rounded-lg border bg-background">
+      <div className="relative min-h-[16rem] flex-1 overflow-hidden rounded-md border bg-background">
         <div ref={scrollRef} role="region" aria-label="Projects on a timeline" className="h-full overflow-auto overscroll-x-contain" onScroll={onScroll}>
           <TimelineHeader range={range} zoom={zoom} dayWidth={dayWidth} today={today} nameWidth={nameWidth} nameLabel="Project" />
           <div className="relative" style={{ width: nameWidth + gridWidth, height: rows.length * ROW_HEIGHT }}>

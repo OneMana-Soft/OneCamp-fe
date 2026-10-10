@@ -23,7 +23,9 @@ import {
 import { ErrorState } from "@/components/ui/error-state"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
+import { EmptyState } from "@/components/ui/empty-state"
+import { SpotWelcome } from "@/components/ui/graphics/spots"
+import { WorkState, workToolbar } from "@/components/task/workFrame"
 import { useFetch } from "@/hooks/useFetch"
 import { useStoredState } from "@/hooks/useStoredState"
 import { ChevronDown, Download } from "@/lib/icons"
@@ -151,20 +153,10 @@ export function ReportsView({ compact }: { compact?: boolean }) {
   }, [report, picked, chosen.length, setChosen])
   const toggle = (id: string) => setChosen(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id])
 
-  if (report && available.length === 0) {
-    return (
-      <div className="flex min-h-[40vh] flex-col items-center justify-center px-4 py-10">
-        <StatePlaceholder
-          type="empty"
-          title="No report yet"
-          description="Reports count the work in the projects you're in. Join or start a project and they fill in."
-        />
-      </div>
-    )
-  }
-
+  // The overview's frame (components/task/workFrame): this row is where
+  // Table's row is on every other view, and the report sits 16px under it.
   const controls = (
-    <div className="flex flex-wrap items-center gap-2">
+    <div data-work-toolbar="" className={workToolbar}>
       <Select value={String(weeks)} onValueChange={(v) => isWeeks(Number(v)) && setWeeks(Number(v))}>
         <SelectTrigger dense className="h-8 w-auto gap-1.5 text-xs" aria-label="Weeks">
           <SelectValue />
@@ -221,12 +213,29 @@ export function ReportsView({ compact }: { compact?: boolean }) {
     </div>
   )
 
+  if (report && available.length === 0) {
+    return (
+      <div className="grid gap-4 pb-4" data-reports="">
+        {controls}
+        <WorkState>
+          <EmptyState
+            illustration={<SpotWelcome hue="sky" />}
+            title="No report yet"
+            description="Reports count the work in the projects you're in. Join or start a project and they fill in."
+          />
+        </WorkState>
+      </div>
+    )
+  }
+
   if (!report) {
     return (
       <div className="grid gap-4 pb-4" data-reports="">
         {controls}
         {isError ? (
-          <ErrorState subject="the report" onRetry={() => void mutate()} />
+          <WorkState>
+            <ErrorState subject="the report" onRetry={() => void mutate()} />
+          </WorkState>
         ) : (
           <div className="grid gap-3" aria-busy>
             <div className="grid grid-cols-2 gap-x-5 gap-y-4 border-y border-border/60 py-4 lg:grid-cols-4">
@@ -266,7 +275,9 @@ export function ReportsView({ compact }: { compact?: boolean }) {
         <Stat label="Hours logged" value={report.hours ? totalHours(report) : "None"} note={report.hours ? `in ${weeks} weeks` : "Couldn't be read just now"} />
       </dl>
       {nothing ? (
-        <StatePlaceholder type="empty" title="Nothing open or done in these weeks" description="Pick more weeks, or more projects." />
+        <WorkState>
+          <EmptyState illustration={<SpotWelcome hue="sky" />} title="Nothing open or done in these weeks" description="Pick more weeks, or more projects." />
+        </WorkState>
       ) : (
         <>
           <div className={cn("grid gap-4", !compact && (hours || flow) && "lg:grid-cols-2")}>

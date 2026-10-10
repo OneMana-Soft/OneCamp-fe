@@ -115,7 +115,9 @@ describe("the goals list", () => {
     list = []
     const { container } = render(<GoalsView compact={false} />)
     expect(screen.getByText("No goals yet")).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Set the first goal" })).toBeTruthy()
+    // New goal is in the toolbar row from the first paint, where it is when
+    // there are goals, rather than a second button in the empty state.
+    expect(screen.getByRole("button", { name: "New goal" })).toBeTruthy()
     // The empty state's spot, in the goals' hue (the playful layer).
     expect(container.querySelector("[data-empty-illustration] svg.hue-sun")).toBeTruthy()
   })

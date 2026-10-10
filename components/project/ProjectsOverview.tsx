@@ -9,13 +9,11 @@ import { HealthPill } from "@/components/projectUpdates/HealthPill"
 import { ProjectsTimeline } from "@/components/project/ProjectsTimeline"
 import { ProjectsWorkload } from "@/components/project/ProjectsWorkload"
 import { ReportsView } from "@/components/reports/ReportsView"
-import { SearchField } from "@/components/search/searchField"
 import { Button } from "@/components/ui/button"
 import { ErrorState } from "@/components/ui/error-state"
 import { PageHeader } from "@/components/ui/pageHeader"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatePlaceholder } from "@/components/ui/StatePlaceholder"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useLongPress } from "@/hooks/useLongPress"
@@ -37,7 +35,8 @@ import {
 import { cn } from "@/lib/utils/helpers/cn"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 import { EmptyState } from "@/components/ui/empty-state"
-import { SpotWelcome } from "@/components/ui/graphics/spots"
+import { SpotSearch, SpotWelcome } from "@/components/ui/graphics/spots"
+import { ToolbarSearch, WorkState, workBody, workToolbar } from "@/components/task/workFrame"
 import { projectGlanceParts } from "@/lib/utils/projectGlance"
 import { daysAgo } from "@/lib/utils/relativeTime"
 import { openUI } from "@/store/slice/uiSlice"
@@ -164,7 +163,42 @@ export function ProjectsOverview() {
   const attention = useMemo(() => all.filter(needsAttention).length, [all])
   const newProject = () => dispatch(openUI({ key: "createProject" }))
 
+  // Search, filter and sort: one row on Table, and the start of Timeline's and
+  // Workload's own row, so the three line up. There from the first paint;
+  // with nothing to search yet they are off.
+  const nothingYet = all.length === 0
+  const viewTools = (
+    <>
+      <ToolbarSearch value={query} onChange={setQuery} placeholder="Search projects or teams…" label="Search projects" className={isDesktop ? "w-64" : "w-full"} />
+      <ToggleGroup type="single" size="sm" value={filter} onValueChange={(v) => isFilter(v) && setFilter(v)} aria-label="Show" disabled={nothingYet} className="h-8 rounded-md border p-0.5">
+        <ToggleGroupItem value="all" className="h-full px-2.5 text-xs">
+          All
+        </ToggleGroupItem>
+        <ToggleGroupItem value="attention" className="h-full gap-1.5 px-2.5 text-xs">
+          Needs attention
+          <span className="tabular-nums text-muted-foreground">{attention}</span>
+        </ToggleGroupItem>
+      </ToggleGroup>
+      {view !== "workload" && (
+        <Select value={sort} onValueChange={(v) => isSort(v) && setSort(v)} disabled={nothingYet}>
+          <SelectTrigger dense className="h-8 w-auto gap-1.5 text-xs" aria-label="Sort">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {OVERVIEW_SORTS.map((s) => (
+              <SelectItem key={s.value} value={s.value} className="text-xs">
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </>
+  )
+
   let body: ReactNode
+  // Whether the view itself draws (and so draws its own row of controls).
+  let viewDraws = view === "goals" || view === "reports"
   if (view === "goals") {
     // Goals stand on their own: a workspace may have goals before it has projects.
     body = <GoalsView compact={!isDesktop} />
@@ -172,44 +206,51 @@ export function ProjectsOverview() {
     // Reports read their own numbers, across every project (or the ones chosen).
     body = <ReportsView compact={!isDesktop} />
   } else if (isError && !projects) {
-    body = <ErrorState subject="your projects" onRetry={() => void mutate()} />
-  } else if (isLoading && !projects) {
     body = (
-      <div className="grid gap-3 py-2" aria-busy>
+      <WorkState>
+        <ErrorState subject="your projects" onRetry={() => void mutate()} />
+      </WorkState>
+    )
+  } else if (isLoading && !projects) {
+    // The table's shape: its header, then rows a project's row high.
+    body = (
+      <div role="status" aria-label="Loading projects">
+        <div className="h-[33px] border-b" />
         {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} className="h-12" />
+          <div key={i} aria-hidden="true" className="flex h-[61px] items-center gap-4 border-b border-border/60">
+            <Skeleton className="h-4 w-1/4" />
+            <Skeleton className="h-3 w-1/6" />
+            <Skeleton className="ml-auto h-1.5 w-1/6" />
+          </div>
         ))}
       </div>
     )
   } else if (all.length === 0) {
     body = (
-      <div className="flex min-h-[40vh] flex-col items-center justify-center px-4 py-10">
+      <WorkState>
         <EmptyState
           illustration={<SpotWelcome hue="sky" />}
           title="No projects yet"
           description="Start one from a template (a client project, a launch, a new hire's first weeks) or from a blank page."
-          action={
-            <Button onClick={newProject} variant="outline" size="sm">
-              Create a project
-            </Button>
-          }
         />
-      </div>
+      </WorkState>
     )
   } else if (shown.length === 0) {
     body = (
-      <div className="flex min-h-[30vh] flex-col items-center justify-center px-4 py-10">
-        <StatePlaceholder
-          type="search"
+      <WorkState>
+        <EmptyState
+          illustration={<SpotSearch />}
           title={query ? "No projects found" : "Nothing needs attention"}
           description={query ? "No project's name or team has those words." : "No project is off track or at risk, and nothing is overdue."}
         />
-      </div>
+      </WorkState>
     )
   } else if (view === "timeline") {
-    body = <ProjectsTimeline projects={shown} compact={!isDesktop} />
+    viewDraws = true
+    body = <ProjectsTimeline projects={shown} compact={!isDesktop} tools={viewTools} />
   } else if (view === "workload") {
-    body = <ProjectsWorkload projects={shown} compact={!isDesktop} />
+    viewDraws = true
+    body = <ProjectsWorkload projects={shown} compact={!isDesktop} tools={viewTools} />
   } else if (!isDesktop) {
     body = <ul className="divide-y divide-border/60">{shown.map((p) => <MobileRow key={p.project_uuid} p={p} />)}</ul>
   } else {
@@ -261,97 +302,72 @@ export function ProjectsOverview() {
     )
   }
 
-  const goalsView = view === "goals"
-  // Goals and reports have their own controls: no project search, filter or sort.
-  const ownTools = goalsView || view === "reports"
-  const tools = (all.length > 0 || ownTools) && (
-    <div className={cn("flex flex-wrap items-center gap-2", isDesktop ? "px-8 pt-4" : "px-4 pb-1")}>
-      {!ownTools && <SearchField value={query} onChange={setQuery} placeholder="Search projects or teams…" className={isDesktop ? "-ml-4 w-80 shrink-0" : "-mx-3 w-[calc(100%+1.5rem)] md:-mx-4 md:w-[calc(100%+2rem)]"} />}
-      <div className="flex flex-wrap items-center gap-2">
-        <ToggleGroup type="single" size="sm" value={view} onValueChange={(v) => isView(v) && choose(v)} aria-label="View as" className="rounded-md border p-0.5">
-          <ToggleGroupItem value="table" className="h-7 px-2.5 text-xs">
-            {isDesktop ? "Table" : "List"}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="timeline" className="h-7 px-2.5 text-xs">
-            Timeline
-          </ToggleGroupItem>
-          <ToggleGroupItem value="workload" className="h-7 px-2.5 text-xs">
-            Workload
-          </ToggleGroupItem>
-          <ToggleGroupItem value="goals" className="h-7 px-2.5 text-xs">
-            Goals
-          </ToggleGroupItem>
-          <ToggleGroupItem value="reports" className="h-7 px-2.5 text-xs">
-            Reports
-          </ToggleGroupItem>
-        </ToggleGroup>
-        {!ownTools && (
-          <ToggleGroup type="single" size="sm" value={filter} onValueChange={(v) => isFilter(v) && setFilter(v)} aria-label="Show" className="rounded-md border p-0.5">
-            <ToggleGroupItem value="all" className="h-7 px-2.5 text-xs">
-              All
-            </ToggleGroupItem>
-            <ToggleGroupItem value="attention" className="h-7 gap-1.5 px-2.5 text-xs">
-              Needs attention
-              <span className="tabular-nums text-muted-foreground">{attention}</span>
-            </ToggleGroupItem>
-          </ToggleGroup>
-        )}
-        {view !== "workload" && !ownTools && (
-          <Select value={sort} onValueChange={(v) => isSort(v) && setSort(v)}>
-            <SelectTrigger dense className="h-8 w-auto gap-1.5 text-xs" aria-label="Sort">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {OVERVIEW_SORTS.map((s) => (
-                <SelectItem key={s.value} value={s.value} className="text-xs">
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+  // Views that draw their own row of controls (Timeline, Workload, Goals,
+  // Reports) start it where Table's row is; Table's row is the shared tools.
+  const ownRow = viewDraws
+  const fills = viewDraws && view !== "reports"
+  const table = !ownRow && (
+    <>
+      <div data-work-toolbar="" className={cn(workToolbar, !isDesktop && "flex-nowrap")}>
+        {viewTools}
       </div>
+      <div className={cn(workBody, "min-h-0")}>{body}</div>
+    </>
+  )
+
+  // One frame for every view (components/task/workFrame), the model being
+  // Activity's: the same header, the switcher row with the view's create
+  // action, then the view's own row of controls and its body, at the same
+  // height on every view. Goals and Reports used to rewrite the header (its
+  // title, its summary line and New project went, so everything moved up
+  // 26px) and slide the switcher 310px left; the toolbar waited for the
+  // projects, so the skeleton dropped 68px when it came; and with no projects
+  // there was no switcher, so Goals and Reports couldn't be reached.
+  const switcher = (
+    <div data-work-toolbar="" className={cn(workToolbar, "justify-between", isDesktop ? "flex-nowrap" : "")}>
+      <ToggleGroup type="single" size="sm" value={view} onValueChange={(v) => isView(v) && choose(v)} aria-label="View as" className="h-8 rounded-md border p-0.5">
+        {(["table", "timeline", "workload", "goals", "reports"] as const).map((v) => (
+          <ToggleGroupItem key={v} value={v} className="h-full px-2.5 text-xs">
+            {v === "table" ? (isDesktop ? "Table" : "List") : v === "timeline" ? "Timeline" : v === "workload" ? "Workload" : v === "goals" ? "Goals" : "Reports"}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      {isDesktop && (view === "table" || view === "timeline" || view === "workload") && (
+        <Button size="sm" className="h-8 gap-1.5" onClick={newProject}>
+          <CirclePlus className="h-3.5 w-3.5" />
+          New project
+        </Button>
+      )}
     </div>
   )
 
-  // The timeline and the workload scroll inside their own frame, filling the page.
-  const fills = view === "timeline" || view === "workload" || goalsView
+  const content = ownRow ? <div className={cn("flex min-h-0 flex-1 flex-col", !fills && "overflow-y-auto")}>{body}</div> : table
+
   if (!isDesktop) {
     return (
-      <div className="flex h-full flex-col">
-        {tools}
-        <div className={cn("flex-1", fills ? "flex min-h-0 flex-col px-4 pb-3 pt-2" : "overflow-y-auto", view === "reports" && "px-4 pb-3 pt-2")}>{body}</div>
+      <div className="flex h-full flex-col gap-3 px-4 pt-3">
+        {switcher}
+        <div className={cn("flex min-h-0 flex-1 flex-col", fills ? "" : "overflow-y-auto")}>{content}</div>
       </div>
     )
   }
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <PageHeader
-        className="px-8 pt-8"
-        eyebrow={goalsView ? "Every goal in the workspace" : view === "reports" ? "How work is going across your projects" : "Every project you're in"}
-        title={goalsView ? "Goals" : view === "reports" ? "Reports" : "Projects"}
-        actions={
-          !ownTools && (
-            <Button size="sm" className="gap-1.5" onClick={newProject}>
-              <CirclePlus className="h-4 w-4" />
-              New project
-            </Button>
-          )
-        }
-      >
-        {!ownTools && summary.length > 0 && (
-          <p className="text-sm text-muted-foreground">
-            {summary.map((s, i) => (
-              <span key={s.text}>
-                {i > 0 && " · "}
-                <span className={cn(s.tone === "late" && "font-medium text-danger-ink")}>{s.text}</span>
-              </span>
-            ))}
-          </p>
-        )}
+      <PageHeader className="px-8 pt-8" eyebrow="Every project you're in" title="Projects">
+        {/* Held a line high while it loads, and kept on every view. */}
+        <p className="h-5 text-sm text-muted-foreground">
+          {summary.map((s, i) => (
+            <span key={s.text}>
+              {i > 0 && " · "}
+              <span className={cn(s.tone === "late" && "font-medium text-danger-ink")}>{s.text}</span>
+            </span>
+          ))}
+        </p>
       </PageHeader>
-      {tools}
-      <div className={cn("flex-1 px-8 pb-8 pt-2", fills ? "flex min-h-0 flex-col" : "overflow-y-auto")}>{body}</div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-8 pb-8 pt-6">
+        {switcher}
+        {content}
+      </div>
     </div>
   )
 }
