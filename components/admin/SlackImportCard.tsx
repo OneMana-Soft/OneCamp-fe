@@ -17,36 +17,45 @@
  * - The card is intentionally self-contained; it does not depend on
  *   uiSlice so it can be moved to a future /app/app/admin/import page
  *   without touching unrelated state.
+ *
+ * Each row reads like the task panel (quiet labels, values in ink at one x)
+ * and says where it stands as a dot and a word, as the other importers' rows
+ * do. A row's next step is an outline button: the tab keeps one filled
+ * action, New import, on the section's title row. One flat section like every
+ * other admin tab, where it was a bordered Card with each import a box in it.
  */
 
-import { eyebrowClass } from "@/components/ui/eyebrow"
-import { cn } from "@/lib/utils/helpers/cn"
-import React, { useMemo, useState, Suspense, lazy } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+import React, { useEffect, useMemo, useRef, useState, Suspense, lazy } from "react"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { Input } from "@/components/ui/input"
+import { Field } from "@/components/ui/field"
 import { Progress } from "@/components/ui/progress"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
 import { useFetch } from "@/hooks/useFetch"
 import { useResilientPolling } from "@/hooks/useResilientPolling"
 import { useMqtt } from "@/components/mqtt/mqttProvider"
 import { GetEndpointUrl } from "@/services/endPoints"
-import {
-  Upload,
-  RefreshCw,
-  XCircle,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  RotateCcw,
-  Users,
-} from "@/lib/icons"
+import { Upload, RefreshCw, RotateCcw, Users, AlertTriangle } from "@/lib/icons"
 import { PlayCircle } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { SpotImported } from "@/components/ui/graphics"
+import { cn } from "@/lib/utils/helpers/cn"
+import { apiErrorMessage, apiErrorStatus } from "@/lib/utils/apiError"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { shortDateTime } from "@/lib/utils/date/shortDate"
 import {
   cancelSlackImport,
   deleteStagedZip,
@@ -55,6 +64,8 @@ import {
   type SlackImportJob,
 } from "@/services/slackImportService"
 import { importProblemOf } from "@/services/importService"
+import { IMPORT_LIST, ImportRowsSkeleton, ImportStatusChip, ROW_ACTION, count, partsLine } from "@/components/admin/ImportJobRow"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 // Lazy-load the heavy dialogs (multi-GB upload widget, plan dialog
 // with mappings, error pagination). Same rationale as ImportCard:
 // the admin overview should render immediately; the dialogs only
@@ -79,18 +90,6 @@ const POLL_INTERVAL_MS = 6000
 // Hard cap on fallback polling so a runaway interval can't hammer the API.
 const POLL_CAP_MS = 10 * 60 * 1000
 
-const STATUS_BADGE: Record<string, { className: string; icon: React.ReactNode }> = {
-  pending: { className: "bg-warning/10 text-warning-ink border-warning/20", icon: <Clock className="h-3.5 w-3.5" /> },
-  validating: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" /> },
-  planned: { className: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  running: { className: "bg-blue-500/10 text-blue-600 border-blue-500/20", icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" /> },
-  paused: { className: "bg-warning/10 text-warning-ink border-warning/20", icon: <Clock className="h-3.5 w-3.5" /> },
-  completed: { className: "bg-success/10 text-success-ink border-success/20", icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
-  failed: { className: "bg-destructive/10 text-danger-ink border-destructive/20", icon: <XCircle className="h-3.5 w-3.5" /> },
-  cancelled: { className: "bg-gray-500/10 text-gray-600 border-gray-500/20", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
-  rolled_back: { className: "bg-purple-500/10 text-purple-600 border-purple-500/20", icon: <RotateCcw className="h-3.5 w-3.5" /> },
-}
-
 const STAGE_LABELS: Record<string, string> = {
   validating: "Validating",
   planned: "Planned",
@@ -106,6 +105,9 @@ const STAGE_LABELS: Record<string, string> = {
   failed: "Failed",
   rolled_back: "Rolled back",
 }
+
+/** An export still waiting for its plan: the plan is where it goes next. */
+const needsPlan = (j: SlackImportJob) => j.status === "validating" || (j.status === "failed" && !j.plan)
 
 const SlackImportCard: React.FC = () => {
   const { toast } = useToast()
@@ -139,11 +141,34 @@ const SlackImportCard: React.FC = () => {
   const [errorsJobId, setErrorsJobId] = useState<string | null>(null)
   const [busyJobId, setBusyJobId] = useState<string | null>(null)
   const [inviteJob, setInviteJob] = useState<SlackImportJob | null>(null)
+  const [rollbackJob, setRollbackJob] = useState<SlackImportJob | null>(null)
+  // The import an export uploaded twice already made, marked in the list.
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!highlightId) return
+    const t = setTimeout(() => setHighlightId(null), 8000)
+    return () => clearTimeout(t)
+  }, [highlightId])
 
   const onUploaded = (jobId: string) => {
     setUploadOpen(false)
     setPlanJobId(jobId)
     refetch()
+  }
+
+  // The same export uploaded again: show the import it made. One still
+  // waiting for its plan goes to the plan; any other is marked in the list,
+  // where it used to open the plan of an import that had already finished.
+  const onShowExisting = (jobId: string) => {
+    setUploadOpen(false)
+    const existing = jobs.find((j) => j.id === jobId)
+    if (existing && needsPlan(existing)) {
+      setPlanJobId(jobId)
+      return
+    }
+    setHighlightId(jobId)
+    if (!existing) refetch()
   }
 
   const onPlanRan = () => {
@@ -155,13 +180,13 @@ const SlackImportCard: React.FC = () => {
     try {
       setBusyJobId(job.id)
       await runSlackImport(job.id)
-      toast({ title: "Import started", description: `${job.slack_workspace_name} is now importing.` })
+      toast({ title: "Import started", description: `${job.slack_workspace_name} is importing now.` })
       // Bust the live progress source.
       swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
     } catch (err) {
       // The request shows no toast of its own: this is the one.
       toast({
-        title: "Could not start import",
+        title: "Couldn't start the import",
         description: importProblemOf(err).message,
         variant: "destructive",
       })
@@ -170,19 +195,21 @@ const SlackImportCard: React.FC = () => {
     }
   }
 
-  const handleCancel = async (job: SlackImportJob) => {
+  const handleCancel = (job: SlackImportJob) => {
     confirm({
-      title: "Cancel import",
-      description: `Cancel import for ${job.slack_workspace_name}? In-flight chunks finish, then the job stops.`,
+      title: `Cancel the import of ${job.slack_workspace_name}?`,
+      description: "What has come across so far stays. Messages still being written finish first, then it stops.",
       confirmText: "Cancel import",
+      cancelText: "Keep importing",
+      destructive: true,
       onConfirm: async () => {
         try {
           setBusyJobId(job.id)
           await cancelSlackImport(job.id)
-          toast({ title: "Cancellation sent" })
+          toast({ title: "Cancelling the import", description: "It stops once the messages in progress are written." })
           swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
         } catch (err) {
-          toast({ title: "Cancel failed", description: errorMessage(err), variant: "destructive" })
+          toast({ title: "Couldn't cancel the import", description: importProblemOf(err).message, variant: "destructive" })
         } finally {
           setBusyJobId(null)
         }
@@ -203,7 +230,7 @@ const SlackImportCard: React.FC = () => {
           toast({ title: "Discarded" })
           swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
         } catch (err) {
-          toast({ title: "Couldn't discard it", description: errorMessage(err), variant: "destructive" })
+          toast({ title: "Couldn't discard it", description: importProblemOf(err).message, variant: "destructive" })
         } finally {
           setBusyJobId(null)
         }
@@ -211,19 +238,19 @@ const SlackImportCard: React.FC = () => {
     })
   }
 
-  const handleRollback = async (job: SlackImportJob) => {
-    const confirm1 = window.prompt(
-      `Type "ROLLBACK" to soft-delete every entity created by the import of ${job.slack_workspace_name}.\n\nThis cannot be reversed automatically; you would need to re-import.`,
-    )
-    if (confirm1 !== "ROLLBACK") return
+  // Rolling back used the browser's own prompt to type ROLLBACK: unstyled,
+  // blocking, and suppressed in some installed-app windows. It asks in its
+  // own dialog now (RollbackDialog), for the workspace's name.
+  const doRollback = async (job: SlackImportJob) => {
     try {
       setBusyJobId(job.id)
       await rollbackSlackImport(job.id)
-      toast({ title: "Rollback complete" })
+      toast({ title: "Rolled back", description: `What the import of ${job.slack_workspace_name} brought in is gone.` })
+      setRollbackJob(null)
       swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
     } catch (err) {
       // The request shows no toast of its own: this is the one.
-      toast({ title: "Rollback failed", description: importProblemOf(err).message, variant: "destructive" })
+      toast({ title: "Couldn't roll back the import", description: importProblemOf(err).message, variant: "destructive" })
     } finally {
       setBusyJobId(null)
     }
@@ -231,20 +258,20 @@ const SlackImportCard: React.FC = () => {
 
   const handleDeleteStagedZip = async (job: SlackImportJob) => {
     confirm({
-      title: "Delete the staged file?",
-      description: `The Slack ZIP for ${job.slack_workspace_name} is removed from storage. The import stays; to retry, you would upload the file again.`,
-      confirmText: "Delete file",
+      title: "Delete the uploaded export?",
+      description: `The Slack file for ${job.slack_workspace_name} is removed from storage. What was imported stays; to import it again, you would upload the file again.`,
+      confirmText: "Delete export",
       destructive: true,
       onConfirm: async () => {
         try {
           setBusyJobId(job.id)
           await deleteStagedZip(job.id)
-          toast({ title: "Staged file deleted" })
+          toast({ title: "Export file deleted" })
           swrMutate((key) => typeof key === "string" && key.includes("/admin/import/slack/jobs"))
         } catch (err) {
           // The request shows no toast of its own: this is the one.
           toast({
-            title: "Could not delete staged file",
+            title: "Couldn't delete the export file",
             description: importProblemOf(err).message,
             variant: "destructive",
           })
@@ -257,75 +284,82 @@ const SlackImportCard: React.FC = () => {
 
   return (
     <>
-      <Card className="bg-card border-border/50 shadow-sm h-full overflow-hidden flex flex-col">
-        <CardHeader className="pb-4 border-b border-border/50">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div className="min-w-0">
-              <CardTitle className="text-base font-semibold">
-                Import from Slack
-              </CardTitle>
-              <CardDescription className="mt-1">
-                Upload a Slack workspace export to bring channels, messages, threads, files and reactions into OneCamp.
-              </CardDescription>
-            </div>
-            <div className="flex gap-2 shrink-0 self-start">
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
-                <RefreshCw className="h-4 w-4 mr-1.5" /> Refresh
-              </Button>
-              <Button onClick={() => setUploadOpen(true)} size="sm">
-                <Upload className="h-4 w-4 mr-1.5" /> New import
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
+      <SettingsSection
+        title="Import from Slack"
+        description="Upload a Slack workspace export to bring channels, messages, threads, files and reactions into OneCamp."
+        action={
+          <>
+            <Button variant="outline" size="sm" className={cn(sectionActionClass, "gap-1.5")} onClick={() => refetch()}>
+              <RefreshCw /> Refresh
+            </Button>
+            <Button size="sm" className={cn(sectionActionClass, "gap-1.5")} onClick={() => setUploadOpen(true)}>
+              <Upload /> New import
+            </Button>
+          </>
+        }
+      >
+        {isLoading ? (
+          <ImportRowsSkeleton label="Loading imports" />
+        ) : isError ? (
+          <ErrorState
+            compact
+            subject="the import history"
+            detail={apiErrorStatus(isError) ? apiErrorMessage(isError) : undefined}
+            onRetry={() => void refetch()}
+          />
+        ) : jobs.length === 0 ? (
+          // A first run: nothing imported yet, so the imported spot, at the
+          // empty state's quiet size (it was the large accent one, the only
+          // one on the tab, above a boxed line from the next section).
+          <EmptyState
+            illustration={<SpotImported hue={ADMIN_GROUP_HUE.workspace} />}
+            title="No imports from Slack yet"
+            description={
+              <>
+                Choose <strong className="font-medium text-foreground">New import</strong> to upload a Slack export. Get
+                yours from <em>Slack → Settings → Workspace settings → Import/Export Data</em>.
+              </>
+            }
+          />
+        ) : (
+          <ul aria-label="Slack imports" className={IMPORT_LIST}>
+            {jobs.map((job) => (
+              <li key={job.id}>
+                <JobRow
+                  job={job}
+                  busy={busyJobId === job.id}
+                  highlighted={highlightId === job.id}
+                  onPlan={() => setPlanJobId(job.id)}
+                  onRun={() => handleRun(job)}
+                  onCancel={() => handleCancel(job)}
+                  onRollback={() => setRollbackJob(job)}
+                  onDeleteZip={() => handleDeleteStagedZip(job)}
+                  onShowErrors={() => setErrorsJobId(job.id)}
+                  onInvite={() => setInviteJob(job)}
+                  onDiscard={() => handleDiscard(job)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </SettingsSection>
 
-        <CardContent className="flex-1 overflow-auto py-4 space-y-3">
-          {isLoading && (
-            <div role="status" aria-label="Loading imports">
-              <SkeletonRows rows={3} />
-            </div>
-          )}
-          {isError && (
-            <ErrorState subject="the import history" onRetry={() => void refetch()} />
-          )}
-          {!isError && !isLoading && jobs.length === 0 && (
-            <EmptyState
-              tone="accent"
-              icon={Upload}
-              title="No imports yet"
-              description={
-                <>
-                  Click <strong className="font-medium text-foreground">New import</strong> to upload a
-                  Slack export. Get yours from{" "}
-                  <em>Slack → Settings → Workspace settings → Import/Export Data</em>.
-                </>
-              }
-            />
-          )}
-
-          {jobs.map((job) => (
-            <JobRow
-              key={job.id}
-              job={job}
-              busy={busyJobId === job.id}
-              onPlan={() => setPlanJobId(job.id)}
-              onRun={() => handleRun(job)}
-              onCancel={() => handleCancel(job)}
-              onRollback={() => handleRollback(job)}
-              onDeleteZip={() => handleDeleteStagedZip(job)}
-              onShowErrors={() => setErrorsJobId(job.id)}
-              onInvite={() => setInviteJob(job)}
-              onDiscard={() => handleDiscard(job)}
-            />
-          ))}
-        </CardContent>
-      </Card>
+      {rollbackJob && (
+        <RollbackDialog
+          job={rollbackJob}
+          busy={busyJobId === rollbackJob.id}
+          onClose={() => setRollbackJob(null)}
+          onConfirm={() => doRollback(rollbackJob)}
+        />
+      )}
 
       <Suspense fallback={null}>
         <SlackImportUploadDialog
           open={uploadOpen}
           onOpenChange={setUploadOpen}
           onUploaded={onUploaded}
+          onShowExisting={onShowExisting}
+          onChanged={() => refetch()}
         />
         {planJobId && (
           <SlackImportPlanDialog
@@ -356,9 +390,62 @@ const SlackImportCard: React.FC = () => {
   )
 }
 
+/**
+ * Rolling back an import, confirmed by typing the workspace's name: it takes
+ * away everything the import brought in and cannot be undone from here.
+ */
+function RollbackDialog({
+  job,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  job: SlackImportJob
+  busy: boolean
+  onClose: () => void
+  onConfirm: () => void
+}) {
+  const [typed, setTyped] = useState("")
+  const name = job.slack_workspace_name
+  const matches = typed.trim().toLowerCase() === name.trim().toLowerCase()
+  return (
+    <AlertDialog open onOpenChange={(o) => !o && !busy && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Roll back the import of {name}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This takes away everything the import brought in: its channels, messages, threads, files and reactions.
+            What your team has added since stays. It can&apos;t be undone here; to have it back, you would import the
+            export again.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <Field label={<>Type {name} to confirm</>}>
+          <Input value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" spellCheck={false} disabled={busy} />
+        </Field>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Keep it</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!matches || busy}
+            className={buttonVariants({ variant: "destructive" })}
+            onClick={(e) => {
+              // The dialog stays open until the server has answered.
+              e.preventDefault()
+              onConfirm()
+            }}
+          >
+            {busy ? "Rolling back…" : "Roll back import"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
 interface JobRowProps {
   job: SlackImportJob
   busy: boolean
+  /** The import a repeated upload pointed to: marked and brought into view. */
+  highlighted?: boolean
   onPlan: () => void
   onRun: () => void
   onCancel: () => void
@@ -373,119 +460,127 @@ interface JobRowProps {
 
 // Exported for tests. The card around it needs polling, MQTT and endpoint
 // config to mount, none of which the row's own rendering depends on.
-export const JobRow: React.FC<JobRowProps> = ({ job, busy, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors, onInvite, onDiscard }) => {
-  const status = STATUS_BADGE[job.status] ?? STATUS_BADGE.pending
+export const JobRow: React.FC<JobRowProps> = ({ job, busy, highlighted, onPlan, onRun, onCancel, onRollback, onDeleteZip, onShowErrors, onInvite, onDiscard }) => {
   const stageLabel = (job.stage && STAGE_LABELS[job.stage]) || job.stage || ""
   const total = Math.max(1, job.chunks_total)
   const pct = job.status === "completed" ? 100 : Math.round((job.chunks_done / total) * 100)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!highlighted) return
+    ref.current?.scrollIntoView?.({ block: "center", behavior: "smooth" })
+    ref.current?.focus({ preventScroll: true })
+  }, [highlighted])
 
   return (
-    <div className="border border-border/40 rounded-lg p-4 bg-background/40">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium truncate">{job.slack_workspace_name}</span>
-            <Badge variant="outline" className={`gap-1.5 ${status.className}`}>
-              {status.icon}
-              <span className="capitalize">{job.status.replace("_", " ")}</span>
-            </Badge>
-            {stageLabel && job.status === "running" && (
-              <Badge variant="outline">{stageLabel}</Badge>
-            )}
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            ID {job.id.slice(0, 8)} · started {job.started_at ? new Date(job.started_at).toLocaleString() : "—"}
-          </div>
-          {job.error_message && (
-            <div className="mt-2 text-xs text-danger-ink max-w-full break-words">{job.error_message}</div>
-          )}
+    <div
+      ref={ref}
+      data-job-id={job.id}
+      data-highlighted={highlighted ? "true" : undefined}
+      tabIndex={highlighted ? -1 : undefined}
+      // The list's own row padding; the import a repeated upload pointed to is
+      // ringed inside the row, as a list row is marked.
+      className={cn("space-y-2 px-4 py-3 outline-none transition-shadow", highlighted && "ring-2 ring-inset ring-ring/70")}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate text-sm font-medium">{job.slack_workspace_name}</span>
+          {/* Its own component, so the moment an import finishes can be marked
+              on it without touching the row. */}
+          <ImportStatusChip status={job.status} />
+          {stageLabel && job.status === "running" && <span className="text-xs text-muted-foreground">{stageLabel}</span>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {job.status === "validating" && (
-            <Button size="sm" onClick={onPlan} disabled={busy}>
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
               Plan
             </Button>
           )}
           {(job.status === "planned" || (job.status === "failed" && job.plan)) && (
-            <Button size="sm" onClick={onRun} disabled={busy}>
-              <PlayCircle className="h-4 w-4 mr-1.5" />
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRun} disabled={busy}>
+              <PlayCircle />
               {job.status === "failed" ? "Run again" : "Run"}
             </Button>
           )}
           {job.status === "failed" && (
-            <Button size="sm" variant={job.plan ? "outline" : "default"} onClick={onPlan} disabled={busy}>
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onPlan} disabled={busy}>
               Plan again
             </Button>
           )}
           {(job.status === "pending" || job.status === "validating" || job.status === "planned") && onDiscard && (
-            <Button size="sm" variant="outline" onClick={onDiscard} disabled={busy}>
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onDiscard} disabled={busy}>
               Discard
             </Button>
           )}
           {(job.status === "running" || job.status === "paused") && (
-            <Button size="sm" variant="outline" onClick={onCancel} disabled={busy}>
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onCancel} disabled={busy}>
               Cancel
             </Button>
           )}
           {job.status === "completed" && onInvite && (
-            <Button size="sm" onClick={onInvite} disabled={busy}>
-              <Users className="h-4 w-4 mr-1.5" />
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onInvite} disabled={busy}>
+              <Users />
               Invite people
             </Button>
           )}
           {(job.status === "completed" || job.status === "failed" || job.status === "cancelled") && (
-            <Button size="sm" variant="outline" onClick={onRollback} disabled={busy}>
-              <RotateCcw className="h-4 w-4 mr-1.5" />
-              Rollback
+            <Button size="sm" variant="outline" className={ROW_ACTION} onClick={onRollback} disabled={busy}>
+              <RotateCcw />
+              Roll back
             </Button>
           )}
           {(job.status === "completed" ||
             job.status === "failed" ||
             job.status === "cancelled" ||
             job.status === "rolled_back") && (
-            <Button size="sm" variant="ghost" onClick={onDeleteZip} disabled={busy}>
+            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onDeleteZip} disabled={busy}>
               Free storage
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={onShowErrors}>
-            Errors{job.errors_total ? ` (${job.errors_total})` : ""}
-          </Button>
+          {/* Only when something was logged: "Errors" showed on every row. */}
+          {job.errors_total > 0 && (
+            <Button size="sm" variant="ghost" className={ROW_ACTION} onClick={onShowErrors}>
+              <AlertTriangle className="text-warning-ink" />
+              {count(job.errors_total, "error", "errors")}
+            </Button>
+          )}
         </div>
       </div>
 
-      {(job.status === "running" || job.status === "completed" || job.status === "paused") && (
-        <>
-          <Separator className="my-3" />
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-4 text-xs">
-            <Stat label="Chunks" value={`${job.chunks_done}/${job.chunks_total}`} />
-            <Stat label="Items" value={job.items_imported.toLocaleString()} />
-            <Stat label="Failures" value={job.chunks_failed} />
-            <Stat label="Errors" value={job.errors_total} />
-          </div>
-          <Progress value={pct} className="mt-3 h-2" />
-        </>
-      )}
+      <dl className="space-y-1">
+        <div className={fieldRow("center", "mb-0")}>
+          <dt className={fieldLabel}>{job.started_at ? "Started" : "Uploaded"}</dt>
+          <dd className="text-sm">{shortDateTime(new Date(job.started_at ?? job.created_at))}</dd>
+        </div>
+        {(job.status === "running" || job.status === "completed" || job.status === "paused") && (
+          <>
+            <div className={fieldRow("center", "mb-0")}>
+              <dt className={fieldLabel}>Progress</dt>
+              <dd className="flex min-w-0 items-center gap-3 text-sm">
+                <Progress value={pct} className="h-1.5 w-28 shrink-0" aria-label={`${pct}% done`} />
+                <span>{partsLine(job.chunks_done, job.chunks_total)}</span>
+              </dd>
+            </div>
+            <div className={fieldRow("center", "mb-0")}>
+              <dt className={fieldLabel}>Brought in</dt>
+              <dd className="text-sm">{count(job.items_imported, "item", "items")}</dd>
+            </div>
+            {job.chunks_failed > 0 && (
+              <div className={fieldRow("center", "mb-0")}>
+                <dt className={fieldLabel}>Failed</dt>
+                <dd className="text-sm text-danger-ink">{count(job.chunks_failed, "part", "parts")}</dd>
+              </div>
+            )}
+          </>
+        )}
+      </dl>
+      {job.error_message && <p className="max-w-full break-words text-xs text-danger-ink">{job.error_message}</p>}
     </div>
   )
 }
 
-const Stat: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
-  <div>
-    <div className={cn(eyebrowClass, "text-2xs")}>{label}</div>
-    <div className="font-medium">{value}</div>
-  </div>
-)
-
 function isLive(status: SlackImportJob["status"]): boolean {
   return status === "validating" || status === "planned" || status === "running" || status === "paused"
-}
-
-function errorMessage(err: unknown): string {
-  if (!err) return "Unknown error"
-  // axios error shape with response data
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const e = err as any
-  return e?.response?.data?.error || e?.message || "Unknown error"
 }
 
 export default SlackImportCard
