@@ -120,3 +120,56 @@ describe("optimisticCreateTask", () => {
     expect(read(overdue)?.project_tasks).toEqual([])
   })
 })
+
+describe("a card moved on a board (optimisticUpdateTask)", () => {
+  const board = `${GetEndpointUrl.GetProjectTaskListForKanban}/p1`
+  const mine = GetEndpointUrl.GetUserTaskListForKanban
+
+  it("lands beside the card it was dropped by, in its new column", async () => {
+    const [a, b, c, d] = [task("a"), task("b"), task("c"), task("d")]
+    const { hook, read } = await withLists({ [board]: { project_tasks_todo: [a, b], project_tasks_in_progress: [c, d] } })
+    act(() => hook.current.optimisticUpdateTask({ task_uuid: "a", task_status: "inProgress" }, "p1", 1, { before: "c", after: "d" }))
+    await waitFor(() => expect(read(board)?.project_tasks_in_progress.map((t) => t.task_uuid)).toEqual(["c", "a", "d"]))
+    expect(read(board)?.project_tasks_todo.map((t) => t.task_uuid)).toEqual(["b"])
+  })
+
+  it("copies only the moved task and the two columns it touched", async () => {
+    const [a, b, c, d, e] = [task("a"), task("b"), task("c"), task("d"), task("e")]
+    const done = [e]
+    const { hook, read } = await withLists({
+      [board]: { project_tasks_todo: [a, b], project_tasks_in_progress: [c, d], project_tasks_done: done },
+      [mine]: { user_tasks_todo: [a], user_tasks_done: [e] },
+    })
+    const before = read(board)!
+    act(() => hook.current.optimisticUpdateTask({ task_uuid: "a", task_status: "inProgress" }, "p1", 0, { after: "c" }))
+    await waitFor(() => expect(read(board)?.project_tasks_in_progress[0].task_uuid).toBe("a"))
+    const after = read(board)!
+    // The others keep their objects, so memoised cards skip them.
+    expect(after.project_tasks_todo[0]).toBe(b)
+    expect(after.project_tasks_in_progress[1]).toBe(c)
+    expect(after.project_tasks_done).toBe(before.project_tasks_done)
+    // The lists it was read from are untouched (no in-place change to the old answer).
+    expect(before.project_tasks_todo.map((t) => t.task_uuid)).toEqual(["a", "b"])
+    expect(read(mine)?.user_tasks_in_progress?.map((t) => t.task_uuid)).toEqual(["a"])
+    expect(read(mine)?.user_tasks_done[0]).toBe(e)
+  })
+
+  it("reorders within a column", async () => {
+    const [a, b, c] = [task("a"), task("b"), task("c")]
+    const { hook, read } = await withLists({ [board]: { project_tasks_todo: [a, b, c] } })
+    act(() => hook.current.optimisticUpdateTask({ task_uuid: "a", task_status: "todo" }, "p1", 2, { before: "c", after: "" }))
+    await waitFor(() => expect(read(board)?.project_tasks_todo.map((t) => t.task_uuid)).toEqual(["b", "c", "a"]))
+    expect(read(board)?.project_tasks_todo[0]).toBe(b)
+  })
+})
+
+describe("optimisticDeleteTask", () => {
+  it("takes the task out of the board and keeps the others' objects", async () => {
+    const board = `${GetEndpointUrl.GetProjectTaskListForKanban}/p1`
+    const [a, b] = [task("a"), task("b")]
+    const { hook, read } = await withLists({ [board]: { project_tasks_todo: [a, b] } })
+    act(() => hook.current.optimisticDeleteTask("a", "p1"))
+    await waitFor(() => expect(read(board)?.project_tasks_todo.map((t) => t.task_uuid)).toEqual(["b"]))
+    expect(read(board)?.project_tasks_todo[0]).toBe(b)
+  })
+})
