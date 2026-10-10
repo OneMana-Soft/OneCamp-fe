@@ -6,7 +6,8 @@ import {GenericSearchTextInterface} from "@/types/user";
 import {usePost} from "@/hooks/usePost";
 import {ChannelListResult} from "@/components/channel/chnnelListResult";
 import {sortChannelList} from "@/lib/utils/sortChannelList";
-import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SpotSearch, SpotInbox } from "@/components/ui/graphics/spots";
 import { ErrorState } from "@/components/ui/error-state"
 
 export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
@@ -122,11 +123,11 @@ export const ChannelListTabArchive = ({searchQuery}:{searchQuery: string}) => {
                 ) :
                 (!currentIsLoading && (
                     <div className="p-4">
-                        <StatePlaceholder 
-                            type={searchQuery.trim().length > 0 ? 'search' : 'empty'}
+                        <EmptyState
+                            illustration={searchQuery.trim().length > 0 ? <SpotSearch /> : <SpotInbox />}
                             title={searchQuery.trim().length > 0 ? "No matches found" : "No archived channels"}
                             description={searchQuery.trim().length > 0 
-                                ? `We couldn't find any archived channels matching "${searchQuery}"`
+                                ? `No archived channel has “${searchQuery.trim()}” in its name.`
                                 : "You haven't joined any archived channels yet."}
                         />
                     </div>

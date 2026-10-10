@@ -25,6 +25,7 @@ import { isExternalUser } from "@/lib/utils/isExternalUser"
 import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
 import { ListSkeleton } from "@/components/ui/ListSkeleton"
 import { EmptyState } from "@/components/ui/empty-state"
+import { SpotSearch, SpotWelcome } from "@/components/ui/graphics/spots"
 import { ErrorState } from "@/components/ui/error-state"
 import { userDisplayName } from "@/lib/utils/userDisplayName"
 import { withOpenRead } from "@/lib/chat/conversation"
@@ -200,6 +201,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
 
                 {showSearchEmpty && (
                     <EmptyState
+                        illustration={<SpotSearch />}
                         title={`No conversations with “${dmSearchText}”`}
                         description="Try part of a name, or start a new conversation."
                     />
@@ -207,6 +209,7 @@ export const ChatUserList = ({ chatId }: { chatId: string }) => {
                 {/* No DMs at all said nothing: an empty column under the search. */}
                 {!dmSearchText && latestChats.data && (latestChats.data.data?.user_dms?.length ?? 0) === 0 && userChatListState.length === 0 && (
                     <EmptyState
+                        illustration={<SpotWelcome />}
                         title="No direct messages yet"
                         description="Message anyone in the workspace with New message."
                     />

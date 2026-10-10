@@ -13,6 +13,7 @@ import {MessageContent} from "@/components/rightPanel/messageContent";
 import {ReplyDivider} from "@/components/rightPanel/replyDivider";
 import {ThreadSummaryButton} from "@/components/ai/ThreadSummaryButton";
 import {CommentsList} from "@/components/rightPanel/commentsList";
+import { ThreadEmpty } from "@/components/rightPanel/threadEmpty";
 import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
 import {RightPanelHeader} from "@/components/rightPanel/rightPanelHeader";
 import {cn} from "@/lib/utils/helpers/cn";
@@ -473,6 +474,7 @@ export const ChannelComments = () => {
 
 
                 <CommentsList
+                    empty={<ThreadEmpty />}
                     comments={postCommentState}
                     removeReaction={removeCommentReaction}
                     addOrUpdateReaction={createOrUpdateCommentReaction}

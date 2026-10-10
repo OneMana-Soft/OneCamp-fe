@@ -6,7 +6,8 @@ import {GenericSearchTextInterface} from "@/types/user";
 import {usePost} from "@/hooks/usePost";
 import {ChannelListResult} from "@/components/channel/chnnelListResult";
 import {sortChannelList} from "@/lib/utils/sortChannelList";
-import {StatePlaceholder} from "@/components/ui/StatePlaceholder";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SpotSearch, SpotWelcome } from "@/components/ui/graphics/spots";
 import { ErrorState } from "@/components/ui/error-state"
 import {Button} from "@/components/ui/button";
 import {useDispatch} from "react-redux";
@@ -132,11 +133,11 @@ export const ChannelListTabActive = ({searchQuery, onDiscover}:{searchQuery: str
                 ) :
                 (!currentIsLoading && (
                     <div className="p-4">
-                        <StatePlaceholder 
-                            type={searchQuery.trim().length > 0 ? 'search' : 'empty'}
+                        <EmptyState
+                            illustration={searchQuery.trim().length > 0 ? <SpotSearch /> : <SpotWelcome />}
                             title={searchQuery.trim().length > 0 ? "No matches found" : "You're not in any channels yet"}
                             description={searchQuery.trim().length > 0 
-                                ? `We couldn't find any channels matching "${searchQuery}"`
+                                ? `No channel you're in has “${searchQuery.trim()}” in its name.`
                                 : "Find the channels your team already talks in, or start a new one."}
                             action={searchQuery.trim().length === 0 && (
                                 <div className="flex flex-wrap justify-center gap-2">

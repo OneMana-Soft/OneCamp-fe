@@ -15,15 +15,18 @@ interface CommentsListProps {
     removeComment: (id:string, idx: number) => void
     updateComment: (id:string, body: string, idx:number) => void
     getMediaURL: string
+    /** Shown when there are no replies yet (a thread); nothing when not given. */
+    empty?: React.ReactNode
 }
 
 // The panel around this list re-renders on every keystroke in its composer and
 // recreates these handlers each time. The outer shell hands the list stable
 // wrappers that call the latest handler, so the replies re-render only when
 // they change.
-export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL }: CommentsListProps) => {
+export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty }: CommentsListProps) => {
     return (
         <CommentsListInner
+            empty={empty}
             comments={comments}
             addOrUpdateReaction={useStableCallback(addOrUpdateReaction)}
             removeReaction={useStableCallback(removeReaction)}
@@ -34,14 +37,14 @@ export const CommentsList = ({ comments, addOrUpdateReaction, removeReaction, re
     )
 }
 
-const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL }: CommentsListProps) {
+const CommentsListInner = memo(function CommentsListInner({ comments, addOrUpdateReaction, removeReaction, removeComment, updateComment, getMediaURL, empty }: CommentsListProps) {
     // Replies by the same person within five minutes read as one turn.
     const continued = useMemo(
         () => continuedFlags(comments ?? [], (c) => ({ author: c.comment_by?.user_uuid, at: c.comment_created_at, isBot: !!c.comment_by?.is_bot })),
         [comments],
     )
     if (!comments || comments.length === 0) {
-        return null
+        return <>{empty ?? null}</>
     }
 
     return (
