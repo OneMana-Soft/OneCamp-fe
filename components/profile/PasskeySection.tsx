@@ -12,8 +12,9 @@ import { useConfirm } from "@/hooks/useConfirm"
 import { serverMessage } from "@/lib/http/serverMessage"
 import { passkeyErrorMessage, passkeysSupported } from "@/lib/auth/webauthn"
 import { addPasskey, listPasskeys, removePasskey, renamePasskey, type Passkey } from "@/services/passkeyService"
+import { shortDate } from "@/lib/utils/date/shortDate"
 
-const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+const when = (iso: string) => shortDate(new Date(iso))
 
 /** A name for a passkey made here, from what the browser says it runs on. */
 function deviceName() {

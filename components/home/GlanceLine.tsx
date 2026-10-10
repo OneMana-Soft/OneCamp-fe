@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { cn } from "@/lib/utils/helpers/cn"
+import { format } from "date-fns"
 
 export interface GlanceItem {
   count: number
@@ -44,7 +45,7 @@ export function GlanceLine({ items, className }: { items: GlanceItem[]; classNam
   )
 }
 
-/** Today as a quiet eyebrow above a page title: "Sunday, 27 September". */
+/** Today as a quiet eyebrow above a page title: "Sunday 27 September", day before month as everywhere. */
 export function todayEyebrow(d: Date = new Date()): string {
-  return d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })
+  return format(d, "EEEE d MMMM")
 }

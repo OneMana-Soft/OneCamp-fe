@@ -5,6 +5,7 @@ import { Invitation } from "@/types/user"
 import { Button } from "@/components/ui/button"
 import { Trash2, Mail, RefreshCw, Copy } from "@/lib/icons"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { fullDateTime, shortDate } from "@/lib/utils/date/shortDate"
 
 interface AdminInvitationListProps {
   invitations: Invitation[]
@@ -109,9 +110,14 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
                   {inv.email}
                 </span>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {new Date(inv.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
-                  </span>
+                  {/* When it was sent, in the app's one date format, not the browser's. */}
+                  <time
+                    dateTime={inv.created_at}
+                    title={fullDateTime(new Date(inv.created_at))}
+                    className="text-xs text-muted-foreground tabular-nums"
+                  >
+                    {shortDate(new Date(inv.created_at))}
+                  </time>
                   {getStatusBadge(inv.status)}
                   {expiryText(inv) && (
                     <span className="text-2xs text-muted-foreground">{expiryText(inv)}</span>

@@ -9,11 +9,11 @@ describe("dueLabel", () => {
   it("says today and tomorrow with the time, later days without", () => {
     expect(dueLabel(at(24, 17).toISOString(), now)).toBe("Due today, 5:00 PM")
     expect(dueLabel(at(25, 9).toISOString(), now)).toBe("Due tomorrow, 9:00 AM")
-    expect(dueLabel(at(30, 9).toISOString(), now)).toBe("Due Sep 30")
+    expect(dueLabel(at(30, 9).toISOString(), now)).toBe("Due 30 Sep")
   })
   it("says a missed moment as was due", () => {
     expect(dueLabel(at(24, 9).toISOString(), now)).toBe("Was due 9:00 AM")
-    expect(dueLabel(at(2, 9).toISOString(), now)).toBe("Was due Sep 2")
+    expect(dueLabel(at(2, 9).toISOString(), now)).toBe("Was due 2 Sep")
   })
   it("is empty for nothing it can read, so the caller falls back", () => {
     expect(dueLabel(undefined, now)).toBe("")

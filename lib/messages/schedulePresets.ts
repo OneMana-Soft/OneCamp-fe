@@ -4,6 +4,9 @@
  * own time zone. Pure, so the choices are tested against fixed clocks.
  */
 
+import { format } from "date-fns"
+import { shortDate, shortTime } from "@/lib/utils/date/shortDate"
+
 export interface SchedulePreset {
   label: string
   at: Date
@@ -27,18 +30,16 @@ export function schedulePresets(now: Date): SchedulePreset[] {
   return out
 }
 
-/** "Tue 9:00 AM", or "Oct 14, 9:00 AM" beyond a week: how the time is shown back. */
+/** "Tue at 9:00 AM", or "14 Oct at 9:00 AM" beyond a week: how the time is shown back, in the app's one format. */
 export function formatSendAt(d: Date, now: Date = new Date()): string {
-  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+  const time = shortTime(d)
   const sameDay = d.toDateString() === now.toDateString()
   if (sameDay) return `today at ${time}`
   const tomorrow = new Date(now)
   tomorrow.setDate(tomorrow.getDate() + 1)
   if (d.toDateString() === tomorrow.toDateString()) return `tomorrow at ${time}`
   const days = (d.getTime() - now.getTime()) / 86_400_000
-  const day = days < 6.5
-    ? d.toLocaleDateString(undefined, { weekday: "short" })
-    : d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+  const day = days < 6.5 ? format(d, "EEE") : shortDate(d, now)
   return `${day} at ${time}`
 }
 

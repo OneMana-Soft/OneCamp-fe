@@ -8,6 +8,7 @@ import { apiErrorMessage } from "@/lib/utils/apiError"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Check, Loader2 } from "@/lib/icons"
 import { closePoll, nextChoice, pollUrl, shares, votePoll, type Poll } from "@/services/pollService"
+import { shortDateTime } from "@/lib/utils/date/shortDate"
 
 /**
  * A poll inside a message: one click to vote, results for everyone as they
@@ -89,7 +90,7 @@ export function PollView({ node }: NodeViewProps) {
               <span>
                 {poll.voters} {poll.voters === 1 ? "person" : "people"} voted
                 {poll.multiple ? " · choose any" : ""}
-                {poll.closed ? " · closed" : poll.closes_at ? ` · closes ${new Date(poll.closes_at).toLocaleString()}` : ""}
+                {poll.closed ? " · closed" : poll.closes_at ? ` · closes ${shortDateTime(new Date(poll.closes_at))}` : ""}
               </span>
               {poll.can_close && !poll.closed && (
                 <button

@@ -2,7 +2,7 @@ import { displayNameOf } from "@/lib/personName"
 import React from 'react';
 import { DocInfoInterface } from "@/types/doc";
 import { DocPreview } from "@/components/doc/docPreview";
-import { format } from "date-fns";
+import { shortDate } from "@/lib/utils/date/shortDate";
 import { cn } from "@/lib/utils/helpers/cn";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 
@@ -22,7 +22,7 @@ export const DocCard: React.FC<DocCardProps> = ({ doc, onClick, className }) => 
         try {
             const d = new Date(displayDate);
             if (!isNaN(d.getTime())) {
-                dateStr = format(d, "MMM d, yyyy");
+                dateStr = shortDate(d);
             }
         } catch(e) {
             // Ignore invalid date

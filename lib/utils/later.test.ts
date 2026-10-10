@@ -45,11 +45,12 @@ describe("reminderLabel", () => {
     expect(reminderLabel(d(2026, 9, 30, 9), now)).toEqual({ text: "Due", due: true })
   })
   it("names today, tomorrow, the weekday, then the date", () => {
-    expect(reminderLabel(d(2026, 9, 30, 15), now).text).toMatch(/^Today, /)
-    expect(reminderLabel(d(2026, 10, 1, 9), now).text).toMatch(/^Tomorrow, /)
-    expect(reminderLabel(d(2026, 10, 5, 9), now).text).toMatch(/^Mon/)
-    expect(reminderLabel(d(2026, 10, 20, 9), now).text).toMatch(/20/)
-    expect(reminderLabel(d(2027, 1, 20, 9), now).text).toMatch(/2027/)
+    // In the app's one format, whatever the browser's locale.
+    expect(reminderLabel(d(2026, 9, 30, 15), now).text).toBe("Today, 3:00 PM")
+    expect(reminderLabel(d(2026, 10, 1, 9), now).text).toBe("Tomorrow, 9:00 AM")
+    expect(reminderLabel(d(2026, 10, 5, 9), now).text).toBe("Mon, 9:00 AM")
+    expect(reminderLabel(d(2026, 10, 20, 9), now).text).toBe("20 Oct")
+    expect(reminderLabel(d(2027, 1, 20, 9), now).text).toBe("20 Jan 2027")
   })
 })
 

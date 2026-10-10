@@ -4,6 +4,9 @@
  * helpers, for their test.
  */
 
+import { format } from "date-fns"
+import { shortTime } from "@/lib/utils/date/shortDate"
+
 export interface CheckIn {
   id: string
   question: string
@@ -51,12 +54,10 @@ export function describeSchedule(days: number[], time: string): string {
   return `${when} at ${time}`
 }
 
-/** The next time a check-in asks, in the reader's own calendar: "Thu 8 Oct, 17:00". Pure. */
-export function nextLabel(iso: string | undefined, locale?: string): string | undefined {
+/** The next time a check-in asks, in the reader's own calendar and the app's one format: "Thu 8 Oct, 5:00 PM". Pure. */
+export function nextLabel(iso: string | undefined): string | undefined {
   if (!iso) return undefined
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return undefined
-  const day = d.toLocaleDateString(locale ?? "en-GB", { weekday: "short", day: "numeric", month: "short" })
-  const time = d.toLocaleTimeString(locale ?? "en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
-  return `${day}, ${time}`
+  return `${format(d, "EEE d MMM")}, ${shortTime(d)}`
 }

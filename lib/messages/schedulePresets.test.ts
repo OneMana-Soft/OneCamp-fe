@@ -32,8 +32,9 @@ describe("schedule presets", () => {
     const now = d(2026, 10, 7, 10)
     expect(formatSendAt(d(2026, 10, 7, 17), now)).toMatch(/^today at /)
     expect(formatSendAt(d(2026, 10, 8, 9), now)).toMatch(/^tomorrow at /)
-    expect(formatSendAt(d(2026, 10, 9, 9), now)).toMatch(/^Fri at /)
-    expect(formatSendAt(d(2026, 10, 20, 9), now)).toMatch(/^Oct 20 at /)
+    expect(formatSendAt(d(2026, 10, 9, 9), now)).toBe("Fri at 9:00 AM")
+    // The app's one format, day before month, whatever the browser's locale.
+    expect(formatSendAt(d(2026, 10, 20, 9), now)).toBe("20 Oct at 9:00 AM")
     expect(toLocalInputValue(d(2026, 1, 3, 4, 5))).toBe("2026-01-03T04:05")
   })
 })
