@@ -26,6 +26,8 @@ import {
 import { browserTZ } from "@/lib/utils/timeZone"
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 import { SpamTrap } from "@/components/common/SpamTrap"
+import { Skeleton } from "@/components/ui/skeleton"
+import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
 
 const WINDOW_DAYS = 14
 
@@ -69,7 +71,7 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
   const shownDay = days.find((d) => d.day === day) ?? days[0]
   const canLoadMore = !!page && !!loadedUntil && loadedUntil < new Date(page.bookable_until)
 
-  if (state === "loading") return <Centered><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" /></Centered>
+  if (state === "loading") return <BookingSkeleton />
   if (state === "missing" || state === "error" || !page) {
     return (
       <Centered>
@@ -87,12 +89,11 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
     <main className="min-h-screen bg-muted/30 px-4 py-8 sm:py-14">
       <div className="mx-auto grid max-w-4xl overflow-hidden rounded-xl border bg-background grid-cols-[minmax(0,1fr)] md:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="grid min-w-0 content-start gap-3 border-b p-6 md:border-b-0 md:border-r">
-          {/* Who the visitor is booking with comes first, as a person: an
-              initial on a neutral ground (no photo is sent to a public page). */}
+          {/* Who the visitor is booking with comes first, as a person: their
+              initials on a ground of their own hue, as the app draws a person
+              without a photo (no photo is sent to a public page). */}
           <div className="flex items-center gap-2.5">
-            <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground">
-              {page.owner_name.trim().charAt(0).toUpperCase()}
-            </span>
+            <IdentityMark variant="avatar" size={32} id={page.owner_name} label={page.owner_name} />
             <p className="text-sm text-muted-foreground">{page.owner_name}</p>
           </div>
           <h1 className="text-2xl font-semibold text-balance">{page.title}</h1>
@@ -305,6 +306,36 @@ function Confirmation({ booked, tz }: { booked: Booked; tz: string }) {
         )}
       </p>
     </Centered>
+  )
+}
+
+/**
+ * The booking page while its times load: the card in its own shape, the
+ * person and the days where they will be, so nothing moves when they arrive.
+ * It was a spinner in an empty page.
+ */
+function BookingSkeleton() {
+  return (
+    <main className="min-h-screen bg-muted/30 px-4 py-8 sm:py-14" role="status" aria-label="Loading booking page">
+      <div aria-hidden="true" className="mx-auto grid max-w-4xl overflow-hidden rounded-xl border bg-background grid-cols-[minmax(0,1fr)] md:grid-cols-[17rem_minmax(0,1fr)]">
+        <div className="grid content-start gap-3 border-b p-6 md:border-b-0 md:border-r">
+          <div className="flex items-center gap-2.5">
+            <Skeleton variant="circle" className="h-8 w-8" />
+            <Skeleton className="h-3.5 w-24 rounded" />
+          </div>
+          <Skeleton className="h-7 w-48 rounded" />
+          <Skeleton className="h-4 w-24 rounded" />
+        </div>
+        <div className="grid content-start gap-3 p-6">
+          <Skeleton className="h-4 w-20 rounded" />
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-[54px] w-24 rounded-md" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </main>
   )
 }
 
