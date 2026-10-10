@@ -12,6 +12,7 @@ import { Check, X, Languages, Loader2 } from "@/lib/icons";
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import { useTranslateText } from "@/services/aiService"
 import React, { useCallback, useMemo, useRef, useState } from "react"
+import { useTouchReveal } from "@/hooks/useTouchReveal"
 import { MessagePreview } from "@/components/message/MessagePreview"
 import { MessageDesktopHoverOptionsForMainChatAndChannel } from "@/components/MessageDesktopHover/messageDesktopHoverOptionsForMainChatAndChannel"
 import type { UserProfileDataInterface, UserProfileInterface, UserSelectedOptionInterface } from "@/types/user"
@@ -32,6 +33,10 @@ import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { LocalizedErrorBoundary } from "@/components/error/LocalizedErrorBoundary"
 import { useInternalLinkRouter } from "@/lib/utils/useInternalLinkRouter"
 import { messageDomId, scrollToMessage } from "@/lib/utils/scrollToMessage"
+import { SendStatus, SendingNote } from "@/components/message/sendStatus"
+import { usePrimeActions } from "@/components/message/primeActions"
+import { quoteBarClass } from "@/components/message/quoteBar"
+import type { SendState } from "@/lib/chat/pendingSend"
 
 interface RightPanelConfig {
   chatUUID?: string
@@ -71,6 +76,10 @@ interface NormalizedForwardMessage {
 
 interface BaseMessage {
   uuid: string
+  /** Sent from here and not yet confirmed (lib/chat/pendingSend). */
+  sendState?: SendState
+  /** The id it was sent with, for Try again, Edit and Delete. */
+  localId?: string
   bodyText: string
   from: UserProfileDataInterface
   createdAt: string
@@ -88,6 +97,8 @@ interface BaseMessage {
 export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
   return {
     uuid: chatInfo.chat_uuid,
+    sendState: chatInfo.chat_send_state,
+    localId: chatInfo.chat_local_id,
     bodyText: chatInfo.chat_body_text,
     from: chatInfo.chat_from,
     createdAt: chatInfo.chat_created_at,
@@ -127,6 +138,8 @@ export function mapChatInfoToBaseMessage(chatInfo: ChatInfo): BaseMessage {
 export function mapPostsResToBaseMessage(postInfo: PostsRes): BaseMessage {
   return {
     uuid: postInfo.post_uuid,
+    sendState: postInfo.post_send_state,
+    localId: postInfo.post_local_id,
     bodyText: postInfo.post_text,
     from: postInfo.post_by,
     createdAt: postInfo.post_created_at,
@@ -218,7 +231,11 @@ export const BaseMessageCard = React.memo(({
   continued = false,
 }: BaseMessageCardProps) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  // On a tablet, which cannot hover, a tap on the message shows its toolbar.
+  const touchReveal = useTouchReveal()
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
+  // The pointer is over this message, or focus is inside it.
+  const [actionsWanted, setActionsWanted] = useState(false)
   const [isMessageEditEnabled, setIsMessageEditEnabled] = useState(false)
   const [updatedText, setUpdatedText] = useState<string>(message.bodyText || "")
   // Mirror updatedText into a ref so the synchronous flush triggered when
@@ -358,6 +375,9 @@ export const BaseMessageCard = React.memo(({
       buttonOnclick={handleEditComplete}
       SecondaryButtonIcon={X}
       secondaryButtonOnclick={handleEditCancel}
+      // Editing folds its formatting behind one button, as the message box
+      // does: thirteen icons opened under the line being corrected.
+      toggleToolbar={isMessageEditEnabled}
       editorClassName="focus:outline-none "
       onChange={(content) => {
         const s = content as string
@@ -367,9 +387,29 @@ export const BaseMessageCard = React.memo(({
     />
   )
 
+  // The actions exist only for the message under the pointer or holding focus
+  // (or whose menu is open). Every row used to mount its own toolbar, hidden:
+  // a dozen tooltips, a reaction picker, a reminder dialog and a menu each,
+  // about 600 components a message, and two dozen invisible tab stops.
+  // A message the server has not confirmed has no id to react to, reply to or
+  // forward yet: its row offers only what its status line says.
+  const showActions = !isMessageEditEnabled && !message.sendState && (actionsWanted || isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed)
+  // The first row on the page builds the toolbar once, hidden, when the
+  // browser is idle, so the first hover is not its first run (primeActions).
+  const primingActions = usePrimeActions()
+
   return (
     <div
       id={messageDomId(message.uuid)}
+      onPointerEnter={() => setActionsWanted(true)}
+      onPointerLeave={() => setActionsWanted(false)}
+      onFocus={() => setActionsWanted(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setActionsWanted(false)
+      }}
+      // A touch or a pen has no hover: a tap on the message shows its
+      // actions (hooks/useTouchReveal), as the pointer does.
+      onPointerUp={touchReveal.onPointerUp}
       className={cn(
         // py-1.5, not 2.5: a message is a line of a conversation, and the
         // extra 8px on every row (plus a margin under every body) made a
@@ -380,36 +420,11 @@ export const BaseMessageCard = React.memo(({
         continued && !isMessageEditEnabled ? "py-0.5" : "py-1.5",
         "transition-colors duration-100",
         "hover:bg-accent/40",
-        (isDropdownOpen || isEmojiPickerOpen) && "bg-accent/40",
+        (isDropdownOpen || isEmojiPickerOpen || touchReveal.revealed) && "bg-accent/40",
       )}
     >
-        {!isMessageEditEnabled && (
-          <div
-            className={cn(
-              "absolute right-3 top-1.5 z-10 transition-opacity duration-150",
-              isDropdownOpen || isEmojiPickerOpen
-                ? "opacity-100"
-                : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto",
-            )}
-          >
-            <MessageDesktopHoverOptionsForMainChatAndChannel
-              editMessage={() => setIsMessageEditEnabled(true)}
-              deleteMessage={removePost}
-              isOwner={message.from.user_uuid === selfProfile.data?.data.user_uuid}
-              isAdmin={isAdmin}
-              setEmojiPopupState={setIsEmojiPickerOpen}
-              onReactionSelect={handleEmojiClick}
-              setIsDropdownOpen={setIsDropdownOpen}
-              messageText={bodyText}
-              authorName={authorName}
-              onReply={onReply}
-              onTranslate={bodyText ? handleTranslate : undefined}
-              {...hoverOptionsConfig}
-            />
-          </div>
-        )}
         {continued && !isMessageEditEnabled ? (
-          <ContinuedGutter createdAt={message.createdAt} authorName={authorName} />
+          <ContinuedGutter createdAt={message.createdAt} authorName={authorName} sending={message.sendState === "sending"} />
         ) : (
           <>
         {/* A second, mouse-only way to the profile the name already opens: the
@@ -433,7 +448,7 @@ export const BaseMessageCard = React.memo(({
         )}
         <div className="flex-1 min-w-0">
           {!isMessageEditEnabled && !continued && (
-            <div className="flex items-baseline gap-2">
+            <div data-name-line="" className="flex h-5 items-center gap-2">
               {relayed ? (
                 // A guest or Slack person has no profile to open: the name is only a name.
                 <span className="text-sm font-semibold text-foreground truncate">{authorName}</span>
@@ -458,13 +473,14 @@ export const BaseMessageCard = React.memo(({
               >
                 {formatTimeForPostOrComment(message.createdAt, true)}
               </time>
+              {message.sendState === "sending" && <SendingNote />}
             </div>
           )}
           {message.replyTo && !isMessageEditEnabled && (
             <button
               type="button"
               onClick={() => scrollToMessage(message.replyTo?.uuid)}
-              className="mb-1 block w-full border-l-2 border-primary/40 pl-2 text-left transition-colors hover:border-primary rounded-sm"
+              className={cn(quoteBarClass(message.replyTo.from), "mb-1 block w-full rounded-sm pl-2 text-left transition-colors hover:border-hue")}
               aria-label="Jump to replied message"
             >
               <MessagePreview
@@ -476,16 +492,38 @@ export const BaseMessageCard = React.memo(({
               />
             </button>
           )}
-          <div className="break-words w-full" onClickCapture={handleInternalLinkClick}>
+          <div
+            className={cn(
+              "break-words w-full transition-opacity",
+              // Still sending after a moment: drawn lighter until the server has
+              // it. The delay keeps a quick send from flickering.
+              message.sendState === "sending" && "opacity-60 delay-300",
+            )}
+            onClickCapture={handleInternalLinkClick}
+            // Escape leaves an edit unchanged, as in every chat app; a popover
+            // inside the editor (mentions, emoji) takes it first.
+            onKeyDown={(e) => {
+              if (isMessageEditEnabled && e.key === "Escape" && !e.defaultPrevented) {
+                e.preventDefault()
+                e.stopPropagation()
+                handleEditCancel()
+              }
+            }}
+          >
             {showErrorBoundary ? (
               <LocalizedErrorBoundary
-                fallbackTitle="Editor Error"
-                fallbackDescription="The rich text editor encountered an issue."
+                fallbackTitle="This message could not be shown"
+                fallbackDescription="Something in it could not be drawn. Reload the page to try again."
               >
                 {editor}
               </LocalizedErrorBoundary>
             ) : (
               editor
+            )}
+            {isMessageEditEnabled && (
+              <p className="-mt-1 mb-1 text-2xs text-muted-foreground">
+                <kbd className="font-sans font-medium text-foreground">Escape</kbd> to cancel · <kbd className="font-sans font-medium text-foreground">Enter</kbd> to save
+              </p>
             )}
           </div>
 
@@ -567,14 +605,35 @@ export const BaseMessageCard = React.memo(({
             </div>
           )}
 
-          {!isMessageEditEnabled && (
+          {!isMessageEditEnabled && !message.sendState && (
             <BottomMenu
               handleEmojiClick={handleEmojiClick}
               reactions={reactions}
               selectedEmojiId={userSelectedOption.emojiId}
             />
           )}
+          <SendStatus state={message.sendState} localId={message.localId} />
         </div>
+        {/* After the message in the DOM, so Tab from the author's name reaches
+            the message's own links first, then its actions. */}
+        {(showActions || primingActions) && (
+          <div className="absolute right-3 top-1.5 z-10" hidden={!showActions} aria-hidden={!showActions || undefined}>
+            <MessageDesktopHoverOptionsForMainChatAndChannel
+              editMessage={() => setIsMessageEditEnabled(true)}
+              deleteMessage={removePost}
+              isOwner={message.from.user_uuid === selfProfile.data?.data.user_uuid}
+              isAdmin={isAdmin}
+              setEmojiPopupState={setIsEmojiPickerOpen}
+              onReactionSelect={handleEmojiClick}
+              setIsDropdownOpen={setIsDropdownOpen}
+              messageText={bodyText}
+              authorName={authorName}
+              onReply={onReply}
+              onTranslate={bodyText ? handleTranslate : undefined}
+              {...hoverOptionsConfig}
+            />
+          </div>
+        )}
     </div>
   )
 })

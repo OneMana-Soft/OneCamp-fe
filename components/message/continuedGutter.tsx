@@ -13,10 +13,16 @@ import { formatFullTimestamp, formatGutterClock, isoTimestamp } from "@/lib/util
  * Its digits are proportional, not tabular: the tabular "12:59 PM" was 56px
  * and ran out of the margin, and one time shown at a time has no column to
  * line up with.
+ *
+ * It takes focus: a continued message has no name to Tab to, and focus inside
+ * a message is what brings up its actions (BaseMessageCard).
  */
 export function ContinuedGutter({ createdAt, authorName, className }: { createdAt: string | number; authorName: string; className?: string }) {
     return (
-        <div className={cn("flex w-9 shrink-0 justify-end", className)}>
+        <div
+            tabIndex={0}
+            className={cn("flex w-9 shrink-0 justify-end rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70", className)}
+        >
             <span className="sr-only">{authorName}, {formatFullTimestamp(createdAt)}</span>
             <time
                 aria-hidden="true"

@@ -35,7 +35,7 @@ export default function MessageDesktopDropdown({ isOwner, isAdmin, setIsDropdown
                 <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
                         <Button aria-label="More actions" variant="ghost" size="icon" className="h-8 w-8 ">
-                            <MoreVertical className="h-4 w-4" stroke='#616060'/>
+                            <MoreVertical className="h-4 w-4 text-muted-foreground"/>
                         </Button>
                     </DropdownMenuTrigger>
                 </TooltipTrigger>
@@ -43,7 +43,7 @@ export default function MessageDesktopDropdown({ isOwner, isAdmin, setIsDropdown
                     <p>More options</p>
                 </TooltipContent>
             </Tooltip>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuContent className="w-56" align="end">
 
                 <DropdownMenuGroup>
                     {onMakeTask && <DropdownMenuItem onClick={onMakeTask}>
