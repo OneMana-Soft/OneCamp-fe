@@ -83,6 +83,10 @@ import { ToastAction } from "@/components/ui/toast"
 import { cn } from "@/lib/utils/helpers/cn"
 import axios from "axios"
 import { withAI } from "@/components/common/withFeature"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ErrorState } from "@/components/ui/error-state"
+import { relativeTime as agoShort } from "@/lib/utils/relativeTime"
+import { shortDate } from "@/lib/utils/date/shortDate"
 
 // Backlink is a resolved "where this came from" target for a memory item.
 interface Backlink {
@@ -144,31 +148,17 @@ const KIND_META: Record<
   MemoryKind,
   { label: string; Icon: React.ComponentType<{ className?: string }>; dot: string; tint: string }
 > = {
-  decision: { label: "Decision", Icon: Zap, dot: "bg-violet-500", tint: "text-violet-600 dark:text-violet-400" },
-  commitment: { label: "Commitment", Icon: CheckCircle2, dot: "bg-blue-500", tint: "text-info-ink" },
-  question: { label: "Open question", Icon: HelpCircle, dot: "bg-warning", tint: "text-warning-ink" },
-  glossary: { label: "Glossary", Icon: Sparkles, dot: "bg-slate-400", tint: "text-slate-500" },
+  // Each kind in its camp hue, the same as Home's "What needs me now"
+  // (commitments dusk, questions berry): a kind is an identity, not a status,
+  // so not the warning amber, and not raw Tailwind violet, blue and slate.
+  decision: { label: "Decision", Icon: Zap, dot: "bg-camp-sky", tint: "text-camp-sky-ink" },
+  commitment: { label: "Commitment", Icon: CheckCircle2, dot: "bg-camp-dusk", tint: "text-camp-dusk-ink" },
+  question: { label: "Open question", Icon: HelpCircle, dot: "bg-camp-berry", tint: "text-camp-berry-ink" },
+  glossary: { label: "Glossary", Icon: Sparkles, dot: "bg-camp-lake", tint: "text-camp-lake-ink" },
 }
 
-// relativeTime renders a compact, human "x ago" / "in x" string.
-function relativeTime(iso: string): string {
-  const t = new Date(iso).getTime()
-  if (Number.isNaN(t)) return ""
-  const diffMs = Date.now() - t
-  const abs = Math.abs(diffMs)
-  const day = 86_400_000
-  const min = 60_000
-  const hr = 3_600_000
-  const fmt = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`
-  let phrase: string
-  if (abs < min) phrase = "just now"
-  else if (abs < hr) phrase = fmt(Math.round(abs / min), "min")
-  else if (abs < day) phrase = fmt(Math.round(abs / hr), "hr")
-  else if (abs < 30 * day) phrase = fmt(Math.round(abs / day), "day")
-  else phrase = new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" })
-  if (phrase === "just now") return phrase
-  return diffMs >= 0 ? `${phrase} ago` : `in ${phrase}`
-}
+// The app's one "how long ago" ("7h ago", then "9 Oct"): this page wrote "7 hrs ago" and US-ordered dates.
+const relativeTime = agoShort
 
 // dueState classifies a commitment's due date for emphasis.
 function dueState(due?: string): { label: string; overdue: boolean } | null {
@@ -179,7 +169,7 @@ function dueState(due?: string): { label: string; overdue: boolean } | null {
   today.setHours(0, 0, 0, 0)
   const dueDay = new Date(d)
   dueDay.setHours(0, 0, 0, 0)
-  const label = d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+  const label = shortDate(d)
   return { label, overdue: dueDay.getTime() < today.getTime() }
 }
 
@@ -249,6 +239,7 @@ function WorkspaceMemoryPanel({
   }, [channelUUID, excluded])
   const [items, setItems] = useState<MemoryItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [tab, setTab] = useState<TabValue>("all")
   const [statusView, setStatusView] = useState<MemoryStatus>("open")
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -320,11 +311,16 @@ function WorkspaceMemoryPanel({
   const load = useCallback(async () => {
     flushPending()
     setLoading(true)
+    setLoadFailed(false)
     try {
       const res = await listWorkspaceMemory(undefined, [statusView], channelUUID)
       setItems(res.items)
     } catch {
-      toast({ title: "Couldn't load workspace memory", variant: "destructive" })
+      // Said in the list, with a retry. A toast kept the previous status's
+      // rows under the new tab, and a failed first load said "Nothing
+      // captured yet".
+      setItems([])
+      setLoadFailed(true)
     } finally {
       setLoading(false)
     }
@@ -547,11 +543,11 @@ function WorkspaceMemoryPanel({
       {/* Header */}
       <header className="flex-shrink-0 px-4 sm:px-8 pt-5 sm:pt-6 pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="bg-primary/10 p-1.5 rounded-lg flex-shrink-0">
-            <Sparkles className="h-[18px] w-[18px] text-primary" />
-          </div>
-          <h1 className="text-lg sm:text-xl font-semibold truncate min-w-0">
-            {channelName ? <>Memory in <span className="text-primary">#{channelName}</span></> : "Workspace Memory"}
+          {/* The AI pages' dusk tile; it was the accent, which is for the one action. */}
+          {/* On a phone the top bar names the page; the tile and title show from sm. */}
+          <Tile hue="dusk" className="hidden sm:inline-flex"><Sparkles strokeWidth={1.75} /></Tile>
+          <h1 className="hidden sm:block text-lg sm:text-xl font-semibold truncate min-w-0">
+            {channelName ? `Memory in #${channelName}` : "Workspace memory"}
           </h1>
           <Button
             variant="ghost"
@@ -641,7 +637,7 @@ function WorkspaceMemoryPanel({
               >
                 {t.label}
                 <span
-                  className={`ml-1.5 text-xs tabular-nums ${active ? "text-primary" : "text-muted-foreground/70"}`}
+                  className={`ml-1.5 text-xs tabular-nums ${active ? "text-foreground" : "text-muted-foreground"}`}
                 >
                   {n}
                 </span>
@@ -655,10 +651,16 @@ function WorkspaceMemoryPanel({
       <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 custom-scrollbar">
         {loading ? (
           <SkeletonList />
+        ) : loadFailed ? (
+          <div className="flex max-w-3xl justify-center pt-4 md:pt-10">
+            <ErrorState subject="workspace memory" onRetry={() => void load()} />
+          </div>
         ) : visible.length === 0 ? (
           <EmptyState tab={tab} hasAny={total > 0} statusView={statusView} />
         ) : (
-          <ul className="space-y-1.5 max-w-3xl mx-auto">
+          // On the header's column: centred, the list started 194px right of
+          // the title and tabs above it at 1440.
+          <ul className="space-y-1.5 max-w-3xl -mx-3">
             {visible.map((it) => (
               <MemoryRow
                 key={it.id}
@@ -783,9 +785,10 @@ function MemoryRow({
               {due.overdue ? `overdue · ${due.label}` : `due ${due.label}`}
             </span>
           )}
-          <span className="text-muted-foreground/70">{relativeTime(item.created_at)}</span>
-          <span className="text-muted-foreground/50">·</span>
-          <span className="text-muted-foreground/70 italic">{sourceOriginLabel(item)}</span>
+          {/* Full muted ink, upright: at 50 to 70% the line fell under AA. */}
+          <span>{relativeTime(item.created_at)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{sourceOriginLabel(item)}</span>
           {backlink &&
             (backlink.href ? (
               <button
@@ -796,20 +799,20 @@ function MemoryRow({
               >
                 <BacklinkIcon className="h-3 w-3" />
                 <span className="max-w-[160px] truncate">
-                  {backlink.prefix}
-                  {backlink.label}
+                  {/* The # icon says channel; "# #acme" said it twice. */}
+                  {backlink.Icon === Hash ? backlink.label : `${backlink.prefix ?? ""}${backlink.label}`}
                 </span>
                 <ArrowUpRight className="h-3 w-3 opacity-60" />
               </button>
             ) : (
               <span
-                className="inline-flex items-center gap-1 text-muted-foreground/80"
+                className="inline-flex items-center gap-1 text-muted-foreground"
                 title={`${backlink.prefix ?? ""}${backlink.label}`}
               >
                 <BacklinkIcon className="h-3 w-3" />
                 <span className="max-w-[160px] truncate">
-                  {backlink.prefix}
-                  {backlink.label}
+                  {/* The # icon says channel; "# #acme" said it twice. */}
+                  {backlink.Icon === Hash ? backlink.label : `${backlink.prefix ?? ""}${backlink.label}`}
                 </span>
               </span>
             ))}
@@ -953,13 +956,16 @@ function MemoryRow({
 
 function SkeletonList() {
   return (
-    <ul className="space-y-1.5 max-w-3xl mx-auto" aria-hidden>
+    // In a MemoryRow's frame and line boxes (a 1px border, py-2.5, a 19px
+    // line and an 18px one, 4px apart), so a row does not grow 7px when the
+    // answer lands.
+    <ul className="space-y-1.5 max-w-3xl -mx-3" aria-hidden>
       {Array.from({ length: 5 }).map((_, i) => (
-        <li key={i} className="rounded-lg px-3 py-3 flex items-start gap-3">
+        <li key={i} data-memory-skeleton-row="" className="rounded-lg border border-transparent px-3 py-2.5 flex items-start gap-3">
           <span className="mt-1.5 h-2 w-2 rounded-full bg-muted animate-pulse" />
-          <div className="flex-1 space-y-2">
-            <div className="h-3.5 bg-muted rounded animate-pulse" style={{ width: `${70 - i * 6}%` }} />
-            <div className="h-2.5 w-24 bg-muted/70 rounded animate-pulse" />
+          <div className="flex-1">
+            <div className="h-[19px] bg-muted rounded animate-pulse" style={{ width: `${70 - i * 6}%` }} />
+            <div className="mt-1 h-[18px] w-24 bg-muted rounded animate-pulse" />
           </div>
         </li>
       ))}
@@ -985,9 +991,7 @@ function EmptyState({
     const word = statusView === "resolved" ? "resolved" : "dismissed"
     return (
       <div className="flex flex-col items-center justify-center text-center py-16 px-6">
-        <div className="bg-muted/50 rounded-full p-3 mb-4">
-          <CheckCircle2 className="h-6 w-6 text-muted-foreground/60" />
-        </div>
+        <Tile hue="dusk" className="mb-4"><CheckCircle2 strokeWidth={1.75} /></Tile>
         <p className="text-sm font-medium">Nothing {word} yet</p>
         <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
           Items you {word === "resolved" ? "resolve" : "dismiss"} will show up here, so you can review or reopen them.
@@ -998,9 +1002,7 @@ function EmptyState({
 
   return (
     <div className="flex flex-col items-center justify-center text-center py-16 px-6">
-      <div className="bg-muted/50 rounded-full p-3 mb-4">
-        <Sparkles className="h-6 w-6 text-muted-foreground/60" />
-      </div>
+      <Tile hue="dusk" className="mb-4"><Sparkles strokeWidth={1.75} /></Tile>
       {filtered ? (
         <>
           <p className="text-sm font-medium">All clear here</p>
