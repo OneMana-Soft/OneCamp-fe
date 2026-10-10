@@ -5,13 +5,14 @@ import { useProjectGoals } from "@/hooks/useGoals"
 import { Target } from "@/lib/icons"
 import { percent } from "@/lib/goals"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
+import { cn } from "@/lib/utils/helpers/cn"
 
 /**
  * The goal a project serves, beside its name: "Launch the Business tier ·
  * 40%", linking to the goal, and how many more when it serves several. A
  * project serving none shows nothing.
  */
-export function ProjectGoalChip({ projectId }: { projectId: string }) {
+export function ProjectGoalChip({ projectId, className }: { projectId: string; className?: string }) {
   const goals = useProjectGoals(projectId)
   const first = goals[0]
   if (!first) return null
@@ -20,7 +21,7 @@ export function ProjectGoalChip({ projectId }: { projectId: string }) {
     <Link
       href={`/app/goals/${first.id}`}
       title={goals.map((g) => g.title).join("\n")}
-      className="inline-flex max-w-xs items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className={cn("inline-flex max-w-xs items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground", className)}
     >
       {/* How far the goal is, as a ring in the theme's progress: where the
           chip said it twice (a target icon, then the percentage). */}
