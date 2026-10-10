@@ -13,7 +13,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { PostEndpointUrl, GetEndpointUrl } from "@/services/endPoints"
 import { UserProfileDataInterface } from "@/types/user"
-import axiosInstance, { OWN_ERRORS } from "@/lib/axiosInstance"
+import axiosInstance from "@/lib/axiosInstance"
+import { usePost } from "@/hooks/usePost"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Check, Search } from "@/lib/icons";
 import { UserPlus } from "lucide-react";
@@ -137,6 +138,7 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
   const [refused, setRefused] = useState("")
   const [attempt, setAttempt] = useState(0)
   const [submitting, setSubmitting] = useState(false)
+  const post = usePost()
 
   useEffect(() => {
     if (!open) return
@@ -180,9 +182,13 @@ export const AddAdminDialog: React.FC<AddAdminDialogProps> = ({
     setRefused("")
     setSubmitting(true)
     try {
-      // OWN_ERRORS: a refusal is said here, beside the choice, so the global
-      // toast stands down rather than saying it a second time.
-      await axiosInstance.post(PostEndpointUrl.CreateAdmin, { user_uuid: selectedUser.user_uuid }, OWN_ERRORS)
+      // Quiet: a refusal is said here, beside the choice, so neither usePost's
+      // toast nor the global one says it a second time.
+      await post.makeRequest({
+        apiEndpoint: PostEndpointUrl.CreateAdmin,
+        payload: { user_uuid: selectedUser.user_uuid },
+        quiet: true,
+      })
     } catch (e) {
       // The dialog stays open, to choose again or try again.
       setRefused(apiErrorMessage(e, "Try again in a moment."))
