@@ -8,6 +8,18 @@ import {Button} from "@/components/ui/button";
 import { ChevronDown, Loader2 } from "@/lib/icons";
 import { changedAtStart } from "@/components/message/listShift";
 
+/**
+ * How far from the newest message a row may be and still be drawn as one of
+ * the newest: renderItem's index and total are there for that question (the
+ * lists load the images of the last five eagerly). A row's place beyond it
+ * changes nothing it draws.
+ */
+const NEWEST_ROWS = 6
+
+// Where a row stands, as far as drawing it is concerned: its distance from the
+// end, counted up to NEWEST_ROWS and no further.
+const fromEnd = (index: number, total: number) => Math.min(total - index, NEWEST_ROWS)
+
 // Memoized item component to prevent unnecessary re-renders
 const MemoizedMessageItem = React.memo(({ item, index, total, renderItem }: { item: any, index: number, total: number, renderItem: any }) => {
     return renderItem(item.data!, index, total, !!item.continued)
@@ -16,10 +28,13 @@ const MemoizedMessageItem = React.memo(({ item, index, total, renderItem }: { it
     // Check if renderItem is stable (we wrapped it in useCallback)
     // continued too: a message whose neighbour above changed (deleted, or
     // older ones loaded) can join or leave a group with its own data unchanged.
+    // Not its raw index and the list's length: a new message changed both for
+    // every row on screen, and older ones loading changed every index, so each
+    // re-drew every message mounted. Only a row's distance from the end, up to
+    // NEWEST_ROWS, changes what it draws (messageListRows.test.tsx).
     return prevProps.item.data === nextProps.item.data &&
-           !!prevProps.item.continued === !!nextProps.item.continued && 
-           prevProps.index === nextProps.index && 
-           prevProps.total === nextProps.total &&
+           !!prevProps.item.continued === !!nextProps.item.continued &&
+           fromEnd(prevProps.index, prevProps.total) === fromEnd(nextProps.index, nextProps.total) &&
            prevProps.renderItem === nextProps.renderItem
 })
 MemoizedMessageItem.displayName = "MemoizedMessageItem"
@@ -181,9 +196,10 @@ export const MessageListVirtua = <T,>({
             setTimeout(scroll, 150)
         }
         
-        // Mark as ready after the first scroll sequence
+        // Shown once the last retry above has run: hidden any longer, a
+        // channel with history looked slower to open than it was.
         if (!isReady && shouldLockBottom.current) {
-             setTimeout(() => setIsReady(true), 200)
+             setTimeout(() => setIsReady(true), 160)
         }
         
         // We still set this to true to enable onScroll logic
@@ -197,7 +213,7 @@ export const MessageListVirtua = <T,>({
 
     return (
         <div
-            className={cn(containerClassName, "touch-pan-y w-full min-w-0 flex-1 min-h-0 transition-opacity duration-300 md:pb-0 pb-[150px]", {
+            className={cn(containerClassName, "touch-pan-y w-full min-w-0 flex-1 min-h-0 transition-opacity duration-150 md:pb-0 pb-[150px]", {
                 "opacity-0": items.length > 0 && !isReady,
                 "opacity-100": items.length === 0 || isReady
             })}
