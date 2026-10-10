@@ -3,6 +3,8 @@
 import * as React from "react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils/helpers/cn"
+import { Tile } from "@/components/ui/graphics/Tile"
+import type { CampHue } from "@/lib/campHue"
 
 interface DrawerItemProps {
     icon?: LucideIcon
@@ -12,6 +14,8 @@ interface DrawerItemProps {
     destructive?: boolean
     trailing?: React.ReactNode
     disabled?: boolean
+    /** Sets the icon on a tint tile in this hue: a place's colour (lib/destinationHue). */
+    hue?: CampHue
 }
 
 /**
@@ -31,6 +35,7 @@ export function DrawerItem({
     destructive,
     trailing,
     disabled,
+    hue,
 }: DrawerItemProps) {
     return (
         <button
@@ -48,7 +53,11 @@ export function DrawerItem({
                 disabled && "opacity-60 cursor-not-allowed pointer-events-none",
             )}
         >
-            {Icon && (
+            {Icon && hue && !destructive ? (
+                <Tile hue={hue}>
+                    <Icon strokeWidth={1.75} />
+                </Tile>
+            ) : Icon ? (
                 <Icon
                     className={cn(
                         "h-5 w-5 shrink-0",
@@ -56,7 +65,7 @@ export function DrawerItem({
                     )}
                     strokeWidth={1.75}
                 />
-            )}
+            ) : null}
             <span className="flex-1 min-w-0">
                 <span
                     className={cn(

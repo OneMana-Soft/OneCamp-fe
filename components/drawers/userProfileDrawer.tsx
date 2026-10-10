@@ -30,8 +30,9 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import type { UserProfileInterface } from "@/types/user"
 import { useState } from "react"
 
-import { cn } from "@/lib/utils/helpers/cn"
 import { Switch } from "@/components/ui/switch"
+import { DrawerItem } from "@/components/drawers/drawerItem"
+import { destinationHue } from "@/lib/destinationHue"
 import {
     Drawer,
     DrawerContent,
@@ -43,44 +44,6 @@ import {
 interface ProfileDrawerProps {
     drawerOpenState: boolean
     setOpenState: (state: boolean) => void
-}
-
-interface DrawerItemProps {
-    icon: LucideIcon
-    label: string
-    onClick: () => void
-    destructive?: boolean
-}
-
-/**
- * DrawerItem — single tappable row matching the rest of the mobile UI's
- * 48px touch target with Tailwind active state for press feedback.
- */
-function DrawerItem({ icon: Icon, label, onClick, destructive }: DrawerItemProps) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={cn(
-                "w-full h-12 flex items-center gap-3 px-3 rounded-md",
-                "text-left text-sm font-medium transition-colors",
-                "active:bg-accent",
-                destructive
-                    ? "text-danger-ink hover:bg-destructive/10 focus-visible:bg-destructive/10"
-                    : "text-foreground hover:bg-accent/60 focus-visible:bg-accent/60",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-            )}
-        >
-            <Icon
-                className={cn(
-                    "h-5 w-5 shrink-0",
-                    destructive ? "text-danger-ink" : "text-muted-foreground",
-                )}
-                strokeWidth={1.75}
-            />
-            <span className="flex-1 truncate">{label}</span>
-        </button>
-    )
 }
 
 /**
@@ -106,7 +69,9 @@ function DrawerSwitchRow({
     const labelId = `drawer-switch-${label.replace(/\s+/g, "-").toLowerCase()}`
     return (
         <div className="w-full h-12 flex items-center gap-3 px-3 rounded-md text-sm font-medium">
-            <Icon className="h-5 w-5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            <span className="flex size-8 shrink-0 items-center justify-center">
+                <Icon className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+            </span>
             <span id={labelId} className="flex-1 truncate">
                 {label}
             </span>
@@ -122,7 +87,9 @@ function DrawerSwitchRow({
  */
 function DrawerSection({ label }: { label: string }) {
     return (
-        <p className="px-3 pt-3 pb-1 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+        // Sentence case, as the desktop sidebar's groups: a label read on
+        // every visit is not a thing to shout (DESIGN.md, "Navigation").
+        <p className="px-3 pt-3 pb-1 text-xs font-medium text-muted-foreground">
             {label}
         </p>
     )
@@ -165,32 +132,38 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerSection label="Work" />
                     <DrawerItem
                         icon={ClipboardCheck}
-                        label="My Tasks"
+                        label="My tasks"
+                        hue={destinationHue("/app/myTask")}
                         onClick={() => handleNavigate("/app/myTask")}
                     />
                     <DrawerItem
                         icon={InboxIcon}
                         label="Inbox"
+                        hue={destinationHue("/app/inbox")}
                         onClick={() => handleNavigate("/app/inbox")}
                     />
                     <DrawerItem
                         icon={Bookmark}
                         label="Later"
+                        hue={destinationHue("/app/later")}
                         onClick={() => handleNavigate("/app/later")}
                     />
                     <DrawerItem
                         icon={Calendar}
                         label="Calendar"
+                        hue={destinationHue("/app/calendar")}
                         onClick={() => handleNavigate("/app/calendar")}
                     />
                     <DrawerItem
                         icon={FileIcon}
                         label="Docs"
+                        hue={destinationHue("/app/doc")}
                         onClick={() => handleNavigate("/app/doc")}
                     />
                     <DrawerItem
                         icon={LayoutDashboard}
                         label="Boards"
+                        hue={destinationHue("/app/board")}
                         onClick={() => handleNavigate("/app/board")}
                     />
                     {/* Tables is a top-level destination on desktop and had no door at
@@ -199,6 +172,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerItem
                         icon={TableIcon}
                         label="Tables"
+                        hue={destinationHue("/app/tables")}
                         onClick={() => handleNavigate("/app/tables")}
                     />
 
@@ -209,6 +183,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         <DrawerItem
                             icon={Shield}
                             label="Admin"
+                        hue={destinationHue("/app/admin")}
                             onClick={() => handleNavigate("/app/admin")}
                         />
                     )}
@@ -216,6 +191,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                     <DrawerItem
                         icon={Plug}
                         label="Connectors"
+                        hue={destinationHue("/app/settings/connectors")}
                         onClick={() => handleNavigate("/app/settings/connectors")}
                     />
 
@@ -223,6 +199,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         <DrawerItem
                             icon={Zap}
                             label="Workflows"
+                        hue={destinationHue("/app/settings/workflows")}
                             onClick={() => handleNavigate("/app/settings/workflows")}
                         />
                     )}
@@ -231,6 +208,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
                         <DrawerItem
                             icon={MailPlus}
                             label="Invite people"
+                        hue={destinationHue("invite")}
                             onClick={() => {
                                 setInviteOpen(true)
                                 closeDrawer()
@@ -242,7 +220,7 @@ export function UserProfileDrawer({ drawerOpenState, setOpenState }: ProfileDraw
 
                     <DrawerItem
                         icon={CircleUser}
-                        label="My Profile"
+                        label="Your profile"
                         onClick={() => handleNavigate("/app/profile")}
                     />
 
