@@ -624,7 +624,7 @@ function captionMessage(state: TranscriberState): string {
                     return `Captions stopped: ${state.error ?? "unknown error"}.`;
             }
         default:
-            return "Listening for speech...";
+            return "Listening for speech…";
     }
 }
 
