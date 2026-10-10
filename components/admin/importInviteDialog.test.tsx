@@ -4,9 +4,10 @@ import type { ImportPeople, InviteRun } from "@/services/importService"
 
 // The dialog's data and the one call that sends: everything else is real.
 let people: ImportPeople | undefined
+let loading = false
 const refetch = vi.fn()
 vi.mock("@/hooks/useFetch", () => ({
-  useFetch: (url: string) => ({ data: url ? people : undefined, isError: false, isLoading: false, mutate: refetch }),
+  useFetch: (url: string) => ({ data: url ? people : undefined, isError: false, isLoading: loading, mutate: refetch }),
 }))
 const sent: string[][] = []
 let answer: Partial<InviteRun> = {}
@@ -26,6 +27,7 @@ afterEach(() => {
   cleanup()
   sent.length = 0
   answer = {}
+  loading = false
 })
 
 const offer = (left: number | null, n = 3, email: ImportPeople["email"] = { on: true, left: null }): ImportPeople => ({
@@ -124,5 +126,26 @@ describe("Invite the people who came across", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tick as many as there's room for" }))
     expect(screen.getAllByRole("checkbox").filter((b) => b.getAttribute("aria-checked") === "true")).toHaveLength(10)
     expect(screen.getByRole("button", { name: "Invite 10 people" })).toBeTruthy()
+  })
+})
+
+describe("how the invite dialog reads", () => {
+  // A spinner stood in for the list, so the dialog jumped when it came.
+  it("stands rows of the people's shape in while they load", () => {
+    people = undefined
+    loading = true
+    render(<ImportInviteDialog jobId="j1" label="Acme" open onOpenChange={() => {}} />)
+    const status = screen.getByRole("status", { name: "Loading the people" })
+    expect(status.querySelector(".animate-spin")).toBeNull()
+    expect(status.querySelector(".animate-shimmer")).toBeTruthy()
+  })
+
+  // Its title's icon was orange, the colour that means "press me".
+  it("puts its title's icon on the workspace tile, not in the accent", () => {
+    people = offer(null)
+    const { baseElement } = render(<ImportInviteDialog jobId="j1" label="Acme" open onOpenChange={() => {}} />)
+    const title = screen.getByRole("heading", { name: /Invite the people who came across/ })
+    expect(title.querySelector(".text-primary")).toBeNull()
+    expect(baseElement.querySelector(".hue-sun")).toBeTruthy()
   })
 })
