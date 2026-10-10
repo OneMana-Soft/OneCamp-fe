@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorState } from "@/components/ui/error-state"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
+import { SpotWelcome } from "@/components/ui/graphics"
 import { cn } from "@/lib/utils/helpers/cn"
 
 interface AdminInvitationListProps {
@@ -27,6 +28,8 @@ interface AdminInvitationListProps {
   onRetry?: () => void
   isFiltered?: boolean
   totalLoaded?: number
+  /** Opens the invite dialog, offered when there are no invitations yet. */
+  onInvite?: () => void
 }
 
 /**
@@ -75,6 +78,7 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
   onRetry,
   isFiltered,
   totalLoaded,
+  onInvite,
 }) => {
   // Loading draws the rows it is about to show, in the same bordered list, so
   // nothing moves when they arrive.
@@ -99,12 +103,23 @@ export const AdminInvitationList: React.FC<AdminInvitationListProps> = ({
   }
 
   if (invitations.length === 0) {
-    // The people group's hue, as the admin menu draws Invitations.
-    return (
+    // A search that matched nothing keeps the people group's icon tile; a
+    // workspace with no invitations at all is a first run, so it is welcomed,
+    // in the people group's hue, with the one thing to do.
+    return isFiltered ? (
+      <EmptyState icon={Mail} hue={ADMIN_GROUP_HUE.people} title="No invitation matches your search." />
+    ) : (
       <EmptyState
-        icon={Mail}
-        hue={ADMIN_GROUP_HUE.people}
-        title={isFiltered ? "No invitation matches your search." : "No invitations yet."}
+        illustration={<SpotWelcome hue={ADMIN_GROUP_HUE.people} />}
+        title="No invitations yet"
+        description="Invite the people you work with. Each gets an email with a link to join, good for seven days."
+        action={
+          onInvite ? (
+            <Button variant="outline" size="sm" onClick={onInvite}>
+              Invite people
+            </Button>
+          ) : undefined
+        }
       />
     )
   }
