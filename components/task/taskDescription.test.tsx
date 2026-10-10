@@ -84,4 +84,9 @@ describe("the task panel", () => {
     expect(panel).toMatch(/<TaskDescription\b/)
     expect(panel).toMatch(/<TaskCommentBox\b/)
   })
+
+  it("loads in its own shape, not behind a spinner", () => {
+    expect(panel).not.toMatch(/LoadingStateCircle/)
+    expect(panel).toMatch(/isLoading\) return <TaskPanelSkeleton/)
+  })
 })

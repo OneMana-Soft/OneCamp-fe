@@ -15,8 +15,11 @@ vi.mock("@/hooks/useBulkTaskUpdate", () => ({ useBulkTaskUpdate: () => bulk }))
 vi.mock("@/hooks/useProjectStatuses", () => ({ useProjectStatuses: () => ({ options: BUILT_IN_STATUSES }) }))
 vi.mock("@/components/tags/TagPicker", () => ({ useProjectTags: () => ({ tags: [], refresh: () => {} }) }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false }) }))
+// The list loads the task under the pointer or the keys ahead of its opening.
+const prefetched: string[] = []
+vi.mock("@/hooks/useFetch", () => ({ useFetch: (url: string) => (url && prefetched.push(url), { data: undefined }) }))
 
-const { KeyboardList, TaskTableRow } = await import("./KeyboardList")
+const { KeyboardList, TaskTableRow, HOVER_INTENT_MS } = await import("./KeyboardList")
 const { useRowState } = await import("@/hooks/useListSelection")
 
 /** A card as a board draws one, reduced to what the keys need. */
@@ -194,5 +197,20 @@ describe("the bar's pickers", () => {
     // The picker is not left waiting to spring open later.
     press("s")
     expect(await screen.findByPlaceholderText("Move to…")).toBeInTheDocument()
+  })
+})
+
+describe("loading a task before it's opened", () => {
+  it("fetches the task the keys move to, and the one the pointer rests on", async () => {
+    vi.useFakeTimers()
+    prefetched.length = 0
+    renderList()
+    act(() => void fireEvent.keyDown(document.body, { key: "j" }))
+    expect(prefetched.some((u) => u.endsWith("/t1"))).toBe(true)
+    const other = document.querySelector('[data-task-id="t2"]')!
+    act(() => void fireEvent.pointerOver(other))
+    act(() => vi.advanceTimersByTime(HOVER_INTENT_MS))
+    expect(prefetched.some((u) => u.endsWith("/t2"))).toBe(true)
+    vi.useRealTimers()
   })
 })

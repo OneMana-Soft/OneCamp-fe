@@ -6,6 +6,8 @@ import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import { BulkTaskBar } from "@/components/task/BulkTaskBar"
 import { useMedia } from "@/context/MediaQueryContext"
 import { useListKeyboard } from "@/hooks/useListKeyboard"
+import { useFetch } from "@/hooks/useFetch"
+import { GetEndpointUrl } from "@/services/endPoints"
 import { ListSelectionContext, useRowState, useSelectedIds } from "@/hooks/useListSelection"
 import { createSelectionStore } from "@/lib/listSelection"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -44,6 +46,8 @@ export function KeyboardList({
   const [picker, setPicker] = React.useState<ListField | null>(null)
   const { isMobile } = useMedia()
   useListKeyboard({ containerRef: ref, store, enabled: !isMobile, onEdit: setPicker })
+  const hovered = useHoverIntent(ref)
+  const highlighted = React.useSyncExternalStore(store.subscribe, () => store.get().highlighted, () => null)
   // Another page, a filter or a change that moved a task off the list: what
   // went is no longer selected, so nothing out of sight is changed.
   React.useEffect(() => store.keepOnly(new Set(tasks.map((t) => t.task_uuid))), [store, tasks])
@@ -51,6 +55,10 @@ export function KeyboardList({
     <ListSelectionContext.Provider value={store}>
       <div ref={ref} className={cn("relative", className)}>
         {children}
+        {/* The task the pointer rests on, and the one the keys are on, load
+            before they're opened: the panel opens on its data, not a wait. */}
+        <TaskPrefetch id={hovered} />
+        <TaskPrefetch id={highlighted} />
         {!isMobile && (
           <BulkTaskBar
             store={store}
@@ -118,3 +126,34 @@ export function SelectAllHead({ ids }: { ids: string[] }) {
     </TableHead>
   )
 }
+
+/** How long the pointer rests on a task before it is fetched: a pass across the list fetches nothing. */
+export const HOVER_INTENT_MS = 90
+
+/** The task (data-task-id) the pointer has rested on inside the box. */
+function useHoverIntent(ref: React.RefObject<HTMLElement | null>): string | null {
+  const [id, setId] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    const box = ref.current
+    if (!box) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const over = (e: Event) => {
+      const task = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-task-id]")?.dataset.taskId : undefined
+      if (timer) clearTimeout(timer)
+      if (task) timer = setTimeout(() => setId(task), HOVER_INTENT_MS)
+    }
+    box.addEventListener("pointerover", over)
+    return () => {
+      box.removeEventListener("pointerover", over)
+      if (timer) clearTimeout(timer)
+    }
+  }, [ref])
+  return id
+}
+
+/** Loads a task's details into the cache the panel reads (it renders nothing). */
+function TaskPrefetch({ id }: { id: string | null }) {
+  useFetch(id && !id.startsWith("temp-") ? `${GetEndpointUrl.GetTaskInfo}/${id}` : "", undefined, PREFETCH)
+  return null
+}
+const PREFETCH = { revalidateOnFocus: false, dedupingInterval: 10_000 }

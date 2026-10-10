@@ -71,6 +71,7 @@ import {ColorIcon} from "@/components/colorIcon/colorIcon"
 import type {AttachmentMediaReq} from "@/types/attachment"
 import {SubtasksSection} from "@/components/task/subtasksSection"
 import {TaskDescription} from "@/components/task/taskDescription"
+import {TaskPanelSkeleton} from "@/components/task/taskPanelSkeleton"
 import {TaskDependencies} from "@/components/task/TaskDependencies"
 import {useRouter} from "next/navigation"
 import {app_project_path, app_task_path, app_team_path} from "@/types/paths"
@@ -79,7 +80,6 @@ import {CreateOrUpdateCommentReaction} from "@/types/reaction";
 import {CommentInfoInterface} from "@/types/comment";
 import {UserProfileDataInterface, UserProfileInterface} from "@/types/user";
 import {useTranslation} from "react-i18next";
-import {LoadingStateCircle} from "@/components/loading/loadingStateCircle";
 import {EmptyState} from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state"
 import { appMutate as mutate } from "@/lib/swrMutate";
@@ -768,11 +768,8 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
         [taskUUID, post, taskInfo.data?.data.task_project.project_uuid, optimisticDeleteTask, revalidateTaskListsDebounced],
     )
 
-    if(taskInfo.isLoading) {
-        return <div className="flex h-full items-center text-xs text-muted-foreground">
-            <LoadingStateCircle />
-        </div>
-    }
+    // The panel's shape, not a spinner: it fills in place (taskPanelSkeleton).
+    if(taskInfo.isLoading) return <TaskPanelSkeleton />
 
     return (
         <div className="flex flex-col h-full">
