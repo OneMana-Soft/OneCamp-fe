@@ -9,9 +9,16 @@ import { pageOwnsBottomEdge } from "@/lib/utils/mobileBottomNav";
 
 export function MobileNavigationBar({
                                                children,
+                                               banners,
                                                disableBottomPadding = false,
                                            }: Readonly<{
     children: React.ReactNode;
+    /**
+     * Notices for the whole app (the shared-demo note, an admin's disk
+     * warning). They take their own height above the page, the way the
+     * desktop shell stacks them above its sheet.
+     */
+    banners?: React.ReactNode;
     disableBottomPadding?: boolean;
 }>) {
 
@@ -29,8 +36,16 @@ export function MobileNavigationBar({
             <div className="flex flex-col h-dvh overscroll-none">
                 <MobileTopNavigationBar/>
 
-                <div className={cn(
-                    "flex-1 overflow-y-auto",
+                {/* Notices sit ABOVE the page's scroller, not inside it. A channel,
+                    a DM or a task is a full-height column with its composer on
+                    the bottom edge; a notice in the same scroller pushed that
+                    column down by its own height, so a visitor's first task
+                    had its last fields cut off and its comment box below the
+                    screen. */}
+                {banners ? <div data-app-banners="" className="shrink-0">{banners}</div> : null}
+
+                <div data-app-scroller="" className={cn(
+                    "flex-1 min-h-0 overflow-y-auto",
                     !noBottomBar && "pb-[calc(4rem+env(safe-area-inset-bottom))]"
                 )}>
                     {children}
