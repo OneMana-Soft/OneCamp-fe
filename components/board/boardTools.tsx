@@ -26,22 +26,34 @@ import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import type { ProjectInfoListRawInterface } from "@/types/project"
 import { BOARD_TEMPLATES, centreAt, type BoardTemplate } from "@/lib/board/templates"
 import { selectedNotes, type BoardElementLike, type SelectedNote } from "@/lib/board/notes"
+import { SpotWelcome } from "@/components/ui/graphics"
+import { hueFor } from "@/lib/campHue"
 
 interface BoardToolsProps {
   api: ExcalidrawImperativeAPI | null
   editable: boolean
+  /** The board, for its hue: the drawing on its empty canvas wears it. */
+  boardId?: string
 }
 
-export default function BoardTools({ api, editable }: BoardToolsProps) {
+export default function BoardTools({ api, editable, boardId }: BoardToolsProps) {
   const [empty, setEmpty] = React.useState(false)
   const [notes, setNotes] = React.useState<SelectedNote[]>([])
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const [tasksOpen, setTasksOpen] = React.useState(false)
 
   // Follow the scene: is the board empty, and which notes are selected.
+  // Excalidraw calls onChange on every frame of a pan or a zoom, with the
+  // same elements and selection: those frames are skipped, rather than each
+  // walking every shape on the board.
   React.useEffect(() => {
     if (!api) return
+    let lastElements: readonly unknown[] | null = null
+    let lastSelection: Record<string, boolean> | undefined
     const read = (elements: readonly unknown[], appState: { selectedElementIds?: Record<string, boolean> }) => {
+      if (elements === lastElements && appState.selectedElementIds === lastSelection) return
+      lastElements = elements
+      lastSelection = appState.selectedElementIds
       const els = elements as BoardElementLike[]
       setEmpty(!els.some((e) => !e.isDeleted))
       const next = selectedNotes(els, appState.selectedElementIds ?? {})
@@ -100,7 +112,10 @@ export default function BoardTools({ api, editable }: BoardToolsProps) {
 
       {empty && !pickerOpen && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <div className="pointer-events-auto w-[min(92vw,26rem)] rounded-xl border bg-popover p-4 shadow-xl">
+          <div className="pointer-events-auto w-[min(92vw,26rem)] rounded-xl border border-border bg-popover p-4 shadow-overlay">
+            {/* The board's own ring, in its hue (the one its card and its
+                sidebar row wear), with people and ideas on its orbit. */}
+            <SpotWelcome size={56} hue={hueFor(boardId || "board")} className="mb-2" />
             <p className="text-sm font-medium">Start from a template</p>
             <p className="mt-0.5 text-xs text-muted-foreground">Or just start drawing. Everyone here sees it live.</p>
             <div className="mt-3">

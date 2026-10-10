@@ -319,7 +319,7 @@ export default function BoardPage() {
         {/* AI generation (edit access only) */}
 
         {/* Templates, and sticky notes into tasks (edit access only) */}
-        <BoardTools api={excalApi} editable={hasEditAccess} />
+        <BoardTools api={excalApi} editable={hasEditAccess} boardId={boardId} />
 
         {/* Timer, dot voting and follow-the-presenter */}
         {provider && excalApi && userProfile.data?.data && (
