@@ -17,8 +17,36 @@ const COMPAT_MOUSE_MS = 800;
 const MOVE_TOLERANCE_PX = 20;
 /** Touches this close to a side are the system's back gesture. */
 const EDGE_PX = 30;
+/** How long after a hold is released its click can still arrive. */
+const RELEASE_CLICK_MS = 600;
 
 const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+
+/**
+ * Swallows the click that releasing a hold sends. A phone follows the lifted
+ * finger with a click on whatever is under it: the menu's overlay if it has
+ * drawn by then, and otherwise the row itself, which opened the row (a
+ * message's thread) behind its own menu. A new touch first means a new tap,
+ * which keeps its click.
+ */
+function swallowReleaseClick() {
+    if (typeof window === "undefined") return;
+    const until = now() + RELEASE_CLICK_MS;
+    const onClick = (e: MouseEvent) => {
+        done();
+        if (now() > until) return;
+        e.preventDefault();
+        e.stopPropagation();
+    };
+    const done = () => {
+        window.removeEventListener("click", onClick, true);
+        window.removeEventListener("touchstart", done, true);
+        clearTimeout(timer);
+    };
+    window.addEventListener("click", onClick, true);
+    window.addEventListener("touchstart", done, true);
+    const timer = setTimeout(done, RELEASE_CLICK_MS);
+}
 
 /**
  * Calls `callback` when an element is held for `threshold` ms without moving.
@@ -32,6 +60,7 @@ const now = () => (typeof performance !== "undefined" ? performance.now() : Date
  * first, then checks its token. touchcancel (the system taking the touch)
  * ends a press too, so does any scroll while the finger is down, and the
  * mousedown a phone sends after every tap no longer starts a second one.
+ * Releasing a hold that fired sends a click too; that click is swallowed.
  */
 export function useLongPress(
     callback: () => void,
@@ -52,10 +81,14 @@ export function useLongPress(
     const lastTouchRef = useRef(-Infinity);
     // Stops listening for a scroll during the current press.
     const unwatchScrollRef = useRef<(() => void) | null>(null);
+    // Whether the current press has fired (its release then sends a click).
+    const firedRef = useRef(false);
 
     const stop = useCallback(
         (event?: React.TouchEvent | React.MouseEvent | TouchEvent) => {
             if (event && event.type.startsWith("touch")) lastTouchRef.current = now();
+            if (firedRef.current && (event?.type === "touchend" || event?.type === "mouseup")) swallowReleaseClick();
+            firedRef.current = false;
             pressRef.current++;
             unwatchScrollRef.current?.();
             unwatchScrollRef.current = null;
@@ -89,6 +122,7 @@ export function useLongPress(
             }
 
             const press = ++pressRef.current;
+            firedRef.current = false;
             // Anything scrolling while the finger is down makes this a scroll,
             // not a press. The finger's own movement says so too, but not
             // always in time: during a fling a browser may send no touchmove
@@ -118,7 +152,9 @@ export function useLongPress(
             }
 
             const fire = () => {
-                if (pressRef.current === press) callback();
+                if (pressRef.current !== press) return;
+                firedRef.current = true;
+                callback();
             };
             timeoutRef.current = setTimeout(() => {
                 timeoutRef.current = null;
