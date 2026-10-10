@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SpotCalendar } from "@/components/ui/graphics";
 import { toneOf } from "@/components/calendar/calendarTones";
+import { isAllDay } from "@/components/calendar/calendarLayout";
 import { cn } from "@/lib/utils/helpers/cn";
 
 // The phone calendar: the days that have something on them, one row per event
@@ -35,9 +36,15 @@ function itemDetail(item: AgendaItem, day: Date): string {
   // A task sits under its due day, so the heading already says when.
   if (item.isTask) return isSameDay(end, day) ? "Task due" : `Task, due ${format(end, "d MMM")}`;
   if (item.event_is_away) return isSameDay(start, day) ? `Away until ${format(subMinutes(end, 1), "d MMM")}` : "Away";
-  if (item.event_is_focus) return `Focus time, ${shortTime(start)} to ${shortTime(end)}`;
+  const times = `${shortTime(start)} to ${shortTime(end)}`;
+  // A focus block is usually called "Focus time": say it once.
+  if (item.event_is_focus) return item.event_title.trim().toLowerCase() === "focus time" ? times : `Focus time, ${times}`;
+  if (isAllDay(start, end)) {
+    const last = subMinutes(end, 1);
+    return isSameDay(start, last) ? "All day" : `All day, until ${format(last, "d MMM")}`;
+  }
   if (!isSameDay(start, day)) return "Continues";
-  return `${shortTime(start)} to ${shortTime(end)}`;
+  return times;
 }
 
 export function CalendarAgenda({

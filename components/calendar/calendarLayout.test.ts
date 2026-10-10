@@ -55,3 +55,14 @@ describe("what the calendar asks the server for", () => {
     }
   })
 })
+
+describe("an all-day item", () => {
+  it("runs from one midnight to a later one", async () => {
+    const { isAllDay } = await import("./calendarLayout")
+    expect(isAllDay(new Date(2026, 9, 12), new Date(2026, 9, 13))).toBe(true)
+    expect(isAllDay(new Date(2026, 9, 12), new Date(2026, 9, 15))).toBe(true)
+    expect(isAllDay(new Date(2026, 9, 12, 9), new Date(2026, 9, 12, 10))).toBe(false)
+    expect(isAllDay(new Date(2026, 9, 12), new Date(2026, 9, 12, 1))).toBe(false)
+  })
+})
+

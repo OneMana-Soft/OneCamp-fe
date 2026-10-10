@@ -12,6 +12,7 @@ import { X, Check, Plus, Trash2, CalendarClock, Sparkles } from "@/lib/icons";
 import { Edit2, ArrowRightToLine } from "@/lib/icons";
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark";
 import { CALENDAR_HUE } from "@/components/calendar/calendarTones";
+import { isAllDay } from "@/components/calendar/calendarLayout";
 import { AwayCheckbox, FocusTimeCheckbox } from "@/components/calendar/FocusTimeCheckbox";
 import { wholeDays } from "@/lib/timeOff";
 import RescheduleDialog from "@/components/ai/RescheduleDialog";
@@ -144,6 +145,9 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
 
     const start = parseISO(event.event_start_time);
     const end = parseISO(event.event_end_time);
+    // An all-day event ends at the next day's midnight: its last day is the one before.
+    const allDay = isAllDay(start, end);
+    const lastMoment = allDay ? new Date(end.getTime() - 60_000) : end;
 
     const handleSave = async (values: FormValues) => {
         try {
@@ -319,11 +323,11 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                         <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2.5 text-sm">
                             <dt className="text-muted-foreground">Date</dt>
                             <dd className="truncate text-foreground">
-                                {isSameDay(start, end) ? format(start, "EEEE d MMMM yyyy") : `${format(start, "EEE d MMM")} to ${format(end, "EEE d MMM yyyy")}`}
+                                {isSameDay(start, lastMoment) ? format(start, "EEEE d MMMM yyyy") : `${format(start, "EEE d MMM")} to ${format(lastMoment, "EEE d MMM yyyy")}`}
                             </dd>
                             <dt className="text-muted-foreground">Time</dt>
                             <dd className="truncate tabular-nums text-foreground">
-                                {isSameDay(start, end) ? `${shortTime(start)} to ${shortTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
+                                {allDay ? "All day" : isSameDay(start, end) ? `${shortTime(start)} to ${shortTime(end)}` : `${shortDateTime(start)} to ${shortDateTime(end)}`}
                             </dd>
                             {event.event_is_focus && (
                                 <>
