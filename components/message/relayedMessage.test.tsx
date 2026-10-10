@@ -171,7 +171,9 @@ describe("the reply avatars under a message", () => {
       reply("c1", "Priya (Acme)"),
       reply("c2", "Tom Hale"),
     ])
+    // One initial each (a 20px face with two letters at 11px ran into the next
+    // one: "MCJW"); still Tom and Priya, never the bot.
     const faces = [...container.querySelectorAll(".size-5")].map((f) => f.textContent)
-    expect(faces).toEqual(["TH", "P"])
+    expect(faces).toEqual(["T", "P"])
   })
 })

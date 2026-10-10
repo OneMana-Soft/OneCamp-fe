@@ -14,8 +14,8 @@ import Link from "next/link"
 import { format, isPast, parseISO } from "date-fns"
 
 import { useFetch } from "@/hooks/useFetch"
-import { cn } from "@/lib/utils/helpers/cn"
-import { LinkCardBody, linkCardClass } from "@/components/message/LinkCard"
+import { LinkCardBody, hueTileClass, linkCardClass } from "@/components/message/LinkCard"
+import { hueFor } from "@/lib/campHue"
 import { OWN_ERRORS } from "@/lib/axiosInstance"
 import { CheckSquare, FileText, FolderKanban } from "@/lib/icons"
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -62,10 +62,12 @@ export function workLinksIn(raw: string, host: string, max = 3): WorkLink[] {
 /** Read once and kept: a card should not refetch on every focus. */
 const QUIET = { revalidateOnFocus: false, shouldRetryOnError: false }
 
-function CardShell({ href, icon, title, detail }: { href: string; icon: React.ReactNode; title: string; detail?: React.ReactNode }) {
+// The tile is in the thing's own hue (its project's, for a task), the colour
+// its mark has in the sidebar and on its page; it was grey for all three.
+function CardShell({ href, icon, title, detail, hueId }: { href: string; icon: React.ReactNode; title: string; detail?: React.ReactNode; hueId?: string }) {
   return (
-    <Link href={href} onClick={(e) => e.stopPropagation()} className={cn(linkCardClass, "max-w-md")}>
-      <LinkCardBody icon={icon} title={title} detail={detail} />
+    <Link href={href} onClick={(e) => e.stopPropagation()} className={linkCardClass}>
+      <LinkCardBody icon={icon} iconClassName={hueId ? hueTileClass(hueFor(hueId)) : undefined} title={title} detail={detail} />
     </Link>
   )
 }
@@ -87,6 +89,7 @@ function TaskCard({ id }: { id: string }) {
   return (
     <CardShell
       href={`/app/task/${id}`}
+      hueId={t.task_project?.project_uuid}
       icon={<CheckSquare className="h-4 w-4" />}
       title={t.task_name}
       detail={parts.flatMap((part, i) => (i ? [" · ", part] : [part]))}
@@ -98,7 +101,7 @@ function DocCard({ id }: { id: string }) {
   const { data } = useFetch<DocInfoResponse>(`${GetEndpointUrl.GetDocInfo}/${id}`, undefined, QUIET, OWN_ERRORS)
   const d = data?.data
   if (!d?.doc_title) return null
-  return <CardShell href={`/app/doc/${id}`} icon={<FileText className="h-4 w-4" />} title={d.doc_title} detail={d.doc_snippet || "Doc"} />
+  return <CardShell href={`/app/doc/${id}`} hueId={id} icon={<FileText className="h-4 w-4" />} title={d.doc_title} detail={d.doc_snippet || "Doc"} />
 }
 
 function ProjectCard({ id }: { id: string }) {
@@ -108,6 +111,7 @@ function ProjectCard({ id }: { id: string }) {
   return (
     <CardShell
       href={`/app/project/${id}`}
+      hueId={id}
       icon={<FolderKanban className="h-4 w-4" />}
       title={p.project_name}
       detail={p.project_team?.team_name ? `Project · ${p.project_team.team_name}` : "Project"}
