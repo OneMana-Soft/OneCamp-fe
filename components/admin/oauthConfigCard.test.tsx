@@ -73,4 +73,16 @@ describe("sign-in providers", () => {
     expect(http.post).toHaveBeenCalledTimes(1)
     expect(http.post.mock.calls[0][1]).toEqual({ github_client_id: "Iv1.abc" })
   })
+
+  it("shows the plug when no provider is set up, and not once one is", async () => {
+    http.get.mockResolvedValue({ data: { data: { ...status, google_configured: false, google_has_client_secret: false, google_source: "none", google_client_id: "" } } })
+    const { unmount } = render(<OAuthConfigCard />)
+    expect(await screen.findByText("No sign-in provider is set up")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration] svg.hue-lake")).toBeTruthy()
+    unmount()
+    http.get.mockResolvedValue({ data: { data: status } })
+    render(<OAuthConfigCard />)
+    await screen.findByDisplayValue("123.apps.googleusercontent.com")
+    expect(document.querySelector("[data-empty-illustration]")).toBeNull()
+  })
 })
