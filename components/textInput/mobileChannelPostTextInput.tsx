@@ -25,6 +25,11 @@ import {
 import {ChannelCommentFileUpload} from "@/components/fileUpload/channelCommentFileUpload";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 
+// Module-level, so a composer with no draft yet gets the same value on every
+// store change: a fresh {} per call re-drew it, editor and all, whenever
+// anything in the app changed.
+const NO_DRAFT = {}
+
 export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId: string, postUUID: string }) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
@@ -40,7 +45,7 @@ export const MobileChannelPostTextInput = ({ channelId, postUUID }: { channelId:
     //     channelId && postUUID ? `${GetEndpointUrl.GetPostWithAllComments}/${postUUID}` : "",
     // )
 
-    const channelPostState = useSelector((state: RootState) => state.channelComment.commentInputState[channelId] || {});
+    const channelPostState = useSelector((state: RootState) => state.channelComment.commentInputState[channelId] || NO_DRAFT);
 
 
     useEffect(() => {

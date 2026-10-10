@@ -24,6 +24,11 @@ import { updateChatMessageReplyIncrement} from "@/store/slice/chatSlice";
 import {ChatCommentFileUpload} from "@/components/fileUpload/chatCommentFileUpload";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 
+// Module-level, so a composer with no draft yet gets the same value on every
+// store change: a fresh {} per call re-drew it, editor and all, whenever
+// anything in the app changed.
+const NO_DRAFT = {}
+
 export const MobileChatMessageTextInput = ({ chatId, chatMessageUUID }: { chatId: string, chatMessageUUID: string }) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null); // New ref for the entire content
@@ -34,7 +39,7 @@ export const MobileChatMessageTextInput = ({ chatId, chatMessageUUID }: { chatId
     const post = usePost()
 
     const selfProfile = useFetchOnlyOnce<UserProfileInterface>(GetEndpointUrl.SelfProfile)
-    const chatCommentState = useSelector((state: RootState) => state.chatComments.chatCommentInputState[chatMessageUUID] || {});
+    const chatCommentState = useSelector((state: RootState) => state.chatComments.chatCommentInputState[chatMessageUUID] || NO_DRAFT);
 
 
     useEffect(() => {
