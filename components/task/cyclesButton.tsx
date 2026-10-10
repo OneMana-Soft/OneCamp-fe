@@ -1,4 +1,5 @@
 "use client"
+import { shortDate } from "@/lib/utils/date/shortDate"
 
 // Cycles in a project's task toolbar: Linear's sprints. The button names the
 // cycle the list is showing; the popover lists every cycle with its progress,
@@ -18,7 +19,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { serverMessage } from "@/lib/http/serverMessage"
-import { cycleDates, cycleLabel, nextStart, percentDone, type Cycle } from "@/lib/tasks/cycles"
+import { cycleLabel, nextStart, percentDone, type Cycle } from "@/lib/tasks/cycles"
 
 const STATE_LABEL: Record<string, string> = { current: "Current", upcoming: "Upcoming", ended: "Ended", completed: "Completed" }
 
@@ -64,7 +65,7 @@ export function CyclesButton({
                   Cycles are short, fixed stretches of work, a week or two each. Unfinished tasks move to the next one.
                 </p>
               ) : (
-                <ul className="grid max-h-80 gap-1 overflow-y-auto" aria-label="Cycles">
+                <ul className="grid max-h-80 divide-y overflow-y-auto" aria-label="Cycles">
                   {shown.map((c) => (
                     <CycleRow
                       key={c.id}
@@ -102,6 +103,12 @@ export function CyclesButton({
   )
 }
 
+/** "5 Oct to 18 Oct": the day before it ends at midnight is its last. Day
+ * first, like every date in the task lists, and words rather than an en dash. */
+function cycleSpan(c: Pick<Cycle, "starts_at" | "ends_at">): string {
+  return `${shortDate(new Date(c.starts_at))} to ${shortDate(new Date(new Date(c.ends_at).getTime() - 1))}`
+}
+
 function CycleRow({ projectId, cycle, canEdit, active, onShow, onChart }: { projectId: string; cycle: Cycle; canEdit: boolean; active: boolean; onShow: () => void; onChart: () => void }) {
   const { complete, remove } = useProjectCycles(projectId)
   const { toast } = useToast()
@@ -124,26 +131,26 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow, onChart }: { proj
   }
 
   return (
-    <li className={cn("rounded-md border p-2", active && "border-primary/60 bg-primary/5")}>
+    <li className={cn("rounded-md px-2 py-2", active && "bg-muted")}>
       <button type="button" onClick={onShow} className="grid w-full gap-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm">
         <span className="flex items-center justify-between gap-2 text-sm font-medium">
           <span className="flex min-w-0 items-center gap-1.5 truncate">
             {active && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}
             {cycleLabel(cycle)}
           </span>
-          <span className={cn("shrink-0 rounded-full px-1.5 text-2xs font-normal", cycle.state === "current" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
+          <span className={cn("shrink-0 text-2xs", cycle.state === "current" ? "font-medium text-foreground" : "text-muted-foreground")}>
             {STATE_LABEL[cycle.state ?? "upcoming"]}
           </span>
         </span>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {cycleDates(cycle)} ·{" "}
+          {cycleSpan(cycle)} ·{" "}
           {cycle.completed_at
             ? `${cycle.done_count ?? 0} done${cycle.carried_count ? `, ${cycle.carried_count} carried over` : ""}`
             : `${p.done} of ${p.total} done`}
         </span>
         {!cycle.completed_at && (
           <span className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${cycleLabel(cycle)} progress`}>
-            <span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+            <span className="block h-full rounded-full bg-foreground/70" style={{ width: `${pct}%` }} />
           </span>
         )}
       </button>
@@ -205,7 +212,7 @@ function NewCycle({ projectId, cycles, onDone }: { projectId: string; cycles: Cy
     try {
       // Midnight where the person is: a cycle starts with their day.
       const c = await create({ name, starts_at: new Date(`${start}T00:00:00`).toISOString(), weeks: Number(weeks) })
-      toast({ title: `${cycleLabel(c)} ready`, description: cycleDates(c) })
+      toast({ title: `${cycleLabel(c)} ready`, description: cycleSpan(c) })
       onDone()
     } catch (err) {
       toast({ title: "Couldn't make the cycle", description: serverMessage(err), variant: "destructive" })

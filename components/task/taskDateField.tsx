@@ -1,4 +1,5 @@
 "use client"
+import { shortDate } from "@/lib/utils/date/shortDate"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
@@ -68,13 +69,13 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
         <Button
             variant={compact ? "outline" : "ghost"}
             className={cn(
-                compact ? "h-8 px-2 text-xs" : "md:-ml-4 text-left font-normal",
+                compact ? "h-8 px-2 text-xs" : "-ml-2 h-8 px-2 text-left font-normal tabular-nums",
                 !value && "text-muted-foreground",
                 className
             )}
             disabled={!isAdmin}
         >
-            {value ? format(value, "dd MMM") : <span>{label}</span>}
+            {value ? shortDate(value) : <span>{compact ? label : isAdmin ? "Set a date" : "None"}</span>}
             <CalIcon className={cn("ml-2 h-4 w-4", compact && "ml-1 h-3 w-3")} />
         </Button>
     )

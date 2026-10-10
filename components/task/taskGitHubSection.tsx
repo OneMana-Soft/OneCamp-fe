@@ -252,7 +252,7 @@ const CodeAnalysisPanel: React.FC<{ issueUrl: string; title: string; body: strin
     <div className="rounded-lg border border-border/50 bg-card/30 p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Sparkles className="h-4 w-4 text-primary shrink-0" />
+          <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="text-sm font-medium truncate">AI bug analysis</span>
         </div>
         {!result && (
