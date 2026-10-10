@@ -231,7 +231,8 @@ const ImportCard: React.FC = () => {
     confirm({
       title: "Discard this import?",
       description: `${job.source_workspace_name} hasn't brought anything in yet. Discarding it lets you start a new import of it.`,
-      confirmText: "Discard",
+      confirmText: "Discard import",
+      destructive: true,
       onConfirm: async () => {
         try {
           await cancelImportJob(job.id)
@@ -245,10 +246,11 @@ const ImportCard: React.FC = () => {
   }
   const onRollback = async (jobId: string) => {
     confirm({
-      title: "Roll back import",
+      title: "Roll back this import?",
       description:
         "This takes away what the import brought in: its tasks, comments, files and custom fields, and its projects and teams if nothing else is in them. Anything your team has added stays.",
-      confirmText: "Roll back",
+      confirmText: "Roll back import",
+      destructive: true,
       onConfirm: async () => {
         try {
           await rollbackImportJob(jobId)
@@ -279,9 +281,10 @@ const ImportCard: React.FC = () => {
   const onDisconnect = async () => {
     if (!selectedProvider) return
     confirm({
-      title: "Disconnect provider",
-      description: `Disconnect ${selectedProvider}?`,
-      confirmText: "Disconnect",
+      title: "Disconnect this import provider?",
+      description: `OneCamp stops importing from ${selectedProvider}. You can connect it again later.`,
+      confirmText: "Disconnect provider",
+      destructive: true,
       onConfirm: async () => {
         try {
           await disconnectImport(selectedProvider)

@@ -193,7 +193,8 @@ const SlackImportCard: React.FC = () => {
     confirm({
       title: "Discard this export?",
       description: `${job.slack_workspace_name} hasn't been imported yet. Discarding it deletes the uploaded file and lets you start a new import of this workspace.`,
-      confirmText: "Discard",
+      confirmText: "Discard export",
+      destructive: true,
       onConfirm: async () => {
         try {
           setBusyJobId(job.id)
@@ -228,9 +229,10 @@ const SlackImportCard: React.FC = () => {
 
   const handleDeleteStagedZip = async (job: SlackImportJob) => {
     confirm({
-      title: "Delete staged file",
-      description: `Delete the staged Slack ZIP for ${job.slack_workspace_name} from storage? The import is preserved; only the source file is removed. You won't be able to retry without re-uploading.`,
+      title: "Delete the staged file?",
+      description: `The Slack ZIP for ${job.slack_workspace_name} is removed from storage. The import stays; to retry, you would upload the file again.`,
       confirmText: "Delete file",
+      destructive: true,
       onConfirm: async () => {
         try {
           setBusyJobId(job.id)

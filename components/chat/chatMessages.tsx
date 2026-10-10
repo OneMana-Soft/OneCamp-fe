@@ -315,9 +315,9 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Deleting chat message",
-                    description: "Are you sure you want to proceed deleting the message",
-                    confirmText: "Delete chat",
+                    title: "Delete this message?",
+                    description: "It's removed from the conversation for everyone. This can't be undone.",
+                    confirmText: "Delete message",
                     destructive: true,
                     onConfirm: ()=>{executeDeleteChat(messageId)}
                 }

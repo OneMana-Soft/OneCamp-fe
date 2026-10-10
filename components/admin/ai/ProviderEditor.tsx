@@ -232,10 +232,11 @@ const EditProviderRow: React.FC<EditProps> = (props) => {
   // admin needs told BEFORE the click, not discovered afterwards.
   const confirmRemoveProvider = () => {
     confirm({
-      title: `Remove ${provider.label}?`,
+      title: `Remove the provider ${provider.label}?`,
       description:
         "Its stored API key is deleted and any model using it stops working until you point that model somewhere else.",
       confirmText: "Remove provider",
+      destructive: true,
       onConfirm: () => {
         void removeProvider()
       },

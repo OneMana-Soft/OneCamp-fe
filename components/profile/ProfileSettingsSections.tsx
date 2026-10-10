@@ -88,7 +88,7 @@ export function CalendarSection() {
     confirm({
       title: "Disconnect Google Calendar?",
       description: "OneCamp stops putting your task due dates on your calendar. You can connect it again any time.",
-      confirmText: "Disconnect",
+      confirmText: "Disconnect calendar",
       destructive: true,
       onConfirm: async () => {
         try {

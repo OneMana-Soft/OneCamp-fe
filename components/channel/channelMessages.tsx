@@ -295,8 +295,8 @@ export const ChannelMessages = ({
                 openUI({
                     key: 'confirmAlert',
                     data: {
-                        title: "Deleting post",
-                        description: "Are you sure you want to proceed deleting the post",
+                        title: "Delete this post?",
+                        description: "It's removed from the channel for everyone. This can't be undone.",
                         confirmText: "Delete post",
                         destructive: true,
                         onConfirm: () => {

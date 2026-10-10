@@ -333,10 +333,11 @@ const RoutinesPanel: React.FC<{
   // the deliberate choice of the two.
   const confirmRemove = (r: AgentRoutine) => {
     confirm({
-      title: r.name ? `Cancel "${r.name}"?` : "Cancel this routine?",
+      title: r.name ? `Cancel the routine "${r.name}"?` : "Cancel this routine?",
       description:
         "It stops running for good. To pause it temporarily instead, use the toggle next to it.",
       confirmText: "Cancel routine",
+      destructive: true,
       onConfirm: () => {
         void remove(r)
       },

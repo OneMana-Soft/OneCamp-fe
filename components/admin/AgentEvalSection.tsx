@@ -115,9 +115,10 @@ export const AgentEvalSection: React.FC<{ agentId: string }> = ({ agentId }) => 
   const handleDelete = (id: string) => {
     const scenario = scenarios.find((s) => s.id === id)
     confirm({
-      title: scenario?.name ? `Delete "${scenario.name}"?` : "Delete this scenario?",
-      description: "The scenario and its expectations are removed. This cannot be undone.",
+      title: scenario?.name ? `Delete the scenario "${scenario.name}"?` : "Delete this scenario?",
+      description: "The scenario and its expectations are removed. This can't be undone.",
       confirmText: "Delete scenario",
+      destructive: true,
       onConfirm: () => {
         void deleteScenario(id)
       },

@@ -231,9 +231,10 @@ const AgentsCard = () => {
 
   const handleDelete = async (a: Agent) => {
     confirm({
-      title: "Delete agent",
-      description: `Delete agent "${a.name}"? This can't be undone.`,
-      confirmText: "Delete",
+      title: `Delete the agent "${a.name}"?`,
+      description: "It stops working right away and is removed for everyone. This can't be undone.",
+      confirmText: "Delete agent",
+      destructive: true,
       onConfirm: async () => {
         setBusyId(a.id)
         try {

@@ -97,14 +97,15 @@ const ScimProvisioningCard = () => {
 
   const handleRevoke = (t: ScimToken) => {
     confirm({
-      title: `Revoke "${t.name}"?`,
+      title: `Revoke the SCIM token "${t.name}"?`,
       // Names the consequence in the operator's terms. "The credential stops working" is true and
       // useless; what they need to weigh is that joiners and leavers stop being synced, which is a
       // silence rather than an error — nobody gets paged because a new hire has no account.
       description:
         "Your identity provider will stop being able to create or deactivate accounts immediately. " +
         "Joiners and leavers will need handling by hand until you connect a new credential.",
-      confirmText: "Revoke",
+      confirmText: "Revoke token",
+      destructive: true,
       onConfirm: async () => {
         setBusyId(t.id)
         try {

@@ -125,8 +125,8 @@ export const ProjectMemberContent: React.FC<memberContentProp> = ({projectId}) =
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Remove project member",
-                    description: "Are you sure you want to proceed remove project member",
+                    title: "Remove this member from the project?",
+                    description: "They lose access to the project and its tasks. You can add them back later.",
                     confirmText: "Remove member",
                     destructive: true,
                     onConfirm: ()=>{executeRemoveMember(id)}

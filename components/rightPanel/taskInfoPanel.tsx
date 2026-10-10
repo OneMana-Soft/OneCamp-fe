@@ -846,9 +846,9 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Deleting chat",
-                    description: "Are you sure you want to proceed deleting the chat",
-                    confirmText: "Delete post",
+                    title: "Delete this comment?",
+                    description: "It's removed from the task for everyone. This can't be undone.",
+                    confirmText: "Delete comment",
                     destructive: true,
                     onConfirm: ()=>{executeDeleteTaskComment(commentIndex, commentUUID)}
                 }

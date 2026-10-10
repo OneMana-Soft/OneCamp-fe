@@ -127,8 +127,8 @@ export const TeamMemberContent: React.FC<memberContentProp> = ({teamId}) => {
             dispatch(openUI({
                 key: 'confirmAlert',
                 data: {
-                    title: "Remove team member",
-                    description: "Are you sure you want to proceed remove team member",
+                    title: "Remove this member from the team?",
+                    description: "They leave the team. You can add them back later.",
                     confirmText: "Remove member",
                     destructive: true,
                     onConfirm: ()=>{executeRemoveMember(id)}

@@ -212,9 +212,9 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         dispatch(openUI({
             key: 'confirmAlert',
             data: {
-                title: "Leave Event",
-                description: "Are you sure you want to leave this event?",
-                confirmText: "Leave Event",
+                title: "Leave this event?",
+                description: "You're taken off its guest list. You can join again if you're invited.",
+                confirmText: "Leave event",
                 destructive: true,
                 onConfirm: executeLeave
             }
@@ -243,9 +243,9 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
         dispatch(openUI({
             key: 'confirmAlert',
             data: {
-                title: "Delete Event",
-                description: "Are you sure you want to delete this event? This action cannot be undone.",
-                confirmText: "Delete Event",
+                title: "Delete this event?",
+                description: "It's removed from everyone's calendar. This can't be undone.",
+                confirmText: "Delete event",
                 destructive: true,
                 onConfirm: executeDelete
             }

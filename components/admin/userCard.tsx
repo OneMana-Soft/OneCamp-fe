@@ -67,10 +67,10 @@ const UserCard = () => {
     if (!email || post.isSubmitting) return
     const user = allUsers.find((u) => u.user_email_id === email)
     confirm({
-      title: `Deactivate ${displayNameOf(user) || email}?`,
+      title: `Deactivate ${displayNameOf(user) || email}'s account?`,
       description:
         "They lose access to this workspace immediately. Their messages and work stay, and you can reactivate them from this list.",
-      confirmText: "Deactivate",
+      confirmText: "Deactivate account",
       destructive: true,
       onConfirm: () => deactivateUser(email, userId),
     })
@@ -136,7 +136,7 @@ const UserCard = () => {
         "They will sign in with just their password until they set up a new device, and their old " +
         "recovery codes stop working. Only do this once you are satisfied you are talking to them. " +
         "This is recorded in the audit log.",
-      confirmText: "Reset two-step",
+      confirmText: "Reset two-factor",
       destructive: true,
       onConfirm: () => void resetTwoFactor(userId, label),
     })

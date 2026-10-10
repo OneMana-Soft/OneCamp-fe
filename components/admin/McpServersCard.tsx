@@ -53,9 +53,10 @@ const McpServersCard = () => {
 
   const handleDelete = async (s: McpServer) => {
     confirm({
-      title: "Remove MCP server",
-      description: `Remove MCP server "${s.name}"? Its tools will no longer be available to agents.`,
-      confirmText: "Remove",
+      title: `Remove the MCP server "${s.name}"?`,
+      description: "Its tools are no longer available to agents. You can add it again later.",
+      confirmText: "Remove server",
+      destructive: true,
       onConfirm: async () => {
         setBusyId(s.id)
         try {

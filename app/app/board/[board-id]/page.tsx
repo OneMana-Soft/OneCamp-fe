@@ -156,8 +156,8 @@ export default function BoardPage() {
       openUI({
         key: "confirmAlert",
         data: {
-          title: "Delete board",
-          description: "This will permanently remove the board for everyone. This cannot be undone.",
+          title: "Delete this board?",
+          description: "It's removed for everyone, with everything drawn on it. This can't be undone.",
           confirmText: "Delete board",
           destructive: true,
           onConfirm: performDelete,

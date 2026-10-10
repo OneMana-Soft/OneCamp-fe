@@ -106,9 +106,10 @@ export default function GuestAccessCard() {
 
     const revoke = (id: string) => {
         confirm({
-            title: "Revoke guest link?",
-            description: "Anyone holding this link will immediately lose access.",
-            confirmText: "Revoke",
+            title: "Revoke this guest link?",
+            description: "Anyone holding it loses access immediately. This can't be undone, but you can make a new link.",
+            confirmText: "Revoke link",
+            destructive: true,
             onConfirm: async () => {
                 setRevoking(id)
                 try {

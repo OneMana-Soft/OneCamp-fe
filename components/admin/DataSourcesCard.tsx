@@ -64,9 +64,10 @@ const DataSourcesCard = () => {
 
   const handleDelete = async (s: DataSource) => {
     confirm({
-      title: "Remove data source",
-      description: `Remove "${s.name}"? Agents will no longer be able to query it.`,
-      confirmText: "Remove",
+      title: `Remove the data source "${s.name}"?`,
+      description: "Agents can no longer query it. You can add it again later.",
+      confirmText: "Remove data source",
+      destructive: true,
       onConfirm: async () => {
         setBusyId(s.id)
         try {

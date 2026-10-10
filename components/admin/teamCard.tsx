@@ -54,10 +54,11 @@ const TeamsCard = () => {
         if (!uuid || post.isSubmitting) return
         const team = allTeams.find((t) => t.team_uuid === uuid)
         confirm({
-            title: team?.team_name ? `Delete ${team.team_name}?` : "Delete this team?",
+            title: team?.team_name ? `Delete the team ${team.team_name}?` : "Delete this team?",
             description:
                 "Its channels and projects stay, but the team is removed from the workspace. You can restore it from this list afterwards.",
             confirmText: "Delete team",
+            destructive: true,
             onConfirm: () => deleteTeam(uuid),
         })
     }
