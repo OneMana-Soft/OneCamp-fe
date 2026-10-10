@@ -21,6 +21,7 @@ import * as Y from "yjs"
 import { useCollaborationProvider } from "@/hooks/useCollaborationProvider"
 import { Skeleton } from "@/components/ui/skeleton"
 import "@excalidraw/excalidraw/index.css"
+import "@/components/board/excalidrawTheme.css"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 
 /**
