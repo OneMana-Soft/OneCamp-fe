@@ -89,7 +89,7 @@ describe("a guest who opens a thread before giving their name", () => {
     await open()
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Reply" })))
     const thread = screen.getByRole("complementary")
-    const nameBox = within(thread).getByRole("textbox", { name: "Your name" })
+    const nameBox = within(thread).getByRole("textbox", { name: "Your name, as the team will see it" })
     expect(nameBox).toHaveAttribute("maxLength", "40")
     fireEvent.change(nameBox, { target: { value: "Priya" } })
     await act(async () => fireEvent.click(within(thread).getByRole("button", { name: "Continue" })))
