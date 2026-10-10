@@ -4,8 +4,8 @@ import { use, useCallback } from "react";
 import { getGuestCollabSession, guestCollabToken } from "@/services/guestService";
 import { GuestDocViewer } from "@/components/guest/GuestDocViewer";
 import { GuestDocComments } from "@/components/guest/GuestDocComments";
-import { GuestCentered, GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
-import { Loader2, FileText, Eye, MessageSquare } from "@/lib/icons";
+import { GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { FileText, Eye, MessageSquare } from "@/lib/icons";
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 const gone = <GuestLinkGone detail="The share link may have expired or been revoked. Ask the person who shared it for a new link." />;
@@ -25,16 +25,7 @@ export default function GuestDocPage({ params }: { params: Promise<{ token: stri
 
     if (!session) {
         return (
-            <GuestNotYet
-                trouble={trouble}
-                gone={gone}
-                loading={
-                    <GuestCentered>
-                        <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">Opening the shared document…</p>
-                    </GuestCentered>
-                }
-            />
+            <GuestNotYet trouble={trouble} gone={gone} shape="page" label="Opening the shared document…" />
         );
     }
     if (session.resource_type !== "doc" || !session.document_name) return gone;

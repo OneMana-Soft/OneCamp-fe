@@ -3,8 +3,8 @@
 import { use } from "react";
 import { getGuestTable } from "@/services/guestService";
 import { GuestTableViewer } from "@/components/guest/GuestTableViewer";
-import { GuestCentered, GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
-import { Loader2, Table as TableIcon, Eye } from "@/lib/icons";
+import { GuestLinkGone, GuestNotYet, useGuestAnswer } from "@/components/guest/guestUi";
+import { Table as TableIcon, Eye } from "@/lib/icons";
 import { MadeWithOneCamp } from "@/components/public/MadeWithOneCamp"
 
 const gone = <GuestLinkGone detail="The share link may have expired or been revoked. Ask the person who shared it for a new link." />;
@@ -17,16 +17,7 @@ export default function GuestTablePage({ params }: { params: Promise<{ token: st
 
     if (!bundle) {
         return (
-            <GuestNotYet
-                trouble={trouble}
-                gone={gone}
-                loading={
-                    <GuestCentered>
-                        <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">Opening the shared table…</p>
-                    </GuestCentered>
-                }
-            />
+            <GuestNotYet trouble={trouble} gone={gone} shape="table" label="Opening the shared table…" />
         );
     }
     if (!bundle.table || !Array.isArray(bundle.fields)) return gone;

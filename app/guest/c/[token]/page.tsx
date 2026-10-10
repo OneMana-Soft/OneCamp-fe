@@ -90,7 +90,7 @@ export default function GuestChannelPage({ params }: { params: Promise<{ token: 
     setHasMore(res.data.has_more)
   }
 
-  if (state === "loading") return <GuestNotYet trouble={trouble} />
+  if (state === "loading") return <GuestNotYet trouble={trouble} shape="chat" label="Opening the channel…" />
   if (state === "missing") return <GuestLinkGone />
 
   return (
