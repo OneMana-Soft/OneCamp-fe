@@ -21,7 +21,7 @@ export function ClipButton({ onRecorded }: { onRecorded: (file: File) => void })
         variant="ghost"
         aria-label="Record a clip"
         title="Record a voice, video or screen clip"
-        className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
+        className="h-8 w-8 text-muted-foreground hover:text-foreground"
         onClick={() => {
           setWanted(true)
           setOpen(true)
