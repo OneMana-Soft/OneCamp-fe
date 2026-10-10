@@ -3,7 +3,8 @@
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
 import { IdentityMark } from "@/components/ui/graphics/IdentityMark"
-import { SpotDocs } from "@/components/ui/graphics"
+import { SpotDocs, SpotTasks } from "@/components/ui/graphics"
+import { PageContainer } from "@/components/ui/pageContainer"
 import { ToastAction } from "@/components/ui/toast"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -48,13 +49,14 @@ const TYPE_ICON = {
  */
 export function LaterPage() {
   const [tab, setTab] = useState<"open" | "done">("open")
-  const open = useLaterList("open")
-  const due = open.data?.data.due ?? 0
 
   return (
     <SectionTabs
+      // No "N due" on the tab: it arrived with the list and changed as items
+      // were done, so Saved widened 45px and Done slid sideways under the
+      // pointer. A due row says "Due" itself, and due rows come first.
       tabs={[
-        { value: "open", label: "Saved", count: due > 0 ? `${due} due` : undefined },
+        { value: "open", label: "Saved" },
         { value: "done", label: "Done" },
       ]}
       value={tab}
@@ -62,10 +64,13 @@ export function LaterPage() {
       icon={Bookmark}
       title="Later"
     >
+      {/* Activity's column: start-aligned, 880px, the same inset, so the
+          two pages a person moves between in the sidebar start their lists
+          in one place. It was a centred 768px column. */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl px-4 py-4 md:px-6 md:py-6">
+        <PageContainer data-later-frame="" className="h-auto py-2">
           <LaterItems state={tab} />
-        </div>
+        </PageContainer>
       </div>
     </SectionTabs>
   )
@@ -144,31 +149,38 @@ export function LaterItems({ state }: { state: "open" | "done" }) {
     return (
       <ul className="divide-y divide-border/60" role="status" aria-label="Loading Later">
         {[0, 1, 2].map((i) => (
-          <li key={i} className="flex items-start gap-3 px-2 py-3">
-            <Skeleton className="size-6 shrink-0 rounded-md" />
-            <span className="flex-1 space-y-1.5">
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-3 w-1/3" />
+          // A 20px title line and an 18px one under it, 2px apart, as in a
+          // row: the bars were 16 and 12px, 6px apart, so every row grew 6px
+          // when the list came.
+          <li key={i} data-later-skeleton-row="" className="flex items-start gap-3 px-2 py-3">
+            <Skeleton className="-mt-0.5 size-6 shrink-0 rounded-md" />
+            <span className="flex-1">
+              <Skeleton className="h-5 w-1/2" />
+              <Skeleton className="mt-0.5 h-[18px] w-1/3" />
             </span>
           </li>
         ))}
       </ul>
     )
   }
-  if (isError) {
-    return <ErrorState subject="Later" onRetry={() => void mutate()} className="py-12" />
-  }
-  if (items.length === 0) {
-    return state === "open" ? (
-      <EmptyState
-        tone="accent"
-        className="py-16"
-        illustration={<SpotDocs />}
-        title="Nothing saved for later"
-        description="Use the bookmark on a message, task or doc to keep it here. Ask for a reminder and it comes back when you need it."
-      />
-    ) : (
-      <p className="py-16 text-center text-sm text-muted-foreground">Things you mark done appear here.</p>
+  // Saved and Done say "nothing here" and "that failed" in one frame and one
+  // place, Activity's: anchored near the top of the list's space. Done said
+  // it in one grey line where Saved had a drawing, a title and a sentence.
+  if (isError || items.length === 0) {
+    return (
+      <div data-later-state="" className="flex justify-center pt-4 md:pt-10">
+        {isError ? (
+          <ErrorState subject="Later" onRetry={() => void mutate()} />
+        ) : state === "open" ? (
+          <EmptyState
+            illustration={<SpotDocs />}
+            title="Nothing saved for later"
+            description="Use the bookmark on a message, task or doc to keep it here. Ask for a reminder and it comes back when you need it."
+          />
+        ) : (
+          <EmptyState illustration={<SpotTasks />} title="Nothing done yet" description="Things you mark done appear here." />
+        )}
+      </div>
     )
   }
   // Rows, not a card of rows: the same hairlines as Activity and search.
@@ -263,7 +275,8 @@ function RowButton({ label, onClick, disabled, children }: { label: string; onCl
           aria-label={label}
           disabled={disabled}
           onClick={onClick}
-          className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-background"
+          // 44px to a finger, on a touch screen.
+          className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-background [@media(pointer:coarse)]:size-11"
         >
           {children}
         </Button>
