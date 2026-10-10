@@ -3,14 +3,17 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils/helpers/cn";
 import { Switch } from "@/components/ui/switch";
 import { useFetch } from "@/hooks/useFetch";
 import { GetEndpointUrl } from "@/services/endPoints";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
-import { Plus, Trash2, Pencil, MessageSquare, ListTodo, EyeOff, Shield, Flag, Rocket } from "@/lib/icons";
+import { Plus, Trash2, Pencil, MessageSquare, ListTodo, EyeOff, Shield, Flag, LayoutTemplate, Zap } from "@/lib/icons";
 import {
     Workflow,
     WorkflowActionType,
@@ -41,8 +44,18 @@ function actionLabel(type: WorkflowActionType): React.ReactNode {
     }
 }
 
+/** A state is a dot and a word, not a filled badge. */
+function StateWord({ tone, children }: { tone: "off" | "bad"; children: React.ReactNode }) {
+    return (
+        <span className={cn("inline-flex items-center gap-1.5 text-xs", tone === "bad" ? "text-danger-ink" : "text-muted-foreground")}>
+            <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone === "bad" ? "bg-destructive" : "bg-faint-foreground")} />
+            {children}
+        </span>
+    );
+}
+
 const WorkflowsCard = () => {
-    const { data, isLoading, mutate } = useFetch<{ data: Workflow[] }>(GetEndpointUrl.GetAllWorkflows);
+    const { data, isLoading, isError, mutate } = useFetch<{ data: Workflow[] }>(GetEndpointUrl.GetAllWorkflows);
     const { toast } = useToast();
     const confirm = useConfirm();
     const [editing, setEditing] = useState<Workflow | null>(null);
@@ -112,41 +125,40 @@ const WorkflowsCard = () => {
     };
 
     return (
-        <Card className="border-border/60">
-            <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                <div className="space-y-1">
-                    <CardTitle className="text-base font-semibold">Workflows
-                    </CardTitle>
+        // Borderless, like every other admin card: on the admin page it is the
+        // tab's one card, and a bordered box with its own padding sat in a
+        // different frame from Members or Webhooks.
+        <Card className="w-full border-none bg-transparent shadow-none">
+            <CardHeader className="flex flex-col gap-3 space-y-0 px-0 pb-6 pt-0 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-1">
+                    <CardTitle className="text-base font-semibold">Workflows</CardTitle>
                     <CardDescription className="max-w-xl">
-                        Automate the busywork. When a message matches your rule, OneCamp can
-                        reply automatically or turn it into a task, no code, runs forever.
+                        When a message in a channel matches a rule, OneCamp replies or turns it into a task.
+                        The switches save as you make them.
                     </CardDescription>
                 </div>
-                <Button onClick={() => setCreating(true)} className="shrink-0">
-                    <Plus className="h-4 w-4 mr-1.5" />
+                <Button onClick={() => setCreating(true)} className="shrink-0 self-start">
+                    <Plus className="mr-1.5 h-4 w-4" />
                     New workflow
                 </Button>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="px-0">
                 {isLoading ? (
-                    <div role="status" aria-label="Loading automations" className="py-1">
+                    <div role="status" aria-label="Loading workflows" className="py-1">
                         <SkeletonRows rows={3} />
                     </div>
+                ) : isError ? (
+                    // Checked before the empty case: a failed read used to say
+                    // "No workflows yet", a claim about the workspace with no way
+                    // to try again.
+                    <ErrorState subject="the workflows" onRetry={() => void mutate()} />
                 ) : workflows.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center text-center py-12 px-4 gap-3">
-                        <div className="space-y-1 max-w-sm">
-                            <p className="text-sm font-medium">No workflows yet</p>
-                            <p className="text-sm text-muted-foreground">
-                                Try: when a message containing “bug” is posted in #support, create a
-                                task and reply “Thanks: we’re on it.”
-                            </p>
-                        </div>
-                        <Button variant="outline" onClick={() => setCreating(true)}>
-                            <Plus className="h-4 w-4 mr-1.5" />
-                            Create your first workflow
-                        </Button>
-                    </div>
+                    <EmptyState
+                        icon={Zap}
+                        title="No workflows yet"
+                        description="For example: when a message mentioning “bug” is posted in #support, create a task and reply “Thanks, we’re on it.”"
+                    />
                 ) : (
                     <div className="divide-y divide-border rounded-lg border border-border">
                         {workflows.map((wf) => {
@@ -154,17 +166,13 @@ const WorkflowsCard = () => {
                             return (
                                 <div
                                     key={wf.id}
-                                    className="flex items-start justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted/60"
+                                    className="flex items-start justify-between gap-4 px-4 py-3"
                                 >
                                     <div className="min-w-0 space-y-2">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-medium truncate">{wf.name}</span>
-                                            {!wf.is_active && (
-                                                <Badge variant="secondary" className="text-2xs">Paused</Badge>
-                                            )}
-                                            {wf.last_error && (
-                                                <Badge variant="destructive" className="text-2xs">Last run failed</Badge>
-                                            )}
+                                            <span className="truncate text-sm font-medium">{wf.name}</span>
+                                            {!wf.is_active && <StateWord tone="off">Paused</StateWord>}
+                                            {wf.last_error && <StateWord tone="bad">Last run failed</StateWord>}
                                         </div>
                                         <p className="text-xs text-muted-foreground">
                                             {wf.trigger_type === "user_joined_channel" ? (
@@ -204,7 +212,7 @@ const WorkflowsCard = () => {
                                             checked={wf.is_active}
                                             disabled={busyId === wf.id}
                                             onCheckedChange={(v) => handleToggle(wf, v)}
-                                            aria-label="Toggle workflow"
+                                            aria-label={`Run ${wf.name}`}
                                         />
                                         <Button variant="ghost" size="icon" aria-label="Edit this workflow" className="h-8 w-8" onClick={() => setEditing(wf)} title="Edit">
                                             <Pencil className="h-3.5 w-3.5" />
@@ -212,12 +220,12 @@ const WorkflowsCard = () => {
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            aria-label="Publish this workflow"
+                                            aria-label="Save as a template"
                                             className="h-8 w-8"
                                             onClick={() => setPublishing(wf)}
-                                            title="Save as template"
+                                            title="Save as a template"
                                         >
-                                            <Rocket className="h-3.5 w-3.5" />
+                                            <LayoutTemplate className="h-3.5 w-3.5" />
                                         </Button>
                                         <Button
                                             variant="ghost"
