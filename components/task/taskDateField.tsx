@@ -15,7 +15,7 @@ import {
   DrawerTrigger,
   DrawerTitle,
 } from "@/components/ui/drawer"
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { fieldLabel, fieldRow, inlineAffordance, inlineValue } from "@/lib/ui/fieldRow"
 
 type DateFieldProps = {
     isAdmin: boolean
@@ -68,15 +68,16 @@ export function DateField({ isAdmin, label, value, onSelect, onClear, className,
     const TriggerButton = (
         <Button
             variant={compact ? "outline" : "ghost"}
+            aria-label={compact ? undefined : `${label}: ${value ? shortDate(value) : "none"}`}
             className={cn(
-                compact ? "h-8 px-2 text-xs" : "-ml-2 h-8 px-2 text-left font-normal tabular-nums",
+                compact ? "h-8 px-2 text-xs" : cn(inlineValue, "tabular-nums"),
                 !value && "text-muted-foreground",
                 className
             )}
             disabled={!isAdmin}
         >
             {value ? shortDate(value) : <span>{compact ? label : isAdmin ? "Set a date" : "None"}</span>}
-            <CalIcon className={cn("ml-2 h-4 w-4", compact && "ml-1 h-3 w-3")} />
+            <CalIcon aria-hidden className={compact ? "ml-1 h-3 w-3" : cn(inlineAffordance, "h-3.5 w-3.5")} />
         </Button>
     )
 

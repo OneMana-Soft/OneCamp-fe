@@ -4,7 +4,8 @@ import {Separator} from "@/components/ui/separator"
 import {Label} from "@/components/ui/label"
 import { TagPicker } from "@/components/tags/TagPicker"
 import { ProjectStatusesDialog } from "@/components/project/ProjectStatusesDialog"
-import {Button} from "@/components/ui/button"
+import {Button, buttonVariants} from "@/components/ui/button"
+import Link from "next/link"
 import MinimalTiptapTextInput from "@/components/textInput/textInput"
 import type {Content} from "@tiptap/core"
 import {useDispatch, useSelector} from "react-redux"
@@ -32,7 +33,7 @@ import {
     updateTaskPriorityInTaskList, updateTaskStartDateInTaskList,
     updateTaskStatusInTaskList,
 } from "@/store/slice/taskInfoSlice"
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs"
+import {Tabs, TabsContent, TabsList, TabsTrigger, underlineTab, underlineTabsList} from "@/components/ui/tabs"
 import {cn} from "@/lib/utils/helpers/cn"
 import { MessageSquare, Trash2, Github } from "@/lib/icons";
 import { Activity } from "@/lib/icons";
@@ -90,7 +91,7 @@ import {useTaskUpdate} from "@/hooks/useTaskUpdate";
 import {useMqtt} from "@/components/mqtt/mqttProvider";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
 import {AgentWorkStrip} from "@/components/ai/AgentWorkStrip";
-import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { fieldLabel, fieldRow, inlineValue } from "@/lib/ui/fieldRow"
 
 const CONSTANTS = {
     LABEL_PLACEHOLDER: "addLabel",
@@ -244,20 +245,6 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
 
     const parentTask = useMemo(() => taskInfo.data?.data.task_parent_task, [taskInfo.data?.data.task_parent_task])
 
-
-    const handleProjectClick = useCallback(
-        (projectUUID: string) => {
-            router.push(`${app_project_path}/${projectUUID}`)
-        },
-        [router],
-    )
-
-    const handleTeamClick = useCallback(
-        (teamUUID: string) => {
-            router.push(`${app_team_path}/${teamUUID}`)
-        },
-        [router],
-    )
 
     const handleChangeTask = useCallback(
         (taskUUID: string) => {
@@ -1074,14 +1061,14 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                             <div>Project</div>
                         </div>
                         <div className="min-w-0">
-                            <Button
-                                variant="ghost"
-                                className="-ml-2 h-8 px-2 hover:underline font-normal max-w-full truncate"
-                                onClick={() => handleProjectClick(taskInfo.data?.data.task_project.project_uuid || "")}
+                            {/* Links, so they open in a new tab with Ctrl or ⌘ as links do. */}
+                            <Link
+                                href={`${app_project_path}/${taskInfo.data?.data.task_project.project_uuid || ""}`}
+                                className={cn(buttonVariants({ variant: "ghost" }), inlineValue, "w-fit")}
                             >
                                 <ColorIcon size="xs" name={taskInfo.data?.data.task_project.project_uuid || ""} />
                                 <span className="truncate">{taskInfo.data?.data.task_project.project_name}</span>
-                            </Button>
+                            </Link>
                         </div>
                     </div>
                     <div className={fieldRow("center", "mb-6")}>
@@ -1089,13 +1076,12 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
                             <div>Team</div>
                         </div>
                         <div className="min-w-0">
-                            <Button
-                                variant="ghost"
-                                className="-ml-2 h-8 px-2 hover:underline font-normal max-w-full truncate"
-                                onClick={() => handleTeamClick(taskInfo.data?.data.task_team.team_uuid || "")}
+                            <Link
+                                href={`${app_team_path}/${taskInfo.data?.data.task_team.team_uuid || ""}`}
+                                className={cn(buttonVariants({ variant: "ghost" }), inlineValue, "w-fit")}
                             >
                                 <span className="truncate">{taskInfo.data?.data.task_team.team_name}</span>
-                            </Button>
+                            </Link>
                         </div>
                     </div>
 
@@ -1264,18 +1250,20 @@ export default function TaskInfoPanel({ taskUUID }: TaskInfoPanelProps) {
 
                     <div className="mt-4">
                         <Tabs defaultValue="comments" className="w-full">
-                            <TabsList className="w-full sm:w-auto overflow-x-auto justify-start">
-                                <TabsTrigger value="comments">
-                                    <MessageSquare className="h-4 w-4 mr-2" />
-                                    Comments ({taskCommentState.length || 0})
+                            {/* The project page's underline tabs, not a box of its own. */}
+                            <TabsList className={cn(underlineTabsList, "overflow-x-auto")}>
+                                <TabsTrigger value="comments" className={underlineTab}>
+                                    <MessageSquare className="h-4 w-4" />
+                                    Comments
+                                    {taskCommentState.length > 0 && <span className="tabular-nums text-muted-foreground">{taskCommentState.length}</span>}
                                 </TabsTrigger>
-                                <TabsTrigger value="activities">
-                                    <Activity className="h-4 w-4 mr-2" />
-                                    Activities
+                                <TabsTrigger value="activities" className={underlineTab}>
+                                    <Activity className="h-4 w-4" />
+                                    Activity
                                 </TabsTrigger>
                                 {(taskInfo.data?.data.task_github_issue_url || taskInfo.data?.data.task_github_pr_url || taskInfo.data?.data.task_github_branch) && (
-                                    <TabsTrigger value="github">
-                                        <Github className="h-4 w-4 mr-2" />
+                                    <TabsTrigger value="github" className={underlineTab}>
+                                        <Github className="h-4 w-4" />
                                         GitHub
                                     </TabsTrigger>
                                 )}

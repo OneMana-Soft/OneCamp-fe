@@ -6,7 +6,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Label } from "@/components/ui/label"
+import { sectionTitle } from "@/lib/ui/fieldRow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { FileText, LayoutDashboard, X, Lock, Loader2 } from "@/lib/icons"
 import { useEntityLinks, type LinkSourceType } from "@/services/entityLinkService"
@@ -32,7 +32,7 @@ export function LinkedItemsSection({ sourceType, sourceUUID, canEdit }: LinkedIt
   return (
     <div className="mb-4">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <Label className="inline">Linked</Label>
+        <h3 className={sectionTitle}>Linked docs and boards</h3>
         {mutating && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
       </div>
 
@@ -68,10 +68,8 @@ export function LinkedItemsSection({ sourceType, sourceUUID, canEdit }: LinkedIt
           )
         })}
 
-        {total === 0 && !isLoading && (
-          <p className="text-xs text-muted-foreground">
-            {effectiveCanEdit ? "Link a doc or board for quick access." : "No linked docs or boards."}
-          </p>
+        {total === 0 && !isLoading && !effectiveCanEdit && (
+          <p className="text-sm text-muted-foreground">None linked.</p>
         )}
         {isLoading && total === 0 && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -80,7 +78,7 @@ export function LinkedItemsSection({ sourceType, sourceUUID, canEdit }: LinkedIt
         )}
 
         {effectiveCanEdit && (
-          <div className="mt-1">
+          <div>
             <EntityLinkPicker
               onPick={(refType, refUUID) => addLink(refType, refUUID)}
               isLinked={hasLink}

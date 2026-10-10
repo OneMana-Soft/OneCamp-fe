@@ -1,9 +1,9 @@
 "use client"
 
 import React from "react"
+import { inlineAdd, sectionTitle } from "@/lib/ui/fieldRow"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Plus, CheckCircle2, ChevronRight, Link2 } from "@/lib/icons";
 import { cn } from "@/lib/utils/helpers/cn"
@@ -121,10 +121,8 @@ export function SubtasksSection({
 
     return (
         <div className="space-y-3">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium text-muted-foreground">Subtasks</Label>
-            </div>
+            {/* Header: the same as the panel's other sections. */}
+            <h3 className={sectionTitle}>Subtasks</h3>
 
             {/* Subtasks List */}
             <div className="">
@@ -150,7 +148,7 @@ export function SubtasksSection({
 
                 {/* Create New Subtask */}
                 {isCreatingSubtask && (
-                    <div ref={subtaskFormRef} className="bg-muted/30 rounded-lg p-2 border border-dashed">
+                    <div ref={subtaskFormRef} className="rounded-lg border bg-muted/30 p-2">
                         <div className="space-y-3">
                             <div className="flex items-center gap-3">
                                 <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30 flex items-center justify-center">
@@ -214,21 +212,14 @@ export function SubtasksSection({
                 )}
             </div>
 
-            {/* Add Subtask Button */}
-
-                <Button
-                    variant="ghost"
-                    className=" border border-dashed border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 hover:cursor-pointer"
-                    onClick={() => setIsCreatingSubtask(!isCreatingSubtask)}
-                    disabled={!isAdmin}
-                    size="sm" asChild
-                >
-                    <div className=' className="flex items-center gap-1"'>
-                        <Plus className="w-4 h-4 " />
-                        <span>Add subtask</span>
-                    </div>
-
+            {/* A real button: it was a div drawn as one, which the keyboard
+                couldn't reach and "disabled" didn't stop. */}
+            {isAdmin && !isCreatingSubtask && (
+                <Button type="button" variant="ghost" size="sm" className={inlineAdd} onClick={() => setIsCreatingSubtask(true)}>
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                    Add subtask
                 </Button>
+            )}
 
         </div>
     )

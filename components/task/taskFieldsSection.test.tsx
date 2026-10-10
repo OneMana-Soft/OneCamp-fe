@@ -14,6 +14,7 @@ vi.mock("@/lib/swrMutate", () => ({ appMutate: () => Promise.resolve() }))
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }))
 const refreshFields = vi.fn()
 vi.mock("@/hooks/useProjectFields", () => ({ useProjectFields: () => ({ fields, canEdit: canManage, isLoading: false, refresh: refreshFields }) }))
+vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isDesktop: true }) }))
 vi.mock("@/components/project/ProjectFieldsDialog", () => ({ ProjectFieldsDialog: ({ open }: { open: boolean }) => (open ? <div>Fields dialog</div> : null) }))
 
 const { TaskFieldsSection } = await import("@/components/task/taskFieldsSection")
@@ -127,5 +128,37 @@ describe("saves of one field in quick succession", () => {
       answerFirst({ data: { data: { value: "aaaa1111" } } })
     })
     expect(setField).toHaveBeenLastCalledWith("t", "p", "f-channel", "bbbb2222")
+  })
+})
+
+describe("the panel's values read one way", () => {
+  // Estimate and Budget were bordered inputs and a select field a bordered
+  // box, beside dates and people that read as plain text with a hover tint.
+  const boxed = (el: Element) => /(^|\s)border-input(\s|$)/.test(el.className) && !/border-transparent/.test(el.className)
+  const dueOn: TaskField = { ...base, id: "f-due", name: "Launch day", type: "date", filter_id: "field_x4" }
+
+  it("draws no box around a value until it's being typed in", () => {
+    fields = [channel, budget, dueOn]
+    const { container } = render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{ "f-channel": "aaaa1111" }} canEdit members={[]} />)
+    const controls = container.querySelectorAll("input, button[role=combobox], button")
+    expect(controls.length).toBeGreaterThan(0)
+    for (const c of controls) expect(boxed(c)).toBe(false)
+  })
+
+  it("picks a date field's day with the panel's own date control, not the browser's date box", () => {
+    fields = [dueOn]
+    const { container } = render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{ "f-due": "2026-10-14" }} canEdit members={[]} />)
+    expect(container.querySelector('input[type="date"]')).toBeNull()
+    expect(screen.getByRole("button", { name: "Launch day: 14 Oct" })).toBeTruthy()
+  })
+
+  it("says what an empty value wants, and puts the currency beside an amount only", () => {
+    fields = [channel, budget]
+    render(<TaskFieldsSection taskUUID="t" projectUUID="p" values={{}} canEdit members={[]} />)
+    expect(screen.getByText("Choose…")).toBeTruthy()
+    expect((screen.getByLabelText("Budget") as HTMLInputElement).placeholder).toBe("Add an amount…")
+    expect(screen.queryByText("INR")).toBeNull()
+    fireEvent.focus(screen.getByLabelText("Budget"))
+    expect(screen.getByText("INR")).toBeTruthy()
   })
 })
