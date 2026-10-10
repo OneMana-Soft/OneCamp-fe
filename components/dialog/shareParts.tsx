@@ -44,7 +44,7 @@ export function ShareUserRow({ user, role, onRemove, canRemove }: { user: UserPr
             aria-label={`Remove ${name}'s access`}
             variant="ghost"
             size="icon"
-            className="extend-touch-target h-6 w-6 text-muted-foreground opacity-0 transition-opacity hover:text-danger-ink focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+            className="extend-touch-target pointer-events-none h-6 w-6 text-muted-foreground opacity-0 transition-opacity hover:text-danger-ink focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"
             onClick={onRemove}
           >
             <X className="h-4 w-4" />
