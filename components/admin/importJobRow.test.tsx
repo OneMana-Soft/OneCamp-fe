@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 
-import { ImportJobRow, isWaiting } from "./ImportJobRow"
+import { ImportJobRow, ImportStatusChip, isWaiting } from "./ImportJobRow"
 import type { ImportJob } from "@/services/importService"
 
 afterEach(cleanup)
@@ -74,5 +74,37 @@ describe("an import job's way forward", () => {
   it("names the provider in a list of every provider's jobs", () => {
     render(<ImportJobRow job={job("completed", { provider: "monday" })} showProvider {...handlers()} />)
     expect(screen.getByText(/monday\.com ·/)).toBeTruthy()
+  })
+})
+
+describe("how an import job reads", () => {
+  // Status was drawn in raw blue, indigo, purple and grey, which measure
+  // 2.3 to 3.5:1 in dark mode, below AA, each with an icon beside the word.
+  it("says where it stands in status tokens, with no icon", () => {
+    for (const status of ["pending", "validating", "planned", "running", "paused", "completed", "failed", "cancelled", "rolled_back"] as const) {
+      const { container } = render(<ImportStatusChip status={status} />)
+      const chip = container.firstElementChild as HTMLElement
+      expect(chip.className).not.toMatch(/\b(?:bg|text|border)-(?:blue|indigo|purple|gray)-\d/)
+      expect(chip.querySelector("svg")).toBeNull()
+      cleanup()
+    }
+  })
+
+  // One primary action per view: the next step on each row was a filled
+  // orange button, so a list of three imports drew three.
+  it("offers each row's next step as an outline button", () => {
+    render(<ImportJobRow job={job("planned")} {...handlers()} />)
+    expect(screen.getByRole("button", { name: "Plan" }).className).not.toContain("bg-primary")
+    cleanup()
+    render(<ImportJobRow job={job("completed")} {...handlers()} />)
+    expect(screen.getByRole("button", { name: "Invite people" }).className).not.toContain("bg-primary")
+  })
+
+  it("counts in words a person uses, and in the right number", () => {
+    render(<ImportJobRow job={job("running", { errors_total: 1 })} {...handlers()} />)
+    expect(screen.getByRole("button", { name: "1 error" })).toBeTruthy()
+    expect(screen.getByText("2 of 4 parts")).toBeTruthy()
+    expect(screen.queryByText(/chunks/)).toBeNull()
+    expect(screen.getByText("120 items")).toBeTruthy()
   })
 })
