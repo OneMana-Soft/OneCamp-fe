@@ -41,8 +41,11 @@ afterEach(cleanup)
 describe("a formula column", () => {
   it("shows what the server worked out, and can't be typed into", () => {
     render(<DataTableGrid tableId="t" fields={fields} rows={rows} canManage={false} onChange={() => {}} />)
-    // Price's input, and no input for the formulas.
-    expect(screen.getAllByRole("spinbutton")).toHaveLength(1)
+    // Price's input, and no input for the formulas. A number cell is typed
+    // as text with a decimal keypad (so the grid can read its caret for the
+    // arrow keys), so it is a textbox, not a spinbutton.
+    expect(screen.getAllByRole("textbox")).toHaveLength(1)
+    expect(screen.getByRole("textbox", { name: "Price" }).getAttribute("inputmode")).toBe("decimal")
     expect(screen.getByText("50").className).toContain("tabular-nums")
     // A date in the app's one format, whatever the browser's locale.
     expect(screen.getByText(/^16 Oct( 2026)?$/)).toBeTruthy()
