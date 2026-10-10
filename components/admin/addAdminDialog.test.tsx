@@ -16,10 +16,10 @@ const member = (i: number, extra: Record<string, unknown> = {}) => ({
   ...extra,
 })
 
-const http = vi.hoisted(() => ({ get: vi.fn() }))
-vi.mock("@/lib/axiosInstance", () => ({ default: { get: http.get } }))
-const post = vi.hoisted(() => ({ makeRequest: vi.fn(), isSubmitting: false }))
-vi.mock("@/hooks/usePost", () => ({ usePost: () => post }))
+const http = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
+vi.mock("@/lib/axiosInstance", () => ({ default: { get: http.get, post: http.post }, OWN_ERRORS: { suppressErrorToast: true } }))
+const toast = vi.hoisted(() => vi.fn())
+vi.mock("@/hooks/use-toast", () => ({ toast, useToast: () => ({ toast }) }))
 vi.mock("@/hooks/useUserAvatar", () => ({ useUserAvatar: () => ({ src: "" }) }))
 
 const { AddAdminDialog } = await import("./AddAdminDialog")
@@ -66,7 +66,7 @@ describe("making someone an admin", () => {
 
   it("picks a member with real buttons, and makes them an admin", async () => {
     answer([[member(3, { user_name: "Hana Kobayashi" })]], [])
-    post.makeRequest.mockResolvedValue({})
+    http.post.mockResolvedValue({ data: {} })
     const onSuccess = await open()
     const hana = screen.getByRole("button", { name: /Hana Kobayashi/ })
     expect(hana.tagName).toBe("BUTTON")
@@ -74,13 +74,15 @@ describe("making someone an admin", () => {
     fireEvent.click(hana)
     expect(hana.getAttribute("aria-pressed")).toBe("true")
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Make admin" })))
-    expect(post.makeRequest).toHaveBeenCalledWith(expect.objectContaining({ payload: { user_uuid: "m3" } }))
+    // The refusal, if any, is said in the dialog: the global toast stands down.
+    expect(http.post).toHaveBeenCalledWith("/admin/createAdmin", { user_uuid: "m3" }, { suppressErrorToast: true })
+    expect(toast).toHaveBeenCalledWith({ title: "Hana Kobayashi is an admin now" })
     expect(onSuccess).toHaveBeenCalled()
   })
 
   it("says in the dialog why the server refused, and stays open", async () => {
     answer([[member(3, { user_name: "Hana Kobayashi" })]], [])
-    post.makeRequest.mockRejectedValue({ response: { data: { msg: "Only an admin can do that." } } })
+    http.post.mockRejectedValue({ response: { data: { msg: "Only an admin can do that." } } })
     const onSuccess = await open()
     fireEvent.click(screen.getByRole("button", { name: /Hana Kobayashi/ }))
     await act(async () => void fireEvent.click(screen.getByRole("button", { name: "Make admin" })))
