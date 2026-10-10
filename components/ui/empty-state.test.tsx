@@ -3,6 +3,7 @@ import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach } from "vitest"
 import { Sparkles } from "lucide-react"
 import { EmptyState } from "@/components/ui/empty-state"
+import { SpotInbox } from "@/components/ui/graphics"
 
 // Adding the accent tone touched the ONE component that 30+ surfaces already
 // render, so the contract worth locking is that the default rendering did not
@@ -95,6 +96,33 @@ describe("EmptyState", () => {
     cleanup()
     render(<EmptyState title="Page level" headingLevel={2} />)
     expect(screen.getByRole("heading", { name: "Page level", level: 2 })).toBeTruthy()
+  })
+
+  // The playful layer: a spot illustration can stand above the heading. It is
+  // decorative (the heading says what is empty), it wins over an icon, and the
+  // tone sizes it so callers cannot drift: 64px muted, 96px accent.
+  it("puts a spot illustration above the heading, decorative, in place of the icon", () => {
+    const { container } = render(
+      <EmptyState illustration={<SpotInbox size={80} />} icon={Sparkles} title="Inbox zero" description="Nothing waiting." />,
+    )
+    const art = container.querySelector("[data-empty-illustration]") as HTMLElement
+    expect(art).not.toBeNull()
+    expect(art.getAttribute("aria-hidden")).toBe("true")
+    expect(art.querySelector("svg")).not.toBeNull()
+    // The illustration wins: no icon as well.
+    expect(container.querySelector("[data-empty-icon]")).toBeNull()
+    // Above the heading, in the same column and gap.
+    const heading = screen.getByRole("heading", { name: "Inbox zero" })
+    expect(art.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it("sizes the illustration by tone, 64px muted and 96px accent", () => {
+    const { container } = render(<EmptyState illustration={<SpotInbox />} title="Muted" />)
+    expect(container.querySelector("[data-empty-illustration]")!.className).toContain("[&>svg]:size-16")
+    cleanup()
+    const accent = render(<EmptyState tone="accent" illustration={<SpotInbox />} title="Accent" headingLevel={2} />)
+    expect(accent.container.querySelector("[data-empty-illustration]")!.className).toContain("[&>svg]:size-24")
+    expect(screen.getByRole("heading", { name: "Accent", level: 2 })).toBeTruthy()
   })
 
   it("omits the icon entirely when no icon is given", () => {
