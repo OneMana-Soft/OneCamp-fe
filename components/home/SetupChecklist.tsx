@@ -15,6 +15,10 @@
  * somebody ticks a box. Dismissing is for the admin who does not want it in the
  * meantime.
  *
+ * SHORT, WITH THE NEXT STEP OBVIOUS. It lists the open steps only, three at a
+ * time in the server's order (the rest one click away), and marks the first
+ * "Start". The count above says how much is done.
+ *
  * ADMIN ONLY, and gated before the request rather than after it: the endpoint is
  * admin-only, so a member rendering this would fetch a 403 on every dashboard
  * load and log noise for something they were never shown.
@@ -24,16 +28,18 @@
  * by importing anything.
  */
 
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, Circle, ArrowRight, X } from "@/lib/icons"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Circle, ArrowRight, X } from "@/lib/icons"
 import {
     getOnboardingStatus,
     dismissOnboarding,
     setStepSkipped,
     type OnboardingState,
+    type OnboardingStep,
 } from "@/services/onboardingService"
 
 /**
@@ -60,6 +66,46 @@ export function shouldShowChecklist(
     return true
 }
 
+/**
+ * What this browser last knew of the card: "open" when it had steps to show,
+ * "closed" once it was finished or hidden. It decides whether Home holds the
+ * card's place while the card loads, so a finished workspace never reserves
+ * space for a card that won't come, and an unfinished one doesn't jump when it
+ * does.
+ */
+export const CHECKLIST_MEMO_KEY = "oc_setup_checklist"
+type Memo = "open" | "closed" | null
+
+function readMemo(): Memo {
+    try {
+        const v = localStorage.getItem(CHECKLIST_MEMO_KEY)
+        return v === "open" || v === "closed" ? v : null
+    } catch {
+        return null
+    }
+}
+
+function writeMemo(v: "open" | "closed") {
+    try {
+        localStorage.setItem(CHECKLIST_MEMO_KEY, v)
+    } catch {
+        /* nothing to remember it in: the card loads unheld next time */
+    }
+}
+
+/** Whether to hold the card's place while its state loads. Pure. */
+export function holdChecklistPlace(isAdmin: boolean | undefined, loaded: boolean, memo: Memo): boolean {
+    if (loaded || isAdmin === false || memo === "closed") return false
+    // Before we know who this is, hold it only where this browser has shown it.
+    if (isAdmin === undefined) return memo === "open"
+    return true
+}
+
+/** How long "Hidden. Undo" stays before the server is told. */
+export const UNDO_HIDE_MS = 6_000
+/** Open steps listed before "Show N more". */
+const FIRST_STEPS = 3
+
 interface Props {
     /** Rendered for nobody else; see the note above. */
     isAdmin: boolean | undefined
@@ -67,64 +113,133 @@ interface Props {
 
 const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
     const [state, setState] = useState<OnboardingState | null>(null)
-    // Hidden optimistically on dismiss so the card goes away on click rather than
-    // after a round trip. The write is fire-and-forget precisely because it is
-    // recoverable: if it fails the card returns on the next load, which is a far
-    // better failure than a spinner on a dismiss button.
-    const [hidden, setHidden] = useState(false)
+    // The state as last rendered, for putting a step back if setting it aside fails.
+    const shown = useRef<OnboardingState | null>(null)
+    useEffect(() => {
+        shown.current = state
+    })
+    const [loaded, setLoaded] = useState(false)
+    // Read before the first paint, so a finished workspace never flashes the
+    // placeholder.
+    const [memo, setMemo] = useState<Memo>(null)
+    useLayoutEffect(() => setMemo(readMemo()), [])
+
+    // "pending": hidden on the click, with Undo, and the server not yet told.
+    // "hidden": told. The one line stays where the card was for the rest of
+    // the visit, so Home does not jump a second time.
+    const [hide, setHide] = useState<"no" | "pending" | "hidden">("no")
+    const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [showAll, setShowAll] = useState(false)
+    const [showSkipped, setShowSkipped] = useState(false)
+    const [skipFailed, setSkipFailed] = useState(false)
 
     useEffect(() => {
         if (!isAdmin) return
         let cancelled = false
         getOnboardingStatus()
             .then((s) => {
-                if (!cancelled) setState(s ?? null)
+                if (cancelled) return
+                setState(s ?? null)
+                setLoaded(true)
+                if (s) writeMemo(shouldShowChecklist(true, false, s) ? "open" : "closed")
             })
             .catch(() => {
                 // A dashboard must not fail because a setup hint could not load.
-                if (!cancelled) setState(null)
+                if (!cancelled) setLoaded(true)
             })
         return () => {
             cancelled = true
         }
     }, [isAdmin])
 
-    const dismiss = useCallback(() => {
-        setHidden(true)
-        void dismissOnboarding().catch(() => {
-            /* see the note on `hidden` */
-        })
+    const sendDismissal = useCallback(() => {
+        writeMemo("closed")
+        // Fire and forget: if it fails, the card returns on the next load,
+        // which is a far better failure than a spinner on a dismiss button.
+        void dismissOnboarding().catch(() => {})
     }, [])
 
-    // Set a step aside, or put it back.
-    //
-    // Re-read rather than patched locally: the counts and the ordering are the
-    // backend's to decide, and a card that recomputed them here would be a second
-    // implementation of the same rules waiting to disagree with the first.
+    const hideCard = useCallback(() => {
+        setHide("pending")
+        hideTimer.current = setTimeout(() => {
+            hideTimer.current = null
+            setHide("hidden")
+            sendDismissal()
+        }, UNDO_HIDE_MS)
+    }, [sendDismissal])
+
+    const undoHide = useCallback(() => {
+        if (hideTimer.current) clearTimeout(hideTimer.current)
+        hideTimer.current = null
+        setHide("no")
+    }, [])
+
+    // Leaving Home inside the moment to undo still hides it, as asked.
+    useEffect(
+        () => () => {
+            if (hideTimer.current) {
+                clearTimeout(hideTimer.current)
+                hideTimer.current = null
+                sendDismissal()
+            }
+        },
+        [sendDismissal],
+    )
+
+    // Set a step aside, or put it back: at once on screen, then the server's
+    // own counts. A failure puts it back where it was and says so.
     const toggleSkipped = useCallback((id: string, skipped: boolean) => {
+        setSkipFailed(false)
+        const before = shown.current
+        if (before) setState(withSkipped(before, id, skipped))
         void setStepSkipped(id, skipped)
             .then(getOnboardingStatus)
-            .then((s) => setState(s ?? null))
+            .then((s) => {
+                if (s) setState(s)
+            })
             .catch(() => {
-                /* the list is re-derived on the next load anyway */
+                setState(before)
+                setSkipFailed(true)
             })
     }, [])
 
-    const [showSkipped, setShowSkipped] = useState(false)
+    if (hide !== "no" && isAdmin) {
+        return (
+            <div role="status" className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-border/60 px-4 text-sm text-muted-foreground">
+                Setup checklist hidden.
+                {hide === "pending" && (
+                    <Button variant="ghost" size="sm" className="h-8" onClick={undoHide}>
+                        Undo
+                    </Button>
+                )}
+            </div>
+        )
+    }
+
+    if (!loaded) {
+        if (!holdChecklistPlace(isAdmin, loaded, memo)) return null
+        return <ChecklistPlaceholder />
+    }
 
     // Checked on the client rather than server-side so the endpoint stays a plain
     // description of the workspace rather than a rendering decision.
-    if (!shouldShowChecklist(isAdmin, hidden, state)) return null
+    if (!shouldShowChecklist(isAdmin, false, state)) return null
 
+    const open = state.steps.filter((s) => !s.done && !s.skipped)
+    const listed = showAll ? open : open.slice(0, FIRST_STEPS)
+    const more = open.length - listed.length
+    const skippedSteps = state.steps.filter((s) => s.skipped)
     // The one step to do now: the first open one. It says "Start" in words, so
-    // a new admin is never left choosing between five equal rows.
-    const nextId = state.steps.find((s) => !s.done && !s.skipped)?.id
+    // a new admin is never left choosing between equal rows.
+    const nextId = open[0]?.id
 
     return (
-        <Card className="p-5">
-            <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                    <h2 className="text-sm font-semibold">Finish setting up your workspace</h2>
+        <Card role="region" aria-labelledby="setup-checklist-title" className="p-5">
+            {/* The header leaves its leading edge free: the playful layer's
+                progress ring goes in front of the title. */}
+            <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                    <h2 id="setup-checklist-title" className="text-sm font-semibold">Finish setting up your workspace</h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                         {state.done} of {state.total} done. This disappears on its own.
                     </p>
@@ -132,102 +247,138 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
-                    onClick={dismiss}
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={hideCard}
                     aria-label="Hide the setup checklist"
                 >
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-4 w-4" />
                 </Button>
             </div>
 
-            {/* Plain rules rather than a progress bar: four rows do not need a
-                second representation of the same number, and the count above
-                already says it. */}
-            <ul className="mt-4 flex flex-col divide-y divide-border/60">
-                {state.steps.map((step) => (
-                    <li key={step.id} hidden={step.skipped && !showSkipped}>
-                        {step.skipped ? (
-                            <div className="flex items-center gap-3 py-2.5">
-                                <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" />
-                                <span className="min-w-0 flex-1 text-sm text-muted-foreground">
-                                    {step.title}
-                                </span>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 shrink-0 text-xs text-muted-foreground hover:text-foreground"
-                                    onClick={() => toggleSkipped(step.id, false)}
-                                >
-                                    Put back
-                                </Button>
-                            </div>
-                        ) : step.done ? (
-                            <div className="flex items-center gap-3 py-2.5">
-                                <CheckCircle2 className="h-4 w-4 shrink-0 text-success-ink" />
-                                <span className="text-sm text-muted-foreground line-through">
-                                    {step.title}
-                                </span>
-                            </div>
-                        ) : (
-                            <Link
-                                href={step.href}
-                                className="group flex items-center gap-3 py-2.5 -mx-2 px-2 rounded-md hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
-                                <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                <span className="min-w-0 flex-1">
-                                    <span className="block text-sm font-medium">{step.title}</span>
-                                    <span className="block text-xs text-muted-foreground">
-                                        {step.detail}
-                                    </span>
-                                </span>
-                                {step.id === nextId ? (
-                                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-brand-text">
-                                        Start
-                                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                                    </span>
-                                ) : (
-                                    <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 pointer-events-none transition-opacity group-hover:opacity-100" />
-                                )}
-                            </Link>
-                        )}
-                        {/* OUTSIDE the Link, not inside it. A button nested in an
-                            anchor is invalid, and the click would navigate as well
-                            as set the step aside.
-
-                            The label names no provider. It first read "Not coming
-                            from Slack", which asked a team arriving from Jira the
-                            wrong question about a step that covers them too. */}
-                        {step.skippable && !step.skipped && !step.done && (
-                            <div className="-mt-1 pb-2 pl-7">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                                    onClick={() => toggleSkipped(step.id, true)}
-                                >
-                                    Nothing to import
-                                </Button>
-                            </div>
-                        )}
-                    </li>
+            <ul className="mt-3 flex flex-col divide-y divide-border/60">
+                {listed.map((step) => (
+                    <StepRow
+                        key={step.id}
+                        step={step}
+                        isNext={step.id === nextId}
+                        onSkip={() => toggleSkipped(step.id, true)}
+                    />
                 ))}
+                {showSkipped &&
+                    skippedSteps.map((step) => (
+                        <li key={step.id} className="flex min-h-12 items-center gap-3 py-1.5">
+                            <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" aria-hidden="true" />
+                            <span className="min-w-0 flex-1 text-sm text-muted-foreground">{step.title}</span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 shrink-0 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => toggleSkipped(step.id, false)}
+                            >
+                                Put back
+                            </Button>
+                        </li>
+                    ))}
             </ul>
 
-            {/* The way back. A list you can hide things from has to be a list you
-                can get them back from, or "not now" is indistinguishable from
-                losing the feature. */}
-            {state.skipped > 0 && !showSkipped && (
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-1 h-7 px-1.5 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowSkipped(true)}
-                >
-                    {state.skipped} set aside. Show
-                </Button>
+            {skipFailed && (
+                <p role="alert" className="mt-2 text-xs font-medium text-danger-ink">
+                    Couldn&apos;t set that step aside. Try again.
+                </p>
+            )}
+
+            {(more > 0 || (skippedSteps.length > 0 && !showSkipped)) && (
+                <div className="mt-1 flex flex-wrap gap-x-2">
+                    {more > 0 && (
+                        <Button variant="ghost" size="sm" className="h-8 px-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowAll(true)}>
+                            Show {more} more
+                        </Button>
+                    )}
+                    {/* The way back. A list you can hide things from has to be a
+                        list you can get them back from, or "not now" is
+                        indistinguishable from losing the feature. */}
+                    {skippedSteps.length > 0 && !showSkipped && (
+                        <Button variant="ghost" size="sm" className="h-8 px-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowSkipped(true)}>
+                            Show {skippedSteps.length} set aside
+                        </Button>
+                    )}
+                </div>
             )}
         </Card>
     )
+}
+
+/** One open step: the link to it, and beside it (not inside it) setting it aside. */
+function StepRow({ step, isNext, onSkip }: { step: OnboardingStep; isNext: boolean; onSkip: () => void }) {
+    return (
+        <li className="flex items-center gap-2">
+            <Link
+                href={step.href}
+                className="group -mx-2 flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+                <Circle className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{step.title}</span>
+                    <span className="block text-xs text-muted-foreground">{step.detail}</span>
+                </span>
+                {isNext ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-brand-text">
+                        Start
+                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    </span>
+                ) : (
+                    <ArrowRight aria-hidden="true" className="pointer-events-none h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                )}
+            </Link>
+            {/* OUTSIDE the Link, not inside it. A button nested in an anchor is
+                invalid, and the click would navigate as well as set the step
+                aside. The label names no provider: "Not coming from Slack"
+                asked a team arriving from Jira the wrong question. */}
+            {step.skippable && (
+                <Button variant="ghost" size="sm" className="h-8 shrink-0 text-xs text-muted-foreground hover:text-foreground" onClick={onSkip}>
+                    Nothing to import
+                </Button>
+            )}
+        </li>
+    )
+}
+
+/** The card's shape while it loads: its header and three step rows. */
+function ChecklistPlaceholder() {
+    return (
+        <Card role="status" aria-label="Loading the setup checklist" aria-busy="true" className="p-5">
+            <div aria-hidden="true">
+                <Skeleton className="h-4 w-56" />
+                <Skeleton className="mt-1.5 h-3 w-44" />
+                <div className="mt-3 divide-y divide-border/60">
+                    {[0, 1, 2].map((i) => (
+                        <div key={i} className="flex min-h-12 items-center gap-3 py-1.5">
+                            <Skeleton variant="circle" className="h-4 w-4 shrink-0" />
+                            <div className="grid flex-1 gap-1.5">
+                                <Skeleton className={i === 1 ? "h-3.5 w-1/2" : "h-3.5 w-2/5"} />
+                                <Skeleton className="h-3 w-3/5" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </Card>
+    )
+}
+
+/** The state with one step set aside or put back, counted as the server counts it. Pure. */
+export function withSkipped(s: OnboardingState, id: string, skipped: boolean): OnboardingState {
+    const target = s.steps.find((x) => x.id === id)
+    if (!target || !!target.skipped === skipped || target.done) return s
+    const delta = skipped ? 1 : -1
+    const total = s.total - delta
+    return {
+        ...s,
+        steps: s.steps.map((x) => (x.id === id ? { ...x, skipped } : x)),
+        total,
+        skipped: s.skipped + delta,
+        complete: total > 0 && s.done >= total,
+    }
 }
 
 export default SetupChecklist
