@@ -14,8 +14,8 @@ const thePlan = {
   file_bytes: 1288490188,
   warnings: [],
 }
-const planSlackImport = vi.fn(async (_id: string, _opts: unknown) => thePlan)
-const runSlackImport = vi.fn(async (_id: string, _opts: unknown) => {})
+const planSlackImport = vi.fn<(id: string, opts: unknown) => Promise<typeof thePlan>>(async () => thePlan)
+const runSlackImport = vi.fn<(id: string, opts: unknown) => Promise<void>>(async () => {})
 vi.mock("@/services/slackImportService", async (orig) => ({
   ...(await orig<typeof import("@/services/slackImportService")>()),
   planSlackImport: (id: string, opts: unknown) => planSlackImport(id, opts),
