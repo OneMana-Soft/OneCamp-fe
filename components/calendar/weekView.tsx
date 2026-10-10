@@ -1,6 +1,5 @@
 "use client";
 
-import { eyebrowClass } from "@/components/ui/eyebrow"
 import { useEffect, useMemo, useRef } from "react";
 import { addDays, format, isSameDay, parseISO, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -186,7 +185,7 @@ export function WeekView({
           const isToday = isSameDay(day, now);
           return (
             <div key={i} className="flex-1 min-w-[90px] border-r border-border/60 py-2 text-center">
-              <div className={cn(eyebrowClass, "text-2xs")}>
+              <div className="text-xs font-medium text-muted-foreground">
                 {format(day, "EEE")}
               </div>
               <div
@@ -204,7 +203,7 @@ export function WeekView({
 
       {/* All-day rail */}
       <div className="flex border-b border-border/60 bg-muted/20">
-        <div className="flex w-14 shrink-0 items-center justify-center border-r border-border/60 py-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="flex w-14 shrink-0 items-center justify-center border-r border-border/60 py-1 text-2xs font-medium text-muted-foreground">
           All day
         </div>
         {allDayByDay.map((items, i) => (

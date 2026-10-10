@@ -85,7 +85,6 @@ function LaterItems({ state }: { state: "open" | "done" }) {
   if (items.length === 0) {
     return state === "open" ? (
       <EmptyState
-        icon={Bookmark}
         tone="accent"
         className="py-16"
         title="Nothing saved for later"

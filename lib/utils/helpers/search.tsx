@@ -170,12 +170,12 @@ export const getHighlightedContext = (result: SearchResult) => {
     for (const field of fields) {
         if (result.highlight[field]) {
             return (
-                <div className="flex flex-col gap-1">
-                    <span className="opacity-70">{context}</span>
+                <div className="flex flex-col gap-0.5">
+                    <span>{context}</span>
                     <SafeHtml
                         as="div"
-                        className="text-xs bg-muted/30 p-1.5 rounded border border-border/50 italic"
-                        html={`...${result.highlight[field][0]}...`}
+                        className="text-foreground/80 line-clamp-2"
+                        html={`…${result.highlight[field][0]}…`}
                         sanitizer={sanitizePlainHtml}
                     />
                 </div>

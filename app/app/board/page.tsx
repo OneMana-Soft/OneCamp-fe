@@ -86,22 +86,17 @@ function BoardsPage() {
             No boards match &ldquo;{debouncedSearch}&rdquo;.
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={createBoard}
-            disabled={isSubmitting}
-            className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/70 bg-card/30 px-6 py-16 text-center transition-colors hover:border-border hover:bg-accent/30"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <LayoutDashboard className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Create your first board</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Start with a blank canvas and invite your team to draw together.
-              </p>
-            </div>
-          </button>
+          // One sentence and one action. The dashed drop-zone box with an icon
+          // in a circle was a second "New board" button dressed as a picture.
+          <div className="rounded-lg border border-border/60 px-6 py-12">
+            <p className="text-sm font-medium text-foreground">No boards yet</p>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground text-pretty">
+              A board is a blank canvas for sketches, flows and screens your team draws on together.
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={createBoard} disabled={isSubmitting}>
+              Create a board
+            </Button>
+          </div>
         )
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

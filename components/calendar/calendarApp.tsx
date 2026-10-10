@@ -282,7 +282,8 @@ export function CalendarApp() {
                         <div key={i} className={cn(
                             "border-r h-full",
                             !isSameMonth(day, monthStart) && "bg-muted/30",
-                            isSameDay(day, new Date()) && "bg-primary/5"
+                            // Today is marked by its date's filled circle; tinting
+                            // the whole column as well spent the accent twice.
                         )} />
                     ))}
                 </div>
@@ -395,10 +396,20 @@ export function CalendarApp() {
                                 const isHovered = hoveredEventUUID === event.event_uuid;
                                 const startTime = parseISO(event.event_start_time);
                                 const timePrefix = event.colSpan === 1 ? format(startTime, "h:mm ") : "";
+                                const tone = calendarTone({ isTask: event.isTask, isFocus: event.event_is_focus, isAway: event.event_is_away });
                                 
                                 return (
                                     <div
                                         key={event.event_uuid}
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-label={`${event.isTask ? "Task" : "Event"}: ${event.event_title}`}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                (e.currentTarget as HTMLDivElement).click();
+                                            }
+                                        }}
                                         onMouseEnter={() => setHoveredEventUUID(event.event_uuid)}
                                         onMouseLeave={() => setHoveredEventUUID(null)}
                                         onClick={(e) => { 
@@ -423,13 +434,14 @@ export function CalendarApp() {
                                             width: `calc(${(event.colSpan / 7) * 100}% - ${(isStartOfWeek ? 4 : 0) + (isEndOfWeek ? 4 : 0)}px)`
                                         }}
                                         className={cn(
-                                            "absolute h-5 px-1.5 py-0 text-2xs font-medium truncate cursor-pointer transition flex items-center z-20",
-                                            isHovered && "scale-[1.02] z-30 shadow-md",
-                                            event.isTask
-                                                ? (isHovered ? calendarColors.task.blockHover : calendarColors.task.block)
-                                                : (isHovered ? calendarColors.event.blockHover : calendarColors.event.block),
+                                            // No lift on hover: a bar on the grid does not float. The
+                                            // tone comes from calendarTone, so focus time and time off
+                                            // look the same here as in the week view and agenda.
+                                            "absolute h-5 px-1.5 py-0 text-2xs font-medium truncate cursor-pointer transition-colors flex items-center z-20 outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+                                            isHovered && "z-30",
+                                            isHovered ? tone.blockHover : tone.block,
                                             isStartOfWeek ? "rounded-l-[4px]" : "",
-                                            isEndOfWeek ? "rounded-r-[4px]" : (event.isTask ? "border-r " + calendarColors.task.border : "border-r " + calendarColors.event.border)
+                                            isEndOfWeek ? "rounded-r-[4px]" : "border-r " + tone.border
                                         )}
                                     >
                                         <span className="truncate leading-none">
@@ -525,7 +537,7 @@ export function CalendarApp() {
 
                 <div className="space-y-4">
                     <div>
-                        <h4 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">My Calendars</h4>
+                        <h4 className="text-xs font-medium text-muted-foreground mb-3">My calendars</h4>
                         <div className="space-y-2">
                             <label className="flex items-center gap-2.5 text-sm cursor-pointer group">
                                 <Checkbox
@@ -535,6 +547,8 @@ export function CalendarApp() {
                                 <span className="text-foreground/90 group-hover:text-foreground transition-colors">
                                     Personal events
                                 </span>
+                                {/* The swatch is the legend: it says which colour on the grid is which. */}
+                                <span aria-hidden="true" className={cn("ml-auto h-2.5 w-2.5 rounded-sm", calendarColors.event.solid)} />
                             </label>
                             <label className="flex items-center gap-2.5 text-sm cursor-pointer group">
                                 <Checkbox
@@ -544,6 +558,7 @@ export function CalendarApp() {
                                 <span className="text-foreground/90 group-hover:text-foreground transition-colors">
                                     Assigned tasks
                                 </span>
+                                <span aria-hidden="true" className={cn("ml-auto h-2.5 w-2.5 rounded-sm", calendarColors.task.solid)} />
                             </label>
                         </div>
                     </div>
@@ -711,8 +726,9 @@ export function CalendarApp() {
                         <div className="min-w-0 sm:min-w-[800px] flex flex-col h-full">
                             {/* Days of week header */}
                             <div className="grid grid-cols-7 w-full border-b border-border/60 sticky top-0 bg-background z-20 border-l text-center">
-                                {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((dayName) => (
-                                    <div key={dayName} className={cn(eyebrowClass, "py-2 text-2xs border-r border-border/60")}>
+                                {/* Sentence case: a grid header read on every glance does not need to shout. */}
+                                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayName) => (
+                                    <div key={dayName} className="py-2 text-xs font-medium text-muted-foreground border-r border-border/60">
                                         {dayName}
                                     </div>
                                 ))}

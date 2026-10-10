@@ -5,7 +5,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { Search, ArrowLeft, X, Eye } from "@/lib/icons";
 import { useRouter } from "next/navigation"
-import { cn } from "@/lib/utils/helpers/cn"
 import { useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -46,29 +45,31 @@ export default function SearchPage() {
     return (
         <div className="flex flex-col h-full bg-background overflow-hidden font-sans">
             {/* Header with Search Group */}
-            <div className="flex flex-col gap-4 p-4 md:p-6 border-b bg-card sticky top-0 z-10">
+            <div className="flex flex-col gap-3 p-4 md:px-6 md:pt-6 md:pb-4 border-b sticky top-0 z-10 bg-background">
                 <div className="flex items-center gap-3">
                     <Button 
                         variant="ghost" 
                         size="icon" 
                         onClick={() => router.back()}
                         aria-label="Go back"
-                        className="h-8 w-8 md:h-10 md:w-10 rounded-full shrink-0"
+                        className="h-8 w-8 shrink-0"
                     >
-                        <ArrowLeft className="h-5 w-5" />
+                        <ArrowLeft className="h-4 w-4" />
                     </Button>
-                    <h1 className="font-display text-lg md:text-xl font-semibold text-foreground truncate">
+                    <h1 className="text-xl font-semibold text-foreground truncate">
                         {query ? `Results for “${query}”` : "Search"}
                     </h1>
                 </div>
 
                 <form onSubmit={onSearchSubmit} className="relative w-full max-w-2xl">
                     <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-foreground transition-colors" />
                         <Input
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
-                            className="pl-9 pr-10 h-10 md:h-11 w-full bg-background border-muted focus-visible:ring-primary focus-visible:ring-offset-0 transition font-medium"
+                            aria-label="Search"
+                            type="search"
+                            className="pl-9 pr-10 h-10 w-full bg-background focus-visible:ring-offset-0 [&::-webkit-search-cancel-button]:hidden"
                             placeholder="Search for chats, posts, docs, or people…"
                         />
                         {inputValue && (
@@ -76,7 +77,7 @@ export default function SearchPage() {
                                 type="button"
                                 aria-label="Clear search"
                                 onClick={() => setInputValue("")}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-muted text-muted-foreground transition-colors"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-sm hover:bg-muted text-muted-foreground transition-colors"
                             >
                                 <X className="h-4 w-4" />
                             </button>
@@ -85,14 +86,14 @@ export default function SearchPage() {
                 </form>
                 
                 {!isLoading && results.length > 0 && (
-                    <p className="text-xs md:text-sm text-muted-foreground ml-1">
-                        We found <span className="font-semibold text-foreground">{results.length}</span> matching results
+                    <p className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+                        {results.length === 1 ? "1 result" : `${results.length} results`}
                     </p>
                 )}
             </div>
 
             <ScrollArea className="flex-1">
-                <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-3">
+                <div className="max-w-3xl p-2 md:px-4 md:py-3 space-y-3">
                     {isLoading ? (
                         /* Shaped like the result rows below, so the list does not
                            jump when matches arrive. The announcement carries the
@@ -101,77 +102,73 @@ export default function SearchPage() {
                             <SkeletonRows rows={5} />
                         </div>
                     ) : results.length > 0 ? (
-                        results.map((result, idx) => (
-                            <div
-                                key={idx}
-                                onClick={() => handleResultClick(result)}
-                                className="group flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl border bg-card hover:bg-accent/40 cursor-pointer transition-colors duration-150 border-transparent hover:border-border"
-                            >
-                                <div className={cn(
-                                    "shrink-0 transition duration-200",
-                                    result.type === "user" ? "" : "mt-1 p-2 rounded-lg bg-muted text-muted-foreground group-hover:text-primary group-hover:bg-primary/10"
-                                )}>
-                                    {getIcon(result, "h-5 w-5")}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                        <span className={cn(
-                                            "px-1.5 py-0.5 rounded text-2xs font-bold uppercase tracking-wider",
-                                            "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors"
-                                        )}>
-                                            {result.type}
-                                        </span>
+                        /* Results are rows, not cards: a monochrome glyph for
+                           the kind, the title, and where it is from. The kind
+                           used to be said three times over (a tinted icon tile,
+                           an uppercase pill, then the context line), and every
+                           row was a box that turned orange under the pointer. */
+                        <ul className="divide-y divide-border/60">
+                            {results.map((result, idx) => (
+                                <li
+                                    key={idx}
+                                    className="group relative flex items-start gap-3 rounded-md px-2 py-3 transition-colors duration-150 hover:bg-accent/60 focus-within:bg-accent/60"
+                                >
+                                    <div className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true">
+                                        {getIcon(result, "h-4 w-4")}
                                     </div>
-                                    <h3 className="text-sm md:text-base font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                                        {getHighlightedTitle(result)}
-                                    </h3>
-                                    <div className="text-xs md:text-sm text-muted-foreground mt-0.5 line-clamp-2 leading-relaxed">
-                                        {getHighlightedContext(result)}
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="text-sm font-medium text-foreground line-clamp-1">
+                                            {/* The title is the row's one control; it stretches over the row. */}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleResultClick(result)}
+                                                className="text-left after:absolute after:inset-0 after:rounded-md focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring/50"
+                                            >
+                                                {getHighlightedTitle(result)}
+                                            </button>
+                                        </h3>
+                                        <div className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                                            {getHighlightedContext(result)}
+                                        </div>
                                     </div>
-                                </div>
-                                {isResultPreviewable(result) && (
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handlePreview(result)
-                                        }}
-                                        aria-label="Preview attachment"
-                                        className="h-8 w-8 md:h-10 md:w-10 rounded-full opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition text-muted-foreground hover:text-primary hover:bg-primary/10"
-                                    >
-                                        <Eye className="h-5 w-5" />
-                                    </Button>
-                                )}
-                            </div>
-                        ))
+                                    {isResultPreviewable(result) && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                handlePreview(result)
+                                            }}
+                                            aria-label="Preview attachment"
+                                            className="relative z-[1] h-8 w-8 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground"
+                                        >
+                                            <Eye className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
                     ) : !query ? (
-                        <div className="flex flex-col items-center justify-center py-24 text-center">
-                            <div className="p-6 rounded-full bg-muted/50 mb-6">
-                                <Search className="h-12 w-12 text-muted-foreground opacity-50" />
-                            </div>
+                        <div className="px-2 py-16">
                             <h2 className="text-base font-semibold text-foreground">Search your workspace</h2>
-                            <p className="mt-2 text-muted-foreground max-w-xs mx-auto">
-                                Find chats, posts, docs, and people across everything you have access to.
+                            <p className="mt-1 max-w-sm text-sm text-muted-foreground text-pretty">
+                                Find chats, posts, docs and people across everything you have access to.
                             </p>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-24 text-center">
-                            <div className="p-6 rounded-full bg-muted/50 mb-6">
-                                <Search className="h-12 w-12 text-muted-foreground opacity-50" />
-                            </div>
-                            <h2 className="text-base font-semibold text-foreground">No matches found</h2>
-                            <p className="mt-2 text-muted-foreground max-w-xs mx-auto">
-                                We couldn't find anything matching "{query}". 
-                                Try checking for typos or using different keywords.
+                        <div className="px-2 py-16">
+                            <h2 className="text-base font-semibold text-foreground">Nothing matches “{query}”</h2>
+                            <p className="mt-1 max-w-sm text-sm text-muted-foreground text-pretty">
+                                Check the spelling, or try a shorter word. Search covers what you can open, so a private channel you are not in won’t show.
                             </p>
                             {query && (
-                                <Button 
-                                    variant="outline" 
-                                    className="mt-6 rounded-full"
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-4"
                                     onClick={() => setInputValue("")}
                                 >
-                                    Clear Search
+                                    Clear search
                                 </Button>
                             )}
                         </div>

@@ -7,12 +7,12 @@ import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl } from "@/services/endPoints"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Loader2, Table as TableIcon, Trash2, Sparkles } from "@/lib/icons"
+import { Plus, Loader2, Trash2, Sparkles } from "@/lib/icons"
 import { DataTable, createTable, deleteTable, generateTable } from "@/services/tableService"
 import { useConfirm } from "@/hooks/useConfirm"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
-import { SkeletonCards } from "@/components/ui/skeletonCards"
+import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { TableGlyph } from "@/components/table/TableGlyph"
 
 export default function TablesPage() {
@@ -87,19 +87,21 @@ export default function TablesPage() {
         }
       />
 
-      <div className="mb-6 flex items-center gap-2 rounded-xl border border-border/60 bg-muted/20 p-2">
-        <Sparkles className="ml-1 h-4 w-4 shrink-0 text-primary" />
+      <div className="mb-6 flex items-center gap-2 rounded-lg border border-border/60 p-1.5 pl-3 focus-within:border-input">
+        <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <input
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !generating && handleGenerate()}
-          placeholder="Describe a table and let AI build it, e.g. a CRM to track sales leads"
+          aria-label="Describe a table for AI to build"
+          placeholder="Describe a table for AI to build, like a CRM for sales leads…"
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           maxLength={2000}
           disabled={generating}
         />
-        <Button size="sm" onClick={handleGenerate} disabled={generating || !prompt.trim()} className="gap-1.5">
-          {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        {/* Secondary: "New table" is this page's one primary action. */}
+        <Button size="sm" variant="outline" onClick={handleGenerate} disabled={generating || !prompt.trim()} className="gap-1.5">
+          {generating && <Loader2 className="h-4 w-4 animate-spin" />}
           Generate
         </Button>
       </div>
@@ -108,7 +110,7 @@ export default function TablesPage() {
         // Same grid classes and card shell as the real list below, so the page
         // does not reflow when the tables arrive.
         <div role="status" aria-label="Loading tables">
-          <SkeletonCards cards={4} gridClassName="grid gap-2 sm:grid-cols-2" />
+          <SkeletonRows rows={4} />
         </div>
       ) : isError ? (
         // Before the empty check, because a failed request also leaves the list
@@ -117,15 +119,14 @@ export default function TablesPage() {
         <ErrorState
           subject="your tables"
           onRetry={() => void mutate()}
-          className="rounded-2xl border border-border/60 px-6 py-16"
+          className="rounded-lg border border-border/60 px-6 py-16"
         />
       ) : tables.length === 0 ? (
         <EmptyState
           tone="accent"
-          icon={TableIcon}
           title="No tables yet"
           description="Create a table to track anything: tasks, CRM, inventory, roadmaps."
-          className="rounded-2xl border border-border/60 px-6 py-16"
+          className="rounded-lg border border-border/60 px-6 py-16"
           action={
             <Button variant="outline" onClick={handleCreate} disabled={creating}>
               <Plus className="h-4 w-4 mr-1.5" /> Create your first table
@@ -133,19 +134,21 @@ export default function TablesPage() {
           }
         />
       ) : (
-        <div className="grid gap-2 sm:grid-cols-2">
+        // Rows, not a grid of cards: the tables are all one kind of thing, and a
+        // list of names reads faster down than across.
+        <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
           {tables.map((t) => (
-            <div
+            <li
               key={t.id}
-              className="group flex items-center justify-between gap-3 rounded-xl border border-border/60 p-4 transition-colors hover:border-border"
+              className="group flex items-center justify-between gap-3 px-3 py-2.5 transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-accent/60"
             >
               <button
                 onClick={() => router.push(`/app/tables/${t.id}`)}
-                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <TableGlyph icon={t.icon} />
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{t.name}</p>
+                <div className="min-w-0 sm:flex sm:items-baseline sm:gap-3">
+                  <p className="truncate text-sm font-medium">{t.name}</p>
                   {t.description && <p className="truncate text-xs text-muted-foreground">{t.description}</p>}
                 </div>
               </button>
@@ -153,16 +156,16 @@ export default function TablesPage() {
                 variant="ghost"
                 size="icon"
                 aria-label="Delete this table"
-                className="h-8 w-8 text-destructive opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
                 disabled={busyId === t.id}
                 onClick={() => handleDelete(t)}
                 title="Delete"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   )
