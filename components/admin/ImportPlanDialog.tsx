@@ -16,7 +16,7 @@
  * The counts read like the task panel, quiet labels with their values in
  * ink. Each mapping is named for the source value it maps and offers
  * OneCamp's statuses by their names ("In progress"), where it offered the
- * raw keys ("inProgress") in a select no screen reader could name. Every
+ * raw keys such as inProgress in a select no screen reader could name. Every
  * warning can be read: past the eighth they were "… and 4 more".
  */
 
