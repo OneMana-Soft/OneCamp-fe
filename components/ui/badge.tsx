@@ -22,14 +22,16 @@ const badgeVariants = cva(
         sm: "px-1.5 py-0.5 text-2xs",
       },
       /**
-       * Uppercase treatment for short category and status labels. Bundled with
-       * its weight and tracking on purpose: those three always travelled
-       * together at the call sites, and separating them is how the same label
-       * ended up font-medium on one surface, font-semibold on another and
-       * font-bold on a third.
+       * The label treatment for short category and status words ("Task",
+       * "Paid", "Overdue"). The name is historical: it used to set them in
+       * wide-tracked uppercase, which made every search result and invoice
+       * row shout (DESIGN.md: labels are sentence case, never uppercase; the
+       * direction did the same to AGENT and GUEST). It now capitalises the
+       * first letter only, so a caller passing a raw "task" still reads
+       * "Task", and keeps the weight that always travelled with it.
        */
       caps: {
-        true: "uppercase tracking-wider font-semibold",
+        true: "font-medium",
         false: "font-medium",
       },
       variant: {
@@ -67,12 +69,15 @@ interface BadgeProps
 // one and it is silently ignored for styling and then spread onto the <span> as
 // an invalid DOM attribute — the failure is invisible in review because the
 // prop is accepted by the types and the component still renders.
-function Badge({ className, variant, size, caps, ...props }: BadgeProps) {
+function Badge({ className, variant, size, caps, children, ...props }: BadgeProps) {
   return (
     <span
       className={cn(badgeVariants({ variant, size, caps }), className)}
       {...props}
-    />
+    >
+      {/* ::first-letter needs a block box, and the badge is inline-flex. */}
+      {caps ? <span className="inline-block first-letter:uppercase">{children}</span> : children}
+    </span>
   )
 }
 
