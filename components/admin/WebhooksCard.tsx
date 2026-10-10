@@ -2,16 +2,18 @@
 
 import { useState } from "react"
 import { useDispatch } from "react-redux"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { EmptyState } from "@/components/ui/empty-state"
 import { ErrorState } from "@/components/ui/error-state"
+import { Skeleton } from "@/components/ui/skeleton"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
+import { SettingsSection, sectionActionClass } from "@/components/ui/settingsSection"
+import { StatusWord } from "@/components/ui/statusWord"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, Trash2, RefreshCw, Copy, Eye, EyeOff, CheckCircle2, XCircle, ChevronDown, Pencil, Terminal } from "@/lib/icons";
-import { Webhook, PlayCircle, ExternalLink, ArrowDownToLine, ArrowUpFromLine, FileJson } from "lucide-react";
+import { PlayCircle, ExternalLink, ArrowDownToLine, ArrowUpFromLine, FileJson, ListChecks } from "lucide-react";
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { useToast } from "@/hooks/use-toast"
@@ -72,24 +74,75 @@ const LOG_PAGE_SIZE = 20
  */
 const incomingUrl = (token: string) => apiUrl(`webhook/incoming/${token}`)
 
-/** A state is a dot and a word, not a filled badge that reads as a button. */
-function StateWord({ tone, children }: { tone: "ok" | "off" | "bad"; children: React.ReactNode }) {
+/**
+ * A credential's buttons, in three slots that every row keeps: show or hide,
+ * copy, and regenerate or open. The value before them ended where its own
+ * buttons began (one on the URL, three on the token), so the tinted values
+ * stopped at different x and the copy buttons sat in different columns.
+ */
+function CredentialActions({ children }: { children: [React.ReactNode, React.ReactNode, React.ReactNode] }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 text-xs",
-        tone === "bad" ? "text-danger-ink" : "text-muted-foreground",
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "h-1.5 w-1.5 shrink-0 rounded-full",
-          tone === "ok" ? "bg-success" : tone === "bad" ? "bg-destructive" : "bg-faint-foreground",
-        )}
-      />
-      {children}
-    </span>
+    <div data-credential-actions="" className="grid w-24 shrink-0 grid-cols-3">
+      {children.map((slot, i) => slot ?? <span key={i} aria-hidden="true" className="h-8 w-8" />)}
+    </div>
+  )
+}
+
+/** A credential's value: one line of code type on a quiet tint, ending where the slots begin. */
+const credentialValue = "min-w-0 flex-1 truncate rounded-sm bg-muted/50 px-2 py-1 font-mono text-xs"
+
+/**
+ * One row of the list while it loads, in a loaded row's shape: its header at
+ * the row's padding, then two credential rows. The list was a block of generic
+ * 40px lines that bordered rows of 160px then replaced.
+ */
+function WebhookRowSkeleton() {
+  return (
+    <li data-webhook-skeleton-row="" aria-hidden="true">
+      <div className="flex items-start gap-3 px-4 py-3">
+        <Skeleton className="mt-0.5 size-4 rounded-sm" />
+        <div className="min-w-0 flex-1 space-y-2 py-0.5">
+          <Skeleton className="h-3.5 w-40" />
+          <Skeleton className="h-3 w-64 max-w-full" />
+        </div>
+        <div className="hidden gap-1 sm:flex">
+          <Skeleton className="size-8 rounded-md" />
+          <Skeleton className="size-8 rounded-md" />
+          <Skeleton className="size-8 rounded-md" />
+        </div>
+      </div>
+      <div className="space-y-2 px-4 pb-3 sm:pl-11">
+        {[0, 1].map((i) => (
+          <div key={i} className={fieldRow("center", "mb-0")}>
+            <Skeleton className="h-3 w-20" />
+            <div className="flex min-w-0 items-center gap-2">
+              <Skeleton className="h-6 flex-1" />
+              <div data-credential-actions="" className="grid w-24 shrink-0 grid-cols-3">
+                <span className="h-8 w-8" />
+                <span className="h-8 w-8" />
+                <span className="h-8 w-8" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </li>
+  )
+}
+
+/**
+ * The first row under a delivery's tabs, the same on all three, so switching
+ * tabs moves nothing but the content: Request and Response opened with this
+ * row and Overview did not, so its first line sat 40px higher.
+ */
+function DeliveryToolbar({ icon: Icon, label, action }: { icon: React.ComponentType<{ className?: string }>; label: string; action: React.ReactNode }) {
+  return (
+    <div data-delivery-toolbar="" className="mb-2 flex h-8 shrink-0 items-center justify-between gap-2">
+      <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" /> {label}
+      </span>
+      {action}
+    </div>
   )
 }
 
@@ -213,216 +266,229 @@ const WebhooksCard = () => {
 
   const webhooks = webhookData?.webhooks || []
   const urlBase = incomingUrl("")
+  const loaded = !isLoading && !isError && !!webhookData
 
   return (
-    <Card className="w-full border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <CardTitle className="text-base font-semibold">Webhooks</CardTitle>
-              <span className="text-sm tabular-nums text-muted-foreground">
-                {webhooks.length}
-              </span>
-            </div>
-            <CardDescription className="text-sm text-muted-foreground">
-              An incoming webhook lets a script or a bot post into a channel. An outgoing one tells another service when something happens here.
-            </CardDescription>
-          </div>
-          <Button size="sm" className="h-9 gap-2 shrink-0 self-start" onClick={() => dispatch(openUI({ key: "webhookCreate" }))}>
-            <Plus className="h-4 w-4" />
-            <span>New webhook</span>
-          </Button>
-        </div>
-      </CardHeader>
-
-      <CardContent className="px-0">
-        {isLoading ? (
-          <div role="status" aria-label="Loading webhooks">
-            <SkeletonRows rows={3} />
-          </div>
-        ) : isError ? (
-          <ErrorState subject="the webhooks" onRetry={() => void mutate()} />
-        ) : webhooks.length === 0 ? (
-          <EmptyState
-            tone="accent"
-            icon={Webhook}
-            hue={ADMIN_GROUP_HUE.connections}
-            illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
-            title="No webhooks yet"
-            description="Create an incoming webhook to let a bot post messages, or an outgoing one to tell another service when something happens."
-          />
-        ) : (
-          <ul className="divide-y divide-border rounded-lg border border-border">
-            {webhooks.map(webhook => (
-              <li key={webhook.id}>
-                <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex min-w-0 items-start gap-3">
-                    {/* Which way it points is the information; an arrow in ink
-                        says it without a tinted tile in a hue of its own. */}
-                    <span className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true">
-                      {webhook.type === "incoming" ? <ArrowDownToLine className="h-4 w-4" /> : <ArrowUpFromLine className="h-4 w-4" />}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <h3 className="truncate text-sm font-medium">{webhook.name}</h3>
-                        <span className="text-xs text-muted-foreground">{webhook.type === "incoming" ? "Incoming" : "Outgoing"}</span>
-                        <StateWord tone={webhook.is_active ? "ok" : "off"}>{webhook.is_active ? "Active" : "Turned off"}</StateWord>
-                        {webhook.failure_count >= 5 && (
-                          <StateWord tone="bad">{webhook.failure_count} failed deliveries</StateWord>
-                        )}
-                      </div>
-                      {webhook.description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{webhook.description}</p>}
-                      {webhook.last_triggered_at && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">Last used {shortDateTime(new Date(webhook.last_triggered_at))}</p>
+    <SettingsSection
+      title={
+        <>
+          {"Webhooks "}
+          {loaded && <span className="ml-1 text-sm font-normal tabular-nums text-muted-foreground">{webhooks.length}</span>}
+        </>
+      }
+      description="An incoming webhook lets a script or a bot post into a channel. An outgoing one tells another service when something happens here."
+      action={
+        <Button size="sm" className={cn(sectionActionClass, "gap-1.5")} onClick={() => dispatch(openUI({ key: "webhookCreate" }))}>
+          <Plus className="h-4 w-4" />
+          New webhook
+        </Button>
+      }
+    >
+      {isLoading ? (
+        <ul role="status" aria-label="Loading webhooks" className="divide-y divide-border rounded-lg border border-border">
+          {[0, 1, 2].map((i) => (
+            <WebhookRowSkeleton key={i} />
+          ))}
+        </ul>
+      ) : isError ? (
+        <ErrorState
+          compact
+          subject="the webhooks"
+          detail={apiErrorMessage(isError) || undefined}
+          onRetry={() => void mutate()}
+        />
+      ) : webhooks.length === 0 ? (
+        // A first run: nothing was ever made here, so the plug spot, at the
+        // muted size every admin empty state uses.
+        <EmptyState
+          illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
+          title="No webhooks yet"
+          description="Create an incoming webhook to let a bot post messages, or an outgoing one to tell another service when something happens."
+        />
+      ) : (
+        <ul className="divide-y divide-border rounded-lg border border-border">
+          {webhooks.map(webhook => (
+            <li key={webhook.id}>
+              <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                  {/* Which way it points is the information; an arrow in ink
+                      says it without a tinted tile in a hue of its own. */}
+                  <span className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true">
+                    {webhook.type === "incoming" ? <ArrowDownToLine className="h-4 w-4" /> : <ArrowUpFromLine className="h-4 w-4" />}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <h3 className="truncate text-sm font-medium">{webhook.name}</h3>
+                      <span className="text-xs text-muted-foreground">{webhook.type === "incoming" ? "Incoming" : "Outgoing"}</span>
+                      <StatusWord tone={webhook.is_active ? "success" : "neutral"} className="text-xs">
+                        {webhook.is_active ? "Active" : "Turned off"}
+                      </StatusWord>
+                      {webhook.failure_count >= 5 && (
+                        <StatusWord tone="danger" className="text-xs">{webhook.failure_count} failed deliveries</StatusWord>
                       )}
                     </div>
-                  </div>
-                  <div className="-ml-1 flex shrink-0 flex-wrap items-center gap-1 sm:ml-0">
-                    {webhook.type === "outgoing" && (
-                      <Button variant="ghost" size="icon" aria-label="Send a test delivery" className="h-8 w-8" onClick={() => handleTest(webhook.id)} title="Send a test delivery">
-                        <PlayCircle className="h-4 w-4" />
-                      </Button>
+                    {webhook.description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{webhook.description}</p>}
+                    {webhook.last_triggered_at && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">Last used {shortDateTime(new Date(webhook.last_triggered_at))}</p>
                     )}
-                    <Button variant="ghost" size="icon" aria-label="Edit this webhook" className="h-8 w-8" title="Edit" onClick={() => dispatch(openUI({ key: "webhookEdit", data: {
-                      id: webhook.id, name: webhook.name, description: webhook.description,
-                      type: webhook.type, target_url: webhook.target_url, channel_id: webhook.channel_id,
-                      bot_name: webhook.bot_name, events: webhook.events, is_active: webhook.is_active,
-                    }}))}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Show recent deliveries"
-                      aria-expanded={showLogs === webhook.id}
-                      className="h-8 w-8"
-                      onClick={() => handleFetchLogs(webhook.id)}
-                      title="Recent deliveries"
-                    >
-                      <ChevronDown className={cn("h-4 w-4 transition-transform", showLogs === webhook.id && "rotate-180")} />
-                    </Button>
-                    <Button variant="ghost" size="icon" aria-label="Delete this webhook" className="h-8 w-8 text-danger-ink hover:text-danger-ink" title="Delete" onClick={() => dispatch(openUI({ key: "webhookDelete", data: { id: webhook.id, name: webhook.name, type: webhook.type } }))}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
+                <div className="-ml-1 flex shrink-0 flex-wrap items-center gap-1 sm:ml-0">
+                  {webhook.type === "outgoing" && (
+                    <Button variant="ghost" size="icon" aria-label="Send a test delivery" className="h-8 w-8" onClick={() => handleTest(webhook.id)} title="Send a test delivery">
+                      <PlayCircle className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="icon" aria-label="Edit this webhook" className="h-8 w-8" title="Edit" onClick={() => dispatch(openUI({ key: "webhookEdit", data: {
+                    id: webhook.id, name: webhook.name, description: webhook.description,
+                    type: webhook.type, target_url: webhook.target_url, channel_id: webhook.channel_id,
+                    bot_name: webhook.bot_name, events: webhook.events, is_active: webhook.is_active,
+                  }}))}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Show recent deliveries"
+                    aria-expanded={showLogs === webhook.id}
+                    className="h-8 w-8"
+                    onClick={() => handleFetchLogs(webhook.id)}
+                    title="Recent deliveries"
+                  >
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", showLogs === webhook.id && "rotate-180")} />
+                  </Button>
+                  <Button variant="ghost" size="icon" aria-label="Delete this webhook" className="h-8 w-8 text-danger-ink hover:text-danger-ink" title="Delete" onClick={() => dispatch(openUI({ key: "webhookDelete", data: { id: webhook.id, name: webhook.name, type: webhook.type } }))}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
 
-                {/* Label and value rows at one x, the task panel's layout:
-                    quiet labels in a 6.5rem column, the value on one line. */}
-                <div className="space-y-1.5 px-4 pb-3 sm:pl-11">
-                  {webhook.type === "incoming" && (
-                    <div className={fieldRow("center", "mb-0")}>
-                      <span className={fieldLabel}>Webhook URL</span>
-                      <div className="flex min-w-0 items-center gap-1">
-                        <code className="min-w-0 flex-1 truncate rounded-sm bg-muted/50 px-2 py-1 font-mono text-xs" translate="no">
-                          {urlBase === ""
-                            ? "No API address is set on this server"
-                            : tokenVisible[webhook.id]
-                              ? incomingUrl(webhook.token)
-                              : `${urlBase}••••••••`}
-                        </code>
+              {/* Label and value rows at one x, the task panel's layout: quiet
+                  labels in a 6.5rem column, the value on one line, 40px apart. */}
+              <div className="space-y-2 px-4 pb-3 sm:pl-11">
+                {webhook.type === "incoming" && (
+                  <div className={fieldRow("center", "mb-0")}>
+                    <span className={fieldLabel}>Webhook URL</span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <code className={credentialValue} translate="no">
+                        {urlBase === ""
+                          ? "No API address is set on this server"
+                          : tokenVisible[webhook.id]
+                            ? incomingUrl(webhook.token)
+                            : `${urlBase}••••••••`}
+                      </code>
+                      <CredentialActions>
+                        {null}
                         <Button aria-label="Copy webhook URL" variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                           if (tokenVisible[webhook.id]) copyToClipboard(incomingUrl(webhook.token))
-                        }} disabled={!tokenVisible[webhook.id] || urlBase === ""}><Copy className="h-3.5 w-3.5" /></Button>
-                      </div>
+                        }} disabled={!tokenVisible[webhook.id] || urlBase === ""}><Copy className="h-4 w-4" /></Button>
+                        {null}
+                      </CredentialActions>
                     </div>
-                  )}
-                  <div className={fieldRow("center", "mb-0")}>
-                    <span className={fieldLabel}>Token</span>
-                    <div className="flex min-w-0 items-center gap-1">
-                      <code className="min-w-0 flex-1 truncate rounded-sm bg-muted/50 px-2 py-1 font-mono text-xs" translate="no">
-                        {tokenVisible[webhook.id] ? webhook.token : "••••••••••••••••"}
-                      </code>
-                      <Button aria-label={tokenVisible[webhook.id] ? "Hide token" : "Show token"} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setTokenVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
-                        {tokenVisible[webhook.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button aria-label="Copy token" variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(webhook.token)}><Copy className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="icon" aria-label="Regenerate the token" className="h-8 w-8" onClick={() => handleRegenerateToken(webhook)} title="Regenerate the token"><RefreshCw className="h-3.5 w-3.5" /></Button>
-                    </div>
-                  </div>
-                  {webhook.type === "outgoing" && webhook.secret && (
-                    <div className={fieldRow("center", "mb-0")}>
-                      <span className={fieldLabel}>Signing secret</span>
-                      <div className="flex min-w-0 items-center gap-1">
-                        <code className="min-w-0 flex-1 truncate rounded-sm bg-muted/50 px-2 py-1 font-mono text-xs" translate="no">
-                          {secretVisible[webhook.id] ? webhook.secret : "••••••••••••••••"}
-                        </code>
-                        <Button aria-label={secretVisible[webhook.id] ? "Hide signing secret" : "Show signing secret"} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSecretVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
-                          {secretVisible[webhook.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </Button>
-                        <Button aria-label="Copy signing secret" variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(webhook.secret!)}><Copy className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="icon" aria-label="Regenerate the signing secret" className="h-8 w-8" onClick={() => handleRegenerateSecret(webhook)} title="Regenerate the signing secret"><RefreshCw className="h-3.5 w-3.5" /></Button>
-                      </div>
-                    </div>
-                  )}
-                  {webhook.type === "outgoing" && webhook.target_url && (
-                    <div className={fieldRow("center", "mb-0")}>
-                      <span className={fieldLabel}>Sends to</span>
-                      <div className="flex min-w-0 items-center gap-1">
-                        <code className="min-w-0 flex-1 truncate rounded-sm bg-muted/50 px-2 py-1 font-mono text-xs" translate="no">{webhook.target_url}</code>
-                        <Button asChild variant="ghost" size="icon" className="h-8 w-8">
-                          <a href={webhook.target_url} target="_blank" rel="noopener noreferrer" aria-label="Open the target in a new tab">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {showLogs === webhook.id && (
-                  <div className="border-t border-border bg-muted/20 px-4 py-3">
-                    <h4 className="mb-2 text-xs font-medium text-muted-foreground">Recent deliveries</h4>
-                    {logsLoading && logs.length === 0 ? (
-                      <div role="status" aria-label="Loading deliveries">
-                        <SkeletonRows rows={2} avatar={false} lines={1} />
-                      </div>
-                    ) : logsError && logs.length === 0 ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p role="alert" className="text-xs text-danger-ink">
-                          Couldn&apos;t load the deliveries. {logsError}
-                        </p>
-                        <Button variant="outline" size="sm" className="h-8" onClick={() => fetchLogs(webhook.id, 1, true)}>
-                          Try again
-                        </Button>
-                      </div>
-                    ) : logs.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">No deliveries yet.</p>
-                    ) : (
-                      <div className="space-y-0.5">
-                        {logs.map(log => (
-                          <button
-                            key={log.id}
-                            type="button"
-                            onClick={() => setSelectedLog(log)}
-                            className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-xs transition-colors hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                          >
-                            {log.success ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success-ink" aria-label="Delivered" /> : <XCircle className="h-3.5 w-3.5 shrink-0 text-danger-ink" aria-label="Failed" />}
-                            <Badge variant="outline" size="sm">{log.event_type}</Badge>
-                            {log.response_status && <span className={cn("font-mono", log.response_status >= 200 && log.response_status < 300 ? "text-success-ink" : "text-danger-ink")}>{log.response_status}</span>}
-                            {log.duration_ms !== undefined && <span className="text-muted-foreground tabular-nums">{log.duration_ms} ms</span>}
-                            {log.error_message && <span className="flex-1 truncate text-danger-ink">{log.error_message}</span>}
-                            <span className="ml-auto shrink-0 text-muted-foreground">{shortDateTime(new Date(log.created_at))}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {logsError && logs.length > 0 && (
-                      <p role="alert" className="mt-2 text-xs text-danger-ink">Couldn&apos;t load more deliveries. {logsError}</p>
-                    )}
-                    {logsHasMore && (
-                      <Button variant="ghost" size="sm" className="mt-2 h-8 w-full text-xs" onClick={handleLoadMore} disabled={logsLoading}>
-                        {logsLoading ? <RefreshCw className="mr-1 h-3 w-3 animate-spin" /> : null}{logsLoading ? "Loading…" : "Show more"}
-                      </Button>
-                    )}
                   </div>
                 )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
+                <div className={fieldRow("center", "mb-0")}>
+                  <span className={fieldLabel}>Token</span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <code className={credentialValue} translate="no">
+                      {tokenVisible[webhook.id] ? webhook.token : "••••••••••••••••"}
+                    </code>
+                    <CredentialActions>
+                      <Button aria-label={tokenVisible[webhook.id] ? "Hide token" : "Show token"} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setTokenVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
+                        {tokenVisible[webhook.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                      <Button aria-label="Copy token" variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(webhook.token)}><Copy className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Regenerate the token" className="h-8 w-8" onClick={() => handleRegenerateToken(webhook)} title="Regenerate the token"><RefreshCw className="h-4 w-4" /></Button>
+                    </CredentialActions>
+                  </div>
+                </div>
+                {webhook.type === "outgoing" && webhook.secret && (
+                  <div className={fieldRow("center", "mb-0")}>
+                    <span className={fieldLabel}>Signing secret</span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <code className={credentialValue} translate="no">
+                        {secretVisible[webhook.id] ? webhook.secret : "••••••••••••••••"}
+                      </code>
+                      <CredentialActions>
+                        <Button aria-label={secretVisible[webhook.id] ? "Hide signing secret" : "Show signing secret"} variant="ghost" size="icon" className="h-8 w-8" onClick={() => setSecretVisible(v => ({ ...v, [webhook.id]: !v[webhook.id] }))}>
+                          {secretVisible[webhook.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                        <Button aria-label="Copy signing secret" variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(webhook.secret!)}><Copy className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" aria-label="Regenerate the signing secret" className="h-8 w-8" onClick={() => handleRegenerateSecret(webhook)} title="Regenerate the signing secret"><RefreshCw className="h-4 w-4" /></Button>
+                      </CredentialActions>
+                    </div>
+                  </div>
+                )}
+                {webhook.type === "outgoing" && webhook.target_url && (
+                  <div className={fieldRow("center", "mb-0")}>
+                    <span className={fieldLabel}>Sends to</span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <code className={credentialValue} translate="no">{webhook.target_url}</code>
+                      <CredentialActions>
+                        {null}
+                        {null}
+                        <Button asChild variant="ghost" size="icon" className="h-8 w-8">
+                          <a href={webhook.target_url} target="_blank" rel="noopener noreferrer" aria-label="Open the target in a new tab">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      </CredentialActions>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {showLogs === webhook.id && (
+                <div className="border-t border-border bg-muted/20 px-4 py-3">
+                  <h4 className="mb-2 text-xs font-medium text-muted-foreground">Recent deliveries</h4>
+                  {logsLoading && logs.length === 0 ? (
+                    <div role="status" aria-label="Loading deliveries">
+                      <SkeletonRows rows={2} avatar={false} lines={1} />
+                    </div>
+                  ) : logsError && logs.length === 0 ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p role="alert" className="text-xs text-danger-ink">
+                        Couldn&apos;t load the deliveries. {logsError}
+                      </p>
+                      <Button variant="outline" size="sm" className="h-8" onClick={() => fetchLogs(webhook.id, 1, true)}>
+                        Try again
+                      </Button>
+                    </div>
+                  ) : logs.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No deliveries yet.</p>
+                  ) : (
+                    <div className="space-y-0.5">
+                      {logs.map(log => (
+                        <button
+                          key={log.id}
+                          type="button"
+                          onClick={() => setSelectedLog(log)}
+                          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-xs transition-colors hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+                        >
+                          {log.success ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success-ink" aria-label="Delivered" /> : <XCircle className="h-3.5 w-3.5 shrink-0 text-danger-ink" aria-label="Failed" />}
+                          <Badge variant="outline" size="sm">{log.event_type}</Badge>
+                          {log.response_status && <span className={cn("font-mono", log.response_status >= 200 && log.response_status < 300 ? "text-success-ink" : "text-danger-ink")}>{log.response_status}</span>}
+                          {log.duration_ms !== undefined && <span className="text-muted-foreground tabular-nums">{log.duration_ms} ms</span>}
+                          {log.error_message && <span className="flex-1 truncate text-danger-ink">{log.error_message}</span>}
+                          <span className="ml-auto shrink-0 text-muted-foreground">{shortDateTime(new Date(log.created_at))}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {logsError && logs.length > 0 && (
+                    <p role="alert" className="mt-2 text-xs text-danger-ink">Couldn&apos;t load more deliveries. {logsError}</p>
+                  )}
+                  {logsHasMore && (
+                    <Button variant="ghost" size="sm" className="mt-2 h-8 w-full text-xs" onClick={handleLoadMore} disabled={logsLoading}>
+                      {logsLoading ? <RefreshCw className="mr-1 h-3 w-3 animate-spin" /> : null}{logsLoading ? "Loading…" : "Show more"}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <Sheet open={!!selectedLog} onOpenChange={(o) => { if (!o) setSelectedLog(null) }}>
         <SheetContent className="sm:max-w-lg w-full flex flex-col">
@@ -437,7 +503,7 @@ const WebhooksCard = () => {
                   <span className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" size="sm">{selectedLog.event_type}</Badge>
                     <span className="text-muted-foreground">{shortDateTime(new Date(selectedLog.created_at))}</span>
-                    <StateWord tone={selectedLog.success ? "ok" : "bad"}>{selectedLog.success ? "Delivered" : "Failed"}</StateWord>
+                    <StatusWord tone={selectedLog.success ? "success" : "danger"}>{selectedLog.success ? "Delivered" : "Failed"}</StatusWord>
                   </span>
                 )}
               </div>
@@ -452,29 +518,38 @@ const WebhooksCard = () => {
                 <TabsTrigger value="response">Response</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto mt-3 space-y-3 data-[state=active]:flex data-[state=active]:flex-col">
-                <dl className="space-y-1.5 text-xs">
-                  <div className={fieldRow("center", "mb-0")}>
+              <TabsContent value="overview" className="flex-1 min-h-0 overflow-y-auto mt-3 data-[state=active]:flex data-[state=active]:flex-col">
+                <DeliveryToolbar
+                  icon={ListChecks}
+                  label="Summary"
+                  action={
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => copyToClipboard(selectedLog.id)}>
+                      <Copy className="mr-1 h-3 w-3" /> Copy ID
+                    </Button>
+                  }
+                />
+                <dl className="space-y-2">
+                  <div className={fieldRow("center", "mb-0 min-h-8")}>
                     <dt className={fieldLabel}>Answer</dt>
-                    <dd className={cn("font-mono font-medium", selectedLog.response_status && selectedLog.response_status >= 200 && selectedLog.response_status < 300 ? "text-success-ink" : "text-danger-ink")}>
+                    <dd className={cn("font-mono text-sm font-medium", selectedLog.response_status && selectedLog.response_status >= 200 && selectedLog.response_status < 300 ? "text-success-ink" : "text-danger-ink")}>
                       {selectedLog.response_status ?? "Not recorded"}
                     </dd>
                   </div>
-                  <div className={fieldRow("center", "mb-0")}>
+                  <div className={fieldRow("center", "mb-0 min-h-8")}>
                     <dt className={fieldLabel}>Took</dt>
-                    <dd className="font-medium tabular-nums">{selectedLog.duration_ms !== undefined ? `${selectedLog.duration_ms} ms` : "Not recorded"}</dd>
+                    <dd className="text-sm tabular-nums">{selectedLog.duration_ms !== undefined ? `${selectedLog.duration_ms} ms` : "Not recorded"}</dd>
                   </div>
-                  <div className={fieldRow("center", "mb-0")}>
+                  <div className={fieldRow("center", "mb-0 min-h-8")}>
                     <dt className={fieldLabel}>Event</dt>
-                    <dd className="font-medium">{selectedLog.event_type}</dd>
+                    <dd className="text-sm">{selectedLog.event_type}</dd>
                   </div>
-                  <div className={fieldRow("center", "mb-0")}>
+                  <div className={fieldRow("center", "mb-0 min-h-8")}>
                     <dt className={fieldLabel}>Delivery ID</dt>
-                    <dd className="truncate font-mono text-2xs" translate="no">{selectedLog.id}</dd>
+                    <dd className="truncate font-mono text-xs" translate="no">{selectedLog.id}</dd>
                   </div>
                 </dl>
                 {selectedLog.error_message && (
-                  <div className="rounded-md bg-destructive/10 px-3 py-2.5 text-xs text-danger-ink">
+                  <div className="mt-3 rounded-md bg-destructive/10 px-3 py-2.5 text-xs text-danger-ink">
                     <span className="mb-0.5 block font-medium">What went wrong</span>
                     {selectedLog.error_message}
                   </div>
@@ -482,28 +557,30 @@ const WebhooksCard = () => {
               </TabsContent>
 
               <TabsContent value="request" className="flex-1 min-h-0 overflow-y-auto mt-3 data-[state=active]:flex data-[state=active]:flex-col">
-                <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <FileJson className="h-3.5 w-3.5" /> Request body
-                  </span>
-                  <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => copyToClipboard(prettyJson(selectedLog.request_body))}>
-                    <Copy className="mr-1 h-3 w-3" /> Copy
-                  </Button>
-                </div>
+                <DeliveryToolbar
+                  icon={FileJson}
+                  label="Request body"
+                  action={
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => copyToClipboard(prettyJson(selectedLog.request_body))}>
+                      <Copy className="mr-1 h-3 w-3" /> Copy
+                    </Button>
+                  }
+                />
                 <pre className="text-2xs bg-muted/40 p-3 rounded-md overflow-x-auto font-mono whitespace-pre-wrap flex-1">
                   {prettyJson(selectedLog.request_body) || "No request body was recorded."}
                 </pre>
               </TabsContent>
 
               <TabsContent value="response" className="flex-1 min-h-0 overflow-y-auto mt-3 data-[state=active]:flex data-[state=active]:flex-col">
-                <div className="flex items-center justify-between mb-2 flex-shrink-0">
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <FileJson className="h-3.5 w-3.5" /> Response body
-                  </span>
-                  <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => copyToClipboard(prettyJson(selectedLog.response_body))}>
-                    <Copy className="mr-1 h-3 w-3" /> Copy
-                  </Button>
-                </div>
+                <DeliveryToolbar
+                  icon={FileJson}
+                  label="Response body"
+                  action={
+                    <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => copyToClipboard(prettyJson(selectedLog.response_body))}>
+                      <Copy className="mr-1 h-3 w-3" /> Copy
+                    </Button>
+                  }
+                />
                 <pre className="text-2xs bg-muted/40 p-3 rounded-md overflow-x-auto font-mono whitespace-pre-wrap flex-1">
                   {prettyJson(selectedLog.response_body) || "No response body was recorded."}
                 </pre>
@@ -512,7 +589,7 @@ const WebhooksCard = () => {
           )}
         </SheetContent>
       </Sheet>
-    </Card>
+    </SettingsSection>
   )
 }
 
