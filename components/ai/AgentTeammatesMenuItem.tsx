@@ -40,7 +40,7 @@ const AgentTeammatesMenuItemUngated: React.FC<{ onSelect: () => void }> = ({ onS
 
   return (
     <DropdownMenuItem onClick={onSelect}>
-      <Users className="mr-2 h-4 w-4" />
+      <Users className="h-4 w-4" />
       AI teammates
       {count > 0 && <span className="ml-auto text-2xs tabular-nums text-muted-foreground">{count}</span>}
     </DropdownMenuItem>

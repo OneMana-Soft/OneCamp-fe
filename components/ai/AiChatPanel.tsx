@@ -583,23 +583,23 @@ const AiChatPanel: React.FC = () => {
                                 or chip to the top bar. */}
                             <AgentTeammatesMenuItem onSelect={() => setAgentWorkOpen(true)} />
                             <DropdownMenuItem onClick={() => setInstructionsOpen(true)}>
-                                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                                <SlidersHorizontal className="h-4 w-4" />
                                 Custom instructions
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => router.push("/app/ai/memory")}>
-                                <Lightbulb className="h-4 w-4 mr-2" />
+                                <Lightbulb className="h-4 w-4" />
                                 Workspace Memory
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setScheduleOpen(true)}>
-                                <CalendarClock className="h-4 w-4 mr-2" />
+                                <CalendarClock className="h-4 w-4" />
                                 Find a meeting time
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => setReleaseNotesOpen(true)}>
-                                <FileText className="h-4 w-4 mr-2" />
+                                <FileText className="h-4 w-4" />
                                 Draft release notes
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setSocialTopic(""); setSocialOpen(true); }}>
-                                <Megaphone className="h-4 w-4 mr-2" />
+                                <Megaphone className="h-4 w-4" />
                                 Draft social posts
                             </DropdownMenuItem>
                         </DropdownMenuContent>
