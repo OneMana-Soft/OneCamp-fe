@@ -51,15 +51,17 @@ describe("every surface that describes the recap says when it stays silent", () 
     })
 
     it("the Meeting Recap setting names the conditions that still skip it", () => {
-        const description = block("components/admin/AIModelsCard.tsx", "Meeting Recap</h4>", "</p>")
+        // A switch row since the AI settings became rows (10 Oct 2026): the
+        // block runs from its label to the end of the row.
+        const description = block("components/admin/AIModelsCard.tsx", 'label="Meeting recaps"', "/>")
         // The reversal is worth asserting, not just the new wording: the old copy
         // told people to record, and leaving that behind would send them on doing
         // something the product stopped needing.
-        expect(description).toMatch(/not required/i)
+        expect(description).toMatch(/not required|doesn't need to be recorded/i)
         expect(description).not.toMatch(/no transcript, so it gets no recap/i)
         // Both remaining silent skips.
         expect(description).toMatch(/short/i)
-        expect(description).toMatch(/transcription was off/i)
+        expect(description).toMatch(/transcription (was )?off/i)
     })
 
     it("the meeting_ended trigger says it fires either way and carries no transcript", () => {
@@ -77,8 +79,8 @@ describe("every surface that describes the recap says when it stays silent", () 
         // the one a person cannot see coming: browser mode has no recognizer on
         // Firefox or Safari, so those participants are simply absent from the
         // transcript with nothing to indicate it.
-        expect(note).toMatch(/for every call, recorded or not/i)
-        expect(note).toMatch(/Chrome and Edge only/i)
+        expect(note).toMatch(/every call, recorded or not/i)
+        expect(note).toMatch(/Chrome and Edge only|only Chrome and Edge/i)
         expect(note).not.toMatch(/nothing is kept afterwards/i)
     })
 })

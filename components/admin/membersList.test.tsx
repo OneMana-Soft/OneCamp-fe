@@ -62,6 +62,11 @@ vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: fal
 
 const { default: UserCard } = await import("@/components/admin/userCard")
 
+// 520 rows typed through letter by letter take 2 to 4 s alone, and three times
+// that with the whole suite running beside them: past the 5 s default, a
+// timeout that says nothing about the list.
+vi.setConfig({ testTimeout: 30_000 })
+
 beforeEach(() => {
   state.answeredPages = Infinity
   state.failingPages = Infinity

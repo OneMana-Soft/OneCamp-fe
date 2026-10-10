@@ -34,11 +34,13 @@ describe("a server that never answers", () => {
     await expect(answer).resolves.toBeNull()
   })
 
-  it("stops asking whether an admin is needed", async () => {
+  // And says it got no answer, so the setup page can say so and check again
+  // instead of reading silence as "an admin already exists".
+  it("stops asking whether an admin is needed, and says nothing answered", async () => {
     vi.stubGlobal("fetch", vi.fn(never))
     const answer = AuthService.getAdminSetupStatus()
     await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS)
-    await expect(answer).resolves.toEqual({ required: false, pinned: false })
+    await expect(answer).resolves.toEqual({ required: false, pinned: false, unreachable: true })
   })
 
   it("lets go of the connection as it stops waiting", async () => {
