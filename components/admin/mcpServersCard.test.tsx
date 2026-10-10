@@ -48,6 +48,14 @@ describe("MCP servers", () => {
     expect(screen.getByText("2 tools")).toBeTruthy()
   })
 
+  it("shows the plug spot when no server is connected", () => {
+    fetchState.servers = { data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    fetchState.catalog = { data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }
+    render(<McpServersCard />)
+    expect(screen.getByText("No MCP servers yet")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration]")).toBeTruthy()
+  })
+
   // A category is a thing with a colour of its own: tint and ink.
   it("shows a connector's category as a chip in its own hue", () => {
     fetchState.servers = { data: { data: [] }, isLoading: false, isError: undefined, mutate: vi.fn() }

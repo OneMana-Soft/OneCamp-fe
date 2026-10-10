@@ -24,6 +24,7 @@ import { shortDateTime } from "@/lib/utils/date/shortDate"
 import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Tile } from "@/components/ui/graphics/Tile"
+import { SpotPlug } from "@/components/ui/graphics"
 import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 
 interface WebhookItem {
@@ -247,6 +248,7 @@ const WebhooksCard = () => {
             tone="accent"
             icon={Webhook}
             hue={ADMIN_GROUP_HUE.connections}
+            illustration={<SpotPlug hue={ADMIN_GROUP_HUE.connections} />}
             title="No webhooks yet"
             description="Create an incoming webhook to let a bot post messages, or an outgoing one to tell another service when something happens."
           />

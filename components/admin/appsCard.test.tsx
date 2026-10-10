@@ -106,6 +106,14 @@ describe("apps", () => {
     expect(screen.getByRole("button", { name: "All" }).className).not.toMatch(/hue-/)
   })
 
+  it("shows the plug spot when no app is installed", async () => {
+    vi.mocked(listApps).mockResolvedValue([])
+    vi.mocked(listMarketplace).mockResolvedValue([])
+    render(<AppsCard />, { wrapper: fresh })
+    expect(await screen.findByText("No apps installed yet")).toBeTruthy()
+    expect(document.querySelector("[data-empty-illustration]")).toBeTruthy()
+  })
+
   // The type was two buttons, the chosen one filled in the accent.
   it("chooses the app's type from a radio group", async () => {
     vi.mocked(listApps).mockResolvedValue([])

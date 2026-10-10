@@ -102,6 +102,8 @@ describe("webhooks", () => {
     render(<WebhooksCard />)
     expect(screen.getByText("No webhooks yet")).toBeTruthy()
     expect(document.querySelector(".hue-lake")).toBeTruthy()
+    // The playful layer's spot: a plug, for a place where things connect.
+    expect(document.querySelector("[data-empty-illustration]")).toBeTruthy()
   })
 
   it("opens the target in a link, not a button inside a link", () => {
