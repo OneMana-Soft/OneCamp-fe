@@ -37,4 +37,9 @@ export const useGlobalSearch = () => {
     return { search, isSubmitting };
 };
 
-export const GlobalSearchGet = (searchText: string) => `${GetEndpointUrl.GlobalSearch}${searchText}`;
+/**
+ * The search request for a query. The query is a path segment, so it is
+ * encoded: unencoded, "#engineering" was cut at the "#" and answered 404,
+ * "a/b" was a route that doesn't exist, and "50%" failed before it was sent.
+ */
+export const GlobalSearchGet = (searchText: string) => `${GetEndpointUrl.GlobalSearch}${encodeURIComponent(searchText.trim())}`;

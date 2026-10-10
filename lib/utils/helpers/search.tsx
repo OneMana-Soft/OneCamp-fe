@@ -1,8 +1,8 @@
 "use client"
 
 import { displayNameOf } from "@/lib/personName"
-import { memo } from "react"
-import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, User, FolderKanban, Hash, LayoutDashboard } from "lucide-react"
+import { Fragment } from "react"
+import { Search, MessageSquare, FileText, Paperclip, CheckSquare, MessageCircle, Users, FolderKanban, Hash, LayoutDashboard } from "@/lib/icons"
 import { SearchResult } from "@/services/searchService"
 import { ChatUserAvatar } from "@/components/chat/chatUserAvatar"
 import { cn } from "@/lib/utils/helpers/cn"
@@ -10,57 +10,85 @@ import { GetEndpointUrl } from "@/services/endPoints"
 import { getOtherUserId } from "@/lib/utils/getOtherUserId"
 import { getAttachmentType } from "@/lib/utils/file/getAttachmentType"
 import { AttachmentMediaReq } from "@/types/attachment"
-import { sanitizePlainHtml } from "@/lib/sanitizeHtml"
-import { SafeHtml } from "@/components/safeHtml/SafeHtml"
+import { removeHtmlTags } from "@/lib/utils/removeHtmlTags"
+import { fragmentEdges, highlightRuns, highlightText } from "@/lib/search/highlight"
 import { useBotKindMap } from "@/hooks/useBotKinds"
 import { relayKindOf, splitPlainRelayLabel, type RelayedAuthor } from "@/lib/relayedAuthor"
 
-const HighlightedText = memo(({ text, highlights, field }: { text: string, highlights?: any, field: string }) => {
-    if (!highlights || !highlights[field]) return <span>{text}</span>
-    const highlight = highlights[field][0]
-    // OpenSearch highlights wrap matched terms with <em>...</em>, but
-    // the surrounding content is the user-authored body — sanitise so
-    // a hostile message body cannot inject tags via the search-result
-    // panel. SafeHtml defers sanitization to the client to keep the
-    // server rendering JSDOM-free.
-    return <SafeHtml as="span" html={highlight} sanitizer={sanitizePlainHtml} />
-})
-HighlightedText.displayName = "HighlightedText"
+/**
+ * A highlighter fragment as text with its matches marked. Built from text runs
+ * (lib/search/highlight), never from the fragment's HTML: the fields are stored
+ * escaped, the highlighter can split an entity, and a hostile body must not
+ * reach the DOM as markup. `full` is the field's whole text when the answer
+ * carries it, so an ellipsis appears only on a side that was cut.
+ */
+export function Snippet({ fragment, full, className }: { fragment: string; full?: string | null; className?: string }) {
+    const runs = highlightRuns(fragment)
+    if (runs.length === 0) return null
+    const { before, after } = fragmentEdges(runs.map((r) => r.text).join(""), full)
+    return (
+        <span className={className}>
+            {before && "…"}
+            {runs.map((r, i) => (r.hit ? <mark key={i}>{r.text}</mark> : <Fragment key={i}>{r.text}</Fragment>))}
+            {after && "…"}
+        </span>
+    )
+}
 
-const getTitle = (result: SearchResult): string => {
+/** The field a hit's title is read from, and the one its highlight is for. */
+const TITLE_FIELD: Record<SearchResult["type"], string> = {
+    chat: "chat_body",
+    post: "post_body",
+    comment: "comment_body",
+    attachment: "attachment_file_name",
+    doc: "doc_title",
+    board: "board_title",
+    task: "task_name",
+    user: "user_name",
+    project: "project_name",
+    channel: "ch_name",
+    team: "team_name",
+}
+
+/** A hit's title as plain text: stored bodies are escaped HTML ("everyone&#39;s"). */
+export const getTitle = (result: SearchResult): string => {
     switch (result.type) {
-        case "chat": return result.chat?.chat_body || ""
-        case "post": return result.post?.post_body || ""
-        case "doc": return result.doc?.doc_title || ""
-        case "board": return result.board?.board_title || ""
-        case "task": return result.task?.task_name || ""
-        case "comment": return result.comment?.comment_body || ""
-        case "attachment": return result.attachment?.attachment_file_name || ""
+        case "chat": return removeHtmlTags(result.chat?.chat_body)
+        case "post": return removeHtmlTags(result.post?.post_body)
+        case "doc": return removeHtmlTags(result.doc?.doc_title) || "Untitled doc"
+        case "board": return removeHtmlTags(result.board?.board_title) || "Untitled board"
+        case "task": return removeHtmlTags(result.task?.task_name)
+        case "comment": return removeHtmlTags(result.comment?.comment_body)
+        case "attachment": return removeHtmlTags(result.attachment?.attachment_file_name || result.attachment?.attachment_name) || "Attachment"
         case "user": return displayNameOf(result.user) || ""
-        case "project": return result.project?.project_name || ""
-        case "channel": return result.channel?.ch_name || ""
-        case "team": return result.team?.team_name || ""
+        case "project": return removeHtmlTags(result.project?.project_name)
+        case "channel": return removeHtmlTags(result.channel?.ch_name)
+        case "team": return removeHtmlTags(result.team?.team_name)
         default: return ""
     }
 }
 
+// "#engineering · Maya Chen": where a hit is, and who wrote it, in words a
+// person uses. Nothing is said that the answer doesn't carry: a task with
+// nobody on it used to read "Task assigned to undefined".
 const contextText = (result: SearchResult): string => {
+    const join = (...parts: (string | undefined | null)[]) => parts.filter((p) => p && p.trim()).join(" · ")
     switch (result.type) {
-        case "chat": return `Chat message`
-        case "post": return `Post in ${result.post?.post_ch_name}`
-        case "doc": return `Document by ${result.doc?.doc_created_by_user_full_name}`
-        case "board": return `Board by ${result.board?.board_created_by_user_full_name}`
-        case "task": return `Task assigned to ${result.task?.task_assignee_user_full_name}`
+        case "chat": return result.chat?.chat_by_user_full_name ? `Message from ${result.chat.chat_by_user_full_name}` : "Message"
+        case "post": return join(result.post?.post_ch_name && `#${result.post.post_ch_name}`, result.post?.post_by_user_full_name) || "Message"
+        case "doc": return result.doc?.doc_created_by_user_full_name ? `Doc by ${result.doc.doc_created_by_user_full_name}` : "Doc"
+        case "board": return result.board?.board_created_by_user_full_name ? `Board by ${result.board.board_created_by_user_full_name}` : "Board"
+        case "task": return join(result.task?.task_project_name, result.task?.task_assignee_user_full_name) || "Task"
         case "comment":
-            if (result.comment?.comment_doc_id) return `Comment on doc ${result.comment?.comment_doc_title}`
-            return `Comment by ${result.comment?.comment_by_user_full_name}`
+            if (result.comment?.comment_doc_id) return result.comment?.comment_doc_title ? `Comment on ${result.comment.comment_doc_title}` : "Comment on a doc"
+            return result.comment?.comment_by_user_full_name ? `Reply by ${result.comment.comment_by_user_full_name}` : "Reply"
         case "attachment":
-            if (result.attachment?.attachment_doc_id) return `Attachment in doc ${result.attachment?.attachment_doc_title}`
-            return `Attachment in ${result.attachment?.attachment_channel_name || "Chat"}`
-        case "user": return result.user?.user_email || `User profile`
-        case "project": return `Project`
-        case "channel": return `Channel`
-        case "team": return `Team`
+            if (result.attachment?.attachment_doc_id) return result.attachment?.attachment_doc_title ? `File in ${result.attachment.attachment_doc_title}` : "File in a doc"
+            return result.attachment?.attachment_channel_name ? `File in #${result.attachment.attachment_channel_name}` : "File in a chat"
+        case "user": return result.user?.user_email || "Person"
+        case "project": return result.project?.project_team_name ? `Project · ${result.project.project_team_name}` : "Project"
+        case "channel": return "Channel"
+        case "team": return "Team"
         default: return ""
     }
 }
@@ -106,7 +134,7 @@ export const getIcon = (result: SearchResult, iconClassName = "h-4 w-4") => {
         case "attachment": return <Paperclip className={iconClassName} />
         case "project": return <FolderKanban className={iconClassName} />
         case "channel": return <Hash className={iconClassName} />
-        case "team": return <User className={cn(iconClassName, "text-primary")} />
+        case "team": return <Users className={cn(iconClassName, "text-primary")} />
         default: return <Search className={iconClassName} />
     }
 }
@@ -124,27 +152,38 @@ export function relayedHit(result: SearchResult, kinds: Record<string, string> |
     return null
 }
 
+/** The highlighter's best fragment for a hit's title field, if it sent one. */
+function titleFragment(result: SearchResult): string | undefined {
+    return result.highlight?.[TITLE_FIELD[result.type]]?.[0]
+}
+
+/** The stored text the title fragment came from, when the answer carries it. */
+function titleFull(result: SearchResult): string | undefined {
+    const field = TITLE_FIELD[result.type]
+    const obj = result[result.type] as Record<string, unknown> | undefined
+    const value = obj?.[field]
+    return typeof value === "string" ? value : undefined
+}
+
 // A relayed hit reads "Priya (Acme): what she wrote", as the channel list
 // does, rather than "[Priya (Acme) (guest)]what she wrote" under the bot.
 function HitTitle({ result }: { result: SearchResult }) {
     const relayed = relayedHit(result, useBotKindMap())
     if (!relayed) return plainHighlightedTitle(result)
-    const highlight: string | undefined = result.highlight?.[result.type === "post" ? "post_body" : "comment_body"]?.[0]
+    const fragment = titleFragment(result)
+    const body = fragment ? (splitPlainRelayLabel(fragment, relayed.kind)?.body ?? fragment) : undefined
     return (
         <span>
             <span className="font-medium">{relayed.name}:</span>{" "}
-            {highlight ? (
-                <SafeHtml as="span" html={splitPlainRelayLabel(highlight, relayed.kind)?.body ?? highlight} sanitizer={sanitizePlainHtml} />
-            ) : (
-                relayed.body
-            )}
+            {body ? <Snippet fragment={body} full={relayed.body} /> : removeHtmlTags(relayed.body)}
         </span>
     )
 }
 
 function HitContext({ result }: { result: SearchResult }) {
     const relayed = relayedHit(result, useBotKindMap())
-    if (relayed && result.type === "comment" && !result.comment?.comment_doc_id) return <>Comment by {relayed.name}</>
+    if (relayed && result.type === "comment" && !result.comment?.comment_doc_id) return <>Reply by {relayed.name}</>
+    if (relayed && result.type === "post" && result.post?.post_ch_name) return <>#{result.post.post_ch_name} · {relayed.name}</>
     return <>{contextText(result)}</>
 }
 
@@ -154,56 +193,44 @@ export const getContext = (result: SearchResult) => <HitContext result={result} 
 export const getHighlightedTitle = (result: SearchResult) => <HitTitle result={result} />
 
 const plainHighlightedTitle = (result: SearchResult) => {
-    const title = getTitle(result)
-    if (!result.highlight) return <span>{title}</span>
-
-    const fieldMap: Record<string, string> = {
-        chat: 'chat_body',
-        post: 'post_body',
-        comment: 'comment_body',
-        attachment: 'attachment_file_name',
-        doc: 'doc_title',
-        board: 'board_title',
-        task: 'task_name',
-        user: 'user_name',
-        project: 'project_name',
-        channel: 'ch_name',
-        team: 'team_name'
-    }
-
-    const field = fieldMap[result.type]
-    if (!field || !result.highlight[field]) return <span>{title}</span>
-
-    return <HighlightedText text={title} highlights={result.highlight} field={field} />
+    const fragment = titleFragment(result)
+    if (!fragment) return <span>{getTitle(result)}</span>
+    return <Snippet fragment={fragment} full={titleFull(result)} />
 }
 
+/** The fields whose fragments say why a hit matched when its title doesn't. */
+const CONTEXT_FIELDS: Partial<Record<SearchResult["type"], string[]>> = {
+    doc: ["doc_body"],
+    task: ["task_desc"],
+    user: ["user_email"],
+}
+
+/**
+ * Where a hit is from, and under it the passage that matched when the title
+ * didn't: a doc's body, a task's description. Up to two passages, each with an
+ * ellipsis only where it was cut.
+ */
 export const getHighlightedContext = (result: SearchResult) => {
     const context = getContext(result)
-    if (!result.highlight) return <span>{context}</span>
-
-    const contextFields: Record<string, string[]> = {
-        doc: ['doc_body'],
-        task: ['task_desc'],
-        user: ['user_email']
+    for (const field of CONTEXT_FIELDS[result.type] || []) {
+        const fragments = result.highlight?.[field]?.filter((f) => highlightText(f)) ?? []
+        if (fragments.length === 0) continue
+        const obj = result[result.type] as Record<string, unknown> | undefined
+        const full = typeof obj?.[field] === "string" ? (obj[field] as string) : undefined
+        return (
+            <span className="flex flex-col gap-0.5">
+                <span>{context}</span>
+                <span className="text-foreground/80 line-clamp-2">
+                    {fragments.slice(0, 2).map((f, i) => (
+                        <Fragment key={i}>
+                            {i > 0 && " "}
+                            <Snippet fragment={f} full={full} />
+                        </Fragment>
+                    ))}
+                </span>
+            </span>
+        )
     }
-
-    const fields = contextFields[result.type] || []
-    for (const field of fields) {
-        if (result.highlight[field]) {
-            return (
-                <div className="flex flex-col gap-0.5">
-                    <span>{context}</span>
-                    <SafeHtml
-                        as="div"
-                        className="text-foreground/80 line-clamp-2"
-                        html={`…${result.highlight[field][0]}…`}
-                        sanitizer={sanitizePlainHtml}
-                    />
-                </div>
-            )
-        }
-    }
-
     return <span>{context}</span>
 }
 
