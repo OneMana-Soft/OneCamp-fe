@@ -10,39 +10,53 @@
 // Write-only: only whether a key is set, and where from, is ever shown.
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorState } from "@/components/ui/error-state"
+import { SettingRow, SettingsList, SettingsSection } from "@/components/ui/settingsSection"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, AlertTriangle } from "@/lib/icons"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
+import { cn } from "@/lib/utils/helpers/cn"
 import { getWorkspaceSettings, updateWorkspaceSettings, type WorkspaceSettings } from "@/services/settingsService"
 
 export default function EmailProviderCard() {
     const { toast } = useToast()
     const [settings, setSettings] = useState<WorkspaceSettings | null>(null)
-    const [loading, setLoading] = useState(true)
+    const [state, setState] = useState<"loading" | "failed" | "ready">("loading")
     const [key, setKey] = useState("")
     const [saving, setSaving] = useState(false)
 
-    useEffect(() => {
+    // A failed read used to show "Email is off", and an admin acts on that by
+    // pasting a key that is already there.
+    const load = () => {
+        setState("loading")
         getWorkspaceSettings()
-            .then((s) => setSettings(s))
-            .catch(() => toast({ title: "Couldn't load the email settings", variant: "destructive" }))
-            .finally(() => setLoading(false))
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+            .then((s) => {
+                if (!s) {
+                    setState("failed")
+                    return
+                }
+                setSettings(s)
+                setState("ready")
+            })
+            .catch(() => setState("failed"))
+    }
+
+    useEffect(() => {
+        load()
     }, [])
 
     const save = async () => {
         setSaving(true)
         try {
             const s = await updateWorkspaceSettings({ resend_api_key: key })
-            setSettings(s)
+            if (s) setSettings(s)
             setKey("")
             toast({ title: "Email key saved" })
-        } catch {
-            toast({ title: "Couldn't save the email key", variant: "destructive" })
+        } catch (e) {
+            toast({ title: "Couldn't save the email key", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setSaving(false)
         }
@@ -51,53 +65,75 @@ export default function EmailProviderCard() {
     const configured = !!settings?.has_resend_api_key
     const fromEnv = settings?.resend_source === "env"
 
-    return (
-        <Card className="border-border/60">
-            <CardHeader>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        <CardTitle className="text-base font-semibold">Sending</CardTitle>
-                    </div>
-                    {configured ? (
-                        <Badge className="gap-1 bg-success/10 text-success-ink border-success/20">
-                            <CheckCircle2 className="h-3 w-3" /> Email is on
-                        </Badge>
-                    ) : (
-                        <Badge variant="outline" className="gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Email is off
-                        </Badge>
-                    )}
+    let body: React.ReactNode
+    if (state === "loading") {
+        body = (
+            <SettingsList>
+                <div aria-busy="true" aria-label="Loading the email settings" className="space-y-2 px-4 py-3">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-64 max-w-full" />
                 </div>
-                <CardDescription>
-                    Invitations, password resets and notifications are sent through Resend. Verify your domain in Resend, then paste its API key here.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-                <Label htmlFor="resend-key" className="text-xs">
-                    Resend API key
-                    {configured && <span className="font-normal text-muted-foreground"> · leave blank to keep the current one</span>}
-                </Label>
-                <div className="flex flex-wrap items-center gap-2">
+                <div aria-hidden="true" className="flex items-center justify-between gap-4 px-4 py-3">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-8 w-72 max-w-[50%]" />
+                </div>
+            </SettingsList>
+        )
+    } else if (state === "failed") {
+        body = <ErrorState subject="the email settings" onRetry={load} />
+    } else {
+        body = (
+            <SettingsList>
+                {/* A quiet label beside an ink value, as the task panel reads: it
+                    was a pill with an icon. */}
+                <div className="space-y-1 px-4 py-3">
+                    <div className={fieldRow("center", "")}>
+                        <span className={fieldLabel}>Status</span>
+                        <span className={cn("text-sm font-medium", configured ? "text-success-ink" : "text-foreground")}>
+                            {configured ? "On" : "Off"}
+                        </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-pretty">
+                        {configured
+                            ? fromEnv
+                                ? "Sending with the key in the server's environment. A key saved here takes its place."
+                                : "Sending with the key saved here."
+                            : "No key yet, so invitations, password resets and notifications aren't emailed. Invitations still make a link you can share."}
+                    </p>
+                </div>
+                <SettingRow
+                    label="Resend API key"
+                    description={configured ? "Paste a new key to replace the current one; it's never shown again." : "Verify your domain in Resend, then paste its API key here."}
+                    controlId="resend-key"
+                >
+                    {/* new-password: a browser never fills the admin's own saved
+                        password into a key field and saves it as the key. */}
                     <Input
                         id="resend-key"
+                        name="resend-api-key"
                         type="password"
-                        autoComplete="off"
+                        autoComplete="new-password"
+                        spellCheck={false}
                         value={key}
                         onChange={(e) => setKey(e.target.value)}
                         placeholder={configured ? "••••••••" : "re_…"}
-                        disabled={loading}
-                        className="min-w-0 flex-1"
+                        aria-describedby="resend-key-desc"
+                        className="h-8 w-56"
                     />
-                    <Button size="sm" variant="outline" onClick={save} disabled={saving || loading || !key}>
+                    <Button size="sm" variant="outline" onClick={save} disabled={saving || !key}>
                         {saving ? "Saving…" : "Save key"}
                     </Button>
-                </div>
-                {fromEnv && (
-                    <p className="text-2xs text-muted-foreground">
-                        The current key comes from the server&apos;s environment. A key saved here takes its place.
-                    </p>
-                )}
-            </CardContent>
-        </Card>
+                </SettingRow>
+            </SettingsList>
+        )
+    }
+
+    return (
+        <SettingsSection
+            title="Sending"
+            description="Invitations, password resets and notifications are sent through Resend."
+        >
+            {body}
+        </SettingsSection>
     )
 }
