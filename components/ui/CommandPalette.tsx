@@ -287,7 +287,7 @@ export function CommandPalette() {
       // Navigation
       {
         id: "nav-home",
-        label: "Go to Home",
+        label: "Home",
         keywords: ["home", "feed", "channels"],
         icon: <Home className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -295,7 +295,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-tasks",
-        label: "Go to My Tasks",
+        label: "My tasks",
         keywords: ["tasks", "my tasks", "todo"],
         icon: <CircleCheck className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -303,7 +303,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-calendar",
-        label: "Go to Calendar",
+        label: "Calendar",
         keywords: ["calendar", "events", "schedule"],
         icon: <Calendar className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -311,7 +311,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-activity",
-        label: "Go to Activity",
+        label: "Activity",
         keywords: ["activity", "notifications", "mentions"],
         icon: <Bell className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -319,7 +319,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-later",
-        label: "Go to Later",
+        label: "Later",
         keywords: ["later", "saved", "bookmarks", "reminders", "remind me"],
         icon: <Bookmark className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -327,7 +327,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-docs",
-        label: "Go to Docs",
+        label: "Docs",
         keywords: ["docs", "documents", "wiki"],
         icon: <FileText className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -335,7 +335,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-boards",
-        label: "Go to Boards",
+        label: "Boards",
         keywords: ["boards", "canvas", "whiteboard", "diagram", "miro"],
         icon: <FileText className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -343,7 +343,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-dms",
-        label: "Go to DMs",
+        label: "DMs",
         keywords: ["dm", "chat", "messages", "direct message"],
         icon: <MessageCircle className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -351,7 +351,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-projects",
-        label: "Go to Projects",
+        label: "Projects",
         keywords: ["projects", "work"],
         icon: <FolderKanban className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -359,7 +359,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-workload",
-        label: "Go to Workload",
+        label: "Workload",
         keywords: ["workload", "capacity", "who has room", "overloaded", "busy", "resourcing"],
         icon: <BarChart3 className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -367,7 +367,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-goals",
-        label: "Go to Goals",
+        label: "Goals",
         keywords: ["goals", "okr", "objectives", "key results", "targets", "initiatives", "outcomes"],
         icon: <Target className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -375,7 +375,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-reports",
-        label: "Go to Reports",
+        label: "Reports",
         keywords: ["reports", "dashboard", "analytics", "charts", "throughput", "overdue", "velocity", "portfolio", "burnup", "status report"],
         icon: <TrendingUp className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -383,7 +383,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-teams",
-        label: "Go to Teams",
+        label: "Teams",
         keywords: ["teams", "groups"],
         icon: <Users className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -391,7 +391,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-recordings",
-        label: "Go to Recordings",
+        label: "Recordings",
         keywords: ["recordings", "calls", "videos"],
         icon: <Monitor className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -399,7 +399,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-search",
-        label: "Go to Global Search",
+        label: "Search everything",
         keywords: ["search", "find", "global"],
         icon: <Search className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -407,7 +407,7 @@ export function CommandPalette() {
       },
       {
         id: "nav-templates",
-        label: "Go to Templates",
+        label: "Templates",
         keywords: ["templates", "gallery", "agent", "automation", "table", "install", "reuse"],
         icon: <Sparkles className="mr-2 h-4 w-4" />,
         group: "Navigate",
@@ -417,7 +417,7 @@ export function CommandPalette() {
       // Create
       {
         id: "create-task",
-        label: "Create Task",
+        label: "Create task",
         keywords: ["new task", "add task", "todo"],
         icon: <Plus className="mr-2 h-4 w-4" />,
         group: "Create",
@@ -430,7 +430,7 @@ export function CommandPalette() {
       },
       {
         id: "create-channel",
-        label: "Create Channel",
+        label: "Create channel",
         keywords: ["new channel", "add channel"],
         icon: <Plus className="mr-2 h-4 w-4" />,
         group: "Create",
@@ -438,7 +438,7 @@ export function CommandPalette() {
       },
       {
         id: "create-project",
-        label: "Create Project",
+        label: "Create project",
         keywords: ["new project", "add project"],
         icon: <Plus className="mr-2 h-4 w-4" />,
         group: "Create",
@@ -446,7 +446,7 @@ export function CommandPalette() {
       },
       {
         id: "create-team",
-        label: "Create Team",
+        label: "Create team",
         keywords: ["new team", "add team"],
         icon: <Plus className="mr-2 h-4 w-4" />,
         group: "Create",
@@ -454,7 +454,7 @@ export function CommandPalette() {
       },
       {
         id: "create-doc",
-        label: "Create Document",
+        label: "Create doc",
         keywords: ["new doc", "add doc", "wiki"],
         icon: <Plus className="mr-2 h-4 w-4" />,
         group: "Create",
@@ -462,7 +462,7 @@ export function CommandPalette() {
       },
       {
         id: "create-event",
-        label: "Create Calendar Event",
+        label: "Create calendar event",
         keywords: ["new event", "add event", "meeting"],
         icon: <Plus className="mr-2 h-4 w-4" />,
         group: "Create",
@@ -470,7 +470,7 @@ export function CommandPalette() {
       },
       {
         id: "create-dm",
-        label: "Start Direct Message",
+        label: "Start a direct message",
         keywords: ["new dm", "start chat", "message"],
         icon: <Plus className="mr-2 h-4 w-4" />,
         group: "Create",
@@ -489,7 +489,7 @@ export function CommandPalette() {
       // GitHub
       {
         id: "github-integrations",
-        label: "GitHub Integrations",
+        label: "GitHub integrations",
         keywords: ["github", "git", "repos", "integrations"],
         icon: <GitBranch className="mr-2 h-4 w-4" />,
         group: "GitHub",
@@ -538,7 +538,7 @@ export function CommandPalette() {
       // Settings & Account
       {
         id: "profile",
-        label: "Open Profile",
+        label: "Profile",
         keywords: ["profile", "me", "account"],
         icon: <User className="mr-2 h-4 w-4" />,
         group: "Settings",
@@ -546,7 +546,7 @@ export function CommandPalette() {
       },
       {
         id: "settings",
-        label: "Open Settings",
+        label: "Settings",
         keywords: ["settings", "preferences", "config", "theme", "appearance"],
         icon: <Settings className="mr-2 h-4 w-4" />,
         group: "Settings",
@@ -554,7 +554,7 @@ export function CommandPalette() {
       },
       {
         id: "notification-settings",
-        label: "Notification Preferences",
+        label: "Notification settings",
         keywords: ["notifications", "email", "alerts", "preferences", "mute", "subscribe", "unsubscribe", "digest", "quiet hours"],
         icon: <Bell className="mr-2 h-4 w-4" />,
         group: "Settings",
@@ -570,7 +570,7 @@ export function CommandPalette() {
       },
       {
         id: "api-tokens",
-        label: "API Tokens",
+        label: "API tokens",
         keywords: ["api", "token", "tokens", "developer", "sdk", "personal access token", "pat", "integration", "mcp", "programmatic", "rest"],
         icon: <Key className="mr-2 h-4 w-4" />,
         group: "Settings",
@@ -588,7 +588,7 @@ export function CommandPalette() {
       {
         id: "agents",
         featureKey: FEATURE_AI,
-        label: "AI Agents",
+        label: "AI agents",
         keywords: ["agents", "ai agent", "automation", "bot", "assistant", "build agent"],
         icon: <Sparkles className="mr-2 h-4 w-4" />,
         group: "Settings",
@@ -615,7 +615,7 @@ export function CommandPalette() {
       },
       {
         id: "status",
-        label: "Update Status",
+        label: "Set your status",
         keywords: ["status", "emoji", "mood"],
         icon: <Zap className="mr-2 h-4 w-4" />,
         group: "Settings",
@@ -623,7 +623,7 @@ export function CommandPalette() {
       },
       {
         id: "logout",
-        label: "Log Out",
+        label: "Log out",
         keywords: ["logout", "sign out", "exit"],
         icon: <LogOut className="mr-2 h-4 w-4" />,
         group: "Settings",
@@ -633,7 +633,7 @@ export function CommandPalette() {
       // Admin
       {
         id: "admin-dashboard",
-        label: "Admin Dashboard",
+        label: "Admin dashboard",
         keywords: ["admin", "dashboard", "manage"],
         icon: <Shield className="mr-2 h-4 w-4" />,
         group: "Admin",
@@ -642,7 +642,7 @@ export function CommandPalette() {
       },
       {
         id: "admin-users",
-        label: "Manage Users",
+        label: "Manage users",
         keywords: ["users", "members", "people"],
         icon: <Users className="mr-2 h-4 w-4" />,
         group: "Admin",
@@ -651,7 +651,7 @@ export function CommandPalette() {
       },
       {
         id: "admin-teams",
-        label: "Manage Teams",
+        label: "Manage teams",
         keywords: ["teams", "groups"],
         icon: <ClipboardList className="mr-2 h-4 w-4" />,
         group: "Admin",
@@ -660,7 +660,7 @@ export function CommandPalette() {
       },
       {
         id: "admin-webhooks",
-        label: "Manage Webhooks",
+        label: "Manage webhooks",
         keywords: ["webhooks", "integrations", "api"],
         icon: <Zap className="mr-2 h-4 w-4" />,
         group: "Admin",
@@ -669,7 +669,7 @@ export function CommandPalette() {
       },
       {
         id: "admin-archive",
-        label: "Archive Management",
+        label: "Archive",
         keywords: ["archive", "cleanup", "policies"],
         icon: <Trash2 className="mr-2 h-4 w-4" />,
         group: "Admin",
@@ -729,7 +729,8 @@ export function CommandPalette() {
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
-        placeholder="Search or jump to… (Ctrl+K)"
+        placeholder="Search or jump to…"
+        hint={<ShortcutHint />}
         value={inputValue}
         onValueChange={setInputValue}
       />
@@ -743,9 +744,9 @@ export function CommandPalette() {
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Search className="h-8 w-8 text-muted-foreground/30 mb-2" />
-              <p className="text-sm font-medium text-foreground">No results found</p>
+              <p className="text-sm font-medium text-foreground">No results</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Try a different search term or command
+                Try another word, or a command like “Create task”.
               </p>
             </div>
           )}
@@ -753,7 +754,7 @@ export function CommandPalette() {
 
         {/* Global Search Results */}
         {hasSearchQuery && hasSearchResults && (
-          <CommandGroup heading="Search Results">
+          <CommandGroup heading="Search results">
             {searchResults.slice(0, 8).map((result, idx) => (
               <CommandItem
                 key={`search-${result.type}-${idx}`}
@@ -864,6 +865,24 @@ export function CommandPalette() {
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
+
+/**
+ * The shortcut that opens the palette, as a key chip beside the input rather
+ * than "(Ctrl+K)" inside the placeholder, where it read as part of the query
+ * and vanished the moment you typed. ⌘ on a Mac, Ctrl elsewhere. Read after
+ * mount so the server and the first client render agree.
+ */
+function ShortcutHint() {
+  const [mac, setMac] = React.useState(false)
+  React.useEffect(() => {
+    setMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent))
+  }, [])
+  return (
+    <kbd className="hidden shrink-0 rounded-sm border bg-muted px-1.5 font-sans text-2xs text-muted-foreground sm:inline-block" aria-label={mac ? "Command K" : "Control K"}>
+      {mac ? "⌘\u00a0K" : "Ctrl\u00a0K"}
+    </kbd>
+  )
+}
 
 function getSearchResultTitle(result: SearchResult): string {
   switch (result.type) {
