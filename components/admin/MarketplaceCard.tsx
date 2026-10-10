@@ -7,7 +7,6 @@
 // finishes in the app editor. One-click Uninstall removes the app, its
 // commands, and its stored secrets. Optimistic UI + toasts keep it snappy.
 
-import { eyebrowClass } from "@/components/ui/eyebrow"
 import { cn } from "@/lib/utils/helpers/cn"
 import { useCallback, useMemo, useState } from "react"
 import useSWR from "swr"
@@ -20,6 +19,8 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { Check, RefreshCw, Terminal, AlertCircle, Trash2, Search } from "@/lib/icons"
 import { SkeletonCards } from "@/components/ui/skeletonCards"
+import { ErrorState } from "@/components/ui/error-state"
+import { apiErrorMessage } from "@/lib/utils/apiError"
 import { listMarketplace, installTemplate, uninstallTemplate } from "@/services/appService"
 import AppIcon from "@/components/admin/AppIcon"
 import type { MarketplaceItem } from "@/types/app"
@@ -32,7 +33,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
     onChanged?: () => void
 }) {
     const { toast } = useToast()
-    const { data: apps, isLoading, mutate } = useSWR("admin-marketplace", listMarketplace, {
+    const { data: apps, isLoading, error, mutate } = useSWR("admin-marketplace", listMarketplace, {
         revalidateOnFocus: false,
     })
     const [busySlug, setBusySlug] = useState<string | null>(null)
@@ -89,8 +90,7 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                 toast({ title: `${item.name} installed`, description: item.commands?.[0] ? `Try /${item.commands[0]} in any conversation.` : undefined })
             }
         } catch (e) {
-            const msg = (e as { response?: { data?: { msg?: string } } })?.response?.data?.msg
-            toast({ title: `Couldn't install ${item.name}`, description: msg, variant: "destructive" })
+            toast({ title: `Couldn't install ${item.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setBusySlug(null)
         }
@@ -106,8 +106,8 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             onChanged?.()
             toast({ title: `${item.name} removed` })
             setConfirmRemove(null)
-        } catch {
-            toast({ title: `Couldn't remove ${item.name}`, variant: "destructive" })
+        } catch (e) {
+            toast({ title: `Couldn't remove ${item.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setBusySlug(null)
         }
@@ -125,25 +125,32 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
             {/* Search + category filter */}
             <div className="flex flex-col gap-2 mb-3">
                 <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                     <Input
+                        type="search"
+                        aria-label="Search the app directory"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search apps…"
                         className="h-8 pl-8 text-sm"
+                        autoComplete="off"
                     />
                 </div>
-                <div className="flex flex-wrap gap-1">
+                {/* Filters, so a pressed state rather than a selection in the
+                    accent: chips at the 4px radius, the chosen one in ink. */}
+                <div className="flex flex-wrap gap-1" role="group" aria-label="Category">
                     {categories.map((cat) => (
                         <button
                             key={cat}
                             type="button"
+                            aria-pressed={activeCategory === cat}
                             onClick={() => setActiveCategory(cat)}
-                            className={`rounded-full px-2.5 py-1 text-2xs font-medium transition-colors ${
+                            className={cn(
+                                "h-7 rounded-sm border px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                                 activeCategory === cat
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-muted-foreground hover:bg-muted/70"
-                            }`}
+                                    ? "border-border bg-highlight text-foreground"
+                                    : "border-transparent text-muted-foreground hover:text-foreground",
+                            )}
                         >
                             {cat}
                         </button>
@@ -158,18 +165,20 @@ export default function MarketplaceCard({ onConfigure, onChanged }: {
                 </div>
             )}
 
-            {!isLoading && grouped.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                    No apps match “{query}”.
+            {/* Before any "no match": a failed read said `No apps match “”.`,
+                quoting a search nobody had typed. */}
+            {!isLoading && error && <ErrorState subject="the app directory" onRetry={() => void mutate()} />}
+
+            {!isLoading && !error && grouped.length === 0 && (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                    {query.trim() ? <>No apps match “{query.trim()}”.</> : activeCategory !== "All" ? <>No apps in {activeCategory} yet.</> : "The directory is empty on this server."}
                 </div>
             )}
 
             <div className="space-y-4">
                 {grouped.map(([category, items]) => (
                     <div key={category}>
-                        <p className={cn(eyebrowClass, "text-2xs text-muted-foreground/70 mb-1.5")}>
-                            {category}
-                        </p>
+                        <h4 className="mb-1.5 text-xs font-medium text-muted-foreground">{category}</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             {items.map((item) => (
                                 <MarketplaceAppCard

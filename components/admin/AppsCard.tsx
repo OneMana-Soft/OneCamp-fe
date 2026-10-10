@@ -5,14 +5,15 @@
 // write-only: the API never returns them, the UI only shows "configured"
 // state, matching the AI-provider and webhook security model.
 
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useId, useRef, useState } from "react"
 import useSWR from "swr"
 import { appMutate as globalMutate } from "@/lib/swrMutate"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Field } from "@/components/ui/field"
+import { ErrorState } from "@/components/ui/error-state"
 import {
     Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
 } from "@/components/ui/sheet"
@@ -20,7 +21,8 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Trash2, Check, X, RefreshCw, Terminal, Upload, Loader2, ImageIcon } from "@/lib/icons"
+import { useConfirm } from "@/hooks/useConfirm"
+import { Plus, Trash2, Check, X, Terminal, Upload, Loader2, ImageIcon, Pencil } from "@/lib/icons"
 import { SkeletonRows } from "@/components/ui/skeletonRows"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Plug } from "lucide-react"
@@ -31,6 +33,8 @@ import { useUploadFile } from "@/hooks/useUploadFile"
 import MarketplaceCard from "@/components/admin/MarketplaceCard"
 import AppIcon from "@/components/admin/AppIcon"
 import type { AppView, AppCommandInput, CreateAppRequest } from "@/types/app"
+import { apiErrorMessage } from "@/lib/utils/apiError"
+import { cn } from "@/lib/utils/helpers/cn"
 
 const KIND_LABELS: Record<string, string> = {
     builtin: "Built-in",
@@ -38,9 +42,20 @@ const KIND_LABELS: Record<string, string> = {
     oauth: "OAuth",
 }
 
+/** A state is a dot and a word, not a filled badge with an icon. */
+function StateWord({ tone, children }: { tone: "ok" | "off"; children: React.ReactNode }) {
+    return (
+        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span aria-hidden="true" className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone === "ok" ? "bg-success" : "bg-faint-foreground")} />
+            {children}
+        </span>
+    )
+}
+
 export default function AppsCard() {
     const { toast } = useToast()
-    const { data: apps, isLoading, mutate } = useSWR("admin-apps", listApps, { revalidateOnFocus: false })
+    const confirm = useConfirm()
+    const { data: apps, isLoading, error, mutate } = useSWR("admin-apps", listApps, { revalidateOnFocus: false })
 
     const [createOpen, setCreateOpen] = useState(false)
     const [editApp, setEditApp] = useState<AppView | null>(null)
@@ -56,7 +71,7 @@ export default function AppsCard() {
             toast({ title: "App connected", description: "OAuth authorization completed." })
             mutate()
         } else if (oauth === "error") {
-            toast({ title: "Connection failed", description: "OAuth authorization failed.", variant: "destructive" })
+            toast({ title: "Couldn't connect the app", description: "The provider didn't finish the sign-in. Press Connect to try again.", variant: "destructive" })
         }
         if (oauth) {
             const clean = window.location.pathname + "?tab=apps"
@@ -68,8 +83,12 @@ export default function AppsCard() {
         try {
             await setAppEnabled(app.id, enabled)
             mutate()
-        } catch {
-            toast({ title: "Failed to update app", variant: "destructive" })
+        } catch (e) {
+            toast({
+                title: enabled ? `Couldn't turn on ${app.name}` : `Couldn't turn off ${app.name}`,
+                description: apiErrorMessage(e, "Try again in a moment."),
+                variant: "destructive",
+            })
         }
     }, [mutate, toast])
 
@@ -82,28 +101,50 @@ export default function AppsCard() {
             setConfirmDelete(null)
             mutate()
             globalMutate("admin-marketplace")
-        } catch {
-            toast({ title: "Failed to remove app", variant: "destructive" })
+        } catch (e) {
+            toast({ title: `Couldn't remove ${confirmDelete.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setBusy(false)
         }
     }, [confirmDelete, mutate, toast])
 
+    // Disconnecting ends the app's access to its provider account, so it asks
+    // first and says what stops. It used to happen on one click.
+    const handleDisconnect = (app: AppView) =>
+        confirm({
+            title: `Disconnect ${app.name}?`,
+            description: `Its commands stop working until someone connects ${app.name} again. Its settings stay.`,
+            confirmText: "Disconnect",
+            destructive: true,
+            onConfirm: async () => {
+                try {
+                    await disconnectApp(app.id)
+                    mutate()
+                } catch (e) {
+                    toast({ title: `Couldn't disconnect ${app.name}`, description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
+                }
+            },
+        })
+
     return (
-        <div className="flex flex-col h-full min-h-0">
-            <div className="flex items-center justify-between mb-4 shrink-0">
+        // Sizes to its content: the admin page's tab region is the one
+        // scroller, and the h-full and inner overflow here were dead weight.
+        <div className="flex flex-col">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h2 className="text-base font-semibold">Apps</h2>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        Install apps that add slash commands to your workspace.
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                        Apps add slash commands, like /giphy or /zoom, to every conversation.
                     </p>
                 </div>
-                <Button onClick={() => setCreateOpen(true)} size="sm" className="gap-1.5">
-                    <Plus className="h-4 w-4" /> Add app
+                {/* Outline: the directory below is the main way in, one click per
+                    app; this is for an app of your own. */}
+                <Button onClick={() => setCreateOpen(true)} size="sm" variant="outline" className="gap-1.5 self-start">
+                    <Plus className="h-4 w-4" /> Add your own app
                 </Button>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+            <div className="space-y-2">
                 {/* Curated one-click marketplace at the top — the primary way to
                     add apps. The manual "Add app" button covers custom apps. */}
                 <MarketplaceCard
@@ -114,8 +155,8 @@ export default function AppsCard() {
                     onChanged={() => mutate()}
                 />
 
-                <div className="pt-4 mt-2 border-t border-border/60">
-                    <h3 className="text-sm font-semibold mb-2">Installed apps</h3>
+                <div className="mt-2 border-t border-border pt-4">
+                    <h3 className="mb-2 text-sm font-semibold">Installed apps</h3>
                 </div>
 
                 {isLoading && (
@@ -123,7 +164,11 @@ export default function AppsCard() {
                         <SkeletonRows rows={3} />
                     </div>
                 )}
-                {!isLoading && (!apps || apps.length === 0) && (
+                {/* Before the empty case: a failed read said "No apps installed yet". */}
+                {!isLoading && error && (
+                    <ErrorState subject="the installed apps" onRetry={() => void mutate()} />
+                )}
+                {!isLoading && !error && (!apps || apps.length === 0) && (
                     <EmptyState
                         tone="accent"
                         icon={Plug}
@@ -141,14 +186,7 @@ export default function AppsCard() {
                         onEdit={() => setEditApp(app)}
                         onDelete={() => setConfirmDelete(app)}
                         onConnect={() => startOAuthInstall(app.id)}
-                        onDisconnect={async () => {
-                            try {
-                                await disconnectApp(app.id)
-                                mutate()
-                            } catch {
-                                toast({ title: "Failed to disconnect", variant: "destructive" })
-                            }
-                        }}
+                        onDisconnect={() => handleDisconnect(app)}
                     />
                 ))}
                 </div>
@@ -200,20 +238,16 @@ function AppRow({
     onDisconnect: () => void
 }) {
     return (
-        <div className="flex items-center gap-3 px-3 py-2.5">
+        <div className="flex items-center gap-3 px-4 py-3">
             <AppIcon src={app.icon_url} alt={app.name} size="sm" />
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">{app.name}</span>
-                    <Badge variant="secondary" className="text-2xs">{KIND_LABELS[app.kind] || app.kind}</Badge>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="truncate text-sm font-medium">{app.name}</span>
+                    <span className="text-xs text-muted-foreground">{KIND_LABELS[app.kind] || app.kind}</span>
                     {app.kind === "oauth" && (
-                        app.is_connected
-                            ? <Badge className="text-2xs bg-success/10 text-success-ink"><Check className="h-3 w-3 mr-0.5" />Connected</Badge>
-                            : <Badge variant="outline" className="text-2xs"><X className="h-3 w-3 mr-0.5" />Not connected</Badge>
+                        <StateWord tone={app.is_connected ? "ok" : "off"}>{app.is_connected ? "Connected" : "Not connected"}</StateWord>
                     )}
-                    {app.has_api_key && (
-                        <Badge className="text-2xs bg-success/10 text-success-ink"><Check className="h-3 w-3 mr-0.5" />Key set</Badge>
-                    )}
+                    {app.has_api_key && <StateWord tone="ok">Key set</StateWord>}
                 </div>
                 {app.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{app.description}</p>}
                 {(app.commands?.length ?? 0) > 0 && (
@@ -229,14 +263,14 @@ function AppRow({
             <div className="flex items-center gap-1.5 shrink-0">
                 {app.kind === "oauth" && (
                     app.is_connected
-                        ? <Button size="sm" variant="ghost" onClick={onDisconnect}>Disconnect</Button>
-                        : <Button size="sm" variant="outline" onClick={onConnect}>Connect</Button>
+                        ? <Button size="sm" variant="ghost" className="h-8" onClick={onDisconnect}>Disconnect</Button>
+                        : <Button size="sm" variant="outline" className="h-8" onClick={onConnect}>Connect</Button>
                 )}
-                <Switch checked={app.is_enabled} onCheckedChange={(v) => onToggle(app, v)} aria-label="Enable app" />
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit} aria-label="Edit app">
-                    <RefreshCw className="h-3.5 w-3.5" />
+                <Switch checked={app.is_enabled} onCheckedChange={(v) => onToggle(app, v)} aria-label={`Use ${app.name}`} />
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={onEdit} aria-label={`Edit ${app.name}`}>
+                    <Pencil className="h-3.5 w-3.5" />
                 </Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-danger-ink" onClick={onDelete} aria-label="Remove app">
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-danger-ink hover:text-danger-ink" onClick={onDelete} aria-label={`Remove ${app.name}`}>
                     <Trash2 className="h-3.5 w-3.5" />
                 </Button>
             </div>
@@ -251,6 +285,10 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
     const [busy, setBusy] = useState(false)
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+    const [errors, setErrors] = useState<{ name?: string; slug?: string }>({})
+    const nameRef = useRef<HTMLInputElement>(null)
+    const slugRef = useRef<HTMLInputElement>(null)
+    const kindLabelId = useId()
 
     const [name, setName] = useState(app?.name ?? "")
     const [slug, setSlug] = useState(app?.slug ?? "")
@@ -282,8 +320,18 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
     const removeCommand = (i: number) => setCommands((cs) => cs.filter((_, idx) => idx !== i))
 
     const handleSave = async () => {
-        if (!name.trim() || (!isEdit && !slug.trim())) {
-            toast({ title: "Name and slug are required", variant: "destructive" })
+        // Said under each field, with the cursor on the first: a toast
+        // reading "Name and slug are required" was tied to neither.
+        const next: typeof errors = {}
+        if (!name.trim()) next.name = "Give the app a name."
+        if (!isEdit && !slug.trim()) next.slug = "Give it a short name, like giphy."
+        setErrors(next)
+        if (next.name) {
+            nameRef.current?.focus()
+            return
+        }
+        if (next.slug) {
+            slugRef.current?.focus()
             return
         }
         setBusy(true)
@@ -322,8 +370,7 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
             }
             onSaved()
         } catch (e) {
-            const msg = (e as { response?: { data?: { msg?: string } } })?.response?.data?.msg
-            toast({ title: "Failed to save app", description: msg, variant: "destructive" })
+            toast({ title: "Couldn't save the app", description: apiErrorMessage(e, "Try again in a moment."), variant: "destructive" })
         } finally {
             setBusy(false)
         }
@@ -340,64 +387,110 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                 </SheetHeader>
 
                 <div className="space-y-4 py-4">
-                    <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Giphy" /></Field>
+                    <Field label="Name" required error={errors.name}>
+                        <Input
+                            ref={nameRef}
+                            value={name}
+                            onChange={(e) => {
+                                setName(e.target.value)
+                                if (errors.name) setErrors((er) => ({ ...er, name: undefined }))
+                            }}
+                            placeholder="Giphy…"
+                            autoComplete="off"
+                        />
+                    </Field>
                     {!isEdit && (
-                        <Field label="Slug" hint="lowercase id, e.g. giphy">
-                            <Input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="giphy" />
+                        <Field label="Short name" required error={errors.slug} help="Lowercase, no spaces. It names the app in links.">
+                            <Input
+                                ref={slugRef}
+                                value={slug}
+                                onChange={(e) => {
+                                    setSlug(e.target.value)
+                                    if (errors.slug) setErrors((er) => ({ ...er, slug: undefined }))
+                                }}
+                                placeholder="giphy…"
+                                spellCheck={false}
+                                autoComplete="off"
+                            />
                         </Field>
                     )}
-                    <Field label="Description"><Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Search and send GIFs" /></Field>
+                    <Field label="What it does">
+                        <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Search and send GIFs…" autoComplete="off" />
+                    </Field>
                     <IconField value={iconUrl} onChange={setIconUrl} />
 
                     {!isEdit && (
-                        <Field label="Type">
-                            <div className="flex gap-2">
-                                <Button type="button" size="sm" variant={kind === "external" ? "default" : "outline"} onClick={() => setKind("external")}>External</Button>
-                                <Button type="button" size="sm" variant={kind === "oauth" ? "default" : "outline"} onClick={() => setKind("oauth")}>OAuth</Button>
+                        // A choice of one: a segmented radio group, not two buttons
+                        // with the chosen one filled in the accent.
+                        <div className="grid gap-2">
+                            <p id={kindLabelId} className="text-sm font-medium">Kind</p>
+                            <div role="radiogroup" aria-labelledby={kindLabelId} className="inline-flex w-fit gap-1 rounded-md bg-muted p-1">
+                                {(["external", "oauth"] as const).map((k) => (
+                                    <button
+                                        key={k}
+                                        type="button"
+                                        role="radio"
+                                        aria-checked={kind === k}
+                                        onClick={() => setKind(k)}
+                                        className={cn(
+                                            "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+                                            kind === k ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
+                                        )}
+                                    >
+                                        {k === "external" ? "External" : "OAuth"}
+                                    </button>
+                                ))}
                             </div>
-                        </Field>
+                            <p className="text-xs text-muted-foreground">
+                                {kind === "oauth"
+                                    ? "Each person connects their own account with the provider."
+                                    : "Commands are sent to an address you run."}
+                            </p>
+                        </div>
                     )}
 
                     {isBuiltin && (
                         <div className="rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
-                            This is a built-in OneCamp app. It runs in-process, no handler URL or
-                            signing secret needed. Just add any required credential below.
+                            This app is built into OneCamp, so it needs no command address or
+                            signing secret. Add its key below if it needs one.
                         </div>
                     )}
 
                     {!isBuiltin && (
-                        <Field label="Handler URL" hint="where command payloads are POSTed (external apps)">
-                            <Input value={handlerUrl} onChange={(e) => setHandlerUrl(e.target.value)} placeholder="https://your-app.example.com/commands" />
+                        <Field label="Command address" help="Where commands are sent, for an external app.">
+                            <Input value={handlerUrl} onChange={(e) => setHandlerUrl(e.target.value)} placeholder="https://your-app.example.com/commands…" type="url" inputMode="url" spellCheck={false} autoComplete="off" />
                         </Field>
                     )}
 
-                    <Field label="API key" hint={app?.has_api_key ? "configured: leave blank to keep, or paste a new key to replace" : "stored encrypted (e.g. Giphy key)"}>
-                        <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={app?.has_api_key ? "•••••••• (saved)" : "••••••••"} />
+                    {/* new-password: a browser must not fill the admin's own
+                        saved password into a key field and save it as the app's. */}
+                    <Field label="API key" help={app?.has_api_key ? "A key is saved. Leave this empty to keep it, or paste a new one to replace it." : "Stored encrypted and never shown again."}>
+                        <Input type="password" autoComplete="new-password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={app?.has_api_key ? "Saved" : ""} />
                     </Field>
 
                     {!isBuiltin && (
-                        <Field label="Signing secret" hint="HMAC for outbound dispatch: leave blank to auto-generate">
-                            <Input type="password" value={signingSecret} onChange={(e) => setSigningSecret(e.target.value)} placeholder="auto-generated if blank" />
+                        <Field label="Signing secret" help="Signs what is sent to the app. Leave it empty and one is made for you.">
+                            <Input type="password" autoComplete="new-password" value={signingSecret} onChange={(e) => setSigningSecret(e.target.value)} />
                         </Field>
                     )}
 
                     {kind === "oauth" && (
-                        <div className="rounded-lg border border-border/60 p-3 space-y-3">
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">OAuth configuration</p>
-                            <Field label="Client ID"><Input value={clientId} onChange={(e) => setClientId(e.target.value)} /></Field>
-                            <Field label="Client secret" hint="stored encrypted"><Input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} /></Field>
-                            <Field label="Authorize URL"><Input value={authUrl} onChange={(e) => setAuthUrl(e.target.value)} placeholder="https://provider.com/oauth/authorize" /></Field>
-                            <Field label="Token URL"><Input value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} placeholder="https://provider.com/oauth/token" /></Field>
-                            <Field label="Scopes" hint="comma-separated"><Input value={scopes} onChange={(e) => setScopes(e.target.value)} placeholder="read,write" /></Field>
-                        </div>
+                        <section className="space-y-3 rounded-lg border border-border p-3" aria-labelledby={`${kindLabelId}-oauth`}>
+                            <h3 id={`${kindLabelId}-oauth`} className="text-sm font-medium">OAuth settings</h3>
+                            <Field label="Client ID"><Input value={clientId} onChange={(e) => setClientId(e.target.value)} spellCheck={false} autoComplete="off" /></Field>
+                            <Field label="Client secret" help="Stored encrypted."><Input type="password" autoComplete="new-password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} /></Field>
+                            <Field label="Sign-in address"><Input value={authUrl} onChange={(e) => setAuthUrl(e.target.value)} placeholder="https://provider.com/oauth/authorize…" type="url" spellCheck={false} autoComplete="off" /></Field>
+                            <Field label="Token address"><Input value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} placeholder="https://provider.com/oauth/token…" type="url" spellCheck={false} autoComplete="off" /></Field>
+                            <Field label="Scopes" help="Separated by commas."><Input value={scopes} onChange={(e) => setScopes(e.target.value)} placeholder="read,write…" spellCheck={false} autoComplete="off" /></Field>
+                        </section>
                     )}
 
-                    <div className="rounded-lg border border-border/60 p-3 space-y-3">
+                    <section className="space-y-3 rounded-lg border border-border p-3" aria-labelledby={`${kindLabelId}-commands`}>
                         <div className="flex items-center justify-between">
-                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Commands</p>
+                            <h3 id={`${kindLabelId}-commands`} className="text-sm font-medium">Commands</h3>
                             {!isBuiltin && (
-                                <Button type="button" size="sm" variant="outline" className="h-7 gap-1" onClick={addCommand}>
-                                    <Plus className="h-3 w-3" /> Add
+                                <Button type="button" size="sm" variant="outline" className="h-8 gap-1" onClick={addCommand}>
+                                    <Plus className="h-3 w-3" /> Add a command
                                 </Button>
                             )}
                         </div>
@@ -422,30 +515,33 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                                         <div className="flex-1 space-y-1.5">
                                             <div className="flex items-center gap-1">
                                                 <span className="text-sm text-muted-foreground">/</span>
-                                                <Input value={c.command} onChange={(e) => updateCommand(i, { command: e.target.value })} placeholder="giphy" className="h-8" />
+                                                <Input aria-label={`Command ${i + 1}`} value={c.command} onChange={(e) => updateCommand(i, { command: e.target.value })} placeholder="giphy…" className="h-8" spellCheck={false} autoComplete="off" />
                                             </div>
-                                            <Input value={c.description} onChange={(e) => updateCommand(i, { description: e.target.value })} placeholder="Description" className="h-8" />
-                                            <Input value={c.usage_hint ?? ""} onChange={(e) => updateCommand(i, { usage_hint: e.target.value })} placeholder="Usage hint (optional)" className="h-8" />
+                                            <Input aria-label={`What command ${i + 1} does`} value={c.description} onChange={(e) => updateCommand(i, { description: e.target.value })} placeholder="What it does…" className="h-8" autoComplete="off" />
+                                            <Input aria-label={`How to use command ${i + 1}`} value={c.usage_hint ?? ""} onChange={(e) => updateCommand(i, { usage_hint: e.target.value })} placeholder="How to use it (optional)…" className="h-8" autoComplete="off" />
                                         </div>
-                                        <Button aria-label="Remove command" type="button" size="icon" variant="ghost" className="h-8 w-8 text-danger-ink" onClick={() => removeCommand(i)}>
+                                        <Button aria-label={`Remove command ${i + 1}`} type="button" size="icon" variant="ghost" className="h-8 w-8 text-danger-ink" onClick={() => removeCommand(i)}>
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </Button>
                                     </div>
                                 ))}
                             </>
                         )}
-                    </div>
+                    </section>
                 </div>
 
                 {testResult && (
                     <div
-                        className={`mb-2 rounded-lg border p-2.5 text-xs ${
+                        role="status"
+                        className={cn(
+                            "mb-2 flex items-start gap-1.5 rounded-lg border p-2.5 text-xs",
                             testResult.success
                                 ? "border-success/50 bg-success/10 text-success-ink"
-                                : "border-destructive/50 bg-destructive/10 text-danger-ink"
-                        }`}
+                                : "border-destructive/50 bg-destructive/10 text-danger-ink",
+                        )}
                     >
-                        {testResult.success ? "✓ " : "✕ "}{testResult.message}
+                        {testResult.success ? <Check className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : <X className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                        {testResult.message}
                     </div>
                 )}
 
@@ -462,8 +558,8 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
                                 try {
                                     const r = await testApp(app.id)
                                     setTestResult(r)
-                                } catch {
-                                    setTestResult({ success: false, message: "Test request failed." })
+                                } catch (e) {
+                                    setTestResult({ success: false, message: `The test didn't reach the app. ${apiErrorMessage(e, "Check its command address and try again.")}` })
                                 } finally {
                                     setTesting(false)
                                 }
@@ -479,15 +575,6 @@ function AppEditor({ app, onClose, onSaved }: { app?: AppView; onClose: () => vo
     )
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-    return (
-        <div className="space-y-1.5">
-            <Label className="text-xs font-medium">{label}{hint && <span className="text-muted-foreground font-normal ml-1.5">· {hint}</span>}</Label>
-            {children}
-        </div>
-    )
-}
-
 // IconField lets an admin upload an image OR paste a URL for the app icon.
 // Uploads go through the existing AV-scanned public upload pipeline; the stored
 // value is a stable backend serve URL (/public/app-icon/{uuid}) that resolves
@@ -497,6 +584,7 @@ function IconField({ value, onChange }: { value: string; onChange: (v: string) =
     const { makeRequestToUploadToPublic, validateFiles, uploadLimitMB } = useUploadFile()
     const [uploading, setUploading] = useState(false)
     const inputRef = React.useRef<HTMLInputElement>(null)
+    const urlId = useId()
 
     const backendBase = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "")
 
@@ -511,7 +599,7 @@ function IconField({ value, onChange }: { value: string; onChange: (v: string) =
         }
         const file = ok[0]
         if (!file.type.startsWith("image/")) {
-            toast({ title: "Please choose an image file", variant: "destructive" })
+            toast({ title: "That file isn't an image", description: "Choose a PNG, JPG, GIF or WebP file.", variant: "destructive" })
             if (inputRef.current) inputRef.current.value = ""
             return
         }
@@ -524,8 +612,8 @@ function IconField({ value, onChange }: { value: string; onChange: (v: string) =
             if (!objUuid) throw new Error("no object id")
             onChange(`${backendBase}/public/app-icon/${objUuid}`)
             toast({ title: "Icon uploaded" })
-        } catch {
-            toast({ title: "Failed to upload icon", variant: "destructive" })
+        } catch (e) {
+            toast({ title: "Couldn't upload the icon", description: apiErrorMessage(e, "Try again, or paste the image's address instead."), variant: "destructive" })
         } finally {
             setUploading(false)
             if (inputRef.current) inputRef.current.value = ""
@@ -534,32 +622,33 @@ function IconField({ value, onChange }: { value: string; onChange: (v: string) =
 
     return (
         <div className="space-y-1.5">
-            <Label className="text-xs font-medium">
-                Icon
-                <span className="text-muted-foreground font-normal ml-1.5">· upload an image or paste a URL</span>
-            </Label>
+            <Label htmlFor={urlId}>Icon</Label>
             <div className="flex items-center gap-3">
                 <div className="h-12 w-12 shrink-0 rounded-lg border border-border/70 bg-muted flex items-center justify-center overflow-hidden">
                     {value ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={value} alt="icon preview" className="h-full w-full object-cover" />
+                        <img src={value} alt="" width={48} height={48} className="h-full w-full object-cover" />
                     ) : (
                         <ImageIcon className="h-5 w-5 text-muted-foreground" />
                     )}
                 </div>
                 <div className="flex-1 space-y-1.5">
                     <Input
+                        id={urlId}
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        placeholder="https://…/icon.png"
+                        placeholder="Paste an image address, or upload one…"
                         className="h-8"
+                        type="url"
+                        spellCheck={false}
+                        autoComplete="off"
                     />
                     <div className="flex items-center gap-2">
                         <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            className="h-7 gap-1.5"
+                            className="h-8 gap-1.5"
                             disabled={uploading}
                             onClick={() => inputRef.current?.click()}
                         >
@@ -567,7 +656,7 @@ function IconField({ value, onChange }: { value: string; onChange: (v: string) =
                             {uploading ? "Uploading…" : "Upload image"}
                         </Button>
                         {value && (
-                            <Button type="button" size="sm" variant="ghost" className="h-7 text-muted-foreground" onClick={() => onChange("")}>
+                            <Button type="button" size="sm" variant="ghost" className="h-8 text-muted-foreground" onClick={() => onChange("")}>
                                 Remove
                             </Button>
                         )}
