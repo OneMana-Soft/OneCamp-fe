@@ -314,6 +314,10 @@
 }
 /* A message shown without an editor (see lib/utils/staticRichText): mentions
    look and respond exactly as the live mention node view does. */
+/* Inline, not inline-block: an inline-block chip with vertical padding made
+   its line taller than the lines around it, so a message that opened with a
+   mention had a gap under its first line. */
 .static-rich span[data-type="mention"] {
-  @apply bg-sidebar-accent text-foreground hover:bg-input/60 rounded-sm px-1 py-0.5 mx-0.5 font-medium cursor-pointer transition-colors select-none inline-block;
+  @apply bg-sidebar-accent text-foreground hover:bg-input/60 rounded-sm px-1 py-px font-medium cursor-pointer transition-colors select-none;
+  box-decoration-break: clone;
 }

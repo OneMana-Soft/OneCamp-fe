@@ -1,6 +1,6 @@
 import React from "react";
 import { getLastMessagePreview } from "@/lib/utils/lastMessagePreview";
-import { formatTimeForPostOrComment } from "@/lib/utils/date/formatTimeForPostOrComment";
+import { formatListTimestamp } from "@/lib/utils/date/formatTimeForPostOrComment";
 import { Hash } from "@/lib/icons";
 import { CallActiveIndicator } from "@/components/callIndicator/CallActiveIndicator";
 import { cn } from "@/lib/utils/helpers/cn";
@@ -73,7 +73,7 @@ export const ChannelListChannel: React.FC<DmItemProps> = React.memo(
                 emphasize={hasUnread}
                 leading={leading}
                 title={titleNode}
-                meta={lastMessageTime ? formatTimeForPostOrComment(lastMessageTime) : undefined}
+                meta={lastMessageTime ? formatListTimestamp(lastMessageTime) : undefined}
                 trailing={hasUnread ? <UnreadBadge count={unseenMessageCount} /> : undefined}
                 subtitle={subtitle}
             />

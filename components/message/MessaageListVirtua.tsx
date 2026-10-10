@@ -214,7 +214,7 @@ export const MessageListVirtua = <T,>({
                 <SeparatorPill
                     className="sticky top-0 z-[var(--z-sticky)] pointer-events-none py-1.5 transition-opacity duration-200 bg-gradient-to-b from-background via-background/95 to-transparent"
                     lineClassName="bg-transparent"
-                    pillClassName="shadow-overlay"
+                    pillClassName="rounded-md border border-border bg-background px-2 py-0.5 shadow-overlay"
                 >
                     {getDateHeading(dateKeys[visibleDateIndex])}
                 </SeparatorPill>
@@ -228,6 +228,14 @@ export const MessageListVirtua = <T,>({
                     <span className="rounded-full bg-background/90 p-1.5 shadow-overlay">
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </span>
+                </div>
+            )}
+            {/* An empty conversation said nothing at all: a blank panel above the
+                composer, which reads as still loading. */}
+            {items.length === 0 && !olderMessageLoading && !newMessageLoading && (
+                <div className="flex h-full flex-col justify-end px-4 pb-4 md:pb-6">
+                    <p className="text-sm font-medium text-foreground">No messages yet</p>
+                    <p className="text-sm text-muted-foreground">What you write below starts the conversation.</p>
                 </div>
             )}
             <Virtualizer

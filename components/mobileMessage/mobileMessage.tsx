@@ -305,24 +305,24 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
 
         >
 
-            <div  className='flex p-4 space-x-4 w-[100vw] pb-0 select-none' {...longPressEvent}
+            <div  className='flex gap-3 px-4 pt-3 w-[100vw] select-none' {...longPressEvent}
 
 
             >
 
-                <div className='h-12 w-12 flex-shrink-0' onClick={handleUserClick}>
+                <div className='h-9 w-9 shrink-0 mt-0.5' onClick={handleUserClick}>
                     {relayed
                         ? <RelayedAvatar name={relayed.name}/>
                         : <ChannelMessageAvatar userName={authorName} userProfileKey={userInfo.user_profile_object_key} isBot={!!userInfo.is_bot} userUUID={userInfo.user_uuid}/>}
 
                 </div>
-                <div className='w-full'>
-                    <div className='flex items-baseline space-x-2'>
-                        <div className='font-semibold text-m' onClick={handleUserClick}>
+                <div className='w-full min-w-0'>
+                    <div className='flex items-baseline gap-2'>
+                        <div className='text-sm font-semibold text-foreground truncate' onClick={handleUserClick}>
                             {authorName}
                         </div>
                         {relayed && <PrincipalTag kind={relayed.kind} />}
-                        <div className='text-xs text-muted-foreground text'>
+                        <div className='text-2xs tabular-nums text-muted-foreground shrink-0'>
                             {formatTimeForPostOrComment(createdAt)}
 
                         </div>
@@ -338,7 +338,8 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                             />
                         </div>
                     )}
-                    <div className='break-all' onClickCapture={handleInternalLinkClick}>
+                    {/* break-words, not break-all: break-all split ordinary words mid-word at the edge. */}
+                    <div className='break-words' onClickCapture={handleInternalLinkClick}>
 
 
                         <MinimalTiptapTextInput
@@ -369,7 +370,7 @@ export const MobileMessage = memo(({  userInfo, grpId, docId, isAdmin, deleteMes
                             }}
                         >
                         </MinimalTiptapTextInput>
-                        <div className={`${content?.length > 0 ? 'mb-4' : ''}`}/>
+                        <div className={`${content?.length > 0 ? 'mb-2' : ''}`}/>
 
 
                         {forwardedMessage && (

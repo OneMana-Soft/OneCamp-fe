@@ -71,13 +71,14 @@ export const GroupChatMessageList = memo(function GroupChatMessageList({grpId, m
 
     useEffect(() => {
 
-        if(messageId && getNewChatsWithCurrentChat.data?.data?.chats  && chatMessageState.length == 0 ) {
+        if(messageId && getNewChatsWithCurrentChat.data?.data?.chats?.length && chatMessageState.length == 0 ) {
             const newChats = getNewChatsWithCurrentChat.data?.data?.chats ?? [];
 
             dispatch(updateGroupChats({chats:newChats, grpId}))
         }
 
-        if(!messageId && latestMsg.data?.data.chats && chatMessageState.length == 0 ) {
+        // Non-empty only: an empty answer stored a new [] that re-ran this effect.
+        if(!messageId && latestMsg.data?.data.chats?.length && chatMessageState.length == 0 ) {
             // Copy before reversing: latestMsg.data is the live SWR cache.
             const newChats = [...latestMsg.data.data.chats].reverse();
 
