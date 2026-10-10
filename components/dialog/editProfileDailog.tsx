@@ -1,10 +1,12 @@
+import { displayNameOf, handleOf, secondaryNameOf } from "@/lib/personName";
+import { getNameInitials } from "@/lib/utils/getNameInitials";
 import { eyebrowClass } from "@/components/ui/eyebrow"
 import { cn } from "@/lib/utils/helpers/cn"
 import {zodResolver} from "@hookform/resolvers/zod";
 import {useForm, type Resolver} from "react-hook-form";
 
 import {Button} from "@/components/ui/button";
-import {Form, FormControl, FormField, FormItem, FormLabel, FormMessage,} from "@/components/ui/form";
+import {Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage,} from "@/components/ui/form";
 import {Input} from "@/components/ui/input";
 
 import {useEffect, useMemo, useRef, useState} from "react";
@@ -34,7 +36,7 @@ import axiosInstance from "@/lib/axiosInstance";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
 import { TwoFactorSection } from "@/components/profile/TwoFactorSection";
 import { PasskeySection } from "@/components/profile/PasskeySection";
-import { profileFormSchema, profileNamesPayload, type ProfileFormValues, type SavedNames } from "@/lib/validation/profileForm";
+import { profileFormSchema, profileNamesPayload, type ProfileFormValues, type SavedNames, profileNameField } from "@/lib/validation/profileForm";
 
 const NO_NAMES: SavedNames = { fullName: "", displayName: "", handle: "" }
 
@@ -264,15 +266,10 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
         mode: "onChange",
     });
 
-    const nameIntialsArray = profileInfo.data?.data.user_name.split(" ") || [
-        "Unknown",
-    ];
-
-    let nameIntial = nameIntialsArray[0][0].toUpperCase();
-
-    if (nameIntialsArray?.length > 1) {
-        nameIntial += nameIntialsArray[1][0].toUpperCase();
-    }
+    const shownName = displayNameOf(profileInfo.data?.data);
+    const fullName = secondaryNameOf(profileInfo.data?.data);
+    const handle = handleOf(profileInfo.data?.data);
+    const nameIntial = getNameInitials(shownName || "Unknown");
 
     return (
         <Dialog onOpenChange={closeModal} open={dialogOpenState}>
@@ -316,8 +313,13 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                         
                         <div className="text-center space-y-1">
                             <h3 className="font-medium text-lg text-foreground truncate max-w-full">
-                                {profileInfo.data?.data.user_name}
+                                {shownName}
                             </h3>
+                            {(fullName || handle) && (
+                                <p className="text-xs text-muted-foreground truncate max-w-full">
+                                    {[fullName, handle && `@${handle}`].filter(Boolean).join(" · ")}
+                                </p>
+                            )}
                             <p className="text-xs text-muted-foreground truncate max-w-full">
                                 {profileInfo.data?.data.user_email_id}
                             </p>
@@ -331,26 +333,28 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
-                                        name="fullName"
+                                        name="displayName"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className={eyebrowClass}>Full Name</FormLabel>
+                                                <FormLabel className={eyebrowClass}>{profileNameField("displayName").label}</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
                                                 </FormControl>
+                                                <FormDescription className="text-xs">{profileNameField("displayName").help}</FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
                                     <FormField
                                         control={form.control}
-                                        name="displayName"
+                                        name="fullName"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className={eyebrowClass}>Display Name</FormLabel>
+                                                <FormLabel className={eyebrowClass}>{profileNameField("fullName").label}</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} className="bg-muted/20 border-0 focus-visible:ring-1 h-10" />
                                                 </FormControl>
+                                                <FormDescription className="text-xs">{profileNameField("fullName").help}</FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -360,13 +364,14 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
                                         name="handle"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className={eyebrowClass}>Handle</FormLabel>
+                                                <FormLabel className={eyebrowClass}>{profileNameField("handle").label}</FormLabel>
                                                 <div className="relative">
                                                     <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">@</span>
                                                     <FormControl>
                                                         <Input {...field} autoCapitalize="off" autoCorrect="off" spellCheck={false} className="bg-muted/20 border-0 focus-visible:ring-1 h-10 pl-7" />
                                                     </FormControl>
                                                 </div>
+                                                <FormDescription className="text-xs">{profileNameField("handle").help}</FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
