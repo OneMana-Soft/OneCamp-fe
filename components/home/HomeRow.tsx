@@ -43,7 +43,7 @@ export function HomeRow({ icon, label, meta, emphasize, active, href, onClick, t
   const body = (
     <>
       {icon && (
-        <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground">
+        <span aria-hidden="true" className="flex h-6 min-w-5 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground">
           {icon}
         </span>
       )}

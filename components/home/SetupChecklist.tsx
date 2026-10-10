@@ -36,6 +36,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Circle, ArrowRight, X, CheckCircle2 } from "@/lib/icons"
 import { ProgressRing } from "@/components/ui/graphics/ProgressRing"
 import { celebrate } from "@/lib/celebrate"
+import { cn } from "@/lib/utils/helpers/cn"
+import { homeGlyph, homeInset } from "@/components/home/homeLines"
 import {
     getOnboardingStatus,
     dismissOnboarding,
@@ -231,7 +233,7 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
 
     if (hide !== "no" && isAdmin) {
         return (
-            <div role="status" className="flex min-h-10 items-center justify-between gap-3 rounded-lg border border-border/60 px-4 text-sm text-muted-foreground">
+            <div role="status" className={cn("flex min-h-10 items-center justify-between gap-3 rounded-lg border border-border/60 text-sm text-muted-foreground", homeInset)}>
                 Setup checklist hidden.
                 {hide === "pending" && (
                     <Button variant="ghost" size="sm" className="h-8" onClick={undoHide}>
@@ -262,15 +264,19 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
     const nextId = open[0]?.id
 
     return (
-        <Card role="region" aria-labelledby="setup-checklist-title" className="p-5">
+        <Card role="region" aria-labelledby="setup-checklist-title" className={cn("py-5", homeInset)}>
             {/* The heading sits beside how far along the setup is, a ring in
-                the place Home's other cards keep their tile. */}
+                the place Home's other cards keep their tile, at a tile's 24px:
+                the ring and every step's circle share one column, and the
+                title and the steps' words one line (homeLines). At 32px the
+                title sat 16px right of the steps. */}
             <div className="flex items-start gap-3">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                     <ProgressRing
                         value={state.total > 0 ? (state.done / state.total) * 100 : 0}
                         label={`${state.done} of ${state.total} steps done`}
-                        className="shrink-0"
+                        size={24}
+                        className="-mt-0.5 shrink-0"
                     />
                     <div className="min-w-0">
                         <h2 id="setup-checklist-title" className="text-sm font-semibold">Finish setting up your workspace</h2>
@@ -282,7 +288,7 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                    className="relative h-8 w-8 shrink-0 text-muted-foreground after:absolute after:-inset-1.5 hover:text-foreground"
                     onClick={hideCard}
                     aria-label="Hide the setup checklist"
                 >
@@ -302,7 +308,7 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                 {showSkipped &&
                     skippedSteps.map((step) => (
                         <li key={step.id} className="flex min-h-12 items-center gap-3 py-1.5">
-                            <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" aria-hidden="true" />
+                            <span className={homeGlyph} aria-hidden="true"><Circle className="h-4 w-4 text-muted-foreground/40" /></span>
                             <span className="min-w-0 flex-1 text-sm text-muted-foreground">{step.title}</span>
                             <Button
                                 variant="ghost"
@@ -323,7 +329,9 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
             )}
 
             {(more > 0 || (skippedSteps.length > 0 && !showSkipped)) && (
-                <div className="mt-1 flex flex-wrap gap-x-2">
+                // Under the steps' words, as the list's last line: the button's
+                // own 6px padding is taken back so its text starts on that line.
+                <div className="mt-1 ml-[1.875rem] flex flex-wrap gap-x-2">
                     {more > 0 && (
                         <Button variant="ghost" size="sm" className="h-8 px-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowAll(true)}>
                             Show {more} more
@@ -351,7 +359,7 @@ function StepRow({ step, isNext, onSkip }: { step: OnboardingStep; isNext: boole
                 href={step.href}
                 className="group -mx-2 flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 hover:bg-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-                <Circle className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className={homeGlyph} aria-hidden="true"><Circle className="h-4 w-4 text-muted-foreground" /></span>
                 <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium">{step.title}</span>
                     <span className="block text-xs text-muted-foreground">{step.detail}</span>
@@ -392,18 +400,18 @@ function ChecklistDone({ onClose }: { onClose: () => void }) {
         celebrate(ringRef.current)
     }, [])
     return (
-        <Card role="region" aria-labelledby="setup-checklist-done" className="p-5">
+        <Card role="region" aria-labelledby="setup-checklist-done" className={cn("py-5", homeInset)}>
             <div className="flex items-start gap-3">
-                <span ref={ringRef} className="shrink-0">
-                    <ProgressRing value={100} label="Every step done">
-                        <CheckCircle2 className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                <span ref={ringRef} className="-mt-0.5 shrink-0">
+                    <ProgressRing value={100} label="Every step done" size={24}>
+                        <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
                     </ProgressRing>
                 </span>
                 <div className="min-w-0 flex-1">
                     <h2 id="setup-checklist-done" className="text-sm font-semibold">Your workspace is set up</h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">Everything on the checklist is done, so this card won&apos;t come back.</p>
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground" onClick={onClose} aria-label="Close">
+                <Button variant="ghost" size="icon" className="relative h-8 w-8 shrink-0 text-muted-foreground after:absolute after:-inset-1.5 hover:text-foreground" onClick={onClose} aria-label="Close">
                     <X className="h-4 w-4" />
                 </Button>
             </div>
@@ -414,10 +422,10 @@ function ChecklistDone({ onClose }: { onClose: () => void }) {
 /** The card's shape while it loads: its header and three step rows. */
 function ChecklistPlaceholder() {
     return (
-        <Card role="status" aria-label="Loading the setup checklist" aria-busy="true" className="p-5">
+        <Card role="status" aria-label="Loading the setup checklist" aria-busy="true" className={cn("py-5", homeInset)}>
             <div aria-hidden="true">
                 <div className="flex items-start gap-3">
-                    <Skeleton variant="circle" className="size-8 shrink-0" />
+                    <Skeleton variant="circle" className="-mt-0.5 size-6 shrink-0" />
                     <div className="grid gap-1.5 pt-0.5">
                         <Skeleton className="h-4 w-56" />
                         <Skeleton className="h-3 w-44" />
@@ -426,7 +434,7 @@ function ChecklistPlaceholder() {
                 <div className="mt-3 divide-y divide-border/60">
                     {[0, 1, 2].map((i) => (
                         <div key={i} className="flex min-h-12 items-center gap-3 py-1.5">
-                            <Skeleton variant="circle" className="h-4 w-4 shrink-0" />
+                            <span className={homeGlyph}><Skeleton variant="circle" className="h-4 w-4" /></span>
                             <div className="grid flex-1 gap-1.5">
                                 <Skeleton className={i === 1 ? "h-3.5 w-1/2" : "h-3.5 w-2/5"} />
                                 <Skeleton className="h-3 w-3/5" />
