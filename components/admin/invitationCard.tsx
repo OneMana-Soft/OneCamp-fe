@@ -1,15 +1,15 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { type ReactNode, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { ErrorState } from "@/components/ui/error-state"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { InvitationListResponseInterface } from "@/types/user"
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Search } from "@/lib/icons"
+import { Mail, UserPlus } from "@/lib/icons"
 import { AdminInvitationList } from "./AdminInvitationList"
+import { PeopleAction, PeopleFirstRun, PeopleFrame, PeopleNoMatch, peopleCount, quoted } from "./PeopleFrame"
 import { useFetch } from "@/hooks/useFetch"
 import { useDispatch } from "react-redux"
 import { openUI } from "@/store/slice/uiSlice"
@@ -145,66 +145,64 @@ const InvitationCard = () => {
     )
   }, [invitations, normalisedSearch])
 
-  return (
-    <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-4 shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <CardTitle className="text-base font-semibold">
-                Invitations
-              </CardTitle>
-              <span className="text-sm tabular-nums text-muted-foreground">
-                {invitations.length}
-              </span>
-            </div>
-            <CardDescription className="text-sm text-muted-foreground">
-              Invite people by email. Each invitation is a link, good for seven days, that lets them join this workspace.
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
-            <div className="relative flex-1 sm:w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                type="search"
-                placeholder="Search invitations…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-background/50"
-                aria-label="Search invitations"
-              />
-            </div>
-            <Button
-              size="sm"
-              className="h-9 gap-1.5 shrink-0"
-              onClick={() => dispatch(openUI({ key: "addInvitation" }))}
-            >
-              {/* Words at every width: the label hid below an xs: breakpoint
-                  that does not exist, so a phone showed a bare "+". */}
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              Invite people
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
+  const openInvite = () => dispatch(openUI({ key: "addInvitation" }))
+  const loaded = invitations.length > 0 || !isLoading
+  let state: ReactNode = undefined
+  // Before the empty branch: a failed request leaves the list empty too.
+  if (invitations.length === 0 && isError) {
+    state = <ErrorState subject="the invitations" onRetry={() => void mutate()} />
+  } else if (loaded && filteredInvitations.length === 0) {
+    state = normalisedSearch ? (
+      <PeopleNoMatch
+        icon={Mail}
+        title={`No invitations match ${quoted(search)}`}
+        hint="Search by email address, or by a status such as Sent or Expired."
+        onClear={() => setSearch("")}
+      />
+    ) : (
+      // A workspace with no invitations at all is a first run, so it is
+      // welcomed, with the one thing to do.
+      <PeopleFirstRun
+        title="No invitations yet"
+        description="Invite the people you work with. Each gets an email with a link to join, good for seven days."
+        action={
+          <Button variant="outline" size="sm" onClick={openInvite}>
+            Invite people
+          </Button>
+        }
+      />
+    )
+  }
 
-      <CardContent className="px-0 flex-1 min-h-0 flex flex-col">
-        <AdminInvitationList
-          invitations={filteredInvitations}
-          onDelete={handleDeleteInvitation}
-          onResend={handleResendInvitation}
-          onCopyLink={handleCopyLink}
-          isSubmitting={post.isSubmitting}
-          resendingEmail={resendingEmail}
-          isLoading={isLoading}
-          isError={!!isError && invitations.length === 0}
-          onRetry={() => void mutate()}
-          isFiltered={!!normalisedSearch}
-          totalLoaded={invitations.length}
-          onInvite={() => dispatch(openUI({ key: "addInvitation" }))}
-        />
-      </CardContent>
-    </Card>
+  return (
+    <PeopleFrame
+      title="Invitations"
+      count={peopleCount({ shown: filteredInvitations.length, total: invitations.length, filtering: !!normalisedSearch, loaded })}
+      // What an invitation is, in one line that fits a phone.
+      description="Each is a link to join, good for seven days."
+      search={{ value: search, onChange: setSearch, placeholder: "Search invitations…", label: "Search invitations", name: "invitation-search" }}
+      // Words at every width: the label hid below an xs: breakpoint that does
+      // not exist, so a phone showed a bare "+". The icon is Members' for the
+      // same words.
+      action={
+        <PeopleAction icon={UserPlus} onClick={openInvite}>
+          Invite people
+        </PeopleAction>
+      }
+      loading={invitations.length === 0 && !!isLoading && !isError}
+      loadingLabel="Loading invitations"
+      leading="tile"
+      state={state}
+    >
+      <AdminInvitationList
+        invitations={filteredInvitations}
+        onDelete={handleDeleteInvitation}
+        onResend={handleResendInvitation}
+        onCopyLink={handleCopyLink}
+        isSubmitting={post.isSubmitting}
+        resendingEmail={resendingEmail}
+      />
+    </PeopleFrame>
   )
 }
 

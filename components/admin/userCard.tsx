@@ -1,11 +1,8 @@
 "use client"
 
 import { displayNameOf, matchesPerson, normalizePersonQuery } from "@/lib/personName"
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
+import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import { useDispatch } from "react-redux"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { useFetch } from "@/hooks/useFetch"
 import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints"
 import { UserListResponseInterface, UserActivateOrDeactivateInterface, UserProfileDataInterface } from "@/types/user"
@@ -15,8 +12,11 @@ import { toast } from "@/hooks/use-toast"
 import { useStableCallback } from "@/hooks/useStableCallback"
 import { openUI } from "@/store/slice/uiSlice"
 import TwoFactorService from "@/services/twoFactorService"
-import { AdminUserList } from "./AdminUserList"
-import { Search, UserPlus } from "@/lib/icons"
+import { AdminUserList, RestLine } from "./AdminUserList"
+import { UserPlus } from "@/lib/icons"
+import { Users2 } from "lucide-react"
+import { ErrorState } from "@/components/ui/error-state"
+import { PeopleAction, PeopleFirstRun, PeopleFrame, PeopleNoMatch, peopleCount, quoted } from "./PeopleFrame"
 
 import { seatSummary } from "@/lib/utils/seatSummary"
 import { UPGRADE_STEPS } from "@/lib/plan/upgradeSteps"
@@ -205,94 +205,117 @@ const UserCard = () => {
     return allUsers.filter((u) => matchesPerson(u, normalisedSearch, [u.user_email_id]))
   }, [allUsers, normalisedSearch])
 
-  return (
-    <Card className="w-full flex flex-col border-none shadow-none bg-transparent">
-      <CardHeader className="px-0 pt-0 pb-4 shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <CardTitle as="h2" className="text-base font-semibold">
-                Members
-              </CardTitle>
-              <span className="text-sm tabular-nums text-muted-foreground">
-                {normalisedSearch && filteredUsers.length !== allUsers.length
-                  ? `${filteredUsers.length} of ${allUsers.length}${hasMore ? "+" : ""}`
-                  : `${allUsers.length}${hasMore ? "+" : ""}`}
-              </span>
-            </div>
-            <CardDescription className="text-sm text-muted-foreground">
-              {/* The count above includes deactivated people; the plan line
-                  below counts only those who use a place. Said once everyone is
-                  loaded, so the number never moves while the pages arrive. */}
-              {!hasMore && deactivated > 0
-                ? `Everyone with an account here, ${deactivated} of them deactivated.`
-                : "Everyone with an account here."}
-            </CardDescription>
-            {seats && (
-              <p
-                className={cn(
-                  "mt-2 text-sm",
-                  seats.tone === "full" ? "text-danger-ink" : seats.tone === "near" ? "text-warning-ink" : "text-muted-foreground",
-                )}
-              >
-                {seats.text}{" "}
-                {seats.tone !== "ok" && upgradeUrl && (
-                  <>
-                    <a href={upgradeUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-                      Remove the limit
-                    </a>
-                    <span className="mt-1 block text-xs text-muted-foreground">{UPGRADE_STEPS}</span>
-                  </>
-                )}
-              </p>
-            )}
-          </div>
-          {/* The section's one primary action. Members had none: adding people
-              meant knowing to go to Invitations. */}
-          <Button
-            size="sm"
-            className="h-8 shrink-0 gap-1.5 self-start"
-            onClick={() => window.dispatchEvent(new Event("open-invite-people"))}
-          >
-            <UserPlus className="h-4 w-4" aria-hidden="true" />
-            Invite people
-          </Button>
-        </div>
-        <div className="relative mt-4 w-full sm:w-80">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input
-            ref={searchRef}
-            type="search"
-            name="member-search"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="Search by name or email…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8 pl-9"
-            aria-label="Search members"
-          />
-        </div>
-      </CardHeader>
+  const initialLoading = allUsers.length === 0 && !userList.isError && (userList.isLoading || hasMore)
+  const shownQuery = normalisedSearch ? query.trim() : ""
 
-      <CardContent className="px-0">
-        <AdminUserList
-          users={filteredUsers}
-          onResetTwoFactor={handleResetTwoFactor}
-          onDeactivate={handleDeactivate}
-          onActivate={handleActivate}
-          onOpenProfile={handleOpenProfile}
-          isSubmitting={post.isSubmitting}
-          isInitialLoading={allUsers.length === 0 && !userList.isError && (userList.isLoading || hasMore)}
-          isLoadingRest={hasMore}
-          query={normalisedSearch ? query.trim() : ""}
-          onClearSearch={clearSearch}
-          totalLoaded={allUsers.length}
-          loadFailed={!!userList.isError}
-          onRetry={() => void userList.mutate()}
+  // In place of the rows, where every people tab says it: the first page
+  // failed; a search found nobody among those loaded while the rest are still
+  // coming (the person may be on a page that hasn't come yet, so it isn't "no
+  // match"); nobody matches; or nobody at all.
+  let state: ReactNode = undefined
+  if (allUsers.length === 0 && userList.isError) {
+    state = <ErrorState subject="members" onRetry={() => void userList.mutate()} />
+  } else if (!initialLoading && filteredUsers.length === 0) {
+    if (shownQuery && hasMore) {
+      state = userList.isError ? (
+        <RestLine loadFailed totalLoaded={allUsers.length} onRetry={() => void userList.mutate()} />
+      ) : (
+        <p role="status" className="py-12 text-center text-sm text-muted-foreground">
+          Looking through everyone… {allUsers.length} so far.
+        </p>
+      )
+    } else if (shownQuery) {
+      state = (
+        <PeopleNoMatch
+          icon={Users2}
+          title={`No members match ${quoted(shownQuery)}`}
+          hint="Check the spelling, or search by email."
+          onClear={clearSearch}
         />
-      </CardContent>
-    </Card>
+      )
+    } else {
+      state = <PeopleFirstRun title="No members yet" description="People appear here once they accept an invitation." />
+    }
+  }
+
+  // The plan's seats. Quiet, under the list, while there is room; said before
+  // the rows once the plan is nearly or entirely full, since that is what an
+  // admin needs to know before inviting anyone.
+  const seatLine = seats ? (
+    <p
+      className={cn(
+        "text-sm",
+        seats.tone === "full" ? "text-danger-ink" : seats.tone === "near" ? "text-warning-ink" : "text-muted-foreground",
+      )}
+    >
+      {seats.text}{" "}
+      {seats.tone !== "ok" && upgradeUrl && (
+        <>
+          <a href={upgradeUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+            Remove the limit
+          </a>
+          <span className="mt-1 block text-xs text-muted-foreground">{UPGRADE_STEPS}</span>
+        </>
+      )}
+    </p>
+  ) : null
+
+  return (
+    <PeopleFrame
+      title="Members"
+      count={peopleCount({
+        shown: filteredUsers.length,
+        total: allUsers.length,
+        more: hasMore,
+        filtering: !!normalisedSearch,
+        loaded: allUsers.length > 0 || !hasMore,
+      })}
+      // The count includes deactivated people; the plan's line counts only
+      // those who use a place. Said once everyone is loaded, so the number
+      // never moves while the pages arrive.
+      description={
+        !hasMore && deactivated > 0
+          ? `Everyone with an account here, ${deactivated} deactivated.`
+          : "Everyone with an account here."
+      }
+      search={{
+        value: search,
+        onChange: setSearch,
+        placeholder: "Search by name or email…",
+        label: "Search members",
+        name: "member-search",
+        inputRef: searchRef,
+      }}
+      // The tab's one primary action. Members had none: adding people meant
+      // knowing to go to Invitations.
+      action={
+        <PeopleAction icon={UserPlus} onClick={() => window.dispatchEvent(new Event("open-invite-people"))}>
+          Invite people
+        </PeopleAction>
+      }
+      notice={seats && seats.tone !== "ok" ? seatLine : undefined}
+      loading={initialLoading}
+      loadingLabel="Loading members"
+      state={state}
+      // Only under rows: never under the skeleton or a state.
+      footer={
+        initialLoading || state ? undefined : (
+          <>
+            {hasMore && <RestLine loadFailed={!!userList.isError} totalLoaded={allUsers.length} onRetry={() => void userList.mutate()} />}
+            {seats && seats.tone === "ok" && <div className="pt-3">{seatLine}</div>}
+          </>
+        )
+      }
+    >
+      <AdminUserList
+        users={filteredUsers}
+        onResetTwoFactor={handleResetTwoFactor}
+        onDeactivate={handleDeactivate}
+        onActivate={handleActivate}
+        onOpenProfile={handleOpenProfile}
+        isSubmitting={post.isSubmitting}
+      />
+    </PeopleFrame>
   )
 }
 

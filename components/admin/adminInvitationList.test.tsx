@@ -43,7 +43,8 @@ describe("the admin's invitation list", () => {
   // "Sent  Expires in 6 days" ran the expiry into the status word.
   it("keeps the expiry apart from the status with a separator, and has none to keep apart when there's no expiry", () => {
     list()
-    const meta = (email: string) => screen.getByText(email).nextElementSibling as HTMLElement
+    // The row's second line (PeopleFrame's row: a title line, then a meta line).
+    const meta = (email: string) => screen.getByText(email).closest("[data-person-row]")!.querySelector(".leading-4") as HTMLElement
     expect(meta(live.email).textContent).toMatch(/Sent·Expires in 6 days$/)
     expect(meta(expired.email).textContent).not.toContain("·")
   })

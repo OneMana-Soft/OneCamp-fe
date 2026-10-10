@@ -1,10 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { useDispatch, useSelector } from "react-redux"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { ErrorState } from "@/components/ui/error-state"
 import { openUI } from "@/store/slice/uiSlice"
 import type { RootState } from "@/store/store"
 import { useFetch } from "@/hooks/useFetch"
@@ -13,7 +12,8 @@ import { TeamDeleteOrUndeleteInterface, TeamListResponseInterface, TeamInfoInter
 import { usePost } from "@/hooks/usePost"
 import { useConfirm } from "@/hooks/useConfirm"
 import { AdminTeamList } from "./AdminTeamList"
-import { Plus, Search } from "@/lib/icons"
+import { Plus, Users } from "@/lib/icons"
+import { PeopleAction, PeopleFirstRun, PeopleFrame, PeopleNoMatch, peopleCount, quoted } from "./PeopleFrame"
 
 const TeamsCard = () => {
     const [pageIndex, setPageIndex] = useState(0)
@@ -117,63 +117,62 @@ const TeamsCard = () => {
         )
     }, [allTeams, normalisedSearch])
 
-    return (
-        <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
-            <CardHeader className="px-0 pt-0 pb-4 shrink-0">
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                            <CardTitle className="text-base font-semibold">
-                                Teams
-                            </CardTitle>
-                            <span className="text-sm tabular-nums text-muted-foreground">
-                                {allTeams.length}
-                                {hasMore ? "+" : ""}
-                            </span>
-                        </div>
-                        <CardDescription className="text-sm text-muted-foreground">
-                            The groups people work in here.
-                        </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
-                        <div className="relative flex-1 sm:w-72">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                            <Input
-                                type="search"
-                                placeholder="Search teams…"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="pl-9 bg-background/50"
-                                aria-label="Search teams"
-                            />
-                        </div>
-                        {/* The tab's one action. There was no way to make a team
-                            from here, though the app has the dialog for it. */}
-                        <Button size="sm" className="h-9 gap-1.5 shrink-0" onClick={newTeam}>
-                            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                            New team
-                        </Button>
-                    </div>
-                </div>
-            </CardHeader>
+    const loaded = allTeams.length > 0 || !teamList.isLoading
+    let state: ReactNode = undefined
+    // Before the empty branch: a failed request leaves the list empty too.
+    if (allTeams.length === 0 && teamList.isError) {
+        state = <ErrorState subject="the teams" onRetry={() => void teamList.mutate()} />
+    } else if (loaded && filteredTeams.length === 0) {
+        state = normalisedSearch ? (
+            <PeopleNoMatch
+                icon={Users}
+                title={`No teams match ${quoted(search)}`}
+                hint="Check the spelling, or try part of the name."
+                onClear={() => setSearch("")}
+            />
+        ) : (
+            // No teams at all is a first run, so it is welcomed, with the one
+            // thing to do about it.
+            <PeopleFirstRun
+                title="No teams yet"
+                description="Teams group the people who work together, with their own channels and projects."
+                action={
+                    <Button variant="outline" size="sm" onClick={newTeam}>
+                        New team
+                    </Button>
+                }
+            />
+        )
+    }
 
-            <CardContent className="px-0 flex-1 min-h-0 flex flex-col">
-                <AdminTeamList
-                    teams={filteredTeams}
-                    onDelete={handleDelete}
-                    onUnDelete={handleUnDelete}
-                    isSubmitting={post.isSubmitting}
-                    onLoadMore={handleLoadMore}
-                    hasMore={hasMore && !normalisedSearch}
-                    isLoading={teamList.isLoading}
-                    isError={!!teamList.isError && allTeams.length === 0}
-                    onRetry={() => void teamList.mutate()}
-                    onNewTeam={newTeam}
-                    isFiltered={!!normalisedSearch}
-                    totalLoaded={allTeams.length}
-                />
-            </CardContent>
-        </Card>
+    return (
+        <PeopleFrame
+            title="Teams"
+            count={peopleCount({ shown: filteredTeams.length, total: allTeams.length, more: hasMore, filtering: !!normalisedSearch, loaded })}
+            description="The groups people work in here."
+            search={{ value: search, onChange: setSearch, placeholder: "Search teams…", label: "Search teams", name: "team-search" }}
+            // The tab's one action. There was no way to make a team from here,
+            // though the app has the dialog for it.
+            action={
+                <PeopleAction icon={Plus} onClick={newTeam}>
+                    New team
+                </PeopleAction>
+            }
+            loading={allTeams.length === 0 && teamList.isLoading && !teamList.isError}
+            loadingLabel="Loading teams"
+            leading="tile"
+            state={state}
+        >
+            <AdminTeamList
+                teams={filteredTeams}
+                onDelete={handleDelete}
+                onUnDelete={handleUnDelete}
+                isSubmitting={post.isSubmitting}
+                onLoadMore={handleLoadMore}
+                hasMore={hasMore && !normalisedSearch}
+                isLoading={teamList.isLoading}
+            />
+        </PeopleFrame>
     )
 }
 

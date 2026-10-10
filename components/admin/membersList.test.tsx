@@ -134,6 +134,8 @@ describe("the members list", () => {
     expect(skeleton.className).toContain("divide-y")
     expect(skeleton.className).toContain("border")
     expect(skeleton.querySelectorAll(":scope > li").length).toBeGreaterThan(3)
+    // Nothing under the skeleton: "Loading the rest… 0 so far" belongs under rows.
+    expect(screen.queryByText(/loading the rest/i)).toBeNull()
   })
 
   it("asks for a hundred at a time, so 520 people are six requests, not twenty-six", () => {
@@ -153,7 +155,8 @@ describe("the members list", () => {
     state.people[400].user_deleted_at = "2026-10-01T10:00:00Z"
     try {
       render(<UserCard />)
-      expect(screen.getByText("Everyone with an account here, 2 of them deactivated.")).toBeInTheDocument()
+      // One line, so it fits a phone and every people tab's toolbar starts at one height.
+      expect(screen.getByText("Everyone with an account here, 2 deactivated.")).toBeInTheDocument()
     } finally {
       state.people.forEach((p, i) => { p.user_deleted_at = saved[i] })
     }

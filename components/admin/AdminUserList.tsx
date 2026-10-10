@@ -6,21 +6,17 @@ import { Virtualizer } from "virtua"
 import { UserProfileDataInterface } from "@/types/user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { RotateCcw, ShieldAlert } from "@/lib/icons"
-import { UserMinus, Users2 } from "lucide-react"
+import { UserMinus } from "lucide-react"
 import { isZeroEpoch } from "@/lib/utils/validation/isZeroEpoch"
 import { useUserAvatar } from "@/hooks/useUserAvatar"
 import { getNameInitials } from "@/lib/utils/getNameInitials"
 import { getAvatarFallbackClass } from "@/lib/utils/getAvatarColor"
 import { cn } from "@/lib/utils/helpers/cn"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { DataInventoryButton } from "@/components/admin/DataInventoryButton"
-import { EmptyState } from "@/components/ui/empty-state"
-import { ErrorState } from "@/components/ui/error-state"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { useAdminScroller } from "@/components/admin/adminScroll"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { PersonAction, PersonRow, PersonTag } from "@/components/admin/PeopleFrame"
 
 interface AdminUserListProps {
   users: UserProfileDataInterface[]
@@ -39,23 +35,13 @@ interface AdminUserListProps {
   onResetTwoFactor: (email: string, userId: string) => void
   onOpenProfile: (userUUID: string) => void
   isSubmitting: boolean
-  /** No member has arrived yet. */
-  isInitialLoading: boolean
-  /** More pages are still on their way (they load in the background, a hundred at a time). */
-  isLoadingRest: boolean
-  /** The search as typed, for the no-match line; empty when not searching. */
-  query: string
-  onClearSearch: () => void
-  totalLoaded: number
-  /** The page being asked for failed. */
-  loadFailed: boolean
-  onRetry: () => void
 }
 
-/** The row's padding and layout, shared with the skeleton so the two have one shape. */
-const ROW = "flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5"
-const SKELETON_ROWS = 6
-
+/**
+ * The members' rows. The tab's frame (PeopleFrame, in userCard) draws the
+ * header, the toolbar, the skeleton and the empty and failed states; this
+ * draws the rows, only those in view when the admin page's scroller is there.
+ */
 export const AdminUserList: React.FC<AdminUserListProps> = ({
   users,
   onDeactivate,
@@ -63,71 +49,8 @@ export const AdminUserList: React.FC<AdminUserListProps> = ({
   onResetTwoFactor,
   onOpenProfile,
   isSubmitting,
-  isInitialLoading,
-  isLoadingRest,
-  query,
-  onClearSearch,
-  totalLoaded,
-  loadFailed,
-  onRetry,
 }) => {
   const scroller = useAdminScroller()
-
-  // Nobody has loaded and the request failed: say so, not "loading" forever.
-  if (users.length === 0 && totalLoaded === 0 && loadFailed) {
-    return <ErrorState subject="members" onRetry={onRetry} />
-  }
-
-  if (users.length === 0 && isInitialLoading) {
-    // The list's own shape, so nothing moves when the first page lands: one
-    // bordered list of hairline rows at the rows' height, not spaced cards.
-    return (
-      <ul aria-busy="true" aria-label="Loading members" className="divide-y divide-border rounded-lg border border-border">
-        {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
-          <li key={i} className={ROW} aria-hidden="true">
-            <Skeleton variant="circle" className="h-9 w-9 shrink-0" />
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <Skeleton className={i % 2 === 0 ? "h-3.5 w-36" : "h-3.5 w-28"} />
-              <Skeleton className={i % 2 === 0 ? "h-3 w-56" : "h-3 w-48"} />
-            </div>
-          </li>
-        ))}
-      </ul>
-    )
-  }
-
-  if (users.length === 0) {
-    if (query && isLoadingRest) {
-      // Not "nobody matches": the person may be on a page that hasn't come yet.
-      return loadFailed ? (
-        <RestLine loadFailed totalLoaded={totalLoaded} onRetry={onRetry} />
-      ) : (
-        <p role="status" className="rounded-lg border border-border px-4 py-6 text-center text-sm text-muted-foreground">
-          Looking through everyone… {totalLoaded} so far.
-        </p>
-      )
-    }
-    return query ? (
-      <EmptyState
-        hue={ADMIN_GROUP_HUE.people}
-        icon={Users2}
-        title={`No members match “${query}”`}
-        description="Check the spelling, or search by email."
-        action={
-          <Button variant="outline" size="sm" onClick={onClearSearch}>
-            Clear search
-          </Button>
-        }
-      />
-    ) : (
-      <EmptyState
-        hue={ADMIN_GROUP_HUE.people}
-        icon={Users2}
-        title="No members yet"
-        description="People appear here once they accept an invitation."
-      />
-    )
-  }
 
   const row = (user: UserProfileDataInterface, index: number) => (
     <AdminUserRow
@@ -153,13 +76,12 @@ export const AdminUserList: React.FC<AdminUserListProps> = ({
           ))}
         </ul>
       )}
-      {isLoadingRest && <RestLine loadFailed={loadFailed} totalLoaded={totalLoaded} onRetry={onRetry} />}
     </TooltipProvider>
   )
 }
 
 /** The line under the list while the rest load, or when the rest couldn't be. */
-function RestLine({ loadFailed, totalLoaded, onRetry }: { loadFailed: boolean; totalLoaded: number; onRetry: () => void }) {
+export function RestLine({ loadFailed, totalLoaded, onRetry }: { loadFailed: boolean; totalLoaded: number; onRetry: () => void }) {
   if (!loadFailed) {
     return (
       <p role="status" className="py-3 text-center text-xs text-muted-foreground">
@@ -170,7 +92,7 @@ function RestLine({ loadFailed, totalLoaded, onRetry }: { loadFailed: boolean; t
   return (
     <div role="alert" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 py-3 text-xs text-muted-foreground">
       <span>Couldn&apos;t load everyone. {totalLoaded} are shown.</span>
-      <Button variant="outline" size="sm" className="h-7" onClick={onRetry}>
+      <Button variant="outline" size="sm" onClick={onRetry}>
         Try again
       </Button>
     </div>
@@ -183,8 +105,7 @@ function RestLine({ loadFailed, totalLoaded, onRetry }: { loadFailed: boolean; t
  * dialog of its own, so a workspace of 520 drew 520 of each and made 520
  * avatar requests to show the fifteen rows on screen. The page scrolls, not
  * the card, so the list follows the page's scroller and measures where it
- * starts inside it (the header above it changes height as the seat line
- * arrives).
+ * starts inside it.
  */
 function VirtualMembers({
   users,
@@ -251,104 +172,70 @@ const AdminUserRow = memo(function AdminUserRow({
   const isDeactivated = !isZeroEpoch(user.user_deleted_at || "")
 
   return (
-    <div className={cn("group transition-colors hover:bg-highlight", ROW, !first && "border-t border-border")}>
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        onClick={() => onOpenProfile(user.user_uuid)}
-        aria-label={`Open profile for ${seed}`}
-      >
-        <Avatar className="h-9 w-9 shrink-0">
+    <PersonRow
+      as="div"
+      className={cn(!first && "border-t border-border")}
+      onOpen={() => onOpenProfile(user.user_uuid)}
+      openLabel={`Open profile for ${seed}`}
+      leading={
+        <Avatar className="size-9 shrink-0">
           <AvatarImage src={imageSrc} alt="" />
           <AvatarFallback className={cn("text-2xs font-semibold", getAvatarFallbackClass(seed))}>
             {getNameInitials(seed)}
           </AvatarFallback>
         </Avatar>
-        <div className="flex min-w-0 flex-col">
-          <span className="truncate text-sm font-medium leading-tight">{seed}</span>
-          <span className="mt-0.5 truncate text-xs text-muted-foreground">
-            {fullName ? `${fullName} · ${user.user_email_id ?? ""}` : user.user_email_id}
-          </span>
-        </div>
-      </button>
+      }
+      title={seed}
+      // Only the exception is marked: a list where every row said "Active" in
+      // green said nothing, fourteen times.
+      tags={isDeactivated ? <PersonTag>Deactivated</PersonTag> : undefined}
+      meta={fullName ? `${fullName} · ${user.user_email_id ?? ""}` : user.user_email_id}
+      actions={
+        <>
+          {/* Where this person's data lives. Self-contained, and it fetches only
+              when opened: the endpoint runs one COUNT per user-referencing
+              column and there are 47 of them. */}
+          <DataInventoryButton userUUID={user.user_uuid} displayName={seed} />
 
-      {/* On a phone the actions take their own line with words under them: there
-          is no hover to show a tooltip, and three bare icons said nothing. From
-          sm up they sit beside the name as icons, labels kept for screen readers. */}
-      <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto sm:shrink-0">
-        {/* Only the exception is marked: a list where every row said "Active"
-            in green said nothing, fourteen times. */}
-        {isDeactivated && (
-          <Badge variant="outline" className="h-5 text-2xs text-muted-foreground">
-            Deactivated
-          </Badge>
-        )}
+          {/* Only for an ACTIVE member. Resetting the second factor of somebody who cannot sign in
+              achieves nothing, and offering it there would suggest reactivation was not the thing
+              actually needed. */}
+          {!isDeactivated && (
+            <PersonAction
+              icon={ShieldAlert}
+              word="Reset two-factor"
+              tip="Reset two-factor authentication"
+              onClick={() => onResetTwoFactor(user.user_email_id!, user.user_uuid)}
+              disabled={isSubmitting}
+              aria-label={`Reset two-factor authentication for ${seed}`}
+            />
+          )}
 
-        {/* Where this person's data lives. Self-contained, and it fetches only
-            when opened: the endpoint runs one COUNT per user-referencing
-            column and there are 47 of them. */}
-        <DataInventoryButton userUUID={user.user_uuid} displayName={seed} />
-
-        {/* Only for an ACTIVE member. Resetting the second factor of somebody who cannot sign in
-            achieves nothing, and offering it there would suggest reactivation was not the thing
-            actually needed. */}
-        {!isDeactivated && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-auto gap-1 px-2 text-muted-foreground hover:bg-muted hover:text-foreground sm:w-8 sm:px-0"
-                onClick={() => onResetTwoFactor(user.user_email_id!, user.user_uuid)}
-                disabled={isSubmitting}
-                aria-label={`Reset two-factor authentication for ${seed}`}
-              >
-                <ShieldAlert className="h-4 w-4" />
-                <span className="text-2xs sm:sr-only">Reset 2FA</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Reset two-factor authentication</TooltipContent>
-          </Tooltip>
-        )}
-
-        {isDeactivated ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-auto gap-1 px-2 text-success-ink hover:bg-success/10 hover:text-success-ink sm:w-8 sm:px-0"
-                onClick={() => onActivate(user.user_email_id!, user.user_uuid)}
-                disabled={isSubmitting}
-                aria-label={`Reactivate ${seed}`}
-              >
-                <RotateCcw className="h-4 w-4" />
-                <span className="text-2xs sm:sr-only">Reactivate</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Reactivate member</TooltipContent>
-          </Tooltip>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-auto gap-1 px-2 text-muted-foreground hover:bg-destructive/10 hover:text-danger-ink sm:w-8 sm:px-0"
-                onClick={() => onDeactivate(user.user_email_id!, user.user_uuid)}
-                disabled={isSubmitting}
-                aria-label={`Deactivate ${seed}`}
-              >
-                {/* Not a trash can: deactivation is reversible (Reactivate sits in
-                    the same place), and a bin reads as deleting the person. */}
-                <UserMinus className="h-4 w-4" />
-                <span className="text-2xs sm:sr-only">Deactivate</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Deactivate member</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-    </div>
+          {isDeactivated ? (
+            <PersonAction
+              icon={RotateCcw}
+              word="Reactivate"
+              tip="Reactivate member"
+              tone="success"
+              onClick={() => onActivate(user.user_email_id!, user.user_uuid)}
+              disabled={isSubmitting}
+              aria-label={`Reactivate ${seed}`}
+            />
+          ) : (
+            // Not a trash can: deactivation is reversible (Reactivate sits in
+            // the same place), and a bin reads as deleting the person.
+            <PersonAction
+              icon={UserMinus}
+              word="Deactivate"
+              tip="Deactivate member"
+              tone="danger"
+              onClick={() => onDeactivate(user.user_email_id!, user.user_uuid)}
+              disabled={isSubmitting}
+              aria-label={`Deactivate ${seed}`}
+            />
+          )}
+        </>
+      }
+    />
   )
 })
