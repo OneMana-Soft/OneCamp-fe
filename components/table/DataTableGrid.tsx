@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { useConfirm } from "@/hooks/useConfirm"
-import { Plus, Trash2, Check, ChevronDown, Sparkles, Loader2, AlertTriangle } from "@/lib/icons"
+import { Plus, Trash2, Check, ChevronDown, Sparkles, Loader2, AlertTriangle, Type, Hash, CircleDot, Tag, CalendarDays, CheckSquare, Link2, AtSign, User, ArrowUpRight, Sigma, Network } from "@/lib/icons"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,6 +73,42 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "formula", label: "Formula" },
   { value: "rollup", label: "Rollup" },
 ]
+
+/**
+ * The glyph a column header shows for its type. A column header used to spell
+ * its type out in small capitals ("COST NUMBER"), which put a second word in
+ * shouting case on every column; the glyph carries the same information, and
+ * the type is still named for assistive technology and on hover.
+ */
+const FIELD_GLYPH: Record<FieldType, React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = {
+  text: Type,
+  number: Hash,
+  select: CircleDot,
+  multi_select: Tag,
+  date: CalendarDays,
+  checkbox: CheckSquare,
+  url: Link2,
+  email: AtSign,
+  person: User,
+  relation: ArrowUpRight,
+  formula: Sigma,
+  rollup: Network,
+}
+
+const fieldTypeLabel = (type: FieldType) => FIELD_TYPES.find((t) => t.value === type)?.label ?? type
+
+/** A number-like column reads right-aligned in tabular figures, so digits line up by place. */
+const isNumeric = (f: TableField) => f.type === "number" || ((f.type === "formula" || f.type === "rollup") && computedOf(f).result === "number")
+
+function FieldTypeGlyph({ type }: { type: FieldType }) {
+  const Glyph = FIELD_GLYPH[type] ?? Type
+  return (
+    <span title={fieldTypeLabel(type)} className="inline-flex shrink-0 text-muted-foreground">
+      <Glyph className="h-3.5 w-3.5" aria-hidden />
+      <span className="sr-only">{fieldTypeLabel(type)}</span>
+    </span>
+  )
+}
 
 const NO_ROLLUP: RollupDraft = { relation: "", field: "", aggregate: "" }
 
@@ -239,10 +275,14 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-border/60">
+    <div>
+    {/* The grid scrolls inside its own frame so the header row can stay in
+        view: a sticky header needs its scroll container to be the one that
+        scrolls, and an overflow-x wrapper on its own pins it to nothing. */}
+    <div className="max-h-[calc(100dvh-16rem)] min-h-[8rem] overflow-auto overscroll-contain">
+      <table className="w-full border-separate border-spacing-0 text-sm">
+        <thead className="sticky top-0 z-[1] bg-background">
+          <tr>
             {sortedFields.map((f) => (
               <ColumnHeader
                 key={f.id}
@@ -256,7 +296,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
               />
             ))}
             {canManage && (
-              <th className="w-12 px-2 py-2">
+              <th className="w-12 border-b border-border/60 px-2 py-1">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -275,9 +315,9 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
           {rows.map((row) => {
             const values = parseRowValues(row)
             return (
-              <tr key={row.id} className="group border-b border-border/40 hover:bg-muted/30">
+              <tr key={row.id} className="group hover:bg-muted/40">
                 {sortedFields.map((f) => (
-                  <td key={f.id} className="border-r border-border/30 px-1 py-0.5">
+                  <td key={f.id} className={cn("border-b border-r border-border/40 px-1 py-0.5 align-middle", isNumeric(f) && "text-right")}>
                     <Cell
                       field={f}
                       value={values[f.id]}
@@ -287,7 +327,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
                   </td>
                 ))}
                 {canManage && (
-                  <td className="px-2 py-1 text-right">
+                  <td className="border-b border-border/40 px-2 py-0.5 text-right">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -306,6 +346,7 @@ export function DataTableGrid({ tableId, fields, rows, canManage, onChange, next
           })}
         </tbody>
       </table>
+    </div>
 
       {addingColumn && canManage && (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2">
@@ -479,27 +520,33 @@ function ColumnHeader({
 
   if (!canManage) {
     return (
-      <th className="min-w-[160px] border-r border-border/40 px-3 py-2 text-left font-medium text-muted-foreground">
-        {field.name}
-        {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-primary" />}
-        {problem && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={problem} />}
-        <span className="ml-1 text-2xs uppercase opacity-50">{field.type}</span>
+      <th className={cn("min-w-[160px] border-b border-r border-border/60 px-3 py-2 font-medium text-muted-foreground", isNumeric(field) ? "text-right" : "text-left")}>
+        <span className={cn("inline-flex max-w-full items-center gap-1.5", isNumeric(field) && "flex-row-reverse")}>
+          <FieldTypeGlyph type={field.type} />
+          <span className="truncate">{field.name}</span>
+          {savedAiPrompt && <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Filled by AI" />}
+          {problem && <AlertTriangle className="h-3 w-3 shrink-0 text-destructive" aria-label={problem} />}
+        </span>
       </th>
     )
   }
 
   return (
-    <th className="min-w-[160px] border-r border-border/40 px-1 py-1 text-left font-medium text-muted-foreground">
+    <th className="min-w-[160px] border-b border-r border-border/60 px-1 py-1 text-left font-medium text-muted-foreground">
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
-          <button className="flex w-full items-center justify-between gap-1 rounded-md px-2 py-1 hover:bg-muted/50">
-            <span className="truncate">
-              {field.name}
-              {savedAiPrompt && <Sparkles className="ml-1 inline h-3 w-3 text-primary" />}
-              {problem && <AlertTriangle className="ml-1 inline h-3 w-3 text-destructive" aria-label={problem} />}
-              <span className="ml-1 text-2xs uppercase opacity-50">{field.type}</span>
-            </span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+          <button
+            className={cn(
+              "group/col flex w-full items-center gap-1.5 rounded-md px-2 py-1 transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              isNumeric(field) && "flex-row-reverse",
+            )}
+            aria-label={`${field.name}, ${fieldTypeLabel(field.type)} column. Edit column`}
+          >
+            <FieldTypeGlyph type={field.type} />
+            <span className="truncate">{field.name}</span>
+            {savedAiPrompt && <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Filled by AI" />}
+            {problem && <AlertTriangle className="h-3 w-3 shrink-0 text-destructive" aria-label={problem} />}
+            <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity group-hover/col:opacity-60 group-focus-visible/col:opacity-60", isNumeric(field) ? "mr-auto" : "ml-auto")} aria-hidden />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className={cn(isFormula || isRollup || isRelation ? "w-80" : "w-64", "p-3")} onCloseAutoFocus={(e) => e.preventDefault()}>
@@ -669,7 +716,8 @@ function Cell({
           type="checkbox"
           checked={!!value}
           onChange={(e) => onCommit(e.target.checked)}
-          className="h-4 w-4 rounded border-border"
+          aria-label={field.name}
+          className="h-4 w-4 rounded-sm border-border"
         />
       </div>
     )
@@ -681,9 +729,10 @@ function Cell({
       <select
         value={(value as string) || ""}
         onChange={(e) => onCommit(e.target.value)}
-        className="h-8 w-full bg-transparent px-2 text-sm outline-none"
+        aria-label={field.name}
+        className="h-8 w-full cursor-pointer appearance-none truncate bg-transparent px-2 text-sm outline-none focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
       >
-        <option value="">—</option>
+        <option value=""></option>
         {options.map((o) => (
           <option key={o.label} value={o.label}>
             {o.label}
@@ -705,12 +754,10 @@ function Cell({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex min-h-8 w-full flex-wrap items-center gap-1 px-2 py-1 text-left text-sm outline-none">
-            {selected.length === 0 ? (
-              <span className="text-muted-foreground">—</span>
-            ) : (
+          <button aria-label={`${field.name}: ${selected.length ? selected.join(", ") : "none chosen"}`} className="flex min-h-8 w-full flex-wrap items-center gap-1 px-2 py-1 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50">
+            {selected.length === 0 ? null : (
               selected.map((s) => (
-                <span key={s} className="rounded bg-primary/10 px-1.5 py-0.5 text-xs">
+                <span key={s} className="rounded-sm bg-muted px-1.5 py-0.5 text-xs">
                   {s}
                 </span>
               ))
@@ -764,17 +811,19 @@ function Cell({
             ? "url"
             : "text"
 
-  return <TextCell type={inputType} value={value} onCommit={onCommit} />
+  return <TextCell type={inputType} label={field.name} value={value} onCommit={onCommit} />
 }
 
 // TextCell is an uncontrolled-on-edit input that commits on blur / Enter,
 // keeping typing snappy without a round trip per keystroke.
 function TextCell({
   type,
+  label,
   value,
   onCommit,
 }: {
   type: string
+  label: string
   value: unknown
   onCommit: (value: unknown) => void
 }) {
@@ -801,7 +850,14 @@ function TextCell({
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur()
       }}
-      className={cn("h-8 w-full bg-transparent px-2 text-sm outline-none focus:bg-background")}
+      aria-label={label}
+      className={cn(
+        "h-8 w-full bg-transparent px-2 text-sm outline-none focus:bg-background focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+        type === "number" && "text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+        // A date picker's calendar glyph on every row is noise: it shows on the
+        // row under the pointer and on the focused cell.
+        type === "date" && "tabular-nums [&::-webkit-calendar-picker-indicator]:opacity-0 group-hover:[&::-webkit-calendar-picker-indicator]:opacity-50 focus:[&::-webkit-calendar-picker-indicator]:opacity-50",
+      )}
     />
   )
 }

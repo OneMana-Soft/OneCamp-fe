@@ -34,7 +34,7 @@ import { useDispatch, useSelector } from "react-redux"
 import { openRightPanel } from "@/store/slice/desktopRightPanelSlice"
 import { useMedia } from "@/context/MediaQueryContext"
 import { Drawer } from 'vaul'
-import { Image as ImageIcon, Users, Loader2, Check } from "@/lib/icons";
+import { Image as ImageIcon, Users, Loader2, Check, Sparkles, Maximize2, Minimize2 } from "@/lib/icons";
 import { CloudOff } from "lucide-react";
 import { DocAiAssistantPanel } from '@/components/ai/DocAiAssistantPanel'
 import { GetEndpointUrl } from "@/services/endPoints"
@@ -68,77 +68,79 @@ const SECTION_2_ACTIONS: ("italic" | "bold" | "underline" | "strikethrough" | "c
 const SECTION_4_ACTIONS: ("orderedList" | "bulletList")[] = ['bulletList', 'orderedList'];
 const SECTION_5_ACTIONS: ("codeBlock" | "blockquote" | "horizontalRule")[] = ['blockquote', 'codeBlock', 'horizontalRule'];
 
+const TOOLBAR_TEXT_BUTTON = cn(
+    "inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground",
+    "transition-colors hover:bg-accent hover:text-foreground",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+)
+
 const Toolbar = ({ editor, onAIClick, hasSelection }: { editor: Editor; onAIClick: () => void; hasSelection: boolean }) => (
     <div className="flex w-max items-center gap-px">
-            <SectionOne editor={editor} activeLevels={[1, 2, 3]} variant="outline" />
+            <SectionOne editor={editor} activeLevels={[1, 2, 3]} variant="default" />
 
-            <Separator orientation="vertical" className="mx-2 h-7" />
+            <Separator orientation="vertical" className="mx-1.5 h-5" />
 
             <SectionTwo
                 editor={editor}
                 activeActions={SECTION_2_ACTIONS}
                 mainActionCount={5}
-                variant="outline"
+                variant="default"
             />
 
-            <Separator orientation="vertical" className="mx-2 h-7" />
+            <Separator orientation="vertical" className="mx-1.5 h-5" />
 
-            <SectionThree editor={editor} variant="outline" />
+            <SectionThree editor={editor} variant="default" />
 
-            <Separator orientation="vertical" className="mx-2 h-7" />
+            <Separator orientation="vertical" className="mx-1.5 h-5" />
 
             <SectionFour
                 editor={editor}
                 activeActions={SECTION_4_ACTIONS}
                 mainActionCount={2}
-                variant="outline"
+                variant="default"
             />
 
-            <Separator orientation="vertical" className="mx-2 h-7" />
+            <Separator orientation="vertical" className="mx-1.5 h-5" />
 
             <SectionFive
                 editor={editor}
                 activeActions={SECTION_5_ACTIONS}
                 mainActionCount={3}
-                variant="outline"
+                variant="default"
             />
 
-            <Separator orientation="vertical" className="mx-2 h-7" />
+            <Separator orientation="vertical" className="mx-1.5 h-5" />
 
             <button
                 onClick={(e) => {
                     e.preventDefault();
                     editor.chain().focus().toggleImage().run();
                 }}
-                className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                    "bg-background border border-border hover:border-primary/40 hover:bg-accent",
-                    "text-muted-foreground hover:text-foreground"
-                )}
+                className={TOOLBAR_TEXT_BUTTON}
+                aria-label="Insert image"
                 title="Insert image"
                 type="button"
             >
-                <ImageIcon className="size-4" />
+                <ImageIcon className="size-4" aria-hidden="true" />
                 <span>Image</span>
             </button>
 
-            <Separator orientation="vertical" className="mx-2 h-7" />
+            <Separator orientation="vertical" className="mx-1.5 h-5" />
 
+            {/* The AI action is a toolbar control like the rest: one accent per
+                view belongs to the page's primary action, and a tinted pill with
+                an emoji was the loudest thing on a page meant for reading. */}
             <button
                 onClick={(e) => {
                     e.preventDefault();
                     onAIClick();
                 }}
-                className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                    "bg-primary/10 border border-primary/20 hover:border-primary/40",
-                    "text-primary hover:text-primary/80",
-                    "hover:bg-primary/20"
-                )}
-                title={hasSelection ? "AI: Transform selected text" : "AI: Write with AI"}
+                className={TOOLBAR_TEXT_BUTTON}
+                title={hasSelection ? "Rewrite the selected text with AI" : "Write with AI"}
+                type="button"
             >
-            <span className="text-sm">✨</span>
-            <span>AI</span>
+                <Sparkles className="size-4" aria-hidden="true" />
+                <span>{hasSelection ? "Rewrite" : "Write with AI"}</span>
             </button>
         </div>
 )
@@ -175,7 +177,7 @@ const SaveStatusIndicator = ({ status, lastSavedAt }: { status?: SaveStatus; las
             )
         case 'offline':
             return (
-                <span className="flex items-center gap-1 text-primary-foreground0">
+                <span className="flex items-center gap-1 text-warning">
                     <CloudOff className="size-3" />
                     <span className="text-2xs font-medium">Offline</span>
                 </span>
@@ -563,7 +565,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                     className="w-full relative flex-1 min-h-0 overflow-y-auto overflow-x-clip cursor-text"
                 >
                     <div 
-                        className={cn("w-full min-h-full flex flex-col", !isFullWidth && "max-w-3xl mx-auto")}
+                        className={cn("w-full min-h-full flex flex-col", !isFullWidth && "doc-measure mx-auto")}
                     >
                         {title !== undefined && (
                             <>
@@ -577,16 +579,12 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                                     placeholder="Untitled"
                                     rows={1}
                                     className={cn(
-                                        "w-full resize-none overflow-hidden bg-transparent font-bold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 border-none leading-tight tracking-tight cursor-text",
-                                        "pt-6 pb-4",
+                                        "w-full resize-none overflow-hidden bg-transparent font-display font-semibold text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 border-none leading-tight tracking-[-0.02em] text-balance cursor-text",
+                                        "pt-10 pb-2",
                                         isFullWidth ? "px-4 md:px-12" : "px-4 md:px-8",
-                                        "text-[1.75rem] md:text-[2.5rem]"
+                                        "text-[1.75rem] md:text-[2rem]"
                                     )}
                                 />
-                                {/* Subtle divider after title */}
-                                <div className={cn("w-full", isFullWidth ? "px-4 md:px-12" : "px-4 md:px-8")}>
-                                    <div className="w-full h-px bg-border/30" />
-                                </div>
                             </>
                         )}
                         {/* Until the live copy arrives (the first sync over the
@@ -619,7 +617,7 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
 
                 {/* Footer — fixed at bottom */}
                 <div className="shrink-0 z-10 bg-background border-t border-border w-full">
-                    <div className="max-w-3xl mx-auto px-3 py-1.5 flex items-center justify-between text-2xs text-muted-foreground select-none">
+                    <div className={cn("mx-auto flex items-center justify-between gap-3 px-4 py-1.5 text-2xs tabular-nums text-muted-foreground select-none md:px-8", isFullWidth ? "max-w-none" : "doc-measure")}>
                         <div className="hidden sm:flex items-center gap-3">
                             <span>{wordCount} word{wordCount !== 1 ? 's' : ''}</span>
                             <span>{charCount} character{charCount !== 1 ? 's' : ''}</span>
@@ -669,11 +667,12 @@ const MinimalTiptapDocInput = React.forwardRef<HTMLDivElement, MinimalTiptapProp
                             )}
                             <button
                                 onClick={() => setIsFullWidth(!isFullWidth)}
-                                className="hidden sm:block hover:text-foreground transition-colors"
-                                title={isFullWidth ? 'Narrow width' : 'Full width'}
+                                className="hidden sm:inline-flex size-6 items-center justify-center rounded-sm hover:bg-accent hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                aria-label={isFullWidth ? 'Reading width' : 'Full width'}
+                                title={isFullWidth ? 'Reading width' : 'Full width'}
                                 type="button"
                             >
-                                {isFullWidth ? '⊡' : '⊞'}
+                                {isFullWidth ? <Minimize2 className="size-3.5" aria-hidden="true" /> : <Maximize2 className="size-3.5" aria-hidden="true" />}
                             </button>
                         </div>
                     </div>

@@ -7,22 +7,22 @@
 }
 
 .minimal-tiptap-editor .ProseMirror h1 {
-  @apply mb-4 mt-8 text-3xl leading-tight tracking-tight;
-  font-weight: 700;
+  @apply mb-3 mt-8 text-2xl leading-tight;
+  font-weight: 600;
 }
 
 .minimal-tiptap-editor .ProseMirror h2 {
-  @apply mb-3 mt-6 text-2xl leading-snug tracking-tight;
+  @apply mb-2 mt-7 text-xl leading-snug;
   font-weight: 600;
 }
 
 .minimal-tiptap-editor .ProseMirror h3 {
-  @apply mb-2 mt-5 text-xl leading-snug tracking-tight;
+  @apply mb-2 mt-6 text-lg leading-snug;
   font-weight: 600;
 }
 
 .minimal-tiptap-editor .ProseMirror h4 {
-  @apply mb-2 mt-4 text-lg leading-snug;
+  @apply mb-2 mt-4 text-base leading-snug;
   font-weight: 600;
 }
 
@@ -38,6 +38,11 @@
 
 .minimal-tiptap-editor .ProseMirror p {
   @apply leading-relaxed;
+  text-wrap: pretty;
+}
+
+.minimal-tiptap-editor .ProseMirror :is(h1, h2, h3, h4) {
+  text-wrap: balance;
 }
 
 /* A link in a message, whether an editor renders it (a.link) or the static

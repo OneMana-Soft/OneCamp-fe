@@ -4,7 +4,7 @@ import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useFetch } from "@/hooks/useFetch"
 import { Button } from "@/components/ui/button"
-import { Loader2, ArrowLeft, Globe, Lock, LayoutGrid, Kanban, CalendarDays, BarChart3, Sparkles, Share2 } from "@/lib/icons"
+import { Loader2, ArrowLeft, Globe, Lock, LayoutGrid, Kanban, CalendarDays, BarChart3, LayoutTemplate, Share2 } from "@/lib/icons"
 import { cn } from "@/lib/utils/helpers/cn"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { GuestLinkSection } from "@/components/guest/GuestLinkSection"
@@ -187,42 +187,46 @@ export default function TableDetailPage() {
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-6">
-      <div className="mb-4 flex items-center gap-2">
-        <Button variant="ghost" size="icon" aria-label="Back to tables" className="h-8 w-8" onClick={() => router.push("/app/tables")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <TableGlyph size="lg" icon={t.icon} />
-        {bundle.can_manage ? (
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={commitName}
-            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-            className="flex-1 bg-transparent text-xl font-semibold outline-none focus:border-b focus:border-border"
-            maxLength={120}
-          />
-        ) : (
-          <h1 className="flex-1 text-xl font-semibold">{t.name}</h1>
-        )}
-        {bundle.can_manage && (
-          <Button variant="outline" size="sm" onClick={toggleVisibility} className="gap-1.5">
-            {t.visibility === "workspace" ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-            {t.visibility === "workspace" ? "Workspace" : "Private"}
+      {/* The title row wraps on a phone: the name keeps the first line and the
+          table's actions drop below it, icon-only, instead of running off the
+          right edge. */}
+      <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-3">
+        <div className="flex min-w-0 flex-1 basis-64 items-center gap-2">
+          <Button variant="ghost" size="icon" aria-label="Back to tables" className="h-8 w-8 shrink-0" onClick={() => router.push("/app/tables")}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
-        )}
+          <TableGlyph size="lg" icon={t.icon} />
+          {bundle.can_manage ? (
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+              aria-label="Table name"
+              className="min-w-0 flex-1 truncate bg-transparent font-display text-2xl font-semibold outline-none focus:border-b focus:border-border"
+              maxLength={120}
+            />
+          ) : (
+            <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold">{t.name}</h1>
+          )}
+        </div>
         {bundle.can_manage && (
-          <Button variant="outline" size="sm" onClick={() => setSharing(true)} className="gap-1.5" title="Share externally">
-            <Share2 className="h-3.5 w-3.5" /> Share
-          </Button>
-        )}
-        {bundle.can_manage && (
-          <Button variant="outline" size="sm" onClick={() => setPublishing(true)} className="gap-1.5" title="Save as template">
-            <Sparkles className="h-3.5 w-3.5" /> Publish
-          </Button>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <Button variant="ghost" size="sm" onClick={toggleVisibility} className="gap-1.5 text-muted-foreground" aria-label={t.visibility === "workspace" ? "Visible to the workspace" : "Private to you"}>
+              {t.visibility === "workspace" ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">{t.visibility === "workspace" ? "Workspace" : "Private"}</span>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setPublishing(true)} className="gap-1.5 text-muted-foreground" aria-label="Save as template" title="Save as template">
+              <LayoutTemplate className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Publish</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSharing(true)} className="gap-1.5" aria-label="Share" title="Share externally">
+              <Share2 className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Share</span>
+            </Button>
+          </div>
         )}
       </div>
 
-      <div className="mb-3 flex items-center gap-1 border-b border-border/60">
+      <div className="mb-3 flex items-center gap-1 overflow-x-auto border-b border-border/60">
         {VIEW_TABS.map((tab) => {
           const Icon = tab.icon
           return (
@@ -230,7 +234,7 @@ export default function TableDetailPage() {
               key={tab.type}
               onClick={() => setActiveView(tab.type)}
               className={cn(
-                "flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-sm transition-colors",
+                "flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-1.5 text-sm transition-colors",
                 activeView === tab.type
                   ? "border-primary font-medium text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground",
@@ -242,7 +246,7 @@ export default function TableDetailPage() {
         })}
       </div>
 
-      <div className="rounded-xl border border-border/60">
+      <div className="rounded-lg border border-border/60">
         {activeView !== "chart" && (
           <ViewRulesBar
             fields={[...fields].sort((a, b) => a.position - b.position)}
