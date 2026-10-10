@@ -1,18 +1,18 @@
 // src/components/channel/ChannelMessages.tsx
 import { withContinuation } from "@/lib/messageGrouping"
-import { useEffect, useMemo, useRef, useCallback} from "react";
+import { useEffect, useMemo, useRef, useCallback, useState} from "react";
 import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
 import type {ChatTarget} from "@/lib/chat/conversation";
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import {groupByDate} from "@/lib/utils/date/groupByDate";
 import {getGroupDateHeading} from "@/lib/utils/date/getMessageGroupDate";
-import {FlatItem} from "@/types/virtual";
+import {FlatItem, RowMeta} from "@/types/virtual";
 import {useMedia} from "@/context/MediaQueryContext";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import {usePost} from "@/hooks/usePost";
 import {CreateOrUpdateChatReaction} from "@/types/reaction";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {useDispatch, useSelector} from "react-redux";
+import {useDispatch, useSelector, useStore} from "react-redux";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import {openUI} from "@/store/slice/uiSlice";
@@ -29,6 +29,7 @@ import {updateChatScrollPosition, RemoveMessageFromChatList, UpdateMessageTextIn
 import {GroupChatMessage} from "@/components/groupChat/groupChatMessage";
 import {ScrollToBottom} from "@/store/slice/channelSlice";
 import {GroupChatMessageMobile} from "@/components/groupChat/groupChatMessageMobile";
+import { useStableCallback } from "@/hooks/useStableCallback";
 
 
 interface ChannelMessagesProps {
@@ -59,7 +60,8 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
 
     const channelScrollToBottom = useSelector((state: RootState) => state.groupChat.chatScrollToBottom[grpId] || EMPTY_SCROLL_TO_BOTTOM);
 
-    const createOrUpdateReaction = (messageId: string, emojiId:string, reactionId:string)=> {
+    // Stable for the life of the conversation, so the memoised rows stay put.
+    const createOrUpdateReaction = useStableCallback((messageId: string, emojiId:string, reactionId:string)=> {
         if(!messageId) return
 
         let tempId = ""
@@ -131,9 +133,9 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                     dispatch(removeGroupChatReactionByChatId({ grpId, messageId, reactionId: tempId}))
                 }
             })
-    }
+    })
 
-    const removeReaction = (messageId: string, reactionId:string) => {
+    const removeReaction = useStableCallback((messageId: string, reactionId:string) => {
          // Handle Race Condition
         if (reactionId.startsWith("temp-")) {
             pendingReactionDeletes.current.add(reactionId)
@@ -168,7 +170,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                     }))
                 }
             })
-    }
+    })
 
     const executeDeleteChat = (messageId: string) => {
 
@@ -196,7 +198,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
 
     }
 
-    const handleUpdateChat = (postHTMLText: string, messageId: string) => {
+    const handleUpdateChat = useStableCallback((postHTMLText: string, messageId: string) => {
 
         post.makeRequest<CreateOrUpdateChatsReq>({
             apiEndpoint: PostEndpointUrl.UpdateGroupChatMessage,
@@ -225,10 +227,10 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
 
             })
         
-    }
+    })
 
 
-    const handleDeleteChat = (messageId: string) => {
+    const handleDeleteChat = useStableCallback((messageId: string) => {
 
         if(!messageId) return
 
@@ -245,7 +247,7 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
             }));
         }, 500);
 
-    }
+    })
 
     const groupedChats = useMemo(() => {
         try {
@@ -269,15 +271,12 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
     // Read receipts: whose they are (a DM by the other person, a group by its id).
     const receiptTarget = useMemo<ChatTarget>(() => ({ kind: "group", grpId }), [grpId]);
 
-    const renderItem = (chat: ChatInfo, index: number, total: number, continued?: boolean) => {
-        const isPriority = index >= total - 5;
-        return (
-        <div >
+    const renderItem = useCallback((chat: ChatInfo, { priority, isLast, continued }: RowMeta) => (
+        <div>
             {isMobile ?
                 <TouchableDiv
                     rippleBrightness={0.8}
                     rippleDuration={800}
-
                 >
                     <GroupChatMessageMobile
                         chatInfo={chat}
@@ -285,11 +284,9 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                         addReaction={(emojiId:string, reactionId:string)=>{createOrUpdateReaction(chat.chat_uuid, emojiId, reactionId)}}
                         removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
                         updateChat={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
-                        priority={isPriority}
-                    continued={continued}
+                        priority={priority}
+                        continued={continued}
                         grpId={grpId}
-
-
                     />
                 </TouchableDiv>
                 :
@@ -300,13 +297,13 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
                     removePost={()=>{handleDeleteChat(chat.chat_uuid)}}
                     updatePost={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
                     grpId={grpId}
-                    priority={isPriority}
+                    priority={priority}
                     continued={continued}
                 />
             }
-            {index === total - 1 && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
+            {isLast && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
         </div>
-    )};
+    ), [isMobile, grpId, hasMoreNewMsg, receiptTarget, handleDeleteChat, createOrUpdateReaction, removeReaction, handleUpdateChat]);
 
     const containerRef = useRef<VListHandle>(null);
 
@@ -327,7 +324,10 @@ export const GroupChatMessages = ({ chats, clickedScrollToBottom, grpId,  hasMor
     }
 
 
-    const scrollPosition = useSelector((state: RootState) => state.chat.chatScrollPositions[grpId])
+    // Where the reader left this conversation, read once on opening: it is
+    // written on every scroll, and subscribing re-rendered the list each time.
+    const store = useStore<RootState>()
+    const [scrollPosition] = useState(() => store.getState().chat.chatScrollPositions[grpId])
 
     const initialIndex = useMemo(() => {
         if (!scrollPosition?.key) {

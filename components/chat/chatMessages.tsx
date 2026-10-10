@@ -1,19 +1,18 @@
 // src/components/channel/ChannelMessages.tsx
 import { withContinuation } from "@/lib/messageGrouping"
-import { displayNameOf } from "@/lib/personName"
-import { useCallback, useEffect, useMemo, useRef} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {SeenReceiptLine} from "@/components/chat/SeenReceiptLine";
 import type {ChatTarget} from "@/lib/chat/conversation";
 import { debounceUtil } from "@/lib/utils/helpers/debounce";
 import {groupByDate} from "@/lib/utils/date/groupByDate";
 import {getGroupDateHeading} from "@/lib/utils/date/getMessageGroupDate";
-import {FlatItem} from "@/types/virtual";
+import {FlatItem, RowMeta} from "@/types/virtual";
 import {useMedia} from "@/context/MediaQueryContext";
 import TouchableDiv from "@/components/animation/touchRippleAnimation";
 import {usePost} from "@/hooks/usePost";
 import {CreateOrUpdateChatReaction} from "@/types/reaction";
 import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
-import {useDispatch, useSelector} from "react-redux";
+import {useDispatch, useSelector, useStore} from "react-redux";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
 import {UserProfileInterface} from "@/types/user";
 import { openUI } from "@/store/slice/uiSlice";
@@ -29,9 +28,10 @@ import {
 import {ChatInfo, CreateOrUpdateChatsReq} from "@/types/chat";
 import {ChatMessageMobile} from "@/components/chat/chatMessageMobile";
 import {ChatMessage} from "@/components/chat/chatMessage";
-import {updateUserInfoStatus} from "@/store/slice/userSlice";
 import {getGroupingId} from "@/lib/utils/getGroupingId";
 import {removeEmptyPTags} from "@/lib/utils/removeEmptyPTags";
+import { useStableCallback } from "@/hooks/useStableCallback";
+import { useAuthorsSeen } from "@/components/message/useAuthorsSeen";
 
 // Stable empty object reference to prevent unnecessary re-renders
 const EMPTY_SCROLL_TO_BOTTOM = { shouldScrollToBottom: false } as const;
@@ -84,24 +84,11 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
         [channelScrollToBottom]
     );
 
-    useEffect(() => {
-        const uniqueUsers = new Set(chats.map((chat) => chat.chat_from?.user_uuid).filter(Boolean))
-        uniqueUsers.forEach((userUUID) => {
-            const userChat = chats.find((c) => c.chat_from?.user_uuid === userUUID)
-            if (userChat?.chat_from && userChat?.chat_from.user_uuid != selfProfile.data?.data.user_uuid) {
-                dispatch(
-                    updateUserInfoStatus({
-                        userUUID: userChat?.chat_from.user_uuid || "",
-                        profileKey: userChat?.chat_from.user_profile_object_key || "",
-                        userName: displayNameOf(userChat?.chat_from) || "",
-                        status: userChat?.chat_from.user_status || "",
-                    }),
-                )
-            }
-        })
-    }, [chats, dispatch])
+    // Who wrote what is on screen, told to the store once per person.
+    useAuthorsSeen(chats, (c) => c.chat_from, selfProfile.data?.data.user_uuid)
 
-    const createOrUpdateReaction = (messageId: string, emojiId:string, reactionId:string)=> {
+    // Stable for the life of the conversation, so the memoised rows stay put.
+    const createOrUpdateReaction = useStableCallback((messageId: string, emojiId:string, reactionId:string)=> {
         if(!messageId) return
 
         let tempId = ""
@@ -173,9 +160,9 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                     dispatch(removeChatReactionByChatId({ chatId, messageId, reactionId: tempId}))
                 }
             })
-    }
+    })
 
-    const removeReaction = (messageId: string, reactionId:string) => {
+    const removeReaction = useStableCallback((messageId: string, reactionId:string) => {
          // Handle Race Condition
         if (reactionId.startsWith("temp-")) {
             pendingReactionDeletes.current.add(reactionId)
@@ -210,7 +197,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                     }))
                 }
             })
-    }
+    })
 
     const executeDeleteChat = (messageId: string) => {
         // Store for revert
@@ -257,7 +244,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
 
     }
 
-    const handleUpdateChat = (postHTMLText: string, messageId: string) => {
+    const handleUpdateChat = useStableCallback((postHTMLText: string, messageId: string) => {
         // Trim leading/trailing empty paragraphs and whitespace before sending.
         const trimmedHtml = removeEmptyPTags(postHTMLText)
         if (!trimmedHtml) return
@@ -303,11 +290,10 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                 // Revert
                 dispatch(updateChatByChatId({ chatId, messageId, htmlText: originalText }));
             })
-        
-    }
+    })
 
 
-    const handleDeleteChat = (messageId: string) => {
+    const handleDeleteChat = useStableCallback((messageId: string) => {
 
         if(!messageId) return
 
@@ -323,8 +309,7 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                 }
             }));
         }, 500);
-
-    }
+    })
 
     const groupedChats = useMemo(() => {
         try {
@@ -348,15 +333,12 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     // Read receipts: whose they are (a DM by the other person, a group by its id).
     const receiptTarget = useMemo<ChatTarget>(() => ({ kind: "dm", otherUUID: chatId }), [chatId]);
 
-    const renderItem = useCallback((chat: ChatInfo, index: number, total: number, continued?: boolean) => {
-        const isPriority = index >= total - 5;
-        return (
-        <div >
+    const renderItem = useCallback((chat: ChatInfo, { priority, isLast, continued }: RowMeta) => (
+        <div>
             {isMobile ?
                 <TouchableDiv
                     rippleBrightness={0.8}
                     rippleDuration={800}
-
                 >
                     <ChatMessageMobile
                         chatInfo={chat}
@@ -364,9 +346,8 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                         addReaction={(emojiId:string, reactionId:string)=>{createOrUpdateReaction(chat.chat_uuid, emojiId, reactionId)}}
                         removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
                         updateChat={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
-                        priority={isPriority}
-                    continued={continued}
-
+                        priority={priority}
+                        continued={continued}
                     />
                 </TouchableDiv>
                 :
@@ -376,13 +357,13 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
                     removeReaction={(reactionId: string)=>{ removeReaction(chat.chat_uuid, reactionId)}}
                     removePost={()=>{handleDeleteChat(chat.chat_uuid)}}
                     updatePost={(body: string)=>{handleUpdateChat(body, chat.chat_uuid)}}
-                    priority={isPriority}
+                    priority={priority}
                     continued={continued}
                 />
             }
-            {index === total - 1 && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
+            {isLast && !hasMoreNewMsg && <SeenReceiptLine target={receiptTarget} latest={chat} />}
         </div>
-    )}, [isMobile, selfProfile.data?.data, chatId, hasMoreNewMsg, receiptTarget]);
+    ), [isMobile, hasMoreNewMsg, receiptTarget, handleDeleteChat, createOrUpdateReaction, removeReaction, handleUpdateChat]);
 
     const containerRef = useRef<VListHandle>(null);
 
@@ -402,7 +383,10 @@ export const ChatMessages = ({ chats, clickedScrollToBottom, chatId,  hasMoreNew
     }
 
 
-    const scrollPosition = useSelector((state: RootState) => state.chat.chatScrollPositions[chatId])
+    // Where the reader left this conversation, read once on opening: it is
+    // written on every scroll, and subscribing re-rendered the list each time.
+    const store = useStore<RootState>()
+    const [scrollPosition] = useState(() => store.getState().chat.chatScrollPositions[chatId])
 
     const initialIndex = useMemo(() => {
         if (!scrollPosition?.key) {

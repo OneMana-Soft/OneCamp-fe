@@ -5,11 +5,11 @@ import {GetEndpointUrl} from "@/services/endPoints";
 import {useDispatch, useSelector} from "react-redux";
 import {RootState} from "@/store/store";
 import { CreatePostPaginationResRaw, PostsRes} from "@/types/post";
-import {memo, useEffect, useState, useMemo} from "react";
+import {memo, useEffect, useState} from "react";
 import {updateChannelPosts, updateChannelScrollToBottom, mergeChannelPosts} from "@/store/slice/channelSlice";
 import {ChannelMessages} from "@/components/channel/channelMessages";
 import {useMessageResync} from "@/hooks/useMessageResync";
-import {TypingIndicatorBar} from "@/components/typingIndicator/typingIndicatorBar";
+import {ChannelTypingBar} from "@/components/typingIndicator/typingIndicatorBar";
 import {ChatLoadingSkeleton} from "@/components/chat/ChatLoadingSkeleton";
 import {useSearchParams} from "next/navigation";
 import {useMedia} from "@/context/MediaQueryContext";
@@ -21,8 +21,6 @@ interface ChannelMessageListProps {
 }
 
 const EMPTY_POSTS: PostsRes[] = []
-
-const EMPTY_TYPING_LIST: any[] = []
 
 // Memoised: its props are ids, so a parent re-rendering for another reason
 // (the composer's draft changes on every keystroke) never re-renders every
@@ -39,9 +37,6 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
     // revalidates a cached key on mount and on switch (revalidateIfStale). An
     // explicit mutate() here used to do it a second time, so every channel
     // opened with two identical requests for its latest posts.
-
-    const rawChannelTyping = useSelector((state: RootState) => state.typing.channelTyping[channelId] || EMPTY_TYPING_LIST);
-    const channelTypingState = useMemo(() => rawChannelTyping.map(item => item.user), [rawChannelTyping]);
 
     const channelPostState = useSelector((state: RootState) => state.channel.channelPosts[channelId] || EMPTY_POSTS);
 
@@ -200,7 +195,7 @@ export const ChannelMessageList = memo(function ChannelMessageList({channelId, p
                 isAdmin={isAdmin}
             />
 
-            <TypingIndicatorBar users={channelTypingState} />
+            <ChannelTypingBar channelId={channelId} />
 
         </div>
     )

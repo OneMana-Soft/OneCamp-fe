@@ -1,7 +1,10 @@
 "use client"
 
+import { useMemo } from "react"
+import { useSelector } from "react-redux"
 import { TypingIndicator } from "@/components/typingIndicator/typyingIndicaator"
 import type { UserProfileDataInterface } from "@/types/user"
+import type { RootState } from "@/store/store"
 
 interface TypingIndicatorBarProps {
     users: UserProfileDataInterface[]
@@ -31,4 +34,36 @@ export function TypingIndicatorBar({ users }: TypingIndicatorBarProps) {
             <TypingIndicator users={users} />
         </div>
     )
+}
+
+type Typing = RootState["typing"]["channelTyping"][string]
+
+// The same people typing, in the same order: nothing to redraw.
+const sameTypers = (a: Typing | undefined, b: Typing | undefined) =>
+    a === b || (!!a && !!b && a.length === b.length && a.every((t, i) => t.userId === b[i]?.userId))
+
+const NOBODY: Typing = []
+
+function useTypers(select: (state: RootState) => Typing | undefined) {
+    const typing = useSelector(select, sameTypers) || NOBODY
+    return useMemo(() => typing.map((t) => t.user), [typing])
+}
+
+// Each conversation's bar reads who is typing itself. The message lists used
+// to, so every "started typing" and "stopped typing" re-rendered the list that
+// holds the whole conversation.
+
+export function ChannelTypingBar({ channelId }: { channelId: string }) {
+    const users = useTypers((s) => s.typing.channelTyping[channelId])
+    return <TypingIndicatorBar users={users} />
+}
+
+export function ChatTypingBar({ chatId }: { chatId: string }) {
+    const users = useTypers((s) => s.typing.chatTyping[chatId])
+    return <TypingIndicatorBar users={users} />
+}
+
+export function GroupChatTypingBar({ grpId }: { grpId: string }) {
+    const users = useTypers((s) => s.typing.groupChatTyping[grpId])
+    return <TypingIndicatorBar users={users} />
 }
