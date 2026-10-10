@@ -116,6 +116,10 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
     // description of the workspace rather than a rendering decision.
     if (!shouldShowChecklist(isAdmin, hidden, state)) return null
 
+    // The one step to do now: the first open one. It says "Start" in words, so
+    // a new admin is never left choosing between five equal rows.
+    const nextId = state.steps.find((s) => !s.done && !s.skipped)?.id
+
     return (
         <Card className="p-5">
             <div className="flex items-start justify-between gap-4">
@@ -176,7 +180,14 @@ const SetupChecklist: React.FC<Props> = ({ isAdmin }) => {
                                         {step.detail}
                                     </span>
                                 </span>
-                                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 pointer-events-none transition-opacity group-hover:opacity-100" />
+                                {step.id === nextId ? (
+                                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-brand-text">
+                                        Start
+                                        <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                                    </span>
+                                ) : (
+                                    <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 pointer-events-none transition-opacity group-hover:opacity-100" />
+                                )}
                             </Link>
                         )}
                         {/* OUTSIDE the Link, not inside it. A button nested in an

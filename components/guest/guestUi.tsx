@@ -127,10 +127,12 @@ export function GuestNameForm({ onName }: { onName: (name: string) => void }) {
         e.preventDefault()
         if (draft.trim()) onName(draft.trim())
       }}
-      className="flex gap-2 border-t p-3"
+      className="border-t p-3"
     >
-      <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Your name, as the team will see it" aria-label="Your name" maxLength={GUEST_NAME_MAX} autoFocus />
-      <Button type="submit" disabled={!draft.trim()}>Continue</Button>
+      <div className="mx-auto flex w-full max-w-3xl gap-2">
+        <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Your name, as the team will see it" aria-label="Your name" autoComplete="name" maxLength={GUEST_NAME_MAX} autoFocus />
+        <Button type="submit" disabled={!draft.trim()}>Continue</Button>
+      </div>
     </form>
   )
 }
@@ -163,7 +165,7 @@ export function GuestComposer({ placeholder, onSend, name, onRename }: { placeho
   }
   return (
     <div className="border-t p-3">
-      <div className="flex items-end gap-2">
+      <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -183,9 +185,9 @@ export function GuestComposer({ placeholder, onSend, name, onRename }: { placeho
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
-      {error && <p role="alert" className="mt-1 text-xs text-destructive">{error}</p>}
+      {error && <p role="alert" className="mx-auto mt-1 max-w-3xl text-xs text-destructive">{error}</p>}
       {name && onRename && (
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mx-auto mt-1 max-w-3xl text-xs text-muted-foreground">
           Posting as {name} (guest).{" "}
           <button type="button" className="underline" onClick={onRename}>Change</button>
         </p>
@@ -206,7 +208,7 @@ export function GuestLinkGone({ detail = "It may have expired or been turned off
   return (
     <GuestCentered>
       <AlertCircle className="h-8 w-8 text-muted-foreground" />
-      <p className="text-base font-semibold">This link is no longer available</p>
+      <h1 className="text-base font-semibold">This link is no longer available</h1>
       <p className="max-w-sm text-sm text-muted-foreground">{detail}</p>
     </GuestCentered>
   )
