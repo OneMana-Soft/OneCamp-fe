@@ -71,6 +71,11 @@ const formatActions: TextStyle[] = [
   }
 ]
 
+// Built once: ToolbarSection is memoised, and an icon or list made in render
+// is a new prop every time, which re-rendered it anyway.
+const DROPDOWN_ICON = <MoreHorizontal className="size-4" strokeWidth={1.75} />
+const ALL_ACTIONS = formatActions.map(action => action.value)
+
 interface SectionTwoProps extends VariantProps<typeof toggleVariants> {
   editor: Editor
   activeActions?: TextStyleAction[]
@@ -79,7 +84,7 @@ interface SectionTwoProps extends VariantProps<typeof toggleVariants> {
 
 export const SectionTwo: React.FC<SectionTwoProps> = ({
   editor,
-  activeActions = formatActions.map(action => action.value),
+  activeActions = ALL_ACTIONS,
   mainActionCount = 2,
   size,
   variant
@@ -90,7 +95,7 @@ export const SectionTwo: React.FC<SectionTwoProps> = ({
       actions={formatActions}
       activeActions={activeActions}
       mainActionCount={mainActionCount}
-      dropdownIcon={<MoreHorizontal className="size-4" strokeWidth={1.75} />}
+      dropdownIcon={DROPDOWN_ICON}
       dropdownTooltip="More formatting"
       dropdownClassName="w-8"
       size={size}
