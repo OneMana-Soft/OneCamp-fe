@@ -12,10 +12,10 @@
  */
 
 import { useMemo, useState } from "react"
-import { Label } from "@/components/ui/label"
+import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils/helpers/cn"
-import { SaveBar, SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
+import { SaveBar, SettingRow, SettingsList, SettingsSection, SwitchRow } from "@/components/ui/settingsSection"
 import { ErrorState } from "@/components/ui/error-state"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useFetch } from "@/hooks/useFetch"
@@ -263,35 +263,39 @@ export function NotificationPreferencesCard() {
           />
         </SettingsList>
 
-        {/* A choice of one, so a group of radio-like toggles rather than three primary buttons. */}
-        <div className="space-y-2 pt-2">
-          <p id="digest-label" className="text-sm font-medium">Activity digest</p>
-          <div role="radiogroup" aria-labelledby="digest-label" className="inline-flex gap-1 rounded-md bg-muted p-1">
-            {(["off", "daily", "weekly"] as const).map((opt) => {
-              const on = working.email_digest_frequency === opt
-              return (
-                <button
+        {/* A choice of one, as a radio group the arrow keys move through, in
+            the house segmented look; a row of the list like every setting. */}
+        <SettingsList>
+          <SettingRow
+            label="Activity digest"
+            controlId="digest"
+            description="A summary of your open items: overdue commitments and unanswered questions OneCamp's AI picked up from your meetings, channels and projects. Weekly digests arrive on Mondays."
+          >
+            <RadioGroupPrimitive.Root
+              id="digest"
+              value={working.email_digest_frequency}
+              onValueChange={(v) => setField("email_digest_frequency", v as Preferences["email_digest_frequency"])}
+              orientation="horizontal"
+              disabled={masterOff || saving}
+              aria-label="Activity digest"
+              aria-describedby="digest-desc"
+              className="inline-flex gap-0.5 rounded-md bg-muted p-0.5"
+            >
+              {(["off", "daily", "weekly"] as const).map((opt) => (
+                <RadioGroupPrimitive.Item
                   key={opt}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  disabled={masterOff || saving}
-                  onClick={() => setField("email_digest_frequency", opt)}
+                  value={opt}
                   className={cn(
-                    "h-8 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50",
-                    on ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
+                    "inline-flex h-7 items-center rounded-sm px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 disabled:opacity-50",
+                    "data-[state=checked]:bg-card data-[state=checked]:text-foreground data-[state=checked]:ring-1 data-[state=checked]:ring-border",
                   )}
                 >
                   {opt === "off" ? "Off" : opt === "daily" ? "Daily" : "Weekly"}
-                </button>
-              )
-            })}
-          </div>
-          <p className="max-w-[65ch] text-xs text-muted-foreground text-pretty">
-            A summary of your open items: overdue commitments and unanswered questions OneCamp&apos;s AI picked up from
-            your meetings, channels and projects. Weekly digests arrive on Mondays.
-          </p>
-        </div>
+                </RadioGroupPrimitive.Item>
+              ))}
+            </RadioGroupPrimitive.Root>
+          </SettingRow>
+        </SettingsList>
       </SettingsSection>
 
       <SettingsSection
@@ -305,38 +309,42 @@ export function NotificationPreferencesCard() {
             disabled={saving}
             onChange={(v) => setField("quiet_hours_enabled", v)}
           />
+          {/* Each time is a row of the list, its control at the row's end at
+              the rows' one height: they were a three-column block at a
+              spacing of its own. */}
           {working.quiet_hours_enabled && (
-            <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="qh_start">From</Label>
+            <>
+              <SettingRow label="From" controlId="qh_start">
                 <Input
                   id="qh_start"
                   type="time"
+                  className="h-8 w-36"
                   value={working.quiet_hours_start || ""}
                   onChange={(e) => setField("quiet_hours_start", e.target.value)}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="qh_end">Until</Label>
+              </SettingRow>
+              <SettingRow label="Until" controlId="qh_end">
                 <Input
                   id="qh_end"
                   type="time"
+                  className="h-8 w-36"
                   value={working.quiet_hours_end || ""}
                   onChange={(e) => setField("quiet_hours_end", e.target.value)}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="qh_tz">Time zone</Label>
+              </SettingRow>
+              <SettingRow label="Time zone" controlId="qh_tz" description="The clock your quiet hours follow.">
                 <Input
                   id="qh_tz"
+                  className="h-8 w-56"
+                  aria-describedby="qh_tz-desc"
                   placeholder={browserTZ()}
                   value={working.quiet_hours_tz || ""}
                   onChange={(e) => setField("quiet_hours_tz", e.target.value)}
                   autoComplete="off"
                   spellCheck={false}
                 />
-              </div>
-            </div>
+              </SettingRow>
+            </>
           )}
         </SettingsList>
       </SettingsSection>
