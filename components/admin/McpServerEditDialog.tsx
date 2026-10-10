@@ -277,7 +277,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
                   editing && server?.auth_secret_unreadable
                     ? "Enter the secret again"
                     : editing && server?.has_auth_secret
-                      ? "Saved: leave empty to keep it"
+                      ? "Saved: leave blank to keep it"
                       : ""
                 }
                 autoComplete="new-password"
@@ -287,7 +287,7 @@ export function McpServerEditDialog({ server, open, onClose, onSaved, prefill }:
                   change nothing. */}
               {editing && server?.auth_secret_unreadable && (
                 <p className="text-xs text-danger-ink">
-                  The saved secret can&apos;t be read, so it can&apos;t be kept. Enter it again to make this server usable.
+                  The saved secret cannot be decrypted and cannot be kept. Enter it again to make this server usable.
                 </p>
               )}
               {!editing && prefill?.secret_hint && (
