@@ -56,6 +56,7 @@ export function MobileTopNavigationBarThirdDoc({docId}:{docId: string}) {
                     title: "Deleting Doc",
                     description: "Are you sure you want to proceed deleting the doc",
                     confirmText: "Delete chat",
+                    destructive: true,
                     onConfirm: ()=>{executeDeleteDoc()}
                 }
             }));

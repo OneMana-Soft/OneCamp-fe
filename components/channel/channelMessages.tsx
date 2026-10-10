@@ -298,6 +298,7 @@ export const ChannelMessages = ({
                         title: "Deleting post",
                         description: "Are you sure you want to proceed deleting the post",
                         confirmText: "Delete post",
+                        destructive: true,
                         onConfirm: () => {
                             setTimeout(() => { executeDeletePost(postId) }, 100)
                         },

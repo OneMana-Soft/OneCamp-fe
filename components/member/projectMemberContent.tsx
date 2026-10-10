@@ -128,6 +128,7 @@ export const ProjectMemberContent: React.FC<memberContentProp> = ({projectId}) =
                     title: "Remove project member",
                     description: "Are you sure you want to proceed remove project member",
                     confirmText: "Remove member",
+                    destructive: true,
                     onConfirm: ()=>{executeRemoveMember(id)}
                 }
             }));

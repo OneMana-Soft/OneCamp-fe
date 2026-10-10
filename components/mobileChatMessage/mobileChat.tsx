@@ -123,6 +123,7 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
                     title: "Deleting post",
                     description: "Are you sure you want to proceed deleting the chat",
                     confirmText: "Delete chat",
+                    destructive: true,
                     onConfirm: ()=>{executeDeleteChat(messaageId)}
                 }
             }));
@@ -261,6 +262,7 @@ export const MobileChat = ({ chatId, chatMessageUUID }: { chatId: string, chatMe
                     title: "Deleting chat",
                     description: "Are you sure you want to proceed deleting the chat comment",
                     confirmText: "Delete chat comment",
+                    destructive: true,
                     onConfirm: ()=>{executeDeleteChatComment(commentIndex, commentUUID)}
                 }
             }));

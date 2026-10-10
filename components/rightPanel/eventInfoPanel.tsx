@@ -211,6 +211,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                 title: "Leave Event",
                 description: "Are you sure you want to leave this event?",
                 confirmText: "Leave Event",
+                destructive: true,
                 onConfirm: executeLeave
             }
         }));
@@ -241,6 +242,7 @@ export default function EventInfoPanel({ eventUUID, onClose }: EventInfoPanelPro
                 title: "Delete Event",
                 description: "Are you sure you want to delete this event? This action cannot be undone.",
                 confirmText: "Delete Event",
+                destructive: true,
                 onConfirm: executeDelete
             }
         }));

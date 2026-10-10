@@ -116,6 +116,7 @@ export const GroupChatComments = () => {
                     title: "Deleting post",
                     description: "Are you sure you want to proceed deleting the post",
                     confirmText: "Delete post",
+                    destructive: true,
                     onConfirm: ()=>{executeDeleteChat(postId)}
                 }
             }));
@@ -160,6 +161,7 @@ export const GroupChatComments = () => {
                     title: "Deleting chat",
                     description: "Are you sure you want to proceed deleting the chat",
                     confirmText: "Delete post",
+                    destructive: true,
                     onConfirm: ()=>{executeDeleteChatComment(commentIndex, commentUUID)}
                 }
             }));

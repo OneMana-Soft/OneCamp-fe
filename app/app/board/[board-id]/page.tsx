@@ -158,6 +158,7 @@ export default function BoardPage() {
           title: "Delete board",
           description: "This will permanently remove the board for everyone. This cannot be undone.",
           confirmText: "Delete board",
+          destructive: true,
           onConfirm: performDelete,
         },
       }),

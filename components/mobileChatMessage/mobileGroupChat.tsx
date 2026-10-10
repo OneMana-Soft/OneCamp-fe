@@ -127,6 +127,7 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
                     title: "Deleting post",
                     description: "Are you sure you want to proceed deleting the chat",
                     confirmText: "Delete chat",
+                    destructive: true,
                     onConfirm: ()=>{executeDeleteChat(messaageId)}
                 }
             }));
@@ -266,6 +267,7 @@ export const MobileGroupChat = ({ grpId, chatMessageUUID }: { grpId: string, cha
                     title: "Deleting chat",
                     description: "Are you sure you want to proceed deleting the chat comment",
                     confirmText: "Delete chat comment",
+                    destructive: true,
                     onConfirm: ()=>{executeDeleteChatComment(commentIndex, commentUUID)}
                 }
             }));

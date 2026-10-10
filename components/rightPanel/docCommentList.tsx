@@ -153,6 +153,7 @@ export const DocCommentList = ({ docId }: { docId: string }) => {
                         title: "Deleting comment",
                         description: "Are you sure you want to proceed deleting the comment",
                         confirmText: "Delete post",
+                        destructive: true,
                         onConfirm: () => {
                             executeDeleteDocComment(commentIndex, commentUUID)
                         },
