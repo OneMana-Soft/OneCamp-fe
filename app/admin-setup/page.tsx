@@ -7,7 +7,7 @@ import authService from "@/services/auth/AuthService"
 import { app_home_path } from "@/types/paths"
 import { useRouter } from "next/navigation"
 import { AuthField, AuthHeading, AuthPlaceholder, AuthShell, FormProblem, PasswordField, authControl } from "@/components/auth/AuthShell"
-import { SpotWelcome } from "@/components/ui/graphics/spots"
+import { SpotError, SpotWelcome } from "@/components/ui/graphics/spots"
 
 export default function AdminSetupPage() {
   const [email, setEmail] = useState("")
@@ -30,16 +30,25 @@ export default function AdminSetupPage() {
   const confirmRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
+  // The check got no answer: say so here rather than send the operator of a
+  // fresh install to a sign-in page on a server with no accounts.
+  const [unreachable, setUnreachable] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+
   useEffect(() => {
-    authService.getAdminSetupStatus().then(({ required, pinned }) => {
-      if (!required) {
+    authService.getAdminSetupStatus().then(({ required, pinned, unreachable }) => {
+      if (unreachable) {
+        setUnreachable(true)
+        setIsChecking(false)
+      } else if (!required) {
         router.push("/")
       } else {
+        setUnreachable(false)
         setPinned(pinned)
         setIsChecking(false)
       }
     })
-  }, [router])
+  }, [router, attempt])
 
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -88,6 +97,25 @@ export default function AdminSetupPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (unreachable && !isChecking) {
+    return (
+      <AuthShell>
+        <AuthHeading title="Couldn't reach this server" art={<SpotError />}>
+          OneCamp didn&apos;t answer while checking whether it needs its first admin. It may still be starting: wait a moment, then check again.
+        </AuthHeading>
+        <Button
+          className={authControl}
+          onClick={() => {
+            setIsChecking(true)
+            setAttempt((n) => n + 1)
+          }}
+        >
+          Check again
+        </Button>
+      </AuthShell>
+    )
   }
 
   if (isChecking) {
