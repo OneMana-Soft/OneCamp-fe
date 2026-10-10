@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   /** Each row render asks for its avatar once: calls per profile key = renders per row. */
   avatarCalls: new Map<string, number>(),
   urls: [] as string[],
+  /** What the card asked usePost to send. */
+  requests: [] as Record<string, unknown>[],
   people: Array.from({ length: 520 }, (_, i) => ({
     user_uuid: `u-${i}`,
     user_name: `person${i}`,
@@ -44,8 +46,17 @@ vi.mock("@/hooks/useUserAvatar", () => ({
     return { src: undefined, isExternalURL: false, isLoading: false }
   },
 }))
-vi.mock("@/hooks/usePost", () => ({ usePost: () => ({ makeRequest: () => Promise.resolve(), isSubmitting: false }) }))
-vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => () => {} }))
+vi.mock("@/hooks/usePost", () => ({
+  usePost: () => ({
+    makeRequest: (o: Record<string, unknown>) => {
+      state.requests.push(o)
+      return Promise.resolve()
+    },
+    isSubmitting: false,
+  }),
+}))
+// Confirms at once: what is under test is what happens after the confirm.
+vi.mock("@/hooks/useConfirm", () => ({ useConfirm: () => (o: { onConfirm?: () => void }) => o.onConfirm?.() }))
 vi.mock("react-redux", () => ({ useDispatch: () => () => {} }))
 vi.mock("@/context/MediaQueryContext", () => ({ useMedia: () => ({ isMobile: false, isTablet: false, isDesktop: true }) }))
 
@@ -57,6 +68,7 @@ beforeEach(() => {
   state.retried = 0
   state.avatarCalls.clear()
   state.urls.length = 0
+  state.requests.length = 0
 })
 afterEach(cleanup)
 
@@ -152,6 +164,17 @@ describe("the members list", () => {
     } finally {
       state.people[3].user_deleted_at = saved
     }
+  })
+
+  // A refused deactivation said "Couldn't deactivate user".
+  it("names the person when deactivating them is refused", async () => {
+    render(<UserCard />)
+    const [first] = screen.getAllByRole("button", { name: /^Deactivate / })
+    const name = first.getAttribute("aria-label")!.replace(/^Deactivate /, "")
+    await act(async () => void fireEvent.click(first))
+    const sent = state.requests.find((r) => String(r.apiEndpoint).includes("deactivate"))
+    expect(sent?.failureTitle).toBe(`Couldn't deactivate ${name}`)
+    expect(name).not.toMatch(/@/)
   })
 
   it("says when the members couldn't be loaded, and tries again", () => {

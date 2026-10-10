@@ -81,6 +81,19 @@ describe("a request that fails", () => {
     ])
   })
 
+  it("names what didn't happen in the caller's words when it has them", async () => {
+    restore = serverAnswers(400, { msg: "Free plan: all 25 places are taken." })
+    const { result } = renderHook(() => usePost())
+    await act(async () => {
+      await result.current
+        .makeRequest({ apiEndpoint: PostEndpointUrl.ActivateUser, payload: { user_uuid: "u1" }, showErrorToast: true, failureTitle: "Couldn't reactivate Priya Raman" })
+        .catch(() => undefined)
+    })
+    expect(toasts).toEqual([
+      expect.objectContaining({ title: "Couldn't reactivate Priya Raman", description: "Free plan: all 25 places are taken.", variant: "destructive" }),
+    ])
+  })
+
   it("confirms success in plain words, not under a 'Success' title", async () => {
     restore = serverAnswers(200, { data: {} })
     await deleteProject()
