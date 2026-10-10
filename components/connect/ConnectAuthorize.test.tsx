@@ -127,3 +127,39 @@ describe("approving an outside agent", () => {
     expect(await screen.findByText("This sign-in has expired.")).toBeTruthy()
   })
 })
+
+// A sign-in that can't continue was a dead end: a red icon over a sentence and
+// nothing to press. It now offers the way on.
+describe("a sign-in that can't continue", () => {
+  beforeEach(() => {
+    Object.defineProperty(window, "location", { value: { ...window.location, assign }, writable: true })
+  })
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
+
+  it("offers the workspace when the server stopped it", async () => {
+    search = "error=server_error"
+    render(<ConnectAuthorize />)
+    expect(await screen.findByRole("heading", { level: 1, name: "This sign-in can't continue" })).toBeTruthy()
+    expect(screen.getByText(/Try again from your agent/)).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Go to your workspace" }).getAttribute("href")).toBe("/app/home")
+  })
+
+  it("offers the workspace when the page was opened without a request", async () => {
+    search = ""
+    render(<ConnectAuthorize />)
+    expect(await screen.findByRole("heading", { name: "This sign-in can't continue" })).toBeTruthy()
+    expect(screen.getByRole("link", { name: "Go to your workspace" })).toBeTruthy()
+  })
+
+  it("holds the form's place while it loads, and says what it is doing", () => {
+    search = `request=${REQ}`
+    vi.mocked(getConsent).mockReturnValue(new Promise(() => {}))
+    render(<ConnectAuthorize />)
+    const waiting = screen.getByRole("status", { name: "Loading the sign-in" })
+    expect(waiting.getAttribute("aria-busy")).toBe("true")
+  })
+})
+

@@ -18,9 +18,12 @@
  */
 
 import * as React from "react"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { AlertCircle, LoaderCircle, ShieldCheck } from "@/lib/icons"
+import { AlertCircle, ShieldCheck } from "@/lib/icons"
+import { AuthHeading, authControl } from "@/components/auth/AuthShell"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -37,7 +40,8 @@ import { isConnectRequestId, rememberPendingConnect } from "@/lib/pendingConnect
 /** Errors the backend sends here instead of to an unverified client address. */
 const ERRORS: Record<string, string> = {
   invalid_client: "This app is not registered with this workspace. Remove the connector in your agent and add it again.",
-  invalid_redirect_uri: "This sign-in names a return address the app never registered, so it was stopped.",
+  invalid_redirect_uri:
+    "This sign-in asked to return to an address the app never registered, so it was stopped. Remove the connector in your agent and add it again.",
   server_error: "The workspace could not start this sign-in. Try again from your agent.",
 }
 
@@ -67,6 +71,30 @@ function hostOf(url: string): string {
   }
 }
 
+/**
+ * The page's place while the sign-in loads: a heading, the choice of agent and
+ * the button, in outline. Exported for the page's Suspense fallback, so the two
+ * waits look the same.
+ */
+export function ConnectAuthorizeLoading() {
+  return (
+    <div role="status" aria-label="Loading the sign-in" aria-busy="true">
+      <div aria-hidden="true">
+        <div className="mb-8 space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
+        </div>
+        <Skeleton className={`mt-6 ${authControl}`} />
+      </div>
+    </div>
+  )
+}
+
 export function ConnectAuthorize() {
   const params = useSearchParams()
   const requestId = params.get("request")
@@ -93,7 +121,7 @@ export function ConnectAuthorize() {
       setPhase({ kind: "ready", view })
     } catch (e) {
       if (status(e) === 401) setPhase({ kind: "signin" })
-      else setPhase({ kind: "error", message: message(e, "This sign-in could not be loaded.") })
+      else setPhase({ kind: "error", message: message(e, "This sign-in couldn't be loaded. Start again from your agent.") })
     }
   }, [error, requestId])
 
@@ -115,7 +143,7 @@ export function ConnectAuthorize() {
       leave(res.redirect)
     } catch (e) {
       if (status(e) === 410) setPhase({ kind: "error", message: message(e, "This sign-in has expired.") })
-      else setActionError(message(e, "It could not be approved."))
+      else setActionError(message(e, "It couldn't be connected. Try again."))
     } finally {
       setBusy(false)
     }
@@ -134,40 +162,45 @@ export function ConnectAuthorize() {
   }
 
   if (phase.kind === "loading") {
-    return (
-      <div role="status" aria-label="Loading" className="flex justify-center py-10">
-        <LoaderCircle className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    )
+    return <ConnectAuthorizeLoading />
   }
 
   if (phase.kind === "leaving") {
     return (
-      <p role="status" className="text-center text-sm text-muted-foreground">
-        Returning you to {phase.host}…
-      </p>
+      <div role="status">
+        <AuthHeading title={`Returning you to ${phase.host}…`} />
+      </div>
     )
   }
 
+  // It was a red icon over a centred sentence with nothing to press. The
+  // message says what to do in the agent; the link is the way on from here.
   if (phase.kind === "error") {
     return (
-      <div className="space-y-3 text-center">
-        <AlertCircle className="mx-auto h-10 w-10 text-danger-ink" />
-        <h1 className="text-lg font-semibold">This sign-in can&apos;t continue</h1>
-        <p className="text-sm text-muted-foreground">{phase.message}</p>
-      </div>
+      <>
+        <AuthHeading
+          title="This sign-in can't continue"
+          // In the heading's picture slot until the playful layer's picture
+          // for a failed state takes its place.
+          art={<AlertCircle className="h-6 w-6 text-danger-ink" />}
+        >
+          {phase.message}
+        </AuthHeading>
+        <Button className={authControl} asChild>
+          <Link href="/app/home">Go to your workspace</Link>
+        </Button>
+      </>
     )
   }
 
   if (phase.kind === "signin") {
     return (
-      <div className="space-y-4 text-center">
-        <h1 className="text-lg font-semibold">Sign in to connect your agent</h1>
-        <p className="text-sm text-muted-foreground">
+      <>
+        <AuthHeading title="Sign in to connect your agent">
           An agent is asking to work in this workspace. Sign in, and you&apos;ll come straight back here to decide.
-        </p>
+        </AuthHeading>
         <Button
-          className="w-full"
+          className={authControl}
           onClick={() => {
             if (requestId) rememberPendingConnect(requestId)
             window.location.assign("/")
@@ -175,7 +208,7 @@ export function ConnectAuthorize() {
         >
           Sign in
         </Button>
-      </div>
+      </>
     )
   }
 
@@ -186,22 +219,19 @@ export function ConnectAuthorize() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2 text-center">
-        <h1 className="text-balance text-xl font-semibold">Connect {view.client_name}</h1>
-        <p className="text-sm text-muted-foreground">
-          {view.client_name} wants to work in this workspace. It will act as an agent you sponsor, with no more reach
-          than you have, and every call it makes is checked and recorded.
-        </p>
-      </div>
+      <AuthHeading title={`Connect ${view.client_name}`}>
+        {view.client_name} wants to work in this workspace. It will act as an agent you sponsor, with no more reach
+        than you have, and every call it makes is checked and recorded.
+      </AuthHeading>
 
       {closed && (
         <div role="status" className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm">
           {view.is_admin ? (
             <>
               Outside agents are turned off here. Turn them on in{" "}
-              <a className="font-medium underline underline-offset-2" href="/app/admin?tab=ai-models#ai-models-mcp">
+              <Link className="font-medium underline underline-offset-2" href="/app/admin?tab=ai-models#ai-models-mcp">
                 Admin, AI &amp; agents
-              </a>
+              </Link>
               , then come back to this tab.
             </>
           ) : (
@@ -211,7 +241,7 @@ export function ConnectAuthorize() {
       )}
 
       <fieldset className="space-y-2" disabled={closed || busy}>
-        <legend className="text-sm font-medium">It acts as</legend>
+        <legend className="text-sm font-medium text-muted-foreground">It acts as</legend>
         <RadioGroup value={agentId} onValueChange={setAgentId} className="gap-2">
           {!view.suggested_agent_id && (
             <Label className="flex items-center gap-2.5 rounded-md border p-3 font-normal">
@@ -238,7 +268,7 @@ export function ConnectAuthorize() {
       </fieldset>
 
       <fieldset className="space-y-2" disabled={closed || busy}>
-        <legend className="text-sm font-medium">It may</legend>
+        <legend className="text-sm font-medium text-muted-foreground">It may</legend>
         <div className="grid gap-2">
           {view.scopes.map((s) => (
             <Label key={s} className="flex items-center gap-2.5 font-normal">
@@ -259,10 +289,10 @@ export function ConnectAuthorize() {
       )}
 
       <div className="space-y-2">
-        <Button className="w-full" onClick={approve} disabled={closed || busy || scopes.length === 0}>
+        <Button className={authControl} onClick={approve} disabled={closed || busy || scopes.length === 0}>
           {busy ? "Connecting…" : `Connect ${view.client_name}`}
         </Button>
-        <Button className="w-full" variant="ghost" onClick={deny} disabled={busy}>
+        <Button className={authControl} variant="ghost" onClick={deny} disabled={busy}>
           Don&apos;t connect
         </Button>
       </div>
