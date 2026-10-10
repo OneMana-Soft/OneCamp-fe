@@ -12,10 +12,11 @@ import { GitHubBadgeGroup } from "@/components/task/PRStatusBadge";
 import {isZeroEpoch} from "@/lib/utils/validation/isZeroEpoch";
 import { app_task_path} from "@/types/paths";
 import Link from "next/link";
-import React, {useCallback} from "react";
+import React, {useCallback, useState} from "react";
 import {cn} from "@/lib/utils/helpers/cn";
 import { statusColors } from "@/lib/colors";
 import { BlockedBadge } from "@/components/task/BlockedBadge"
+import { celebrate } from "@/lib/celebrate"
 
 export const TaskListTask = ({
   taskInfo,
@@ -47,10 +48,20 @@ export const TaskListTask = ({
         onToggleStatus(taskInfo.task_uuid, taskInfo?.task_project?.project_uuid, isCompleted ? "todo" : "done")
     }, [onToggleStatus, taskInfo.task_uuid, isCompleted])
 
-    const handleDoneClick = useCallback((e: React.MouseEvent) => {
+    // Completing a task is one of the few moments worth a celebration (the
+    // playful layer): camp-hued sparks burst from the check as it is ticked,
+    // and the check springs in when it lands. Only on the click that completes
+    // it, so a list of finished tasks never bounces on load, and nothing at
+    // all for reduced motion (lib/celebrate).
+    const [justDone, setJustDone] = useState(false)
+    const handleDoneClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
         e.stopPropagation()
+        if (!isCompleted) {
+            celebrate(e.currentTarget)
+            setJustDone(true)
+        }
         handleToggleClick()
-    }, [handleToggleClick])
+    }, [handleToggleClick, isCompleted])
     const priority = priorities.find(
         (priority: prioritiesInterface) => priority.value === taskInfo.task_priority
     );
@@ -83,7 +94,7 @@ export const TaskListTask = ({
                     disabled={!isAdmin}
                 >
                     {isCompleted ? (
-                        <CheckCircle2 className={cn("w-5 h-5", statusColors.success.text)}/>
+                        <CheckCircle2 className={cn("w-5 h-5", statusColors.success.text, justDone && "animate-spring")}/>
                     ) : (
                         <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/40"/>
                     )}
