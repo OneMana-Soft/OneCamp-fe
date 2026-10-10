@@ -72,3 +72,57 @@ describe("a client's task panel", () => {
     expect(within(panel).getByRole("status")).toHaveTextContent("Couldn't reach the server, retrying…")
   })
 })
+
+describe("a client's task panel, once the task is in", () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }) as unknown as typeof window.matchMedia
+    localStorage.clear()
+    getGuestProject.mockReset().mockResolvedValue({ ok: true, data: view })
+    getGuestProjectTask.mockReset().mockResolvedValue({ ok: true, data: task })
+  })
+  afterEach(() => cleanup())
+
+  it("lays its details out as the team's task panel does: a quiet label, the value beside it", async () => {
+    await open()
+    await openTask()
+    const panel = screen.getByRole("complementary", { name: "Task" })
+    for (const label of ["Status", "Assignee", "Starts", "Due"]) {
+      const el = within(panel).getByText(label)
+      expect(el.className).toContain("text-muted-foreground")
+      expect(el.className).toContain("whitespace-nowrap")
+      expect(el.parentElement!.className).toContain("sm:grid-cols-[6.5rem_minmax(0,1fr)]")
+    }
+    expect(within(panel).getByText("Hana Kobayashi").className).not.toContain("text-muted-foreground")
+  })
+
+  it("keeps a half-written comment when Escape is pressed in it", async () => {
+    localStorage.setItem("oc_guest_name_tok", "Jordan")
+    await open()
+    await openTask()
+    const box = screen.getByRole("textbox", { name: "Write a comment" })
+    box.focus()
+    fireEvent.change(box, { target: { value: "The FAQ needs a pricing question" } })
+    fireEvent.keyDown(box, { key: "Escape" })
+    expect(screen.getByRole("complementary", { name: "Task" })).toBeInTheDocument()
+    expect(box).not.toHaveFocus()
+    // A second press, from outside the field, closes the panel.
+    fireEvent.keyDown(document.body, { key: "Escape" })
+    expect(screen.queryByRole("complementary", { name: "Task" })).not.toBeInTheDocument()
+  })
+
+  it("has one filled button: the verdict, not the comment's send", async () => {
+    localStorage.setItem("oc_guest_name_tok", "Jordan")
+    await open()
+    await openTask()
+    const panel = screen.getByRole("complementary", { name: "Task" })
+    const filled = within(panel).getAllByRole("button").filter((b) => /\bbg-primary\b/.test(b.className))
+    expect(filled.map((b) => b.textContent || b.getAttribute("aria-label"))).toEqual(["Approve"])
+  })
+
+  it("closes with a cross on a wide screen", async () => {
+    await open()
+    await openTask()
+    const close = screen.getByRole("button", { name: "Close the task" })
+    expect(close.querySelector("svg.lucide-x")).not.toBeNull()
+  })
+})

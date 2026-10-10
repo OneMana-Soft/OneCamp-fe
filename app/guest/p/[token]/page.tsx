@@ -8,7 +8,7 @@ import { shortDate } from "@/lib/utils/date/shortDate"
 // for the live connection.
 
 import { use, useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeft, Calendar, FolderKanban, MessageSquare, User } from "@/lib/icons"
+import { ArrowLeft, Calendar, FolderKanban, MessageSquare, User, X } from "@/lib/icons"
 import { Button } from "@/components/ui/button"
 import {
   reviewGuestTask,
@@ -41,6 +41,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useStoredState } from "@/hooks/useStoredState"
 import type { TimelineTask } from "@/lib/timeline"
 import { Textarea } from "@/components/ui/textarea"
+import { fieldLabel, fieldRow } from "@/lib/ui/fieldRow"
 
 // A board changes slower than a conversation.
 const BOARD_POLL_MS = GUEST_POLL_MS * 3
@@ -238,8 +239,18 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
   }, [taskId])
   useGuestPoll(`${token}:${taskId}`, GUEST_POLL_MS * 2, load)
 
+  // The first Escape leaves a field (a half-written comment stays in it), the
+  // next closes the panel, as Escape does across the app.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        target.blur()
+        return
+      }
+      onClose()
+    }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
@@ -247,8 +258,10 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
   return (
     <aside aria-label="Task" className="flex w-full min-w-0 flex-col border-l md:w-[28rem]">
       <div className="flex items-center gap-2 border-b px-3 py-2">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Back to the board">
-          <ArrowLeft className="h-4 w-4" />
+        {/* Back to the board where the panel covers it, a cross where it sits beside it. */}
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Close the task">
+          <ArrowLeft className="h-4 w-4 md:hidden" aria-hidden="true" />
+          <X className="hidden h-4 w-4 md:block" aria-hidden="true" />
         </Button>
         <span className="truncate text-sm font-medium">{task?.name ?? "Task"}</span>
       </div>
@@ -262,12 +275,34 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
           <div className="grid gap-5">
             <div className="grid gap-2">
               <h2 className="break-words text-lg font-semibold">{task.name}</h2>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                <dt className="text-muted-foreground">Status</dt>
-                <dd>{task.status_label}</dd>
-                {task.assignee && (<><dt className="text-muted-foreground">Assignee</dt><dd className="truncate">{task.assignee}</dd></>)}
-                {task.start_date && (<><dt className="text-muted-foreground">Starts</dt><dd>{day(task.start_date)}</dd></>)}
-                {task.due_date && (<><dt className="text-muted-foreground">Due</dt><dd className={isOverdue(task) ? "text-danger-ink" : ""}>{day(task.due_date)}{isOverdue(task) ? " (overdue)" : ""}</dd></>)}
+              {/* As the team's task panel lays it out: a quiet label column, the
+                  values starting at one x, in ink, on one line each. */}
+              <dl className="grid gap-2">
+                <div className={fieldRow("center", "mb-0")}>
+                  <dt className={fieldLabel}>Status</dt>
+                  <dd className="text-sm text-foreground">{task.status_label}</dd>
+                </div>
+                {task.assignee && (
+                  <div className={fieldRow("center", "mb-0")}>
+                    <dt className={fieldLabel}>Assignee</dt>
+                    <dd className="truncate text-sm text-foreground">{task.assignee}</dd>
+                  </div>
+                )}
+                {task.start_date && (
+                  <div className={fieldRow("center", "mb-0")}>
+                    <dt className={fieldLabel}>Starts</dt>
+                    <dd className="text-sm text-foreground">{day(task.start_date)}</dd>
+                  </div>
+                )}
+                {task.due_date && (
+                  <div className={fieldRow("center", "mb-0")}>
+                    <dt className={fieldLabel}>Due</dt>
+                    <dd className={`text-sm ${isOverdue(task) ? "text-danger-ink" : "text-foreground"}`}>
+                      {day(task.due_date)}
+                      {isOverdue(task) ? " (overdue)" : ""}
+                    </dd>
+                  </div>
+                )}
               </dl>
             </div>
             {task.description && <p className="whitespace-pre-wrap break-words text-sm">{task.description}</p>}
@@ -301,6 +336,8 @@ function TaskPanel({ token, taskId, onClose, onCommented }: { token: string; tas
         name ? (
           <GuestComposer
             placeholder="Write a comment"
+            // The verdict above is the panel's one filled button.
+            quiet
             name={name}
             onRename={() => setName("")}
             onSend={async (text) => {

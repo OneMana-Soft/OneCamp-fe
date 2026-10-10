@@ -164,8 +164,12 @@ export function GuestMessageView({ m }: { m: Pick<GuestChannelMessage, "author" 
   )
 }
 
-/** A message box: Enter sends, Shift+Enter breaks the line. onSend answers an error to show, or null. */
-export function GuestComposer({ placeholder, onSend, name, onRename }: { placeholder: string; onSend: (text: string) => Promise<string | null>; name?: string; onRename?: () => void }) {
+/**
+ * A message box: Enter sends, Shift+Enter breaks the line. onSend answers an
+ * error to show, or null. `quiet` draws Send in outline, for a panel whose one
+ * filled button is something else (a client's verdict on a task).
+ */
+export function GuestComposer({ placeholder, onSend, name, onRename, quiet = false }: { placeholder: string; onSend: (text: string) => Promise<string | null>; name?: string; onRename?: () => void; quiet?: boolean }) {
   const [text, setText] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -196,7 +200,7 @@ export function GuestComposer({ placeholder, onSend, name, onRename }: { placeho
           maxLength={4000}
           className="max-h-40 min-h-10 resize-none"
         />
-        <Button size="icon" onClick={send} disabled={busy || !text.trim()} aria-label="Send">
+        <Button size="icon" variant={quiet ? "outline" : "default"} onClick={send} disabled={busy || !text.trim()} aria-label="Send">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
