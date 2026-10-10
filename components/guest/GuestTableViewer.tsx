@@ -56,7 +56,7 @@ function Chip({ label, color }: { label: string; color?: string }) {
 
 function CellValue({ field, value }: { field: TableField; value: unknown }) {
   if (value === null || value === undefined || value === "") {
-    return <span className="text-muted-foreground/40">—</span>
+    return <span className="sr-only">Empty</span>
   }
 
   switch (field.type) {
@@ -71,7 +71,7 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
     }
 
     case "checkbox":
-      return value ? <Check className="h-4 w-4 text-primary" /> : <span className="text-muted-foreground/40">—</span>
+      return value ? <Check className="h-4 w-4 text-foreground" /> : <span className="sr-only">Empty</span>
 
     case "select": {
       const opts = parseFieldConfig(field).options as SelectOption[] | undefined
@@ -95,7 +95,7 @@ function CellValue({ field, value }: { field: TableField; value: unknown }) {
 
     case "relation": {
       const refs = Array.isArray(value) ? (value as RelationRef[]) : []
-      if (refs.length === 0) return <span className="text-muted-foreground/40">—</span>
+      if (refs.length === 0) return <span className="sr-only">Empty</span>
       return (
         <span className="flex flex-wrap gap-1">
           {refs.map((r, i) => (

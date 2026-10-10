@@ -58,7 +58,7 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
     return (
       <Centered>
         <CheckCircle2 className="h-10 w-10 text-primary" />
-        <h1 className="text-2xl font-semibold tracking-tight">Sent</h1>
+        <h1 className="text-2xl font-semibold">Sent</h1>
         <p className="max-w-sm text-sm text-muted-foreground">Thanks. The team has it now.</p>
         <Button variant="outline" onClick={() => { setAnswers({}); setState("ready") }}>Send another</Button>
       </Centered>
@@ -70,7 +70,7 @@ export default function IntakeForm({ params }: { params: Promise<{ token: string
     <main className="min-h-screen bg-muted/30 px-4 py-8 sm:py-14">
       <form onSubmit={submit} className="mx-auto grid max-w-xl gap-6 rounded-2xl border bg-background p-6 shadow-sm sm:p-8">
         <header className="grid gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">{form.title}</h1>
+          <h1 className="text-2xl font-semibold text-balance">{form.title}</h1>
           {form.description && <p className="whitespace-pre-line text-sm text-muted-foreground">{form.description}</p>}
         </header>
         {form.fields.map((f) => (
@@ -123,7 +123,7 @@ function Question({ field, value, onChange }: { field: FormField; value: unknown
         <div className="grid gap-1.5">
           {label}
           <Input id={id} type={type} value={str} onChange={(e) => onChange(e.target.value)} required={field.required} maxLength={300}
-            autoComplete={field.type === "email" ? "email" : undefined} inputMode={field.type === "number" ? "decimal" : undefined} />
+            autoComplete={field.type === "email" ? "email" : undefined} spellCheck={field.type === "email" ? false : undefined} inputMode={field.type === "number" ? "decimal" : undefined} />
         </div>
       )
     }

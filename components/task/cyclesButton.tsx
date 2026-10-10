@@ -1,5 +1,4 @@
 "use client"
-import { shortDate } from "@/lib/utils/date/shortDate"
 
 // Cycles in a project's task toolbar: Linear's sprints. The button names the
 // cycle the list is showing; the popover lists every cycle with its progress,
@@ -19,7 +18,7 @@ import { cn } from "@/lib/utils/helpers/cn"
 import { useToast } from "@/hooks/use-toast"
 import { useProjectCycles } from "@/hooks/useProjectCycles"
 import { serverMessage } from "@/lib/http/serverMessage"
-import { cycleLabel, nextStart, percentDone, type Cycle } from "@/lib/tasks/cycles"
+import { cycleDates, cycleLabel, nextStart, percentDone, type Cycle } from "@/lib/tasks/cycles"
 
 const STATE_LABEL: Record<string, string> = { current: "Current", upcoming: "Upcoming", ended: "Ended", completed: "Completed" }
 
@@ -103,12 +102,6 @@ export function CyclesButton({
   )
 }
 
-/** "5 Oct to 18 Oct": the day before it ends at midnight is its last. Day
- * first, like every date in the task lists, and words rather than an en dash. */
-function cycleSpan(c: Pick<Cycle, "starts_at" | "ends_at">): string {
-  return `${shortDate(new Date(c.starts_at))} to ${shortDate(new Date(new Date(c.ends_at).getTime() - 1))}`
-}
-
 function CycleRow({ projectId, cycle, canEdit, active, onShow, onChart }: { projectId: string; cycle: Cycle; canEdit: boolean; active: boolean; onShow: () => void; onChart: () => void }) {
   const { complete, remove } = useProjectCycles(projectId)
   const { toast } = useToast()
@@ -143,7 +136,7 @@ function CycleRow({ projectId, cycle, canEdit, active, onShow, onChart }: { proj
           </span>
         </span>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {cycleSpan(cycle)} ·{" "}
+          {cycleDates(cycle)} ·{" "}
           {cycle.completed_at
             ? `${cycle.done_count ?? 0} done${cycle.carried_count ? `, ${cycle.carried_count} carried over` : ""}`
             : `${p.done} of ${p.total} done`}
@@ -212,7 +205,7 @@ function NewCycle({ projectId, cycles, onDone }: { projectId: string; cycles: Cy
     try {
       // Midnight where the person is: a cycle starts with their day.
       const c = await create({ name, starts_at: new Date(`${start}T00:00:00`).toISOString(), weeks: Number(weeks) })
-      toast({ title: `${cycleLabel(c)} ready`, description: cycleSpan(c) })
+      toast({ title: `${cycleLabel(c)} ready`, description: cycleDates(c) })
       onDone()
     } catch (err) {
       toast({ title: "Couldn't make the cycle", description: serverMessage(err), variant: "destructive" })
