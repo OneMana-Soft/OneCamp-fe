@@ -16,6 +16,11 @@ import { SkeletonCards } from "@/components/ui/skeletonCards"
 import { ErrorState } from "@/components/ui/error-state"
 import { LayoutDashboard, Plus, Loader2, Lock, Users, Search } from "@/lib/icons";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
+import Link from "next/link";
+import { PageHeader } from "@/components/ui/pageHeader";
+import { hueFor } from "@/lib/campHue";
+import { HUE_CLASS } from "@/components/ui/graphics/hues";
+import { cn } from "@/lib/utils/helpers/cn";
 
 function BoardsPage() {
   const router = useRouter();
@@ -48,19 +53,19 @@ function BoardsPage() {
 
   return (
     <div className="mx-auto h-full w-full max-w-5xl overflow-y-auto px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold sm:text-xl">Boards</h1>
-          <p className="text-xs text-muted-foreground sm:text-sm">
-            Infinite collaborative canvas for diagrams, roadmaps, and UI design.
-          </p>
-        </div>
-        <Button onClick={createBoard} disabled={isSubmitting} className="shrink-0 gap-1.5">
-          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          <span className="hidden sm:inline">New board</span>
-          <span className="sm:hidden">New</span>
-        </Button>
-      </div>
+      {/* The page's title and its one action. The line under the title was
+          marketing ("Infinite collaborative canvas for diagrams, roadmaps,
+          and UI design") in a place that is read every day. */}
+      <PageHeader
+        title="Boards"
+        className="mb-5"
+        actions={
+          <Button onClick={createBoard} disabled={isSubmitting} className="shrink-0 gap-1.5">
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            New board
+          </Button>
+        }
+      />
 
       <div className="relative mb-5">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -70,6 +75,7 @@ function BoardsPage() {
           placeholder="Search boards…"
           className="h-9 pl-9"
           aria-label="Search boards"
+          type="search"
         />
       </div>
 
@@ -108,7 +114,7 @@ function BoardsPage() {
               isPrivate={b.board_private}
               thumbnailKey={b.board_thumbnail_key}
               updatedAt={b.board_updated_at}
-              onClick={() => router.push(`${app_board_path}/${b.board_uuid}`)}
+              href={`${app_board_path}/${b.board_uuid}`}
             />
           ))}
         </div>
@@ -123,48 +129,52 @@ function BoardCard({
   isPrivate,
   thumbnailKey,
   updatedAt,
-  onClick,
+  href,
 }: {
   uuid: string;
   title: string;
   isPrivate?: boolean;
   thumbnailKey?: string;
   updatedAt?: string;
-  onClick: () => void;
+  href: string;
 }) {
   const relative = useRelativeTime(updatedAt || null);
   const baseUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || "").replace(/\/+$/, "");
   const thumbUrl = thumbnailKey ? `${baseUrl}${GetEndpointUrl.GetBoardAttachment}/${uuid}/${thumbnailKey}` : "";
   const [thumbFailed, setThumbFailed] = React.useState(false);
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex flex-col gap-2 rounded-lg border border-border/50 bg-card/30 p-3 text-left transition-colors hover:border-border hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
+    // A link, so a board opens from the keyboard and in a new tab, and is
+    // fetched ahead. A board with no picture yet shows its own hue, the one
+    // it has in the sidebar, instead of a grey box.
+    <Link
+      href={href}
+      className="group flex flex-col gap-2 rounded-lg border border-border/60 bg-card p-3 text-left hover-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
       data-board-uuid={uuid}
     >
-      <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md bg-muted/60">
+      <div className={cn("flex aspect-video items-center justify-center overflow-hidden rounded-md", thumbUrl && !thumbFailed ? "bg-muted/60" : cn(HUE_CLASS[hueFor(uuid)], "bg-hue-tint"))}>
         {thumbUrl && !thumbFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={thumbUrl}
-            alt={title}
+            alt=""
+            width={480}
+            height={270}
             className="h-full w-full object-cover"
             loading="lazy"
             onError={() => setThumbFailed(true)}
           />
         ) : (
-          <LayoutDashboard className="h-7 w-7 text-muted-foreground/70 transition-colors group-hover:text-muted-foreground" />
+          <LayoutDashboard className="h-7 w-7 text-hue" aria-hidden="true" />
         )}
       </div>
       <div className="min-w-0">
-        <span className="block truncate text-xs font-medium sm:text-sm">{title}</span>
-        <span className="mt-0.5 flex items-center gap-1 text-2xs text-muted-foreground sm:text-xs">
-          {isPrivate ? <Lock className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+        <span className="block truncate text-sm font-medium">{title}</span>
+        <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+          {isPrivate ? <Lock className="h-3 w-3" aria-label="Private" /> : <Users className="h-3 w-3" aria-label="Shared" />}
           {relative ? <span>{relative}</span> : <span>{isPrivate ? "Private" : "Shared"}</span>}
         </span>
       </div>
-    </button>
+    </Link>
   );
 }
 
