@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
@@ -17,6 +18,12 @@ import type { LucideIcon } from "lucide-react"
 interface RightPanelHeaderProps {
     titleKey: "thread" | "docComment" | "task" | "event" | "ai"
     title?: string
+    /**
+     * What the panel's own view can do (an event's Edit or Delete): drawn just
+     * left of the close button, in one group on the title row's centre line,
+     * as the task panel groups its icon actions on the right.
+     */
+    actions?: ReactNode
 }
 
 const titleConfig: Record<string, { label: string; icon: LucideIcon }> = {
@@ -34,7 +41,7 @@ const titleConfig: Record<string, { label: string; icon: LucideIcon }> = {
  * panel feels like part of the same surface family. Close button uses
  * ArrowRightToLine to mirror the panel slide-out direction.
  */
-export const RightPanelHeader = ({ titleKey, title }: RightPanelHeaderProps) => {
+export const RightPanelHeader = ({ titleKey, title, actions }: RightPanelHeaderProps) => {
     const dispatch = useDispatch()
     const config = titleConfig[titleKey] || titleConfig.thread
     const Icon = config.icon
@@ -51,20 +58,23 @@ export const RightPanelHeader = ({ titleKey, title }: RightPanelHeaderProps) => 
                     {title || config.label}
                 </h2>
             </div>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={handleClose}
-                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-                        aria-label="Close panel"
-                    >
-                        <ArrowRightToLine className="h-4 w-4" />
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent>Close panel</TooltipContent>
-            </Tooltip>
+            <div data-panel-actions="" className="flex shrink-0 items-center gap-1">
+                {actions}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={handleClose}
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                            aria-label="Close panel"
+                        >
+                            <ArrowRightToLine className="h-4 w-4" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Close panel</TooltipContent>
+                </Tooltip>
+            </div>
         </header>
     )
 }
