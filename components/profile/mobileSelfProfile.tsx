@@ -12,11 +12,11 @@ import { profileFormSchema, profileNamesPayload, type ProfileFormValues, type Sa
 
 import { useFetchOnlyOnce } from "@/hooks/useFetch";
 import { useUploadFile } from "@/hooks/useUploadFile";
-import { usePost } from "@/hooks/usePost";
 import { useTranslation } from "react-i18next";
 
-import { USER_STATUS_OFFLINE, USER_STATUS_ONLINE, UserProfileInterface, UserProfileUpdateInterface } from "@/types/user";
-import { GetEndpointUrl, PostEndpointUrl } from "@/services/endPoints";
+import { USER_STATUS_OFFLINE, USER_STATUS_ONLINE, UserProfileInterface } from "@/types/user";
+import { GetEndpointUrl } from "@/services/endPoints";
+import { PHOTO_NOT_UPLOADED, saveProfile } from "@/components/profile/saveProfile";
 import { useUserAvatar } from "@/hooks/useUserAvatar";
 
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,10 @@ export function MobileSelfProfile() {
     const [selectedImage, setSelectedImage] = useState<string>("");
     const [selectedImageFile, selectedImageSetFile] = useState<FileList | null>(null);
     const uploadFile = useUploadFile();
-    const post = usePost();
+    const [savingProfile, setSavingProfile] = useState(false);
+    // A failure the page can't place under one field: said under the fields,
+    // above Save, and kept until the next try.
+    const [saveProblem, setSaveProblem] = useState("");
     const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -115,6 +118,7 @@ export function MobileSelfProfile() {
     };
 
     const onSubmit = async (data: ProfileFormValues) => {
+        setSaveProblem("");
         let profileKey = profileInfo.data?.data.user_profile_object_key || "";
 
         if (selectedImage == "" && selectedImageFile == null) {
@@ -122,51 +126,61 @@ export function MobileSelfProfile() {
         }
         if (selectedImageFile) {
             const responses = await uploadFile.makeRequestToUploadToPublic(selectedImageFile);
-            if (responses.length > 0) {
-                profileKey = responses[0].object_uuid;
+            if (responses.length === 0) {
+                // The upload answers an empty list when it failed: saving on
+                // kept the old photo and went back as if the new one were in.
+                setSaveProblem(PHOTO_NOT_UPLOADED);
+                return;
             }
+            profileKey = responses[0].object_uuid;
         }
 
         const names = profileNamesPayload(data, saved);
-        post.makeRequest<UserProfileUpdateInterface>({
-            payload: {
-                ...names,
+        setSavingProfile(true);
+        const outcome = await saveProfile({
+            ...names,
+            user_job_title: data.jobTitle || profileInfo.data?.data.user_job_title || "",
+            user_profile_object_key: profileKey,
+            user_app_lang: data.language || profileInfo.data?.data.user_app_lang || "en",
+            user_hobbies: data.hobbies || profileInfo.data?.data.user_hobbies || "",
+            user_status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
+        });
+        setSavingProfile(false);
+        if (!outcome.ok) {
+            // Said where it can be fixed, and the page stays to fix it.
+            if (outcome.field === "handle") {
+                form.setError("handle", { type: "server", message: outcome.message });
+                form.setFocus("handle");
+            } else {
+                setSaveProblem(outcome.message);
+            }
+            return;
+        }
+
+        dispatch(updateUserInfoStatus({
+            userUUID: profileInfo.data?.data.user_uuid || '',
+            profileKey: profileKey,
+            userName: names.user_name,
+            status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
+        }));
+
+        profileInfo.mutate({
+            ...profileInfo.data,
+            data: {
+                ...profileInfo.data?.data,
+                user_uuid: profileInfo.data?.data.user_uuid || '',
+                user_name: names.user_name,
+                user_full_name: names.user_full_name,
+                user_handle: names.user_handle ?? profileInfo.data?.data.user_handle,
                 user_job_title: data.jobTitle || profileInfo.data?.data.user_job_title || "",
                 user_profile_object_key: profileKey,
                 user_app_lang: data.language || profileInfo.data?.data.user_app_lang || "en",
                 user_hobbies: data.hobbies || profileInfo.data?.data.user_hobbies || "",
                 user_status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
-            },
-            apiEndpoint: PostEndpointUrl.UpdateUserProfile
-        }).then(() => {
-            dispatch(updateUserInfoStatus({
-                userUUID: profileInfo.data?.data.user_uuid || '',
-                profileKey: profileKey,
-                userName: names.user_name,
-                status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
-            }));
-            
-            profileInfo.mutate({
-                ...profileInfo.data,
-                data: {
-                    ...profileInfo.data?.data,
-                    user_uuid: profileInfo.data?.data.user_uuid || '',
-                    user_name: names.user_name,
-                    user_full_name: names.user_full_name,
-                    user_handle: names.user_handle ?? profileInfo.data?.data.user_handle,
-                    user_job_title: data.jobTitle || profileInfo.data?.data.user_job_title || "",
-                    user_profile_object_key: profileKey,
-                    user_app_lang: data.language || profileInfo.data?.data.user_app_lang || "en",
-                    user_hobbies: data.hobbies || profileInfo.data?.data.user_hobbies || "",
-                    user_status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
-                }
-            }, false);
+            }
+        }, false);
 
-            router.back();
-        }).catch(() => {
-            // The server's reason is shown (a taken handle, a name the rule
-            // refuses), and the page stays to fix it.
-        });
+        router.back();
     };
 
     const shownName = displayNameOf(profileInfo.data?.data);
@@ -176,7 +190,7 @@ export function MobileSelfProfile() {
     const nameIntial = getNameInitials(userSeed);
 
     const field = "h-11"
-    const saving = uploadFile.isSubmitting || post.isSubmitting
+    const saving = uploadFile.isSubmitting || savingProfile
 
     return (
         <div className="flex flex-col h-full bg-background w-full">
@@ -326,6 +340,9 @@ export function MobileSelfProfile() {
                                     )}
                                 />
 
+                                {saveProblem && (
+                                    <p role="alert" className="text-sm text-danger-ink text-pretty">{saveProblem}</p>
+                                )}
                                 <Button className="h-11 w-full" disabled={saving} type="submit">
                                     {saving && <Loader2 className="animate-spin" aria-hidden="true" />}
                                     {saving ? "Saving…" : "Save profile"}

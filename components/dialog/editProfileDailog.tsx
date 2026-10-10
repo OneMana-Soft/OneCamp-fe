@@ -17,13 +17,12 @@ import {Avatar, AvatarFallback, AvatarImage} from "../ui/avatar";
 import { Camera, Loader2 } from "@/lib/icons";
 import {AppLanguageCombobox} from "@/components/dialog/appLanguageCombobox";
 import {useFetchOnlyOnce} from "@/hooks/useFetch";
-import {USER_STATUS_OFFLINE, USER_STATUS_ONLINE, UserProfileInterface, UserProfileUpdateInterface} from "@/types/user";
-import {GetEndpointUrl, PostEndpointUrl} from "@/services/endPoints";
+import {USER_STATUS_OFFLINE, USER_STATUS_ONLINE, UserProfileInterface} from "@/types/user";
+import {GetEndpointUrl} from "@/services/endPoints";
 import {useUserAvatar} from "@/hooks/useUserAvatar";
 import {useUploadFile} from "@/hooks/useUploadFile";
 import {useConfirm} from "@/hooks/useConfirm";
-import axiosInstance, {OWN_ERRORS} from "@/lib/axiosInstance";
-import {apiErrorMessage, apiErrorStatus} from "@/lib/utils/apiError";
+import {PHOTO_NOT_UPLOADED, saveProfile} from "@/components/profile/saveProfile";
 import {useTranslation} from "react-i18next";
 import {useDispatch} from "react-redux";
 import {updateUserInfoStatus} from "@/store/slice/userSlice";
@@ -108,7 +107,7 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
             if (responses.length === 0) {
                 // The upload answers an empty list when it failed. Saving on
                 // would keep the old photo and close as if the new one were in.
-                setSaveProblem("Couldn't upload your photo. Try again, or remove it and save the rest.")
+                setSaveProblem(PHOTO_NOT_UPLOADED)
                 return
             }
             profileKey = responses[0].object_uuid
@@ -116,31 +115,26 @@ const EditProfileDialog: React.FC<editProfileDialogProps> = ({
 
         const names = profileNamesPayload(data, saved)
         setSaving(true)
-        try {
-            // The dialog says what went wrong itself, so the global toast stays quiet.
-            await axiosInstance.post(PostEndpointUrl.UpdateUserProfile, {
-                ...names,
-                user_job_title:
-                    data.jobTitle || profileInfo.data?.data.user_job_title || "",
-                user_profile_object_key: profileKey,
-                user_app_lang:
-                    data.language || profileInfo.data?.data.user_app_lang || "en",
-                user_hobbies: data.hobbies || profileInfo.data?.data.user_hobbies || "",
-                user_status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
-            } satisfies UserProfileUpdateInterface, OWN_ERRORS)
-        } catch (e) {
+        const outcome = await saveProfile({
+            ...names,
+            user_job_title:
+                data.jobTitle || profileInfo.data?.data.user_job_title || "",
+            user_profile_object_key: profileKey,
+            user_app_lang:
+                data.language || profileInfo.data?.data.user_app_lang || "en",
+            user_hobbies: data.hobbies || profileInfo.data?.data.user_hobbies || "",
+            user_status: data.status ? USER_STATUS_ONLINE : USER_STATUS_OFFLINE
+        })
+        setSaving(false)
+        if (!outcome.ok) {
             // Said where it can be fixed, and the dialog stays open to fix it.
-            // Someone else's handle is the one refusal with its own answer
-            // (409, "@x is taken. Try another."), so it goes under that field.
-            if (apiErrorStatus(e) === 409) {
-                form.setError("handle", { type: "server", message: apiErrorMessage(e, "That handle is taken. Try another.") })
+            if (outcome.field === "handle") {
+                form.setError("handle", { type: "server", message: outcome.message })
                 form.setFocus("handle")
             } else {
-                setSaveProblem(`Couldn't save your profile. ${apiErrorMessage(e, "Check your connection and try again.")}`)
+                setSaveProblem(outcome.message)
             }
             return
-        } finally {
-            setSaving(false)
         }
         dispatch(updateUserInfoStatus({
             userUUID: profileInfo.data?.data.user_uuid || '',
