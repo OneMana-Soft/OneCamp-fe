@@ -33,7 +33,7 @@ import { useFetchOnlyOnce } from "@/hooks/useFetch"
 import { useGoal, useGoals } from "@/hooks/useGoals"
 import { useProjectsOverview } from "@/hooks/useProjectsOverview"
 import { useToast } from "@/hooks/use-toast"
-import { Megaphone, MoreHorizontal, Target, X } from "@/lib/icons"
+import { Megaphone, MoreHorizontal, X } from "@/lib/icons"
 import {
   amount,
   checkInDue,
@@ -252,9 +252,9 @@ export function GoalPage({ goalId }: { goalId: string }) {
           </nav>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 flex-1 items-start gap-3">
-              <Target className="mt-1.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+              {/* No target icon before the title: the breadcrumb already says it is a goal. */}
               <div className="min-w-0 space-y-1.5">
-                <h1 className="font-display text-2xl font-semibold tracking-tight text-balance">{goal.title}</h1>
+                <h1 className="font-display text-2xl font-semibold text-balance">{goal.title}</h1>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
                   <GoalOwner owner={goal.owner} />
                   <span className={cn(late && "font-medium text-destructive")}>
@@ -301,7 +301,12 @@ export function GoalPage({ goalId }: { goalId: string }) {
         <section aria-label="Progress" className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="font-display text-4xl font-semibold tabular-nums tracking-tight">{goal.progress === null ? "—" : percent(goal.progress)}</p>
+              {/* Proportional figures at display size; nothing measured yet is said, not drawn as a dash. */}
+              {goal.progress === null ? (
+                <p className="text-lg font-medium text-muted-foreground">Nothing to measure yet</p>
+              ) : (
+                <p className="font-display text-4xl font-semibold">{percent(goal.progress)}</p>
+              )}
               <p className="text-sm text-muted-foreground">{progressSource(goal)}</p>
             </div>
             {gap !== undefined && (

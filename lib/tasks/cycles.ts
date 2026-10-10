@@ -1,5 +1,6 @@
 /** Cycles (Linear's sprints) on the client: names, dates and progress. Pure. */
 
+import { shortDate } from "@/lib/utils/date/shortDate"
 import { localDay } from "@/lib/utils/timeZone"
 import type { NormalizedChart, NormalizedSeries } from "@/lib/utils/chartSpec"
 
@@ -21,11 +22,11 @@ export interface Cycle {
 
 export const cycleLabel = (c: Pick<Cycle, "number" | "name">) => c.name || `Cycle ${c.number}`
 
-/** "Oct 5 – Oct 18": the last day shown is the day before it ends at midnight. */
+/** "5 Oct to 18 Oct": the last day shown is the day before it ends at midnight.
+ * Day first, as every date in the task lists, and words rather than an en dash. */
 export function cycleDates(c: Pick<Cycle, "starts_at" | "ends_at">): string {
-  const f = (d: Date) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
   const last = new Date(new Date(c.ends_at).getTime() - 1)
-  return `${f(new Date(c.starts_at))} – ${f(last)}`
+  return `${shortDate(new Date(c.starts_at))} to ${shortDate(last)}`
 }
 
 /** Share done, 0–100. */
@@ -94,7 +95,7 @@ export interface BurndownView {
 
 export type BurndownUnit = "tasks" | "hours"
 
-const dayLabel = (day: string) => new Date(`${day}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+const dayLabel = (day: string) => shortDate(new Date(`${day}T00:00:00`))
 
 /** The series for a unit: hours only when the cycle has them. */
 function unitSeries(b: Burndown, unit: BurndownUnit) {

@@ -9,7 +9,7 @@ describe("cycles", () => {
   it("names and dates a cycle", () => {
     expect(cycleLabel({ number: 3, name: "" })).toBe("Cycle 3")
     expect(cycleLabel({ number: 3, name: "Launch" })).toBe("Launch")
-    expect(cycleDates({ starts_at: "2026-10-05T00:00:00", ends_at: "2026-10-19T00:00:00" })).toMatch(/Oct 5.*Oct 18/)
+    expect(cycleDates({ starts_at: "2026-10-05T00:00:00", ends_at: "2026-10-19T00:00:00" })).toBe("5 Oct to 18 Oct")
   })
   it("offers open cycles, current first", () => {
     const list = [c(1, "completed", "2026-09-21", "2026-10-05"), c(3, "upcoming", "2026-10-19", "2026-11-02"), c(2, "current", "2026-10-05", "2026-10-19")]

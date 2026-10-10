@@ -1,4 +1,5 @@
 "use client"
+import { format } from "date-fns"
 
 // An invoice from a project's billable time. Fill in your details and the
 // client's on the left; the invoice on the right is what prints. "Print or
@@ -49,7 +50,11 @@ function save(key: string, value: unknown) {
   }
 }
 
-const longDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })
+const longDay = (iso: string) => format(new Date(`${iso}T00:00:00`), "d MMMM yyyy")
+// A day the way the app writes it, with its year: "10 Sep 2026". The browser's
+// own short form ("9/10/2026") reads as two different days to a client in
+// India and one in the US, which an invoice cannot afford.
+const dayOf = (d: Date) => format(d, "d MMM yyyy")
 
 export default function InvoicePage({ params }: { params: Promise<{ project: string }> }) {
   const { project } = use(params)
@@ -228,8 +233,8 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
             </div>
             <p className="text-sm text-muted-foreground">
               {saved
-                ? `Billed time from ${periodFrom.toLocaleDateString()} to ${lastDay.toLocaleDateString()}: ${invoice.hours.toFixed(2)} hours.`
-                : `Billable time from ${range.from.toLocaleDateString()} to ${lastDay.toLocaleDateString()}: ${formatHours(report!.billable_seconds)} hours.`}
+                ? `Billed time from ${dayOf(periodFrom)} to ${dayOf(lastDay)}: ${invoice.hours.toFixed(2)} hours.`
+                : `Billable time from ${dayOf(range.from)} to ${dayOf(lastDay)}: ${formatHours(report!.billable_seconds)} hours.`}
             </p>
             {saved && saved.status !== "draft" && (
               <p className="text-xs text-muted-foreground">
@@ -383,7 +388,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
             <p className="font-medium">{client.name || "Client"}</p>
             {client.address && <p className="whitespace-pre-line text-muted-foreground">{client.address}</p>}
             <p className="mt-2 text-muted-foreground">
-              {projectName}: work from {periodFrom.toLocaleDateString()} to {lastDay.toLocaleDateString()}
+              {projectName}: work from {dayOf(periodFrom)} to {dayOf(lastDay)}
             </p>
           </section>
 
@@ -437,7 +442,7 @@ export default function InvoicePage({ params }: { params: Promise<{ project: str
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset className="grid gap-2 rounded-lg border bg-card p-3">
-      <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</legend>
+      <legend className="px-1 text-sm font-medium text-foreground">{title}</legend>
       {children}
     </fieldset>
   )
