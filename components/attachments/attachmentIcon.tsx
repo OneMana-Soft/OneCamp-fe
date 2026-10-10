@@ -12,6 +12,11 @@ interface AttachmentIconProps {
     fileName: string;
     attachmentOnCLick: () => void;
     attachmentType: AttachmentType
+    /**
+     * Out of the tab order, where something beside it already opens the file
+     * (a project file's name): one stop per action. Defaults to in it.
+     */
+    focusable?: boolean
 
 };
 
@@ -20,6 +25,7 @@ export const AttachmentIcon = ({
                                    getUrl,
                                    attachmentOnCLick,
                                    attachmentType,
+                                   focusable = true,
                                }:AttachmentIconProps) => {
     const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
 
@@ -90,12 +96,20 @@ export const AttachmentIcon = ({
     };
 
 
+    // A button: it was a div with a click handler, which the keyboard could
+    // not reach and a screen reader did not announce. With nothing to open yet
+    // (still uploading) it is disabled.
     return (
-        <div onClick={attachmentOnCLick}
-             className={getUrl ? "hover:cursor-pointer" : ""}
+        <button
+            type="button"
+            onClick={attachmentOnCLick}
+            disabled={!getUrl}
+            tabIndex={focusable ? undefined : -1}
+            aria-label={`Open ${fileName}`}
+            className="block shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 enabled:cursor-pointer disabled:cursor-default"
         >
             {renderIcon()}
-        </div>
+        </button>
     )
 
 }
