@@ -6,13 +6,40 @@ import {OrgAvatarNav} from "@/components/navigationBar/orgAvatarNav";
 import {openUI} from "@/store/slice/uiSlice";
 import { ArrowLeft } from "@/lib/icons";
 import {Button} from "@/components/ui/button";
-import {app_channel_path} from "@/types/paths";
+import { goBack } from "@/lib/navigation/back";
+
+/**
+ * Back, the same everywhere: the previous screen in the app, or the page's
+ * parent when the app has none behind it (opened from a notification or a
+ * link), never out of the app (lib/navigation/back.ts). 44px, for a thumb.
+ */
+function BackButton() {
+    const router = useRouter();
+    const pathname = usePathname();
+    return (
+        <Button aria-label='Back' variant='ghost' size='icon' className="h-11 w-11" onClick={() => goBack(router, pathname)}>
+            <ArrowLeft className='h-5' />
+        </Button>
+    );
+}
+
+/** The workspace's menu, on the top level of each tab. */
+function OrgButton() {
+    const dispatch = useDispatch();
+    return (
+        <button
+            type="button"
+            onClick={() => dispatch(openUI({ key: 'orgProfileDrawer' }))}
+            aria-label="Open organization profile"
+            className="h-11 w-11 flex items-center justify-center rounded-full"
+        >
+            <OrgAvatarNav/>
+        </button>
+    );
+}
 
 export function MobileTopNavigationBarFirst() {
-    const router = useRouter();
-
     const path = usePathname().split('/')
-    const dispatch = useDispatch();
 
     const renderComponent = () => {
         switch (path[2]) {
@@ -34,32 +61,15 @@ export function MobileTopNavigationBarFirst() {
             case "user":
 
                 if(path.length < 4)
-                return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
+                return <OrgButton/>;
                 if(path.length < 6)
-                    return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                    return <BackButton/>
                 break;
             case "channel":
-                if(path.length < 4)
-                    return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
-                if(path.length < 5) {
-                    return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={() => router.push(app_channel_path)}><ArrowLeft className='h-5' /></Button>
-                }
-                if(path.length < 6) {
-                    return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={() => router.push(`${app_channel_path}/${path[3]}`)}><ArrowLeft className='h-5' /></Button>
-                }
             case "chat":
-
-                if(path.length > 3 && path[3] == 'group') {
-
-                    if(path.length < 7)
-                        return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
-                }
-
-                if(path.length < 4)
-                    return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
-                if(path.length < 6)
-                    return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
-                break;
+                // The list is a tab's top level; a channel, a DM, a group and
+                // their threads all go back (lib/navigation/back.ts knows where).
+                return path.length < 4 ? <OrgButton/> : <BackButton/>;
             case "settings":
             case "goals":
                 // A goal is opened from the Goals view or a project's chip: back returns there.
@@ -67,12 +77,12 @@ export function MobileTopNavigationBarFirst() {
                 // Reached from the profile drawer, so back is the only way out that
                 // does not involve the browser gesture. There was no case here at
                 // all, which is how these pages ended up with an empty left slot.
-                return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                return <BackButton/>
 
             case "tables":
                 if(path.length < 4)
-                    return <button onClick={()=>{dispatch(openUI({ key: 'orgProfileDrawer' }))}} aria-label="Open organization profile" className="h-10 w-10 flex items-center justify-center rounded-full"><OrgAvatarNav/></button>;
-                return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                    return <OrgButton/>;
+                return <BackButton/>
 
             case "doc":
             case "board":
@@ -82,7 +92,7 @@ export function MobileTopNavigationBarFirst() {
             case "recordings":
 
 
-                return <Button aria-label='Back' variant='ghost' size='icon' className="h-10 w-10" onClick={()=>{router.back()}}><ArrowLeft className='h-5' /></Button>
+                return <BackButton/>
 
             default:
                 return <></>;
