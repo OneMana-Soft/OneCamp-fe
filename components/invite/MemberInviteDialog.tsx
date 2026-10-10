@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MailPlus, Link2 } from "@/lib/icons"
+import { Tile } from "@/components/ui/graphics/Tile"
+import { ADMIN_GROUP_HUE } from "@/components/admin/adminHues"
 import { invite, type InvitationAnswer } from "@/services/invitationService"
 import { InvitationOutcome, describeInvitation } from "@/components/invite/InvitationOutcome"
 
@@ -36,12 +38,14 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
     // Once made: what happened to its email, and the link.
     const [created, setCreated] = useState<{ answer: InvitationAnswer; email: string } | null>(null)
 
+    const reset = () => {
+        setCreated(null)
+        setEmail("")
+        setRefusal("")
+    }
+
     const close = (next: boolean) => {
-        if (!next) {
-            setCreated(null)
-            setEmail("")
-            setRefusal("")
-        }
+        if (!next) reset()
         onOpenChange(next)
     }
 
@@ -65,14 +69,22 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             <Dialog open={open} onOpenChange={close}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Link2 className="h-5 w-5 text-primary" />
+                        <DialogTitle className="flex items-center gap-2.5">
+                            {/* People's hue, as the people sections of Admin wear it. */}
+                            <Tile hue={ADMIN_GROUP_HUE.people} size="sm">
+                                <Link2 />
+                            </Tile>
                             {describeInvitation(created.answer, created.email).title}
                         </DialogTitle>
                         <DialogDescription>An invitation for {created.email}.</DialogDescription>
                     </DialogHeader>
                     <InvitationOutcome answer={created.answer} email={created.email} />
                     <DialogFooter>
+                        {/* One at a time, but the next is one press away rather
+                            than a close and a reopen. */}
+                        <Button type="button" variant="outline" onClick={reset}>
+                            Invite another
+                        </Button>
                         <Button type="button" onClick={() => close(false)}>
                             Done
                         </Button>
@@ -87,8 +99,10 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
             <DialogContent className="sm:max-w-[425px]">
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <MailPlus className="h-5 w-5 text-primary" />
+                        <DialogTitle className="flex items-center gap-2.5">
+                            <Tile hue={ADMIN_GROUP_HUE.people} size="sm">
+                                <MailPlus />
+                            </Tile>
                             Invite people
                         </DialogTitle>
                         <DialogDescription>
@@ -102,6 +116,12 @@ export const MemberInviteDialog: React.FC<Props> = ({ open, onOpenChange }) => {
                             <Input
                                 id="invite-email"
                                 type="email"
+                                name="email"
+                                inputMode="email"
+                                // Someone else's address: the browser must not
+                                // offer the inviter's own, or save this as theirs.
+                                autoComplete="off"
+                                spellCheck={false}
                                 placeholder="teammate@example.com"
                                 value={email}
                                 onChange={(e) => {
