@@ -58,7 +58,7 @@ export function ProjectsTimeline({ projects, compact = false }: { projects: Proj
           <div className="relative" style={{ width: nameWidth + gridWidth, height: rows.length * ROW_HEIGHT }}>
             <div aria-hidden className="pointer-events-none absolute inset-y-0" style={{ left: nameWidth, width: gridWidth }}>
               {todayLeft >= 0 && todayLeft < gridWidth && (
-                <div className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-primary/70" style={{ left: todayLeft + dayWidth / 2 }} />
+                <div className="absolute inset-y-0 w-px bg-primary" style={{ left: todayLeft + dayWidth / 2 }} />
               )}
             </div>
             {rows.map(({ p, span }, i) => {
@@ -81,12 +81,15 @@ export function ProjectsTimeline({ projects, compact = false }: { projects: Proj
                           href={timelineOf(p)}
                           aria-label={label}
                           title={label}
-                          className="absolute top-2.5 h-5 overflow-hidden rounded-md border border-border bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                          className="absolute top-3 h-4 overflow-hidden rounded-sm bg-muted-foreground/15 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                           style={{ left: box.left, width: box.width }}
                         >
-                          <span aria-hidden className={cn("block h-full", health?.dot ?? "bg-primary")} style={{ width: `${pct}%` }} />
+                          {/* How much is done, in an ink step: progress is not the
+                              accent's job (DESIGN.md), and health has the dot by
+                              the name. Finished reads in the success token. */}
+                          <span aria-hidden className={cn("block h-full", pct === 100 ? "bg-success" : "bg-muted-foreground/60")} style={{ width: `${pct}%` }} />
                         </Link>
-                        <span aria-hidden className="pointer-events-none absolute top-2.5 flex h-5 items-center text-xs tabular-nums text-muted-foreground" style={{ left: box.left + box.width + 6 }}>
+                        <span aria-hidden className="pointer-events-none absolute top-3 flex h-4 items-center text-xs tabular-nums text-muted-foreground" style={{ left: box.left + box.width + 6 }}>
                           {pct}%
                         </span>
                       </>

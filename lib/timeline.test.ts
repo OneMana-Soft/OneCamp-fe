@@ -236,7 +236,7 @@ describe("the rows", () => {
 })
 
 describe("bar colours", () => {
-  it("give every colour a project's status can have its own readable fill", () => {
+  it("draw every bar in one neutral fill, and give each status colour its own dot", () => {
     const project = {
       built_in: [],
       colors: [],
@@ -244,17 +244,21 @@ describe("bar colours", () => {
       custom: STATUS_COLORS.map((c, i) => ({ id: c, project_id: "p", name: c, category: "todo" as const, color: c, position: i })),
     } as ProjectStatuses
     const options = statusOptions(project)
+    const fills = new Set(STATUS_COLORS.map((c) => barColor({ task_status: "todo", task_custom_status: c }, options)))
+    expect(fills.size).toBe(1)
     for (const c of STATUS_COLORS) {
-      const cls = barColor({ task_status: "todo", task_custom_status: c }, options)
-      expect(cls, c).toMatch(new RegExp(`bg-${c}-\\d+ text-`))
+      expect(dotColor({ task_status: "todo", task_custom_status: c }, options), c).toBe(`bg-${c}-500`)
     }
+    // A built-in status's bar is the same neutral as a custom one's.
+    expect(barColor({ task_status: "inProgress" }, statusOptions(null))).toBe([...fills][0])
   })
 
   it("keep done work quiet without fading its name, and its dot in full colour", () => {
     expect(barColor({ task_status: "done" }, statusOptions(null))).not.toMatch(/opacity/)
-    expect(dotColor({ task_status: "done" }, statusOptions(null))).toBe("bg-emerald-500")
+    expect(barColor({ task_status: "done" }, statusOptions(null))).not.toBe(barColor({ task_status: "todo" }, statusOptions(null)))
+    expect(dotColor({ task_status: "done" }, statusOptions(null))).toBe("bg-success")
     const { rows } = timelineRows([task("d", { task_status: "done", task_due_date: iso(2026, 10, 1, 17) })], { grouping: "status", statuses: statusOptions(null), showDone: true, collapsed: new Set() })
-    expect(rows[0]).toMatchObject({ kind: "group", dot: "bg-emerald-500" })
+    expect(rows[0]).toMatchObject({ kind: "group", dot: "bg-success" })
   })
 })
 

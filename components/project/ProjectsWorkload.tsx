@@ -43,19 +43,31 @@ import { app_task_path } from "@/types/paths"
 const STATUSES = statusOptions(null)
 const isMeasure = (v: unknown): v is Measure => v === "tasks" || v === "hours"
 
-/** A week's cell, by how full the week is. */
+/**
+ * A week's cell, by how full the week is: room and full are two neutral steps
+ * (full the stronger ink), and only over uses a colour, the danger token. Full
+ * was the accent, which is for the one selection and primary action on a page,
+ * not for a week that is merely busy.
+ */
 const TONE: Record<Load, string> = {
   free: "",
   room: "bg-muted text-foreground hover:bg-muted/70",
-  full: "bg-primary/15 font-medium text-foreground hover:bg-primary/25",
+  full: "bg-foreground/10 font-medium text-foreground hover:bg-foreground/15",
   over: "bg-destructive/15 font-semibold text-destructive hover:bg-destructive/25",
 }
 const METER: Record<Load, string> = {
   free: "",
-  room: "bg-muted-foreground/50",
-  full: "bg-primary",
+  room: "bg-muted-foreground/40",
+  full: "bg-foreground/70",
   over: "bg-destructive",
 }
+
+/** A cell with nothing in it: blank to the eye, said to a screen reader. */
+const Empty = ({ title }: { title?: string }) => (
+  <span title={title}>
+    <span className="sr-only">None</span>
+  </span>
+)
 
 type Actions = {
   openTask: (taskUUID: string) => void
@@ -299,7 +311,7 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
                     />
                   </td>
                   {row.weeks.map((tasks, i) => (
-                    <td key={i} className={cn("border-b px-1 py-1 text-center", i === 0 && "bg-primary/[0.03]")}>
+                    <td key={i} className={cn("border-b px-1 py-1 text-center", i === 0 && "bg-muted/40")}>
                       <WeekCell
                         row={row}
                         tasks={tasks}
@@ -317,7 +329,7 @@ export function ProjectsWorkload({ projects, compact = false }: { projects: Proj
                     </td>
                   ))}
                   <td className="border-b px-2 py-1 text-center text-xs tabular-nums text-muted-foreground">
-                    {row.undated > 0 ? row.undated : <span aria-label="None">·</span>}
+                    {row.undated > 0 ? row.undated : <Empty />}
                   </td>
                 </tr>
               ))}
@@ -495,9 +507,7 @@ function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: Work
         Away
       </span>
     ) : (
-      <span className="text-muted-foreground/40" title={away ? `Away ${away} ${away === 1 ? "day" : "days"}` : undefined}>
-        ·
-      </span>
+      <Empty title={away ? `Away ${away} ${away === 1 ? "day" : "days"}` : undefined} />
     )
   }
   return (
@@ -539,7 +549,7 @@ function WeekCell({ row, tasks, week, when, ...rest }: CellProps & { tasks: Work
 
 function OverdueCell({ row, weeks, ...rest }: CellProps & { weeks: Date[] }) {
   const tasks = row.overdue
-  if (tasks.length === 0) return <span className="text-muted-foreground/40">·</span>
+  if (tasks.length === 0) return <Empty />
   const who = row.person ? row.person.user_name : "Nobody"
   const count = `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`
   const hours = rest.measure === "hours" ? ` (${formatLoad(row.overdueLoad, "hours")} estimated)` : ""
@@ -613,7 +623,7 @@ function TasksPopover({
         >
           {children}
           {meter && (
-            <span aria-hidden className="absolute inset-x-2 bottom-1 h-0.5 overflow-hidden rounded-full bg-foreground/10">
+            <span aria-hidden className="absolute inset-x-2 bottom-1 h-0.5 overflow-hidden rounded-full">
               <span className={cn("block h-full rounded-full", METER[meter.load])} style={{ width: `${meter.share * 100}%` }} />
             </span>
           )}

@@ -5,15 +5,21 @@ import { Check, Lock } from "@/lib/icons"
 import type { EditKind, TimelineTask } from "@/lib/timeline"
 import { cn } from "@/lib/utils/helpers/cn"
 
-/** Wide enough to hold its name; narrower bars have it beside them. */
-const NAME_INSIDE = 84
+/**
+ * Whether a bar holds its whole name: a 12px name runs about 7px a character,
+ * plus the bar's padding and its status mark. A bar that can't has the name
+ * beside it in full, rather than cut to "Record the…" inside it.
+ */
+const fitsName = (name: string, width: number, icons: number) => name.length * 7 + 24 + icons * 16 <= width
 
 interface BarProps {
   task: TimelineTask
   left: number
   width: number
-  /** Fill and text classes (lib/timeline statusColor). */
+  /** Fill and text classes (lib/timeline barColor): one neutral, quieter once done. */
   color: string
+  /** The status's dot colour (lib/timeline dotColor), a short mark at the bar's start. */
+  mark: string
   label: string
   /** The new dates, while it's being dragged. */
   dragLabel?: string
@@ -43,6 +49,7 @@ export const TimelineBar = memo(function TimelineBar({
   left,
   width,
   color,
+  mark,
   label,
   dragLabel,
   late,
@@ -57,7 +64,7 @@ export const TimelineBar = memo(function TimelineBar({
   onKeyDown,
   onClick,
 }: BarProps) {
-  const inside = width >= NAME_INSIDE
+  const inside = fitsName(task.task_name, width, (done ? 1 : 0) + (blocked > 0 ? 1 : 0))
   const handles = canEdit && width >= 18
   const waiting = blocked > 0 ? `, waiting on ${blocked} ${blocked === 1 ? "task" : "tasks"}` : ""
   // Room after the bar for the dependency handle, then the name of a short bar.
@@ -72,27 +79,30 @@ export const TimelineBar = memo(function TimelineBar({
         aria-describedby={canEdit ? helpId : undefined}
         title={`${task.task_name} · ${label}`}
         className={cn(
-          "group/bar absolute top-[7px] flex h-[22px] items-center rounded-md text-xs font-medium shadow-sm outline-none transition-shadow",
+          "group/bar absolute top-[7px] flex h-[22px] items-center rounded-sm text-xs font-medium outline-none",
           "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           color,
-          late && "ring-2 ring-destructive/80 ring-offset-1 ring-offset-background",
           linkTarget && "ring-2 ring-primary ring-offset-2 ring-offset-background",
-          dragLabel ? "z-10 cursor-grabbing shadow-md" : canEdit ? "cursor-grab" : "cursor-pointer",
+          dragLabel ? "z-10 cursor-grabbing" : canEdit ? "cursor-grab" : "cursor-pointer",
         )}
         style={{ left, width }}
         onPointerDown={(e) => onPointerDown(e, task, "move")}
         onKeyDown={(e) => onKeyDown(e, task)}
         onClick={() => onClick(task)}
       >
+        {/* The status, as a short mark where the bar starts. */}
+        <span aria-hidden className={cn("pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-l-sm", mark)} />
+        {/* Late: a rule under the bar in the danger token, not a ring around it. */}
+        {late && <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 rounded-b-sm bg-destructive" />}
         {handles && (
           <span
             aria-hidden
-            className="absolute inset-y-0 left-0 w-2 cursor-ew-resize rounded-l-md hover:bg-black/15"
+            className="absolute inset-y-0 left-0 w-2 cursor-ew-resize rounded-l-sm hover:bg-foreground/15"
             onPointerDown={(e) => onPointerDown(e, task, "start")}
           />
         )}
         {inside && (
-          <span className="sticky flex min-w-0 items-center gap-1 px-2" style={{ left: stickAt }}>
+          <span className="sticky flex min-w-0 items-center gap-1 pl-2.5 pr-2" style={{ left: stickAt }}>
             {done && <Check className="h-3 w-3 shrink-0" />}
             {blocked > 0 && <Lock aria-hidden className="h-3 w-3 shrink-0" />}
             <span className="truncate">{task.task_name}</span>
@@ -101,7 +111,7 @@ export const TimelineBar = memo(function TimelineBar({
         {handles && (
           <span
             aria-hidden
-            className="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-md hover:bg-black/15"
+            className="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-sm hover:bg-foreground/15"
             onPointerDown={(e) => onPointerDown(e, task, "end")}
           />
         )}
@@ -114,7 +124,7 @@ export const TimelineBar = memo(function TimelineBar({
           />
         )}
         {dragLabel && (
-          <span className="pointer-events-none absolute -top-7 left-0 whitespace-nowrap rounded-md border bg-popover px-1.5 py-0.5 text-2xs font-medium text-popover-foreground shadow-sm">
+          <span className="pointer-events-none absolute -top-7 left-0 whitespace-nowrap rounded-md border bg-popover px-1.5 py-0.5 text-2xs font-medium text-popover-foreground shadow-overlay">
             {dragLabel}
           </span>
         )}
@@ -122,7 +132,7 @@ export const TimelineBar = memo(function TimelineBar({
       {!inside && (
         <span
           aria-hidden
-          className={cn("pointer-events-none absolute top-[7px] flex h-[22px] max-w-64 items-center gap-1 truncate text-xs text-muted-foreground", done && "line-through")}
+          className={cn("pointer-events-none absolute top-[7px] flex h-[22px] items-center gap-1 whitespace-nowrap text-xs", done ? "text-faint-foreground line-through" : late ? "text-destructive" : "text-muted-foreground")}
           style={{ left: left + width + after }}
         >
           {blocked > 0 && <Lock className="h-3 w-3 shrink-0" />}
