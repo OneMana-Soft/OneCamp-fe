@@ -103,3 +103,17 @@ describe("the admin page's frame", () => {
     expect(screen.queryByRole("button", { name: /on this page/i })).toBeNull()
   })
 })
+
+describe("the people tabs while their code loads", () => {
+  // They waited as AdminCardSkeleton's generic four rows and a button bar,
+  // then drew their own frame, then their rows: two jumps.
+  it("wait in the people frame's own shape", async () => {
+    const { readFileSync } = await import("node:fs")
+    const { join } = await import("node:path")
+    const page = readFileSync(join(process.cwd(), "app/app/admin/page.tsx"), "utf8")
+    for (const card of ["teamCard", "adminCard", "invitationCard", "ExternalUsersCard"]) {
+      const line = page.split("\n").find((l) => l.includes(`import("@/components/admin/${card}")`)) ?? ""
+      expect(line, card).toMatch(/PeopleTabSkeleton/)
+    }
+  })
+})
